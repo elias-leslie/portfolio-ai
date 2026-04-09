@@ -16,9 +16,6 @@ vi.mock('@/components/money/MoneyOverviewPanel', () => ({
 vi.mock('@/components/money/MoneyAccountsPanel', () => ({
   MoneyAccountsPanel: () => <div>Money Accounts Panel</div>,
 }))
-vi.mock('@/components/money/MoneyInboxPanel', () => ({
-  MoneyInboxPanel: () => <div>Money Inbox Panel</div>,
-}))
 vi.mock('@/components/money/HouseholdDocumentCenter', () => ({
   HouseholdDocumentCenter: () => <div>Document Center</div>,
 }))
@@ -259,24 +256,25 @@ describe('MoneyPage', () => {
 
     render(<MoneyPage />)
 
-    expect(screen.getByText('Next Up')).toBeInTheDocument()
+    expect(screen.getByText('Coverage')).toBeInTheDocument()
     expect(screen.getByText('Refresh Chase Amazon card')).toBeInTheDocument()
     expect(screen.getByText('Net Worth')).toBeInTheDocument()
     expect(
       screen.getByText('3 months of recent evidence coverage.'),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: /Overview/i }),
+      screen.getByRole('button', { name: /Dashboard/i }),
     ).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /Accounts/i }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Inbox/i })).toBeInTheDocument()
     expect(screen.getByText('Money Overview Panel')).toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: 'Action' }),
+      screen.queryByRole('button', { name: /Inbox/i }),
     ).not.toBeInTheDocument()
-    expect(screen.queryByText(/stage 4 of 4/i)).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /Intake/i }),
+    ).not.toBeInTheDocument()
   })
 
   it('shows retry for the intake tab when document loading fails', async () => {
@@ -293,7 +291,7 @@ describe('MoneyPage', () => {
 
     render(<MoneyPage />)
 
-    await user.click(screen.getByRole('button', { name: 'Intake' }))
+    await user.click(screen.getByRole('button', { name: 'Add Evidence' }))
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(refetchDocuments).toHaveBeenCalled()

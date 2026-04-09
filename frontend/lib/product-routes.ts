@@ -1,34 +1,33 @@
 export type MainRoute = {
-  href: '/' | '/watchlist' | '/portfolio' | '/money' | '/status'
+  href: '/' | '/portfolio' | '/money' | '/status'
   label: string
   description: string
   matchPrefixes?: string[]
 }
 
-export const MAIN_PRODUCT_ROUTES: MainRoute[] = [
+export const PRIMARY_PRODUCT_ROUTES: MainRoute[] = [
   {
     href: '/',
     label: 'Today',
     description:
-      'Start with the highest-priority actions, ideas, and market context.',
-  },
-  {
-    href: '/watchlist',
-    label: 'Watchlist',
-    description:
-      'Track setups, score health, and symbol-specific follow-up work.',
-    matchPrefixes: ['/watchlist', '/symbols'],
+      'The single ranked queue for what matters now across money and investing.',
   },
   {
     href: '/portfolio',
-    label: 'Portfolio Coach',
-    description: 'Review concentration, sizing discipline, and live holdings.',
+    label: 'Investing',
+    description:
+      'Track symbols, holdings, and portfolio decisions in one workspace.',
+    matchPrefixes: ['/portfolio', '/watchlist', '/symbols'],
   },
   {
     href: '/money',
-    label: 'Money System',
-    description: 'Handle household questions, intake, reports, and planning.',
+    label: 'Money',
+    description:
+      'Keep household accounts current, surface data gaps, and add evidence.',
   },
+]
+
+export const SECONDARY_PRODUCT_ROUTES: MainRoute[] = [
   {
     href: '/status',
     label: 'Status',
@@ -38,12 +37,24 @@ export const MAIN_PRODUCT_ROUTES: MainRoute[] = [
 
 export function resolveMainProductRoute(pathname: string): MainRoute {
   return (
-    MAIN_PRODUCT_ROUTES.find((route) =>
+    PRIMARY_PRODUCT_ROUTES.find((route) =>
       (route.matchPrefixes ?? [route.href]).some((prefix) =>
         prefix === '/'
           ? pathname === '/'
           : pathname === prefix || pathname.startsWith(`${prefix}/`),
       ),
-    ) ?? MAIN_PRODUCT_ROUTES[0]
+    ) ?? PRIMARY_PRODUCT_ROUTES[0]
+  )
+}
+
+export function resolveSecondaryProductRoute(pathname: string): MainRoute | null {
+  return (
+    SECONDARY_PRODUCT_ROUTES.find((route) =>
+      (route.matchPrefixes ?? [route.href]).some((prefix) =>
+        prefix === '/'
+          ? pathname === '/'
+          : pathname === prefix || pathname.startsWith(`${prefix}/`),
+      ),
+    ) ?? null
   )
 }

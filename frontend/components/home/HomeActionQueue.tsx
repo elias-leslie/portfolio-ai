@@ -93,10 +93,6 @@ export function HomeActionQueue() {
     <SectionCard
       variant="surface"
       title="Action Queue"
-      description={
-        data?.summary ??
-        'The most important next steps across today, the portfolio, and the money system.'
-      }
     >
       {!isLoading && !error ? (
         <div className="info-banner mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -152,15 +148,15 @@ export function HomeActionQueue() {
           <p className="font-display italic text-xl text-text">All clear</p>
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-text-muted">
             No urgent cross-workspace actions right now. Use this time to
-            tighten the watchlist, review the portfolio, or upload new household
-            documents so Jenny has fresher evidence.
+            tighten the investing workspace or upload new household evidence so
+            Jenny has fresher inputs.
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2">
             <Button asChild size="sm" variant="outline">
-              <Link href="/watchlist">Review Watchlist</Link>
+              <Link href="/portfolio">Review Investing</Link>
             </Button>
             <Button asChild size="sm" variant="outline">
-              <Link href="/money?tab=intake">Open Intake</Link>
+              <Link href="/money#money-utilities">Add Evidence</Link>
             </Button>
           </div>
         </div>

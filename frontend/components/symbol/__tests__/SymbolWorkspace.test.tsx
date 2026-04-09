@@ -129,13 +129,9 @@ describe('SymbolWorkspace', () => {
     const user = userEvent.setup()
     render(<SymbolWorkspace symbol="vti" />)
 
+    expect(screen.getByText(/1 alert/i)).toBeInTheDocument()
     expect(
-      screen.getByText(
-        /1 alert · 1 recent article · 4 articles in 24h · 3 green lights · 0 caution flags/i,
-      ),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(/current setup: buy · confidence 7\/10/i),
+      screen.getByText(/score 78 · buy · confidence 7\/10/i),
     ).toBeInTheDocument()
     expect(screen.getByText(/live signal model/i)).toBeInTheDocument()
     expect(screen.getByText(/\+1.4% · 0.2% of portfolio/i)).toBeInTheDocument()
@@ -157,7 +153,7 @@ describe('SymbolWorkspace', () => {
       ),
     ).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Market' }))
+    await user.click(screen.getByRole('button', { name: 'Track' }))
 
     expect(screen.getByText(/recent articles/i)).toBeInTheDocument()
     expect(
@@ -280,7 +276,7 @@ describe('SymbolWorkspace', () => {
     expect(screen.queryByText(/live signal model/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/0 recent article/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/0 green lights/i)).not.toBeInTheDocument()
-    expect(screen.getByText(/^8 holdings$/i)).toBeInTheDocument()
+    expect(screen.getByText(/8 holdings/i)).toBeInTheDocument()
     expect(
       screen.queryByText(/top 3 holdings make up/i),
     ).not.toBeInTheDocument()
@@ -346,7 +342,7 @@ describe('SymbolWorkspace', () => {
 
     render(<SymbolWorkspace symbol="nvda" />)
 
-    await user.click(screen.getByRole('button', { name: 'Market' }))
+    await user.click(screen.getByRole('button', { name: 'Track' }))
 
     expect(
       screen.getByText(

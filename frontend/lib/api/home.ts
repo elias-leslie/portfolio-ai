@@ -29,36 +29,6 @@ export interface HomeActionQueue {
   summary: string
 }
 
-export interface AutomationGuardrail {
-  key: string
-  label: string
-  value: string
-  enabled: boolean
-  source: string
-  detail: string
-}
-
-export interface AutomationRecentRun {
-  id: string
-  label: string
-  status: string
-  triggeredBy: string
-  startedAt: string
-  completedAt: string | null
-  detail: string
-}
-
-export interface AutomationCenter {
-  generatedAt: string
-  guardrails: AutomationGuardrail[]
-  recentRuns: AutomationRecentRun[]
-  warnings: string[]
-}
-
 export async function fetchHomeActionQueue(): Promise<HomeActionQueue> {
   return get<HomeActionQueue>('/api/home/action-queue')
-}
-
-export async function fetchAutomationCenter(): Promise<AutomationCenter> {
-  return get<AutomationCenter>('/api/home/automation-center')
 }

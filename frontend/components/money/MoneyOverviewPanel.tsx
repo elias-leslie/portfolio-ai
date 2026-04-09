@@ -143,7 +143,6 @@ export function MoneyOverviewPanel({
         <SectionCard
           variant="surface"
           title="Account Allocation"
-          description="Click a slice to drill into the accounts driving your current asset mix."
         >
           {allocationData.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/20 px-6 py-10 text-sm text-text-muted">
@@ -273,7 +272,6 @@ export function MoneyOverviewPanel({
         <SectionCard
           variant="surface"
           title="Monthly Spend Trend"
-          description="Use the trend line to see whether spending is stabilizing or drifting."
         >
           {dashboard.reports.monthlySpendTrend.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/20 px-6 py-10 text-sm text-text-muted">
@@ -323,7 +321,6 @@ export function MoneyOverviewPanel({
       <SectionCard
         variant="surface"
         title="Spending Categories"
-        description="Click a category to inspect the recent transactions behind it."
       >
         {categoryData.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/20 px-6 py-10 text-sm text-text-muted">

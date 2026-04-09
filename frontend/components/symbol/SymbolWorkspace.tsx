@@ -162,12 +162,9 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
 
   if (isLoading) {
     return (
-      <PageContainer className="space-y-10 py-10">
-        <PageHeader
-          title={uppercaseSymbol}
-          description="Loading symbol workspace..."
-        />
-        <div className="grid gap-4 lg:grid-cols-4">
+      <PageContainer className="space-y-6 py-8">
+        <PageHeader title={uppercaseSymbol} />
+        <div className="grid gap-4 lg:grid-cols-3">
           {[...Array(4)].map((_, index) => (
             <div
               key={`symbol-skeleton-${index}`}
@@ -181,13 +178,12 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
 
   if (error || data?.error) {
     return (
-      <PageContainer className="space-y-10 py-10">
+      <PageContainer className="space-y-6 py-8">
         <PageHeader
           title={uppercaseSymbol}
-          description="Symbol workspace"
           actions={
             <Button asChild variant="outline">
-              <Link href="/watchlist">Back to Watchlist</Link>
+              <Link href="/portfolio?tab=symbols">Back to Investing</Link>
             </Button>
           }
         />
@@ -206,15 +202,14 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
   }
 
   return (
-    <PageContainer className="space-y-10 py-10">
+    <PageContainer className="space-y-6 py-8">
       <PageHeader
-        eyebrow="Symbol Workspace"
+        eyebrow="Investing"
         title={uppercaseSymbol}
-        description="One place to see what this symbol is doing, what Jenny thinks, and what to do next."
         actions={
           <>
             <Button asChild variant="outline">
-              <Link href="/watchlist">Back to Watchlist</Link>
+              <Link href="/portfolio?tab=symbols">Back to Investing</Link>
             </Button>
             <Button
               variant="outline"
@@ -232,61 +227,46 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
       />
 
       {jennyError ? (
-        <SectionCard variant="surface">
-          <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
-            Jenny review data is temporarily unavailable. Live symbol
-            intelligence is still shown below.
-          </div>
-        </SectionCard>
+        <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
+          Jenny review data is temporarily unavailable. Live symbol
+          intelligence is still shown below.
+        </div>
       ) : null}
 
-      <div className="info-banner">
-        {data?.generatedAt
-          ? `Updated ${formatRelativeTime(data.generatedAt)}`
-          : 'Update time unavailable'}
-        {' · '}
-        {formatCountLabel(alertCount, 'alert')}
+      <div className="flex flex-wrap gap-2 text-xs text-text-muted">
+        <span className="rounded-full border border-border/40 bg-surface-muted/20 px-3 py-1">
+          {data?.generatedAt
+            ? `Updated ${formatRelativeTime(data.generatedAt)}`
+            : 'Update time unavailable'}
+        </span>
+        <span className="rounded-full border border-border/40 bg-surface-muted/20 px-3 py-1">
+          {formatCountLabel(alertCount, 'alert')}
+        </span>
         {newsArticleCount > 0 ? (
-          <>
-            {' · '}
+          <span className="rounded-full border border-border/40 bg-surface-muted/20 px-3 py-1">
             {formatCountLabel(newsArticleCount, 'recent article')}
-          </>
-        ) : null}
-        {(data?.news?.articleCount24H ?? 0) > 0 ? (
-          <>
-            {' · '}
-            {formatCountLabel(data?.news?.articleCount24H ?? 0, 'article')} in
-            24h
-          </>
+          </span>
         ) : null}
         {evidenceSummary ? (
-          <>
-            {' · '}
+          <span className="rounded-full border border-border/40 bg-surface-muted/20 px-3 py-1">
             {evidenceSummary}
-          </>
+          </span>
         ) : null}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-4 animate-stagger">
-        <SectionCard variant="surface" title="Overall Score">
-          <p className="font-display italic text-3xl tabular-nums text-text">
-            {data?.scores?.overall?.toFixed(0) ?? '—'}
-          </p>
-          <p className="mt-2 text-sm text-text-muted">
-            Current setup: {formatEnumLabel(data?.signal?.type, 'Unavailable')}{' '}
-            · Confidence {data?.signal?.strength ?? '—'}/10
-          </p>
-          {evidenceSummary ? (
-            <p className="mt-2 text-sm text-text-muted">{evidenceSummary}</p>
-          ) : null}
-        </SectionCard>
-        <SectionCard variant="surface" title="Current Decision">
+      <div className="grid gap-4 lg:grid-cols-3 animate-stagger">
+        <SectionCard variant="surface" title="Current Call">
           <p className="font-display italic text-2xl text-text">
             {currentDecision?.headline ?? '—'}
           </p>
           <p className="mt-2 text-sm text-text-muted">
             {currentDecision?.summary ??
               'No live recommendation summary is available yet.'}
+          </p>
+          <p className="mt-3 text-sm text-text">
+            Score {data?.scores?.overall?.toFixed(0) ?? '—'} ·{' '}
+            {formatEnumLabel(data?.signal?.type, 'Unavailable')} · Confidence{' '}
+            {data?.signal?.strength ?? '—'}/10
           </p>
           <p className="mt-2 text-xs uppercase tracking-[0.18em] text-text-muted">
             {currentDecision?.sourceLabel ?? 'Decision unavailable'}
@@ -311,7 +291,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             </p>
           ) : null}
         </SectionCard>
-        <SectionCard variant="surface" title="Market Mood">
+        <SectionCard variant="surface" title="Market Context">
           <p className="font-display italic text-2xl tabular-nums text-text">
             {data?.market?.fearGreedLabel ?? '—'}
           </p>
@@ -342,14 +322,11 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             value: 'decision',
             label: 'Decision',
             badge: decisionBadge,
-            description:
-              'See the case for action and Jenny review in one place.',
             content: (
               <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
                 <SectionCard
                   variant="surface"
                   title="Why This Decision Shows Up"
-                  description="The clearest plain-language case behind the current call and the source that produced it."
                 >
                   <div className="space-y-4">
                     {(currentDecision?.reasoning ?? []).length > 0 ? (
@@ -430,7 +407,6 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                 <SectionCard
                   variant="surface"
                   title="Jenny Review State"
-                  description="Recent operator calls, active alerts, and finished outcomes."
                 >
                   <div className="space-y-4">
                     {activeNotification ? (
@@ -509,11 +485,9 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             ),
           },
           {
-            value: 'workflow',
-            label: 'Workflow',
+            value: 'track',
+            label: 'Track',
             badge: data?.alerts.length ? String(data.alerts.length) : undefined,
-            description:
-              'Capture the case, queue the follow-up, and keep the reasoning close.',
             content: (
               <div className="space-y-6">
                 <SymbolWorkflowPanel
@@ -527,19 +501,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                   symbol={uppercaseSymbol}
                   userTimezone={userTimezone}
                 />
-              </div>
-            ),
-          },
-          {
-            value: 'market',
-            label: 'Market',
-            badge: data?.news?.articleCount24H
-              ? String(data.news.articleCount24H)
-              : undefined,
-            description:
-              'Alerts, headlines, and the next routing action without forcing a long scroll.',
-            content: (
-              <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+
                 <SectionCard
                   variant="surface"
                   title="News and Alerts"
@@ -633,18 +595,17 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                 <SectionCard
                   variant="surface"
                   title="Put This In Context"
-                  description="Compare this idea against the rest of your workflow before acting."
                 >
                   <div className="grid gap-3">
                     <Link
-                      href="/watchlist"
+                      href="/portfolio?tab=symbols"
                       className="group flex items-center justify-between rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text transition-all duration-200 hover:border-primary/40 hover:bg-surface-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                     >
-                      <span>Review this symbol in the watchlist context</span>
+                      <span>Review this symbol in the full investing list</span>
                       <ArrowRight className="h-4 w-4 text-text-muted transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
                     </Link>
                     <Link
-                      href="/portfolio"
+                      href="/portfolio?tab=holdings"
                       className="group flex items-center justify-between rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text transition-all duration-200 hover:border-primary/40 hover:bg-surface-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                     >
                       <span>

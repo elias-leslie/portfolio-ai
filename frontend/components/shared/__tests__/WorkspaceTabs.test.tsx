@@ -32,7 +32,9 @@ describe('WorkspaceTabs', () => {
     )
 
     expect(screen.getByText('Planning Content')).toBeInTheDocument()
-    expect(screen.getByText('Review the longer-term plan.')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Review the longer-term plan.'),
+    ).not.toBeInTheDocument()
   })
 
   it('updates the query string while preserving unrelated parameters', async () => {
@@ -238,7 +240,7 @@ describe('WorkspaceTabs', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('connects the active tab, description, and panel for assistive tech', () => {
+  it('connects the active tab and panel for assistive tech', () => {
     render(
       <WorkspaceTabs
         defaultValue="operate"
@@ -258,10 +260,7 @@ describe('WorkspaceTabs', () => {
       trigger.getAttribute('aria-controls') ?? '',
     )
 
-    expect(trigger).toHaveAttribute('aria-describedby')
+    expect(trigger).not.toHaveAttribute('aria-describedby')
     expect(panel).toHaveAttribute('aria-labelledby', trigger.getAttribute('id'))
-    expect(
-      document.getElementById(trigger.getAttribute('aria-describedby') ?? ''),
-    ).toHaveTextContent('Run the day-to-day queue.')
   })
 })

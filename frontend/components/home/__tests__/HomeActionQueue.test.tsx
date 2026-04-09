@@ -127,11 +127,11 @@ describe('HomeActionQueue', () => {
       screen.getByText(/no urgent cross-workspace actions/i),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('link', { name: 'Review Watchlist' }),
-    ).toHaveAttribute('href', '/watchlist')
-    expect(screen.getByRole('link', { name: 'Open Intake' })).toHaveAttribute(
+      screen.getByRole('link', { name: 'Review Investing' }),
+    ).toHaveAttribute('href', '/portfolio')
+    expect(screen.getByRole('link', { name: 'Add Evidence' })).toHaveAttribute(
       'href',
-      '/money?tab=intake',
+      '/money#money-utilities',
     )
   })
 

@@ -52,7 +52,6 @@ export function MoneyAccountsPanel({
       <SectionCard
         variant="surface"
         title="Account Cards"
-        description="Each card shows the current state Jenny believes, how fresh it is, and whether more evidence is needed."
       >
         {accounts.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/20 px-6 py-10 text-sm text-text-muted">
@@ -129,7 +128,6 @@ export function MoneyAccountsPanel({
       <SectionCard
         variant="surface"
         title="Account Detail"
-        description="Select a card to inspect freshness, support, and the exact gaps Jenny still sees."
       >
         {!selectedAccount ? (
           <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/20 px-6 py-10 text-sm text-text-muted">

@@ -1,12 +1,14 @@
 'use client'
 
-import { Briefcase, Eye, LayoutDashboard, Radar, Wallet } from 'lucide-react'
+import { Briefcase, LayoutDashboard, Radar, Wallet } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { MarketStatusBadge } from '@/components/market/MarketStatusBadge'
 import {
-  MAIN_PRODUCT_ROUTES,
+  PRIMARY_PRODUCT_ROUTES,
+  SECONDARY_PRODUCT_ROUTES,
   resolveMainProductRoute,
+  resolveSecondaryProductRoute,
 } from '@/lib/product-routes'
 import { cn } from '@/lib/utils'
 
@@ -14,7 +16,6 @@ const routeIcons = {
   '/': LayoutDashboard,
   '/money': Wallet,
   '/portfolio': Briefcase,
-  '/watchlist': Eye,
   '/status': Radar,
 }
 
@@ -29,6 +30,7 @@ export function Navigation() {
  */
 function NavigationContent({ pathname }: { pathname: string }) {
   const activeRoute = resolveMainProductRoute(pathname)
+  const activeUtilityRoute = resolveSecondaryProductRoute(pathname)
 
   return (
     <nav className="sticky top-0 z-50 border-b border-border/50 bg-surface/80 backdrop-blur-md supports-[backdrop-filter]:bg-surface/60">
@@ -47,7 +49,7 @@ function NavigationContent({ pathname }: { pathname: string }) {
           {/* Main Navigation - Centered */}
           <div className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 lg:flex">
             <div className="flex items-center gap-1 rounded-full border border-border/50 bg-surface-muted/50 p-1 shadow-sm backdrop-blur-sm">
-              {MAIN_PRODUCT_ROUTES.map((link) => {
+              {PRIMARY_PRODUCT_ROUTES.map((link) => {
                 const Icon = routeIcons[link.href]
                 const isActive = activeRoute.href === link.href
 
@@ -81,16 +83,39 @@ function NavigationContent({ pathname }: { pathname: string }) {
           </div>
 
           {/* Utility Items */}
-          <div className="flex items-center gap-1 sm:gap-2">
-            <div className="hidden sm:block">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="hidden md:block">
               <MarketStatusBadge />
             </div>
+            {SECONDARY_PRODUCT_ROUTES.map((link) => {
+              const Icon = routeIcons[link.href]
+              const isActive = activeUtilityRoute?.href === link.href
+
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  aria-current={isActive ? 'page' : undefined}
+                  aria-label={`${link.label}. ${link.description}`}
+                  title={`${link.label} - ${link.description}`}
+                  className={cn(
+                    'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
+                    isActive
+                      ? 'border-primary/40 bg-primary/10 text-text'
+                      : 'border-border/40 bg-surface/60 text-text-muted hover:border-border/60 hover:bg-surface/80 hover:text-text',
+                  )}
+                >
+                  <Icon className="size-4" aria-hidden suppressHydrationWarning />
+                  <span className="hidden sm:inline">{link.label}</span>
+                </Link>
+              )
+            })}
           </div>
         </div>
 
         <div className="border-t border-border/40 py-3 lg:hidden">
           <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {MAIN_PRODUCT_ROUTES.map((link) => {
+            {PRIMARY_PRODUCT_ROUTES.map((link) => {
               const Icon = routeIcons[link.href]
               const isActive = activeRoute.href === link.href
 
@@ -117,9 +142,6 @@ function NavigationContent({ pathname }: { pathname: string }) {
               )
             })}
           </div>
-          <p className="mt-2 text-sm text-text-muted">
-            {activeRoute.description}
-          </p>
         </div>
       </div>
     </nav>

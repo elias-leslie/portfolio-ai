@@ -5,11 +5,14 @@ import {
   useAccounts,
   useAddPosition,
   useCreateAccount,
+  usePortfolio,
+  usePortfolioAnalytics,
 } from '@/lib/hooks/usePortfolio'
-
-vi.mock('@/components/portfolio/PortfolioOverview', () => ({
-  PortfolioOverview: () => <div>Portfolio Overview</div>,
-}))
+import {
+  useRefreshStatus,
+  useRefreshWatchlist,
+  useWatchlist,
+} from '@/lib/hooks/useWatchlist'
 
 vi.mock('@/components/portfolio/AccountsWithPositions', () => {
   const MockComponent = ({
@@ -38,10 +41,59 @@ vi.mock('@/components/portfolio/AccountsWithPositions', () => {
   }
 })
 
+vi.mock('@/components/watchlist/useWatchlistFilters', () => ({
+  useWatchlistFilters: () => ({
+    styleFilter: 'all',
+    setStyleFilter: vi.fn(),
+    signalFilter: 'all',
+    setSignalFilter: vi.fn(),
+    riskFilter: 'all',
+    setRiskFilter: vi.fn(),
+    searchQuery: '',
+    setSearchQuery: vi.fn(),
+    filteredItems: [{ id: 'watch-1', symbol: 'VTI' }],
+    counts: { style: {}, signal: {}, risk: {} },
+    hasActiveFilters: false,
+    resetFilters: vi.fn(),
+  }),
+}))
+
+vi.mock('@/components/watchlist/WatchlistFilterBar', () => ({
+  WatchlistFilterBar: () => <div>Filter Bar</div>,
+}))
+
+vi.mock('@/components/watchlist/WatchlistSearchBar', () => ({
+  WatchlistSearchBar: () => <div>Search Bar</div>,
+}))
+
+vi.mock('@/components/watchlist/WatchlistTable', () => ({
+  WatchlistTable: () => <div>Watchlist Table</div>,
+}))
+
+vi.mock('@/components/watchlist/WatchlistStateViews', () => ({
+  WatchlistEmptyState: () => <div>Watchlist Empty State</div>,
+  WatchlistErrorView: () => <div>Watchlist Error View</div>,
+  WatchlistLoadingSkeleton: () => <div>Watchlist Loading</div>,
+}))
+
+vi.mock('@/components/watchlist/AddSymbolModal', () => ({
+  AddSymbolModal: ({ open }: { open: boolean }) => (
+    <div>{open ? 'Add Symbol Modal Open' : 'Add Symbol Modal Closed'}</div>
+  ),
+}))
+
 vi.mock('@/lib/hooks/usePortfolio', () => ({
   useAccounts: vi.fn(),
   useAddPosition: vi.fn(),
   useCreateAccount: vi.fn(),
+  usePortfolio: vi.fn(),
+  usePortfolioAnalytics: vi.fn(),
+}))
+
+vi.mock('@/lib/hooks/useWatchlist', () => ({
+  useWatchlist: vi.fn(),
+  useRefreshWatchlist: vi.fn(),
+  useRefreshStatus: vi.fn(),
 }))
 
 vi.mock('sonner', () => ({
@@ -54,12 +106,18 @@ vi.mock('sonner', () => ({
 const mockUseAccounts = useAccounts as unknown as Mock
 const mockUseAddPosition = useAddPosition as unknown as Mock
 const mockUseCreateAccount = useCreateAccount as unknown as Mock
+const mockUsePortfolio = usePortfolio as unknown as Mock
+const mockUsePortfolioAnalytics = usePortfolioAnalytics as unknown as Mock
+const mockUseWatchlist = useWatchlist as unknown as Mock
+const mockUseRefreshWatchlist = useRefreshWatchlist as unknown as Mock
+const mockUseRefreshStatus = useRefreshStatus as unknown as Mock
 
 describe('PortfolioPage', () => {
   const addPositionMutate = vi.fn()
   const createAccountMutate = vi.fn()
 
   beforeEach(() => {
+    window.history.replaceState({}, '', '/portfolio')
     addPositionMutate.mockReset()
     createAccountMutate.mockReset()
 
@@ -92,6 +150,53 @@ describe('PortfolioPage', () => {
       mutate: createAccountMutate,
       isPending: false,
     })
+    mockUsePortfolio.mockReturnValue({
+      data: {
+        positions: [
+          {
+            id: 'position-1',
+            symbol: 'VTI',
+            accountId: 'acct-1',
+            shares: 10,
+            costBasis: 200,
+            currentPrice: 220,
+            currentValue: 2200,
+            gain: 200,
+            gainPct: 10,
+            positionType: 'long',
+            createdAt: '2026-03-11T00:00:00Z',
+            updatedAt: '2026-03-11T00:00:00Z',
+          },
+        ],
+        totalValue: 2200,
+        totalCostBasis: 2000,
+        totalGain: 200,
+        totalGainPct: 10,
+        cashBalanceTotal: 300,
+      },
+    })
+    mockUsePortfolioAnalytics.mockReturnValue({
+      data: {
+        diversificationScore: { score: 74 },
+        concentration: { topHoldingPct: 28 },
+      },
+    })
+    mockUseWatchlist.mockReturnValue({
+      data: {
+        items: [{ id: 'watch-1', symbol: 'VTI', scoreAlert: false }],
+      },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+      isFetching: false,
+    })
+    mockUseRefreshWatchlist.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+    })
+    mockUseRefreshStatus.mockReturnValue({
+      data: { isRefreshing: false },
+    })
   })
 
   it('submits a normalized account name from the add-account dialog', async () => {
@@ -109,7 +214,7 @@ describe('PortfolioPage', () => {
 
     render(<PortfolioPage />)
 
-    await user.click(screen.getByRole('button', { name: 'Open Add Account' }))
+    await user.click(screen.getByRole('button', { name: 'Add Account' }))
     await user.type(
       screen.getByLabelText('Account Name'),
       '  Joint   Brokerage  ',
@@ -142,6 +247,7 @@ describe('PortfolioPage', () => {
 
     render(<PortfolioPage />)
 
+    await user.click(screen.getByRole('button', { name: 'Holdings' }))
     await user.click(screen.getByRole('button', { name: 'Open Add Position' }))
     await user.type(screen.getByLabelText('Symbol'), ' msft ')
     await user.type(screen.getByLabelText('Shares'), '10')
@@ -182,9 +288,8 @@ describe('PortfolioPage', () => {
 
     render(<PortfolioPage />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Open Generic Add Position' }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Holdings' }))
+    await user.click(screen.getByRole('button', { name: 'Open Generic Add Position' }))
 
     await waitFor(() => {
       expect(
@@ -208,13 +313,14 @@ describe('PortfolioPage', () => {
 
     render(<PortfolioPage />)
 
-    await user.click(screen.getByRole('button', { name: 'Open Add Account' }))
+    await user.click(screen.getByRole('button', { name: 'Add Account' }))
     expect(screen.getByRole('button', { name: 'Creating...' })).toHaveAttribute(
       'aria-busy',
       'true',
     )
 
     await user.click(screen.getByRole('button', { name: 'Close' }))
+    await user.click(screen.getByRole('button', { name: 'Holdings' }))
     await user.click(screen.getByRole('button', { name: 'Open Add Position' }))
     expect(screen.getByRole('button', { name: 'Adding...' })).toHaveAttribute(
       'aria-busy',
@@ -236,8 +342,6 @@ describe('PortfolioPage', () => {
     render(<PortfolioPage />)
 
     expect(screen.getByRole('button', { name: 'Add Position' })).toBeDisabled()
-    expect(
-      screen.getByText(/create an account before adding your first position/i),
-    ).toBeInTheDocument()
+    expect(screen.getByText('Watchlist Table')).toBeInTheDocument()
   })
 })

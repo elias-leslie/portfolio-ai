@@ -18,28 +18,6 @@ vi.mock('@/components/home/HomeActionQueue', () => ({
   HomeActionQueue: () => <div>Home Action Queue</div>,
 }))
 
-vi.mock('@/components/market/MarketIntelligence', () => ({
-  MarketIntelligence: () => <div>Market Intelligence</div>,
-}))
-
-vi.mock('@/components/shared/UnifiedNewsIntelligenceCard', () => ({
-  UnifiedNewsIntelligenceCard: () => <div>News Card</div>,
-}))
-
-vi.mock('@/components/portfolio/PortfolioOverview', () => ({
-  PortfolioOverview: () => <div>Portfolio Overview</div>,
-}))
-
-vi.mock('@/lib/hooks/useNews', () => ({
-  useNewsIntelligence: () => ({
-    data: {},
-    isLoading: false,
-    error: null,
-    isFetching: false,
-    refetch: vi.fn(),
-  }),
-}))
-
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdDashboard: () => ({
     data: {
@@ -187,9 +165,6 @@ vi.mock('@/components/money/MoneyOverviewPanel', () => ({
 vi.mock('@/components/money/MoneyAccountsPanel', () => ({
   MoneyAccountsPanel: () => <div>Money Accounts Panel</div>,
 }))
-vi.mock('@/components/money/MoneyInboxPanel', () => ({
-  MoneyInboxPanel: () => <div>Money Inbox Panel</div>,
-}))
 vi.mock('@/components/money/HouseholdDocumentCenter', () => ({
   HouseholdDocumentCenter: () => <div>Document Center</div>,
 }))
@@ -211,12 +186,14 @@ vi.mock('@/components/status/StatusWorkspace', () => ({
 }))
 
 const replaceMock = vi.fn()
+const redirectMock = vi.fn()
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ symbol: 'VTI' }),
   usePathname: () => '/today',
   useRouter: () => ({ replace: replaceMock }),
   useSearchParams: () => new URLSearchParams(),
+  redirect: redirectMock,
 }))
 
 describe('core product routes', () => {
@@ -235,11 +212,19 @@ describe('core product routes', () => {
 
     render(<MoneyPage />)
 
-    expect(screen.getByText('Money System')).toBeInTheDocument()
+    expect(screen.getByText('Money')).toBeInTheDocument()
     expect(screen.getByText('Money Overview Panel')).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /Accounts/i }),
     ).toBeInTheDocument()
+  })
+
+  it('redirects the legacy watchlist route to investing', async () => {
+    const { default: WatchlistPage } = await import('../watchlist/page')
+
+    WatchlistPage()
+
+    expect(redirectMock).toHaveBeenCalledWith('/portfolio?tab=symbols')
   })
 
   it('renders the symbol route shell', async () => {

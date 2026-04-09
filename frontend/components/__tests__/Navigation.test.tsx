@@ -13,24 +13,19 @@ vi.mock('@/components/market/MarketStatusBadge', () => ({
 }))
 
 describe('Navigation', () => {
-  it('highlights the watchlist lane for nested symbol routes and exposes mobile route copy', () => {
+  it('highlights the investing lane for nested symbol routes', () => {
     usePathnameMock.mockReturnValue('/symbols/VTI')
 
     render(<Navigation />)
 
     expect(
       screen.getAllByRole('link', {
-        name: /Watchlist\. Track setups, score health, and symbol-specific follow-up work\./i,
+        name: /Investing\. Track symbols, holdings, and portfolio decisions in one workspace\./i,
       })[0],
     ).toHaveAttribute('aria-current', 'page')
-    expect(
-      screen.getByText(
-        /track setups, score health, and symbol-specific follow-up work/i,
-      ),
-    ).toBeInTheDocument()
   })
 
-  it('keeps all core routes reachable in the compact mobile navigation row', () => {
+  it('keeps the primary routes plus status reachable in navigation', () => {
     usePathnameMock.mockReturnValue('/')
 
     render(<Navigation />)
@@ -39,13 +34,10 @@ describe('Navigation', () => {
       screen.getAllByRole('link', { name: /today\./i }).length,
     ).toBeGreaterThan(0)
     expect(
-      screen.getAllByRole('link', { name: /watchlist\./i }).length,
+      screen.getAllByRole('link', { name: /investing\./i }).length,
     ).toBeGreaterThan(0)
     expect(
-      screen.getAllByRole('link', { name: /portfolio coach\./i }).length,
-    ).toBeGreaterThan(0)
-    expect(
-      screen.getAllByRole('link', { name: /money system\./i }).length,
+      screen.getAllByRole('link', { name: /money\./i }).length,
     ).toBeGreaterThan(0)
     expect(
       screen.getAllByRole('link', { name: /status\./i }).length,

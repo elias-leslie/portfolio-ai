@@ -65,7 +65,6 @@ export function WorkspaceTabs({
   }
   const initialValue = resolveValue(readRequestedValue())
   const [value, setValue] = useState(initialValue)
-  const activeTab = tabs.find((tab) => tab.value === value) ?? tabs[0]
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -148,11 +147,6 @@ export function WorkspaceTabs({
               value={tab.value}
               id={`${idBase}-${tab.value}-tab`}
               aria-controls={`${idBase}-${tab.value}-panel`}
-              aria-describedby={
-                tab.value === activeTab?.value && activeTab.description
-                  ? `${idBase}-active-description`
-                  : undefined
-              }
               aria-current={tab.value === value ? 'page' : undefined}
               className={cn(
                 'rounded-xl border border-border/30 bg-surface/50 px-4 py-2.5 text-left transition-all duration-200',
@@ -174,14 +168,6 @@ export function WorkspaceTabs({
             </TabsTrigger>
           ))}
         </TabsList>
-        {activeTab?.description ? (
-          <p
-            id={`${idBase}-active-description`}
-            className="mt-3 text-xs italic leading-relaxed text-text-muted/70"
-          >
-            {activeTab.description}
-          </p>
-        ) : null}
       </div>
 
       {tabs.map((tab) => (
