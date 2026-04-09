@@ -14,6 +14,7 @@ from app.api.symbols.router import build_symbol_intelligence as build_symbol_int
 from app.config import PORTFOLIO_BACKEND_PORT, PORTFOLIO_FRONTEND_PORT, settings
 from app.logging_config import get_logger
 from app.models.household_finance import HouseholdQuestion
+from app.services._money_workspace_routes import MONEY_EVIDENCE_ROUTE
 from app.utils._market_status import get_market_status
 
 from ._jenny_conversation_constants import (
@@ -39,7 +40,7 @@ logger = get_logger(__name__)
 # ── Runtime context magic strings ──────────────────────────────────────────────
 _DEFAULT_PROJECT_NAME = "portfolio-ai"
 _DEFAULT_SYSTEM_STATUS = "unknown"
-_DOCUMENT_INTAKE_ROUTE = "/money?tab=intake"
+_DOCUMENT_INTAKE_ROUTE = MONEY_EVIDENCE_ROUTE
 _DOCUMENT_PIPELINE_BEHAVIOR = (
     "Uploads create household document records and can update document reviews, "
     "household transactions, and planning items. They do not auto-create "

@@ -13,6 +13,11 @@ from app.models.household_finance import (
     HouseholdEvidenceAccount,
     HouseholdInboxItem,
 )
+from app.services._money_workspace_routes import (
+    MONEY_ACCOUNTS_ROUTE,
+    MONEY_CLARIFICATIONS_ROUTE,
+    MONEY_EVIDENCE_ROUTE,
+)
 
 _PRIORITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 _SEVERITY_PRIORITY = {"high": "high", "medium": "medium", "low": "low"}
@@ -480,7 +485,7 @@ def build_money_inbox(
                 title="Upload financial evidence",
                 detail="Drop in bank, card, brokerage, retirement, payroll, or bill evidence so Jenny can build the account map and money story.",
                 action_label="Open intake",
-                action_href="/money?tab=intake",
+                action_href=MONEY_EVIDENCE_ROUTE,
             )
         )
     elif parsed_documents == 0:
@@ -492,7 +497,7 @@ def build_money_inbox(
                 title="Finish evidence processing",
                 detail="Documents are present, but Jenny still needs at least one parsed financial file before the money system is trustworthy.",
                 action_label="Review intake",
-                action_href="/money?tab=intake",
+                action_href=MONEY_EVIDENCE_ROUTE,
             )
         )
 
@@ -505,7 +510,7 @@ def build_money_inbox(
                 title="Add transaction-bearing account history",
                 detail="Jenny still does not have enough bank or card activity to build a usable spending ledger.",
                 action_label="Upload statements",
-                action_href="/money?tab=intake",
+                action_href=MONEY_EVIDENCE_ROUTE,
             )
         )
 
@@ -519,7 +524,7 @@ def build_money_inbox(
                 title="Close transaction history gaps",
                 detail=str(gap_months[0]),
                 action_label="Review accounts",
-                action_href="/money?tab=accounts",
+                action_href=MONEY_ACCOUNTS_ROUTE,
             )
         )
 
@@ -534,7 +539,7 @@ def build_money_inbox(
                 title=str(question.question),
                 detail=str(getattr(question, "recommendation", None) or getattr(question, "rationale", None) or "Answering this lets Jenny keep the model aligned with reality."),
                 action_label="Answer",
-                action_href="/money?tab=inbox",
+                action_href=MONEY_CLARIFICATIONS_ROUTE,
                 related_question_id=question.id,
                 related_document_ids=[str(question.source_document_id)] if getattr(question, "source_document_id", None) else [],
             )
@@ -544,10 +549,10 @@ def build_money_inbox(
         top_gap = _top_gap(account.gap_flags)
         if top_gap is None or top_gap.severity == "low":
             continue
-        action_href = "/money?tab=accounts"
+        action_href = MONEY_ACCOUNTS_ROUTE
         action_label = "Review account"
         if top_gap.code in {"missing_evidence", "refresh_soon", "stale_evidence", "incomplete_application"}:
-            action_href = "/money?tab=intake"
+            action_href = MONEY_EVIDENCE_ROUTE
             action_label = "Add evidence"
         elif top_gap.code == "unconfirmed_match":
             action_label = "Confirm account"

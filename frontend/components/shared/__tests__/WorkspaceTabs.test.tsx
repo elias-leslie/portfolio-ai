@@ -9,7 +9,7 @@ describe('WorkspaceTabs', () => {
   })
 
   it('uses the tab query parameter when it matches an available tab', () => {
-    window.history.replaceState({}, '', '/money?tab=planning')
+    window.history.replaceState({}, '', '/workspace?tab=planning')
 
     render(
       <WorkspaceTabs
@@ -214,7 +214,7 @@ describe('WorkspaceTabs', () => {
       />,
     )
 
-    window.history.replaceState({}, '', '/money?tab=intake')
+    window.history.replaceState({}, '', '/workspace?tab=intake')
     await screen.findByText('Intake Content')
   })
 

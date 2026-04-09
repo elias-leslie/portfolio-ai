@@ -4,6 +4,10 @@ from __future__ import annotations
 from typing import Any
 
 from app.models.household_finance import JennyNeed
+from app.services._money_workspace_routes import (
+    MONEY_EVIDENCE_ROUTE,
+    MONEY_PLANNING_ROUTE,
+)
 
 # Minimum months of statement coverage before Jenny considers data sufficient
 MIN_COVERAGE_MONTHS = 3
@@ -33,7 +37,7 @@ def _jenny_statement_needs(coverage_months: int, days_since_latest: int | None) 
     return [JennyNeed(
         id="need_statements", need_type="provide", title="Upload financial evidence",
         detail=detail, priority="critical", status="unsatisfied",
-        recurrence="periodic", action_href="/money?tab=intake",
+        recurrence="periodic", action_href=MONEY_EVIDENCE_ROUTE,
     )]
 
 
@@ -75,7 +79,7 @@ def _jenny_confirmation_needs(
             title=f"Complete {section.label.lower()} planning",
             detail=section.detail,
             priority="high" if section.section in {"household", "income", "housing", "debt"} else "medium",
-            status="unsatisfied", recurrence="one_time", action_href="/money?tab=planning",
+            status="unsatisfied", recurrence="one_time", action_href=MONEY_PLANNING_ROUTE,
         ))
     for req in [r for r in planning.document_requirements if r.status == "missing"][:4]:
         needs.append(JennyNeed(
@@ -83,7 +87,7 @@ def _jenny_confirmation_needs(
             title=f"Upload {req.label}",
             detail=req.rationale or "Jenny needs this document to validate your planning assumptions.",
             priority=req.priority if req.priority in {"critical", "high", "medium", "low"} else "medium",
-            status="unsatisfied", recurrence="as_needed", action_href="/money?tab=intake",
+            status="unsatisfied", recurrence="as_needed", action_href=MONEY_EVIDENCE_ROUTE,
         ))
     return needs
 
@@ -105,7 +109,7 @@ def _jenny_account_question_needs(
                 f"Jenny spotted references to {label} in your transactions but has no "
                 "supporting evidence for it yet."
             ),
-            priority="high", status="unsatisfied", recurrence="one_time", action_href="/money?tab=intake",
+            priority="high", status="unsatisfied", recurrence="one_time", action_href=MONEY_EVIDENCE_ROUTE,
         ))
     for q in [q for q in questions if q.status == "open"][:3]:
         needs.append(JennyNeed(
@@ -161,6 +165,6 @@ def _jenny_freshness_needs(documents: list[Any], days_since_latest: int | None) 
                 f"The most recent transaction is {days_since_latest} days old. "
                 "Fresher evidence keeps pacing accurate."
             ),
-            priority="low", status="unsatisfied", recurrence="periodic", action_href="/money?tab=intake",
+            priority="low", status="unsatisfied", recurrence="periodic", action_href=MONEY_EVIDENCE_ROUTE,
         )]
     return []

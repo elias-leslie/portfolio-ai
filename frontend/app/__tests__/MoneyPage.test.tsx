@@ -170,7 +170,7 @@ function buildDashboard() {
         title: 'Refresh Chase Amazon card',
         detail: 'This account is getting stale.',
         actionLabel: 'Add evidence',
-        actionHref: '/money?tab=intake',
+        actionHref: '/money?utility=evidence#money-utilities',
         relatedAccountId: 'account-2',
         relatedQuestionId: null,
         relatedDocumentIds: [],
@@ -182,7 +182,7 @@ function buildDashboard() {
         title: 'Is this your main checking account?',
         detail: 'Jenny needs to know if it drives recurring bills.',
         actionLabel: 'Answer',
-        actionHref: '/money?tab=inbox',
+        actionHref: '/money#money-clarifications',
         relatedAccountId: null,
         relatedQuestionId: 'question-1',
         relatedDocumentIds: ['doc-2'],
@@ -295,5 +295,14 @@ describe('MoneyPage', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(refetchDocuments).toHaveBeenCalled()
+  })
+
+  it('opens the evidence utility from the utility query param', async () => {
+    window.history.replaceState({}, '', '/money?utility=evidence')
+    const { default: MoneyPage } = await import('../money/page')
+
+    render(<MoneyPage />)
+
+    expect(screen.getByText('Document Center')).toBeInTheDocument()
   })
 })

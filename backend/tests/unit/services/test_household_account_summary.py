@@ -14,6 +14,11 @@ from app.services._household_account_summary import (
     build_account_summaries,
     build_money_inbox,
 )
+from app.services._money_workspace_routes import (
+    MONEY_ACCOUNTS_ROUTE,
+    MONEY_CLARIFICATIONS_ROUTE,
+    MONEY_EVIDENCE_ROUTE,
+)
 
 
 def _iso(days_ago: int) -> str:
@@ -189,6 +194,21 @@ def test_build_money_inbox_prioritizes_questions_and_account_gaps() -> None:
     )
 
     assert inbox[0].title == "Finish evidence processing"
+    assert inbox[0].action_href == MONEY_EVIDENCE_ROUTE
     assert any(item.related_question_id == "question-1" for item in inbox)
+    assert any(
+        item.related_question_id == "question-1"
+        and item.action_href == MONEY_CLARIFICATIONS_ROUTE
+        for item in inbox
+    )
     assert any(item.related_account_id == account_summaries[0].id for item in inbox)
+    assert any(
+        item.related_account_id == account_summaries[0].id
+        and item.action_href == MONEY_EVIDENCE_ROUTE
+        for item in inbox
+    )
     assert any(item.category == "coverage" for item in inbox)
+    assert any(
+        item.category == "coverage" and item.action_href == MONEY_ACCOUNTS_ROUTE
+        for item in inbox
+    )

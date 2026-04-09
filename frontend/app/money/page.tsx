@@ -3,7 +3,7 @@
 import { Loader2, Settings2, Upload } from 'lucide-react'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { HouseholdDocumentCenter } from '@/components/money/HouseholdDocumentCenter'
 import { HouseholdPlanningPanels } from '@/components/money/HouseholdPlanningPanels'
 import { HouseholdProfileCard } from '@/components/money/HouseholdProfileCard'
@@ -74,9 +74,43 @@ function CoverageBadge({ children }: { children: ReactNode }) {
   )
 }
 
+type MoneyUtility = 'evidence' | 'planning'
+
+function resolveRequestedUtility(
+  requested: string | null | undefined,
+): MoneyUtility | null {
+  return requested === 'evidence' || requested === 'planning'
+    ? requested
+    : null
+}
+
+function readRequestedUtility(): MoneyUtility | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  return resolveRequestedUtility(
+    new URLSearchParams(window.location.search).get('utility'),
+  )
+}
+
+function syncUtilityToLocation(nextUtility: MoneyUtility | null) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  const nextUrl = new URL(window.location.href)
+  if (nextUtility) {
+    nextUrl.searchParams.set('utility', nextUtility)
+  } else {
+    nextUrl.searchParams.delete('utility')
+  }
+  window.history.replaceState(window.history.state, '', nextUrl)
+}
+
 export default function MoneyPage() {
-  const [openUtility, setOpenUtility] = useState<'evidence' | 'planning' | null>(
-    null,
+  const [openUtility, setOpenUtilityState] = useState<MoneyUtility | null>(
+    readRequestedUtility,
   )
   const {
     data: dashboard,
@@ -91,6 +125,27 @@ export default function MoneyPage() {
     refetch: refetchDocuments,
     isFetching: isFetchingDocuments,
   } = useHouseholdDocuments()
+
+  useEffect(() => {
+    const syncFromLocation = () => {
+      setOpenUtilityState((current) => {
+        const requested = readRequestedUtility()
+        return current === requested ? current : requested
+      })
+    }
+
+    window.addEventListener('popstate', syncFromLocation)
+    syncFromLocation()
+
+    return () => {
+      window.removeEventListener('popstate', syncFromLocation)
+    }
+  }, [])
+
+  const setOpenUtility = (nextUtility: MoneyUtility | null) => {
+    setOpenUtilityState(nextUtility)
+    syncUtilityToLocation(nextUtility)
+  }
 
   if (isLoading) {
     return (
