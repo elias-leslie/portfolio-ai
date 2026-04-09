@@ -86,6 +86,14 @@ vi.mock('@/components/portfolio/InvestingOverviewPanel', () => ({
   InvestingOverviewPanel: () => <div>Investing Overview Panel</div>,
 }))
 
+vi.mock('@/components/portfolio/InvestingMarketPanel', () => ({
+  InvestingMarketPanel: () => <div>Investing Market Panel</div>,
+}))
+
+vi.mock('@/components/portfolio/InvestingNewsPanel', () => ({
+  InvestingNewsPanel: () => <div>Investing News Panel</div>,
+}))
+
 vi.mock('@/lib/hooks/usePortfolio', () => ({
   useAccounts: vi.fn(),
   useAddPosition: vi.fn(),
@@ -352,7 +360,12 @@ describe('PortfolioPage', () => {
     expect(
       screen.queryByRole('button', { name: 'Add Position' }),
     ).not.toBeInTheDocument()
-    expect(screen.getByText('Watchlist Table')).toBeInTheDocument()
     expect(screen.getByText('Investing Overview Panel')).toBeInTheDocument()
+    expect(screen.getByText('Investing Market Panel')).toBeInTheDocument()
+    expect(screen.queryByText('Watchlist Table')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Market' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'News' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Symbols' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Holdings' })).toBeInTheDocument()
   })
 })

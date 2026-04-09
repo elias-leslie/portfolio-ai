@@ -1,11 +1,13 @@
 'use client'
 
 import { PlusCircle, RefreshCw } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { AccountsWithPositionsContent } from '@/components/portfolio/AccountsWithPositions'
 import { AddAccountDialog } from '@/components/portfolio/AddAccountDialog'
 import { AddPositionDialog } from '@/components/portfolio/AddPositionDialog'
+import { InvestingMarketPanel } from '@/components/portfolio/InvestingMarketPanel'
+import { InvestingNewsPanel } from '@/components/portfolio/InvestingNewsPanel'
 import { InvestingOverviewPanel } from '@/components/portfolio/InvestingOverviewPanel'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -22,7 +24,6 @@ import {
   WatchlistLoadingSkeleton,
 } from '@/components/watchlist/WatchlistStateViews'
 import { WatchlistTable } from '@/components/watchlist/WatchlistTable'
-import { formatCurrency, formatPercent } from '@/lib/formatters'
 import {
   useAccounts,
   usePortfolio,
@@ -34,39 +35,6 @@ import {
   useWatchlist,
 } from '@/lib/hooks/useWatchlist'
 import { cn } from '@/lib/utils'
-
-function MetricCard({
-  label,
-  value,
-  detail,
-  tone = 'default',
-}: {
-  label: string
-  value: string
-  detail: string
-  tone?: 'default' | 'gain' | 'loss'
-}) {
-  return (
-    <div className="rounded-2xl border border-border/40 bg-surface/60 px-4 py-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-        {label}
-      </p>
-      <p
-        className={cn(
-          'mt-2 text-2xl font-semibold tracking-tight',
-          tone === 'gain'
-            ? 'text-gain'
-            : tone === 'loss'
-              ? 'text-loss'
-              : 'text-text',
-        )}
-      >
-        {value}
-      </p>
-      <p className="mt-1 text-sm text-text-muted">{detail}</p>
-    </div>
-  )
-}
 
 export default function PortfolioPage() {
   const {
@@ -111,71 +79,6 @@ export default function PortfolioPage() {
   const [addSymbolOpen, setAddSymbolOpen] = useState(false)
 
   const positionCount = portfolio?.positions.length ?? 0
-  const uniqueHeldSymbols = new Set(
-    portfolio?.positions.map((position) => position.symbol.toUpperCase()) ?? [],
-  ).size
-  const flaggedCount =
-    watchlistData?.items.filter((item) => item.scoreAlert).length ?? 0
-  const staleCount =
-    watchlistData?.items.filter(
-      (item) =>
-        item.currentScore?.price.stale ||
-        item.currentScore?.technical.stale ||
-        item.dataQuality?.overallPct === 0,
-    ).length ?? 0
-  const diversificationLabel = analytics?.diversificationScore
-    ? `${analytics.diversificationScore.score}`
-    : '—'
-  const topHoldingPct = analytics?.concentration?.topHoldingPct ?? null
-  const totalGain = portfolio?.totalGain ?? 0
-
-  const metrics = useMemo(
-    () => [
-      {
-        label: 'Portfolio Value',
-        value: formatCurrency(portfolio?.totalValue ?? 0),
-        detail: `${positionCount} position${positionCount === 1 ? '' : 's'} across ${accounts?.length ?? 0} account${(accounts?.length ?? 0) === 1 ? '' : 's'}.`,
-        tone: 'default' as const,
-      },
-      {
-        label: 'Total Gain',
-        value: formatCurrency(totalGain),
-        detail: formatPercent(portfolio?.totalGainPct ?? 0, {
-          decimals: 2,
-          sign: true,
-        }),
-        tone: totalGain >= 0 ? ('gain' as const) : ('loss' as const),
-      },
-      {
-        label: 'Diversification',
-        value: diversificationLabel,
-        detail:
-          topHoldingPct != null
-            ? `Top holding ${topHoldingPct.toFixed(1)}% of portfolio.`
-            : 'Portfolio concentration unavailable.',
-        tone: 'default' as const,
-      },
-      {
-        label: 'Watchlist',
-        value: String(totalCount),
-        detail: `${uniqueHeldSymbols} held · ${flaggedCount} flagged · ${staleCount} stale.`,
-        tone: 'default' as const,
-      },
-    ],
-    [
-      accounts?.length,
-      diversificationLabel,
-      flaggedCount,
-      portfolio?.totalGainPct,
-      portfolio?.totalValue,
-      positionCount,
-      staleCount,
-      topHoldingPct,
-      totalCount,
-      totalGain,
-      uniqueHeldSymbols,
-    ],
-  )
 
   const openPositionDialog = (nextAccountId?: string) => {
     const id = nextAccountId ?? (accounts?.length === 1 ? accounts[0].id : '')
@@ -214,6 +117,21 @@ export default function PortfolioPage() {
   }
 
   const tabs: WorkspaceTab[] = [
+    {
+      value: 'market',
+      label: 'Market',
+      content: <InvestingMarketPanel />,
+    },
+    {
+      value: 'news',
+      label: 'News',
+      content: (
+        <InvestingNewsPanel
+          watchlistItems={watchlistData?.items ?? []}
+          positions={portfolio?.positions ?? []}
+        />
+      ),
+    },
     {
       value: 'symbols',
       label: 'Symbols',
@@ -310,7 +228,7 @@ export default function PortfolioPage() {
     <PageContainer className="space-y-6 py-8">
       <PageHeader
         title="Investing"
-        description="Start with the health of your portfolio, then open symbols or holdings only when you need the detail."
+        description="Your portfolio and the market at a glance."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -335,25 +253,14 @@ export default function PortfolioPage() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((metric) => (
-          <MetricCard
-            key={metric.label}
-            label={metric.label}
-            value={metric.value}
-            detail={metric.detail}
-            tone={metric.tone}
-          />
-        ))}
-      </div>
-
       <InvestingOverviewPanel
-        watchlistItems={watchlistData?.items ?? []}
-        positions={portfolio?.positions ?? []}
+        portfolio={portfolio}
+        analytics={analytics}
+        accountsCount={accounts?.length ?? 0}
       />
 
       <WorkspaceTabs
-        defaultValue="symbols"
+        defaultValue="market"
         ariaLabel="Investing workspace sections"
         tabs={tabs}
       />
