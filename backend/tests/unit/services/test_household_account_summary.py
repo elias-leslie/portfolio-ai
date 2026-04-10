@@ -156,6 +156,7 @@ def test_build_account_summaries_includes_portfolio_accounts_without_evidence() 
     assert summary.current_value == 10000.0
     assert summary.freshness_status == "needs_evidence"
     assert summary.linked_portfolio_account_id == "portfolio-1"
+    assert summary.match_confidence is None
     assert any(gap.code == "missing_evidence" for gap in summary.gap_flags)
 
 

@@ -517,7 +517,7 @@ def build_account_summaries(
                 freshness_status="needs_evidence",
                 freshness_label="Needs evidence",
                 match_status="tracked",
-                match_confidence=1.0,
+                match_confidence=None,
             )
         )
 
@@ -544,7 +544,7 @@ def build_account_summaries(
                 freshness_status="needs_evidence",
                 freshness_label="Needs evidence",
                 match_status="tracked",
-                match_confidence=1.0,
+                match_confidence=None,
             )
         )
 
