@@ -16,21 +16,24 @@ class NewsQualityScorer:
 
     def __init__(self) -> None:
         self.quality_model: ArticleQualityClassifier | None = None
+        self._model_path = Path(__file__).parent.parent.parent / "models" / "article_quality_v1.joblib"
         self._load_quality_model()
 
     def _load_quality_model(self) -> None:
         """Load ML quality model with graceful fallback."""
-        # Model is in backend/models/ not backend/app/models/
-        model_path = Path(__file__).parent.parent.parent / "models" / "article_quality_v1.joblib"
-
         try:
-            if model_path.exists():
-                self.quality_model = ArticleQualityClassifier.load(model_path)
-                logger.info("quality_model_loaded", model_path=str(model_path))
+            if self._model_path.exists():
+                self.quality_model = ArticleQualityClassifier.load(self._model_path)
+                logger.info("quality_model_loaded", model_path=str(self._model_path))
             else:
-                logger.warning("quality_model_not_found", model_path=str(model_path))
+                logger.warning("quality_model_not_found", model_path=str(self._model_path))
         except Exception as e:
-            logger.error("quality_model_load_failed", error=str(e), model_path=str(model_path), exc_info=True)
+            logger.error(
+                "quality_model_load_failed",
+                error=str(e),
+                model_path=str(self._model_path),
+                exc_info=True,
+            )
 
     def score_articles(self, articles: list[Any]) -> list[Any]:
         """Score article quality using ML model.
@@ -42,7 +45,12 @@ class NewsQualityScorer:
             Same list with quality_prediction and quality_confidence attributes added
         """
         if not self.quality_model:
-            logger.warning("quality_model_not_available", article_count=len(articles))
+            logger.debug(
+                "quality_scoring_skipped",
+                article_count=len(articles),
+                reason="model_unavailable",
+                model_path=str(self._model_path),
+            )
             return articles
 
         scored_count = 0

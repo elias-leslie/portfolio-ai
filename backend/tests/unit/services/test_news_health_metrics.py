@@ -181,3 +181,43 @@ def test_build_pipeline_health_degrades_when_all_fresh_sentiment_is_backup() -> 
         "107 headlines refreshed in 24h, but cached headlines have not been rescored "
         "by primary sentiment yet. 107 used backup sentiment scoring."
     )
+
+
+def test_build_pipeline_health_degrades_when_article_quality_is_unavailable() -> None:
+    now = datetime(2026, 4, 10, 16, 0, tzinfo=UTC)
+
+    health = NewsHealthMetrics.build_pipeline_health(
+        now=now,
+        ttl=timedelta(hours=6),
+        headlines_24h=120,
+        fallback_headlines_24h=0,
+        market_last_refreshed_at=now - timedelta(minutes=20),
+        watchlist_last_refreshed_at=now - timedelta(minutes=30),
+        article_quality_available=False,
+    )
+
+    assert health["status"] == "degraded"
+    assert health["latest_refresh_age_hours"] == 0.33
+    assert health["message"] == (
+        "120 headlines refreshed in 24h, but article quality scoring is unavailable."
+    )
+
+
+def test_build_pipeline_health_appends_quality_gap_to_existing_degradation() -> None:
+    now = datetime(2026, 4, 10, 16, 0, tzinfo=UTC)
+
+    health = NewsHealthMetrics.build_pipeline_health(
+        now=now,
+        ttl=timedelta(hours=6),
+        headlines_24h=42,
+        fallback_headlines_24h=0,
+        market_last_refreshed_at=now - timedelta(hours=8),
+        watchlist_last_refreshed_at=now - timedelta(hours=10),
+        article_quality_available=False,
+    )
+
+    assert health["status"] == "degraded"
+    assert health["message"] == (
+        "42 headlines cached in 24h. Latest refresh 8h ago; expected every 6h. "
+        "Article quality scoring is unavailable."
+    )

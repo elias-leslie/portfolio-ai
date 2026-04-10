@@ -15,6 +15,7 @@ export interface NewsHealthResponse {
   status: NewsHealthStatus
   message: string
   finbertAvailable: boolean
+  qualityModelAvailable: boolean
   finbertInstallHint?: string | null
   marketLastRefreshedAt: string | null
   watchlistLastRefreshedAt: string | null

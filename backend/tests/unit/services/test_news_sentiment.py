@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from unittest.mock import Mock
+from unittest.mock import ANY, Mock
 
 from app.services.news_sentiment import _load_finbert_dependencies
 from app.services.news_service import NewsService
@@ -32,6 +32,8 @@ def test_load_finbert_dependencies_returns_none_when_optional_packages_missing(m
 def test_news_health_includes_ml_install_hint_when_finbert_unavailable() -> None:
     news_service = NewsService(Mock())
     news_service.finbert_analyzer = _UnavailableFinBert()
+    news_service.quality_scorer = Mock()
+    news_service.quality_scorer.is_available.return_value = False
     news_service.cache_refresher = Mock()
     news_service.cache_refresher.latest_fetched_at.return_value = datetime.fromisoformat(
         "2026-03-10T00:00:00+00:00"
@@ -69,4 +71,15 @@ def test_news_health_includes_ml_install_hint_when_finbert_unavailable() -> None
     assert health["status"] == "healthy"
     assert health["message"] == "10 headlines refreshed in 24h."
     assert health["finbert_available"] is False
+    assert health["quality_model_available"] is False
     assert health["finbert_install_hint"] == "uv sync --extra dev --extra ml"
+    news_service.health_metrics.build_pipeline_health.assert_called_once_with(
+        now=ANY,
+        ttl=news_service.ttl,
+        headlines_24h=10,
+        fallback_headlines_24h=2,
+        market_last_refreshed_at=datetime.fromisoformat("2026-03-10T00:00:00+00:00"),
+        watchlist_last_refreshed_at=datetime.fromisoformat("2026-03-10T00:00:00+00:00"),
+        primary_sentiment_available=False,
+        article_quality_available=False,
+    )
