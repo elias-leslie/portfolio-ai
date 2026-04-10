@@ -21,18 +21,21 @@ def build_position_action_map(
     if not review_map or not hasattr(service, "portfolio_mgr") or not hasattr(service, "price_fetcher"):
         return {}
 
-    positions = [
+    all_live_positions = [
         position
         for position in service.portfolio_mgr.get_positions()
-        if position.position_type != "paper" and position.symbol in review_map
+        if position.position_type != "paper"
     ]
+    positions = [position for position in all_live_positions if position.symbol in review_map]
     if not positions:
         return {}
 
-    price_data = service.price_fetcher.fetch_price_data([position.symbol for position in positions])
+    price_data = service.price_fetcher.fetch_price_data(
+        [position.symbol for position in all_live_positions]
+    )
     performances = {
         performance.symbol: performance
-        for performance in calculate_position_performances(positions, price_data)
+        for performance in calculate_position_performances(all_live_positions, price_data)
     }
 
     action_map: dict[str, dict[str, Any]] = {}

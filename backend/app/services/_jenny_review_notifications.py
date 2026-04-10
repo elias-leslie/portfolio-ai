@@ -6,6 +6,14 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+MANAGED_NOTIFICATION_CATEGORIES = frozenset(
+    {
+        "missing_thesis",
+        "thesis_invalidation",
+        "watchlist_buy_candidate",
+    }
+)
+
 
 def extract_symbol_profile(evaluations: list[dict[str, Any]]) -> dict[str, Any]:
     for evaluation in evaluations:
@@ -163,13 +171,86 @@ def create_notifications(
     for symbol, review in review_map.items():
         position_action = position_actions.get(symbol)
         evaluations = evaluations_by_symbol.get(symbol, [])
+        active_categories: set[str] = set()
 
-        count += _emit_position_notification(service, routine_id, symbol, live_symbols, review, position_action, evaluations)
-        count += _emit_watchlist_notification(service, routine_id, symbol, live_symbols, review)
-        count += _emit_invalidation_notification(service, routine_id, symbol, live_symbols, evaluations, position_action)
-        count += _emit_missing_thesis_notification(service, routine_id, symbol, evaluations)
+        count += _emit_position_notification(
+            service,
+            routine_id,
+            symbol,
+            live_symbols,
+            review,
+            position_action,
+            evaluations,
+            active_categories,
+        )
+        count += _emit_watchlist_notification(
+            service,
+            routine_id,
+            symbol,
+            live_symbols,
+            review,
+            active_categories,
+        )
+        count += _emit_invalidation_notification(
+            service,
+            routine_id,
+            symbol,
+            live_symbols,
+            evaluations,
+            position_action,
+            active_categories,
+        )
+        count += _emit_missing_thesis_notification(
+            service,
+            routine_id,
+            symbol,
+            evaluations,
+            active_categories,
+        )
+        resolve_superseded_notifications(service, symbol, active_categories=active_categories)
 
     return count
+
+
+def is_managed_notification_category(category: str) -> bool:
+    return category.startswith("position_") or category in MANAGED_NOTIFICATION_CATEGORIES
+
+
+def resolve_superseded_notifications(
+    service: Any,
+    symbol: str | None,
+    *,
+    active_categories: set[str],
+) -> None:
+    """Resolve managed notifications for a symbol that no longer apply."""
+    with service.storage.connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, category
+            FROM jenny_notifications
+            WHERE status = 'open'
+              AND COALESCE(symbol, '') = COALESCE(%s, '')
+            """,
+            [symbol],
+        ).fetchall()
+
+        stale_notification_ids = [
+            str(notification_id)
+            for notification_id, category in rows
+            if is_managed_notification_category(str(category or ""))
+            and str(category or "") not in active_categories
+        ]
+
+        for notification_id in stale_notification_ids:
+            conn.execute(
+                """
+                UPDATE jenny_notifications
+                SET status = %s
+                WHERE id = %s
+                """,
+                ["resolved", notification_id],
+            )
+        conn.commit()
 
 
 def _emit_position_notification(
@@ -180,10 +261,12 @@ def _emit_position_notification(
     review: Any,
     position_action: dict[str, Any] | None,
     evaluations: list[dict[str, Any]],
+    active_categories: set[str],
 ) -> int:
     if symbol not in live_symbols:
         return 0
     if position_action and position_action["action"] != "hold":
+        active_categories.add(f"position_{position_action['action']}")
         service._upsert_notification(
             routine_id,
             symbol,
@@ -195,6 +278,7 @@ def _emit_position_notification(
         )
         return 1
     if review.final_verdict in {"exit", "trim", "review"}:
+        active_categories.add(f"position_{review.final_verdict}")
         service._upsert_notification(
             routine_id,
             symbol,
@@ -214,11 +298,13 @@ def _emit_watchlist_notification(
     symbol: str,
     live_symbols: set[str],
     review: Any,
+    active_categories: set[str],
 ) -> int:
     if symbol in live_symbols:
         return 0
     if review.final_verdict != "buy" or (review.average_confidence or 0) < 0.7:
         return 0
+    active_categories.add("watchlist_buy_candidate")
     service._upsert_notification(
         routine_id,
         symbol,
@@ -238,12 +324,14 @@ def _emit_invalidation_notification(
     live_symbols: set[str],
     evaluations: list[dict[str, Any]],
     position_action: dict[str, Any] | None,
+    active_categories: set[str],
 ) -> int:
     invalidation_triggers = extract_invalidation_triggers(evaluations)
     if not invalidation_triggers:
         return 0
     if position_action and position_action["action"] == "exit":
         return 0
+    active_categories.add("thesis_invalidation")
     service._upsert_notification(
         routine_id,
         symbol,
@@ -261,6 +349,7 @@ def _emit_missing_thesis_notification(
     routine_id: str,
     symbol: str,
     evaluations: list[dict[str, Any]],
+    active_categories: set[str],
 ) -> int:
     thesis = service.thesis_service.get_thesis(symbol)
     if thesis is not None:
@@ -268,6 +357,7 @@ def _emit_missing_thesis_notification(
     profile = extract_symbol_profile(evaluations)
     if profile.get("is_passive_fund"):
         return 0
+    active_categories.add("missing_thesis")
     service._upsert_notification(
         routine_id,
         symbol,

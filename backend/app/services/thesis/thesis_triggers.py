@@ -61,6 +61,6 @@ def check_sentiment_triggers(thesis_action: str, sentiment_score: float | None) 
 def check_cross_val_trigger(thesis: Thesis) -> list[str]:
     """Return trigger reason if cross-validation score is below threshold."""
     score = thesis.cross_validation_score
-    if score is not None and score < CROSS_VAL_SCORE_THRESHOLD:
+    if score is not None and score < CROSS_VAL_SCORE_THRESHOLD and is_thesis_recent(thesis):
         return [f"Low cross-validation score: {score:.2f}"]
     return []
