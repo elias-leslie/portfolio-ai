@@ -16,6 +16,34 @@ from .news_types import ArticleDbRowDict
 
 logger = get_logger(__name__)
 
+ARTICLE_SELECT_COLUMNS = """
+    symbol,
+    headline,
+    url,
+    summary,
+    news_source_name,
+    author,
+    image_url,
+    published_at,
+    sentiment_score,
+    sentiment_label,
+    sentiment_confidence,
+    sentiment_model,
+    raw_payload,
+    content_hash,
+    fetched_at,
+    updated_at,
+    filing_type,
+    is_material_event,
+    story_id,
+    is_primary_article,
+    coverage_count,
+    impact_summary,
+    actionable_insight,
+    quality_prediction,
+    quality_confidence
+"""
+
 
 @dataclass(frozen=True)
 class CachedArticles:
@@ -38,44 +66,11 @@ class NewsCacheManager:
 
     def load_cached_articles(self, symbol: str, limit: int) -> CachedArticles:
         """Load cached articles from database for a given symbol."""
-        with self.storage.connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT
-                    symbol,
-                    headline,
-                    url,
-                    summary,
-                    news_source_name,
-                    author,
-                    image_url,
-                    published_at,
-                    sentiment_score,
-                    sentiment_label,
-                    sentiment_confidence,
-                    sentiment_model,
-                    raw_payload,
-                    content_hash,
-                    fetched_at,
-                    updated_at,
-                    filing_type,
-                    is_material_event,
-                    story_id,
-                    is_primary_article,
-                    coverage_count,
-                    impact_summary,
-                    actionable_insight,
-                    quality_prediction,
-                    quality_confidence
-                FROM news_cache
-                WHERE symbol = %s
-                ORDER BY fetched_at DESC, published_at DESC NULLS LAST
-                LIMIT %s
-                """,
-                [symbol, limit],
-            ).fetchall()
-
-        articles = [self._row_to_article(row) for row in rows]
+        articles = self._load_articles(
+            where_sql="symbol = %s",
+            params=[symbol],
+            limit=limit,
+        )
         latest_fetched_at = max((article.fetched_at for article in articles), default=None)
         return CachedArticles(articles=articles, fetched_at=latest_fetched_at)
 
@@ -88,43 +83,47 @@ class NewsCacheManager:
         limit: int,
     ) -> list[NewsArticle]:
         """Load articles within a specific time window."""
+        return self._load_articles(
+            where_sql="symbol = %s AND fetched_at >= %s AND fetched_at < %s",
+            params=[symbol, start, end],
+            limit=limit,
+        )
+
+    def load_recent_fallback_articles(
+        self,
+        *,
+        since: datetime,
+        limit: int,
+        symbol: str | None = None,
+    ) -> list[NewsArticle]:
+        """Load recent cached articles that still use backup sentiment scoring."""
+        where_sql = "fetched_at >= %s AND COALESCE(sentiment_model, '') <> %s"
+        params: list[Any] = [since, "finbert"]
+        if symbol is not None:
+            where_sql = f"symbol = %s AND {where_sql}"
+            params.insert(0, symbol)
+
+        return self._load_articles(where_sql=where_sql, params=params, limit=limit)
+
+    def _load_articles(
+        self,
+        *,
+        where_sql: str,
+        params: Sequence[Any],
+        limit: int,
+    ) -> list[NewsArticle]:
+        """Load articles using the canonical news_cache projection."""
         with self.storage.connection() as conn:
             rows = conn.execute(
-                """
+                f"""
                 SELECT
-                    symbol,
-                    headline,
-                    url,
-                    summary,
-                    news_source_name,
-                    author,
-                    image_url,
-                    published_at,
-                    sentiment_score,
-                    sentiment_label,
-                    sentiment_confidence,
-                    sentiment_model,
-                    raw_payload,
-                    content_hash,
-                    fetched_at,
-                    updated_at,
-                    filing_type,
-                    is_material_event,
-                    story_id,
-                    is_primary_article,
-                    coverage_count,
-                    impact_summary,
-                    actionable_insight,
-                    quality_prediction,
-                    quality_confidence
+                    {ARTICLE_SELECT_COLUMNS}
                 FROM news_cache
-                WHERE symbol = %s
-                  AND fetched_at >= %s
-                  AND fetched_at < %s
+                WHERE {where_sql}
                 ORDER BY fetched_at DESC, published_at DESC NULLS LAST
                 LIMIT %s
                 """,
-                [symbol, start, end, limit],
+                [*params, limit],
             ).fetchall()
 
         return [self._row_to_article(row) for row in rows]
@@ -222,16 +221,18 @@ class NewsCacheManager:
 
     def article_to_db_row(self, article: NewsArticle) -> ArticleDbRowDict:
         """Convert NewsArticle to database row format."""
-        payload = article.raw
+        raw_payload = article.raw
         # Defensive check: ensure payload is a dict (fix for list indices error)
-        if not isinstance(payload, dict):
+        if not isinstance(raw_payload, dict):
             logger.warning(
                 "article_raw_not_dict",
                 symbol=article.symbol,
                 headline=article.headline[:50] if article.headline else "",
-                raw_type=type(payload).__name__,
+                raw_type=type(raw_payload).__name__,
             )
             payload = {}
+        else:
+            payload = dict(raw_payload)
         if "sentiment_probabilities" not in payload:
             payload["sentiment_probabilities"] = article.sentiment.probabilities
         payload.setdefault("sentiment_model", article.sentiment.model)
@@ -266,6 +267,42 @@ class NewsCacheManager:
             "quality_prediction": getattr(article, "quality_prediction", None),
             "quality_confidence": getattr(article, "quality_confidence", None),
         }
+
+    def update_article_sentiments(
+        self,
+        articles: Sequence[NewsArticle],
+        *,
+        updated_at: datetime,
+    ) -> int:
+        """Update sentiment fields for cached articles without changing freshness."""
+        if not articles:
+            return 0
+
+        rows_to_update = [self.article_to_db_row(article) for article in articles]
+        updated = 0
+
+        with self.storage.connection() as conn:
+            for row in rows_to_update:
+                row["updated_at"] = updated_at
+                result = conn.execute(
+                    """
+                    UPDATE news_cache
+                    SET sentiment_score = %(sentiment_score)s,
+                        sentiment_label = %(sentiment_label)s,
+                        sentiment_confidence = %(sentiment_confidence)s,
+                        sentiment_model = %(sentiment_model)s,
+                        raw_payload = %(raw_payload)s,
+                        updated_at = %(updated_at)s
+                    WHERE symbol = %(symbol)s
+                      AND content_hash = %(content_hash)s
+                    """,
+                    dict(row),
+                )
+                row_count = getattr(result, "rowcount", 0) or 0
+                updated += max(int(row_count), 0)
+            conn.commit()
+
+        return updated
 
     def save_articles(self, articles: list[NewsArticle]) -> None:
         """Save articles to database with upsert logic."""

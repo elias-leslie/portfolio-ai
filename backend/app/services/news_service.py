@@ -25,7 +25,7 @@ from .news_cache_refresh import (
 )
 from .news_constants import MARKET_SYMBOL
 from .news_health_metrics import NewsHealthMetrics
-from .news_models import NewsBundle, NewsSummary
+from .news_models import NewsArticle, NewsBundle, NewsSummary
 from .news_processing import FinBertUnavailableError, NewsProcessor
 from .news_quality_scoring import NewsQualityScorer
 from .news_sentiment import (
@@ -227,6 +227,15 @@ class NewsService:
             self._try_refresh_cache(symbol=symbol, query=query, max_articles=max_articles, now=now)
             cached = self.cache_manager.load_cached_articles(symbol, limit=summary_limit)
 
+        if self._should_rescore_cached_fallbacks(cached.articles, now):
+            updated = self.rescore_recent_fallback_sentiment(
+                since=now - self.ttl,
+                limit=summary_limit,
+                symbol=symbol,
+            )
+            if updated:
+                cached = self.cache_manager.load_cached_articles(symbol, limit=summary_limit)
+
         all_recent = self.processor.select_recent_articles(
             cached.articles, now, max_articles=summary_limit, ttl=self.ttl,
         )
@@ -245,6 +254,70 @@ class NewsService:
         except Exception as exc:  # pragma: no cover - network/API failure
             logger.warning("news_refresh_failed", symbol=symbol, error=str(exc))
 
+    def _sentiment_repair_limit(self) -> int:
+        """Return the bounded repair batch size using existing news fetch limits."""
+        return max(1, min(ARTICLE_OVERFETCH_CAP, self.max_articles * self.selection_overfetch))
+
+    def _should_rescore_cached_fallbacks(
+        self,
+        articles: list[NewsArticle],
+        now: datetime,
+    ) -> bool:
+        """Return whether fresh cached articles still use backup sentiment scoring."""
+        window_start = now - self.ttl
+        return any(
+            article.fetched_at >= window_start and article.sentiment.model != "finbert"
+            for article in articles
+        )
+
+    def rescore_recent_fallback_sentiment(
+        self,
+        *,
+        since: datetime,
+        limit: int,
+        symbol: str | None = None,
+    ) -> int:
+        """Rescore recent cached backup sentiment with FinBERT when available."""
+        fallback_articles = self.cache_manager.load_recent_fallback_articles(
+            since=since,
+            limit=limit,
+            symbol=symbol,
+        )
+        if not fallback_articles:
+            return 0
+
+        now = datetime.now(UTC)
+        try:
+            rescored = self.processor.rescore_articles_with_primary(
+                fallback_articles,
+                now=now,
+            )
+        except FinBertUnavailableError:
+            logger.info(
+                "news_sentiment_cache_rescore_skipped_primary_unavailable",
+                symbol=symbol,
+                requested=len(fallback_articles),
+            )
+            return 0
+        except Exception as exc:  # pragma: no cover - inference failure
+            logger.warning(
+                "news_sentiment_cache_rescore_failed",
+                symbol=symbol,
+                requested=len(fallback_articles),
+                error=str(exc),
+            )
+            return 0
+
+        updated = self.cache_manager.update_article_sentiments(rescored, updated_at=now)
+        if updated:
+            logger.info(
+                "news_sentiment_cache_rescore_updated",
+                symbol=symbol,
+                updated=updated,
+                requested=len(fallback_articles),
+            )
+        return updated
+
     def get_health(self) -> dict[str, Any]:
         """Return lightweight health metrics for the news pipeline."""
         try:
@@ -254,6 +327,12 @@ class NewsService:
 
         now = datetime.now(UTC)
         window_start = now - timedelta(hours=24)
+        sentiment_rescored_24h = 0
+        if finbert_available:
+            sentiment_rescored_24h = self.rescore_recent_fallback_sentiment(
+                since=window_start,
+                limit=self._sentiment_repair_limit(),
+            )
         fm = self.health_metrics.get_fallback_metrics(window_start)
         mx = self.health_metrics.get_article_mix_metrics(now)
         vendor_health = self.health_metrics.build_vendor_health(
@@ -290,6 +369,7 @@ class NewsService:
             "fallback_avg_latency_ms_24h": round(avg_ms, 2) if avg_ms is not None else None,
             "fallback_p95_latency_ms_24h": round(p95_ms, 2) if p95_ms is not None else None,
             "fallback_last_event_at": to_iso(fm["last_fallback_at"]) if fm["last_fallback_at"] else None,
+            "sentiment_rescored_24h": sentiment_rescored_24h,
             "article_mix": {
                 "total_pre_dedupe": mx["total_pre"],
                 "total_post_dedupe": mx["total_post"],

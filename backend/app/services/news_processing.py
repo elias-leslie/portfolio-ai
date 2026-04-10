@@ -63,6 +63,14 @@ def _compose_text(entry: dict[str, Any]) -> str:
     return combined or "No headline available."
 
 
+def _compose_article_text(article: NewsArticle) -> str:
+    """Compose text for rescoring a cached article."""
+    headline = article.headline or ""
+    summary = article.summary or ""
+    combined = f"{headline.strip()}. {summary.strip()}" if summary else headline.strip()
+    return combined or "No headline available."
+
+
 class NewsProcessor:
     """Processes news articles with sentiment scoring and aggregation."""
 
@@ -290,6 +298,52 @@ class NewsProcessor:
             )
 
         return articles
+
+    def rescore_articles_with_primary(
+        self,
+        articles: Sequence[NewsArticle],
+        *,
+        now: datetime,
+    ) -> list[NewsArticle]:
+        """Rescore cached fallback articles with the primary FinBERT analyzer."""
+        if not articles:
+            return []
+
+        texts = [_compose_article_text(article) for article in articles]
+        sentiments = self.finbert_analyzer.score_batch(texts)
+        rescored: list[NewsArticle] = []
+
+        for article, sentiment in zip(articles, sentiments, strict=True):
+            if sentiment.model != "finbert":
+                logger.warning(
+                    "news_sentiment_rescore_skipped_non_primary_model",
+                    symbol=article.symbol,
+                    content_hash=article.content_hash,
+                    model=sentiment.model,
+                )
+                continue
+
+            payload = dict(article.raw)
+            payload["sentiment_probabilities"] = sentiment.probabilities
+            payload["sentiment_model"] = sentiment.model
+            payload.pop("sentiment_fallback", None)
+            payload["sentiment_rescore"] = {
+                "previous_model": article.sentiment.model,
+                "rescored_at": now.isoformat().replace("+00:00", "Z"),
+            }
+
+            rescored.append(
+                article.model_copy(update={"sentiment": sentiment, "raw": payload})
+            )
+
+        if rescored:
+            logger.info(
+                "news_sentiment_cache_rescored",
+                articles=len(rescored),
+                skipped=len(articles) - len(rescored),
+            )
+
+        return rescored
 
     def build_summary(
         self,

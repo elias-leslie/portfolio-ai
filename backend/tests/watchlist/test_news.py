@@ -49,6 +49,9 @@ class StubAnalyzer:
     def __init__(self, scores: list[SentimentScore]) -> None:
         self._scores = scores
 
+    def is_available(self) -> bool:
+        return True
+
     def score_batch(self, texts: Sequence[str]) -> list[SentimentScore]:
         assert len(texts) == len(self._scores)
         return self._scores
@@ -108,6 +111,8 @@ def _news_article(
     headline: str,
     summary: str,
     fetched_at: datetime,
+    sentiment: SentimentScore | None = None,
+    raw: dict[str, Any] | None = None,
 ) -> NewsArticle:
     return NewsArticle(
         symbol=symbol,
@@ -119,14 +124,15 @@ def _news_article(
         image_url=None,
         published_at=fetched_at,
         fetched_at=fetched_at,
-        sentiment=SentimentScore(
+        sentiment=sentiment
+        or SentimentScore(
             score=0.2,
             label="positive",
             confidence=0.8,
             model="test-model",
         ),
         content_hash=content_hash,
-        raw={"raw": {"vendor": "test-source"}},
+        raw=raw if raw is not None else {"raw": {"vendor": "test-source"}},
         vendor="test-source",
     )
 
@@ -501,6 +507,89 @@ def test_news_cache_save_articles_upserts_by_symbol_content_hash(storage: Any) -
         assert row[0] == 1
         assert row[1] == "Updated summary"
         assert row[2] == second_fetch
+    finally:
+        with storage.connection() as conn:
+            conn.execute("DELETE FROM news_cache WHERE symbol = %s", [symbol])
+            conn.execute("DELETE FROM symbols WHERE symbol = %s", [symbol])
+            conn.commit()
+
+
+def test_news_service_rescores_cached_fallback_sentiment(storage: Any) -> None:
+    symbol = "ZZZRESCORE"
+    content_hash = "news-cache-rescore-test"
+    fetched_at = datetime.now(UTC) - timedelta(minutes=10)
+    manager = NewsCacheManager(storage)
+
+    with storage.connection() as conn:
+        conn.execute("DELETE FROM news_cache WHERE symbol = %s", [symbol])
+        conn.execute(
+            """
+            INSERT INTO symbols (symbol, company_name)
+            VALUES (%s, %s)
+            ON CONFLICT (symbol) DO NOTHING
+            """,
+            [symbol, "News Cache Rescore Test"],
+        )
+        conn.commit()
+
+    try:
+        manager.save_articles(
+            [
+                _news_article(
+                    symbol=symbol,
+                    content_hash=content_hash,
+                    headline="Rescore cached fallback headline",
+                    summary="The old cache row used the backup sentiment analyzer.",
+                    fetched_at=fetched_at,
+                    sentiment=SentimentScore(
+                        score=-0.2,
+                        label="negative",
+                        confidence=0.6,
+                        model="vader",
+                    ),
+                    raw={
+                        "raw": {"vendor": "test-source"},
+                        "sentiment_model": "vader",
+                        "sentiment_fallback": {
+                            "reason": "unavailable",
+                            "article_count": 1,
+                        },
+                    },
+                )
+            ]
+        )
+
+        primary: Any = StubAnalyzer(
+            [
+                SentimentScore(
+                    score=0.7,
+                    label="positive",
+                    confidence=0.9,
+                    model="finbert",
+                    probabilities={"positive": 0.9, "neutral": 0.08, "negative": 0.02},
+                )
+            ]
+        )
+        fallback: Any = StubAnalyzer([])
+        service = NewsService(
+            storage,
+            ttl=timedelta(hours=6),
+            vendor_sources=[],
+            finbert_analyzer=primary,
+            fallback_analyzer=fallback,
+            auto_load_credentials=False,
+        )
+
+        bundle = service.get_news_intelligence(symbol, max_articles=1)
+
+        assert bundle.summary.model_breakdown == {"finbert": 1}
+        assert bundle.articles[0].sentiment.model == "finbert"
+
+        reloaded = manager.load_cached_articles(symbol, limit=1).articles[0]
+        assert reloaded.sentiment.model == "finbert"
+        assert reloaded.sentiment.score == 0.7
+        assert reloaded.raw.get("sentiment_fallback") is None
+        assert reloaded.raw["sentiment_rescore"]["previous_model"] == "vader"
     finally:
         with storage.connection() as conn:
             conn.execute("DELETE FROM news_cache WHERE symbol = %s", [symbol])

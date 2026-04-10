@@ -188,7 +188,9 @@ class NewsHealthMetrics:
             row = conn.execute(
                 """
                 SELECT
-                    SUM(CASE WHEN sentiment_model <> %s THEN 1 ELSE 0 END) AS fallback_count,
+                    SUM(
+                        CASE WHEN COALESCE(sentiment_model, '') <> %s THEN 1 ELSE 0 END
+                    ) AS fallback_count,
                     COUNT(*) AS total_count,
                     AVG(
                         CASE

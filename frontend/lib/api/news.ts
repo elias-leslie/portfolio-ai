@@ -28,6 +28,7 @@ export interface NewsHealthResponse {
   fallbackAvgLatencyMs24H: number | null
   fallbackP95LatencyMs24H: number | null
   fallbackLastEventAt: string | null
+  sentimentRescored24H?: number
   vendors: Record<string, VendorHealth>
 }
 
