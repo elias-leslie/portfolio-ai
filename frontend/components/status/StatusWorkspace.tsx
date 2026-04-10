@@ -86,6 +86,45 @@ export function StatusWorkspace() {
   const totalQuotaCount = apiQuotas.length
   const staleMaintenanceCount =
     healthQuery.data?.staleMaintenanceRuns?.length ?? 0
+  const healthySourceCount = sourceRows.filter(
+    ([, source]) => source.status === 'ok',
+  ).length
+  const downSourceCount = sourceRows.filter(
+    ([, source]) => source.status === 'down',
+  ).length
+  const degradedSourceCount = sourceRows.filter(
+    ([, source]) => source.status === 'degraded',
+  ).length
+  const impairedSourceCount = downSourceCount + degradedSourceCount
+  const sourceCount = sourceRows.length
+  const dataFeedsIssueParts = [
+    downSourceCount > 0 ? `${formatInteger(downSourceCount)} down` : null,
+    degradedSourceCount > 0
+      ? `${formatInteger(degradedSourceCount)} degraded`
+      : null,
+  ].filter((part): part is string => Boolean(part))
+  const dataFeedsIssueSuffix =
+    dataFeedsIssueParts.length > 0
+      ? ` · ${dataFeedsIssueParts.join(' · ')}`
+      : ''
+  const dataFeedsValue =
+    sourceCount > 0
+      ? `${formatInteger(healthySourceCount)}/${formatInteger(sourceCount)} healthy`
+      : '—'
+  const dataFeedsDetail =
+    sourceCount === 0
+      ? 'No provider health checks yet'
+      : impairedSourceCount === 0
+        ? 'All checked providers are responding'
+        : `${formatInteger(impairedSourceCount)} feed${impairedSourceCount === 1 ? '' : 's'} need${impairedSourceCount === 1 ? 's' : ''} review${dataFeedsIssueSuffix}`
+  const dataFeedsTone =
+    sourceCount === 0
+      ? 'default'
+      : healthySourceCount === 0
+        ? 'negative'
+        : impairedSourceCount > 0
+          ? 'warning'
+          : 'positive'
 
   const watchlistItemsWithScores =
     healthQuery.data?.watchlistStats?.itemsWithScores ?? null
@@ -258,13 +297,10 @@ export function StatusWorkspace() {
               detail={cacheDetail}
             />
             <SummaryStat
-              label="API Keys"
-              value={`${formatInteger(configuredQuotaCount)}/${formatInteger(totalQuotaCount)}`}
-              detail={
-                totalQuotaCount > 0
-                  ? `${formatInteger(configuredQuotaCount)} data provider${configuredQuotaCount === 1 ? '' : 's'} connected`
-                  : 'No data providers connected yet'
-              }
+              label="Data Feeds"
+              value={dataFeedsValue}
+              detail={dataFeedsDetail}
+              tone={dataFeedsTone}
             />
             <SummaryStat
               label="Jobs To Review"

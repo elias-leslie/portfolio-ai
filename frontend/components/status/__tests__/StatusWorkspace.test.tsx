@@ -123,6 +123,7 @@ describe('StatusWorkspace', () => {
     expect(screen.getByText('4.0h')).toBeInTheDocument()
     expect(screen.getByText('Version 2026.03.10')).toBeInTheDocument()
     expect(screen.getByText('Cached prices 12 · age 1.5h')).toBeInTheDocument()
+    expect(screen.getByText('No provider health checks yet')).toBeInTheDocument()
     expect(
       screen.getByText(
         'No app-service status entries are available right now.',
@@ -588,7 +589,7 @@ describe('StatusWorkspace', () => {
           checks: {},
           sources: {
             alphavantage: {
-              status: 'degraded',
+              status: 'down',
               lastSuccess: '2026-03-10T23:20:00.000Z',
               successRate: 62,
               avgLatencyMs: 240,
@@ -677,6 +678,10 @@ describe('StatusWorkspace', () => {
 
     render(<StatusWorkspace />)
 
+    expect(screen.getByText('0/1 healthy')).toBeInTheDocument()
+    expect(
+      screen.getByText('1 feed needs review · 1 down'),
+    ).toBeInTheDocument()
     expect(screen.getByText(/rate-limit hits: 3/i)).toBeInTheDocument()
     expect(screen.getByText(/pause remaining: 3m/i)).toBeInTheDocument()
     expect(
@@ -768,6 +773,9 @@ describe('StatusWorkspace', () => {
 
     render(<StatusWorkspace />)
 
+    expect(
+      screen.getByText('1 feed needs review · 1 degraded'),
+    ).toBeInTheDocument()
     expect(screen.getByText('Update time unavailable')).toBeInTheDocument()
     expect(
       screen.getByText('No successful automation run recorded yet.'),
