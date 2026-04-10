@@ -35,7 +35,7 @@ const INDICATOR_CONFIG = {
 type IndicatorKey = keyof typeof INDICATOR_CONFIG
 
 export function IndicatorsTrendChart() {
-  const [timeframe, setTimeframe] = useState<Timeframe>('1Y')
+  const [timeframe, setTimeframe] = useState<Timeframe>('3M')
   const [highlighted, setHighlighted] = useState<IndicatorKey | null>(null)
   const days = timeframeToDays(timeframe)
 

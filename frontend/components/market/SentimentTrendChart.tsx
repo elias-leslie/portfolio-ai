@@ -21,7 +21,7 @@ import {
 } from './TimeframeSelector'
 
 export function SentimentTrendChart() {
-  const [timeframe, setTimeframe] = useState<Timeframe>('1Y')
+  const [timeframe, setTimeframe] = useState<Timeframe>('3M')
   const days = timeframeToDays(timeframe)
 
   const {

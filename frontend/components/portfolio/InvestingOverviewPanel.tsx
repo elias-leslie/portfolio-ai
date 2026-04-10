@@ -150,7 +150,7 @@ export function InvestingOverviewPanel({
             tone={marketMood.tone}
           />
           <OverviewStat
-            label="S&P 500"
+            label="S&P 500 Today"
             value={sp500Value}
             detail={
               market?.indicators.sp500?.value != null
@@ -162,19 +162,19 @@ export function InvestingOverviewPanel({
             }
           />
           <OverviewStat
-            label="Volatility"
+            label="Volatility Now"
             value={formatIndicatorValue(market?.indicators.vix?.value)}
             detail={volatility.detail}
             tone={volatility.tone}
           />
           <OverviewStat
-            label="10-Year Rate"
+            label="10-Year Rate Now"
             value={formatIndicatorValue(market?.indicators.tnx?.value, '%')}
             detail={tenYearRate.detail}
             tone={tenYearRate.tone}
           />
           <OverviewStat
-            label="News Tone"
+            label="Recent News Tone"
             value={newsTone.label}
             detail={newsTone.detail}
             tone={newsTone.tone}

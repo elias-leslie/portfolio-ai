@@ -35,7 +35,7 @@ function timeframeLabel(timeframe: Timeframe) {
 }
 
 export function InvestingMarketPanel() {
-  const [sectorTimeframe, setSectorTimeframe] = useState<Timeframe>('1Y')
+  const [sectorTimeframe, setSectorTimeframe] = useState<Timeframe>('3M')
   const { data: market } = useMarketIntelligence()
   const {
     data: sectorHistory,

@@ -31,12 +31,12 @@ vi.mock('@/components/market/SectorPerformanceChart', () => ({
     onTimeframeChange,
   }: {
     timeframe: string
-    onTimeframeChange: (timeframe: '3M') => void
+    onTimeframeChange: (timeframe: '1Y') => void
   }) => (
     <div>
       <p>Sector Chart {timeframe}</p>
-      <button type="button" onClick={() => onTimeframeChange('3M')}>
-        Switch to 3M
+      <button type="button" onClick={() => onTimeframeChange('1Y')}>
+        Switch to 1Y
       </button>
     </div>
   ),
@@ -99,26 +99,6 @@ describe('InvestingMarketPanel', () => {
     render(<InvestingMarketPanel />)
 
     expect(
-      screen.getByText(/strongest relative performers over the past year/i),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(/weakest relative performers over the past year/i),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(
-        /Technology \+18\.4% · Communication Services \+12\.1% · Industrials \+9\.2%/i,
-      ),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(
-        /Energy -8\.6% · Healthcare -2\.2% · Consumer Discretionary \+5\.5%/i,
-      ),
-    ).toBeInTheDocument()
-    expect(screen.getByText('Sector Chart 1Y')).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Switch to 3M' }))
-
-    expect(
       screen.getByText(/strongest relative performers over the past 3 months/i),
     ).toBeInTheDocument()
     expect(
@@ -135,5 +115,25 @@ describe('InvestingMarketPanel', () => {
       ),
     ).toBeInTheDocument()
     expect(screen.getByText('Sector Chart 3M')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Switch to 1Y' }))
+
+    expect(
+      screen.getByText(/strongest relative performers over the past year/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/weakest relative performers over the past year/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /Technology \+18\.4% · Communication Services \+12\.1% · Industrials \+9\.2%/i,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /Energy -8\.6% · Healthcare -2\.2% · Consumer Discretionary \+5\.5%/i,
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Sector Chart 1Y')).toBeInTheDocument()
   })
 })
