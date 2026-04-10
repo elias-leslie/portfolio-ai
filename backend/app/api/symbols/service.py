@@ -107,6 +107,7 @@ def build_symbol_intelligence(
             generated_at=response.generated_at,
             notifications=notifications,
             latest_review=latest_review,
+            portfolio_position=response.portfolio.position if response.portfolio else None,
         )
 
     return response

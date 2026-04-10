@@ -12,6 +12,7 @@ from collections import defaultdict
 from importlib import import_module
 from typing import TYPE_CHECKING, Any, cast
 
+from ...api.symbols.builders import build_portfolio_section
 from ...api.symbols.data_fetchers import get_market_data
 from ...api.symbols.decisions import build_symbol_decision
 from ...api.symbols.recommendations import generate_recommendation
@@ -235,12 +236,17 @@ def build_watchlist_decision_map(
             },
             market,
         )
+        portfolio_section = build_portfolio_section(
+            positions_by_symbol.get(symbol),
+            summary,
+        )
         decision = build_symbol_decision(
             symbol=symbol,
             recommendation=recommendation,
             generated_at=item.get("decision_generated_at") or item.get("updated_at"),
             notifications=notifications,
             latest_review=latest_review,
+            portfolio_position=portfolio_section.position,
         )
         decisions[symbol] = decision.model_dump(mode="json")
 

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { HomeActionQueue } from '../HomeActionQueue'
 
 const transitionMutate = vi.fn()
+const acknowledgeMutate = vi.fn()
 const useHomeActionQueueMock = vi.fn()
 
 vi.mock('@/lib/hooks/useHomeActionQueue', () => ({
@@ -12,7 +13,7 @@ vi.mock('@/lib/hooks/useHomeActionQueue', () => ({
 
 vi.mock('@/lib/hooks/usePortfolio', () => ({
   useAcknowledgeJennyNotification: () => ({
-    mutate: vi.fn(),
+    mutate: acknowledgeMutate,
     isPending: false,
   }),
 }))
@@ -26,6 +27,8 @@ vi.mock('@/lib/hooks/useSymbolIntelligence', () => ({
 
 describe('HomeActionQueue', () => {
   beforeEach(() => {
+    acknowledgeMutate.mockReset()
+    transitionMutate.mockReset()
     useHomeActionQueueMock.mockReturnValue({
       data: {
         summary: '1 prioritized action ready.',
@@ -168,7 +171,7 @@ describe('HomeActionQueue', () => {
             priority: 'critical',
             title: 'NVDA: Exit this position',
             detail: 'Reduce risk now.',
-            actionLabel: 'Review with Jenny',
+            actionLabel: 'Review decision',
             href: '/symbols/NVDA?tab=decision',
             symbol: 'NVDA',
             badge: 'Critical',
@@ -181,6 +184,12 @@ describe('HomeActionQueue', () => {
               sourceLabel: 'Jenny alert',
               sourceTimestamp: '2026-03-10T16:00:00Z',
               severity: 'critical',
+            },
+            execution: {
+              kind: 'acknowledge_notification',
+              symbol: null,
+              stage: null,
+              notificationId: 'jenny-1',
             },
           },
         ],
@@ -195,5 +204,52 @@ describe('HomeActionQueue', () => {
 
     expect(screen.getByText(/jenny alert · critical/i)).toBeInTheDocument()
     expect(screen.getByText('Reduce risk now.')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /review decision/i }),
+    ).toHaveAttribute('href', '/symbols/NVDA?tab=decision')
+    expect(screen.getByRole('button', { name: /dismiss alert/i })).toHaveAttribute(
+      'title',
+      expect.stringMatching(/does not place a trade/i),
+    )
+  })
+
+  it('dismisses Jenny alerts without implying trade approval', async () => {
+    const user = userEvent.setup()
+    useHomeActionQueueMock.mockReturnValue({
+      data: {
+        generatedAt: '2026-03-10T00:00:00Z',
+        summary: '1 prioritized action ready.',
+        actions: [
+          {
+            id: 'jenny-1',
+            source: 'jenny',
+            category: 'investing',
+            priority: 'critical',
+            title: 'NVDA: Exit this position',
+            detail: 'Reduce risk now.',
+            actionLabel: 'Review decision',
+            href: '/symbols/NVDA?tab=decision',
+            symbol: 'NVDA',
+            badge: 'Critical',
+            execution: {
+              kind: 'acknowledge_notification',
+              symbol: null,
+              stage: null,
+              notificationId: 'note-1',
+            },
+          },
+        ],
+      },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    render(<HomeActionQueue />)
+
+    await user.click(screen.getByRole('button', { name: /dismiss alert/i }))
+
+    expect(acknowledgeMutate).toHaveBeenCalledWith('note-1')
   })
 })

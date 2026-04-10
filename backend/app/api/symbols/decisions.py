@@ -7,7 +7,7 @@ from typing import Any
 
 from app.models.jenny import JennyNotification, JennySymbolReview
 
-from .models import DecisionSection
+from .models import DecisionSection, PositionInfo
 
 
 def _format_label(value: str | None, fallback: str = "Awaiting review") -> str:
@@ -34,6 +34,33 @@ def _dedupe_reasoning(reasons: list[str | None]) -> list[str]:
         seen.add(normalized)
         result.append(normalized)
     return result
+
+
+def _format_position_fact(symbol: str, position: PositionInfo | None) -> str | None:
+    if position is None:
+        return None
+
+    if abs(position.gain_pct) < 0.05:
+        performance = "about flat from cost basis"
+    else:
+        direction = "up" if position.gain_pct >= 0 else "down"
+        performance = f"{direction} {abs(position.gain_pct):.1f}% from cost basis"
+
+    return (
+        f"Current live position: {symbol.upper()} is {performance} and now makes up "
+        f"{position.weight_pct:.1f}% of the portfolio."
+    )
+
+
+def _is_stored_position_fact(reason: str | None) -> bool:
+    if not reason or "%" not in reason:
+        return False
+
+    normalized = reason.lower()
+    return any(
+        marker in normalized
+        for marker in ("portfolio", "cost basis", "current gain", "makes up")
+    )
 
 
 def _sort_notifications(notifications: list[JennyNotification]) -> list[JennyNotification]:
@@ -63,12 +90,21 @@ def build_symbol_decision(
     generated_at: datetime | str | None,
     notifications: list[JennyNotification] | None = None,
     latest_review: JennySymbolReview | None = None,
+    portfolio_position: PositionInfo | None = None,
 ) -> DecisionSection:
     """Resolve the current decision for a symbol from Jenny + live model context."""
     active_notification = _sort_notifications(notifications or [])[:1]
     if active_notification:
         notification = active_notification[0]
-        reasoning = _dedupe_reasoning([notification.detail, notification.recommendation])
+        current_position_fact = _format_position_fact(symbol, portfolio_position)
+        stored_detail = (
+            None
+            if current_position_fact and _is_stored_position_fact(notification.detail)
+            else notification.detail
+        )
+        reasoning = _dedupe_reasoning(
+            [current_position_fact, stored_detail, notification.recommendation]
+        )
         return DecisionSection(
             action=notification.category,
             headline=_strip_symbol_prefix(notification.title, symbol),

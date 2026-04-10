@@ -43,12 +43,20 @@ function quickActionLabel(action: HomeActionItem) {
 
   switch (action.execution.kind) {
     case 'acknowledge_notification':
-      return 'Acknowledge'
+      return 'Dismiss alert'
     case 'workflow_transition':
       return 'Advance workflow'
     default:
       return 'Quick action'
   }
+}
+
+function quickActionTitle(action: HomeActionItem) {
+  if (action.execution?.kind === 'acknowledge_notification') {
+    return 'Dismisses this Today alert only. It does not place a trade or approve the recommendation.'
+  }
+
+  return undefined
 }
 
 function SummaryMetric({
@@ -202,6 +210,7 @@ export function HomeActionQueue() {
                 priorityTone[action.priority as keyof typeof priorityTone] ??
                 priorityTone.low
               const quickLabel = quickActionLabel(action)
+              const quickTitle = quickActionTitle(action)
               const decisionMeta = formatDecisionMeta(action.decision, {
                 includeTimestamp: false,
               })
@@ -263,6 +272,7 @@ export function HomeActionQueue() {
                       <Button
                         size="sm"
                         onClick={() => handleExecution(action)}
+                        title={quickTitle}
                         disabled={
                           acknowledgeNotification.isPending ||
                           transitionWorkflow.isPending

@@ -7,10 +7,10 @@ import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
+import { SymbolDecisionPanel } from '@/components/symbol/SymbolDecisionPanel'
 import { SymbolWorkflowPanel } from '@/components/symbol/SymbolWorkflowPanel'
 import { Button } from '@/components/ui/button'
 import { ThesisSection } from '@/components/watchlist/ThesisSection'
-import type { JennyNotification } from '@/lib/api/portfolio'
 import {
   formatCurrency,
   formatEnumLabel,
@@ -20,120 +20,15 @@ import { useJennyDashboard } from '@/lib/hooks/usePortfolio'
 import { usePreferences } from '@/lib/hooks/usePreferences'
 import { useSymbolIntelligence } from '@/lib/hooks/useSymbolIntelligence'
 import { cn, formatRelativeTime } from '@/lib/utils'
-
-function formatCountLabel(
-  count: number,
-  singular: string,
-  plural = `${singular}s`,
-) {
-  return `${count} ${count === 1 ? singular : plural}`
-}
-
-function formatEvidenceSummary(
-  confirmations?: number | null,
-  avoidFlags?: number | null,
-) {
-  const segments: string[] = []
-
-  if (confirmations != null) {
-    segments.push(formatCountLabel(confirmations, 'green light'))
-  }
-  if (avoidFlags != null && (avoidFlags > 0 || confirmations != null)) {
-    segments.push(formatCountLabel(avoidFlags, 'caution flag'))
-  }
-
-  return segments.length > 0 ? segments.join(' · ') : null
-}
-
-function formatTenPointConfidence(confidence?: number | null) {
-  if (confidence == null) {
-    return 'Confidence unavailable'
-  }
-
-  const boundedConfidence = Math.max(0, Math.min(10, confidence))
-  const displayValue = Number.isInteger(boundedConfidence)
-    ? boundedConfidence.toFixed(0)
-    : boundedConfidence.toFixed(1)
-
-  return `${displayValue}/10 confidence`
-}
-
-function formatShareCount(shares?: number | null) {
-  if (shares == null) {
-    return null
-  }
-
-  return `${shares.toLocaleString('en-US', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: Number.isInteger(shares) ? 0 : 2,
-  })} share${Math.abs(shares) === 1 ? '' : 's'}`
-}
-
-function formatPortfolioWeight(weightPct?: number | null) {
-  if (weightPct == null) {
-    return null
-  }
-
-  if (weightPct > 0 && weightPct < 0.1) {
-    return '<0.1% of portfolio'
-  }
-
-  return `${formatPercent(weightPct)} of portfolio`
-}
-
-function formatIfNotHeldReasoning(reasoning?: string | null) {
-  if (!reasoning) {
-    return 'No extra context yet.'
-  }
-
-  return reasoning.replace(
-    /Signal:\s*([A-Z_]+),\s*Strength:\s*(\d+(?:\.\d+)?)\/10/gi,
-    (_, signalType: string, strength: string) =>
-      `Current setup: ${formatEnumLabel(signalType, 'Unavailable')} · Confidence ${strength}/10`,
-  )
-}
-
-function formatNewsSentimentSummary(
-  news?: {
-    sentimentLabel?: string | null
-    sentimentScore?: number | null
-  } | null,
-) {
-  if (news?.sentimentLabel) {
-    return news.sentimentScore != null
-      ? `${news.sentimentLabel} · score ${news.sentimentScore.toFixed(1)}`
-      : news.sentimentLabel
-  }
-
-  if (news?.sentimentScore != null) {
-    return `Sentiment score ${news.sentimentScore.toFixed(1)}`
-  }
-
-  return 'Sentiment unavailable'
-}
-
-function stripSymbolPrefix(title: string, symbol: string) {
-  return title.replace(new RegExp(`^${symbol}:\\s*`, 'i'), '')
-}
-
-function compareNotifications(a: JennyNotification, b: JennyNotification) {
-  const severityRank = (severity?: string | null) => {
-    if (severity === 'critical') {
-      return 0
-    }
-    if (severity === 'warning') {
-      return 1
-    }
-    return 2
-  }
-
-  const severityDelta = severityRank(a.severity) - severityRank(b.severity)
-  if (severityDelta !== 0) {
-    return severityDelta
-  }
-
-  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-}
+import {
+  compareNotifications,
+  formatCountLabel,
+  formatEvidenceSummary,
+  formatIfNotHeldReasoning,
+  formatNewsSentimentSummary,
+  formatPortfolioWeight,
+  formatShareCount,
+} from './symbol-formatters'
 
 export function SymbolWorkspace({ symbol }: { symbol: string }) {
   const uppercaseSymbol = symbol.toUpperCase()
@@ -156,7 +51,11 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
   const currentDecision = data?.decision
   const heldPosition = data?.portfolio?.position ?? null
   const newsArticleCount = data?.news?.recentArticles.length ?? 0
-  const alertCount = (data?.alerts.length ?? 0) + symbolNotifications.length
+  const jennyAlertCount =
+    currentDecision?.sourceKind === 'jenny_alert'
+      ? Math.max(symbolNotifications.length, 1)
+      : symbolNotifications.length
+  const alertCount = (data?.alerts.length ?? 0) + jennyAlertCount
   const evidenceSummary = formatEvidenceSummary(
     data?.signal?.confirmations,
     data?.signal?.avoidFlags,
@@ -190,6 +89,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
     : data?.recommendation?.ifNotHeld?.reasoning
       ? formatIfNotHeldReasoning(data.recommendation.ifNotHeld.reasoning)
       : 'Jenny does not see a live portfolio position.'
+  const decisionUsesLiveModel =
+    currentDecision?.sourceKind === 'live_signal_model'
 
   if (isLoading) {
     return (
@@ -286,7 +187,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3 animate-stagger">
-        <SectionCard variant="surface" title="Current Call">
+        <SectionCard variant="surface" title="Current Decision">
           <p className="font-display italic text-2xl text-text">
             {currentDecision?.headline ?? '—'}
           </p>
@@ -294,11 +195,18 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             {currentDecision?.summary ??
               'No live recommendation summary is available yet.'}
           </p>
-          <p className="mt-3 text-sm text-text">
-            Score {data?.scores?.overall?.toFixed(0) ?? '—'} ·{' '}
-            {formatEnumLabel(data?.signal?.type, 'Unavailable')} · Confidence{' '}
-            {data?.signal?.strength ?? '—'}/10
-          </p>
+          {decisionUsesLiveModel ? (
+            <p className="mt-3 text-sm text-text">
+              Score {data?.scores?.overall?.toFixed(0) ?? '—'} ·{' '}
+              {formatEnumLabel(data?.signal?.type, 'Unavailable')} · Confidence{' '}
+              {data?.signal?.strength ?? '—'}/10
+            </p>
+          ) : (
+            <p className="mt-3 text-sm text-text">
+              Jenny alert is the current instruction. Live model signals are
+              shown as evidence only when they conflict.
+            </p>
+          )}
           <p className="mt-2 text-xs uppercase tracking-[0.18em] text-text-muted">
             {currentDecision?.sourceLabel ?? 'Decision unavailable'}
             {currentDecision?.severity
@@ -354,165 +262,15 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             label: 'Decision',
             badge: decisionBadge,
             content: (
-              <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-                <SectionCard
-                  variant="surface"
-                  title="Why This Decision Shows Up"
-                >
-                  <div className="space-y-4">
-                    {(currentDecision?.reasoning ?? []).length > 0 ? (
-                      (currentDecision?.reasoning ?? []).map((reason, idx) => (
-                        <div
-                          key={reason}
-                          className="rounded-xl border border-border/30 border-l-2 border-l-accent/40 bg-surface/40 p-4 text-sm leading-relaxed text-text-muted"
-                          style={{ animationDelay: `${idx * 60}ms` }}
-                        >
-                          {reason}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="rounded-xl border border-dashed border-border/40 bg-surface-muted/10 p-4 text-sm text-text-muted">
-                        No decision memo reasoning is available yet for this
-                        symbol.
-                      </div>
-                    )}
-                    {data?.trading ? (
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                            Buy zone / downside limit
-                          </p>
-                          <p className="mt-2 text-sm tabular-nums text-text">
-                            {formatCurrency(data.trading.entryPrice)} /{' '}
-                            {formatCurrency(data.trading.stopLoss)}
-                          </p>
-                        </div>
-                        <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                            Upside target / starter size
-                          </p>
-                          <p className="mt-2 text-sm tabular-nums text-text">
-                            {formatCurrency(data.trading.profitTarget)} /{' '}
-                            {data.trading.positionSizeShares ?? '—'} shares
-                          </p>
-                        </div>
-                        <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                            Confidence / Risk
-                          </p>
-                          <p className="mt-2 text-sm text-text">
-                            {formatTenPointConfidence(data.trading.confidence)}{' '}
-                            · {data.trading.riskLevel ?? 'Risk unavailable'}
-                          </p>
-                        </div>
-                        <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                            Typical holding time
-                          </p>
-                          <p className="mt-2 text-sm text-text">
-                            {data.trading.holdingPeriod ?? '—'} ·{' '}
-                            {data.trading.style ?? 'Unknown style'}
-                          </p>
-                        </div>
-                      </div>
-                    ) : null}
-                    {data?.recommendation?.ifNotHeld ? (
-                      <div className="rounded-2xl border border-border/40 bg-primary/5 p-4 text-sm text-text">
-                        If you do not own it yet:{' '}
-                        {formatEnumLabel(
-                          data.recommendation.ifNotHeld.action,
-                          'Review',
-                        )}{' '}
-                        ·{' '}
-                        {formatIfNotHeldReasoning(
-                          data.recommendation.ifNotHeld.reasoning,
-                        )}
-                        {data.recommendation.ifNotHeld.sizePct != null
-                          ? ` · Starter size ${data.recommendation.ifNotHeld.sizePct.toFixed(1)}%`
-                          : ''}
-                      </div>
-                    ) : null}
-                  </div>
-                </SectionCard>
-
-                <SectionCard
-                  variant="surface"
-                  title="Jenny Review State"
-                >
-                  <div className="space-y-4">
-                    {activeNotification ? (
-                      <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4">
-                        <p className="text-sm font-semibold text-text">
-                          Active alert:{' '}
-                          {stripSymbolPrefix(
-                            activeNotification.title,
-                            uppercaseSymbol,
-                          )}
-                        </p>
-                        <p className="mt-2 text-sm text-text-muted">
-                          {activeNotification.detail}
-                        </p>
-                        {activeNotification.recommendation ? (
-                          <p className="mt-3 text-sm text-text">
-                            {activeNotification.recommendation}
-                          </p>
-                        ) : null}
-                        <p className="mt-3 text-xs uppercase tracking-[0.18em] text-text-muted">
-                          {formatEnumLabel(activeNotification.severity, 'Info')}{' '}
-                          · {formatRelativeTime(activeNotification.createdAt)}
-                        </p>
-                      </div>
-                    ) : null}
-
-                    {latestReview ? (
-                      <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
-                        <p className="text-sm font-semibold text-text">
-                          Latest call: {latestReview.finalVerdict}
-                        </p>
-                        <p className="mt-2 text-sm text-text-muted">
-                          {latestReview.reasons[0] ??
-                            'Jenny has a review but no short summary yet.'}
-                        </p>
-                        {latestReview.managementDetail ? (
-                          <p className="mt-3 text-sm text-text">
-                            {latestReview.managementDetail}
-                          </p>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text-muted">
-                        No recent Jenny operator review in the last 7 days.
-                      </div>
-                    )}
-
-                    {tradeReviews.length > 0 ? (
-                      tradeReviews.slice(0, 2).map((review) => (
-                        <div
-                          key={review.id}
-                          className="rounded-2xl border border-border/40 bg-surface/60 p-4"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm font-semibold text-text">
-                              Result: {review.outcomeLabel}
-                            </p>
-                            <span className="text-xs text-text-muted">
-                              {formatPercent(review.returnPct, { sign: true })}
-                            </span>
-                          </div>
-                          <p className="mt-2 text-sm text-text-muted">
-                            {review.lesson}
-                          </p>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">
-                        No finished review outcomes yet. This section becomes
-                        useful after live ideas have time to play out.
-                      </div>
-                    )}
-                  </div>
-                </SectionCard>
-              </div>
+              <SymbolDecisionPanel
+                symbol={uppercaseSymbol}
+                data={data}
+                activeNotification={activeNotification}
+                latestReview={latestReview}
+                tradeReviews={tradeReviews}
+                positionSummary={positionSummary}
+                portfolioContextParts={portfolioContextParts}
+              />
             ),
           },
           {

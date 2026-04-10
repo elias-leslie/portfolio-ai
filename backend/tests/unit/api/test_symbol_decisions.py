@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.api.symbols.decisions import build_symbol_decision
+from app.api.symbols.models import PositionInfo
 from app.models.jenny import JennyAgentEvaluation, JennyNotification, JennySymbolReview
 
 
@@ -38,6 +39,44 @@ def test_build_symbol_decision_prefers_active_jenny_alert() -> None:
     assert decision.source_label == "Jenny alert"
     assert decision.severity == "critical"
     assert decision.source_timestamp == "2026-04-08T14:00:00+00:00"
+
+
+def test_build_symbol_decision_replaces_stored_position_facts_with_live_context() -> None:
+    decision = build_symbol_decision(
+        symbol="VTI",
+        recommendation={
+            "action": "CONSIDER_TRIMMING",
+            "reasoning": ["Position is oversized."],
+        },
+        generated_at="2026-04-08T15:00:00+00:00",
+        notifications=[
+            JennyNotification(
+                id="note-1",
+                routine_id="routine-1",
+                symbol="VTI",
+                category="position_trim",
+                severity="warning",
+                status="open",
+                title="VTI: Trim this position",
+                detail="VTI is up 31.1% and now makes up 39.2% of the portfolio.",
+                recommendation="Take partial profits so one winner does not become oversized.",
+                created_at="2026-04-08T14:00:00+00:00",
+            )
+        ],
+        portfolio_position=PositionInfo(
+            shares=1488,
+            cost_basis=198.4,
+            current_value=499149.6,
+            gain=203931.85,
+            gain_pct=69.0784514142527,
+            weight_pct=58.706470117146225,
+        ),
+    )
+
+    assert decision.reasoning == [
+        "Current live position: VTI is up 69.1% from cost basis and now makes up 58.7% of the portfolio.",
+        "Take partial profits so one winner does not become oversized.",
+    ]
 
 
 def test_build_symbol_decision_uses_recent_review_before_live_model() -> None:

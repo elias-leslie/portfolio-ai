@@ -24,6 +24,7 @@ vi.mock('@/lib/hooks/usePreferences', () => ({
 describe('SymbolWorkspace', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.history.replaceState(null, '', '/')
 
     vi.mocked(useSymbolIntelligence).mockReturnValue({
       data: {
@@ -133,25 +134,23 @@ describe('SymbolWorkspace', () => {
     expect(
       screen.getByText(/score 78 · buy · confidence 7\/10/i),
     ).toBeInTheDocument()
-    expect(screen.getByText(/live signal model/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/live signal model/i).length).toBeGreaterThan(0)
     expect(
-      screen.getByText(/8 shares · \+1.4% · 0.2% of portfolio/i),
-    ).toBeInTheDocument()
+      screen.getAllByText(/8 shares · \+1.4% · 0.2% of portfolio/i).length,
+    ).toBeGreaterThan(0)
     expect(screen.queryByText(/\+0.2% of portfolio/i)).not.toBeInTheDocument()
     expect(
-      screen.getByText(
+      screen.getAllByText(
         /portfolio has 8 total holdings · top 3 holdings make up 28.0% · diversification score 74/i,
-      ),
-    ).toBeInTheDocument()
+      ).length,
+    ).toBeGreaterThan(0)
     expect(screen.getByText(/7\/10 confidence · medium/i)).toBeInTheDocument()
     expect(
-      screen.getByText(
-        /if you do not own it yet: avoid · current setup: hold · confidence 2\/10 · starter size 1.0%/i,
-      ),
-    ).toBeInTheDocument()
+      screen.queryByText(/if you do not own it yet/i),
+    ).not.toBeInTheDocument()
     expect(
       screen.getByText(
-        /no decision memo reasoning is available yet for this symbol/i,
+        /jenny has not attached a written explanation yet/i,
       ),
     ).toBeInTheDocument()
 
@@ -271,14 +270,22 @@ describe('SymbolWorkspace', () => {
 
     render(<SymbolWorkspace symbol="vti" />)
 
-    expect(screen.getByText(/exit this position/i)).toBeInTheDocument()
-    expect(screen.getByText(/reduce risk now\./i)).toBeInTheDocument()
-    expect(screen.getByText(/jenny alert · critical/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/exit this position/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/reduce risk now\./i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/jenny alert · critical/i).length).toBeGreaterThan(
+      0,
+    )
+    expect(screen.getByText(/conflicting signal resolved/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/live model currently says buy more/i),
+    ).toBeInTheDocument()
     expect(screen.getByText(/1 alert/i)).toBeInTheDocument()
     expect(screen.queryByText(/live signal model/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/0 recent article/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/0 green lights/i)).not.toBeInTheDocument()
-    expect(screen.getByText(/portfolio has 8 total holdings/i)).toBeInTheDocument()
+    expect(
+      screen.getAllByText(/portfolio has 8 total holdings/i).length,
+    ).toBeGreaterThan(0)
     expect(
       screen.queryByText(/top 3 holdings make up/i),
     ).not.toBeInTheDocument()

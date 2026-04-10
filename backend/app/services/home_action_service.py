@@ -7,6 +7,8 @@ from datetime import UTC, datetime
 from app.api.portfolio.analytics_routes import get_analytics_payload
 from app.api.recommendations.logic import DEFAULT_POSITION_PCT
 from app.api.recommendations.queries import fetch_recommendations
+from app.api.symbols.builders import build_portfolio_section
+from app.api.symbols.data_fetchers import get_portfolio_data
 from app.api.symbols.decisions import build_symbol_decision
 from app.logging_config import get_logger
 from app.portfolio.totals import get_live_portfolio_totals
@@ -30,6 +32,21 @@ def _title_with_symbol(symbol: str | None, headline: str) -> str:
     if not symbol:
         return headline
     return f"{symbol}: {headline}"
+
+
+def _portfolio_position_for_symbol(storage: object | None, symbol: str | None):
+    if not storage or not symbol:
+        return None
+
+    try:
+        portfolio = get_portfolio_data(symbol, storage)
+        return build_portfolio_section(
+            portfolio.get("position"),
+            portfolio.get("summary"),
+        ).position
+    except Exception as exc:
+        logger.warning("home_action_position_context_failed", symbol=symbol, error=str(exc))
+        return None
 
 
 class HomeActionService:
@@ -249,6 +266,10 @@ class HomeActionService:
                 recommendation=None,
                 generated_at=notification.created_at,
                 notifications=[notification],
+                portfolio_position=_portfolio_position_for_symbol(
+                    getattr(self, "storage", None),
+                    notification.symbol,
+                ),
             ).model_dump(mode="json")
             href = (
                 f"/symbols/{notification.symbol}?tab=decision"
@@ -270,7 +291,7 @@ class HomeActionService:
                     "priority": priority,
                     "title": _title_with_symbol(notification.symbol, decision["headline"]),
                     "detail": decision["summary"],
-                    "action_label": "Review with Jenny",
+                    "action_label": "Review decision",
                     "href": href,
                     "symbol": notification.symbol,
                     "badge": notification.severity.title(),

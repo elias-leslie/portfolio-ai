@@ -33,7 +33,7 @@ def test_get_action_queue_sorts_and_dedupes_actions() -> None:
             "priority": "critical",
             "title": "Trim VTI concentration",
             "detail": "Largest position is too large.",
-            "action_label": "Review with Jenny",
+            "action_label": "Review decision",
             "href": "/symbols/VTI",
             "symbol": "VTI",
             "badge": "Critical",
@@ -98,7 +98,7 @@ def test_jenny_actions_link_into_decision_context() -> None:
     actions = service._jenny_actions()
 
     assert actions[0]["href"] == "/symbols/NVDA?tab=decision"
-    assert actions[0]["action_label"] == "Review with Jenny"
+    assert actions[0]["action_label"] == "Review decision"
     assert actions[0]["decision"]["headline"] == "Exit this position"
     assert actions[0]["decision"]["source_kind"] == "jenny_alert"
     assert actions[1]["href"] == "/symbols/NVDA?tab=decision"
