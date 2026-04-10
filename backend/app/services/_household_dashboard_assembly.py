@@ -22,6 +22,7 @@ from app.models.household_finance import (
     PortfolioHouseholdContext,
     RetirementPreparedness,
 )
+from app.portfolio.current_facts import calculate_current_position_fact
 from app.services._household_dashboard_builders import (
     build_budget_snapshot,
     build_retirement_contribution_tracker,
@@ -35,6 +36,7 @@ from app.services._household_dashboard_queries import (
     infer_profile_from_transactions,
 )
 from app.services._household_dashboard_sections import (
+    VISIBILITY_STRONG_THRESHOLD,
     budget_input_status,
     compute_visibility_score,
     next_best_action,
@@ -103,6 +105,7 @@ _LANE_CONFIGS: list[tuple[str, str, str]] = [
     ("Lifestyle", "Cap shopping, dining, convenience, and entertainment with clear guardrails.", "monthly_discretionary_target"),
     ("Savings", "Reserve dollars for investing, emergency cash, and future big-ticket items.", "monthly_savings_target"),
 ]
+_DEGRADED_ACCOUNT_FRESHNESS_STATUSES = {"aging", "stale", "needs_evidence"}
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +153,27 @@ def build_import_center(documents: list[Any], planning: Any) -> ImportCenter:
 
 def update_overview_action(overview: HouseholdOverview, title: str) -> HouseholdOverview:
     return overview.model_copy(update={"next_best_action": title})
+
+
+def _apply_account_freshness_visibility_cap(
+    visibility_score: int,
+    account_summaries: list[Any],
+) -> int:
+    if not account_summaries:
+        return visibility_score
+
+    degraded_count = sum(
+        1
+        for account in account_summaries
+        if account.freshness_status in _DEGRADED_ACCOUNT_FRESHNESS_STATUSES
+    )
+    if degraded_count == 0:
+        return visibility_score
+
+    if degraded_count * 2 >= len(account_summaries):
+        return min(visibility_score, VISIBILITY_STRONG_THRESHOLD - 1)
+
+    return min(visibility_score, 99)
 
 
 def build_jenny_needs(
@@ -220,17 +244,25 @@ def build_overview(
     effective_position_count = len(live_positions) or (
         service.evidence_service.investment_like_count(evidence_accounts) if service is not None else 0
     )
-    visibility_score = _call_service_override(
-        service,
-        "_compute_visibility_score",
-        compute_visibility_score,
-        account_count=effective_account_count,
-        position_count=effective_position_count,
-        cash_reserve=cash_reserve,
-        retirement_assets=retirement_assets,
-        taxable_assets=taxable_assets,
-        resolved_numeric_value=rnv,
-        document_count=len(documents),
+    visibility_score = _apply_account_freshness_visibility_cap(
+        _call_service_override(
+            service,
+            "_compute_visibility_score",
+            compute_visibility_score,
+            account_count=effective_account_count,
+            position_count=effective_position_count,
+            cash_reserve=cash_reserve,
+            retirement_assets=retirement_assets,
+            taxable_assets=taxable_assets,
+            resolved_numeric_value=rnv,
+            document_count=len(documents),
+        ),
+        account_summaries,
+    )
+    needs_refresh_count = sum(
+        1
+        for account in account_summaries
+        if account.freshness_status in _DEGRADED_ACCOUNT_FRESHNESS_STATUSES
     )
     latest_report_transaction = max((txn.date for txn in reports.recent_transactions), default=None)
     last_transaction_date = latest_report_transaction or (
@@ -242,9 +274,7 @@ def build_overview(
         total_tracked_assets=total_tracked_assets, liabilities_total=liabilities_total,
         net_worth=net_worth,
         tracked_account_count=len(account_summaries),
-        needs_refresh_count=sum(
-            1 for account in account_summaries if account.freshness_status in {"aging", "stale", "needs_evidence"}
-        ),
+        needs_refresh_count=needs_refresh_count,
         candidate_account_count=sum(1 for account in account_summaries if account.match_status == "candidate"),
         gap_count=sum(len(account.gap_flags) for account in account_summaries),
         inbox_count=len(inbox),
@@ -413,8 +443,18 @@ def gather_service_data(service: Any) -> dict[str, Any]:
     holdings_by_account: dict[str, float] = {}
     for pos in live_positions:
         pi = price_data.get(pos.symbol)
-        price = pi.price if pi is not None else pos.cost_basis
-        holdings_by_account[pos.account_id] = holdings_by_account.get(pos.account_id, 0.0) + pos.shares * price
+        current_fact = calculate_current_position_fact(
+            symbol=pos.symbol,
+            shares=pos.shares,
+            cost_basis=pos.cost_basis,
+            position_type=pos.position_type,
+            current_price=getattr(pi, "price", None) if pi is not None else None,
+        )
+        if current_fact.current_value is None:
+            continue
+        holdings_by_account[pos.account_id] = (
+            holdings_by_account.get(pos.account_id, 0.0) + current_fact.current_value
+        )
     reports = service.transaction_service.build_reports()
     return {
         "profile": profile, "planning": planning, "documents": documents, "questions": questions,

@@ -16,6 +16,7 @@ from app.models.household_finance import (
     HouseholdResolvedValue,
 )
 from app.models.household_planning import empty_household_planning_snapshot
+from app.services._household_dashboard_assembly import _apply_account_freshness_visibility_cap
 from app.services.household_finance_service import HouseholdFinanceService
 
 
@@ -139,3 +140,25 @@ def test_get_dashboard_returns_composed_household_view() -> None:
     assert dashboard.accounts == []
     assert isinstance(dashboard.jenny_needs, list)
     assert datetime.fromisoformat(dashboard.generated_at).tzinfo == UTC
+
+
+def test_visibility_score_is_capped_when_account_freshness_is_degraded() -> None:
+    accounts = [
+        Mock(freshness_status="fresh"),
+        Mock(freshness_status="stale"),
+        Mock(freshness_status="needs_evidence"),
+    ]
+
+    assert _apply_account_freshness_visibility_cap(100, accounts) == 79
+    assert _apply_account_freshness_visibility_cap(
+        100,
+        [Mock(freshness_status="fresh"), Mock(freshness_status="aging")],
+    ) == 79
+    assert _apply_account_freshness_visibility_cap(
+        100,
+        [
+            Mock(freshness_status="fresh"),
+            Mock(freshness_status="fresh"),
+            Mock(freshness_status="stale"),
+        ],
+    ) == 99

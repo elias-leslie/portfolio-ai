@@ -251,9 +251,9 @@ export default function MoneyPage() {
           : 'No recent statement coverage yet.',
     },
     {
-      label: 'Freshness',
+      label: 'Visibility',
       value: `${dashboard.overview.visibilityScore}/100`,
-      detail: `${dashboard.overview.visibilityLabel}. ${dashboard.overview.needsRefreshCount} stale account${dashboard.overview.needsRefreshCount === 1 ? '' : 's'}.`,
+      detail: `${dashboard.overview.visibilityLabel}. ${dashboard.overview.needsRefreshCount} account${dashboard.overview.needsRefreshCount === 1 ? '' : 's'} need fresh evidence.`,
     },
     {
       label: 'Accounts',
