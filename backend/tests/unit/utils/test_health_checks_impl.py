@@ -102,3 +102,41 @@ def test_determine_source_status_uses_source_specific_windows(monkeypatch) -> No
         )
         == "down"
     )
+
+
+def test_source_health_check_explains_stale_provider_with_strong_history(monkeypatch) -> None:
+    monkeypatch.setattr(health_checks_impl, "datetime", _FrozenDateTime)
+
+    health = health_checks_impl._build_source_health_check(
+        {
+            "success_count": 10,
+            "failure_count": 0,
+            "total_latency_ms": 1000,
+            "rate_limit_hits": 0,
+            "last_success_at": dt.datetime(2026, 3, 9, 2, 59, tzinfo=dt.UTC),
+        },
+        health_checks_impl.SourceHealthPolicy(),
+    )
+
+    assert health.status == "down"
+    assert health.success_rate == 100.0
+    assert health.status_reason == "Last good update is older than 24h."
+
+
+def test_source_health_check_explains_recent_low_success_rate(monkeypatch) -> None:
+    monkeypatch.setattr(health_checks_impl, "datetime", _FrozenDateTime)
+
+    health = health_checks_impl._build_source_health_check(
+        {
+            "success_count": 6,
+            "failure_count": 4,
+            "total_latency_ms": 900,
+            "rate_limit_hits": 0,
+            "last_success_at": dt.datetime(2026, 3, 11, 2, 50, tzinfo=dt.UTC),
+        },
+        health_checks_impl.SourceHealthPolicy(),
+    )
+
+    assert health.status == "degraded"
+    assert health.success_rate == 60.0
+    assert health.status_reason == "Request success rate is below 80%."

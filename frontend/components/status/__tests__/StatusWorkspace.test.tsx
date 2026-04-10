@@ -590,6 +590,7 @@ describe('StatusWorkspace', () => {
           sources: {
             alphavantage: {
               status: 'down',
+              statusReason: 'Last good update is older than 24h.',
               lastSuccess: '2026-03-10T23:20:00.000Z',
               successRate: 62,
               avgLatencyMs: 240,
@@ -682,6 +683,10 @@ describe('StatusWorkspace', () => {
     expect(
       screen.getByText('1 feed needs review · 1 down'),
     ).toBeInTheDocument()
+    expect(screen.getByText('Request success: 62.0%')).toBeInTheDocument()
+    expect(
+      screen.getByText('Why: Last good update is older than 24h.'),
+    ).toBeInTheDocument()
     expect(screen.getByText(/rate-limit hits: 3/i)).toBeInTheDocument()
     expect(screen.getByText(/pause remaining: 3m/i)).toBeInTheDocument()
     expect(
@@ -711,6 +716,7 @@ describe('StatusWorkspace', () => {
           sources: {
             polygon: {
               status: 'degraded',
+              statusReason: 'No successful fetch recorded.',
               lastSuccess: null,
               successRate: 25,
               avgLatencyMs: 1800,
@@ -775,6 +781,9 @@ describe('StatusWorkspace', () => {
 
     expect(
       screen.getByText('1 feed needs review · 1 degraded'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Why: No successful fetch recorded.'),
     ).toBeInTheDocument()
     expect(screen.getByText('Update time unavailable')).toBeInTheDocument()
     expect(

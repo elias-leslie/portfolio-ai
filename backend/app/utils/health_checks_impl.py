@@ -22,6 +22,7 @@ class SourceHealthCheck(BaseModel):
     """Health check for individual data source."""
 
     status: Literal["ok", "degraded", "down"]
+    status_reason: str | None = None
     last_success: datetime | None = None
     success_rate: float | None = None
     avg_latency_ms: int | None = None
@@ -121,6 +122,16 @@ def _calculate_source_metrics(
     return success_rate, avg_latency_ms
 
 
+def _format_window(window: timedelta) -> str:
+    """Format a freshness window for concise status reasons."""
+    total_seconds = int(window.total_seconds())
+    if total_seconds % 3600 == 0:
+        return f"{total_seconds // 3600}h"
+    if total_seconds % 60 == 0:
+        return f"{total_seconds // 60}m"
+    return f"{total_seconds}s"
+
+
 def _determine_source_status(
     last_success_at: datetime | None,
     success_rate: float,
@@ -149,6 +160,35 @@ def _determine_source_status(
     return "down"
 
 
+def _build_source_status_reason(
+    last_success_at: datetime | None,
+    success_rate: float,
+    status: Literal["ok", "degraded", "down"],
+    *,
+    policy: SourceHealthPolicy,
+) -> str | None:
+    """Explain non-OK source status using the same policy that sets status."""
+    reason: str | None = None
+    if status != "ok":
+        if not last_success_at:
+            reason = "No successful fetch recorded."
+        else:
+            time_since_success = datetime.now(UTC) - last_success_at
+            if time_since_success >= policy.degraded_window:
+                reason = (
+                    f"Last good update is older than {_format_window(policy.degraded_window)}."
+                )
+            elif time_since_success >= policy.ok_window:
+                reason = f"Last good update is older than {_format_window(policy.ok_window)}."
+            elif success_rate < 50:
+                reason = "Request success rate is below 50%."
+            elif success_rate < 80:
+                reason = "Request success rate is below 80%."
+            else:
+                reason = "Source health needs review."
+    return reason
+
+
 def _build_source_health_check(row: dict[str, Any], policy: SourceHealthPolicy) -> SourceHealthCheck:
     """Build a SourceHealthCheck from a performance row and its policy."""
     success_count = row["success_count"] or 0
@@ -161,9 +201,16 @@ def _build_source_health_check(row: dict[str, Any], policy: SourceHealthPolicy) 
         success_count, failure_count, total_latency_ms
     )
     status = _determine_source_status(last_success_at, success_rate, policy=policy)
+    status_reason = _build_source_status_reason(
+        last_success_at,
+        success_rate,
+        status,
+        policy=policy,
+    )
 
     return SourceHealthCheck(
         status=status,
+        status_reason=status_reason,
         last_success=last_success_at,
         success_rate=round(success_rate, 1),
         avg_latency_ms=avg_latency_ms,

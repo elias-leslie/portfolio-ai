@@ -13,6 +13,7 @@ export interface HealthCheckResult {
 
 export interface SourceHealthCheck {
   status: CheckStatus
+  statusReason?: string | null
   lastSuccess?: string | null
   successRate?: number | null
   avgLatencyMs?: number | null

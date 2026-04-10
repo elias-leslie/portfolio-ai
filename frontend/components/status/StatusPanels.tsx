@@ -315,7 +315,7 @@ export function SourceHealthPanel({
                 </Badge>
               </div>
               <div className="mt-3 grid gap-2 text-sm text-text-muted md:grid-cols-3">
-                <p>Worked: {formatPercent(source.successRate)}</p>
+                <p>Request success: {formatPercent(source.successRate)}</p>
                 <p>Response time: {formatInteger(source.avgLatencyMs)}ms</p>
                 <p>
                   Last good update:{' '}
@@ -324,6 +324,11 @@ export function SourceHealthPanel({
                     : 'No successful fetch recorded'}
                 </p>
               </div>
+              {source.statusReason ? (
+                <p className="mt-2 text-sm text-text-muted">
+                  Why: {source.statusReason}
+                </p>
+              ) : null}
               {(source.rateLimitHits != null || source.inCooldown) && (
                 <div className="mt-2 grid gap-2 text-sm text-text-muted md:grid-cols-2">
                   <p>Rate-limit hits: {formatInteger(source.rateLimitHits)}</p>
