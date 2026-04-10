@@ -115,7 +115,22 @@ describe('SymbolWorkspace', () => {
       data: {
         routines: [],
         notifications: [],
-        symbolReviews: [],
+        symbolReviews: [
+          {
+            symbol: 'VTI',
+            finalVerdict: 'hold',
+            averageConfidence: 0.7,
+            thesisStatus: null,
+            thesisAction: null,
+            managementAction: 'hold',
+            managementDetail:
+              'Older review said VTI was up 31.1% and 39.2% of the portfolio.',
+            positionGainPct: 31.1,
+            positionWeightPct: 39.2,
+            reasons: ['Older position facts should not compete with the alert.'],
+            evaluations: [],
+          },
+        ],
         tradeReviews: [],
         scorecards: [],
       },
@@ -258,7 +273,22 @@ describe('SymbolWorkspace', () => {
             metadata: {},
           },
         ],
-        symbolReviews: [],
+        symbolReviews: [
+          {
+            symbol: 'VTI',
+            finalVerdict: 'hold',
+            averageConfidence: 0.7,
+            thesisStatus: null,
+            thesisAction: null,
+            managementAction: 'hold',
+            managementDetail:
+              'Older review said VTI was up 31.1% and 39.2% of the portfolio.',
+            positionGainPct: 31.1,
+            positionWeightPct: 39.2,
+            reasons: ['Older position facts should not compete with the alert.'],
+            evaluations: [],
+          },
+        ],
         tradeReviews: [],
         scorecards: [],
       },
@@ -290,6 +320,10 @@ describe('SymbolWorkspace', () => {
       screen.queryByText(/top 3 holdings make up/i),
     ).not.toBeInTheDocument()
     expect(screen.queryByText(/diversification score/i)).not.toBeInTheDocument()
+    const historicalReview = screen
+      .getByText(/previous jenny review: hold/i)
+      .closest('details')
+    expect(historicalReview).not.toHaveAttribute('open')
   })
 
   it('explains when only aggregate news volume is available', async () => {

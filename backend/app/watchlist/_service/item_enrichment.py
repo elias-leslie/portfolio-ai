@@ -15,9 +15,9 @@ from typing import TYPE_CHECKING, Any, cast
 from ...api.symbols.builders import build_portfolio_section
 from ...api.symbols.data_fetchers import get_market_data
 from ...api.symbols.decisions import build_symbol_decision
+from ...api.symbols.portfolio_context import fetch_symbol_portfolio_context
 from ...api.symbols.recommendations import generate_recommendation
 from ...logging_config import get_logger
-from ...storage.helpers import row_to_dict, rows_to_dicts
 from ..data_quality import calculate_data_quality
 from ..models import WatchlistItemDict
 from ..priority import calculate_priority_indicators
@@ -40,58 +40,7 @@ def _build_portfolio_context(
     storage: PortfolioStorage,
     symbols: list[str],
 ) -> tuple[dict[str, dict[str, Any]], dict[str, Any] | None]:
-    if not symbols:
-        return {}, None
-
-    unique_symbols = sorted({symbol.upper() for symbol in symbols if symbol})
-    placeholders = ", ".join(["%s"] * len(unique_symbols))
-
-    try:
-        with storage.connection() as conn:
-            position_result = conn.execute(
-                f"""
-                SELECT
-                    UPPER(p.symbol) AS symbol,
-                    SUM(p.shares) AS shares,
-                    SUM(p.shares * p.cost_basis) / NULLIF(SUM(p.shares), 0) AS cost_basis,
-                    MAX(pc.price) AS current_price
-                FROM portfolio_positions p
-                LEFT JOIN price_cache pc ON UPPER(p.symbol) = UPPER(pc.symbol)
-                WHERE UPPER(p.symbol) IN ({placeholders})
-                GROUP BY UPPER(p.symbol)
-                """,
-                unique_symbols,
-            )
-            position_rows = position_result.fetchall()
-            positions_by_symbol = (
-                {
-                    str(row["symbol"]): row
-                    for row in rows_to_dicts(position_rows, position_result.description)
-                }
-                if position_rows and position_result.description
-                else {}
-            )
-
-            summary_result = conn.execute(
-                """
-                SELECT
-                    COUNT(*) AS num_holdings,
-                    SUM(p.shares * COALESCE(pc.price, p.cost_basis)) AS total_value
-                FROM portfolio_positions p
-                LEFT JOIN price_cache pc ON UPPER(p.symbol) = UPPER(pc.symbol)
-                """
-            )
-            summary_row = summary_result.fetchone()
-            summary = (
-                row_to_dict(summary_row, summary_result.description)
-                if summary_row and summary_result.description
-                else None
-            )
-    except Exception as exc:
-        logger.warning("watchlist_portfolio_context_failed", error=str(exc))
-        return {}, None
-
-    return positions_by_symbol, summary
+    return fetch_symbol_portfolio_context(storage, symbols)
 
 
 def _serialize_data_quality(dq: Any) -> dict[str, Any]:

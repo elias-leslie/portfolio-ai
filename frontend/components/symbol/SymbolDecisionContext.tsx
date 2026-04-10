@@ -84,6 +84,8 @@ export function SourceAuditTrail({
   latestReview?: JennySymbolReview | null
   tradeReviews: JennyTradeReview[]
 }) {
+  const reviewIsHistoricalContext = Boolean(activeNotification && latestReview)
+
   return (
     <SectionCard
       variant="surface"
@@ -109,11 +111,15 @@ export function SourceAuditTrail({
         ) : null}
 
         {latestReview ? (
-          <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
-            <p className="text-sm font-semibold text-text">
-              Latest Jenny review: {latestReview.finalVerdict}
-            </p>
-            <p className="mt-2 text-sm text-text-muted">
+          <details
+            open={!reviewIsHistoricalContext}
+            className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
+          >
+            <summary className="cursor-pointer text-sm font-semibold text-text">
+              {reviewIsHistoricalContext ? 'Previous' : 'Latest'} Jenny review:{' '}
+              {latestReview.finalVerdict}
+            </summary>
+            <p className="mt-3 text-sm text-text-muted">
               {latestReview.reasons[0] ??
                 'Jenny has a review but no short summary yet.'}
             </p>
@@ -122,7 +128,7 @@ export function SourceAuditTrail({
                 {latestReview.managementDetail}
               </p>
             ) : null}
-          </div>
+          </details>
         ) : (
           <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text-muted">
             No recent Jenny operator review in the last 7 days.

@@ -1,0 +1,93 @@
+"""Canonical live portfolio context for symbol-level decisions."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from app.logging_config import get_logger
+from app.portfolio.totals import get_live_portfolio_totals
+from app.storage.facade import PortfolioStorage
+from app.storage.helpers import row_to_dict, rows_to_dicts
+
+logger = get_logger(__name__)
+
+
+def _empty_context() -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    return {}, {"total_value": 0.0, "num_holdings": 0}
+
+
+def fetch_symbol_portfolio_context(
+    storage: PortfolioStorage,
+    symbols: list[str],
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Return aggregate real-account position context keyed by symbol.
+
+    A symbol can be held across multiple accounts. Symbol-level decisions,
+    workflow state, and watchlist rows need the aggregate live position rather
+    than whichever row the database returns first.
+    """
+    unique_symbols = sorted({symbol.upper() for symbol in symbols if symbol})
+    if not unique_symbols:
+        return _empty_context()
+
+    placeholders = ", ".join(["%s"] * len(unique_symbols))
+    positions_by_symbol: dict[str, dict[str, Any]] = {}
+    num_holdings = 0
+
+    try:
+        with storage.connection() as conn:
+            position_result = conn.execute(
+                f"""
+                SELECT
+                    UPPER(p.symbol) AS symbol,
+                    SUM(p.shares) AS shares,
+                    SUM(p.shares * p.cost_basis) / NULLIF(SUM(p.shares), 0) AS cost_basis,
+                    MAX(pc.price) AS current_price
+                FROM portfolio_positions p
+                JOIN portfolio_accounts a ON a.id = p.account_id
+                LEFT JOIN price_cache pc ON UPPER(p.symbol) = UPPER(pc.symbol)
+                WHERE UPPER(p.symbol) IN ({placeholders})
+                  AND a.account_type != 'paper'
+                  AND p.position_type != 'paper'
+                GROUP BY UPPER(p.symbol)
+                """,
+                unique_symbols,
+            )
+            position_rows = position_result.fetchall()
+            if position_rows and position_result.description:
+                positions_by_symbol = {
+                    str(row["symbol"]): row
+                    for row in rows_to_dicts(position_rows, position_result.description)
+                    if float(row.get("shares") or 0.0) > 0
+                }
+
+            holdings_result = conn.execute(
+                """
+                SELECT COUNT(DISTINCT UPPER(p.symbol)) AS num_holdings
+                FROM portfolio_positions p
+                JOIN portfolio_accounts a ON a.id = p.account_id
+                WHERE a.account_type != 'paper'
+                  AND p.position_type != 'paper'
+                """
+            )
+            holdings_row = holdings_result.fetchone()
+            if holdings_row and holdings_result.description:
+                holdings = row_to_dict(holdings_row, holdings_result.description)
+                num_holdings = int(holdings.get("num_holdings") or 0)
+    except Exception as exc:
+        logger.warning("symbol_portfolio_context_failed", error=str(exc))
+        return _empty_context()
+
+    try:
+        total_value = get_live_portfolio_totals(
+            storage,
+            include_paper=False,
+        ).cash_inclusive_total_value
+    except Exception as exc:
+        logger.warning("symbol_portfolio_total_failed", error=str(exc))
+        total_value = 0.0
+
+    return positions_by_symbol, {
+        "total_value": total_value,
+        "num_holdings": num_holdings,
+    }

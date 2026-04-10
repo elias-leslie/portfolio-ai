@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 from app.logging_config import get_logger
 from app.storage.helpers import row_to_dict, rows_to_dicts
 
+from .portfolio_context import fetch_symbol_portfolio_context
+
 if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
     from app.watchlist.watchlist_service import WatchlistService
@@ -85,41 +87,11 @@ def get_watchlist_data(symbol: str, watchlist_service: WatchlistService) -> dict
 
 def get_portfolio_data(symbol: str, storage: PortfolioStorage) -> dict[str, Any]:
     """Fetch portfolio position and context."""
-    position = None
-    summary = None
-
-    try:
-        with storage.connection() as conn:
-            pos_result = conn.execute(
-                """
-                SELECT p.id, p.symbol, p.shares, p.cost_basis, p.position_type,
-                       pc.price as current_price
-                FROM portfolio_positions p
-                LEFT JOIN price_cache pc ON UPPER(p.symbol) = UPPER(pc.symbol)
-                WHERE UPPER(p.symbol) = UPPER(%s)
-                """,
-                [symbol],
-            )
-            pos_row = pos_result.fetchone()
-            if pos_row and pos_result.description:
-                position = row_to_dict(pos_row, pos_result.description)
-
-            summary_result = conn.execute(
-                """
-                SELECT
-                    COUNT(*) as num_holdings,
-                    SUM(p.shares * COALESCE(pc.price, p.cost_basis)) as total_value
-                FROM portfolio_positions p
-                LEFT JOIN price_cache pc ON UPPER(p.symbol) = UPPER(pc.symbol)
-                """
-            )
-            sum_row = summary_result.fetchone()
-            if sum_row and summary_result.description:
-                summary = row_to_dict(sum_row, summary_result.description)
-    except Exception as e:
-        logger.warning("portfolio_data_fetch_failed", symbol=symbol, error=str(e))
-
-    return {"position": position, "summary": summary}
+    positions_by_symbol, summary = fetch_symbol_portfolio_context(
+        storage,
+        [symbol],
+    )
+    return {"position": positions_by_symbol.get(symbol.upper()), "summary": summary}
 
 
 def get_strategies_data(symbol: str, storage: PortfolioStorage) -> dict[str, Any]:
