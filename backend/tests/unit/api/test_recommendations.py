@@ -9,6 +9,7 @@ import pytest
 
 from app.api.recommendations._row_parser import parse_row
 from app.api.recommendations.router import get_recommendations
+from app.api.symbols.recommendations import generate_held_recommendation
 from app.portfolio.models import PriceData
 from app.portfolio.totals import PortfolioTotals
 
@@ -115,6 +116,25 @@ def test_parse_row_skips_recommendation_when_current_price_is_missing() -> None:
     )
 
     assert recommendation is None
+
+
+def test_generate_held_recommendation_does_not_fabricate_gain_without_live_price() -> None:
+    action, reasoning = generate_held_recommendation(
+        {
+            "symbol": "VTI",
+            "shares": 10,
+            "cost_basis": 200,
+            "position_type": "long",
+            "current_price": None,
+        },
+        signal="HOLD",
+        strength=5,
+        fear_greed=50,
+    )
+
+    assert action == "HOLD_POSITION"
+    assert "Live gain/loss unavailable because current price is missing" in reasoning
+    assert all("0.0%" not in reason for reason in reasoning)
 
 
 def test_parse_row_skips_recommendation_when_current_price_is_stale() -> None:

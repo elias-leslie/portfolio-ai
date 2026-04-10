@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Literal
 
 from app.analytics.calculation_engine import calculate_portfolio_sharpe
 
+from .current_facts import calculate_current_position_fact
 from .models import (
     ConcentrationMetrics,
     DiversificationScore,
@@ -45,7 +46,17 @@ def calculate_sector_exposure(
         if not price or price.error:
             continue
 
-        position_value = position.shares * price.price
+        current_fact = calculate_current_position_fact(
+            symbol=position.symbol,
+            shares=position.shares,
+            cost_basis=position.cost_basis,
+            position_type=position.position_type,
+            current_price=price.price,
+        )
+        if current_fact.current_value is None:
+            continue
+
+        position_value = abs(current_fact.current_value)
         sector = price.sector or "Unknown"
 
         sector_values[sector] += position_value
@@ -80,7 +91,17 @@ def calculate_concentration_risk(
         if not price or price.error:
             continue
 
-        position_value = position.shares * price.price
+        current_fact = calculate_current_position_fact(
+            symbol=position.symbol,
+            shares=position.shares,
+            cost_basis=position.cost_basis,
+            position_type=position.position_type,
+            current_price=price.price,
+        )
+        if current_fact.current_value is None:
+            continue
+
+        position_value = abs(current_fact.current_value)
         holding_values[position.symbol.upper()] += position_value
 
     position_values = list(holding_values.items())

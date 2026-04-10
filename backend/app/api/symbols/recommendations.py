@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.portfolio.current_facts import calculate_current_position_fact
+
 # Fear & Greed thresholds for recommendations
 FEAR_GREED_FEAR_THRESHOLD = 30
 FEAR_GREED_GREED_THRESHOLD = 70
@@ -27,12 +29,14 @@ def generate_held_recommendation(
     reasoning: list[str] = []
     action = "HOLD_POSITION"
 
-    # Calculate position gain
-    gain_pct = 0.0
-    if position.get("current_price") and position.get("cost_basis"):
-        gain_pct = (
-            (position["current_price"] - position["cost_basis"]) / position["cost_basis"]
-        ) * 100
+    current_fact = calculate_current_position_fact(
+        symbol=str(position.get("symbol") or ""),
+        shares=position.get("shares", 0),
+        cost_basis=position.get("cost_basis", 0),
+        position_type=position.get("position_type") or "long",
+        current_price=position.get("current_price"),
+    )
+    gain_pct = current_fact.gain_pct
 
     # Determine action based on signal and position state
     if signal == "BUY" and strength >= 7:
@@ -41,12 +45,15 @@ def generate_held_recommendation(
     elif signal == "AVOID":
         action = "CONSIDER_SELLING"
         reasoning.append("Signal turned to AVOID")
-    elif gain_pct > GAIN_PCT_TRIM_THRESHOLD:
+    elif gain_pct is not None and gain_pct > GAIN_PCT_TRIM_THRESHOLD:
         action = "CONSIDER_TRIMMING"
         reasoning.append(f"Position up {gain_pct:.1f}% - consider taking profits")
     else:
         action = "HOLD_POSITION"
-        reasoning.append(f"Current gain: {gain_pct:.1f}%")
+        if gain_pct is None:
+            reasoning.append("Live gain/loss unavailable because current price is missing")
+        else:
+            reasoning.append(f"Current gain: {gain_pct:.1f}%")
 
     if strength < 6:
         reasoning.append(f"Signal strength only {strength}/10 - wait for stronger confirmation")

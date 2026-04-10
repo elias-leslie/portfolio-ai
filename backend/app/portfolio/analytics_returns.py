@@ -13,6 +13,7 @@ import math
 from typing import TYPE_CHECKING
 
 from ..logging_config import get_logger
+from .current_facts import calculate_current_position_fact
 from .models import PortfolioValue, Position, PositionPerformance, PriceData
 
 if TYPE_CHECKING:
@@ -52,17 +53,18 @@ def calculate_portfolio_value(
             )
             continue
 
-        # Calculate position value
-        position_value = position.shares * price.price
-        position_cost = position.shares * position.cost_basis
+        current_fact = calculate_current_position_fact(
+            symbol=position.symbol,
+            shares=position.shares,
+            cost_basis=position.cost_basis,
+            position_type=position.position_type,
+            current_price=price.price,
+        )
+        if current_fact.current_value is None:
+            continue
 
-        # Handle long/short positions
-        if position.position_type == "short":
-            position_value = -position_value
-            position_cost = -position_cost
-
-        total_value += position_value
-        total_cost_basis += position_cost
+        total_value += current_fact.current_value
+        total_cost_basis += current_fact.cost_total
 
     total_gain = total_value - total_cost_basis
     total_gain_pct = (total_gain / total_cost_basis * 100) if total_cost_basis != 0 else 0.0
@@ -101,9 +103,18 @@ def calculate_portfolio_beta(
         ):
             continue
 
-        position_value = position.shares * price.price
-        total_value += position_value
-        weighted_beta_sum += position_value * price.beta
+        current_fact = calculate_current_position_fact(
+            symbol=position.symbol,
+            shares=position.shares,
+            cost_basis=position.cost_basis,
+            position_type=position.position_type,
+            current_price=price.price,
+        )
+        if current_fact.current_value is None:
+            continue
+
+        total_value += abs(current_fact.current_value)
+        weighted_beta_sum += current_fact.current_value * price.beta
 
     if total_value == 0:
         return None
@@ -139,11 +150,21 @@ def calculate_portfolio_volatility(
         if not price or price.error:
             continue
 
-        position_value = position.shares * price.price
+        current_fact = calculate_current_position_fact(
+            symbol=position.symbol,
+            shares=position.shares,
+            cost_basis=position.cost_basis,
+            position_type=position.position_type,
+            current_price=price.price,
+        )
+        if current_fact.current_value is None:
+            continue
+
+        position_value = current_fact.current_value
         position_values[position.symbol] = (
             position_values.get(position.symbol, 0.0) + position_value
         )
-        total_value += position_value
+        total_value += abs(position_value)
 
     if total_value == 0:
         return None
@@ -181,8 +202,16 @@ def calculate_portfolio_volatility(
         price = price_data.get(position.symbol)
         if not price or price.volatility is None or price.error:
             continue
-        pos_value = position.shares * price.price
-        weighted_vol_sum += pos_value * price.volatility
+        current_fact = calculate_current_position_fact(
+            symbol=position.symbol,
+            shares=position.shares,
+            cost_basis=position.cost_basis,
+            position_type=position.position_type,
+            current_price=price.price,
+        )
+        if current_fact.current_value is None:
+            continue
+        weighted_vol_sum += abs(current_fact.current_value) * price.volatility
 
     if total_value == 0:
         return None
@@ -236,13 +265,21 @@ def calculate_position_performances(
             continue
 
         symbol = position.symbol.upper()
-        current_value = position.shares * price.price
-        cost = position.shares * position.cost_basis
-        values = symbol_values.setdefault(symbol, {"current_value": 0.0, "cost": 0.0})
-        values["current_value"] += current_value
-        values["cost"] += cost
+        current_fact = calculate_current_position_fact(
+            symbol=position.symbol,
+            shares=position.shares,
+            cost_basis=position.cost_basis,
+            position_type=position.position_type,
+            current_price=price.price,
+        )
+        if current_fact.current_value is None:
+            continue
 
-    total_value = sum(values["current_value"] for values in symbol_values.values())
+        values = symbol_values.setdefault(symbol, {"current_value": 0.0, "cost": 0.0})
+        values["current_value"] += current_fact.current_value
+        values["cost"] += current_fact.cost_total
+
+    total_value = sum(abs(values["current_value"]) for values in symbol_values.values())
     performances = [
         (
             symbol,
@@ -255,7 +292,7 @@ def calculate_position_performances(
     result = [
         PositionPerformance(
             symbol=symbol,
-            gain_pct=(gain_amount / cost * 100) if cost != 0 else 0.0,
+            gain_pct=(gain_amount / abs(cost) * 100) if cost != 0 else 0.0,
             gain_amount=gain_amount,
             current_value=current_value,
             weight_pct=(current_value / total_value * 100) if total_value > 0 else 0.0,

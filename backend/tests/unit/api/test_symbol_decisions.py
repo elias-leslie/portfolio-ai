@@ -79,6 +79,41 @@ def test_build_symbol_decision_replaces_stored_position_facts_with_live_context(
     ]
 
 
+def test_build_symbol_decision_keeps_missing_live_position_facts_unknown() -> None:
+    decision = build_symbol_decision(
+        symbol="VTI",
+        recommendation={"action": "HOLD_POSITION", "reasoning": ["Hold"]},
+        generated_at="2026-04-08T15:00:00+00:00",
+        notifications=[
+            JennyNotification(
+                id="note-1",
+                routine_id="routine-1",
+                symbol="VTI",
+                category="position_review",
+                severity="warning",
+                status="open",
+                title="VTI: Review this position",
+                detail="VTI is up 31.1% and now makes up 39.2% of the portfolio.",
+                recommendation="Wait for live position facts before sizing the next action.",
+                created_at="2026-04-08T14:00:00+00:00",
+            )
+        ],
+        portfolio_position=PositionInfo(
+            shares=10,
+            cost_basis=200,
+            current_value=None,
+            gain=None,
+            gain_pct=None,
+            weight_pct=None,
+        ),
+    )
+
+    assert decision.reasoning == [
+        "Current live position: VTI is held, but live price and invested weight are unavailable.",
+        "Wait for live position facts before sizing the next action.",
+    ]
+
+
 def test_build_symbol_decision_uses_recent_review_before_live_model() -> None:
     decision = build_symbol_decision(
         symbol="NVDA",

@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
 
 from app.middleware.cache import cache_response
+from app.portfolio.current_facts import calculate_current_position_fact
 
 from .analytics_routes import router as analytics_router
 from .jenny_routes import router as jenny_router
@@ -76,16 +77,13 @@ def _build_position_responses(
     for pos in positions:
         price_info = price_data.get(pos.symbol)
         current_price = price_info.price if price_info else None
-
-        if current_price:
-            current_value = pos.shares * current_price
-            cost_total = pos.shares * pos.cost_basis
-            gain = current_value - cost_total
-            gain_pct = (gain / cost_total) * 100 if cost_total else 0.0
-        else:
-            current_value = None
-            gain = None
-            gain_pct = None
+        current_fact = calculate_current_position_fact(
+            symbol=pos.symbol,
+            shares=pos.shares,
+            cost_basis=pos.cost_basis,
+            position_type=pos.position_type,
+            current_price=current_price,
+        )
 
         position_responses.append(
             PositionResponse(
@@ -98,9 +96,9 @@ def _build_position_responses(
                 created_at=pos.created_at.isoformat(),
                 updated_at=pos.updated_at.isoformat(),
                 current_price=current_price,
-                current_value=current_value,
-                gain=gain,
-                gain_pct=gain_pct,
+                current_value=current_fact.current_value,
+                gain=current_fact.gain,
+                gain_pct=current_fact.gain_pct,
             )
         )
     return position_responses

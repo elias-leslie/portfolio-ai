@@ -40,11 +40,25 @@ def _format_position_fact(symbol: str, position: PositionInfo | None) -> str | N
     if position is None:
         return None
 
-    if abs(position.gain_pct) < 0.05:
+    if position.gain_pct is None and position.weight_pct is None:
+        return (
+            f"Current live position: {symbol.upper()} is held, but live price and "
+            "invested weight are unavailable."
+        )
+
+    if position.gain_pct is None:
+        performance = "held with unavailable live gain/loss"
+    elif abs(position.gain_pct) < 0.05:
         performance = "about flat from cost basis"
     else:
         direction = "up" if position.gain_pct >= 0 else "down"
         performance = f"{direction} {abs(position.gain_pct):.1f}% from cost basis"
+
+    if position.weight_pct is None:
+        return (
+            f"Current live position: {symbol.upper()} is {performance}; invested "
+            "weight is unavailable."
+        )
 
     return (
         f"Current live position: {symbol.upper()} is {performance} and now makes up "

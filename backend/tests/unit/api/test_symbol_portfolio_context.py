@@ -80,3 +80,17 @@ def test_symbol_portfolio_context_aggregates_multi_account_position(
     assert section.position.weight_pct == pytest.approx(97.926043)
     assert any("a.account_type != 'paper'" in query for query in storage.connection_instance.queries)
     assert any("p.position_type != 'paper'" in query for query in storage.connection_instance.queries)
+
+
+def test_build_portfolio_section_does_not_turn_cost_basis_into_current_price() -> None:
+    section = build_portfolio_section(
+        {"symbol": "VTI", "shares": 10.0, "cost_basis": 200.0, "current_price": None},
+        {"total_value": 10_000.0, "num_holdings": 1},
+    )
+
+    assert section.held is True
+    assert section.position is not None
+    assert section.position.current_value is None
+    assert section.position.gain is None
+    assert section.position.gain_pct is None
+    assert section.position.weight_pct is None

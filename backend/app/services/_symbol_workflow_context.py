@@ -34,9 +34,11 @@ class _PositionContextBuilder:
         return SymbolWorkflowPositionContext(
             shares=position.shares,
             cost_basis=position.cost_basis,
-            market_value=round(position.current_value, 2),
-            gain_pct=round(position.gain_pct, 2),
-            weight_pct=round(position.weight_pct, 2),
+            market_value=(
+                round(position.current_value, 2) if position.current_value is not None else None
+            ),
+            gain_pct=round(position.gain_pct, 2) if position.gain_pct is not None else None,
+            weight_pct=round(position.weight_pct, 2) if position.weight_pct is not None else None,
         )
 
     def latest_outcome(self, history: list[SymbolWorkflowEvent]) -> SymbolWorkflowOutcomeSnapshot | None:

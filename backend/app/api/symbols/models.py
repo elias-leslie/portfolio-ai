@@ -94,10 +94,10 @@ class PositionInfo(BaseModel):
 
     shares: float
     cost_basis: float
-    current_value: float
-    gain: float
-    gain_pct: float
-    weight_pct: float
+    current_value: float | None = None
+    gain: float | None = None
+    gain_pct: float | None = None
+    weight_pct: float | None = None
 
 
 class PortfolioContext(BaseModel):

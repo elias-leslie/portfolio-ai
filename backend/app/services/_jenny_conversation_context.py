@@ -14,6 +14,7 @@ from app.api.symbols.router import build_symbol_intelligence as build_symbol_int
 from app.config import PORTFOLIO_BACKEND_PORT, PORTFOLIO_FRONTEND_PORT, settings
 from app.logging_config import get_logger
 from app.models.household_finance import HouseholdQuestion
+from app.portfolio.current_facts import calculate_current_position_fact
 from app.services._money_workspace_routes import MONEY_EVIDENCE_ROUTE
 from app.utils._market_status import get_market_status
 
@@ -247,8 +248,13 @@ def summarize_positions(positions: list[Any], price_fetcher: PriceDataFetcher) -
     for position in positions[:MAX_PORTFOLIO_POSITIONS]:
         price_info = price_data.get(position.symbol)
         current_price = getattr(price_info, "price", None) if price_info is not None else None
-        current_value = position.shares * current_price if current_price is not None else None
-        gain_pct = _compute_gain_pct(current_price, position.cost_basis)
+        current_fact = calculate_current_position_fact(
+            symbol=position.symbol,
+            shares=position.shares,
+            cost_basis=position.cost_basis,
+            position_type=position.position_type,
+            current_price=current_price,
+        )
         summaries.append(
             {
                 "symbol": position.symbol,
@@ -256,18 +262,12 @@ def summarize_positions(positions: list[Any], price_fetcher: PriceDataFetcher) -
                 "shares": position.shares,
                 "cost_basis": position.cost_basis,
                 "position_type": position.position_type,
-                "current_price": current_price,
-                "current_value": current_value,
-                "gain_pct": gain_pct,
+                "current_price": current_fact.current_price,
+                "current_value": current_fact.current_value,
+                "gain_pct": current_fact.gain_pct,
             }
         )
     return summaries
-
-
-def _compute_gain_pct(current_price: float | None, cost_basis: float | None) -> float | None:
-    if current_price is not None and cost_basis:
-        return ((current_price - cost_basis) / cost_basis) * 100
-    return None
 
 
 def _build_household_context(

@@ -8,6 +8,8 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from app.portfolio.current_facts import calculate_current_position_fact
+
 from .models import (
     AlertIndicator,
     CompanySection,
@@ -208,22 +210,26 @@ def build_portfolio_section(
 ) -> PortfolioSection:
     """Build the portfolio section from position and summary data."""
     if position:
-        current_price = position.get("current_price") or position.get("cost_basis") or 0
-        current_value = position.get("shares", 0) * current_price
-        cost_total = position.get("shares", 0) * position.get("cost_basis", 0)
-        gain = current_value - cost_total
-        gain_pct = (gain / cost_total * 100) if cost_total else 0
-        total_value = (summary.get("total_value") if summary else None) or current_value
+        summary_total_value = summary.get("total_value") if summary else None
+        current_fact = calculate_current_position_fact(
+            symbol=str(position.get("symbol") or ""),
+            shares=position.get("shares", 0),
+            cost_basis=position.get("cost_basis", 0),
+            position_type=position.get("position_type") or "long",
+            current_price=position.get("current_price"),
+            invested_total_value=summary_total_value,
+        )
+        total_value = summary_total_value or current_fact.current_value or 0
 
         return PortfolioSection(
             held=True,
             position=PositionInfo(
-                shares=position.get("shares", 0),
-                cost_basis=position.get("cost_basis", 0),
-                current_value=current_value,
-                gain=gain,
-                gain_pct=gain_pct,
-                weight_pct=(current_value / total_value * 100) if total_value else 0,
+                shares=current_fact.shares,
+                cost_basis=current_fact.cost_basis,
+                current_value=current_fact.current_value,
+                gain=current_fact.gain,
+                gain_pct=current_fact.gain_pct,
+                weight_pct=current_fact.weight_pct,
             ),
             context=PortfolioContext(
                 total_value=total_value,

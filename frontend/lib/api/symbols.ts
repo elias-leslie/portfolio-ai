@@ -44,10 +44,10 @@ export interface SymbolPortfolioSection {
   position?: {
     shares: number
     costBasis: number
-    currentValue: number
-    gain: number
-    gainPct: number
-    weightPct: number
+    currentValue: number | null
+    gain: number | null
+    gainPct: number | null
+    weightPct: number | null
   } | null
   context?: {
     totalValue: number
