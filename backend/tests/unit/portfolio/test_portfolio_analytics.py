@@ -313,6 +313,56 @@ def test_calculate_concentration_risk() -> None:
     assert concentration.herfindahl_index > 0
 
 
+def test_calculate_concentration_risk_aggregates_duplicate_symbols() -> None:
+    """A holding split across accounts is one economic exposure."""
+    analytics = PortfolioAnalytics()
+    positions = [
+        Position(
+            id="vti-taxable",
+            account_id="taxable",
+            symbol="VTI",
+            shares=100.0,
+            cost_basis=80.0,
+            position_type="long",
+        ),
+        Position(
+            id="vti-ira",
+            account_id="ira",
+            symbol="VTI",
+            shares=50.0,
+            cost_basis=90.0,
+            position_type="long",
+        ),
+        Position(
+            id="tsla",
+            account_id="taxable",
+            symbol="TSLA",
+            shares=100.0,
+            cost_basis=40.0,
+            position_type="long",
+        ),
+        Position(
+            id="vug",
+            account_id="ira",
+            symbol="VUG",
+            shares=10.0,
+            cost_basis=180.0,
+            position_type="long",
+        ),
+    ]
+    price_data = {
+        "VTI": PriceData(symbol="VTI", price=100.0),
+        "TSLA": PriceData(symbol="TSLA", price=50.0),
+        "VUG": PriceData(symbol="VUG", price=200.0),
+    }
+
+    concentration = analytics.calculate_concentration_risk(positions, price_data)
+
+    assert concentration.top_holding_pct == pytest.approx(68.181818, rel=1e-4)
+    assert concentration.top_3_pct == pytest.approx(100.0)
+    assert concentration.herfindahl_index == pytest.approx(5247.933884, rel=1e-4)
+
+
 def test_calculate_full_analytics() -> None:
     """Test calculating complete portfolio analytics."""
     analytics = PortfolioAnalytics()
@@ -348,6 +398,52 @@ def test_calculate_full_analytics() -> None:
     assert full_analytics.num_positions == 2
     assert full_analytics.num_symbols == 2
     assert "Technology" in full_analytics.sector_exposure
+
+
+def test_calculate_full_analytics_keeps_position_and_holding_counts_separate() -> None:
+    """Duplicate account rows should not inflate diversification holding count."""
+    analytics = PortfolioAnalytics()
+    positions = [
+        Position(
+            id="aapl-taxable",
+            account_id="taxable",
+            symbol="AAPL",
+            shares=100.0,
+            cost_basis=150.0,
+            position_type="long",
+        ),
+        Position(
+            id="aapl-ira",
+            account_id="ira",
+            symbol="AAPL",
+            shares=50.0,
+            cost_basis=170.0,
+            position_type="long",
+        ),
+        Position(
+            id="msft",
+            account_id="ira",
+            symbol="MSFT",
+            shares=50.0,
+            cost_basis=300.0,
+            position_type="long",
+        ),
+    ]
+    price_data = {
+        "AAPL": PriceData(symbol="AAPL", price=180.0, sector="Technology"),
+        "MSFT": PriceData(symbol="MSFT", price=330.0, sector="Technology"),
+    }
+
+    full_analytics = analytics.calculate_full_analytics(positions, price_data)
+
+    assert full_analytics.num_positions == 3
+    assert full_analytics.num_symbols == 2
+    assert full_analytics.diversification_score is not None
+    assert full_analytics.diversification_score.num_holdings == 2
+    assert [performance.symbol for performance in full_analytics.top_performers] == [
+        "AAPL",
+        "MSFT",
+    ]
 
 
 def test_calculate_full_analytics_passes_storage_to_covariance_path() -> None:
@@ -674,3 +770,45 @@ def test_calculate_position_performances_returns_gain_and_weight_for_each_positi
     assert performances[0].weight_pct == pytest.approx(52.173913, rel=1e-4)
     assert performances[1].gain_pct == pytest.approx(10.0)
     assert performances[1].weight_pct == pytest.approx(47.826087, rel=1e-4)
+
+
+def test_calculate_position_performances_aggregates_duplicate_symbols() -> None:
+    """Overview performers should not show duplicate ticker rows."""
+    positions = [
+        Position(
+            id="aapl-taxable",
+            account_id="taxable",
+            symbol="AAPL",
+            shares=100.0,
+            cost_basis=150.0,
+            position_type="long",
+        ),
+        Position(
+            id="aapl-ira",
+            account_id="ira",
+            symbol="AAPL",
+            shares=50.0,
+            cost_basis=170.0,
+            position_type="long",
+        ),
+        Position(
+            id="msft",
+            account_id="ira",
+            symbol="MSFT",
+            shares=50.0,
+            cost_basis=300.0,
+            position_type="long",
+        ),
+    ]
+    price_data = {
+        "AAPL": PriceData(symbol="AAPL", price=180.0),
+        "MSFT": PriceData(symbol="MSFT", price=330.0),
+    }
+
+    performances = calculate_position_performances(positions, price_data)
+
+    assert [performance.symbol for performance in performances] == ["AAPL", "MSFT"]
+    assert performances[0].current_value == pytest.approx(27_000.0)
+    assert performances[0].gain_amount == pytest.approx(3_500.0)
+    assert performances[0].gain_pct == pytest.approx(14.893617, rel=1e-4)
+    assert performances[0].weight_pct == pytest.approx(62.068966, rel=1e-4)

@@ -73,9 +73,7 @@ def calculate_concentration_risk(
     Returns:
         ConcentrationMetrics with top holdings percentages and Herfindahl index
     """
-    # Calculate position values
-    position_values: list[tuple[str, float]] = []
-    total_value = 0.0
+    holding_values: dict[str, float] = defaultdict(float)
 
     for position in positions:
         price = price_data.get(position.symbol)
@@ -83,8 +81,10 @@ def calculate_concentration_risk(
             continue
 
         position_value = position.shares * price.price
-        position_values.append((position.symbol, position_value))
-        total_value += position_value
+        holding_values[position.symbol.upper()] += position_value
+
+    position_values = list(holding_values.items())
+    total_value = sum(holding_values.values())
 
     if total_value == 0:
         return ConcentrationMetrics(
@@ -229,12 +229,14 @@ def calculate_diversification_score(
     """
     # Count unique sectors
     sectors = set()
+    holdings = set()
     for position in positions:
         price = price_data.get(position.symbol)
         if price and not price.error:
+            holdings.add(position.symbol.upper())
             sectors.add(price.sector or "Unknown")
 
-    num_holdings = len(positions)
+    num_holdings = len(holdings)
     num_sectors = len(sectors)
 
     # Calculate score based on:

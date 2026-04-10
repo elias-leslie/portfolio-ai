@@ -48,7 +48,7 @@ def _format_position_fact(symbol: str, position: PositionInfo | None) -> str | N
 
     return (
         f"Current live position: {symbol.upper()} is {performance} and now makes up "
-        f"{position.weight_pct:.1f}% of the portfolio."
+        f"{position.weight_pct:.1f}% of invested assets."
     )
 
 

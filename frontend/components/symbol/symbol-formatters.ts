@@ -55,10 +55,10 @@ export function formatPortfolioWeight(weightPct?: number | null) {
   }
 
   if (weightPct > 0 && weightPct < 0.1) {
-    return '<0.1% of portfolio'
+    return '<0.1% of invested assets'
   }
 
-  return `${formatPercent(weightPct)} of portfolio`
+  return `${formatPercent(weightPct)} of invested assets`
 }
 
 export function formatIfNotHeldReasoning(reasoning?: string | null) {

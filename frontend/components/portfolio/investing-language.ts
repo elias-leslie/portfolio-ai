@@ -21,7 +21,7 @@ export function describePortfolioHealth(
   if (topHoldingPct >= 50) {
     return {
       label: 'Too concentrated',
-      detail: `Top holding ${topHoldingPct.toFixed(1)}% of the portfolio.`,
+      detail: `Top holding ${topHoldingPct.toFixed(1)}% of invested assets.`,
       tone: 'loss',
     }
   }
@@ -51,7 +51,7 @@ export function describePortfolioHealth(
     detail:
       diversificationScore != null
         ? `Diversification ${diversificationScore.toFixed(0)} · top holding ${topHoldingPct.toFixed(1)}%`
-        : `Top holding ${topHoldingPct.toFixed(1)}% of the portfolio.`,
+        : `Top holding ${topHoldingPct.toFixed(1)}% of invested assets.`,
     tone: 'default',
   }
 }

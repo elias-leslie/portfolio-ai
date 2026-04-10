@@ -151,9 +151,12 @@ describe('SymbolWorkspace', () => {
     ).toBeInTheDocument()
     expect(screen.getAllByText(/live signal model/i).length).toBeGreaterThan(0)
     expect(
-      screen.getAllByText(/8 shares · \+1.4% · 0.2% of portfolio/i).length,
+      screen.getAllByText(/8 shares · \+1.4% · 0.2% of invested assets/i)
+        .length,
     ).toBeGreaterThan(0)
-    expect(screen.queryByText(/\+0.2% of portfolio/i)).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/\+0.2% of invested assets/i),
+    ).not.toBeInTheDocument()
     expect(
       screen.getAllByText(
         /portfolio has 8 total holdings · top 3 holdings make up 28.0% · diversification score 74/i,

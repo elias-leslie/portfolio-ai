@@ -82,7 +82,7 @@ def fetch_symbol_portfolio_context(
         total_value = get_live_portfolio_totals(
             storage,
             include_paper=False,
-        ).cash_inclusive_total_value
+        ).invested_total_value
     except Exception as exc:
         logger.warning("symbol_portfolio_total_failed", error=str(exc))
         total_value = 0.0

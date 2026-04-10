@@ -140,7 +140,9 @@ def calculate_portfolio_volatility(
             continue
 
         position_value = position.shares * price.price
-        position_values[position.symbol] = position_value
+        position_values[position.symbol] = (
+            position_values.get(position.symbol, 0.0) + position_value
+        )
         total_value += position_value
 
     if total_value == 0:
@@ -226,33 +228,40 @@ def calculate_position_performances(
     price_data: dict[str, PriceData],
 ) -> list[PositionPerformance]:
     """Return reusable performance metrics for every priced position."""
-    performances: list[PositionPerformance] = []
-    total_value = 0.0
+    symbol_values: dict[str, dict[str, float]] = {}
 
     for position in positions:
         price = price_data.get(position.symbol)
         if not price or price.error:
             continue
 
+        symbol = position.symbol.upper()
         current_value = position.shares * price.price
         cost = position.shares * position.cost_basis
-        gain_amount = current_value - cost
-        gain_pct = (gain_amount / cost * 100) if cost != 0 else 0.0
-        total_value += current_value
+        values = symbol_values.setdefault(symbol, {"current_value": 0.0, "cost": 0.0})
+        values["current_value"] += current_value
+        values["cost"] += cost
 
-        performances.append(
-            PositionPerformance(
-                symbol=position.symbol,
-                gain_pct=gain_pct,
-                gain_amount=gain_amount,
-                current_value=current_value,
-                weight_pct=0.0,
-            )
+    total_value = sum(values["current_value"] for values in symbol_values.values())
+    performances = [
+        (
+            symbol,
+            values["current_value"],
+            values["cost"],
+            values["current_value"] - values["cost"],
         )
+        for symbol, values in symbol_values.items()
+    ]
+    result = [
+        PositionPerformance(
+            symbol=symbol,
+            gain_pct=(gain_amount / cost * 100) if cost != 0 else 0.0,
+            gain_amount=gain_amount,
+            current_value=current_value,
+            weight_pct=(current_value / total_value * 100) if total_value > 0 else 0.0,
+        )
+        for symbol, current_value, cost, gain_amount in performances
+    ]
 
-    if total_value > 0:
-        for performance in performances:
-            performance.weight_pct = (performance.current_value / total_value) * 100
-
-    performances.sort(key=lambda performance: performance.gain_pct, reverse=True)
-    return performances
+    result.sort(key=lambda performance: performance.gain_pct, reverse=True)
+    return result

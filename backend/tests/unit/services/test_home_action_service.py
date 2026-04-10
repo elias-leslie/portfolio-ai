@@ -163,6 +163,6 @@ def test_portfolio_health_actions_flag_concentration(monkeypatch) -> None:
     assert actions[0]["href"] == "/portfolio#portfolio-overview"
     assert actions[0]["badge"] == "Concentration"
     assert actions[0]["detail"] == (
-        "Largest holding is 38.2% of the portfolio. "
+        "Largest holding is 38.2% of invested assets. "
         "Open Investing to review portfolio concentration."
     )

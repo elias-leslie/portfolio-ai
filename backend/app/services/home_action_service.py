@@ -158,7 +158,7 @@ class HomeActionService:
                     "priority": "high" if top_holding_pct >= 50 else "warning",
                     "title": "Portfolio needs a concentration check",
                     "detail": (
-                        f"Largest holding is {top_holding_pct:.1f}% of the portfolio. "
+                        f"Largest holding is {top_holding_pct:.1f}% of invested assets. "
                         "Open Investing to review portfolio concentration."
                     ),
                     "action_label": "Review investing",
@@ -182,7 +182,7 @@ class HomeActionService:
                     "priority": "warning",
                     "title": "Portfolio spread needs a review",
                     "detail": (
-                        f"Top three holdings are {top_3_pct:.1f}% of the portfolio. "
+                        f"Top three holdings are {top_3_pct:.1f}% of invested assets. "
                         f"{diversification_detail}"
                     ),
                     "action_label": "Review investing",

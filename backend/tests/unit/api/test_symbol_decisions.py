@@ -74,7 +74,7 @@ def test_build_symbol_decision_replaces_stored_position_facts_with_live_context(
     )
 
     assert decision.reasoning == [
-        "Current live position: VTI is up 69.1% from cost basis and now makes up 58.7% of the portfolio.",
+        "Current live position: VTI is up 69.1% from cost basis and now makes up 58.7% of invested assets.",
         "Take partial profits so one winner does not become oversized.",
     ]
 
