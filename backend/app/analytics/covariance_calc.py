@@ -39,8 +39,8 @@ def calculate_daily_returns(
     if not symbols:
         return {}
 
-    # Build query for all symbols — reserve $1 for lookback_days
-    placeholders = ", ".join(f"${i + 2}" for i in range(len(symbols)))
+    placeholders = ", ".join(f"${i + 1}" for i in range(len(symbols)))
+    lookback_param = len(symbols) + 1
 
     query = f"""
         SELECT
@@ -49,11 +49,11 @@ def calculate_daily_returns(
             close
         FROM day_bars
         WHERE symbol IN ({placeholders})
-          AND date >= CURRENT_DATE - make_interval(days => $1)
+          AND date >= CURRENT_DATE - make_interval(days => ${lookback_param})
         ORDER BY symbol, date
     """
 
-    result = storage.query(query, [lookback_days, *symbols])
+    result = storage.query(query, [*symbols, lookback_days])
 
     if result.is_empty():
         return {}

@@ -165,15 +165,19 @@ def get_covariance_matrix(
     if len(symbols) < 2:
         return None
 
-    placeholders = ", ".join(f"${i + 1}" for i in range(len(symbols)))
+    symbol1_placeholders = ", ".join(f"${i + 1}" for i in range(len(symbols)))
+    symbol2_placeholders = ", ".join(
+        f"${len(symbols) + i + 1}" for i in range(len(symbols))
+    )
+    cutoff_param = len(symbols) * 2 + 1
     cutoff_time = datetime.now(UTC) - timedelta(hours=max_age_hours)
 
     query = f"""
         SELECT symbol1, symbol2, covariance
         FROM portfolio_covariance
-        WHERE symbol1 IN ({placeholders})
-          AND symbol2 IN ({placeholders})
-          AND calculated_at >= ${len(symbols) + 1}
+        WHERE symbol1 IN ({symbol1_placeholders})
+          AND symbol2 IN ({symbol2_placeholders})
+          AND calculated_at >= ${cutoff_param}
     """
 
     result = storage.query(query, symbols + symbols + [cutoff_time])
