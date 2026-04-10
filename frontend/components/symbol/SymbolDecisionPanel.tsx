@@ -108,7 +108,7 @@ function formatLiveSignalEvidence(data?: SymbolIntelligence | null) {
       ? formatEnumLabel(data.signal.type, 'Signal unavailable')
       : null,
     data?.signal?.strength != null
-      ? `${data.signal.strength}/10 confidence`
+      ? `setup strength ${data.signal.strength}/10`
       : null,
     data?.generatedAt ? `Updated ${formatRelativeTime(data.generatedAt)}` : null,
   ].filter((part): part is string => Boolean(part))
@@ -263,7 +263,7 @@ export function SymbolDecisionPanel({
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <div className="rounded-xl border border-warning/20 bg-surface/40 p-3">
                   <p className="text-[11px] uppercase tracking-[0.16em] text-text-muted">
-                    Live model
+                    Live setup evidence
                   </p>
                   <p className="mt-1 font-semibold text-text">
                     {formatEnumLabel(data?.recommendation?.action, 'Review')}

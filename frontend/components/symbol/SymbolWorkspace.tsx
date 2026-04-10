@@ -198,13 +198,13 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           {decisionUsesLiveModel ? (
             <p className="mt-3 text-sm text-text">
               Score {data?.scores?.overall?.toFixed(0) ?? '—'} ·{' '}
-              {formatEnumLabel(data?.signal?.type, 'Unavailable')} · Confidence{' '}
+              {formatEnumLabel(data?.signal?.type, 'Unavailable')} · Strength{' '}
               {data?.signal?.strength ?? '—'}/10
             </p>
           ) : (
             <p className="mt-3 text-sm text-text">
               Live signal {formatEnumLabel(data?.signal?.type, 'Unavailable')}{' '}
-              · Confidence {data?.signal?.strength ?? '—'}/10
+              · Strength {data?.signal?.strength ?? '—'}/10
             </p>
           )}
           <p className="mt-2 text-xs uppercase tracking-[0.18em] text-text-muted">

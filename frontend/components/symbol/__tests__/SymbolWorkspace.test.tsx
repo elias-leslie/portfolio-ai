@@ -147,7 +147,7 @@ describe('SymbolWorkspace', () => {
 
     expect(screen.getByText(/1 alert/i)).toBeInTheDocument()
     expect(
-      screen.getByText(/score 78 · buy · confidence 7\/10/i),
+      screen.getByText(/score 78 · buy · strength 7\/10/i),
     ).toBeInTheDocument()
     expect(screen.getAllByText(/live signal model/i).length).toBeGreaterThan(0)
     expect(
@@ -316,7 +316,7 @@ describe('SymbolWorkspace', () => {
       0,
     )
     expect(screen.getByText(/signal disagreement/i)).toBeInTheDocument()
-    expect(screen.getByText(/live model/i)).toBeInTheDocument()
+    expect(screen.getByText(/live setup evidence/i)).toBeInTheDocument()
     expect(screen.getByText(/buy more/i)).toBeInTheDocument()
     expect(screen.getAllByText(/current decision/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/1 alert/i)).toBeInTheDocument()

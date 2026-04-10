@@ -69,7 +69,7 @@ export function formatIfNotHeldReasoning(reasoning?: string | null) {
   return reasoning.replace(
     /Signal:\s*([A-Z_]+),\s*Strength:\s*(\d+(?:\.\d+)?)\/10/gi,
     (_, signalType: string, strength: string) =>
-      `Current setup: ${formatEnumLabel(signalType, 'Unavailable')} · Confidence ${strength}/10`,
+      `Current setup: ${formatEnumLabel(signalType, 'Unavailable')} · Strength ${strength}/10`,
   )
 }
 
