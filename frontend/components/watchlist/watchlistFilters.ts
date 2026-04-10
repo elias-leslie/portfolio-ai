@@ -22,6 +22,14 @@ export const SIGNAL_FILTER_VALUES: SignalFilter[] = [
   'HOLD',
   'AVOID',
 ]
+
+export const SIGNAL_FILTER_LABELS: Record<SignalFilter, string> = {
+  all: 'All live setups',
+  BUY: 'Setup BUY',
+  HOLD: 'Setup HOLD',
+  AVOID: 'Setup AVOID',
+}
+
 export const RISK_FILTER_VALUES: RiskFilter[] = [
   'all',
   'Low',

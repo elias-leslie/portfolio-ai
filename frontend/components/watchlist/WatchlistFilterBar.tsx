@@ -8,7 +8,12 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import type { WatchlistCounts } from './useWatchlistFilters'
-import type { RiskFilter, SignalFilter, StyleFilter } from './watchlistFilters'
+import {
+  SIGNAL_FILTER_LABELS,
+  type RiskFilter,
+  type SignalFilter,
+  type StyleFilter,
+} from './watchlistFilters'
 
 function SignalDot({ className }: { className: string }) {
   return <span className={cn('inline-block size-2 rounded-full', className)} />
@@ -48,25 +53,28 @@ export function WatchlistFilterBar({
         value={signalFilter}
         onValueChange={(value) => onSignalChange(value as SignalFilter)}
       >
-        <SelectTrigger className="w-[160px]" aria-label="Filter by signal">
-          <SelectValue placeholder="Signal: All" />
+        <SelectTrigger className="w-[180px]" aria-label="Filter by live setup">
+          <SelectValue placeholder="Live setup: All" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All Signals ({totalCount})</SelectItem>
+          <SelectItem value="all">
+            {SIGNAL_FILTER_LABELS.all} ({totalCount})
+          </SelectItem>
           <SelectItem value="BUY">
             <span className="inline-flex items-center gap-1.5">
-              <SignalDot className="bg-gain" /> BUY ({counts.signal.BUY || 0})
+              <SignalDot className="bg-gain" /> {SIGNAL_FILTER_LABELS.BUY} (
+              {counts.signal.BUY || 0})
             </span>
           </SelectItem>
           <SelectItem value="HOLD">
             <span className="inline-flex items-center gap-1.5">
-              <SignalDot className="bg-warning" /> HOLD (
+              <SignalDot className="bg-warning" /> {SIGNAL_FILTER_LABELS.HOLD} (
               {counts.signal.HOLD || 0})
             </span>
           </SelectItem>
           <SelectItem value="AVOID">
             <span className="inline-flex items-center gap-1.5">
-              <SignalDot className="bg-loss" /> AVOID (
+              <SignalDot className="bg-loss" /> {SIGNAL_FILTER_LABELS.AVOID} (
               {counts.signal.AVOID || 0})
             </span>
           </SelectItem>

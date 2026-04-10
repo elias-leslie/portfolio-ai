@@ -17,7 +17,7 @@ export function WatchlistSearchBar({
   const helperText =
     value.trim().length > 0
       ? `${resultCount} of ${totalCount} ${totalCount === 1 ? 'symbol' : 'symbols'} shown`
-      : 'Search symbol, note, thesis headline, or signal'
+      : 'Search symbol, note, thesis headline, or live setup'
 
   return (
     <div>
@@ -25,7 +25,7 @@ export function WatchlistSearchBar({
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
         <Input
           type="text"
-          placeholder="Search symbol, note, thesis, or signal..."
+          placeholder="Search symbol, note, thesis, or live setup..."
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className="pl-9"
