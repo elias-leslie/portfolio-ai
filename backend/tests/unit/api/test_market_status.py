@@ -67,6 +67,8 @@ class TestMarketStatusAPI:
             assert "last_trading_day" in data
             assert "next_trading_day" in data
             assert "current_time_et" in data
+            assert data["last_trading_day"] == "2025-10-29"
+            assert data["expected_data_date"] == "2025-10-28"
 
     def test_market_closed_outside_trading_hours(self, client: TestClient) -> None:
         """Test status returns 'closed' outside trading hours."""
@@ -112,6 +114,8 @@ class TestMarketStatusAPI:
             assert data["status"] == "after_hours"
             assert data["is_open"] is False
             assert data["is_holiday"] is False
+            assert data["last_trading_day"] == "2025-10-29"
+            assert data["expected_data_date"] == "2025-10-29"
 
     def test_market_closed_on_weekend(self, client: TestClient) -> None:
         """Test status returns 'closed' on weekend."""

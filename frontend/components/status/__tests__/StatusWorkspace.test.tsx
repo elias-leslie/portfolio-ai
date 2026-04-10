@@ -275,8 +275,8 @@ describe('StatusWorkspace', () => {
         data: {
           status: 'open',
           currentTimeEt: '12:00 PM ET',
-          expectedDataDate: '2026-04-10',
-          lastTradingDay: '2026-04-09',
+          expectedDataDate: '2026-04-09',
+          lastTradingDay: '2026-04-10',
           nextTradingDay: '2026-04-13',
           isHoliday: false,
           isEarlyClose: false,
@@ -316,6 +316,11 @@ describe('StatusWorkspace', () => {
     expect(
       screen.queryByText(/backup news source stepped in/i),
     ).not.toBeInTheDocument()
+    expect(screen.getByText('Daily Data Through')).toBeInTheDocument()
+    expect(
+      screen.getByText('Current trading day 2026-04-10'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Expected Market Date')).not.toBeInTheDocument()
   })
 
   it('describes overdue automation without pretending unfinished runs failed the success rate', () => {

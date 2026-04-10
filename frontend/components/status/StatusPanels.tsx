@@ -624,9 +624,9 @@ export function MarketTimingPanel({
             }
           />
           <SummaryStat
-            label="Expected Market Date"
+            label="Daily Data Through"
             value={marketData?.expectedDataDate ?? '—'}
-            detail={`Last trading day ${marketData?.lastTradingDay ?? '—'}`}
+            detail={`Current trading day ${marketData?.lastTradingDay ?? '—'}`}
           />
           <SummaryStat
             label="Next Trading Day"
