@@ -11,11 +11,18 @@ from app.services import _household_dashboard_queries as queries
 
 
 class _FakeResult:
-    def __init__(self, row: tuple[Any, ...]) -> None:
-        self._row = row
+    def __init__(self, result: tuple[Any, ...] | list[tuple[Any, ...]]) -> None:
+        self._result = result
 
     def fetchone(self) -> tuple[Any, ...]:
-        return self._row
+        if isinstance(self._result, list):
+            return self._result[0] if self._result else ()
+        return self._result
+
+    def fetchall(self) -> list[tuple[Any, ...]]:
+        if isinstance(self._result, list):
+            return self._result
+        return [self._result]
 
 
 class _FakeConnection:
@@ -28,7 +35,7 @@ class _FakeConnection:
 
 
 class _FakeStorage:
-    def __init__(self, rows: list[tuple[Any, ...]]) -> None:
+    def __init__(self, rows: list[tuple[Any, ...] | list[tuple[Any, ...]]]) -> None:
         self.rows = rows
         self.sql: list[str] = []
 
@@ -42,6 +49,7 @@ def test_statement_freshness_excludes_future_rows_and_surfaces_date_quality() ->
     storage = _FakeStorage(
         [
             (2, today + timedelta(days=30), today + timedelta(days=120)),
+            (0, None, None),
             (today - timedelta(days=5), 2, today - timedelta(days=35)),
         ]
     )
@@ -54,7 +62,62 @@ def test_statement_freshness_excludes_future_rows_and_surfaces_date_quality() ->
     assert freshness["future_transaction_count"] == 2
     assert freshness["latest_future_date"] == (today + timedelta(days=120)).isoformat()
     assert "transaction_date > CURRENT_DATE" in storage.sql[0]
-    assert "transaction_date <= CURRENT_DATE" in storage.sql[1]
+    assert "transaction_date <= CURRENT_DATE" in storage.sql[2]
+
+
+def test_transaction_date_issues_include_transaction_and_held_document_rows() -> None:
+    today = date.today()
+    storage = _FakeStorage(
+        [
+            [
+                (
+                    "txn-1",
+                    "doc-1",
+                    "walmart.pdf",
+                    "receipt",
+                    "receipt",
+                    today + timedelta(days=30),
+                    today - timedelta(days=2),
+                    "Walmart",
+                    "Walmart receipt",
+                    164.14,
+                    "Visa Credit ****4635",
+                    0.9,
+                    "09/03/2026 Order details - Walmart.com",
+                )
+            ],
+            [
+                (
+                    "doc-2",
+                    "target.pdf",
+                    "receipt",
+                    "receipt",
+                    today - timedelta(days=1),
+                    [
+                        {
+                            "transaction_date": (today + timedelta(days=60)).isoformat(),
+                            "merchant": "Target",
+                            "description": "Target receipt",
+                            "amount": "42.50",
+                            "account_label": "Visa",
+                            "confidence": 0.8,
+                        }
+                    ],
+                    "Target receipt text",
+                )
+            ],
+        ]
+    )
+
+    issues = queries.fetch_transaction_date_issues(storage)
+
+    assert len(issues) == 2
+    assert issues[0].transaction_id == "txn-1"
+    assert issues[0].transaction_date == (today + timedelta(days=30)).isoformat()
+    assert issues[0].source_excerpt == "09/03/2026 Order details - Walmart.com"
+    assert issues[1].transaction_id is None
+    assert issues[1].merchant == "Target"
+    assert issues[1].amount == 42.5
 
 
 def test_current_fact_queries_share_current_date_guard() -> None:

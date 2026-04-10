@@ -39,6 +39,7 @@ from app.services._household_dashboard_queries import (
     fetch_current_month_spend,
     fetch_monthly_retirement_contributions,
     fetch_recurring_commitments,
+    fetch_transaction_date_issues,
 )
 
 
@@ -48,6 +49,7 @@ class HouseholdDashboardComposer:
     def build_dashboard(self, service: Any) -> HouseholdFinanceDashboard:
         d = gather_service_data(service)
         freshness = check_statement_freshness(service.storage)
+        transaction_date_issues = fetch_transaction_date_issues(service.storage)
         resolved_values, visible_questions = resolve_dashboard_values(
             service, profile=d["profile"], reports=d["reports"], questions=d["questions"]
         )
@@ -95,6 +97,7 @@ class HouseholdDashboardComposer:
             retirement_assets=retirement_assets, taxable_assets=taxable_assets,
             cash_reserve=cash_reserve, total_tracked_assets=total_tracked_assets,
             categorization_queue=categorization_queue, recurring_commitments=recurring_commitments,
+            transaction_date_issues=transaction_date_issues,
             account_summaries=account_summaries, inbox=inbox,
         )
 

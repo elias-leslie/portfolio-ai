@@ -17,7 +17,16 @@ vi.mock('@/components/money/MoneyAccountsPanel', () => ({
   MoneyAccountsPanel: () => <div>Money Accounts Panel</div>,
 }))
 vi.mock('@/components/money/HouseholdDocumentCenter', () => ({
-  HouseholdDocumentCenter: () => <div>Document Center</div>,
+  HouseholdDocumentCenter: ({
+    focusedReview,
+  }: {
+    focusedReview?: boolean
+  }) => (
+    <div>
+      Document Center
+      {focusedReview ? <span>Date quality focused</span> : null}
+    </div>
+  ),
 }))
 vi.mock('@/components/money/HouseholdProfileCard', () => ({
   HouseholdProfileCard: () => <div>Profile Card</div>,
@@ -115,6 +124,7 @@ function buildDashboard() {
     },
     categorizationQueue: [],
     recurringCommitments: [],
+    transactionDateIssues: [],
     sinkingFunds: [],
     retirementContributionTracker: {
       status: 'gap',
@@ -306,5 +316,19 @@ describe('MoneyPage', () => {
     render(<MoneyPage />)
 
     expect(screen.getByText('Document Center')).toBeInTheDocument()
+  })
+
+  it('focuses the date-quality evidence review from the focus query param', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/money?utility=evidence&focus=date-quality',
+    )
+    const { default: MoneyPage } = await import('../money/page')
+
+    render(<MoneyPage />)
+
+    expect(screen.getByText('Document Center')).toBeInTheDocument()
+    expect(screen.getByText('Date quality focused')).toBeInTheDocument()
   })
 })

@@ -222,6 +222,46 @@ describe('HouseholdDocumentCenter', () => {
     expect(screen.getByText(/classifier 87%/i)).toBeInTheDocument()
   })
 
+  it('surfaces focused future-date evidence issues without treating them as applied transactions', () => {
+    render(
+      <HouseholdDocumentCenter
+        documents={[]}
+        dateQualityIssues={[
+          {
+            id: 'future-date-1',
+            transactionId: 'txn-1',
+            documentId: 'doc-1',
+            filename: 'walmart-order.pdf',
+            sourceType: 'receipt',
+            documentType: 'receipt',
+            transactionDate: '2026-09-03',
+            uploadedAt: '2026-03-09',
+            merchant: 'Walmart',
+            description: 'Walmart receipt',
+            amount: 164.14,
+            accountLabel: 'Visa Credit ****4635',
+            confidence: 0.9,
+            reason:
+              'Extracted transaction date is after today, so Jenny is holding it out of current money calculations.',
+            sourceExcerpt: '09/03/2026 Order details - Walmart.com',
+          },
+        ]}
+        focusedReview
+      />,
+    )
+
+    expect(screen.getByText(/1 transaction has a future date/i)).toBeInTheDocument()
+    expect(screen.getByText('walmart-order.pdf')).toBeInTheDocument()
+    expect(screen.getByText(/extracted 2026-09-03/i)).toBeInTheDocument()
+    expect(screen.getByText('$164')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /upload corrected evidence/i }),
+    ).toHaveAttribute('href', '#add-evidence-upload')
+    expect(
+      screen.getByRole('link', { name: /re-upload corrected file/i }),
+    ).toHaveAttribute('href', '#add-evidence-upload')
+  })
+
   it('marks upload controls busy while household documents are uploading', () => {
     useUploadHouseholdDocumentMock.mockReturnValue({
       mutate,

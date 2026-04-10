@@ -190,6 +190,24 @@ export interface HouseholdRecurringCommitment {
   commitmentType: string
 }
 
+export interface HouseholdTransactionDateIssue {
+  id: string
+  transactionId: string | null
+  documentId: string
+  filename: string
+  sourceType: string
+  documentType: string
+  transactionDate: string
+  uploadedAt: string | null
+  merchant: string
+  description: string
+  amount: number
+  accountLabel: string | null
+  confidence: number | null
+  reason: string
+  sourceExcerpt: string | null
+}
+
 export interface HouseholdSinkingFund {
   name: string
   monthlyTarget: number
@@ -430,6 +448,7 @@ export interface HouseholdFinanceDashboard {
   reports: HouseholdReports
   categorizationQueue: HouseholdCategorizationCandidate[]
   recurringCommitments: HouseholdRecurringCommitment[]
+  transactionDateIssues: HouseholdTransactionDateIssue[]
   sinkingFunds: HouseholdSinkingFund[]
   retirementContributionTracker: HouseholdRetirementContributionTracker
   retirementScenarios: HouseholdRetirementScenario[]

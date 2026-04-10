@@ -1,24 +1,36 @@
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import type {
   HouseholdDocument,
   HouseholdDocumentRequirement,
+  HouseholdTransactionDateIssue,
   ImportCenter,
 } from '@/lib/api/household'
-import { formatEnumLabel } from '@/lib/formatters'
+import { formatCurrencyWhole, formatEnumLabel } from '@/lib/formatters'
 import { DocumentCard } from './DocumentCard'
 
 export function ImportCenterSidebar({
   documents,
   importCenter,
   documentRequirements,
+  dateQualityIssues = [],
+  focusedReview = false,
 }: {
   documents: HouseholdDocument[]
   importCenter?: ImportCenter
   documentRequirements: HouseholdDocumentRequirement[]
+  dateQualityIssues?: HouseholdTransactionDateIssue[]
+  focusedReview?: boolean
 }) {
   return (
     <div className="space-y-3">
       {importCenter ? <IntakeSummaryCard importCenter={importCenter} /> : null}
+      {dateQualityIssues.length > 0 ? (
+        <DateQualityIssuesCard
+          issues={dateQualityIssues}
+          focusedReview={focusedReview}
+        />
+      ) : null}
       {documentRequirements.length > 0 ? (
         <DocumentRequirementsCard requirements={documentRequirements} />
       ) : null}
@@ -33,6 +45,104 @@ export function ImportCenterSidebar({
           <DocumentCard key={document.id} document={document} />
         ))
       )}
+    </div>
+  )
+}
+
+function formatFutureDistance(transactionDate: string) {
+  const parsedDate = new Date(`${transactionDate}T00:00:00`)
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null
+  }
+  const today = new Date()
+  const dayDelta = Math.ceil(
+    (parsedDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+  )
+  if (dayDelta <= 0) {
+    return null
+  }
+  if (dayDelta < 45) {
+    return `${dayDelta} day${dayDelta === 1 ? '' : 's'} from now`
+  }
+  const monthDelta = Math.max(1, Math.round(dayDelta / 30))
+  return `${monthDelta} month${monthDelta === 1 ? '' : 's'} from now`
+}
+
+function DateQualityIssuesCard({
+  issues,
+  focusedReview,
+}: {
+  issues: HouseholdTransactionDateIssue[]
+  focusedReview: boolean
+}) {
+  return (
+    <div
+      id="date-quality-review"
+      className={`rounded-2xl border p-4 ${
+        focusedReview
+          ? 'border-amber-400/60 bg-amber-400/10 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]'
+          : 'border-border/40 bg-surface-muted/20'
+      }`}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-text">
+            {issues.length} transaction{issues.length === 1 ? '' : 's'}{' '}
+            {issues.length === 1 ? 'has a future date' : 'have future dates'}
+          </p>
+          <p className="mt-1 text-sm text-text-muted">
+            Held out of spend, freshness, and budget calculations until the
+            evidence date is corrected.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline">Needs review</Badge>
+          <Button asChild size="sm" variant="outline">
+            <a href="#add-evidence-upload">Upload corrected evidence</a>
+          </Button>
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {issues.slice(0, 5).map((issue) => (
+          <div
+            key={issue.id}
+            className="rounded-2xl border border-border/40 bg-surface/70 p-3"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-text">
+                  {issue.merchant}
+                </p>
+                <p className="mt-1 text-xs text-text-muted">
+                  {issue.filename}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-semibold tabular-nums text-text">
+                  {formatCurrencyWhole(issue.amount)}
+                </p>
+                <p className="text-xs text-amber-200">
+                  extracted {issue.transactionDate}
+                  {formatFutureDistance(issue.transactionDate)
+                    ? ` · ${formatFutureDistance(issue.transactionDate)}`
+                    : ''}
+                </p>
+              </div>
+            </div>
+            {issue.sourceExcerpt ? (
+              <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-text-muted/80">
+                Evidence: {issue.sourceExcerpt}
+              </p>
+            ) : null}
+            <div className="mt-3">
+              <Button asChild size="sm" variant="outline">
+                <a href="#add-evidence-upload">Re-upload corrected file</a>
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

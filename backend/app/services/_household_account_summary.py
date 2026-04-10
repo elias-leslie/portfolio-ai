@@ -17,6 +17,7 @@ from app.models.household_finance import (
 from app.services._money_workspace_routes import (
     MONEY_ACCOUNTS_ROUTE,
     MONEY_CLARIFICATIONS_ROUTE,
+    MONEY_DATE_QUALITY_ROUTE,
     MONEY_EVIDENCE_ROUTE,
 )
 
@@ -629,6 +630,25 @@ def build_money_inbox(
                 detail="Jenny still does not have enough bank or card activity to build a usable spending ledger.",
                 action_label="Upload statements",
                 action_href=MONEY_EVIDENCE_ROUTE,
+            )
+        )
+
+    future_transaction_count = int(statement_freshness.get("future_transaction_count") or 0)
+    if future_transaction_count > 0:
+        latest_future_date = statement_freshness.get("latest_future_date")
+        items.append(
+            HouseholdInboxItem(
+                id="cashflow-future-transaction-dates",
+                category="intake",
+                priority="high",
+                title="Review future-dated transactions",
+                detail=(
+                    f"{future_transaction_count} transaction{'s' if future_transaction_count != 1 else ''}"
+                    f"{f' through {latest_future_date}' if latest_future_date else ''} "
+                    "are held out of current spending calculations until the evidence date is corrected."
+                ),
+                action_label="Review dates",
+                action_href=MONEY_DATE_QUALITY_ROUTE,
             )
         )
 

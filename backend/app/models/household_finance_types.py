@@ -170,6 +170,24 @@ class HouseholdRecurringCommitment(BaseModel):
     commitment_type: str
 
 
+class HouseholdTransactionDateIssue(BaseModel):
+    id: str
+    transaction_id: str | None = None
+    document_id: str
+    filename: str
+    source_type: str
+    document_type: str
+    transaction_date: str
+    uploaded_at: str | None = None
+    merchant: str
+    description: str
+    amount: float
+    account_label: str | None = None
+    confidence: float | None = None
+    reason: str
+    source_excerpt: str | None = None
+
+
 class HouseholdSinkingFund(BaseModel):
     name: str
     monthly_target: float

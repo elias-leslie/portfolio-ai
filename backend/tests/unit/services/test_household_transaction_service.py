@@ -2,10 +2,40 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from datetime import date
+from types import SimpleNamespace
+from typing import Any
+
 from app.services.household_transaction_service import (
     HouseholdTransactionService,
     _merchant_aliases,
 )
+
+
+class _FakeConnection:
+    def __init__(self) -> None:
+        self.executed: list[tuple[str, list[Any] | None]] = []
+        self.committed = False
+
+    def execute(self, sql: str, params: list[Any] | None = None) -> _FakeConnection:
+        self.executed.append((sql, params))
+        return self
+
+    def fetchone(self) -> tuple[bool]:
+        return (True,)
+
+    def commit(self) -> None:
+        self.committed = True
+
+
+class _FakeStorage:
+    def __init__(self) -> None:
+        self.conn = _FakeConnection()
+
+    @contextmanager
+    def connection(self):
+        yield self.conn
 
 
 def test_parse_chase_statement_extracts_walmart_activity_lines() -> None:
@@ -82,3 +112,39 @@ def test_merchant_aliases_collapse_walmart_variants() -> None:
     assert "walmart" in aliases
     assert "wm supercenter" in aliases
     assert "wmsupercenter" in aliases
+
+
+def test_import_document_transactions_holds_future_dated_receipts_for_review() -> None:
+    service = HouseholdTransactionService()
+    fake_storage = _FakeStorage()
+    service.storage = fake_storage
+    future_date = date(date.today().year + 1, 9, 3)
+
+    result = service.import_document_transactions(
+        document=SimpleNamespace(
+            id="doc-1",
+            filename="walmart.pdf",
+            source_type="receipt",
+            document_type="receipt",
+            account_label=None,
+        ),
+        reviewed={
+            "source_type": "receipt",
+            "document_type": "receipt",
+            "summary": "Walmart receipt",
+            "extracted_text": f"{future_date:%m/%d/%Y} Order details - Walmart.com",
+            "structured_data": {
+                "merchant": "Walmart",
+                "total_amount": "164.14",
+                "account_hint": "Visa Credit ****4635",
+            },
+        },
+    )
+
+    assert result == {"inserted": 0, "updated": 0, "held_for_date_review": 1}
+    assert fake_storage.conn.committed is True
+    assert not any("INSERT INTO household_transactions" in sql for sql, _ in fake_storage.conn.executed)
+    metadata_update = fake_storage.conn.executed[-1][1]
+    assert metadata_update is not None
+    assert '"date_quality_summary"' in metadata_update[0]
+    assert '"held_for_date_review": 1' in metadata_update[0]

@@ -35,6 +35,7 @@ from app.models.household_finance_types import (
     HouseholdSinkingFund,
     HouseholdTrackedAccount,
     HouseholdTrackedAccountInput,
+    HouseholdTransactionDateIssue,
     ImportCenter,
     ImportFormat,
     JennyMoneyBrief,
@@ -84,6 +85,7 @@ __all__ = [
     "HouseholdTrackedAccount",
     "HouseholdTrackedAccountInput",
     "HouseholdTransactionCategoryUpdate",
+    "HouseholdTransactionDateIssue",
     "ImportCenter",
     "ImportFormat",
     "JennyMoneyBrief",
@@ -159,6 +161,7 @@ class HouseholdFinanceDashboard(BaseModel):
     reports: HouseholdReports
     categorization_queue: list[HouseholdCategorizationCandidate] = Field(default_factory=list)
     recurring_commitments: list[HouseholdRecurringCommitment] = Field(default_factory=list)
+    transaction_date_issues: list[HouseholdTransactionDateIssue] = Field(default_factory=list)
     sinking_funds: list[HouseholdSinkingFund] = Field(default_factory=list)
     retirement_contribution_tracker: HouseholdRetirementContributionTracker
     retirement_scenarios: list[HouseholdRetirementScenario] = Field(default_factory=list)

@@ -16,6 +16,7 @@ from app.services._household_jenny_needs_builders import (
     _jenny_transaction_date_quality_needs,
 )
 from app.services._money_workspace_routes import (
+    MONEY_DATE_QUALITY_ROUTE,
     MONEY_EVIDENCE_ROUTE,
     MONEY_PLANNING_ROUTE,
 )
@@ -102,7 +103,7 @@ def test_future_transaction_date_quality_need_is_data_driven() -> None:
     )
 
     assert len(needs) == 1
-    assert needs[0].action_href == MONEY_EVIDENCE_ROUTE
+    assert needs[0].action_href == MONEY_DATE_QUALITY_ROUTE
     assert needs[0].priority == "high"
     assert "3 transactions" in needs[0].detail
     assert "2026-09-03" in needs[0].detail

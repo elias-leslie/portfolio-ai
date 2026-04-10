@@ -94,6 +94,7 @@ def test_get_dashboard_returns_composed_household_view() -> None:
     mock_conn.execute.return_value.fetchall.return_value = []
     mock_conn.execute.return_value.fetchone.side_effect = [
         (0, None, None),
+        (0, None, None),
         (None, 0, None),
     ]
     mock_conn.__enter__ = Mock(return_value=mock_conn)

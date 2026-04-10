@@ -14,6 +14,7 @@ from app.models.household_finance import (
     HouseholdProfile,
     HouseholdRecurringCommitment,
     HouseholdReports,
+    HouseholdTransactionDateIssue,
 )
 from app.services._household_dashboard_builders import (
     build_recurring_commitment,
@@ -128,6 +129,62 @@ _FUTURE_TRANSACTION_QUALITY_SQL = """
     WHERE transaction_date > CURRENT_DATE
 """
 
+_DOCUMENT_FUTURE_TRANSACTION_QUALITY_SQL = """
+    SELECT
+        COUNT(*) AS future_transaction_count,
+        MIN((future_txn->>'transaction_date')::date) AS earliest_future_date,
+        MAX((future_txn->>'transaction_date')::date) AS latest_future_date
+    FROM household_documents d
+    CROSS JOIN LATERAL jsonb_array_elements(
+        COALESCE(d.metadata->'date_quality_summary'->'future_transactions', '[]'::jsonb)
+    ) AS future_txn
+    WHERE d.metadata->'date_quality_summary'->>'status' = 'needs_review'
+      AND NOT EXISTS (
+          SELECT 1
+          FROM household_transactions t
+          WHERE t.document_id = d.id
+            AND t.transaction_date > CURRENT_DATE
+      )
+"""
+
+_TRANSACTION_DATE_ISSUES_SQL = """
+    SELECT
+        t.id,
+        t.document_id,
+        d.filename,
+        d.source_type,
+        d.document_type,
+        t.transaction_date,
+        d.uploaded_at,
+        COALESCE(m.canonical_name, t.raw_merchant, t.description) AS merchant,
+        t.description,
+        t.amount,
+        t.account_label,
+        t.confidence,
+        d.metadata->'structured_data'->>'text_preview' AS source_excerpt
+    FROM household_transactions t
+    JOIN household_documents d ON d.id = t.document_id
+    LEFT JOIN household_merchants m ON m.id = t.merchant_id
+    WHERE t.transaction_date > CURRENT_DATE
+    ORDER BY t.transaction_date ASC, CAST(t.amount AS DOUBLE PRECISION) DESC
+    LIMIT %s
+"""
+
+_DOCUMENT_DATE_ISSUES_SQL = """
+    SELECT
+        d.id,
+        d.filename,
+        d.source_type,
+        d.document_type,
+        d.uploaded_at,
+        d.metadata->'date_quality_summary'->'future_transactions' AS future_transactions,
+        d.metadata->'structured_data'->>'text_preview' AS source_excerpt
+    FROM household_documents d
+    WHERE d.metadata->'date_quality_summary'->>'status' = 'needs_review'
+    ORDER BY d.uploaded_at DESC
+    LIMIT %s
+"""
+
 _CONFIRMED_FACTS_SQL = """
     SELECT fact_key, fact_value
     FROM household_confirmed_facts
@@ -164,18 +221,47 @@ def _date_iso(value: Any) -> str | None:
 
 def _fetch_future_transaction_quality(storage: Any) -> dict[str, Any]:
     with storage.connection() as conn:
-        row = conn.execute(_FUTURE_TRANSACTION_QUALITY_SQL).fetchone()
-    if row is None:
+        transaction_row = conn.execute(_FUTURE_TRANSACTION_QUALITY_SQL).fetchone()
+        document_row = conn.execute(_DOCUMENT_FUTURE_TRANSACTION_QUALITY_SQL).fetchone()
+    if transaction_row is None and document_row is None:
         return {
             "future_transaction_count": 0,
             "earliest_future_date": None,
             "latest_future_date": None,
         }
+    transaction_count = int(transaction_row[0] or 0) if transaction_row is not None else 0
+    document_count = int(document_row[0] or 0) if document_row is not None else 0
+    earliest_candidates = [
+        _date_value(row[1])
+        for row in (transaction_row, document_row)
+        if row is not None and row[1] is not None
+    ]
+    latest_candidates = [
+        _date_value(row[2])
+        for row in (transaction_row, document_row)
+        if row is not None and row[2] is not None
+    ]
     return {
-        "future_transaction_count": int(row[0] or 0),
-        "earliest_future_date": _date_iso(row[1]),
-        "latest_future_date": _date_iso(row[2]),
+        "future_transaction_count": transaction_count + document_count,
+        "earliest_future_date": min(earliest_candidates).isoformat() if earliest_candidates else None,
+        "latest_future_date": max(latest_candidates).isoformat() if latest_candidates else None,
     }
+
+
+def _short_excerpt(value: Any, *, max_length: int = 220) -> str | None:
+    if not isinstance(value, str):
+        return None
+    compact = " ".join(value.split())
+    if not compact:
+        return None
+    return compact[: max_length - 1] + "…" if len(compact) > max_length else compact
+
+
+def _float_or_zero(value: Any) -> float:
+    try:
+        return float(value or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _canonicalize_institution(description: str, fallback: str) -> str:
@@ -267,6 +353,83 @@ def check_statement_freshness(storage: Any) -> dict[str, Any]:
         "gap_months": gap_months,
         **future_quality,
     }
+
+
+def fetch_transaction_date_issues(storage: Any, limit: int = 12) -> list[HouseholdTransactionDateIssue]:
+    """Return transactions whose extracted dates are after today and need review."""
+    with storage.connection() as conn:
+        rows = conn.execute(_TRANSACTION_DATE_ISSUES_SQL, [limit]).fetchall()
+        document_rows = conn.execute(_DOCUMENT_DATE_ISSUES_SQL, [limit]).fetchall()
+
+    issues: list[HouseholdTransactionDateIssue] = []
+    for row in rows:
+        transaction_date = _date_iso(row[5])
+        if transaction_date is None:
+            continue
+        issues.append(
+            HouseholdTransactionDateIssue(
+                id=f"future-date-{row[0]}",
+                transaction_id=str(row[0]),
+                document_id=str(row[1]),
+                filename=str(row[2]),
+                source_type=str(row[3]),
+                document_type=str(row[4]),
+                transaction_date=transaction_date,
+                uploaded_at=_date_iso(row[6]),
+                merchant=str(row[7]),
+                description=str(row[8]),
+                amount=round(float(row[9] or 0.0), 2),
+                account_label=str(row[10]) if row[10] is not None else None,
+                confidence=float(row[11]) if row[11] is not None else None,
+                reason="Extracted transaction date is after today, so Jenny is holding it out of current money calculations.",
+                source_excerpt=_short_excerpt(row[12]),
+            )
+        )
+    existing_document_ids = {issue.document_id for issue in issues}
+    remaining_limit = max(limit - len(issues), 0)
+    for row in document_rows:
+        if len(issues) >= limit:
+            break
+        document_id = str(row[0])
+        if document_id in existing_document_ids:
+            continue
+        future_transactions = row[5] if isinstance(row[5], list) else []
+        for index, transaction in enumerate(future_transactions[:remaining_limit]):
+            if not isinstance(transaction, dict):
+                continue
+            transaction_date = str(transaction.get("transaction_date") or "")
+            if not transaction_date:
+                continue
+            issues.append(
+                HouseholdTransactionDateIssue(
+                    id=f"future-date-document-{document_id}-{index}",
+                    transaction_id=None,
+                    document_id=document_id,
+                    filename=str(row[1]),
+                    source_type=str(row[2]),
+                    document_type=str(row[3]),
+                    transaction_date=transaction_date,
+                    uploaded_at=_date_iso(row[4]),
+                    merchant=str(transaction.get("merchant") or "Unknown merchant"),
+                    description=str(transaction.get("description") or "Future-dated transaction"),
+                    amount=round(_float_or_zero(transaction.get("amount")), 2),
+                    account_label=(
+                        str(transaction.get("account_label"))
+                        if transaction.get("account_label")
+                        else None
+                    ),
+                    confidence=(
+                        _float_or_zero(transaction.get("confidence"))
+                        if transaction.get("confidence") is not None
+                        else None
+                    ),
+                    reason="Extracted transaction date is after today, so Jenny held it out instead of inserting it into the current ledger.",
+                    source_excerpt=_short_excerpt(row[6]),
+                )
+            )
+            if len(issues) >= limit:
+                break
+    return issues
 
 
 def fetch_confirmed_facts(storage: Any) -> dict[str, str]:

@@ -18,6 +18,7 @@ from app.services._household_account_summary import (
 from app.services._money_workspace_routes import (
     MONEY_ACCOUNTS_ROUTE,
     MONEY_CLARIFICATIONS_ROUTE,
+    MONEY_DATE_QUALITY_ROUTE,
     MONEY_EVIDENCE_ROUTE,
 )
 
@@ -216,6 +217,25 @@ def test_build_money_inbox_prioritizes_questions_and_account_gaps() -> None:
         item.category == "coverage" and item.action_href == MONEY_ACCOUNTS_ROUTE
         for item in inbox
     )
+
+
+def test_build_money_inbox_routes_future_date_issues_to_focused_evidence_review() -> None:
+    inbox = build_money_inbox(
+        accounts=[],
+        questions=[],
+        tracked_documents=3,
+        parsed_documents=3,
+        statement_freshness={
+            "coverage_months": 3,
+            "gap_months": [],
+            "future_transaction_count": 2,
+            "latest_future_date": "2026-09-03",
+        },
+    )
+
+    assert inbox[0].id == "cashflow-future-transaction-dates"
+    assert inbox[0].action_label == "Review dates"
+    assert inbox[0].action_href == MONEY_DATE_QUALITY_ROUTE
 
 
 def test_build_account_summaries_links_evidence_to_tracked_accounts() -> None:

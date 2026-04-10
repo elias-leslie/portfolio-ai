@@ -5,6 +5,7 @@ from typing import Any
 
 from app.models.household_finance import JennyNeed
 from app.services._money_workspace_routes import (
+    MONEY_DATE_QUALITY_ROUTE,
     MONEY_EVIDENCE_ROUTE,
     MONEY_PLANNING_ROUTE,
 )
@@ -173,7 +174,7 @@ def _jenny_transaction_date_quality_needs(freshness: dict[str, Any]) -> list[Jen
         priority="high",
         status="unsatisfied",
         recurrence="as_needed",
-        action_href=MONEY_EVIDENCE_ROUTE,
+        action_href=MONEY_DATE_QUALITY_ROUTE,
     )]
 
 

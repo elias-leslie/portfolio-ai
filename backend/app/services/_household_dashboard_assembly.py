@@ -440,6 +440,7 @@ def assemble_finance_dashboard(
     jenny_needs: list[JennyNeed], retirement_assets: float, taxable_assets: float,
     cash_reserve: float, total_tracked_assets: float,
     categorization_queue: list[Any], recurring_commitments: list[Any],
+    transaction_date_issues: list[Any],
     account_summaries: list[Any], inbox: list[Any],
 ) -> HouseholdFinanceDashboard:
     profile, reports, documents, planning = d["profile"], d["reports"], d["documents"], d["planning"]
@@ -464,6 +465,7 @@ def assemble_finance_dashboard(
         ),
         jenny_needs=jenny_needs, reports=reports,
         categorization_queue=categorization_queue, recurring_commitments=recurring_commitments,
+        transaction_date_issues=transaction_date_issues,
         sinking_funds=build_sinking_funds(recurring_commitments=recurring_commitments),
         retirement_contribution_tracker=build_retirement_contribution_tracker(
             profile=profile, estimated_monthly_contributions=fetch_monthly_retirement_contributions(service.storage),

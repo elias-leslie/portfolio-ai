@@ -66,6 +66,7 @@ function MetricCard({
 }
 
 type MoneyUtility = 'evidence' | 'planning'
+type MoneyFocus = 'date-quality'
 
 function resolveRequestedUtility(
   requested: string | null | undefined,
@@ -83,7 +84,26 @@ function readRequestedUtility(): MoneyUtility | null {
   )
 }
 
-function syncUtilityToLocation(nextUtility: MoneyUtility | null) {
+function resolveRequestedFocus(
+  requested: string | null | undefined,
+): MoneyFocus | null {
+  return requested === 'date-quality' ? requested : null
+}
+
+function readRequestedFocus(): MoneyFocus | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  return resolveRequestedFocus(
+    new URLSearchParams(window.location.search).get('focus'),
+  )
+}
+
+function syncUtilityToLocation(
+  nextUtility: MoneyUtility | null,
+  nextFocus: MoneyFocus | null = null,
+) {
   if (typeof window === 'undefined') {
     return
   }
@@ -94,12 +114,20 @@ function syncUtilityToLocation(nextUtility: MoneyUtility | null) {
   } else {
     nextUrl.searchParams.delete('utility')
   }
+  if (nextUtility === 'evidence' && nextFocus) {
+    nextUrl.searchParams.set('focus', nextFocus)
+  } else {
+    nextUrl.searchParams.delete('focus')
+  }
   window.history.replaceState(window.history.state, '', nextUrl)
 }
 
 export default function MoneyPage() {
   const [openUtility, setOpenUtilityState] = useState<MoneyUtility | null>(
     readRequestedUtility,
+  )
+  const [focusedReview, setFocusedReview] = useState<MoneyFocus | null>(
+    readRequestedFocus,
   )
   const {
     data: dashboard,
@@ -117,6 +145,10 @@ export default function MoneyPage() {
 
   useEffect(() => {
     const syncFromLocation = () => {
+      const requestedFocus = readRequestedFocus()
+      setFocusedReview((current) =>
+        current === requestedFocus ? current : requestedFocus,
+      )
       setOpenUtilityState((current) => {
         const requested = readRequestedUtility()
         return current === requested ? current : requested
@@ -132,8 +164,10 @@ export default function MoneyPage() {
   }, [])
 
   const setOpenUtility = (nextUtility: MoneyUtility | null) => {
+    const nextFocus = nextUtility === 'evidence' ? focusedReview : null
     setOpenUtilityState(nextUtility)
-    syncUtilityToLocation(nextUtility)
+    setFocusedReview(nextFocus)
+    syncUtilityToLocation(nextUtility, nextFocus)
   }
 
   if (isLoading) {
@@ -213,6 +247,8 @@ export default function MoneyPage() {
       documents={documentItems}
       importCenter={dashboard.importCenter}
       documentRequirements={dashboard.planning?.documentRequirements ?? []}
+      dateQualityIssues={dashboard.transactionDateIssues}
+      focusedReview={focusedReview === 'date-quality'}
     />
   )
 

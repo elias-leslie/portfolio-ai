@@ -227,6 +227,18 @@ class HouseholdTransactionService:
         if not transactions:
             return {"inserted": 0, "updated": 0}
 
+        today = datetime.now(UTC).date()
+        date_issues = [
+            transaction
+            for transaction in transactions
+            if transaction.transaction_date > today
+        ]
+        transactions = [
+            transaction
+            for transaction in transactions
+            if transaction.transaction_date <= today
+        ]
+
         inserted = 0
         updated = 0
         now = datetime.now(UTC).isoformat()
@@ -322,13 +334,51 @@ class HouseholdTransactionService:
                 WHERE id = %s
                 """,
                 [
-                    json.dumps({"transaction_import_summary": {"inserted": inserted, "updated": updated}}),
+                    json.dumps(
+                        {
+                            "transaction_import_summary": {
+                                "inserted": inserted,
+                                "updated": updated,
+                                "held_for_date_review": len(date_issues),
+                            },
+                            "date_quality_summary": (
+                                {
+                                    "status": "needs_review",
+                                    "future_transaction_count": len(date_issues),
+                                    "latest_future_date": max(
+                                        issue.transaction_date for issue in date_issues
+                                    ).isoformat(),
+                                    "future_transactions": [
+                                        {
+                                            "transaction_date": issue.transaction_date.isoformat(),
+                                            "merchant": issue.raw_merchant or issue.description,
+                                            "description": issue.description,
+                                            "amount": str(issue.amount),
+                                            "account_label": issue.account_label,
+                                            "confidence": issue.confidence,
+                                        }
+                                        for issue in date_issues[:12]
+                                    ],
+                                }
+                                if date_issues
+                                else {
+                                    "status": "clear",
+                                    "future_transaction_count": 0,
+                                    "future_transactions": [],
+                                }
+                            ),
+                        }
+                    ),
                     document.id,
                 ],
             )
             conn.commit()
 
-        return {"inserted": inserted, "updated": updated}
+        return {
+            "inserted": inserted,
+            "updated": updated,
+            "held_for_date_review": len(date_issues),
+        }
 
     def backfill_from_latest_reviews(self, *, limit: int = 24) -> dict[str, int]:
         with self.storage.connection() as conn:
