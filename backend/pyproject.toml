@@ -24,6 +24,7 @@ dependencies = [
 
     # Data sources & API clients
     "yfinance==0.2.66",
+    "edgartools==5.28.5",
     "requests>=2.33.0",
     "feedparser==6.0.12",
     "httpx==0.28.1",

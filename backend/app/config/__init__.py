@@ -81,6 +81,7 @@ class Settings(BaseSettings):
     agent_hub_enabled: bool | None = None
     portfolio_client_id: str = ""
     portfolio_request_source: str = "portfolio-ai"
+    sec_user_agent: str = ""
 
     # Self-referencing URLs (for internal service calls)
     backend_url: str = f"http://localhost:{PORTFOLIO_BACKEND_PORT}"
@@ -121,6 +122,8 @@ if settings.hatchet_client_host_port:
     os.environ.setdefault("HATCHET_CLIENT_HOST_PORT", settings.hatchet_client_host_port)
 if settings.hatchet_client_tls_strategy:
     os.environ.setdefault("HATCHET_CLIENT_TLS_STRATEGY", settings.hatchet_client_tls_strategy)
+if settings.sec_user_agent:
+    os.environ.setdefault("SEC_USER_AGENT", settings.sec_user_agent)
 
 
 def sqlalchemy_database_url(database_url: str) -> str:

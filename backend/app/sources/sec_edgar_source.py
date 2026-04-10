@@ -44,6 +44,9 @@ def _get_edgar() -> Any:
     """Lazy import edgartools and set User-Agent identity."""
     global _edgar, _set_identity_called  # noqa: PLW0603
 
+    if not SEC_USER_AGENT:
+        raise RuntimeError("SEC_USER_AGENT must be configured to use SEC EDGAR")
+
     if _edgar is None:
         import edgar as edgar_module  # noqa: PLC0415
 

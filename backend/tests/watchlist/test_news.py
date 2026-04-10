@@ -11,6 +11,7 @@ from typing import Any
 import polars as pl
 import pytest
 
+from app.services.news_cache import NewsCacheManager
 from app.services.news_models import NewsArticle, NewsBundle, NewsSummary, SentimentScore
 from app.services.news_processing import FinBertUnavailableError
 from app.services.news_service import NewsService
@@ -19,10 +20,29 @@ from app.sources.base import BaseSource
 from app.storage import get_storage
 from app.watchlist.refresh_builders import build_recent_news_payload
 
+NEWS_TEST_SYMBOLS = ("AAPL", "AMD", "GOOG", "MSFT", "NVDA", "TSLA")
+
+
+def _ensure_symbols(storage: Any, symbols: Sequence[str]) -> None:
+    with storage.connection() as conn:
+        for symbol in symbols:
+            conn.execute(
+                """
+                INSERT INTO symbols (symbol, company_name)
+                VALUES (%s, %s)
+                ON CONFLICT (symbol) DO NOTHING
+                """,
+                [symbol, f"{symbol} Test Symbol"],
+            )
+        conn.commit()
+
 
 @pytest.fixture()
 def storage() -> Any:
-    return get_storage()
+    storage_instance = get_storage()
+    _ensure_symbols(storage_instance, NEWS_TEST_SYMBOLS)
+    return storage_instance
+
 
 
 class StubAnalyzer:
@@ -79,6 +99,36 @@ def _build_entry(title: str, published: datetime) -> dict[str, Any]:
         "summary": f"Summary for {title}.",
         "source": {"title": "Example News"},
     }
+
+
+def _news_article(
+    *,
+    symbol: str,
+    content_hash: str,
+    headline: str,
+    summary: str,
+    fetched_at: datetime,
+) -> NewsArticle:
+    return NewsArticle(
+        symbol=symbol,
+        headline=headline,
+        url="https://example.com/news-cache-upsert",
+        summary=summary,
+        source="test-source",
+        author=None,
+        image_url=None,
+        published_at=fetched_at,
+        fetched_at=fetched_at,
+        sentiment=SentimentScore(
+            score=0.2,
+            label="positive",
+            confidence=0.8,
+            model="test-model",
+        ),
+        content_hash=content_hash,
+        raw={"raw": {"vendor": "test-source"}},
+        vendor="test-source",
+    )
 
 
 class StubNewsSource(BaseSource):
@@ -267,10 +317,11 @@ def test_news_service_tracks_score_change(storage: Any) -> None:
         conn.execute(
             """
             UPDATE news_cache
-            SET fetched_at = %s
+            SET fetched_at = %s,
+                published_at = %s
             WHERE symbol = %s
             """,
-            [ninety_minutes, "AMD"],
+            [ninety_minutes, ninety_minutes, "AMD"],
         )
         conn.commit()
 
@@ -387,6 +438,70 @@ def test_build_recent_news_payload_includes_vendor_and_publisher() -> None:
     assert article_payload["vendor"] == "polygon"
     assert article_payload["source"] == "Example Publisher"
     assert article_payload["publisher"] == "Example Publisher"
+
+
+def test_news_cache_save_articles_upserts_by_symbol_content_hash(storage: Any) -> None:
+    symbol = "ZZZNEWS"
+    content_hash = "news-cache-upsert-test"
+    first_fetch = datetime.now(UTC) - timedelta(minutes=10)
+    second_fetch = datetime.now(UTC)
+    manager = NewsCacheManager(storage)
+
+    with storage.connection() as conn:
+        conn.execute("DELETE FROM news_cache WHERE symbol = %s", [symbol])
+        conn.execute(
+            """
+            INSERT INTO symbols (symbol, company_name)
+            VALUES (%s, %s)
+            ON CONFLICT (symbol) DO NOTHING
+            """,
+            [symbol, "News Cache Upsert Test"],
+        )
+        conn.commit()
+
+    try:
+        manager.save_articles(
+            [
+                _news_article(
+                    symbol=symbol,
+                    content_hash=content_hash,
+                    headline="Original headline",
+                    summary="Original summary",
+                    fetched_at=first_fetch,
+                )
+            ]
+        )
+        manager.save_articles(
+            [
+                _news_article(
+                    symbol=symbol,
+                    content_hash=content_hash,
+                    headline="Updated headline",
+                    summary="Updated summary",
+                    fetched_at=second_fetch,
+                )
+            ]
+        )
+
+        with storage.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*), MAX(summary), MAX(fetched_at)
+                FROM news_cache
+                WHERE symbol = %s AND content_hash = %s
+                """,
+                [symbol, content_hash],
+            ).fetchone()
+
+        assert row is not None
+        assert row[0] == 1
+        assert row[1] == "Updated summary"
+        assert row[2] == second_fetch
+    finally:
+        with storage.connection() as conn:
+            conn.execute("DELETE FROM news_cache WHERE symbol = %s", [symbol])
+            conn.execute("DELETE FROM symbols WHERE symbol = %s", [symbol])
+            conn.commit()
 
 
 def test_vendor_entries_round_robin_selection(storage: Any) -> None:

@@ -6,6 +6,8 @@ to improve maintainability and reduce duplication.
 
 from __future__ import annotations
 
+import os
+
 from app.config import DATABASE_URL  # re-exported for backward compatibility
 from app.constants.models import (
     CLAUDE_HAIKU,
@@ -35,7 +37,7 @@ from app.constants.symbols import (
 # =============================================================================
 # SEC EDGAR requires a company User-Agent for fair-access compliance.
 # Used by sec_cik_fetcher.py and sec_edgar_source.py.
-SEC_USER_AGENT = "Summit Flow Solutions summitflow42@gmail.com"
+SEC_USER_AGENT = os.getenv("SEC_USER_AGENT", "").strip()
 
 # =============================================================================
 # SPECIAL SYMBOLS

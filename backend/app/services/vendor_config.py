@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Any
 
+from ..constants import SEC_USER_AGENT
 from ..logging_config import get_logger
 from ..sources.base import BaseSource
 from ..sources.finnhub_source import FinnhubSource
@@ -61,8 +62,13 @@ def init_free_vendor(
         register_callback: Function to call to register vendor
     """
     flag = env_flag(env_var, default=default_enabled)
+    configured = True
     enabled = bool(flag)
     reason: str | None = None if flag else "disabled_by_flag"
+    if vendor_name == "sec_edgar" and not SEC_USER_AGENT:
+        configured = False
+        enabled = False
+        reason = "missing_sec_user_agent"
 
     if enabled:
         try:
@@ -76,7 +82,7 @@ def init_free_vendor(
             enabled = False
             logger.warning("source_init_failed", vendor=vendor_name, error=str(exc))
 
-    register_callback(vendor_name, configured=True, enabled=enabled, notes=notes, reason=reason)
+    register_callback(vendor_name, configured=configured, enabled=enabled, notes=notes, reason=reason)
 
 
 def init_api_vendor(
