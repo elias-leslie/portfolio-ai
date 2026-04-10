@@ -13,6 +13,7 @@ from app.services._household_jenny_needs_builders import (
     _jenny_confirmation_needs,
     _jenny_freshness_needs,
     _jenny_statement_needs,
+    _jenny_transaction_date_quality_needs,
 )
 from app.services._money_workspace_routes import (
     MONEY_EVIDENCE_ROUTE,
@@ -90,3 +91,18 @@ def test_detected_account_upload_needs_link_to_evidence_utility() -> None:
 
     assert needs[0].action_href == MONEY_EVIDENCE_ROUTE
     assert needs[0].title == "Add evidence for Chase ...1234"
+
+
+def test_future_transaction_date_quality_need_is_data_driven() -> None:
+    needs = _jenny_transaction_date_quality_needs(
+        {
+            "future_transaction_count": 3,
+            "latest_future_date": "2026-09-03",
+        }
+    )
+
+    assert len(needs) == 1
+    assert needs[0].action_href == MONEY_EVIDENCE_ROUTE
+    assert needs[0].priority == "high"
+    assert "3 transactions" in needs[0].detail
+    assert "2026-09-03" in needs[0].detail

@@ -99,6 +99,50 @@ def test_build_household_reports_uses_today_for_recent_spend_window() -> None:
     )
 
 
+def test_build_household_reports_excludes_future_dated_rows_from_current_facts() -> None:
+    today = date.today()
+
+    reports = build_household_reports(
+        report_rows=[
+            {
+                "date": today - timedelta(days=3),
+                "merchant": "Publix",
+                "description": "Groceries",
+                "amount": 120.0,
+                "category": "Groceries",
+                "essentiality": "essential",
+                "account_label": "Joint Checking",
+                "document_id": "doc-current",
+                "document_type": "statement",
+                "source_type": "bank",
+                "source_kind": "transaction",
+            },
+            {
+                "date": today + timedelta(days=120),
+                "merchant": "Future Walmart",
+                "description": "Misdated receipt",
+                "amount": 999.0,
+                "category": "Retail",
+                "essentiality": "discretionary",
+                "account_label": "Credit Card",
+                "document_id": "doc-future",
+                "document_type": "receipt",
+                "source_type": "receipt",
+                "source_kind": "transaction",
+            },
+        ],
+        cadence_for_dates=lambda dates: {"label": "monthly"} if len(dates) > 1 else None,
+        merchant_recommendation=lambda *, merchant, category, cadence: f"{merchant}:{category}:{cadence}",
+    )
+
+    assert reports.executive.average_monthly_spend == 120.0
+    assert reports.executive.average_monthly_discretionary == 0.0
+    assert reports.executive.tracked_expense_count == 1
+    assert reports.category_breakdown[0].category == "Groceries"
+    assert [point.total_spend for point in reports.monthly_spend_trend] == [120.0]
+    assert [txn.merchant for txn in reports.recent_transactions] == ["Publix"]
+
+
 def test_build_household_reports_limits_executive_summary_to_recent_months() -> None:
     reports = build_household_reports(
         report_rows=[

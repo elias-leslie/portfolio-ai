@@ -11,6 +11,7 @@ from app.models.household_finance import (
     HouseholdProfile,
     HouseholdQuestion,
     HouseholdQuestionList,
+    HouseholdRecentTransaction,
     HouseholdReports,
     HouseholdResolvedValue,
 )
@@ -72,7 +73,17 @@ def test_get_dashboard_returns_composed_household_view() -> None:
             recurring_merchant_count=2,
             tracked_expense_count=8,
             coverage_months=3,
-        )
+        ),
+        recent_transactions=[
+            HouseholdRecentTransaction(
+                date="2026-03-07",
+                merchant="Amazon",
+                description="Imported order",
+                amount=29.95,
+                category="Household shopping",
+                essentiality="mixed",
+            )
+        ],
     )
 
     service.get_profile = Mock(return_value=profile)
@@ -81,7 +92,10 @@ def test_get_dashboard_returns_composed_household_view() -> None:
     service.get_resolved_values = Mock(return_value=[resolved_value])
     mock_conn = Mock()
     mock_conn.execute.return_value.fetchall.return_value = []
-    mock_conn.execute.return_value.fetchone.return_value = (None, 0, None)
+    mock_conn.execute.return_value.fetchone.side_effect = [
+        (0, None, None),
+        (None, 0, None),
+    ]
     mock_conn.__enter__ = Mock(return_value=mock_conn)
     mock_conn.__exit__ = Mock(return_value=False)
     service.storage = Mock()
@@ -114,6 +128,8 @@ def test_get_dashboard_returns_composed_household_view() -> None:
 
     assert dashboard.profile.household_name == "Household"
     assert dashboard.overview.visibility_score == 88
+    assert dashboard.overview.coverage_months == 3
+    assert dashboard.overview.last_transaction_date == "2026-03-07"
     assert dashboard.budget_readiness.status == "ready_for_budgeting"
     assert dashboard.retirement_preparedness.status == "scenario_ready"
     assert dashboard.questions[0].id == "question-1"

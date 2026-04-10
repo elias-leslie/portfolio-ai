@@ -70,6 +70,7 @@ class HouseholdDashboardComposer:
             accounts=d["accounts"], live_positions=d["live_positions"],
             evidence_accounts=d["evidence_accounts"], account_summaries=account_summaries,
             inbox=inbox, statement_freshness=freshness,
+            reports=d["reports"],
             holdings_by_account=d["holdings_by_account"], documents=d["documents"],
             questions=visible_questions, resolved_values=resolved_values,
             service=service,

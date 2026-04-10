@@ -23,7 +23,12 @@ from app.services._household_dashboard_builders import (
 
 logger = get_logger(__name__)
 
-_CATEGORIZATION_SQL = """
+def _current_transaction_date_predicate(alias: str | None = None) -> str:
+    qualifier = f"{alias}." if alias else ""
+    return f"{qualifier}transaction_date <= CURRENT_DATE"
+
+
+_CATEGORIZATION_SQL = f"""
     SELECT
         t.id,
         COALESCE(t.raw_merchant, t.description) AS merchant,
@@ -39,15 +44,17 @@ _CATEGORIZATION_SQL = """
         SELECT merchant_id, COUNT(*) AS similar_count
         FROM household_transactions
         WHERE flow_type = 'expense'
+          AND {_current_transaction_date_predicate()}
         GROUP BY merchant_id
     ) similar_txns ON similar_txns.merchant_id = t.merchant_id
     WHERE t.flow_type = 'expense'
+      AND {_current_transaction_date_predicate("t")}
       AND COALESCE(t.confidence, 0) < 0.60
     ORDER BY CAST(t.amount AS DOUBLE PRECISION) DESC, COALESCE(similar_txns.similar_count, 0) DESC
     LIMIT %s
 """
 
-_RECURRING_SQL = """
+_RECURRING_SQL = f"""
     SELECT
         COALESCE(m.canonical_name, t.raw_merchant, t.description) AS merchant,
         COALESCE(t.category, 'Household') AS category,
@@ -57,13 +64,14 @@ _RECURRING_SQL = """
     FROM household_transactions t
     LEFT JOIN household_merchants m ON m.id = t.merchant_id
     WHERE t.flow_type = 'expense'
+      AND {_current_transaction_date_predicate("t")}
     GROUP BY 1, 2
     HAVING COUNT(*) >= 2
     ORDER BY average_amount DESC
     LIMIT %s
 """
 
-_RETIREMENT_CONTRIBUTION_SQL = """
+_RETIREMENT_CONTRIBUTION_SQL = f"""
     SELECT AVG(month_total)
     FROM (
         SELECT
@@ -71,6 +79,7 @@ _RETIREMENT_CONTRIBUTION_SQL = """
             SUM(CAST(amount AS DOUBLE PRECISION)) AS month_total
         FROM household_transactions
         WHERE flow_type IN ('transfer_out', 'expense')
+          AND {_current_transaction_date_predicate()}
           AND (
             COALESCE(account_label, '') ILIKE '%ira%'
             OR COALESCE(account_label, '') ILIKE '%401%'
@@ -81,30 +90,42 @@ _RETIREMENT_CONTRIBUTION_SQL = """
     ) monthly_contributions
 """
 
-_MONTH_SPEND_SQL = """
+_MONTH_SPEND_SQL = f"""
     SELECT COALESCE(SUM(CAST(amount AS DOUBLE PRECISION)), 0)
     FROM household_transactions
     WHERE flow_type = 'expense'
       AND transaction_date >= date_trunc('month', CURRENT_DATE)
+      AND {_current_transaction_date_predicate()}
 """
 
-_UNKNOWN_ACCOUNT_SQL = """
+_UNKNOWN_ACCOUNT_SQL = f"""
     SELECT DISTINCT
         t.description,
         t.flow_type
     FROM household_transactions t
     WHERE t.flow_type IN ('transfer_out', 'payment')
+      AND {_current_transaction_date_predicate("t")}
     ORDER BY t.description
     LIMIT 500
 """
 
-_STATEMENT_FRESHNESS_SQL = """
+_STATEMENT_FRESHNESS_SQL = f"""
     SELECT
         MAX(transaction_date) AS most_recent_date,
         COUNT(DISTINCT date_trunc('month', transaction_date)) AS coverage_months,
         MIN(transaction_date) AS earliest_date
     FROM household_transactions
     WHERE flow_type = 'expense'
+      AND {_current_transaction_date_predicate()}
+"""
+
+_FUTURE_TRANSACTION_QUALITY_SQL = """
+    SELECT
+        COUNT(*) AS future_transaction_count,
+        MIN(transaction_date) AS earliest_future_date,
+        MAX(transaction_date) AS latest_future_date
+    FROM household_transactions
+    WHERE transaction_date > CURRENT_DATE
 """
 
 _CONFIRMED_FACTS_SQL = """
@@ -130,6 +151,31 @@ def _fetch_scalar_float(storage: Any, sql: str) -> float:
     with storage.connection() as conn:
         row = conn.execute(sql).fetchone()
     return round(float(row[0] or 0.0), 2) if row is not None else 0.0
+
+
+def _date_value(value: Any) -> Any:
+    return value.date() if hasattr(value, "date") else value
+
+
+def _date_iso(value: Any) -> str | None:
+    date_value = _date_value(value)
+    return date_value.isoformat() if date_value is not None else None
+
+
+def _fetch_future_transaction_quality(storage: Any) -> dict[str, Any]:
+    with storage.connection() as conn:
+        row = conn.execute(_FUTURE_TRANSACTION_QUALITY_SQL).fetchone()
+    if row is None:
+        return {
+            "future_transaction_count": 0,
+            "earliest_future_date": None,
+            "latest_future_date": None,
+        }
+    return {
+        "future_transaction_count": int(row[0] or 0),
+        "earliest_future_date": _date_iso(row[1]),
+        "latest_future_date": _date_iso(row[2]),
+    }
 
 
 def _canonicalize_institution(description: str, fallback: str) -> str:
@@ -185,19 +231,26 @@ def detect_unknown_accounts(
 
 def check_statement_freshness(storage: Any) -> dict[str, Any]:
     """Check transaction coverage freshness."""
+    future_quality = _fetch_future_transaction_quality(storage)
     with storage.connection() as conn:
         row = conn.execute(_STATEMENT_FRESHNESS_SQL).fetchone()
 
     if row is None or row[0] is None:
-        return {"most_recent_date": None, "days_since_latest": None, "coverage_months": 0, "gap_months": []}
+        return {
+            "most_recent_date": None,
+            "days_since_latest": None,
+            "coverage_months": 0,
+            "gap_months": [],
+            **future_quality,
+        }
 
-    most_recent_date = row[0].date() if hasattr(row[0], "date") else row[0]
+    most_recent_date = _date_value(row[0])
     coverage_months = int(row[1] or 0)
     days_since_latest = (datetime.now(UTC).date() - most_recent_date).days
 
     gap_months: list[str] = []
     if row[2] is not None and coverage_months > 0:
-        earliest_date = row[2].date() if hasattr(row[2], "date") else row[2]
+        earliest_date = _date_value(row[2])
         total_months = (
             (most_recent_date.year - earliest_date.year) * 12
             + (most_recent_date.month - earliest_date.month)
@@ -212,6 +265,7 @@ def check_statement_freshness(storage: Any) -> dict[str, Any]:
         "days_since_latest": days_since_latest,
         "coverage_months": coverage_months,
         "gap_months": gap_months,
+        **future_quality,
     }
 
 
@@ -280,7 +334,7 @@ def fetch_current_month_spend(storage: Any) -> float:
     return _fetch_scalar_float(storage, _MONTH_SPEND_SQL)
 
 
-_INCOME_MONTHLY_AVG_SQL = """
+_INCOME_MONTHLY_AVG_SQL = f"""
     SELECT
         COUNT(*) AS months_with_income,
         AVG(month_total) AS avg_monthly_income
@@ -290,6 +344,7 @@ _INCOME_MONTHLY_AVG_SQL = """
             SUM(CAST(amount AS DOUBLE PRECISION)) AS month_total
         FROM household_transactions
         WHERE flow_type = 'income'
+          AND {_current_transaction_date_predicate()}
         GROUP BY 1
     ) monthly_income
 """

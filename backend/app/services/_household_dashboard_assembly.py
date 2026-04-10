@@ -55,6 +55,7 @@ from app.services._household_jenny_needs_builders import (
     _jenny_freshness_needs,
     _jenny_retirement_category_needs,
     _jenny_statement_needs,
+    _jenny_transaction_date_quality_needs,
 )
 
 # ---------------------------------------------------------------------------
@@ -164,6 +165,7 @@ def build_jenny_needs(
         *_jenny_confirmation_needs(confirmed_facts, planning, profile),
         *_jenny_account_question_needs(detected_accounts, questions),
         *_jenny_retirement_category_needs(profile, categorization_queue),
+        *_jenny_transaction_date_quality_needs(freshness),
         *_jenny_freshness_needs(documents, days_since_latest),
     ]
 
@@ -174,6 +176,7 @@ def build_overview(
     account_summaries: list[Any],
     inbox: list[Any],
     statement_freshness: dict[str, Any],
+    reports: HouseholdReports,
     holdings_by_account: dict[str, float], documents: list[Any],
     questions: list[Any], resolved_values: list[HouseholdResolvedValue],
     service: Any | None = None,
@@ -229,6 +232,10 @@ def build_overview(
         resolved_numeric_value=rnv,
         document_count=len(documents),
     )
+    latest_report_transaction = max((txn.date for txn in reports.recent_transactions), default=None)
+    last_transaction_date = latest_report_transaction or (
+        str(statement_freshness.get("most_recent_date")) if statement_freshness.get("most_recent_date") else None
+    )
     overview = HouseholdOverview(
         invested_assets=invested_assets, retirement_assets=retirement_assets,
         taxable_assets=taxable_assets, cash_reserve=cash_reserve,
@@ -241,8 +248,11 @@ def build_overview(
         candidate_account_count=sum(1 for account in account_summaries if account.match_status == "candidate"),
         gap_count=sum(len(account.gap_flags) for account in account_summaries),
         inbox_count=len(inbox),
-        coverage_months=int(statement_freshness.get("coverage_months") or 0),
-        last_transaction_date=str(statement_freshness.get("most_recent_date")) if statement_freshness.get("most_recent_date") else None,
+        coverage_months=max(
+            int(statement_freshness.get("coverage_months") or 0),
+            reports.executive.coverage_months,
+        ),
+        last_transaction_date=last_transaction_date,
         visibility_score=visibility_score,
         visibility_label=_call_service_override(service, "_visibility_label", visibility_label, visibility_score),
         next_best_action=_call_service_override(

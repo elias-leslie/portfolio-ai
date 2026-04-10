@@ -155,6 +155,28 @@ def _jenny_retirement_category_needs(
     return needs
 
 
+def _jenny_transaction_date_quality_needs(freshness: dict[str, Any]) -> list[JennyNeed]:
+    future_count = int(freshness.get("future_transaction_count") or 0)
+    if future_count <= 0:
+        return []
+
+    latest_future_date = freshness.get("latest_future_date")
+    date_detail = f" through {latest_future_date}" if latest_future_date else ""
+    return [JennyNeed(
+        id="need_transaction_date_quality",
+        need_type="review",
+        title="Review future-dated transactions",
+        detail=(
+            f"{future_count} transaction{'s' if future_count != 1 else ''}{date_detail} "
+            "have dates after today and are excluded from current spending, freshness, and budget calculations until corrected."
+        ),
+        priority="high",
+        status="unsatisfied",
+        recurrence="as_needed",
+        action_href=MONEY_EVIDENCE_ROUTE,
+    )]
+
+
 def _jenny_freshness_needs(documents: list[Any], days_since_latest: int | None) -> list[JennyNeed]:
     """Low-priority freshness need when evidence exists but is stale."""
     if documents and days_since_latest is not None and days_since_latest >= STATEMENT_STALENESS_DAYS:

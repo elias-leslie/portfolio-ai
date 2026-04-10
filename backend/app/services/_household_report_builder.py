@@ -19,6 +19,20 @@ from app.models.household_finance import (
 _EXECUTIVE_WINDOW_MONTHS = 6
 
 
+def _transaction_date(row: dict[str, Any]) -> date | None:
+    raw_date = row.get("date")
+    if isinstance(raw_date, date):
+        return raw_date
+    if hasattr(raw_date, "date"):
+        return raw_date.date()
+    return None
+
+
+def _is_current_transaction(row: dict[str, Any], *, today: date) -> bool:
+    transaction_date = _transaction_date(row)
+    return transaction_date is not None and transaction_date <= today
+
+
 def _merchant_root(merchant: str) -> str:
     normalized = merchant.strip().lower()
     normalized = re.sub(r"\([^)]*\)", "", normalized)
@@ -84,7 +98,9 @@ def build_household_reports(
     cadence_for_dates: Callable[[list[date]], dict[str, object] | None],
     merchant_recommendation: Callable[..., str],
 ) -> HouseholdReports:
-    expense_only = [row for row in collapse_report_rows(report_rows) if row["amount"] > 0]
+    today = date.today()
+    current_rows = [row for row in report_rows if _is_current_transaction(row, today=today)]
+    expense_only = [row for row in collapse_report_rows(current_rows) if row["amount"] > 0]
     if not expense_only:
         return HouseholdReports(
             executive=HouseholdExecutiveReport(
@@ -102,7 +118,7 @@ def build_household_reports(
 
     monthly_totals: dict[str, float] = {}
     monthly_counts: dict[str, int] = {}
-    recent_cutoff = date.today().toordinal() - 30
+    recent_cutoff = today.toordinal() - 30
 
     for row in expense_only:
         month_key = row["date"].strftime("%Y-%m")
