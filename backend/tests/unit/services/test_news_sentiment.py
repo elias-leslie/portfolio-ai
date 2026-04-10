@@ -69,4 +69,4 @@ def test_news_health_includes_ml_install_hint_when_finbert_unavailable() -> None
     assert health["status"] == "healthy"
     assert health["message"] == "10 headlines refreshed in 24h."
     assert health["finbert_available"] is False
-    assert health["finbert_install_hint"] == 'pip install -e ".[dev,ml]"'
+    assert health["finbert_install_hint"] == "uv sync --extra dev --extra ml"

@@ -347,8 +347,8 @@ class NewsProcessor:
         if aggregated_score is not None and previous_score is not None:
             score_change = aggregated_score - previous_score
 
-        top_positive = max(articles, key=lambda a: a.sentiment.score, default=None)
-        top_negative = min(articles, key=lambda a: a.sentiment.score, default=None)
+        top_positive = max(summary_articles, key=lambda a: a.sentiment.score, default=None)
+        top_negative = min(summary_articles, key=lambda a: a.sentiment.score, default=None)
 
         return NewsSummary(
             symbol=symbol,

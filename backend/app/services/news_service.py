@@ -28,7 +28,12 @@ from .news_health_metrics import NewsHealthMetrics
 from .news_models import NewsBundle, NewsSummary
 from .news_processing import FinBertUnavailableError, NewsProcessor
 from .news_quality_scoring import NewsQualityScorer
-from .news_sentiment import FinBertSentimentAnalyzer, VaderSentimentAnalyzer, get_finbert_analyzer
+from .news_sentiment import (
+    FINBERT_INSTALL_HINT,
+    FinBertSentimentAnalyzer,
+    VaderSentimentAnalyzer,
+    get_finbert_analyzer,
+)
 from .news_vendor_manager import NewsVendorManager
 
 logger = get_logger(__name__)
@@ -265,13 +270,14 @@ class NewsService:
             fallback_headlines_24h=int(fm["fallback_count"]),
             market_last_refreshed_at=market_last_refreshed_at,
             watchlist_last_refreshed_at=watchlist_last_refreshed_at,
+            primary_sentiment_available=finbert_available,
         )
 
         return {
             "status": pipeline_health["status"],
             "message": pipeline_health["message"],
             "finbert_available": finbert_available,
-            "finbert_install_hint": None if finbert_available else 'pip install -e ".[dev,ml]"',
+            "finbert_install_hint": None if finbert_available else FINBERT_INSTALL_HINT,
             "market_last_refreshed_at": to_iso(market_last_refreshed_at),
             "watchlist_last_refreshed_at": to_iso(watchlist_last_refreshed_at),
             "latest_refreshed_at": to_iso(pipeline_health["latest_refreshed_at"]),

@@ -145,7 +145,8 @@ cp .env.example .env.local
 docker compose --env-file .env.local up -d portfolio-db portfolio-redis hatchet-migrate hatchet-setup-config hatchet
 
 cd backend
-uv sync --python 3.13 --frozen --extra dev
+uv sync --python 3.13 --frozen --extra dev --extra ml
+uv run python -m scripts.bootstrap_finbert
 uv run alembic upgrade head
 
 cd ../frontend

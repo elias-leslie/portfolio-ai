@@ -76,6 +76,7 @@ class NewsHealthMetrics:
         fallback_headlines_24h: int,
         market_last_refreshed_at: datetime | None,
         watchlist_last_refreshed_at: datetime | None,
+        primary_sentiment_available: bool = True,
     ) -> NewsPipelineHealthDict:
         """Derive user-facing news health from freshness and article counts."""
         latest_refresh = NewsHealthMetrics.latest_timestamp(
@@ -126,6 +127,34 @@ class NewsHealthMetrics:
                 "message": (
                     f"{headlines_24h} headlines cached in 24h. "
                     f"{freshness_suffix}"
+                ),
+                "latest_refreshed_at": latest_refresh,
+                "latest_refresh_age_hours": round(age_hours, 2),
+            }
+
+        if fallback_headlines_24h >= headlines_24h:
+            reason = (
+                "primary sentiment scoring is unavailable"
+                if not primary_sentiment_available
+                else "cached headlines have not been rescored by primary sentiment yet"
+            )
+            return {
+                "status": "degraded",
+                "message": (
+                    f"{headlines_24h} headlines refreshed in 24h, but {reason}. "
+                    f"{fallback_headlines_24h} used backup sentiment scoring."
+                ),
+                "latest_refreshed_at": latest_refresh,
+                "latest_refresh_age_hours": round(age_hours, 2),
+            }
+
+        if fallback_headlines_24h > 0 and not primary_sentiment_available:
+            return {
+                "status": "degraded",
+                "message": (
+                    f"{headlines_24h} headlines refreshed in 24h, "
+                    "but primary sentiment scoring is unavailable. "
+                    f"{fallback_headlines_24h} used backup sentiment scoring."
                 ),
                 "latest_refreshed_at": latest_refresh,
                 "latest_refresh_age_hours": round(age_hours, 2),

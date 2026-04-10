@@ -362,7 +362,7 @@ def test_recent_selection_backfills_with_stale_articles(storage: Any) -> None:
     analyzer: Any = StubAnalyzer(
         [
             SentimentScore(score=0.3, label="positive", confidence=0.8, model="finbert"),
-            SentimentScore(score=0.1, label="neutral", confidence=0.6, model="finbert"),
+            SentimentScore(score=-0.1, label="negative", confidence=0.6, model="finbert"),
             SentimentScore(score=-0.2, label="negative", confidence=0.7, model="finbert"),
             SentimentScore(score=-0.3, label="negative", confidence=0.7, model="finbert"),
             SentimentScore(score=0.05, label="neutral", confidence=0.5, model="finbert"),
@@ -386,6 +386,10 @@ def test_recent_selection_backfills_with_stale_articles(storage: Any) -> None:
 
     assert bundle.summary.article_count == 2
     assert bundle.summary.model_breakdown.get("finbert") == 2
+    assert bundle.summary.top_positive is not None
+    assert bundle.summary.top_positive.raw.get("stale") is not True
+    assert bundle.summary.top_negative is not None
+    assert bundle.summary.top_negative.raw.get("stale") is not True
 
 
 def test_build_recent_news_payload_includes_vendor_and_publisher() -> None:

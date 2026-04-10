@@ -15,6 +15,8 @@ from .news_processing import FinBertUnavailableError
 
 logger = get_logger(__name__)
 
+FINBERT_INSTALL_HINT = "uv sync --extra dev --extra ml"
+
 _finbert_instance: FinBertSentimentAnalyzer | None = None
 _finbert_lock = threading.Lock()
 
@@ -27,7 +29,7 @@ def _load_finbert_dependencies() -> tuple[Any | None, Any | None, Any | None]:
     except Exception:  # pragma: no cover - handled via availability checks
         logger.info(
             "FinBERT optional dependencies missing; install backend with the ml extra to enable it",
-            install_hint='pip install -e ".[dev,ml]"',
+            install_hint=FINBERT_INSTALL_HINT,
         )
         return None, None, None
 
@@ -79,7 +81,7 @@ class FinBertSentimentAnalyzer:
             torch, auto_tokenizer, auto_model = _load_finbert_dependencies()
             if auto_tokenizer is None or auto_model is None or torch is None:
                 raise FinBertUnavailableError(
-                    'transformers/torch not available; install backend with the "ml" extra'
+                    f"transformers/torch not available; run `{FINBERT_INSTALL_HINT}`"
                 )
 
             logger.info(
