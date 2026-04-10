@@ -12,20 +12,21 @@ from app.api.symbols.data_fetchers import get_portfolio_data
 from app.api.symbols.decisions import build_symbol_decision
 from app.logging_config import get_logger
 from app.portfolio.totals import get_live_portfolio_totals
+from app.services._home_action_ranking import (
+    PRIORITY_RANK,
+    action_rank_score,
+    household_rank_score,
+    internal_rank_score,
+    numeric_value,
+    position_impact_score,
+    public_action,
+)
 from app.services.household_finance_service import HouseholdFinanceService
 from app.services.jenny_operator_service import JennyOperatorService
 from app.services.symbol_workflow_service import SymbolWorkflowService
 from app.storage import get_storage
 
 logger = get_logger(__name__)
-
-PRIORITY_RANK = {
-    "critical": 0,
-    "high": 1,
-    "warning": 2,
-    "medium": 3,
-    "low": 4,
-}
 
 
 def _title_with_symbol(symbol: str | None, headline: str) -> str:
@@ -133,11 +134,12 @@ class HomeActionService:
 
         deduped.sort(
             key=lambda action: (
+                -internal_rank_score(action),
                 PRIORITY_RANK.get(str(action.get("priority", "low")), 99),
                 str(action.get("title", "")),
             )
         )
-        queue = deduped[:8]
+        queue = [public_action(action) for action in deduped[:8]]
         summary = (
             "Nothing urgent is queued."
             if not queue
@@ -169,12 +171,13 @@ class HomeActionService:
         )
 
         if top_holding_pct >= 35:
+            priority = "high" if top_holding_pct >= 50 else "warning"
             return [
                 {
                     "id": "portfolio-health-top-holding",
                     "source": "portfolio",
                     "category": "investing",
-                    "priority": "high" if top_holding_pct >= 50 else "warning",
+                    "priority": priority,
                     "title": "Portfolio needs a concentration check",
                     "detail": (
                         f"Largest holding is {top_holding_pct:.1f}% of invested assets. "
@@ -184,10 +187,21 @@ class HomeActionService:
                     "href": "/portfolio?tab=holdings&highlight=concentration#portfolio-overview",
                     "symbol": None,
                     "badge": "Concentration",
+                    "_rank_score": action_rank_score(
+                        priority,
+                        impact=min(top_holding_pct * 5, 600.0),
+                        confidence=80.0,
+                        effort=20.0,
+                    ),
                 }
             ]
 
         if top_3_pct >= 70 or (diversification_score is not None and diversification_score < 50):
+            diversification_gap = (
+                max(0.0, 50.0 - float(diversification_score))
+                if diversification_score is not None
+                else 0.0
+            )
             diversification_detail = (
                 f"Diversification score is {diversification_score:.0f}."
                 if diversification_score is not None
@@ -208,6 +222,12 @@ class HomeActionService:
                     "href": "/portfolio?tab=holdings&highlight=concentration#portfolio-overview",
                     "symbol": None,
                     "badge": "Portfolio",
+                    "_rank_score": action_rank_score(
+                        "warning",
+                        impact=min(top_3_pct * 3 + diversification_gap * 6, 450.0),
+                        confidence=60.0 if diversification_score is not None else 20.0,
+                        effort=30.0,
+                    ),
                 }
             ]
 
@@ -267,6 +287,17 @@ class HomeActionService:
                         "symbol": recommendation.symbol,
                         "stage": "thesis_ready",
                     },
+                    "_rank_score": action_rank_score(
+                        "high",
+                        impact=min(
+                            numeric_value(recommendation.position_size_dollars) / 1000,
+                            300.0,
+                        ),
+                        confidence=120.0
+                        if recommendation.validation_type == "both"
+                        else 60.0,
+                        effort=80.0,
+                    ),
                 }
             )
         return actions
@@ -280,15 +311,16 @@ class HomeActionService:
 
         actions: list[dict[str, object]] = []
         for notification in dashboard.notifications[:3]:
+            portfolio_position = _portfolio_position_for_symbol(
+                getattr(self, "storage", None),
+                notification.symbol,
+            )
             decision = build_symbol_decision(
                 symbol=notification.symbol or "",
                 recommendation=None,
                 generated_at=notification.created_at,
                 notifications=[notification],
-                portfolio_position=_portfolio_position_for_symbol(
-                    getattr(self, "storage", None),
-                    notification.symbol,
-                ),
+                portfolio_position=portfolio_position,
             ).model_dump(mode="json")
             href = (
                 f"/symbols/{notification.symbol}?tab=decision"
@@ -319,6 +351,12 @@ class HomeActionService:
                         "kind": "acknowledge_notification",
                         "notification_id": notification.id,
                     },
+                    "_rank_score": action_rank_score(
+                        priority,
+                        impact=position_impact_score(portfolio_position),
+                        confidence=80.0,
+                        effort=30.0,
+                    ),
                 }
             )
 
@@ -334,9 +372,14 @@ class HomeActionService:
                     "action_label": "Open symbol",
                     "href": f"/symbols/{review.symbol}?tab=decision",
                     "symbol": review.symbol,
-                    "badge": review.outcome_label.title(),
-                }
-            )
+                        "badge": review.outcome_label.title(),
+                        "_rank_score": action_rank_score(
+                            "medium",
+                            confidence=40.0,
+                            effort=40.0,
+                        ),
+                    }
+                )
 
         return actions
 
@@ -369,6 +412,11 @@ class HomeActionService:
                             "symbol": symbol,
                             "stage": "tracked",
                         },
+                        "_rank_score": action_rank_score(
+                            "medium",
+                            freshness=120.0,
+                            effort=20.0,
+                        ),
                     }
                 )
             elif stage == "invalidated":
@@ -389,6 +437,11 @@ class HomeActionService:
                             "symbol": symbol,
                             "stage": "discover",
                         },
+                        "_rank_score": action_rank_score(
+                            "warning",
+                            freshness=100.0,
+                            effort=40.0,
+                        ),
                     }
                 )
         return actions
@@ -415,6 +468,7 @@ class HomeActionService:
                     "href": need.action_href or "/money",
                     "symbol": None,
                     "badge": "Household",
+                    "_rank_score": household_rank_score(need),
                 }
             )
 

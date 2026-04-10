@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from app.api.symbols.models import PositionInfo
 from app.models.jenny import JennyDashboard, JennyNotification, JennyTradeReview
 from app.services.home_action_service import HomeActionService
 
@@ -61,6 +62,81 @@ def test_get_action_queue_sorts_and_dedupes_actions() -> None:
         "Trim VTI concentration",
         "Review NVDA",
     ]
+    assert all("_rank_score" not in action for action in payload["actions"])
+
+
+def test_get_action_queue_uses_rank_score_before_title_order() -> None:
+    service = object.__new__(HomeActionService)
+    service._recommendation_actions = lambda: []
+    service._portfolio_health_actions = lambda: [
+        {
+            "id": "portfolio-health-top-holding",
+            "source": "portfolio",
+            "category": "investing",
+            "priority": "high",
+            "title": "Portfolio needs a concentration check",
+            "detail": "Largest holding is 97.9% of invested assets.",
+            "action_label": "Check concentration",
+            "href": "/portfolio?tab=holdings&highlight=concentration#portfolio-overview",
+            "symbol": None,
+            "badge": "Concentration",
+            "_rank_score": 2489.5,
+        }
+    ]
+    service._jenny_actions = lambda: [
+        {
+            "id": "tsla-review",
+            "source": "jenny",
+            "category": "investing",
+            "priority": "warning",
+            "title": "TSLA: Recheck this position",
+            "detail": "Small position review.",
+            "action_label": "Review decision",
+            "href": "/symbols/TSLA?tab=decision",
+            "symbol": "TSLA",
+            "badge": "Warning",
+            "_rank_score": 1009.0,
+        },
+        {
+            "id": "vti-trim",
+            "source": "jenny",
+            "category": "investing",
+            "priority": "warning",
+            "title": "VTI: Trim this position",
+            "detail": "Large concentration review.",
+            "action_label": "Review decision",
+            "href": "/symbols/VTI?tab=decision",
+            "symbol": "VTI",
+            "badge": "Warning",
+            "_rank_score": 1500.0,
+        },
+    ]
+    service._workflow_actions = lambda: []
+    service._household_actions = lambda: [
+        {
+            "id": "household-accounts",
+            "source": "household",
+            "category": "household",
+            "priority": "high",
+            "title": "Are all accounts covered?",
+            "detail": "Confirm account coverage.",
+            "action_label": "Review accounts",
+            "href": "/money?tab=accounts&focus=account-coverage",
+            "symbol": None,
+            "badge": "Household",
+            "_rank_score": 2300.0,
+        }
+    ]
+
+    payload = service.get_action_queue()
+
+    assert [action["title"] for action in payload["actions"]] == [
+        "Portfolio needs a concentration check",
+        "Are all accounts covered?",
+        "VTI: Trim this position",
+        "TSLA: Recheck this position",
+    ]
+    assert all("_rank_score" not in action for action in payload["actions"])
 
 
 def test_jenny_actions_link_into_decision_context() -> None:
@@ -102,6 +178,71 @@ def test_jenny_actions_link_into_decision_context() -> None:
     assert actions[0]["decision"]["headline"] == "Exit this position"
     assert actions[0]["decision"]["source_kind"] == "jenny_alert"
     assert actions[1]["href"] == "/symbols/NVDA?tab=decision"
+
+
+def test_jenny_actions_rank_large_current_positions_above_small(monkeypatch) -> None:
+    service = object.__new__(HomeActionService)
+    service.storage = object()
+    service._jenny_service = lambda: SimpleNamespace(
+        get_dashboard=lambda: JennyDashboard(
+            notifications=[
+                JennyNotification(
+                    id="note-vti",
+                    routine_id="routine-1",
+                    symbol="VTI",
+                    category="position_trim",
+                    severity="warning",
+                    status="open",
+                    title="VTI: Trim this position",
+                    detail="Trim concentration.",
+                    recommendation="Take partial profits.",
+                    created_at="2026-03-10T16:00:00Z",
+                ),
+                JennyNotification(
+                    id="note-tsla",
+                    routine_id="routine-1",
+                    symbol="TSLA",
+                    category="position_review",
+                    severity="warning",
+                    status="open",
+                    title="TSLA: Recheck this position",
+                    detail="Review thesis.",
+                    recommendation="Review the thesis.",
+                    created_at="2026-03-10T16:00:00Z",
+                ),
+            ],
+            trade_reviews=[],
+        )
+    )
+
+    def fake_position(_storage: object, symbol: str | None) -> PositionInfo:
+        if symbol == "VTI":
+            return PositionInfo(
+                shares=10.0,
+                cost_basis=100.0,
+                current_value=160.0,
+                gain=60.0,
+                gain_pct=60.0,
+                weight_pct=97.0,
+            )
+        return PositionInfo(
+            shares=1.0,
+            cost_basis=100.0,
+            current_value=94.0,
+            gain=-6.0,
+            gain_pct=-6.0,
+            weight_pct=0.4,
+        )
+
+    monkeypatch.setattr(
+        "app.services.home_action_service._portfolio_position_for_symbol",
+        fake_position,
+    )
+
+    actions = service._jenny_actions()
+    scores = {action["symbol"]: action["_rank_score"] for action in actions}
+
+    assert scores["VTI"] > scores["TSLA"]
 
 
 def test_recommendation_actions_use_decision_contract(monkeypatch) -> None:
