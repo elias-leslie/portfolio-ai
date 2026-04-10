@@ -35,6 +35,8 @@ import { formatCurrencyWhole } from '@/lib/formatters'
 import { formatRelativeTime } from '@/lib/utils'
 import { EvidenceUploadComposer } from './EvidenceUploadComposer'
 
+type MoneyAccountsFocus = 'coverage' | null
+
 const freshnessTone = {
   fresh: 'border-gain/25 bg-gain/5 text-gain',
   aging: 'border-warning/25 bg-warning/5 text-warning',
@@ -303,18 +305,36 @@ function accountSubline(account: HouseholdAccountSummary) {
 export function MoneyAccountsPanel({
   accounts,
   documents,
+  focus = null,
 }: {
   accounts: HouseholdAccountSummary[]
   documents: HouseholdDocument[]
+  focus?: MoneyAccountsFocus
 }) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingAccount, setEditingAccount] = useState<HouseholdAccountSummary | null>(null)
   const [deletingAccount, setDeletingAccount] =
     useState<HouseholdAccountSummary | null>(null)
+  const focusedAccountId =
+    focus === 'coverage'
+      ? accounts.find(
+          (account) =>
+            account.gapFlags.length > 0 || account.freshnessStatus !== 'fresh',
+        )?.id
+      : undefined
+  const [openAccountId, setOpenAccountId] = useState<string | undefined>(
+    focusedAccountId,
+  )
   const deleteAccount = useDeleteHouseholdTrackedAccount()
   const documentsById = Object.fromEntries(
     documents.map((document) => [document.id, document]),
   )
+
+  useEffect(() => {
+    if (focusedAccountId) {
+      setOpenAccountId(focusedAccountId)
+    }
+  }, [focusedAccountId])
 
   const handleDelete = async (account: HouseholdAccountSummary) => {
     if (!account.trackedAccountId) return
@@ -324,6 +344,14 @@ export function MoneyAccountsPanel({
 
   return (
     <div className="space-y-4">
+      {focus === 'coverage' ? (
+        <div className="rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-text">
+          Today sent you here to confirm account coverage. Start with the
+          highlighted account, then add evidence directly to the row if Jenny
+          needs proof.
+        </div>
+      ) : null}
+
       <div className="flex flex-col gap-3 rounded-3xl border border-border/40 bg-surface-muted/15 p-5 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-semibold text-text">Tracked accounts</p>
@@ -352,15 +380,26 @@ export function MoneyAccountsPanel({
         </div>
       ) : (
         <div className="rounded-3xl border border-border/40 bg-surface/55">
-          <Accordion type="single" collapsible className="w-full">
+          <Accordion
+            type="single"
+            collapsible
+            className="w-full"
+            value={openAccountId}
+            onValueChange={setOpenAccountId}
+          >
             {accounts.map((account) => {
               const topGap = account.gapFlags[0] ?? null
+              const isFocused = account.id === focusedAccountId
               return (
                 <AccordionItem
                   key={account.id}
                   value={account.id}
                   id={`account-${account.id}`}
-                  className="px-5"
+                  className={`px-5 ${
+                    isFocused
+                      ? 'border-primary/50 bg-primary/5 ring-1 ring-primary/30'
+                      : ''
+                  }`}
                 >
                   <AccordionTrigger className="py-5 hover:text-text">
                     <div className="grid flex-1 gap-3 text-left md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_auto] md:items-center">

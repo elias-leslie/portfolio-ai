@@ -14,7 +14,12 @@ vi.mock('@/components/money/MoneyOverviewPanel', () => ({
   MoneyOverviewPanel: () => <div>Money Overview Panel</div>,
 }))
 vi.mock('@/components/money/MoneyAccountsPanel', () => ({
-  MoneyAccountsPanel: () => <div>Money Accounts Panel</div>,
+  MoneyAccountsPanel: ({ focus }: { focus?: string | null }) => (
+    <div>
+      Money Accounts Panel
+      {focus === 'coverage' ? <span>Account coverage focused</span> : null}
+    </div>
+  ),
 }))
 vi.mock('@/components/money/HouseholdDocumentCenter', () => ({
   HouseholdDocumentCenter: ({
@@ -32,7 +37,16 @@ vi.mock('@/components/money/HouseholdProfileCard', () => ({
   HouseholdProfileCard: () => <div>Profile Card</div>,
 }))
 vi.mock('@/components/money/HouseholdPlanningPanels', () => ({
-  HouseholdPlanningPanels: () => <div>Planning Panels</div>,
+  HouseholdPlanningPanels: ({
+    focusedSection,
+  }: {
+    focusedSection?: string | null
+  }) => (
+    <div>
+      Planning Panels
+      {focusedSection ? <span>Planning focus: {focusedSection}</span> : null}
+    </div>
+  ),
 }))
 
 function buildDashboard() {
@@ -330,5 +344,33 @@ describe('MoneyPage', () => {
 
     expect(screen.getByText('Document Center')).toBeInTheDocument()
     expect(screen.getByText('Date quality focused')).toBeInTheDocument()
+  })
+
+  it('opens the accounts tab with account coverage focus from the focus query param', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/money?tab=accounts&focus=account-coverage',
+    )
+    const { default: MoneyPage } = await import('../money/page')
+
+    render(<MoneyPage />)
+
+    expect(screen.getByText('Money Accounts Panel')).toBeInTheDocument()
+    expect(screen.getByText('Account coverage focused')).toBeInTheDocument()
+  })
+
+  it('opens focused planning from the utility and focus query params', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/money?utility=planning&focus=housing',
+    )
+    const { default: MoneyPage } = await import('../money/page')
+
+    render(<MoneyPage />)
+
+    expect(screen.getByText('Planning Panels')).toBeInTheDocument()
+    expect(screen.getByText('Planning focus: housing')).toBeInTheDocument()
   })
 })

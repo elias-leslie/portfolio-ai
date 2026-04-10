@@ -16,9 +16,10 @@ from app.services._household_jenny_needs_builders import (
     _jenny_transaction_date_quality_needs,
 )
 from app.services._money_workspace_routes import (
+    MONEY_ACCOUNT_COVERAGE_ROUTE,
     MONEY_DATE_QUALITY_ROUTE,
     MONEY_EVIDENCE_ROUTE,
-    MONEY_PLANNING_ROUTE,
+    money_planning_focus_route,
 )
 
 
@@ -73,8 +74,10 @@ def test_confirmation_needs_route_planning_and_document_gaps_to_specific_section
 
     planning_need = next(need for need in needs if need.id == "need_planning_household")
     document_need = next(need for need in needs if need.id == "need_document_req-1")
+    account_need = next(need for need in needs if need.id == "need_account_completeness")
 
-    assert planning_need.action_href == MONEY_PLANNING_ROUTE
+    assert account_need.action_href == MONEY_ACCOUNT_COVERAGE_ROUTE
+    assert planning_need.action_href == money_planning_focus_route("household")
     assert document_need.action_href == MONEY_EVIDENCE_ROUTE
 
 

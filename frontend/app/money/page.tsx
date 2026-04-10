@@ -3,7 +3,10 @@
 import { Loader2, PlusCircle, Settings2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { HouseholdDocumentCenter } from '@/components/money/HouseholdDocumentCenter'
-import { HouseholdPlanningPanels } from '@/components/money/HouseholdPlanningPanels'
+import {
+  HouseholdPlanningPanels,
+  type PlanningFocusSection,
+} from '@/components/money/HouseholdPlanningPanels'
 import { HouseholdProfileCard } from '@/components/money/HouseholdProfileCard'
 import { JennyQuestionInbox } from '@/components/money/JennyQuestionInbox'
 import { MoneyAccountsPanel } from '@/components/money/MoneyAccountsPanel'
@@ -66,7 +69,23 @@ function MetricCard({
 }
 
 type MoneyUtility = 'evidence' | 'planning'
-type MoneyFocus = 'date-quality'
+type MoneyFocus = 'date-quality' | 'account-coverage' | PlanningFocusSection
+
+const planningFocusSections = new Set<string>([
+  'household',
+  'income',
+  'debt',
+  'housing',
+  'insurance',
+  'retirement',
+  'expenses',
+])
+
+function isPlanningFocus(
+  focus: MoneyFocus | null,
+): focus is PlanningFocusSection {
+  return Boolean(focus && planningFocusSections.has(focus))
+}
 
 function resolveRequestedUtility(
   requested: string | null | undefined,
@@ -87,7 +106,14 @@ function readRequestedUtility(): MoneyUtility | null {
 function resolveRequestedFocus(
   requested: string | null | undefined,
 ): MoneyFocus | null {
-  return requested === 'date-quality' ? requested : null
+  if (
+    requested === 'date-quality' ||
+    requested === 'account-coverage' ||
+    planningFocusSections.has(requested ?? '')
+  ) {
+    return requested as MoneyFocus
+  }
+  return null
 }
 
 function readRequestedFocus(): MoneyFocus | null {
@@ -114,7 +140,7 @@ function syncUtilityToLocation(
   } else {
     nextUrl.searchParams.delete('utility')
   }
-  if (nextUtility === 'evidence' && nextFocus) {
+  if (nextUtility && nextFocus) {
     nextUrl.searchParams.set('focus', nextFocus)
   } else {
     nextUrl.searchParams.delete('focus')
@@ -164,7 +190,12 @@ export default function MoneyPage() {
   }, [])
 
   const setOpenUtility = (nextUtility: MoneyUtility | null) => {
-    const nextFocus = nextUtility === 'evidence' ? focusedReview : null
+    const nextFocus =
+      nextUtility === 'evidence' && focusedReview === 'date-quality'
+        ? focusedReview
+        : nextUtility === 'planning' && isPlanningFocus(focusedReview)
+          ? focusedReview
+          : null
     setOpenUtilityState(nextUtility)
     setFocusedReview(nextFocus)
     syncUtilityToLocation(nextUtility, nextFocus)
@@ -306,6 +337,7 @@ export default function MoneyPage() {
         <MoneyAccountsPanel
           accounts={dashboard.accounts}
           documents={documentItems}
+          focus={focusedReview === 'account-coverage' ? 'coverage' : null}
         />
       ),
     },
@@ -391,7 +423,12 @@ export default function MoneyPage() {
               profile={dashboard.profile}
               resolvedValues={dashboard.resolvedValues}
             />
-            <HouseholdPlanningPanels dashboard={dashboard} />
+            <HouseholdPlanningPanels
+              dashboard={dashboard}
+              focusedSection={
+                isPlanningFocus(focusedReview) ? focusedReview : null
+              }
+            />
           </div>
         </DialogContent>
       </Dialog>

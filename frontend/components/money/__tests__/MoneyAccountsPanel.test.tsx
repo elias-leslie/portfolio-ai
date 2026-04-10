@@ -153,4 +153,20 @@ describe('MoneyAccountsPanel', () => {
       )
     })
   })
+
+  it('opens and highlights the first account needing coverage when focused from Today', () => {
+    render(
+      <MoneyAccountsPanel
+        accounts={accounts}
+        documents={documents}
+        focus="coverage"
+      />,
+    )
+
+    expect(
+      screen.getByText(/today sent you here to confirm account coverage/i),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Supporting documents')).toBeInTheDocument()
+    expect(screen.getByText(/hint: main checking/i)).toBeInTheDocument()
+  })
 })

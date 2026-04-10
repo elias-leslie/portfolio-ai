@@ -49,6 +49,25 @@ def _portfolio_position_for_symbol(storage: object | None, symbol: str | None):
         return None
 
 
+def _household_action_label(need: object) -> str:
+    action_href = str(getattr(need, "action_href", "") or "")
+    need_id = str(getattr(need, "id", "") or "")
+    need_type = str(getattr(need, "need_type", "") or "")
+
+    if "focus=account-coverage" in action_href:
+        return "Review accounts"
+    if "utility=evidence" in action_href:
+        return "Add evidence"
+    if "utility=planning" in action_href:
+        section = need_id.removeprefix("need_planning_").replace("_", " ")
+        return f"Add {section} info" if section and section != need_id else "Add planning info"
+    if getattr(need, "related_question_id", None):
+        return "Answer question"
+    if need_type == "confirm":
+        return "Confirm"
+    return "Resolve"
+
+
 class HomeActionService:
     """Build a ranked cross-product action queue for the home dashboard."""
 
@@ -159,10 +178,10 @@ class HomeActionService:
                     "title": "Portfolio needs a concentration check",
                     "detail": (
                         f"Largest holding is {top_holding_pct:.1f}% of invested assets. "
-                        "Open Investing to review portfolio concentration."
+                        "Open Holdings to review portfolio concentration."
                     ),
-                    "action_label": "Review investing",
-                    "href": "/portfolio#portfolio-overview",
+                    "action_label": "Check concentration",
+                    "href": "/portfolio?tab=holdings&highlight=concentration#portfolio-overview",
                     "symbol": None,
                     "badge": "Concentration",
                 }
@@ -185,8 +204,8 @@ class HomeActionService:
                         f"Top three holdings are {top_3_pct:.1f}% of invested assets. "
                         f"{diversification_detail}"
                     ),
-                    "action_label": "Review investing",
-                    "href": "/portfolio#portfolio-overview",
+                    "action_label": "Review holdings",
+                    "href": "/portfolio?tab=holdings&highlight=concentration#portfolio-overview",
                     "symbol": None,
                     "badge": "Portfolio",
                 }
@@ -392,7 +411,7 @@ class HomeActionService:
                     "priority": need.priority,
                     "title": need.title,
                     "detail": need.detail,
-                    "action_label": "Resolve",
+                    "action_label": _household_action_label(need),
                     "href": need.action_href or "/money",
                     "symbol": None,
                     "badge": "Household",

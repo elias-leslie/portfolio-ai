@@ -5,9 +5,10 @@ from typing import Any
 
 from app.models.household_finance import JennyNeed
 from app.services._money_workspace_routes import (
+    MONEY_ACCOUNT_COVERAGE_ROUTE,
     MONEY_DATE_QUALITY_ROUTE,
     MONEY_EVIDENCE_ROUTE,
-    MONEY_PLANNING_ROUTE,
+    money_planning_focus_route,
 )
 
 # Minimum months of statement coverage before Jenny considers data sufficient
@@ -57,6 +58,7 @@ def _jenny_confirmation_needs(
             ),
             priority="high", status="unsatisfied", recurrence="one_time",
             field_name="account_completeness",
+            action_href=MONEY_ACCOUNT_COVERAGE_ROUTE,
         ))
     if "household_scope" not in confirmed_facts:
         needs.append(JennyNeed(
@@ -80,7 +82,8 @@ def _jenny_confirmation_needs(
             title=f"Complete {section.label.lower()} planning",
             detail=section.detail,
             priority="high" if section.section in {"household", "income", "housing", "debt"} else "medium",
-            status="unsatisfied", recurrence="one_time", action_href=MONEY_PLANNING_ROUTE,
+            status="unsatisfied", recurrence="one_time",
+            action_href=money_planning_focus_route(section.section),
         ))
     for req in [r for r in planning.document_requirements if r.status == "missing"][:4]:
         needs.append(JennyNeed(

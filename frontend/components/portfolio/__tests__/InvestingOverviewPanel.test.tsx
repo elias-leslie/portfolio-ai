@@ -98,6 +98,7 @@ const marketNews: NewsBundle = {
 
 describe('InvestingOverviewPanel', () => {
   beforeEach(() => {
+    window.history.replaceState({}, '', '/portfolio')
     useMarketIntelligenceMock.mockReturnValue({
       data: {
         fearGreed: {
@@ -151,5 +152,31 @@ describe('InvestingOverviewPanel', () => {
     expect(screen.getByText('Recent News Tone')).toBeInTheDocument()
     expect(screen.getByText('Constructive')).toBeInTheDocument()
     expect(screen.queryByText('Watchlist')).not.toBeInTheDocument()
+  })
+
+  it('highlights concentration when Today routes to that focus', () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/portfolio?tab=holdings&highlight=concentration#portfolio-overview',
+    )
+
+    render(
+      <InvestingOverviewPanel
+        portfolio={portfolio}
+        analytics={{
+          ...analytics,
+          concentration: {
+            ...analytics.concentration,
+            topHoldingPct: 55,
+          },
+        }}
+        accountsCount={2}
+      />,
+    )
+
+    expect(screen.getByText('Too concentrated').closest('div')).toHaveClass(
+      'ring-primary/35',
+    )
   })
 })

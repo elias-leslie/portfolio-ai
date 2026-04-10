@@ -86,6 +86,8 @@ export function EditableListSection({
   onSave,
   onAdd,
   isSaving,
+  id,
+  isFocused = false,
 }: {
   title: string
   description: string
@@ -95,6 +97,8 @@ export function EditableListSection({
   onSave: () => void
   onAdd: () => void
   isSaving: boolean
+  id?: string
+  isFocused?: boolean
 }) {
   const updateField = (index: number, key: string, value: string) => {
     onChange(
@@ -109,7 +113,14 @@ export function EditableListSection({
   }
 
   return (
-    <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
+    <div
+      id={id}
+      className={`rounded-2xl border bg-surface-muted/20 p-4 ${
+        isFocused
+          ? 'border-primary/60 ring-2 ring-primary/25'
+          : 'border-border/40'
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-text">{title}</p>

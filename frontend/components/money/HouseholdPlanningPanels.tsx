@@ -63,6 +63,15 @@ type SectionKey =
   | 'retirementIncomeSources'
   | 'plannedExpenses'
 
+export type PlanningFocusSection =
+  | 'household'
+  | 'income'
+  | 'debt'
+  | 'housing'
+  | 'insurance'
+  | 'retirement'
+  | 'expenses'
+
 type SectionsState = Record<SectionKey, EditableItem[]>
 
 type SectionsAction =
@@ -115,12 +124,28 @@ function buildSectionsState(
   }
 }
 
+const focusSectionTargets: Record<PlanningFocusSection, SectionKey> = {
+  household: 'members',
+  income: 'incomeSources',
+  debt: 'debtObligations',
+  housing: 'housingCosts',
+  insurance: 'insurancePolicies',
+  retirement: 'retirementIncomeSources',
+  expenses: 'plannedExpenses',
+}
+
+function planningSectionId(section: SectionKey) {
+  return `planning-section-${section}`
+}
+
 /* ── Component ────────────────────────────────────────────────────────── */
 
 export function HouseholdPlanningPanels({
   dashboard,
+  focusedSection = null,
 }: {
   dashboard: HouseholdFinanceDashboard
+  focusedSection?: PlanningFocusSection | null
 }) {
   const planning = useMemo(
     () => dashboard.planning ?? emptyPlanning(),
@@ -141,9 +166,36 @@ export function HouseholdPlanningPanels({
   }
 
   const planningSections = planning.summary.sections
+  const focusedEditorSection = focusedSection
+    ? focusSectionTargets[focusedSection]
+    : null
+  const focusedPlanningLabel =
+    planningSections.find((section) => section.section === focusedSection)
+      ?.label ?? (focusedSection ? formatEnumLabel(focusedSection) : null)
+
+  useEffect(() => {
+    if (!focusedEditorSection) {
+      return
+    }
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      document
+        .getElementById(planningSectionId(focusedEditorSection))
+        ?.scrollIntoView({ block: 'start' })
+    })
+
+    return () => window.cancelAnimationFrame(animationFrame)
+  }, [focusedEditorSection])
 
   return (
     <div className="space-y-6">
+      {focusedPlanningLabel ? (
+        <div className="rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-text">
+          Today sent you here to complete {focusedPlanningLabel.toLowerCase()}{' '}
+          planning. The matching workbook section is highlighted below.
+        </div>
+      ) : null}
+
       <div className="grid gap-4 md:grid-cols-3">
         <SectionCard
           variant="surface"
@@ -393,6 +445,8 @@ export function HouseholdPlanningPanels({
       >
         <div className="grid gap-4 xl:grid-cols-2">
           <EditableListSection
+            id={planningSectionId('members')}
+            isFocused={focusedEditorSection === 'members'}
             title="Household members"
             description="Adults, kids, and other dependents that shape cash flow and goals."
             fields={[
@@ -438,6 +492,8 @@ export function HouseholdPlanningPanels({
           />
 
           <EditableListSection
+            id={planningSectionId('incomeSources')}
+            isFocused={focusedEditorSection === 'incomeSources'}
             title="Income sources"
             description="Salary, freelance, rental, benefits, and other cash-in sources."
             fields={[
@@ -487,6 +543,8 @@ export function HouseholdPlanningPanels({
           />
 
           <EditableListSection
+            id={planningSectionId('debtObligations')}
+            isFocused={focusedEditorSection === 'debtObligations'}
             title="Debt obligations"
             description="Mortgage, HELOC, student loans, auto loans, and other debt service."
             fields={[
@@ -537,6 +595,8 @@ export function HouseholdPlanningPanels({
           />
 
           <EditableListSection
+            id={planningSectionId('housingCosts')}
+            isFocused={focusedEditorSection === 'housingCosts'}
             title="Housing costs"
             description="Rent or owned-home carrying costs plus major housing assumptions."
             fields={[
@@ -588,6 +648,8 @@ export function HouseholdPlanningPanels({
           />
 
           <EditableListSection
+            id={planningSectionId('insurancePolicies')}
+            isFocused={focusedEditorSection === 'insurancePolicies'}
             title="Insurance policies"
             description="Coverage, premiums, and risk-transfer assumptions Jenny should respect."
             fields={[
@@ -647,6 +709,8 @@ export function HouseholdPlanningPanels({
           />
 
           <EditableListSection
+            id={planningSectionId('retirementIncomeSources')}
+            isFocused={focusedEditorSection === 'retirementIncomeSources'}
             title="Retirement income sources"
             description="Social Security, pensions, annuities, and bridge income."
             fields={[
@@ -706,6 +770,8 @@ export function HouseholdPlanningPanels({
           />
 
           <EditableListSection
+            id={planningSectionId('plannedExpenses')}
+            isFocused={focusedEditorSection === 'plannedExpenses'}
             title="Major expenses and goal buckets"
             description="Large one-time costs and sinking-fund style future goals."
             fields={[

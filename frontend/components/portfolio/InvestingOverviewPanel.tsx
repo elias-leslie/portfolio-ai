@@ -1,4 +1,5 @@
 'use client'
+import { useState } from 'react'
 import { MarketStatusBadge } from '@/components/market/MarketStatusBadge'
 import { SectionCard } from '@/components/shared/SectionCard'
 import type { PortfolioAnalytics, PortfolioResponse } from '@/lib/api/portfolio'
@@ -14,6 +15,14 @@ import {
   describeVolatility,
   type OverviewTone,
 } from './investing-language'
+
+function readHighlightedMetric() {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  return new URLSearchParams(window.location.search).get('highlight')
+}
 
 function formatIndicatorValue(value: number | null | undefined, suffix = '') {
   if (value == null || Number.isNaN(value)) {
@@ -55,18 +64,21 @@ function OverviewStat({
   detail,
   tone = 'default',
   featured = false,
+  highlighted = false,
 }: {
   label: string
   value: string
   detail: string
   tone?: OverviewTone
   featured?: boolean
+  highlighted?: boolean
 }) {
   return (
     <div
       className={cn(
         'rounded-2xl border px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-colors',
         toneSurfaceClasses(tone),
+        highlighted && 'ring-2 ring-primary/35',
       )}
     >
       <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
@@ -97,6 +109,7 @@ export function InvestingOverviewPanel({
 }) {
   const { data: market } = useMarketIntelligence()
   const { data: marketNews } = useNewsIntelligence(undefined, { limit: 24 })
+  const [highlightedMetric] = useState(readHighlightedMetric)
 
   const positionCount = portfolio?.positions.length ?? 0
   const totalGain = portfolio?.totalGain
@@ -142,6 +155,7 @@ export function InvestingOverviewPanel({
             value={portfolioHealth.label}
             detail={portfolioHealth.detail}
             tone={portfolioHealth.tone}
+            highlighted={highlightedMetric === 'concentration'}
           />
           <OverviewStat
             label="Market Mood"

@@ -13,6 +13,7 @@ describe('HouseholdPlanningPanels', () => {
   it('shows blockers and empty-state planning copy when retirement details are sparse', () => {
     render(
       <HouseholdPlanningPanels
+        focusedSection="housing"
         dashboard={{
           generatedAt: '2026-03-10T00:00:00Z',
           overview: {
@@ -151,6 +152,9 @@ describe('HouseholdPlanningPanels', () => {
     )
 
     expect(screen.getByText(/no starter lanes yet/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/today sent you here to complete housing planning/i),
+    ).toBeInTheDocument()
     expect(
       screen.getByText(
         /jenny has not identified a strong retirement edge yet/i,

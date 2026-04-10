@@ -160,9 +160,50 @@ def test_portfolio_health_actions_flag_concentration(monkeypatch) -> None:
     actions = service._portfolio_health_actions()
 
     assert actions[0]["title"] == "Portfolio needs a concentration check"
-    assert actions[0]["href"] == "/portfolio#portfolio-overview"
+    assert (
+        actions[0]["href"]
+        == "/portfolio?tab=holdings&highlight=concentration#portfolio-overview"
+    )
+    assert actions[0]["action_label"] == "Check concentration"
     assert actions[0]["badge"] == "Concentration"
     assert actions[0]["detail"] == (
         "Largest holding is 38.2% of invested assets. "
-        "Open Investing to review portfolio concentration."
+        "Open Holdings to review portfolio concentration."
     )
+
+
+def test_household_actions_use_specific_labels_and_focused_destinations() -> None:
+    service = object.__new__(HomeActionService)
+    service._household_service = lambda: SimpleNamespace(
+        get_dashboard=lambda: SimpleNamespace(
+            jenny_needs=[
+                SimpleNamespace(
+                    id="need_account_completeness",
+                    need_type="confirm",
+                    title="Are all accounts covered?",
+                    detail="Confirm account coverage.",
+                    priority="high",
+                    status="unsatisfied",
+                    action_href="/money?tab=accounts&focus=account-coverage",
+                    related_question_id=None,
+                ),
+                SimpleNamespace(
+                    id="need_planning_housing",
+                    need_type="set",
+                    title="Complete housing planning",
+                    detail="Add owned home costs.",
+                    priority="high",
+                    status="unsatisfied",
+                    action_href="/money?utility=planning&focus=housing",
+                    related_question_id=None,
+                ),
+            ]
+        )
+    )
+
+    actions = service._household_actions()
+
+    assert actions[0]["action_label"] == "Review accounts"
+    assert actions[0]["href"] == "/money?tab=accounts&focus=account-coverage"
+    assert actions[1]["action_label"] == "Add housing info"
+    assert actions[1]["href"] == "/money?utility=planning&focus=housing"
