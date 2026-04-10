@@ -159,6 +159,8 @@
 :root {
   color-scheme: dark;
   --motion-enabled: 1;
+  --font-display:
+    "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
 
   --bg: oklch(0.17 0.015 262);
   --surface: oklch(0.2 0.013 262);

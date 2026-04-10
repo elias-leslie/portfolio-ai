@@ -140,3 +140,22 @@ def test_source_health_check_explains_recent_low_success_rate(monkeypatch) -> No
     assert health.status == "degraded"
     assert health.success_rate == 60.0
     assert health.status_reason == "Request success rate is below 80%."
+
+
+def test_standby_source_health_ignores_stale_age_for_backup_only_provider(monkeypatch) -> None:
+    monkeypatch.setattr(health_checks_impl, "datetime", _FrozenDateTime)
+
+    health = health_checks_impl._build_source_health_check(
+        {
+            "success_count": 1,
+            "failure_count": 0,
+            "total_latency_ms": 175,
+            "rate_limit_hits": 0,
+            "last_success_at": dt.datetime(2026, 3, 6, 22, 57, tzinfo=dt.UTC),
+        },
+        health_checks_impl.SourceHealthPolicy(monitoring_mode="standby"),
+    )
+
+    assert health.status == "ok"
+    assert health.success_rate == 100.0
+    assert health.status_reason == "Backup-only source; freshness is checked on demand."

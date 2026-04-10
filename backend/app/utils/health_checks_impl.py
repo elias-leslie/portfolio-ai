@@ -65,6 +65,7 @@ class SourceHealthPolicy:
 
     ok_window: timedelta = timedelta(hours=2)
     degraded_window: timedelta = timedelta(hours=24)
+    monitoring_mode: Literal["continuous", "standby"] = "continuous"
 
 
 @lru_cache(maxsize=1)
@@ -102,12 +103,18 @@ def _get_source_health_policies() -> dict[str, SourceHealthPolicy]:
             if not isinstance(capabilities, dict) or not _is_source_panel_capability(capabilities):
                 continue
 
-            policies[source_name] = SourceHealthPolicy()
+            monitoring_mode = provider_config.get("health_monitoring", "continuous")
+            if monitoring_mode not in {"continuous", "standby"}:
+                monitoring_mode = "continuous"
+            policies[source_name] = SourceHealthPolicy(
+                monitoring_mode=monitoring_mode,
+            )
 
     if "cboe_most_active" in policies:
         policies["cboe_most_active"] = SourceHealthPolicy(
             ok_window=timedelta(hours=30),
             degraded_window=timedelta(hours=48),
+            monitoring_mode=policies["cboe_most_active"].monitoring_mode,
         )
     return policies
 
@@ -132,6 +139,15 @@ def _format_window(window: timedelta) -> str:
     return f"{total_seconds}s"
 
 
+def _status_from_success_rate(success_rate: float) -> Literal["ok", "degraded", "down"]:
+    """Map request success rate to a provider health status."""
+    if success_rate >= 80:
+        return "ok"
+    if success_rate >= 50:
+        return "degraded"
+    return "down"
+
+
 def _determine_source_status(
     last_success_at: datetime | None,
     success_rate: float,
@@ -146,15 +162,13 @@ def _determine_source_status(
         return "down"  # Never succeeded
 
     active_policy = policy or SourceHealthPolicy()
+    if active_policy.monitoring_mode == "standby":
+        return _status_from_success_rate(success_rate)
+
     time_since_success = datetime.now(UTC) - last_success_at
 
     if time_since_success < active_policy.ok_window:
-        # Recent success - status based on success rate
-        if success_rate >= 80:
-            return "ok"
-        if success_rate >= 50:
-            return "degraded"
-        return "down"
+        return _status_from_success_rate(success_rate)
     if time_since_success < active_policy.degraded_window:
         return "degraded"
     return "down"
@@ -168,6 +182,17 @@ def _build_source_status_reason(
     policy: SourceHealthPolicy,
 ) -> str | None:
     """Explain non-OK source status using the same policy that sets status."""
+    if policy.monitoring_mode == "standby":
+        if not last_success_at:
+            return "No successful fetch recorded."
+        if status == "ok":
+            return "Backup-only source; freshness is checked on demand."
+        if success_rate < 50:
+            return "Backup-only source request success rate is below 50%."
+        if success_rate < 80:
+            return "Backup-only source request success rate is below 80%."
+        return "Backup-only source health needs review."
+
     reason: str | None = None
     if status != "ok":
         if not last_success_at:

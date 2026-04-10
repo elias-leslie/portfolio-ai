@@ -967,6 +967,7 @@ providers:
     api_key_required: true
     env_var: "ALPHAVANTAGE_API_KEY"
     db_key: "alphavantage.apikey"
+    health_monitoring: standby
     priority: 30  # Lowest - use as last resort
     rate_limits:
       per_minute: 5

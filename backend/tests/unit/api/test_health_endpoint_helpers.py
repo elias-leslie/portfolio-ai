@@ -8,6 +8,7 @@ import pytest
 from fastapi import Response
 
 from app.api.health import (
+    STALE_MAINTENANCE_RUNS_QUERY,
     _build_freshness_summary_payload,
     detailed_health_check,
     get_recent_remediations,
@@ -178,6 +179,7 @@ async def test_get_stale_maintenance_runs_returns_old_running_jobs(
     monkeypatch.setattr("app.api.health.get_storage", lambda: fake_storage)
 
     stale_runs = await get_stale_maintenance_runs()
+    executed_sql = fake_conn.execute.call_args[0][0]
 
     assert stale_runs == [
         {
@@ -186,6 +188,9 @@ async def test_get_stale_maintenance_runs_returns_old_running_jobs(
             "dry_run": False,
         }
     ]
+    assert "NOT EXISTS" in executed_sql
+    assert "newer.task_name = maintenance_log.task_name" in executed_sql
+    assert executed_sql == STALE_MAINTENANCE_RUNS_QUERY
 
 
 @pytest.mark.asyncio

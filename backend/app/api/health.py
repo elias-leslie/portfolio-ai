@@ -83,6 +83,12 @@ STALE_MAINTENANCE_RUNS_QUERY = """
     FROM maintenance_log
     WHERE status = 'running'
       AND started_at < NOW() - make_interval(hours => ?)
+      AND NOT EXISTS (
+          SELECT 1
+          FROM maintenance_log newer
+          WHERE newer.task_name = maintenance_log.task_name
+            AND newer.started_at > maintenance_log.started_at
+      )
     ORDER BY started_at ASC
     LIMIT 50
 """

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono, Newsreader } from 'next/font/google'
+import { Geist, Geist_Mono } from 'next/font/google'
 import Script from 'next/script'
 import './globals.css'
 import './globals-watchlist.css'
@@ -16,13 +16,6 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
-})
-
-const newsreader = Newsreader({
-  variable: '--font-display',
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  style: ['normal', 'italic'],
 })
 
 export const metadata: Metadata = {
@@ -62,7 +55,6 @@ export default function RootLayout({
         className={cn(
           geistSans.variable,
           geistMono.variable,
-          newsreader.variable,
           'bg-bg text-text antialiased h-screen overflow-hidden flex flex-col',
         )}
       >
