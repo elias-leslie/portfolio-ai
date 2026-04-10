@@ -28,7 +28,7 @@ import {
   SummaryStat,
   SystemChecksPanel,
 } from './StatusPanels'
-import { marketLabel, marketTone, systemTone } from './statusUtils'
+import { marketLabel, marketTone, newsTone, systemTone } from './statusUtils'
 
 export function StatusWorkspace() {
   const healthQuery = useDetailedHealth()
@@ -167,10 +167,7 @@ export function StatusWorkspace() {
           : 'Cache details unavailable'
 
   const newsPipelineDetail =
-    newsHealthQuery.data?.fallbackHeadlines24H &&
-    newsHealthQuery.data.fallbackHeadlines24H > 0
-      ? `Backup news source stepped in for ${formatInteger(newsHealthQuery.data.fallbackHeadlines24H)} headline${newsHealthQuery.data.fallbackHeadlines24H === 1 ? '' : 's'} in the last 24h`
-      : 'Primary news source handled the last 24h'
+    newsHealthQuery.data?.message ?? 'News health unavailable'
 
   return (
     <PageContainer className="space-y-10 py-10">
@@ -277,6 +274,7 @@ export function StatusWorkspace() {
               label="News"
               value={formatInteger(newsHealthQuery.data?.headlines24H)}
               detail={newsPipelineDetail}
+              tone={newsTone(newsHealthQuery.data?.status)}
             />
             <SummaryStat
               label="Runtime"
@@ -345,7 +343,7 @@ export function StatusWorkspace() {
 
           <MarketTimingPanel
             marketData={marketQuery.data}
-            marketLastRefreshedAt={newsHealthQuery.data?.marketLastRefreshedAt}
+            newsHealth={newsHealthQuery.data}
           />
         </>
       ) : null}

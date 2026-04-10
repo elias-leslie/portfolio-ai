@@ -10,6 +10,7 @@ from ..logging_config import get_logger
 from .news_types import (
     ArticleMixMetricsDict,
     FallbackMetricsDict,
+    NewsPipelineHealthDict,
     VendorHealthStatusDict,
     VendorStatsDict,
 )
@@ -52,6 +53,98 @@ class NewsHealthMetrics:
         if not candidates:
             return None
         return max(candidates)
+
+    @staticmethod
+    def format_duration_hours(hours: float) -> str:
+        """Format durations compactly for status summaries."""
+        if hours >= 48:
+            return f"{hours / 24:.0f}d"
+        if hours >= 24:
+            return f"{hours / 24:.1f}d"
+        if hours >= 1:
+            if hours.is_integer():
+                return f"{int(hours)}h"
+            return f"{hours:.1f}h"
+        return f"{round(hours * 60)}m"
+
+    @staticmethod
+    def build_pipeline_health(
+        *,
+        now: datetime,
+        ttl: timedelta,
+        headlines_24h: int,
+        fallback_headlines_24h: int,
+        market_last_refreshed_at: datetime | None,
+        watchlist_last_refreshed_at: datetime | None,
+    ) -> NewsPipelineHealthDict:
+        """Derive user-facing news health from freshness and article counts."""
+        latest_refresh = NewsHealthMetrics.latest_timestamp(
+            market_last_refreshed_at,
+            watchlist_last_refreshed_at,
+        )
+        ttl_hours = ttl.total_seconds() / 3600.0
+        age_hours = (
+            (now - latest_refresh).total_seconds() / 3600.0
+            if latest_refresh is not None
+            else None
+        )
+        ttl_label = NewsHealthMetrics.format_duration_hours(ttl_hours)
+        freshness_suffix = (
+            "No successful news refresh is recorded."
+            if age_hours is None
+            else (
+                "Latest refresh "
+                f"{NewsHealthMetrics.format_duration_hours(age_hours)} ago; "
+                f"expected every {ttl_label}."
+            )
+        )
+
+        if headlines_24h <= 0:
+            return {
+                "status": "down",
+                "message": f"No fresh news in 24h. {freshness_suffix}",
+                "latest_refreshed_at": latest_refresh,
+                "latest_refresh_age_hours": round(age_hours, 2)
+                if age_hours is not None
+                else None,
+            }
+
+        if age_hours is None:
+            return {
+                "status": "degraded",
+                "message": (
+                    f"{headlines_24h} headlines cached in 24h, "
+                    "but refresh timing is unknown."
+                ),
+                "latest_refreshed_at": None,
+                "latest_refresh_age_hours": None,
+            }
+
+        if age_hours > ttl_hours:
+            return {
+                "status": "degraded",
+                "message": (
+                    f"{headlines_24h} headlines cached in 24h. "
+                    f"{freshness_suffix}"
+                ),
+                "latest_refreshed_at": latest_refresh,
+                "latest_refresh_age_hours": round(age_hours, 2),
+            }
+
+        sentiment_suffix = (
+            f" {fallback_headlines_24h} used backup sentiment scoring."
+            if fallback_headlines_24h > 0
+            else ""
+        )
+        return {
+            "status": "healthy",
+            "message": (
+                f"{headlines_24h} headlines refreshed in 24h."
+                f"{sentiment_suffix}"
+            ),
+            "latest_refreshed_at": latest_refresh,
+            "latest_refresh_age_hours": round(age_hours, 2),
+        }
 
     def get_fallback_metrics(self, window_start: datetime) -> FallbackMetricsDict:
         """Get sentiment fallback metrics for health check.

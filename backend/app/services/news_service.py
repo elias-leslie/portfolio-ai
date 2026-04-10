@@ -256,12 +256,26 @@ class NewsService:
         )
         to_iso = self.health_metrics.to_iso
         avg_ms, p95_ms = fm["avg_latency_ms"], fm["p95_latency_ms"]
+        market_last_refreshed_at = self.cache_refresher.latest_fetched_at(market=True)
+        watchlist_last_refreshed_at = self.cache_refresher.latest_fetched_at(market=False)
+        pipeline_health = self.health_metrics.build_pipeline_health(
+            now=now,
+            ttl=self.ttl,
+            headlines_24h=int(fm["total_count"]),
+            fallback_headlines_24h=int(fm["fallback_count"]),
+            market_last_refreshed_at=market_last_refreshed_at,
+            watchlist_last_refreshed_at=watchlist_last_refreshed_at,
+        )
 
         return {
+            "status": pipeline_health["status"],
+            "message": pipeline_health["message"],
             "finbert_available": finbert_available,
             "finbert_install_hint": None if finbert_available else 'pip install -e ".[dev,ml]"',
-            "market_last_refreshed_at": to_iso(self.cache_refresher.latest_fetched_at(market=True)),
-            "watchlist_last_refreshed_at": to_iso(self.cache_refresher.latest_fetched_at(market=False)),
+            "market_last_refreshed_at": to_iso(market_last_refreshed_at),
+            "watchlist_last_refreshed_at": to_iso(watchlist_last_refreshed_at),
+            "latest_refreshed_at": to_iso(pipeline_health["latest_refreshed_at"]),
+            "latest_refresh_age_hours": pipeline_health["latest_refresh_age_hours"],
             "fallback_headlines_24h": fm["fallback_count"],
             "headlines_24h": fm["total_count"],
             "cache_ttl_hours": round(self.ttl.total_seconds() / 3600.0, 2),

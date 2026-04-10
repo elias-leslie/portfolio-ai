@@ -70,10 +70,14 @@ class VendorHealthResponse(BaseModel):
 class NewsHealthResponse(BaseModel):
     """Health metrics for news ingestion and sentiment pipeline."""
 
+    status: str
+    message: str
     finbert_available: bool
     finbert_install_hint: str | None = None
     market_last_refreshed_at: str | None = None
     watchlist_last_refreshed_at: str | None = None
+    latest_refreshed_at: str | None = None
+    latest_refresh_age_hours: float | None = None
     fallback_headlines_24h: int
     headlines_24h: int
     cache_ttl_hours: float

@@ -45,6 +45,21 @@ export function marketTone(
   }
 }
 
+export function newsTone(
+  status: NewsHealthResponse['status'] | undefined,
+): 'default' | 'positive' | 'warning' | 'negative' {
+  switch (status) {
+    case 'healthy':
+      return 'positive'
+    case 'degraded':
+      return 'warning'
+    case 'down':
+      return 'negative'
+    default:
+      return 'default'
+  }
+}
+
 export function marketLabel(
   status: MarketStatusResponse['status'] | undefined,
 ) {

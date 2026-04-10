@@ -106,10 +106,17 @@ describe('StatusWorkspace', () => {
     useNewsHealthMock.mockReturnValue(
       createQueryResult({
         data: {
+          status: 'down',
+          message:
+            'No fresh news in 24h. No successful news refresh is recorded.',
           headlines24H: 0,
+          fallbackHeadlines24H: 0,
           fallbackRate24H: 0,
           vendors: {},
           marketLastRefreshedAt: null,
+          watchlistLastRefreshedAt: null,
+          latestRefreshedAt: null,
+          latestRefreshAgeHours: null,
         },
       }),
     )
@@ -123,6 +130,11 @@ describe('StatusWorkspace', () => {
     expect(screen.getByText('4.0h')).toBeInTheDocument()
     expect(screen.getByText('Version 2026.03.10')).toBeInTheDocument()
     expect(screen.getByText('Cached prices 12 · age 1.5h')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'No fresh news in 24h. No successful news refresh is recorded.',
+      ),
+    ).toBeInTheDocument()
     expect(screen.getByText('No provider health checks yet')).toBeInTheDocument()
     expect(
       screen.getByText(
@@ -226,6 +238,84 @@ describe('StatusWorkspace', () => {
 
     expect(screen.getByText('Last activity: 6m ago')).toBeInTheDocument()
     expect(screen.queryByText('Last success: Never')).not.toBeInTheDocument()
+  })
+
+  it('uses calculated news health when headlines are stale or empty', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-04-10T16:00:00.000Z'))
+
+    useDetailedHealthMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          status: 'healthy',
+          timestamp: '2026-04-10T16:00:00.000Z',
+          checks: {},
+          sources: {},
+          services: {},
+          apiQuotas: [],
+          recentRemediations: [],
+          workflowHealth: null,
+          dataFreshnessStatus: {
+            status: 'critical',
+            lastCheck: '2026-04-10T15:00:00.000000Z',
+            fresh: 8,
+            stale: 1,
+            critical: 1,
+          },
+          watchlistStats: {
+            totalItems: 8,
+            itemsWithScores: 8,
+            lastRefresh: '2026-04-10T15:30:00.000Z',
+          },
+        },
+      }),
+    )
+    useMarketStatusMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          status: 'open',
+          currentTimeEt: '12:00 PM ET',
+          expectedDataDate: '2026-04-10',
+          lastTradingDay: '2026-04-09',
+          nextTradingDay: '2026-04-13',
+          isHoliday: false,
+          isEarlyClose: false,
+        },
+      }),
+    )
+    useNewsHealthMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          status: 'down',
+          message:
+            'No fresh news in 24h. Latest refresh 30d ago; expected every 6h.',
+          headlines24H: 0,
+          fallbackHeadlines24H: 0,
+          fallbackRate24H: 0,
+          marketLastRefreshedAt: '2026-03-11T13:25:00.173907Z',
+          watchlistLastRefreshedAt: '2026-03-11T13:25:11.593648Z',
+          latestRefreshedAt: '2026-03-11T13:25:11.593648Z',
+          latestRefreshAgeHours: 722.58,
+          vendors: {},
+        },
+      }),
+    )
+
+    render(<StatusWorkspace />)
+
+    expect(
+      screen.getByText(
+        'No fresh news in 24h. Latest refresh 30d ago; expected every 6h.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText('News Feed')).toBeInTheDocument()
+    expect(screen.getByText('Down')).toBeInTheDocument()
+    expect(
+      screen.queryByText(/primary news source handled/i),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/backup news source stepped in/i),
+    ).not.toBeInTheDocument()
   })
 
   it('describes overdue automation without pretending unfinished runs failed the success rate', () => {
@@ -654,10 +744,16 @@ describe('StatusWorkspace', () => {
     useNewsHealthMock.mockReturnValue(
       createQueryResult({
         data: {
+          status: 'healthy',
+          message:
+            '1916 headlines refreshed in 24h. 14 used backup sentiment scoring.',
           headlines24H: 1916,
           fallbackHeadlines24H: 14,
           fallbackRate24H: 0.7,
           marketLastRefreshedAt: '2026-03-10T23:25:00.160242Z',
+          watchlistLastRefreshedAt: '2026-03-10T23:25:00.160242Z',
+          latestRefreshedAt: '2026-03-10T23:25:00.160242Z',
+          latestRefreshAgeHours: 0.08,
           vendors: {
             polygon: {
               configured: true,
@@ -706,7 +802,7 @@ describe('StatusWorkspace', () => {
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        /backup news source stepped in for 14 headlines in the last 24h/i,
+        /1916 headlines refreshed in 24h. 14 used backup sentiment scoring/i,
       ),
     ).toBeInTheDocument()
   })

@@ -42,6 +42,15 @@ class ArticleMixMetricsDict(TypedDict, total=False):
     last_timestamp: datetime | None
 
 
+class NewsPipelineHealthDict(TypedDict):
+    """Decision-ready news pipeline health summary."""
+
+    status: str
+    message: str
+    latest_refreshed_at: datetime | None
+    latest_refresh_age_hours: float | None
+
+
 class VendorStatsDict(TypedDict):
     """Per-vendor statistics from last 24 hours."""
 

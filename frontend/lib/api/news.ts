@@ -9,10 +9,16 @@ export interface NewsBundle {
 
 export type MarketNewsResponse = NewsBundle
 
+export type NewsHealthStatus = 'healthy' | 'degraded' | 'down'
+
 export interface NewsHealthResponse {
+  status: NewsHealthStatus
+  message: string
   finbertAvailable: boolean
   marketLastRefreshedAt: string | null
   watchlistLastRefreshedAt: string | null
+  latestRefreshedAt: string | null
+  latestRefreshAgeHours: number | null
   fallbackHeadlines24H: number
   headlines24H: number
   cacheTtlHours: number

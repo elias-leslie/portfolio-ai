@@ -383,7 +383,7 @@ export function NewsVendorsPanel({
     <SectionCard
       variant="surface"
       title="News Sources"
-      description="Which news feeds are connected and whether backup feeds had to help."
+      description="Which news feeds are connected and when they last produced articles."
     >
       <div className="grid gap-3">
         {vendorRows.length === 0 ? (
@@ -587,18 +587,30 @@ export function StaleMaintenancePanel({
 
 export function MarketTimingPanel({
   marketData,
-  marketLastRefreshedAt,
+  newsHealth,
 }: {
   marketData: MarketStatusResponse | undefined
-  marketLastRefreshedAt: string | null | undefined
+  newsHealth: NewsHealthResponse | undefined
 }) {
+  const newsFeedValue =
+    newsHealth?.status === 'healthy'
+      ? 'Current'
+      : newsHealth?.status === 'degraded'
+        ? 'Stale'
+        : newsHealth?.status === 'down'
+          ? 'Down'
+          : 'Idle'
+  const newsFeedDetail = newsHealth?.latestRefreshedAt
+    ? `Last news refresh ${formatRelativeTime(newsHealth.latestRefreshedAt)}`
+    : 'No successful news refresh recorded'
+
   return (
     <SectionCard
       variant="surface"
       title="Market Calendar"
       description="Useful when deciding whether today's prices and alerts should already be moving."
     >
-      {!marketData && !marketLastRefreshedAt ? (
+      {!marketData && !newsHealth ? (
         <EmptyPanelMessage message="Market timing data is unavailable right now." />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -627,8 +639,8 @@ export function MarketTimingPanel({
           />
           <SummaryStat
             label="News Feed"
-            value={marketLastRefreshedAt ? 'Live' : 'Idle'}
-            detail={`Market feed last refreshed ${formatRelativeTime(marketLastRefreshedAt)}`}
+            value={newsFeedValue}
+            detail={newsFeedDetail}
           />
         </div>
       )}

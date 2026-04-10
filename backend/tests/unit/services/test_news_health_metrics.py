@@ -81,3 +81,62 @@ def test_build_vendor_health_prefers_newest_success_timestamp() -> None:
     assert health["polygon"]["last_success_at"] == "2026-03-10T23:25:00Z"
     assert health["polygon"]["last_attempt_at"] == "2026-03-10T23:26:00Z"
     assert health["polygon"]["articles_last_fetch_post_dedupe"] == 3
+
+
+def test_build_pipeline_health_marks_empty_stale_news_down() -> None:
+    now = datetime(2026, 4, 10, 16, 0, tzinfo=UTC)
+    old_refresh = now - timedelta(hours=30)
+
+    health = NewsHealthMetrics.build_pipeline_health(
+        now=now,
+        ttl=timedelta(hours=6),
+        headlines_24h=0,
+        fallback_headlines_24h=0,
+        market_last_refreshed_at=old_refresh,
+        watchlist_last_refreshed_at=None,
+    )
+
+    assert health["status"] == "down"
+    assert health["latest_refreshed_at"] == old_refresh
+    assert health["latest_refresh_age_hours"] == 30
+    assert health["message"] == (
+        "No fresh news in 24h. Latest refresh 1.2d ago; expected every 6h."
+    )
+
+
+def test_build_pipeline_health_marks_populated_but_late_news_degraded() -> None:
+    now = datetime(2026, 4, 10, 16, 0, tzinfo=UTC)
+
+    health = NewsHealthMetrics.build_pipeline_health(
+        now=now,
+        ttl=timedelta(hours=6),
+        headlines_24h=42,
+        fallback_headlines_24h=0,
+        market_last_refreshed_at=now - timedelta(hours=8),
+        watchlist_last_refreshed_at=now - timedelta(hours=10),
+    )
+
+    assert health["status"] == "degraded"
+    assert health["latest_refresh_age_hours"] == 8
+    assert health["message"] == (
+        "42 headlines cached in 24h. Latest refresh 8h ago; expected every 6h."
+    )
+
+
+def test_build_pipeline_health_reports_sentiment_fallback_without_source_backup_copy() -> None:
+    now = datetime(2026, 4, 10, 16, 0, tzinfo=UTC)
+
+    health = NewsHealthMetrics.build_pipeline_health(
+        now=now,
+        ttl=timedelta(hours=6),
+        headlines_24h=120,
+        fallback_headlines_24h=3,
+        market_last_refreshed_at=now - timedelta(hours=1),
+        watchlist_last_refreshed_at=now - timedelta(hours=2),
+    )
+
+    assert health["status"] == "healthy"
+    assert health["latest_refresh_age_hours"] == 1
+    assert health["message"] == (
+        "120 headlines refreshed in 24h. 3 used backup sentiment scoring."
+    )

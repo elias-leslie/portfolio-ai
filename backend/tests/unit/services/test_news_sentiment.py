@@ -54,11 +54,19 @@ def test_news_health_includes_ml_install_hint_when_finbert_unavailable() -> None
     }
     news_service.health_metrics.get_vendor_stats.return_value = {}
     news_service.health_metrics.build_vendor_health.return_value = {}
+    news_service.health_metrics.build_pipeline_health.return_value = {
+        "status": "healthy",
+        "message": "10 headlines refreshed in 24h.",
+        "latest_refreshed_at": datetime.fromisoformat("2026-03-10T00:00:00+00:00"),
+        "latest_refresh_age_hours": 1.0,
+    }
     news_service.health_metrics.to_iso.side_effect = (
         lambda value: value.isoformat() if value is not None else None
     )
 
     health = news_service.get_health()
 
+    assert health["status"] == "healthy"
+    assert health["message"] == "10 headlines refreshed in 24h."
     assert health["finbert_available"] is False
     assert health["finbert_install_hint"] == 'pip install -e ".[dev,ml]"'
