@@ -68,13 +68,6 @@ class NewsHealthMetrics:
         return f"{round(hours * 60)}m"
 
     @staticmethod
-    def _append_quality_suffix(message: str, *, article_quality_available: bool) -> str:
-        """Annotate health copy when article quality scoring is unavailable."""
-        if article_quality_available:
-            return message
-        return f"{message} Article quality scoring is unavailable."
-
-    @staticmethod
     def build_pipeline_health(
         *,
         now: datetime,
@@ -84,7 +77,6 @@ class NewsHealthMetrics:
         market_last_refreshed_at: datetime | None,
         watchlist_last_refreshed_at: datetime | None,
         primary_sentiment_available: bool = True,
-        article_quality_available: bool = True,
     ) -> NewsPipelineHealthDict:
         """Derive user-facing news health from freshness and article counts."""
         latest_refresh = NewsHealthMetrics.latest_timestamp(
@@ -121,12 +113,9 @@ class NewsHealthMetrics:
         if age_hours is None:
             return {
                 "status": "degraded",
-                "message": NewsHealthMetrics._append_quality_suffix(
-                    (
-                        f"{headlines_24h} headlines cached in 24h, "
-                        "but refresh timing is unknown."
-                    ),
-                    article_quality_available=article_quality_available,
+                "message": (
+                    f"{headlines_24h} headlines cached in 24h, "
+                    "but refresh timing is unknown."
                 ),
                 "latest_refreshed_at": None,
                 "latest_refresh_age_hours": None,
@@ -135,12 +124,9 @@ class NewsHealthMetrics:
         if age_hours > ttl_hours:
             return {
                 "status": "degraded",
-                "message": NewsHealthMetrics._append_quality_suffix(
-                    (
-                        f"{headlines_24h} headlines cached in 24h. "
-                        f"{freshness_suffix}"
-                    ),
-                    article_quality_available=article_quality_available,
+                "message": (
+                    f"{headlines_24h} headlines cached in 24h. "
+                    f"{freshness_suffix}"
                 ),
                 "latest_refreshed_at": latest_refresh,
                 "latest_refresh_age_hours": round(age_hours, 2),
@@ -154,12 +140,9 @@ class NewsHealthMetrics:
             )
             return {
                 "status": "degraded",
-                "message": NewsHealthMetrics._append_quality_suffix(
-                    (
-                        f"{headlines_24h} headlines refreshed in 24h, but {reason}. "
-                        f"{fallback_headlines_24h} used backup sentiment scoring."
-                    ),
-                    article_quality_available=article_quality_available,
+                "message": (
+                    f"{headlines_24h} headlines refreshed in 24h, but {reason}. "
+                    f"{fallback_headlines_24h} used backup sentiment scoring."
                 ),
                 "latest_refreshed_at": latest_refresh,
                 "latest_refresh_age_hours": round(age_hours, 2),
@@ -174,19 +157,10 @@ class NewsHealthMetrics:
         message = f"{headlines_24h} headlines refreshed in 24h.{sentiment_suffix}"
         if fallback_headlines_24h > 0 and not primary_sentiment_available:
             status = "degraded"
-            message = NewsHealthMetrics._append_quality_suffix(
-                (
-                    f"{headlines_24h} headlines refreshed in 24h, "
-                    "but primary sentiment scoring is unavailable. "
-                    f"{fallback_headlines_24h} used backup sentiment scoring."
-                ),
-                article_quality_available=article_quality_available,
-            )
-        elif not article_quality_available:
-            status = "degraded"
             message = (
                 f"{headlines_24h} headlines refreshed in 24h, "
-                f"but article quality scoring is unavailable.{sentiment_suffix}"
+                "but primary sentiment scoring is unavailable. "
+                f"{fallback_headlines_24h} used backup sentiment scoring."
             )
 
         return {

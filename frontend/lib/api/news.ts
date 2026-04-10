@@ -16,6 +16,7 @@ export interface NewsHealthResponse {
   message: string
   finbertAvailable: boolean
   qualityModelAvailable: boolean
+  qualityScoringMode: string
   finbertInstallHint?: string | null
   marketLastRefreshedAt: string | null
   watchlistLastRefreshedAt: string | null

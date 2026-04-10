@@ -3,32 +3,45 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import Mock
 
 from app.services.news_quality_scoring import NewsQualityScorer
 
 
-def test_score_articles_skips_without_warning_when_model_is_missing(
-    monkeypatch,
-) -> None:
+def test_score_articles_uses_heuristic_mode_when_model_is_missing() -> None:
     scorer = NewsQualityScorer()
     scorer.quality_model = None
-
-    warning = Mock()
-    debug = Mock()
-    monkeypatch.setattr("app.services.news_quality_scoring.logger.warning", warning)
-    monkeypatch.setattr("app.services.news_quality_scoring.logger.debug", debug)
+    scorer.mode = "heuristic"
 
     articles = [
         SimpleNamespace(
             symbol="AAPL",
-            headline="Apple files updated earnings release",
-            summary="Revenue and margin guidance changed.",
+            headline="Apple raises revenue guidance after reporting $98.2B in quarterly sales",
+            summary=(
+                "Apple said gross margin expanded and management increased full-year outlook "
+                "after earnings beat consensus estimates."
+            ),
+        ),
+        SimpleNamespace(
+            symbol="TSLA",
+            headline="3 EV Stocks to Buy Now?",
+            summary="Analysts say these names could soar as the market heats up.",
         )
     ]
 
     returned = scorer.score_articles(articles)
 
     assert returned is articles
-    warning.assert_not_called()
-    debug.assert_called_once()
+    assert articles[0].quality_prediction is True
+    assert articles[0].quality_confidence is not None
+    assert articles[0].quality_confidence > 0.55
+    assert articles[1].quality_prediction is False
+    assert articles[1].quality_confidence is not None
+    assert articles[1].quality_confidence > 0.55
+
+
+def test_news_quality_scorer_reports_ml_mode_when_model_is_loaded() -> None:
+    scorer = NewsQualityScorer()
+
+    assert scorer.mode in {"ml", "heuristic"}
+    assert scorer.is_available() is True
+    assert scorer.is_model_available() is (scorer.mode == "ml")

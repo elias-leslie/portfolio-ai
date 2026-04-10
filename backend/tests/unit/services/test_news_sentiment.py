@@ -33,7 +33,8 @@ def test_news_health_includes_ml_install_hint_when_finbert_unavailable() -> None
     news_service = NewsService(Mock())
     news_service.finbert_analyzer = _UnavailableFinBert()
     news_service.quality_scorer = Mock()
-    news_service.quality_scorer.is_available.return_value = False
+    news_service.quality_scorer.is_model_available.return_value = False
+    news_service.quality_scorer.mode = "heuristic"
     news_service.cache_refresher = Mock()
     news_service.cache_refresher.latest_fetched_at.return_value = datetime.fromisoformat(
         "2026-03-10T00:00:00+00:00"
@@ -69,9 +70,12 @@ def test_news_health_includes_ml_install_hint_when_finbert_unavailable() -> None
     health = news_service.get_health()
 
     assert health["status"] == "healthy"
-    assert health["message"] == "10 headlines refreshed in 24h."
+    assert health["message"] == (
+        "10 headlines refreshed in 24h. Article quality scoring is running in heuristic mode."
+    )
     assert health["finbert_available"] is False
     assert health["quality_model_available"] is False
+    assert health["quality_scoring_mode"] == "heuristic"
     assert health["finbert_install_hint"] == "uv sync --extra dev --extra ml"
     news_service.health_metrics.build_pipeline_health.assert_called_once_with(
         now=ANY,
@@ -81,5 +85,4 @@ def test_news_health_includes_ml_install_hint_when_finbert_unavailable() -> None
         market_last_refreshed_at=datetime.fromisoformat("2026-03-10T00:00:00+00:00"),
         watchlist_last_refreshed_at=datetime.fromisoformat("2026-03-10T00:00:00+00:00"),
         primary_sentiment_available=False,
-        article_quality_available=False,
     )

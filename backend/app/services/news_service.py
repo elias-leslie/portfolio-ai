@@ -324,7 +324,8 @@ class NewsService:
             finbert_available = self.finbert_analyzer.is_available()
         except FinBertUnavailableError:
             finbert_available = False
-        quality_model_available = self.quality_scorer.is_available()
+        quality_model_available = self.quality_scorer.is_model_available()
+        quality_scoring_mode = self.quality_scorer.mode
 
         now = datetime.now(UTC)
         window_start = now - timedelta(hours=24)
@@ -351,14 +352,17 @@ class NewsService:
             market_last_refreshed_at=market_last_refreshed_at,
             watchlist_last_refreshed_at=watchlist_last_refreshed_at,
             primary_sentiment_available=finbert_available,
-            article_quality_available=quality_model_available,
         )
+        health_message = pipeline_health["message"]
+        if quality_scoring_mode != "ml":
+            health_message = f"{health_message} Article quality scoring is running in {quality_scoring_mode} mode."
 
         return {
             "status": pipeline_health["status"],
-            "message": pipeline_health["message"],
+            "message": health_message,
             "finbert_available": finbert_available,
             "quality_model_available": quality_model_available,
+            "quality_scoring_mode": quality_scoring_mode,
             "finbert_install_hint": None if finbert_available else FINBERT_INSTALL_HINT,
             "market_last_refreshed_at": to_iso(market_last_refreshed_at),
             "watchlist_last_refreshed_at": to_iso(watchlist_last_refreshed_at),

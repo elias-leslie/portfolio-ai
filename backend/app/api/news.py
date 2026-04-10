@@ -74,6 +74,7 @@ class NewsHealthResponse(BaseModel):
     message: str
     finbert_available: bool
     quality_model_available: bool
+    quality_scoring_mode: str
     finbert_install_hint: str | None = None
     market_last_refreshed_at: str | None = None
     watchlist_last_refreshed_at: str | None = None
