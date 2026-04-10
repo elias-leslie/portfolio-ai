@@ -150,7 +150,7 @@ describe('SymbolWorkspace', () => {
     ).not.toBeInTheDocument()
     expect(
       screen.getByText(
-        /jenny has not attached a written explanation yet/i,
+        /no jenny\/data reasoning is attached to this decision yet/i,
       ),
     ).toBeInTheDocument()
 
@@ -275,10 +275,10 @@ describe('SymbolWorkspace', () => {
     expect(screen.getAllByText(/jenny alert · critical/i).length).toBeGreaterThan(
       0,
     )
-    expect(screen.getByText(/conflicting signal resolved/i)).toBeInTheDocument()
-    expect(
-      screen.getByText(/live model currently says buy more/i),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/signal disagreement/i)).toBeInTheDocument()
+    expect(screen.getByText(/live model/i)).toBeInTheDocument()
+    expect(screen.getByText(/buy more/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/current decision/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/1 alert/i)).toBeInTheDocument()
     expect(screen.queryByText(/live signal model/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/0 recent article/i)).not.toBeInTheDocument()

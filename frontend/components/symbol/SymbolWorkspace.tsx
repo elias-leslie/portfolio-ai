@@ -203,8 +203,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             </p>
           ) : (
             <p className="mt-3 text-sm text-text">
-              Jenny alert is the current instruction. Live model signals are
-              shown as evidence only when they conflict.
+              Live signal {formatEnumLabel(data?.signal?.type, 'Unavailable')}{' '}
+              · Confidence {data?.signal?.strength ?? '—'}/10
             </p>
           )}
           <p className="mt-2 text-xs uppercase tracking-[0.18em] text-text-muted">
@@ -398,14 +398,14 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                       className="group flex items-center justify-between rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text transition-all duration-200 hover:border-primary/40 hover:bg-surface-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                     >
                       <span>
-                        Compare the idea against current portfolio concentration
+                        Current portfolio concentration
                       </span>
                       <ArrowRight className="h-4 w-4 text-text-muted transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
                     </Link>
                     <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">
                       <AlertCircle className="mb-2 h-4 w-4 text-primary" />
-                      Use this page to sanity-check the thesis, position size,
-                      and review history before you act.
+                      Thesis, position size, and review history are available
+                      on this symbol workspace.
                     </div>
                   </div>
                 </SectionCard>

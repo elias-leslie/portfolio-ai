@@ -71,8 +71,7 @@ export function AccountsWithPositionsContent({
               <div>
                 <CardTitle>Accounts & Positions</CardTitle>
                 <CardDescription>
-                  Reload account and position data before making portfolio
-                  edits.
+                  Account and position data is unavailable.
                 </CardDescription>
               </div>
             </div>
@@ -170,8 +169,7 @@ export function AccountsWithPositionsContent({
         <CardContent>
           {portfolio?.positions.length === 0 ? (
             <div className="mb-4 rounded-xl border border-border/50 bg-surface-muted/20 p-4 text-sm text-text-muted">
-              You have accounts set up but no live positions yet. Add your first
-              holding to start tracking concentration, sizing, and performance.
+              Accounts exist, but no live positions are tracked yet.
             </div>
           ) : null}
           <Accordion type="single" collapsible className="w-full">

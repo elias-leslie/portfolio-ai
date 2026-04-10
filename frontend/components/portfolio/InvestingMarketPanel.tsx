@@ -77,7 +77,7 @@ export function InvestingMarketPanel() {
         title="Market"
         description={
           market?.narrative ??
-          'Track the bigger backdrop before you decide what to buy, add, or trim.'
+          'Market, benchmark, sector, news, and sentiment data.'
         }
         actions={
           <>

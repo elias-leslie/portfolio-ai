@@ -159,7 +159,7 @@ class HomeActionService:
                     "title": "Portfolio needs a concentration check",
                     "detail": (
                         f"Largest holding is {top_holding_pct:.1f}% of the portfolio. "
-                        "Open Investing to review the spread before adding more risk."
+                        "Open Investing to review portfolio concentration."
                     ),
                     "action_label": "Review investing",
                     "href": "/portfolio#portfolio-overview",
@@ -340,7 +340,7 @@ class HomeActionService:
                         "category": "learning",
                         "priority": "medium",
                         "title": f"Close the loop on {symbol}",
-                        "detail": "A review is due before this symbol keeps moving through the workflow.",
+                        "detail": "Workflow stage: review due.",
                         "action_label": "Mark reviewed",
                         "href": f"/symbols/{symbol}",
                         "symbol": symbol,
@@ -360,7 +360,7 @@ class HomeActionService:
                         "category": "investing",
                         "priority": "warning",
                         "title": f"Reset {symbol} after invalidation",
-                        "detail": "Keep this name out of the active loop unless the thesis is rebuilt.",
+                        "detail": "Workflow stage: invalidated.",
                         "action_label": "Restart discovery",
                         "href": f"/symbols/{symbol}",
                         "symbol": symbol,

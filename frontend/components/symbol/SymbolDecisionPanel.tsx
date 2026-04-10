@@ -120,8 +120,7 @@ function DecisionReasonList({ reasons }: { reasons: string[] }) {
   if (reasons.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border/40 bg-surface-muted/10 p-4 text-sm text-text-muted">
-        Jenny has not attached a written explanation yet. Treat the headline as
-        the current instruction and use the context cards below to verify it.
+        No Jenny/data reasoning is attached to this decision yet.
       </div>
     )
   }
@@ -221,14 +220,14 @@ export function SymbolDecisionPanel({
       <SectionCard
         variant="surface"
         title="Decision Memo"
-        description="One current call comes first. Signals, news, and older reviews are supporting evidence."
+        description="Current decision and source data."
       >
         <div className="space-y-4">
           <div className="rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/10 via-surface/70 to-surface-muted/20 p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">
-                  What to do now
+                  Current decision
                 </p>
                 <p className="mt-2 font-display italic text-3xl text-text">
                   {decision?.headline ?? 'Decision unavailable'}
@@ -260,15 +259,26 @@ export function SymbolDecisionPanel({
 
           {conflict ? (
             <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-text">
-              <p className="font-semibold">Conflicting signal resolved</p>
-              <p className="mt-2 text-text-muted">
-                The live model currently says{' '}
-                {formatEnumLabel(data?.recommendation?.action, 'review')}, but
-                Jenny is prioritizing{' '}
-                {formatEnumLabel(decision?.action, 'the current alert')}. Treat
-                the decision above as the instruction; use the live model as
-                evidence, not a competing next step.
-              </p>
+              <p className="font-semibold">Signal disagreement</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <div className="rounded-xl border border-warning/20 bg-surface/40 p-3">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-text-muted">
+                    Live model
+                  </p>
+                  <p className="mt-1 font-semibold text-text">
+                    {formatEnumLabel(data?.recommendation?.action, 'Review')}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-warning/20 bg-surface/40 p-3">
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-text-muted">
+                    Current decision
+                  </p>
+                  <p className="mt-1 font-semibold text-text">
+                    {decision?.headline ??
+                      formatEnumLabel(decision?.action, 'Decision unavailable')}
+                  </p>
+                </div>
+              </div>
               {liveSignalEvidence ? (
                 <p className="mt-3 text-xs uppercase tracking-[0.16em] text-text-muted">
                   {liveSignalEvidence}

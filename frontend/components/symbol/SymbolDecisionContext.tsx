@@ -88,7 +88,7 @@ export function SourceAuditTrail({
     <SectionCard
       variant="surface"
       title="Source & Audit Trail"
-      description="Why this is on Today, without turning old reviews into competing instructions."
+      description="Decision source records and recent review outcomes."
     >
       <div className="space-y-3">
         {activeNotification ? (
