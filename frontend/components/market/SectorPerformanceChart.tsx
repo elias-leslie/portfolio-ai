@@ -11,10 +11,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import {
-  useMarketStatus,
-  useSectorHistory,
-} from '@/lib/hooks/useMarketIntelligence'
+import type { SectorHistoryResponse } from '@/lib/api/market'
+import { useMarketStatus } from '@/lib/hooks/useMarketIntelligence'
 import { checkDataFreshness, cn, formatDate } from '@/lib/utils'
 import { MarketPanelMessage } from './MarketPanelMessage'
 import { SECTOR_COLORS } from './sector-colors'
@@ -26,15 +24,26 @@ import {
   timeframeToDays,
 } from './TimeframeSelector'
 
-export function SectorPerformanceChart() {
-  const [timeframe, setTimeframe] = useState<Timeframe>('1Y')
+interface SectorPerformanceChartProps {
+  timeframe: Timeframe
+  onTimeframeChange: (timeframe: Timeframe) => void
+  data?: SectorHistoryResponse
+  isLoading?: boolean
+  error?: Error | null
+}
+
+export function SectorPerformanceChart({
+  timeframe,
+  onTimeframeChange,
+  data,
+  isLoading = false,
+  error = null,
+}: SectorPerformanceChartProps) {
   const [highlightedSector, setHighlightedSector] = useState<string | null>(
     null,
   )
-  const days = timeframeToDays(timeframe)
-
-  const { data, isLoading, error } = useSectorHistory(days)
   const { data: marketStatus } = useMarketStatus()
+  const days = timeframeToDays(timeframe)
 
   // Transform data for Recharts
   // Include both percentage change (for charting) and actual close price (for tooltips)
@@ -96,7 +105,7 @@ export function SectorPerformanceChart() {
         <h3 className="font-display italic text-lg tracking-tight text-text">
           Sector Trends
         </h3>
-        <TimeframeSelector value={timeframe} onChange={setTimeframe} />
+        <TimeframeSelector value={timeframe} onChange={onTimeframeChange} />
       </div>
 
       <div className="h-64">

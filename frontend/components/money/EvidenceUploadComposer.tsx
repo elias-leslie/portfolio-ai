@@ -28,10 +28,11 @@ export function EvidenceUploadComposer({
   const [files, setFiles] = useState<File[]>([])
   const [isDragActive, setIsDragActive] = useState(false)
   const [dedupedCount, setDedupedCount] = useState(0)
-  const inputId = `${accountLabel ?? title}`
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'evidence-file'
+  const inputId =
+    `${accountLabel ?? title}`
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'evidence-file'
 
   const resetComposer = () => {
     setFiles([])
@@ -125,9 +126,7 @@ export function EvidenceUploadComposer({
     <div
       className={[
         'rounded-2xl border bg-surface-muted/15',
-        accountLabel
-          ? 'border-primary/25 bg-primary/5'
-          : 'border-border/40',
+        accountLabel ? 'border-primary/25 bg-primary/5' : 'border-border/40',
         compact ? 'p-4' : 'p-5',
       ].join(' ')}
     >

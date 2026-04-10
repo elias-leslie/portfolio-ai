@@ -140,10 +140,7 @@ export function HomeActionQueue() {
         </div>
       ) : null}
 
-      <SectionCard
-        variant="surface"
-        title="Action Queue"
-      >
+      <SectionCard variant="surface" title="Action Queue">
         {isLoading ? (
           <div
             className="grid gap-3 lg:grid-cols-2"
@@ -181,8 +178,8 @@ export function HomeActionQueue() {
             <p className="font-display italic text-xl text-text">All clear</p>
             <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-text-muted">
               No urgent cross-workspace actions right now. Use this time to
-              tighten the investing workspace or upload new household evidence so
-              Jenny has fresher inputs.
+              tighten the investing workspace or upload new household evidence
+              so Jenny has fresher inputs.
             </p>
             <div className="mt-5 flex flex-wrap justify-center gap-2">
               <Button asChild size="sm" variant="outline">

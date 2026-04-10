@@ -6,9 +6,9 @@ import { usePathname } from 'next/navigation'
 import { MarketStatusBadge } from '@/components/market/MarketStatusBadge'
 import {
   PRIMARY_PRODUCT_ROUTES,
-  SECONDARY_PRODUCT_ROUTES,
   resolveMainProductRoute,
   resolveSecondaryProductRoute,
+  SECONDARY_PRODUCT_ROUTES,
 } from '@/lib/product-routes'
 import { cn } from '@/lib/utils'
 
@@ -105,7 +105,11 @@ function NavigationContent({ pathname }: { pathname: string }) {
                       : 'border-border/40 bg-surface/60 text-text-muted hover:border-border/60 hover:bg-surface/80 hover:text-text',
                   )}
                 >
-                  <Icon className="size-4" aria-hidden suppressHydrationWarning />
+                  <Icon
+                    className="size-4"
+                    aria-hidden
+                    suppressHydrationWarning
+                  />
                   <span className="hidden sm:inline">{link.label}</span>
                 </Link>
               )
