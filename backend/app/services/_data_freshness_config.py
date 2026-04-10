@@ -59,6 +59,11 @@ TABLE_FRESHNESS_CONFIG: list[TableFreshnessConfig] = [
         "expected_hours": 24,
         "critical_hours": 48,
         "market_data": True,
+        "availability_delay_hours": 6.5,
+        "where_clause": (
+            "vix_close IS NOT NULL AND spy_close IS NOT NULL AND spy_sma_200 IS NOT NULL "
+            "AND rsi_14 IS NOT NULL AND hy_spread IS NOT NULL"
+        ),
     },
     {
         "table_name": "fear_greed_daily",
@@ -66,6 +71,7 @@ TABLE_FRESHNESS_CONFIG: list[TableFreshnessConfig] = [
         "expected_hours": 24,
         "critical_hours": 48,
         "market_data": True,
+        "availability_delay_hours": 6.5,
     },
     {
         "table_name": "fear_greed_components",
@@ -73,6 +79,7 @@ TABLE_FRESHNESS_CONFIG: list[TableFreshnessConfig] = [
         "expected_hours": 24,
         "critical_hours": 48,
         "market_data": True,
+        "availability_delay_hours": 6.5,
     },
     {
         "table_name": "watchlist_snapshots",

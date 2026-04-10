@@ -55,6 +55,34 @@ def test_check_table_freshness_treats_market_dates_as_close_time(monkeypatch) ->
     assert result["age_hours"] == 29.57
 
 
+def test_check_table_freshness_respects_fear_greed_post_close_delay() -> None:
+    fake_conn = Mock()
+    fake_conn.execute.return_value.fetchone.return_value = (dt.date(2026, 3, 9),)
+
+    @contextmanager
+    def fake_connection():
+        yield fake_conn
+
+    fake_storage = Mock()
+    fake_storage.connection.side_effect = fake_connection
+
+    config = {
+        "table_name": "fear_greed_daily",
+        "date_column": "as_of_date",
+        "expected_hours": 24,
+        "critical_hours": 48,
+        "market_data": True,
+        "availability_delay_hours": 6.5,
+    }
+    now = dt.datetime(2026, 3, 11, 1, 34, tzinfo=dt.UTC)
+
+    result = data_freshness_service.check_table_freshness(fake_storage, config, now)
+
+    assert result["is_stale"] is False
+    assert result["is_critical"] is False
+    assert result["age_hours"] == 23.07
+
+
 def test_check_table_freshness_respects_post_close_availability_delay(monkeypatch) -> None:
     fake_conn = Mock()
     fake_conn.execute.return_value.fetchone.return_value = (
@@ -136,6 +164,10 @@ def test_table_freshness_config_uses_live_options_and_reference_columns() -> Non
         for config in data_freshness_service.TABLE_FRESHNESS_CONFIG
     }
 
+    assert config_by_table["fear_greed_inputs"]["availability_delay_hours"] == 6.5
+    assert "vix_close IS NOT NULL" in config_by_table["fear_greed_inputs"]["where_clause"]
+    assert config_by_table["fear_greed_daily"]["availability_delay_hours"] == 6.5
+    assert config_by_table["fear_greed_components"]["availability_delay_hours"] == 6.5
     assert config_by_table["technical_indicators"]["availability_delay_hours"] == 6.5
     assert config_by_table["options_market_metrics"]["date_column"] == "source_timestamp"
     assert config_by_table["reference_cache"]["date_column"] == "created_at"
