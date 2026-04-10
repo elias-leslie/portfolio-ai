@@ -86,6 +86,7 @@ class NewsHealthResponse(BaseModel):
     fallback_avg_latency_ms_24h: float | None = None
     fallback_p95_latency_ms_24h: float | None = None
     fallback_last_event_at: str | None = None
+    sentiment_rescored_24h: int = 0
     vendors: dict[str, VendorHealthResponse] = Field(default_factory=dict)
 
 
