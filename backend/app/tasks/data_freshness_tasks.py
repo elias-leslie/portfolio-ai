@@ -144,6 +144,7 @@ def check_all_data_freshness(auto_remediate: bool = True) -> dict[str, object]:
             "critical": r["critical"],
             "alerts_created": r["alerts_created"],
             "remediations_triggered": r.get("remediations_triggered", 0),
+            "details": r.get("details", []),
             "execution_time_sec": round(duration, 2),
         }
         record_maintenance_completion(log_id=log_id, status="success", summary=response, error_message=None)

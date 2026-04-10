@@ -206,19 +206,34 @@ def _build_freshness_health(summary: dict[str, Any], check_status: str) -> tuple
 
 def _get_remediation_resolution_state(
     *,
+    table_name: str,
     triggered_at: datetime | None,
     freshness_status: str | None,
     freshness_started_at: datetime | None,
     freshness_summary: dict[str, Any],
 ) -> tuple[bool, str | None]:
+    table_freshness = None
+    details = freshness_summary.get("details")
+    if isinstance(details, list):
+        for detail in details:
+            if isinstance(detail, dict) and detail.get("table_name") == table_name:
+                table_freshness = detail
+                break
+
     if (
         triggered_at is None
         or freshness_status != STATUS_SUCCESS
         or freshness_started_at is None
         or freshness_started_at <= triggered_at
-        or freshness_summary.get("stale", 0) != 0
-        or freshness_summary.get("critical", 0) != 0
     ):
+        return False, None
+
+    if isinstance(table_freshness, dict):
+        if bool(table_freshness.get("is_stale")) or bool(table_freshness.get("is_critical")):
+            return False, None
+        return True, freshness_started_at.isoformat()
+
+    if freshness_summary.get("stale", 0) != 0 or freshness_summary.get("critical", 0) != 0:
         return False, None
     return True, freshness_started_at.isoformat()
 
@@ -274,6 +289,7 @@ def _build_remediation_entry(
     summary = _parse_summary_json(summary_raw)
     triggered_at = _normalize_datetime(started_at_raw)
     resolved, resolved_at = _get_remediation_resolution_state(
+        table_name=table_name,
         triggered_at=triggered_at,
         freshness_status=freshness_status,
         freshness_started_at=freshness_started_at,
