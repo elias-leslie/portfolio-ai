@@ -4,6 +4,8 @@ import { cn } from '@/lib/utils'
 
 export type Timeframe = '1M' | '3M' | '6M' | '1Y' | '3Y' | '5Y'
 
+export const DEFAULT_MARKET_TIMEFRAME: Timeframe = '1M'
+
 interface TimeframeSelectorProps {
   value: Timeframe
   onChange: (value: Timeframe) => void

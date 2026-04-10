@@ -19,6 +19,7 @@ import { checkDataFreshness, cn, formatDate } from '@/lib/utils'
 import { MarketPanelMessage } from './MarketPanelMessage'
 import {
   calculateTickInterval,
+  DEFAULT_MARKET_TIMEFRAME,
   formatChartDate,
   type Timeframe,
   TimeframeSelector,
@@ -35,7 +36,9 @@ const INDICATOR_CONFIG = {
 type IndicatorKey = keyof typeof INDICATOR_CONFIG
 
 export function IndicatorsTrendChart() {
-  const [timeframe, setTimeframe] = useState<Timeframe>('3M')
+  const [timeframe, setTimeframe] = useState<Timeframe>(
+    DEFAULT_MARKET_TIMEFRAME,
+  )
   const [highlighted, setHighlighted] = useState<IndicatorKey | null>(null)
   const days = timeframeToDays(timeframe)
 
@@ -104,7 +107,7 @@ export function IndicatorsTrendChart() {
   ): [string, string] => {
     if (!name) return ['', '']
     const config = INDICATOR_CONFIG[name as IndicatorKey]
-    const actualValue = props.payload?.[`${name}_value`]
+    const actualValue = props.payload?.[`${name}Value`]
     let formattedValue = ''
     if (name === 'sp500') {
       formattedValue =

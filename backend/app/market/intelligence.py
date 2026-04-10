@@ -9,7 +9,11 @@ from __future__ import annotations
 from typing import Any
 
 from app.market import plain_language
-from app.market.sentiment import MarketHealthScore
+from app.market.sentiment import (
+    MarketHealthScore,
+    classify_sector_performance,
+    sector_performance_thresholds,
+)
 from app.models.market_intelligence import EnrichedIndicator, SectorInfo
 from app.portfolio.models import PriceData
 
@@ -212,33 +216,31 @@ def group_sectors_by_performance(
     ]
     sectors_with_change.sort(key=lambda x: x[2] if x[2] is not None else -999, reverse=True)
 
-    # Calculate thresholds (top 33%, middle 34%, bottom 33%)
-    total_count = len(sectors_with_change)
-    leading_cutoff = int(total_count * 0.33)
-    lagging_start = int(total_count * 0.67)
+    # Use the same relative-performance classifier as market health sectors.
+    changes = [change_pct for _, _, change_pct, _ in sectors_with_change]
+    top_threshold, bottom_threshold = sector_performance_thresholds(changes)
 
     leading_sectors: list[SectorInfo] = []
     neutral_sectors: list[SectorInfo] = []
     lagging_sectors: list[SectorInfo] = []
 
-    for idx, (symbol, price, change_pct, timestamp) in enumerate(sectors_with_change):
+    for symbol, price, change_pct, timestamp in sectors_with_change:
         sector_label = plain_language.get_sector_label(symbol)
 
+        signal = classify_sector_performance(change_pct, top_threshold, bottom_threshold)
         sector_info = SectorInfo(
             symbol=symbol,
             name=sector_label["name"],
             description=sector_label["description"],
             price=price,
             change_pct=change_pct,
-            signal="Leading"
-            if idx < leading_cutoff
-            else ("Lagging" if idx >= lagging_start else "Neutral"),
+            signal=signal,
             last_updated=timestamp,
         )
 
-        if idx < leading_cutoff:
+        if signal == "Leading":
             leading_sectors.append(sector_info)
-        elif idx >= lagging_start:
+        elif signal == "Lagging":
             lagging_sectors.append(sector_info)
         else:
             neutral_sectors.append(sector_info)

@@ -155,15 +155,18 @@ def calculate_dxy_score(dxy_price: float, timestamp: str | None) -> ComponentSco
     )
 
 
-def _sector_thresholds(changes: list[float]) -> tuple[float, float]:
+def sector_performance_thresholds(changes: list[float]) -> tuple[float, float]:
     """Return (top, bottom) thresholds for Leading/Lagging classification."""
     if len(changes) <= 2:
         return 0.5, -0.5
     sorted_changes = sorted(changes)
-    return sorted_changes[int(len(sorted_changes) * 0.67)], sorted_changes[int(len(sorted_changes) * 0.33)]
+    return (
+        sorted_changes[int(len(sorted_changes) * 0.67)],
+        sorted_changes[int(len(sorted_changes) * 0.33)],
+    )
 
 
-def _sector_signal(change_pct: float | None, top: float, bottom: float) -> str:
+def classify_sector_performance(change_pct: float | None, top: float, bottom: float) -> str:
     """Classify a sector change_pct as Leading, Lagging, Neutral, or Unknown."""
     if change_pct is None:
         return "Unknown"
@@ -174,12 +177,22 @@ def _sector_signal(change_pct: float | None, top: float, bottom: float) -> str:
     return "Neutral"
 
 
+def _sector_thresholds(changes: list[float]) -> tuple[float, float]:
+    """Backward-compatible alias for the canonical sector thresholds."""
+    return sector_performance_thresholds(changes)
+
+
+def _sector_signal(change_pct: float | None, top: float, bottom: float) -> str:
+    """Backward-compatible alias for the canonical sector classifier."""
+    return classify_sector_performance(change_pct, top, bottom)
+
+
 def calculate_sector_scores(
     sector_data: dict[str, tuple[float | None, float | None, str | None]],
 ) -> list[SectorScore]:
     """Calculate sector rotation scores with relative performance signals."""
     changes = [chg for _, (_, chg, _) in sector_data.items() if chg is not None]
-    top_threshold, bottom_threshold = _sector_thresholds(changes)
+    top_threshold, bottom_threshold = sector_performance_thresholds(changes)
 
     sectors = [
         SectorScore(
@@ -187,7 +200,9 @@ def calculate_sector_scores(
             name=SECTOR_ETFS.get(symbol, symbol),
             price=price,
             change_pct=change_pct,
-            signal=_sector_signal(change_pct, top_threshold, bottom_threshold),
+            signal=classify_sector_performance(
+                change_pct, top_threshold, bottom_threshold
+            ),
             last_updated=timestamp,
         )
         for symbol, (price, change_pct, timestamp) in sector_data.items()

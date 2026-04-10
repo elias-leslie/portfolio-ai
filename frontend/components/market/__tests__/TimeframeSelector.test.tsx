@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import {
   calculateTickInterval,
+  DEFAULT_MARKET_TIMEFRAME,
   formatChartDate,
   TimeframeSelector,
   timeframeToDays,
@@ -38,6 +39,11 @@ describe('TimeframeSelector', () => {
 })
 
 describe('timeframeToDays', () => {
+  it('keeps the market trend default aligned to the near-term decision window', () => {
+    expect(DEFAULT_MARKET_TIMEFRAME).toBe('1M')
+    expect(timeframeToDays(DEFAULT_MARKET_TIMEFRAME)).toBe(30)
+  })
+
   it('maps known timeframes to day counts', () => {
     expect(timeframeToDays('1M')).toBe(30)
     expect(timeframeToDays('3M')).toBe(90)

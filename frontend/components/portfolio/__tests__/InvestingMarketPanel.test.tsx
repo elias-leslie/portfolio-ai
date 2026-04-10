@@ -55,16 +55,16 @@ const yearlyHistory = {
   periodEnd: '2026-04-10',
 }
 
-const threeMonthHistory = {
+const monthlyHistory = {
   sectors: [
-    { symbol: 'XLE', name: 'Energy', data: [], currentPct: 11.2 },
-    { symbol: 'XLF', name: 'Financials', data: [], currentPct: 7.8 },
+    { symbol: 'XLK', name: 'Technology', data: [], currentPct: 6.8 },
+    { symbol: 'XLF', name: 'Financials', data: [], currentPct: 5.4 },
     { symbol: 'XLU', name: 'Utilities', data: [], currentPct: 4.3 },
     { symbol: 'XLP', name: 'Consumer Staples', data: [], currentPct: 1.1 },
     { symbol: 'XLI', name: 'Industrials', data: [], currentPct: -1.4 },
-    { symbol: 'XLK', name: 'Technology', data: [], currentPct: -3.9 },
+    { symbol: 'XLE', name: 'Energy', data: [], currentPct: -3.9 },
   ],
-  periodStart: '2026-01-10',
+  periodStart: '2026-03-10',
   periodEnd: '2026-04-10',
 }
 
@@ -88,7 +88,7 @@ describe('InvestingMarketPanel', () => {
       },
     })
     useSectorHistoryMock.mockImplementation((days: number) => ({
-      data: days === 90 ? threeMonthHistory : yearlyHistory,
+      data: days === 30 ? monthlyHistory : yearlyHistory,
       isLoading: false,
       error: null,
     }))
@@ -99,22 +99,22 @@ describe('InvestingMarketPanel', () => {
     render(<InvestingMarketPanel />)
 
     expect(
-      screen.getByText(/strongest relative performers over the past 3 months/i),
+      screen.getByText(/strongest relative performers over the past month/i),
     ).toBeInTheDocument()
     expect(
-      screen.getByText(/weakest relative performers over the past 3 months/i),
+      screen.getByText(/weakest relative performers over the past month/i),
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        /Energy \+11\.2% · Financials \+7\.8% · Utilities \+4\.3%/i,
+        /Technology \+6\.8% · Financials \+5\.4% · Utilities \+4\.3%/i,
       ),
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        /Technology -3\.9% · Industrials -1\.4% · Consumer Staples \+1\.1%/i,
+        /Energy -3\.9% · Industrials -1\.4% · Consumer Staples \+1\.1%/i,
       ),
     ).toBeInTheDocument()
-    expect(screen.getByText('Sector Chart 3M')).toBeInTheDocument()
+    expect(screen.getByText('Sector Chart 1M')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Switch to 1Y' }))
 

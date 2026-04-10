@@ -24,12 +24,16 @@ function readHighlightedMetric() {
   return new URLSearchParams(window.location.search).get('highlight')
 }
 
-function formatIndicatorValue(value: number | null | undefined, suffix = '') {
+function formatIndicatorValue(
+  value: number | null | undefined,
+  suffix = '',
+  decimals = suffix ? 2 : 1,
+) {
   if (value == null || Number.isNaN(value)) {
     return '—'
   }
 
-  return `${value.toFixed(suffix ? 2 : 1)}${suffix}`
+  return `${value.toFixed(decimals)}${suffix}`
 }
 
 function toneSurfaceClasses(tone: OverviewTone) {
@@ -168,16 +172,16 @@ export function InvestingOverviewPanel({
             value={sp500Value}
             detail={
               market?.indicators.sp500?.value != null
-                ? `Index ${Math.round(market.indicators.sp500.value).toLocaleString()}.`
-                : 'Tracking the broad-market benchmark.'
+                ? `Today's S&P 500 move; index ${Math.round(market.indicators.sp500.value).toLocaleString()}.`
+                : "Tracking today's broad-market benchmark move."
             }
             tone={
               (market?.indicators.sp500?.changePct ?? 0) >= 0 ? 'gain' : 'loss'
             }
           />
           <OverviewStat
-            label="Volatility Now"
-            value={formatIndicatorValue(market?.indicators.vix?.value)}
+            label="VIX Now"
+            value={formatIndicatorValue(market?.indicators.vix?.value, '', 2)}
             detail={volatility.detail}
             tone={volatility.tone}
           />

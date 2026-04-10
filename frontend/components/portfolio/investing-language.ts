@@ -128,34 +128,34 @@ export function describeVolatility(
 ): { detail: string; tone: OverviewTone } {
   if (value == null) {
     return {
-      detail: 'Volatility data is still loading.',
+      detail: 'Cboe Volatility Index data is still loading.',
       tone: 'default',
     }
   }
 
   if (value >= 30) {
     return {
-      detail: 'Markets are swinging hard right now.',
+      detail: 'Cboe Volatility Index is high; markets are swinging hard.',
       tone: 'loss',
     }
   }
 
   if (value >= 20) {
     return {
-      detail: 'Volatility is elevated.',
+      detail: 'Cboe Volatility Index is elevated.',
       tone: 'warning',
     }
   }
 
   if (value >= 15) {
     return {
-      detail: 'Volatility is in a normal range.',
+      detail: 'Cboe Volatility Index is in a normal range.',
       tone: 'default',
     }
   }
 
   return {
-    detail: 'Markets look calm.',
+    detail: 'Cboe Volatility Index is calm.',
     tone: 'gain',
   }
 }

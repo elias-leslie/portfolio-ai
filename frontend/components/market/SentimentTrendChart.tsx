@@ -14,6 +14,7 @@ import { SentimentLegendSummary } from './SentimentLegendSummary'
 import { normalizeNewsSentiment } from './SentimentTooltip'
 import {
   calculateTickInterval,
+  DEFAULT_MARKET_TIMEFRAME,
   formatChartDate,
   type Timeframe,
   TimeframeSelector,
@@ -21,7 +22,9 @@ import {
 } from './TimeframeSelector'
 
 export function SentimentTrendChart() {
-  const [timeframe, setTimeframe] = useState<Timeframe>('3M')
+  const [timeframe, setTimeframe] = useState<Timeframe>(
+    DEFAULT_MARKET_TIMEFRAME,
+  )
   const days = timeframeToDays(timeframe)
 
   const {

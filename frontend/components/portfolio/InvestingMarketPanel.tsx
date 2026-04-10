@@ -7,6 +7,7 @@ import { MarketStatusBadge } from '@/components/market/MarketStatusBadge'
 import { SectorPerformanceChart } from '@/components/market/SectorPerformanceChart'
 import { SentimentTrendChart } from '@/components/market/SentimentTrendChart'
 import {
+  DEFAULT_MARKET_TIMEFRAME,
   type Timeframe,
   timeframeToDays,
 } from '@/components/market/TimeframeSelector'
@@ -35,7 +36,9 @@ function timeframeLabel(timeframe: Timeframe) {
 }
 
 export function InvestingMarketPanel() {
-  const [sectorTimeframe, setSectorTimeframe] = useState<Timeframe>('3M')
+  const [sectorTimeframe, setSectorTimeframe] = useState<Timeframe>(
+    DEFAULT_MARKET_TIMEFRAME,
+  )
   const { data: market } = useMarketIntelligence()
   const {
     data: sectorHistory,
