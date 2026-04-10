@@ -87,6 +87,33 @@ export function EmptyPanelMessage({ message }: { message: string }) {
   )
 }
 
+function dataFreshnessBadgeVariant(status: string | undefined) {
+  switch (status) {
+    case 'success':
+      return 'success'
+    case 'critical':
+      return 'error'
+    case 'warning':
+    case 'error':
+      return 'warning'
+    default:
+      return 'secondary'
+  }
+}
+
+function dataFreshnessBadgeLabel(status: string | undefined) {
+  switch (status) {
+    case 'success':
+      return 'Current'
+    case 'critical':
+      return 'Overdue'
+    case 'warning':
+      return 'Needs attention'
+    default:
+      return formatEnumLabel(status, 'Unknown')
+  }
+}
+
 export function SystemChecksPanel({
   checkRows,
 }: {
@@ -198,20 +225,19 @@ export function ServicePulsePanel({
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-semibold text-text">Data recency</p>
               <Badge
-                variant={
-                  dataFreshnessStatus.status === 'success'
-                    ? 'success'
-                    : 'warning'
-                }
+                variant={dataFreshnessBadgeVariant(dataFreshnessStatus.status)}
               >
-                {dataFreshnessStatus.status === 'success'
-                  ? 'Current'
-                  : 'Needs attention'}
+                {dataFreshnessBadgeLabel(dataFreshnessStatus.status)}
               </Badge>
             </div>
             <p className="mt-2 text-sm text-text-muted">
               Last check {formatRelativeTime(dataFreshnessStatus.lastCheck)}
             </p>
+            {dataFreshnessStatus.message ? (
+              <p className="mt-2 text-sm text-text-muted">
+                {dataFreshnessStatus.message}
+              </p>
+            ) : null}
             <p className="mt-2 text-sm text-text-muted">
               {formatInteger(dataFreshnessStatus.fresh)} current,{' '}
               {formatInteger(dataFreshnessStatus.stale)} getting old,{' '}

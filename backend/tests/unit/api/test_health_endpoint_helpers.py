@@ -8,6 +8,7 @@ import pytest
 from fastapi import Response
 
 from app.api.health import (
+    _build_freshness_summary_payload,
     detailed_health_check,
     get_recent_remediations,
     get_stale_maintenance_runs,
@@ -212,6 +213,45 @@ async def test_get_data_freshness_summary_returns_no_data_when_no_row(
         "status": "no_data",
         "message": "No freshness checks have been run yet",
     }
+
+
+def test_freshness_summary_escalates_successful_check_with_overdue_tables() -> None:
+    payload = _build_freshness_summary_payload(
+        (
+            {
+                "tables_checked": 10,
+                "fresh": 8,
+                "stale": 1,
+                "critical": 1,
+                "remediations_triggered": 1,
+            },
+            datetime(2026, 3, 11, 3, 0, tzinfo=UTC),
+            "success",
+        )
+    )
+
+    assert payload["status"] == "critical"
+    assert payload["check_status"] == "success"
+    assert payload["message"] == "1 table overdue; 1 table getting old"
+
+
+def test_freshness_summary_marks_stale_tables_as_warning() -> None:
+    payload = _build_freshness_summary_payload(
+        (
+            {
+                "tables_checked": 10,
+                "fresh": 9,
+                "stale": 1,
+                "critical": 0,
+                "remediations_triggered": 0,
+            },
+            datetime(2026, 3, 11, 3, 0, tzinfo=UTC),
+            "success",
+        )
+    )
+
+    assert payload["status"] == "warning"
+    assert payload["message"] == "1 table getting old"
 
 
 @pytest.mark.asyncio

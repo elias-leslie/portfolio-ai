@@ -82,6 +82,7 @@ export interface HealthServiceStatus {
 export interface DataFreshnessStatus {
   lastCheck?: string | null
   status?: string
+  checkStatus?: string
   message?: string
   tablesChecked?: number
   fresh?: number

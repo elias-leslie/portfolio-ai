@@ -175,6 +175,29 @@ def _format_datetime(value: datetime | None) -> str | None:
     return value.isoformat() if isinstance(value, datetime) else None
 
 
+def _format_table_count(count: int, label: str) -> str:
+    return f"{count} table{'s' if count != 1 else ''} {label}"
+
+
+def _build_freshness_health(summary: dict[str, Any], check_status: str) -> tuple[str, str]:
+    critical_count = int(summary.get("critical", 0) or 0)
+    stale_count = int(summary.get("stale", 0) or 0)
+    if check_status != STATUS_SUCCESS:
+        return check_status, "Latest freshness check did not complete successfully"
+
+    message_parts: list[str] = []
+    if critical_count > 0:
+        message_parts.append(_format_table_count(critical_count, "overdue"))
+    if stale_count > 0:
+        message_parts.append(_format_table_count(stale_count, "getting old"))
+
+    if critical_count > 0:
+        return STATUS_CRITICAL, "; ".join(message_parts)
+    if stale_count > 0:
+        return STATUS_WARNING, "; ".join(message_parts)
+    return STATUS_SUCCESS, "All checked tables are current"
+
+
 def _get_remediation_resolution_state(
     *,
     triggered_at: datetime | None,
@@ -208,10 +231,13 @@ def _build_freshness_summary_payload(result: Any) -> dict[str, Any]:
 
     summary = _parse_summary_json(result[0])
     started_at = _normalize_datetime(result[1])
-    status = _normalize_status(result[2])
+    check_status = _normalize_status(result[2])
+    freshness_status, message = _build_freshness_health(summary, check_status)
     return {
         "last_check": _format_datetime(started_at),
-        "status": status,
+        "status": freshness_status,
+        "check_status": check_status,
+        "message": message,
         "tables_checked": summary.get("tables_checked", 0),
         "fresh": summary.get("fresh", 0),
         "stale": summary.get("stale", 0),

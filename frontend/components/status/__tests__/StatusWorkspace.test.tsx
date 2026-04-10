@@ -622,12 +622,13 @@ describe('StatusWorkspace', () => {
             blockedByType: { check_all_data_freshness: 1 },
           },
           dataFreshnessStatus: {
-            status: 'warning',
+            status: 'critical',
             lastCheck: '2026-03-10T22:00:00.000000Z',
             fresh: 4,
             stale: 1,
-            critical: 0,
-            error: 'One table was stale.',
+            critical: 1,
+            message: '1 table overdue; 1 table getting old',
+            error: 'One table was overdue.',
           },
           watchlistStats: {
             itemsWithScores: 5,
@@ -689,8 +690,12 @@ describe('StatusWorkspace', () => {
     ).toBeInTheDocument()
     expect(screen.getByText(/rate-limit hits: 3/i)).toBeInTheDocument()
     expect(screen.getByText(/pause remaining: 3m/i)).toBeInTheDocument()
+    expect(screen.getByText('Overdue')).toBeInTheDocument()
     expect(
-      screen.getByText(/data recency issue: one table was stale/i),
+      screen.getByText('1 table overdue; 1 table getting old'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/data recency issue: one table was overdue/i),
     ).toBeInTheDocument()
     expect(
       screen.getByText(/1 of 1 data provider connected/i),
