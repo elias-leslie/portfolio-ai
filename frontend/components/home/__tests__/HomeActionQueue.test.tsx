@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { HomeActionQueue } from '../HomeActionQueue'
@@ -88,10 +88,15 @@ describe('HomeActionQueue', () => {
 
     await user.click(screen.getByRole('button', { name: /advance workflow/i }))
 
-    expect(transitionMutate).toHaveBeenCalledWith({
-      symbol: 'VTI',
-      stage: 'live',
-    })
+    expect(transitionMutate).toHaveBeenCalledWith(
+      {
+        symbol: 'VTI',
+        stage: 'live',
+      },
+      expect.objectContaining({
+        onSuccess: expect.any(Function),
+      }),
+    )
   })
 
   it('offers retry when the queue query fails', async () => {
@@ -215,6 +220,11 @@ describe('HomeActionQueue', () => {
 
   it('dismisses Jenny alerts without implying trade approval', async () => {
     const user = userEvent.setup()
+    acknowledgeMutate.mockImplementation(
+      (_notificationId: string, options?: { onSuccess?: () => void }) => {
+        options?.onSuccess?.()
+      },
+    )
     useHomeActionQueueMock.mockReturnValue({
       data: {
         generatedAt: '2026-03-10T00:00:00Z',
@@ -250,6 +260,14 @@ describe('HomeActionQueue', () => {
 
     await user.click(screen.getByRole('button', { name: /dismiss alert/i }))
 
-    expect(acknowledgeMutate).toHaveBeenCalledWith('note-1')
+    expect(acknowledgeMutate).toHaveBeenCalledWith(
+      'note-1',
+      expect.objectContaining({
+        onSuccess: expect.any(Function),
+      }),
+    )
+    await waitFor(() => {
+      expect(screen.getAllByText('0')).toHaveLength(3)
+    })
   })
 })

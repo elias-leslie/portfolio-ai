@@ -2,6 +2,7 @@
 
 import { ArrowRight, Brain, CheckCircle2, House, Target } from 'lucide-react'
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
@@ -86,12 +87,51 @@ export function HomeActionQueue() {
   const acknowledgeNotification = useAcknowledgeJennyNotification()
   const transitionWorkflow = useTransitionSymbolWorkflow()
   const actions = data?.actions ?? []
-  const urgentCount = actions.filter((action) =>
+  const [clearingActionIds, setClearingActionIds] = useState<Set<string>>(
+    () => new Set(),
+  )
+  const [clearedActionIds, setClearedActionIds] = useState<Set<string>>(
+    () => new Set(),
+  )
+  const visibleActions = actions.filter((action) => !clearedActionIds.has(action.id))
+  const activeActions = visibleActions.filter(
+    (action) => !clearingActionIds.has(action.id),
+  )
+  const urgentCount = activeActions.filter((action) =>
     ['critical', 'high'].includes(action.priority),
   ).length
-  const quickActionCount = actions.filter((action) =>
+  const quickActionCount = activeActions.filter((action) =>
     Boolean(action.execution),
   ).length
+
+  useEffect(() => {
+    const actionIds = new Set(actions.map((action) => action.id))
+    setClearingActionIds((current) => {
+      const next = new Set([...current].filter((id) => actionIds.has(id)))
+      return next.size === current.size ? current : next
+    })
+    setClearedActionIds((current) => {
+      const next = new Set([...current].filter((id) => actionIds.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [actions])
+
+  const markExecutionSucceeded = (actionId: string) => {
+    setClearingActionIds((current) => new Set(current).add(actionId))
+  }
+
+  const handleActionTransitionEnd = (actionId: string) => {
+    if (!clearingActionIds.has(actionId)) {
+      return
+    }
+
+    setClearingActionIds((current) => {
+      const next = new Set(current)
+      next.delete(actionId)
+      return next
+    })
+    setClearedActionIds((current) => new Set(current).add(actionId))
+  }
 
   const handleExecution = (action: HomeActionItem) => {
     const execution = action.execution
@@ -103,7 +143,9 @@ export function HomeActionQueue() {
       execution.kind === 'acknowledge_notification' &&
       execution.notificationId
     ) {
-      acknowledgeNotification.mutate(execution.notificationId)
+      acknowledgeNotification.mutate(execution.notificationId, {
+        onSuccess: () => markExecutionSucceeded(action.id),
+      })
       return
     }
 
@@ -112,10 +154,15 @@ export function HomeActionQueue() {
       execution.symbol &&
       execution.stage
     ) {
-      transitionWorkflow.mutate({
-        symbol: execution.symbol,
-        stage: execution.stage,
-      })
+      transitionWorkflow.mutate(
+        {
+          symbol: execution.symbol,
+          stage: execution.stage,
+        },
+        {
+          onSuccess: () => markExecutionSucceeded(action.id),
+        },
+      )
     }
   }
 
@@ -126,8 +173,8 @@ export function HomeActionQueue() {
           <div className="grid gap-3 sm:grid-cols-3">
             <SummaryMetric
               label="Prioritized"
-              value={String(actions.length)}
-              detail={`ranked action${actions.length === 1 ? '' : 's'}`}
+              value={String(activeActions.length)}
+              detail={`ranked action${activeActions.length === 1 ? '' : 's'}`}
             />
             <SummaryMetric
               label="Urgent"
@@ -175,7 +222,7 @@ export function HomeActionQueue() {
           />
         ) : null}
 
-        {!isLoading && !error && actions.length === 0 ? (
+        {!isLoading && !error && visibleActions.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border/40 bg-gradient-to-br from-surface-muted/10 to-surface/30 px-6 py-12 text-center">
             <div className="relative mx-auto mb-5">
               <div className="absolute inset-0 mx-auto h-12 w-12 rounded-full bg-gain/10 blur-xl" />
@@ -198,9 +245,9 @@ export function HomeActionQueue() {
           </div>
         ) : null}
 
-        {!isLoading && !error && actions.length > 0 ? (
+        {!isLoading && !error && visibleActions.length > 0 ? (
           <div className="grid gap-3 lg:grid-cols-2 animate-stagger">
-            {actions.map((action) => {
+            {visibleActions.map((action) => {
               const Icon =
                 categoryIcons[action.category as keyof typeof categoryIcons] ??
                 ArrowRight
@@ -218,14 +265,22 @@ export function HomeActionQueue() {
               const badgeLabel = action.decision?.severity
                 ? formatDecisionSeverity(action.decision.severity)
                 : action.badge
+              const isClearing = clearingActionIds.has(action.id)
 
               return (
                 <div
                   key={action.id}
                   className={cn(
-                    'group rounded-2xl border p-4 card-interactive hover:border-primary/30',
+                    'group rounded-2xl border p-4 card-interactive transition-all duration-300 hover:border-primary/30',
                     tone,
+                    isClearing &&
+                      'pointer-events-none -translate-y-1 scale-[0.98] opacity-0',
                   )}
+                  onTransitionEnd={(event) => {
+                    if (event.target === event.currentTarget) {
+                      handleActionTransitionEnd(action.id)
+                    }
+                  }}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-2">
