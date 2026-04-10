@@ -313,10 +313,10 @@ export function SymbolDecisionPanel({
           ) : null}
 
           <Link
-            href="/portfolio?tab=holdings"
+            href="/portfolio?tab=holdings&highlight=concentration#portfolio-overview"
             className="group flex items-center justify-between rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text transition-all duration-200 hover:border-primary/40 hover:bg-surface-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
-            <span>Compare this decision against full portfolio exposure</span>
+            <span>Review concentration in Holdings</span>
             <ArrowRight className="h-4 w-4 text-text-muted transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
           </Link>
         </div>

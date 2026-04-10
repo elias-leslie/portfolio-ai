@@ -68,10 +68,10 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
         : undefined
   const portfolioContextParts = [
     data?.portfolio?.context?.numHoldings != null
-      ? `Portfolio has ${data.portfolio.context.numHoldings} total holding${data.portfolio.context.numHoldings === 1 ? '' : 's'}`
+      ? `Invested portfolio has ${data.portfolio.context.numHoldings} holding${data.portfolio.context.numHoldings === 1 ? '' : 's'}`
       : null,
     data?.portfolio?.context?.concentrationTop3 != null
-      ? `Top 3 holdings make up ${formatPercent(data.portfolio.context.concentrationTop3)}`
+      ? `Top 3 invested holdings make up ${formatPercent(data.portfolio.context.concentrationTop3)}`
       : null,
     data?.portfolio?.context?.diversificationScore != null
       ? `Diversification score ${data.portfolio.context.diversificationScore.toFixed(0)}`
@@ -394,12 +394,10 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                       <ArrowRight className="h-4 w-4 text-text-muted transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
                     </Link>
                     <Link
-                      href="/portfolio?tab=holdings"
+                      href="/portfolio?tab=holdings&highlight=concentration#portfolio-overview"
                       className="group flex items-center justify-between rounded-2xl border border-border/40 bg-surface-muted/20 p-4 text-sm text-text transition-all duration-200 hover:border-primary/40 hover:bg-surface-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                     >
-                      <span>
-                        Current portfolio concentration
-                      </span>
+                      <span>Current portfolio concentration</span>
                       <ArrowRight className="h-4 w-4 text-text-muted transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
                     </Link>
                     <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">

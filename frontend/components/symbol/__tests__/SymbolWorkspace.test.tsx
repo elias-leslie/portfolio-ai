@@ -159,9 +159,16 @@ describe('SymbolWorkspace', () => {
     ).not.toBeInTheDocument()
     expect(
       screen.getAllByText(
-        /portfolio has 8 total holdings · top 3 holdings make up 28.0% · diversification score 74/i,
+        /invested portfolio has 8 holdings · top 3 invested holdings make up 28.0% · diversification score 74/i,
       ).length,
     ).toBeGreaterThan(0)
+    expect(screen.getByText(/invested weight/i)).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /review concentration in holdings/i }),
+    ).toHaveAttribute(
+      'href',
+      '/portfolio?tab=holdings&highlight=concentration#portfolio-overview',
+    )
     expect(screen.getByText(/7\/10 confidence · medium/i)).toBeInTheDocument()
     expect(
       screen.queryByText(/if you do not own it yet/i),
@@ -317,10 +324,10 @@ describe('SymbolWorkspace', () => {
     expect(screen.queryByText(/0 recent article/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/0 green lights/i)).not.toBeInTheDocument()
     expect(
-      screen.getAllByText(/portfolio has 8 total holdings/i).length,
+      screen.getAllByText(/invested portfolio has 8 holdings/i).length,
     ).toBeGreaterThan(0)
     expect(
-      screen.queryByText(/top 3 holdings make up/i),
+      screen.queryByText(/top 3 invested holdings make up/i),
     ).not.toBeInTheDocument()
     expect(screen.queryByText(/diversification score/i)).not.toBeInTheDocument()
     const historicalReview = screen

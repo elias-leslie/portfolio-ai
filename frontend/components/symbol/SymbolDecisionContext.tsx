@@ -56,7 +56,7 @@ export function CurrentExposure({
           </div>
           <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-3">
             <p className="text-[11px] uppercase tracking-[0.16em] text-text-muted">
-              Weight
+              Invested Weight
             </p>
             <p className="mt-1 text-sm font-semibold text-text">
               {formatPercent(position.weightPct)}
