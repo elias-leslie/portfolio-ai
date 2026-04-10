@@ -7,7 +7,7 @@ import {
   formatPercent,
   formatPnlDollars,
 } from '@/lib/formatters'
-import { cn } from '@/lib/utils'
+import { cn, formatRelativeTime } from '@/lib/utils'
 
 interface PositionTableRowProps {
   position: PositionWithValue
@@ -31,7 +31,12 @@ export function PositionTableRow({
 
   return (
     <TableRow>
-      <TableCell className="font-medium">{position.symbol}</TableCell>
+      <TableCell>
+        <div className="font-medium">{position.symbol}</div>
+        <div className="text-xs text-text-muted">
+          Manual lot · updated {formatRelativeTime(position.updatedAt)}
+        </div>
+      </TableCell>
       <TableCell className="text-right tabular-nums">
         {position.shares}
       </TableCell>

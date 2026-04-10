@@ -120,6 +120,8 @@ describe('AccountsWithPositions', () => {
     render(<AccountsWithPositions />)
 
     expect(screen.getByText('Roth IRA')).toBeVisible()
+    expect(screen.getByText('Manual entry')).toBeVisible()
+    expect(screen.getByText('No statement evidence linked here')).toBeVisible()
     expect(screen.getByText('$47,880.13')).toBeVisible()
     expect(screen.getByText(/Cash \$47,880\.13/)).toBeVisible()
     expect(

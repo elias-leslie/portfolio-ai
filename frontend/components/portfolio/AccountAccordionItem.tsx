@@ -14,12 +14,13 @@ import {
 } from '@/components/ui/table'
 import type { Account, PositionWithValue } from '@/lib/api/portfolio'
 import { formatCurrency, formatPercent } from '@/lib/formatters'
-import { PositionTableRow } from './PositionTableRow'
+import { formatRelativeTime } from '@/lib/utils'
 import {
   getAccountPositions,
   getAccountTotalGain,
   getAccountTotalValue,
 } from './portfolio-utils'
+import { PositionTableRow } from './PositionTableRow'
 
 interface AccountAccordionItemProps {
   account: Account
@@ -88,6 +89,13 @@ export function AccountAccordionItem({
                     )}
                   </>
                 )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+                <span className="rounded border border-border/40 bg-surface-muted/40 px-2 py-0.5 font-medium text-text-muted">
+                  Manual entry
+                </span>
+                <span>Updated {formatRelativeTime(account.updatedAt)}</span>
+                <span>No statement evidence linked here</span>
               </div>
             </div>
           </div>
