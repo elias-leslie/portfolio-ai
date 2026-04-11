@@ -280,6 +280,9 @@ describe('MoneyPage', () => {
 
     render(<MoneyPage />)
 
+    expect(
+      screen.getByRole('button', { name: 'Accounts' }).textContent,
+    ).toBe('Accounts3')
     expect(screen.queryByText('Coverage')).not.toBeInTheDocument()
     expect(screen.getByText('Net Worth')).toBeInTheDocument()
     expect(

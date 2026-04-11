@@ -330,8 +330,8 @@ export default function MoneyPage() {
       value: 'accounts',
       label: 'Accounts',
       badge:
-        dashboard.overview.needsRefreshCount > 0
-          ? String(dashboard.overview.needsRefreshCount)
+        dashboard.overview.trackedAccountCount > 0
+          ? String(dashboard.overview.trackedAccountCount)
           : undefined,
       content: (
         <MoneyAccountsPanel
