@@ -182,6 +182,6 @@ def get_position_action(
         return _build_trim_action(symbol, gain_pct, weight_pct)
     if weight_pct >= DERISK_WEIGHT_THRESHOLD:
         return _build_derisk_action(symbol, gain_pct, weight_pct)
-    if gain_pct <= REVIEW_LOSS_THRESHOLD or aggregated_review.final_verdict == "review":
+    if gain_pct <= REVIEW_LOSS_THRESHOLD:
         return _build_review_action(symbol, gain_pct, weight_pct, thesis)
     return _build_hold_action(symbol, gain_pct, weight_pct)

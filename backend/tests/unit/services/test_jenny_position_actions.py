@@ -5,7 +5,10 @@ from __future__ import annotations
 from unittest.mock import Mock
 
 from app.portfolio.models import Position, PriceData
-from app.services._jenny_position_actions import build_position_action_map
+from app.services._jenny_position_actions import (
+    build_position_action_map,
+    get_position_action,
+)
 
 
 def test_build_position_action_map_uses_full_live_portfolio_for_weights() -> None:
@@ -42,3 +45,17 @@ def test_build_position_action_map_uses_full_live_portfolio_for_weights() -> Non
     assert action_map["TSLA"]["action"] == "hold"
     assert action_map["TSLA"]["weight_pct"] == 10.0
     service.price_fetcher.fetch_price_data.assert_called_once_with(["TSLA", "VTI"])
+
+
+def test_get_position_action_keeps_small_profitable_review_vote_as_hold() -> None:
+    action = get_position_action(
+        symbol="AMZN",
+        gain_pct=18.5,
+        weight_pct=0.1,
+        thesis=Mock(),
+        invalidation_triggers=[],
+        aggregated_review=Mock(final_verdict="review", reasons=["Mixed conviction."]),
+    )
+
+    assert action["action"] == "hold"
+    assert action["severity"] == "info"

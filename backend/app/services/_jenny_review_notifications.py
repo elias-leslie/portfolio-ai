@@ -277,18 +277,6 @@ def _emit_position_notification(
             recommendation=position_action["recommendation"],
         )
         return 1
-    if review.final_verdict in {"exit", "trim", "review"}:
-        active_categories.add(f"position_{review.final_verdict}")
-        service._upsert_notification(
-            routine_id,
-            symbol,
-            category=f"position_{review.final_verdict}",
-            severity="critical" if review.final_verdict == "exit" else "warning",
-            title=f"{symbol}: {review.final_verdict.title()} this position",
-            detail=" ".join(review.reasons) or f"Jenny wants you to {review.final_verdict} {symbol}.",
-            recommendation=review.evaluations[0].recommendation if review.evaluations else None,
-        )
-        return 1
     return 0
 
 

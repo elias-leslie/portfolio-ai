@@ -660,6 +660,42 @@ def test_create_notifications_uses_position_action_for_live_holdings() -> None:
     )
 
 
+def test_create_notifications_skips_generic_review_alert_for_small_profitable_holding() -> None:
+    """Live holdings should not open warning alerts from a review vote alone."""
+    service = _service()
+    service.thesis_service = Mock()
+    service.thesis_service.get_thesis.return_value = Mock()
+    service.thesis_service.check_invalidation_triggers.return_value = []
+    review = Mock(
+        final_verdict="review",
+        average_confidence=0.63,
+        reasons=["Mixed conviction."],
+        evaluations=[Mock(recommendation="Wait for cleaner evidence.")],
+    )
+    service._aggregate_symbol_review = Mock(return_value=review)
+    service._upsert_notification = Mock()
+    service._build_position_action_map = Mock(
+        return_value={
+            "AMZN": {
+                "action": "hold",
+                "severity": "info",
+                "title": "AMZN: Hold this position",
+                "detail": "No objective trim, exit, or review trigger is active.",
+                "recommendation": "Keep the position as-is.",
+            }
+        }
+    )
+
+    created = service._create_notifications(
+        routine_id="routine-1",
+        live_symbols={"AMZN"},
+        evaluations_by_symbol={"AMZN": [{"verdict": "review", "agent_name": "committee", "rationale": "Mixed conviction."}]},
+    )
+
+    assert created == 0
+    service._upsert_notification.assert_not_called()
+
+
 def test_get_latest_symbol_reviews_uses_newest_routine_per_symbol() -> None:
     """Dashboard reviews should ignore stale evaluations from older routines."""
     service = _service()
