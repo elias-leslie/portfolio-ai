@@ -572,6 +572,74 @@ describe('StatusWorkspace', () => {
     ).toBeInTheDocument()
   })
 
+  it('renders partial status while the slower health query is still loading', () => {
+    useDetailedHealthMock.mockReturnValue(
+      createQueryResult({
+        data: undefined,
+        isLoading: true,
+        isFetching: true,
+      }),
+    )
+
+    useMarketStatusMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          status: 'closed',
+          currentTimeEt: '6:00 PM ET',
+          expectedDataDate: '2026-03-10',
+          lastTradingDay: '2026-03-10',
+          nextTradingDay: '2026-03-11',
+          isHoliday: false,
+          isEarlyClose: false,
+        },
+      }),
+    )
+
+    useNewsHealthMock.mockReturnValue(
+      createQueryResult({
+        data: {
+          status: 'healthy',
+          message:
+            '737 headlines refreshed in 24h. Article quality scoring is running in heuristic mode.',
+          headlines24H: 737,
+          fallbackHeadlines24H: 0,
+          fallbackRate24H: 0,
+          vendors: {},
+          marketLastRefreshedAt: '2026-03-10T23:25:00.160242Z',
+          watchlistLastRefreshedAt: '2026-03-10T23:25:00.160242Z',
+          latestRefreshedAt: '2026-03-10T23:25:00.160242Z',
+          latestRefreshAgeHours: 0.08,
+        },
+      }),
+    )
+
+    render(<StatusWorkspace />)
+
+    expect(
+      screen.queryByText('Collecting live operating signals...'),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('Loading system health...')).toBeInTheDocument()
+    expect(screen.getAllByText('Market Closed').length).toBeGreaterThan(0)
+    expect(screen.getByText('737')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /737 headlines refreshed in 24h. Article quality scoring is running in heuristic mode./i,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Loading core connection checks...'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Loading runtime and data-recency checks...'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Loading provider health signals...'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('Loading market timing signals...'),
+    ).not.toBeInTheDocument()
+  })
+
   it('shows the fatal error state only when every live signal fails', () => {
     useDetailedHealthMock.mockReturnValue(
       createQueryResult({

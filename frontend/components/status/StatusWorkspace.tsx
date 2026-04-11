@@ -30,10 +30,35 @@ import {
 } from './StatusPanels'
 import { marketLabel, marketTone, newsTone, systemTone } from './statusUtils'
 
+function LoadingSectionPanel({
+  title,
+  description,
+  message,
+}: {
+  title: string
+  description: string
+  message: string
+}) {
+  return (
+    <SectionCard variant="surface" title={title} description={description}>
+      <div className="flex items-center gap-3 text-sm text-text-muted">
+        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+        {message}
+      </div>
+    </SectionCard>
+  )
+}
+
 export function StatusWorkspace() {
   const healthQuery = useDetailedHealth()
   const marketQuery = useMarketStatus()
   const newsHealthQuery = useNewsHealth()
+  const healthPending = !healthQuery.data && healthQuery.isLoading
+  const marketPending = !marketQuery.data && marketQuery.isLoading
+  const newsPending = !newsHealthQuery.data && newsHealthQuery.isLoading
+  const hasAnyData = Boolean(
+    healthQuery.data || marketQuery.data || newsHealthQuery.data,
+  )
 
   const failedSections = [
     healthQuery.error ? 'system health' : null,
@@ -41,10 +66,7 @@ export function StatusWorkspace() {
     newsHealthQuery.error ? 'news pipeline' : null,
   ].filter((value): value is string => Boolean(value))
 
-  const isLoading =
-    (!healthQuery.data && healthQuery.isLoading) ||
-    (!marketQuery.data && marketQuery.isLoading) ||
-    (!newsHealthQuery.data && newsHealthQuery.isLoading)
+  const isLoading = !hasAnyData && (healthPending || marketPending || newsPending)
   const hasFatalError = failedSections.length === 3
   const hasPartialError = failedSections.length > 0 && !hasFatalError
   const isFetching =
@@ -243,9 +265,15 @@ export function StatusWorkspace() {
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 animate-stagger">
             <SummaryStat
               label="System"
-              value={formatEnumLabel(healthQuery.data?.status, 'Unknown')}
+              value={
+                healthPending
+                  ? 'Loading...'
+                  : formatEnumLabel(healthQuery.data?.status, 'Unknown')
+              }
               detail={
-                healthQuery.data?.timestamp
+                healthPending
+                  ? 'Loading system health...'
+                  : healthQuery.data?.timestamp
                   ? `Updated ${formatRelativeTime(healthQuery.data.timestamp)}`
                   : 'Update time unavailable'
               }
@@ -253,58 +281,84 @@ export function StatusWorkspace() {
             />
             <SummaryStat
               label="Market"
-              value={marketLabel(marketQuery.data?.status)}
+              value={
+                marketPending
+                  ? 'Loading...'
+                  : marketLabel(marketQuery.data?.status)
+              }
               detail={
-                marketQuery.data?.currentTimeEt ?? 'No market clock available'
+                marketPending
+                  ? 'Loading market calendar...'
+                  : marketQuery.data?.currentTimeEt ?? 'No market clock available'
               }
               tone={marketTone(marketQuery.data?.status)}
             />
             <SummaryStat
               label="Watchlist"
               value={
-                watchlistCoveragePct !== null
+                healthPending
+                  ? 'Loading...'
+                  : watchlistCoveragePct !== null
                   ? formatPercent(watchlistCoveragePct)
                   : formatInteger(
                       healthQuery.data?.watchlistStats?.itemsWithScores,
                     )
               }
-              detail={watchlistCoverageDetail}
+              detail={
+                healthPending
+                  ? 'Loading watchlist coverage...'
+                  : watchlistCoverageDetail
+              }
             />
             <SummaryStat
               label="News"
-              value={formatInteger(newsHealthQuery.data?.headlines24H)}
-              detail={newsPipelineDetail}
+              value={
+                newsPending
+                  ? 'Loading...'
+                  : formatInteger(newsHealthQuery.data?.headlines24H)
+              }
+              detail={
+                newsPending ? 'Loading news pipeline health...' : newsPipelineDetail
+              }
               tone={newsTone(newsHealthQuery.data?.status)}
             />
             <SummaryStat
               label="Runtime"
               value={formatHours(
-                healthQuery.data?.uptimeSeconds != null
+                !healthPending && healthQuery.data?.uptimeSeconds != null
                   ? healthQuery.data.uptimeSeconds / 3600
                   : null,
               )}
               detail={
-                healthQuery.data?.version
+                healthPending
+                  ? 'Loading runtime details...'
+                  : healthQuery.data?.version
                   ? `Version ${healthQuery.data.version}`
                   : 'Version unavailable'
               }
             />
             <SummaryStat
               label="Cache"
-              value={cacheValue}
-              detail={cacheDetail}
+              value={healthPending ? 'Loading...' : cacheValue}
+              detail={healthPending ? 'Loading cache metrics...' : cacheDetail}
             />
             <SummaryStat
               label="Data Feeds"
-              value={dataFeedsValue}
-              detail={dataFeedsDetail}
+              value={healthPending ? 'Loading...' : dataFeedsValue}
+              detail={
+                healthPending ? 'Loading provider health...' : dataFeedsDetail
+              }
               tone={dataFeedsTone}
             />
             <SummaryStat
               label="Jobs To Review"
-              value={formatInteger(staleMaintenanceCount)}
+              value={
+                healthPending ? 'Loading...' : formatInteger(staleMaintenanceCount)
+              }
               detail={
-                staleMaintenanceCount > 0
+                healthPending
+                  ? 'Loading background job health...'
+                  : staleMaintenanceCount > 0
                   ? 'At least one background job needs attention'
                   : 'No stuck background jobs reported'
               }
@@ -313,38 +367,102 @@ export function StatusWorkspace() {
           </section>
 
           <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-            <SystemChecksPanel checkRows={checkRows} />
-            <ServicePulsePanel
-              serviceRows={serviceRows}
-              dataFreshnessStatus={healthQuery.data?.dataFreshnessStatus}
-              workflowHealth={healthQuery.data?.workflowHealth}
-            />
+            {healthPending ? (
+              <LoadingSectionPanel
+                title="Core Connections"
+                description="The services and dependencies this app needs in order to stay trustworthy."
+                message="Loading core connection checks..."
+              />
+            ) : (
+              <SystemChecksPanel checkRows={checkRows} />
+            )}
+            {healthPending ? (
+              <LoadingSectionPanel
+                title="App Health"
+                description="What is running, whether the data is current, and whether background jobs are keeping up."
+                message="Loading runtime and data-recency checks..."
+              />
+            ) : (
+              <ServicePulsePanel
+                serviceRows={serviceRows}
+                dataFreshnessStatus={healthQuery.data?.dataFreshnessStatus}
+                workflowHealth={healthQuery.data?.workflowHealth}
+              />
+            )}
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-            <SourceHealthPanel sourceRows={sourceRows} />
-            <NewsVendorsPanel vendorRows={vendorRows} />
+            {healthPending ? (
+              <LoadingSectionPanel
+                title="Data Sources"
+                description="How the outside feeds behind the app are behaving."
+                message="Loading provider health signals..."
+              />
+            ) : (
+              <SourceHealthPanel sourceRows={sourceRows} />
+            )}
+            {newsPending ? (
+              <LoadingSectionPanel
+                title="News Sources"
+                description="Which news feeds are connected and when they last produced articles."
+                message="Loading news-source diagnostics..."
+              />
+            ) : (
+              <NewsVendorsPanel vendorRows={vendorRows} />
+            )}
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-            <QuotaCoveragePanel
-              apiQuotas={apiQuotas}
-              configuredCount={configuredQuotaCount}
-              totalCount={totalQuotaCount}
-            />
-            <RecentRemediationsPanel
-              recentRemediations={healthQuery.data?.recentRemediations ?? []}
-            />
+            {healthPending ? (
+              <LoadingSectionPanel
+                title="API Limits"
+                description="Which data providers are connected and the limits they advertise."
+                message="Loading API quota coverage..."
+              />
+            ) : (
+              <QuotaCoveragePanel
+                apiQuotas={apiQuotas}
+                configuredCount={configuredQuotaCount}
+                totalCount={totalQuotaCount}
+              />
+            )}
+            {healthPending ? (
+              <LoadingSectionPanel
+                title="Recent Auto-fixes"
+                description="What the app retried or repaired in the last 24 hours."
+                message="Loading recent remediation history..."
+              />
+            ) : (
+              <RecentRemediationsPanel
+                recentRemediations={healthQuery.data?.recentRemediations ?? []}
+              />
+            )}
           </div>
 
-          <StaleMaintenancePanel
-            staleRuns={healthQuery.data?.staleMaintenanceRuns ?? []}
-          />
+          {healthPending ? (
+            <LoadingSectionPanel
+              title="Stuck Background Jobs"
+              description="Background jobs that have stayed in a running state longer than expected."
+              message="Loading background job review..."
+            />
+          ) : (
+            <StaleMaintenancePanel
+              staleRuns={healthQuery.data?.staleMaintenanceRuns ?? []}
+            />
+          )}
 
-          <MarketTimingPanel
-            marketData={marketQuery.data}
-            newsHealth={newsHealthQuery.data}
-          />
+          {marketPending || newsPending ? (
+            <LoadingSectionPanel
+              title="Market Calendar"
+              description="Useful when deciding whether today's prices and alerts should already be moving."
+              message="Loading market timing signals..."
+            />
+          ) : (
+            <MarketTimingPanel
+              marketData={marketQuery.data}
+              newsHealth={newsHealthQuery.data}
+            />
+          )}
         </>
       ) : null}
     </PageContainer>
