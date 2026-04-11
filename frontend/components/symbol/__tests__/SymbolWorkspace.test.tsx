@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useJennyDashboard } from '@/lib/hooks/usePortfolio'
@@ -192,7 +192,8 @@ describe('SymbolWorkspace', () => {
     ).toBeInTheDocument()
   })
 
-  it('prioritizes active Jenny alerts and omits placeholder metrics when data is missing', () => {
+  it('prioritizes active Jenny alerts and omits placeholder metrics when data is missing', async () => {
+    const user = userEvent.setup()
     vi.mocked(useSymbolIntelligence).mockReturnValue({
       data: {
         symbol: 'VTI',
@@ -334,6 +335,20 @@ describe('SymbolWorkspace', () => {
       .getByText(/previous jenny review: hold/i)
       .closest('details')
     expect(historicalReview).not.toHaveAttribute('open')
+    expect(screen.getByRole('button', { name: 'Track' }).textContent).toBe(
+      'Track1',
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Track' }))
+
+    const newsAndAlerts = screen.getByText(/news and alerts/i).closest('section')
+    expect(newsAndAlerts).not.toBeNull()
+    expect(
+      within(newsAndAlerts as HTMLElement).getByText(/current jenny alert/i),
+    ).toBeInTheDocument()
+    expect(
+      within(newsAndAlerts as HTMLElement).getByText(/vti: exit this position/i),
+    ).toBeInTheDocument()
   })
 
   it('explains when only aggregate news volume is available', async () => {

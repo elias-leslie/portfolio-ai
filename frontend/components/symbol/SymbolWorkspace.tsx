@@ -276,7 +276,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           {
             value: 'track',
             label: 'Track',
-            badge: data?.alerts.length ? String(data.alerts.length) : undefined,
+            badge: alertCount > 0 ? String(alertCount) : undefined,
             content: (
               <div className="space-y-6">
                 <SymbolWorkflowPanel
@@ -302,6 +302,27 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                   }
                 >
                   <div className="space-y-3">
+                    {activeNotification ? (
+                      <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4">
+                        <p className="text-sm font-semibold text-text">
+                          Current Jenny alert
+                        </p>
+                        <p className="mt-2 text-sm text-text">
+                          {activeNotification.title}
+                        </p>
+                        <p className="mt-2 text-sm text-text-muted">
+                          {activeNotification.recommendation ??
+                            activeNotification.detail ??
+                            'This open alert is still driving the current decision.'}
+                        </p>
+                        <p className="mt-3 text-xs uppercase tracking-[0.18em] text-text-muted">
+                          {formatEnumLabel(activeNotification.severity, 'Info')}
+                          {activeNotification.createdAt
+                            ? ` · ${formatRelativeTime(activeNotification.createdAt)}`
+                            : ''}
+                        </p>
+                      </div>
+                    ) : null}
                     <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">
                       {formatNewsSentimentSummary(data?.news)}
                       {' · '}
