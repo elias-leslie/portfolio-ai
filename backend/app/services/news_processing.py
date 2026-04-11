@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import html
 import math
+import re
 from collections import Counter
 from collections.abc import Sequence
 from contextlib import suppress
@@ -58,7 +60,16 @@ def _hash_content(symbol: str, headline: str, source: str | None) -> str:
 def _compose_text(entry: dict[str, Any]) -> str:
     """Compose text for sentiment analysis from entry."""
     headline = entry.get("title") or entry.get("headline") or ""
-    summary = entry.get("summary") or entry.get("description") or ""
+    source_name = (
+        entry.get("source", {}).get("title")
+        if isinstance(entry.get("source"), dict)
+        else entry.get("source")
+    )
+    summary = _sanitize_summary(
+        entry.get("summary") or entry.get("description"),
+        headline=headline,
+        source=source_name,
+    ) or ""
     combined = f"{headline.strip()}. {summary.strip()}" if summary else headline.strip()
     return combined or "No headline available."
 
@@ -66,9 +77,62 @@ def _compose_text(entry: dict[str, Any]) -> str:
 def _compose_article_text(article: NewsArticle) -> str:
     """Compose text for rescoring a cached article."""
     headline = article.headline or ""
-    summary = article.summary or ""
+    summary = _sanitize_summary(
+        article.summary,
+        headline=headline,
+        source=article.source,
+    ) or ""
     combined = f"{headline.strip()}. {summary.strip()}" if summary else headline.strip()
     return combined or "No headline available."
+
+
+def _normalized_compare_text(value: str | None) -> str:
+    if not value:
+        return ""
+    return re.sub(r"\s+", " ", value).strip().lower()
+
+
+def _strip_html(value: str | None) -> str | None:
+    if not value:
+        return None
+    text = html.unescape(str(value))
+    text = re.sub(r"<[^>]*>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text or None
+
+
+def _sanitize_summary(
+    summary: str | None,
+    *,
+    headline: str | None,
+    source: str | None,
+) -> str | None:
+    if not summary:
+        return None
+
+    raw_summary = str(summary)
+    if "news.google.com/rss/articles" in raw_summary.lower():
+        return None
+
+    cleaned = _strip_html(raw_summary)
+    if not cleaned:
+        return None
+
+    headline_text = _normalized_compare_text(headline)
+    source_text = _normalized_compare_text(source)
+    cleaned_text = _normalized_compare_text(cleaned)
+    comparison_values = {value for value in (headline_text, source_text) if value}
+
+    combined = " ".join(part for part in (headline_text, source_text) if part).strip()
+    if cleaned_text in comparison_values or (combined and cleaned_text == combined):
+        return None
+
+    if headline_text and cleaned_text.startswith(headline_text):
+        trailer = cleaned_text.removeprefix(headline_text).strip(" -|:")
+        if not trailer or trailer == source_text:
+            return None
+
+    return cleaned
 
 
 class NewsProcessor:
@@ -230,7 +294,11 @@ class NewsProcessor:
                 if isinstance(entry.get("source"), dict)
                 else entry.get("source")
             )
-            summary = entry.get("summary") or entry.get("description")
+            summary = _sanitize_summary(
+                entry.get("summary") or entry.get("description"),
+                headline=headline,
+                source=source_name,
+            )
             published = _parse_datetime(entry.get("published") or entry.get("published_at"))
             content_hash = _hash_content(symbol, headline, source_name)
             vendor = entry.get("vendor")

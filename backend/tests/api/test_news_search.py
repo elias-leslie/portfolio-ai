@@ -107,6 +107,11 @@ class TestNewsSearchEndpoint:
         assert "published_at" in article
         assert "source" in article
         assert "url" in article
+        assert "decision_value_score" in article
+        assert "decision_value_label" in article
+        assert "decision_value_reason" in article
+        assert "source_signal_tier" in article
+        assert "canonical_headline" in article
 
     def test_news_search_exposes_article_hash_for_feedback(self, client: TestClient) -> None:
         response = client.get("/api/news/search?query=AAPL")

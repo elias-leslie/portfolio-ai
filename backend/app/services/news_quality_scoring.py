@@ -22,6 +22,15 @@ _QUESTIONABLE_PATTERNS = (
     r"\bwhat analysts think\b",
     r"\bstock(s)? to watch\b",
 )
+_IRRELEVANT_PATTERNS = (
+    r"\bdo i say yes\b",
+    r"\bwhat should i do\b",
+    r"\bmy (son|daughter|husband|wife|partner)\b",
+    r"\bfamily money\b",
+    r"\bpersonal-finance\b",
+    r"\bin-state tuition\b",
+    r"\bundocumented students\b",
+)
 _USEFUL_PATTERNS = (
     r"\b(10-k|10-q|8-k|13f|sec filing|regulatory filing)\b",
     r"\b(price target|upgrades?|downgrades?)\b",
@@ -73,6 +82,11 @@ class NewsQualityScorer:
         score -= min(
             sum(1 for pattern in _QUESTIONABLE_PATTERNS if re.search(pattern, text, re.IGNORECASE)) * 0.1,
             0.2,
+        )
+        score -= min(
+            sum(1 for pattern in _IRRELEVANT_PATTERNS if re.search(pattern, text, re.IGNORECASE))
+            * 0.22,
+            0.44,
         )
 
         if "?" not in headline and summary and len(summary) >= 120:

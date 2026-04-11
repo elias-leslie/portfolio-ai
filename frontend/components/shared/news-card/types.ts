@@ -33,6 +33,13 @@ export interface NewsArticle {
   storyId?: string | null
   isPrimaryArticle?: boolean
   coverageCount?: number
+  eventCategory?: string | null
+  marketContextTopic?: string | null
+  sourceSignalTier?: string | null
+  canonicalHeadline?: string | null
+  decisionValueScore?: number | null
+  decisionValueLabel?: 'high' | 'medium' | 'low' | null
+  decisionValueReason?: string | null
 }
 
 export interface NewsSentimentDetail {

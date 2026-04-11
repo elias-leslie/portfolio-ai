@@ -27,55 +27,48 @@ type RelevantHeadline = {
 }
 
 type HeadlineGroup = {
-  id: 'held' | 'watching' | 'backdrop'
+  id: 'holdings' | 'watchlist' | 'marketContext'
   title: string
   description: string
   items: RelevantHeadline[]
 }
 
+type MacroTopic = {
+  detail: string
+  label: string
+  patterns: RegExp[]
+}
+
 const MAX_HEADLINES_PER_GROUP = 5
-const BACKDROP_PATTERNS = [
-  /\bfed\b/i,
-  /\bpowell\b/i,
-  /\brates?\b/i,
-  /\btreasur(?:y|ies)\b/i,
-  /\byields?\b/i,
-  /\binflation\b/i,
-  /\bcpi\b/i,
-  /\bppi\b/i,
-  /\bpce\b/i,
-  /\bjobs?\b/i,
-  /\bpayrolls?\b/i,
-  /\bunemployment\b/i,
-  /\bgdp\b/i,
-  /\brecession\b/i,
-  /\beconom(?:y|ic)\b/i,
-  /\bconsumer spending\b/i,
-  /\bretail sales\b/i,
-  /\bhousing\b/i,
-  /\bwall street\b/i,
-  /\bstock market\b/i,
-  /\bmarket breadth\b/i,
-  /\brisk[- ]on\b/i,
-  /\brisk[- ]off\b/i,
-  /\bs&p(?:\s+500)?\b/i,
-  /\bnasdaq\b/i,
-  /\bdow\b/i,
-  /\brussell\b/i,
-  /\bvix\b/i,
-  /\boil\b/i,
-  /\bcrude\b/i,
-  /\bopec\b/i,
-  /\btariffs?\b/i,
-  /\btrade war\b/i,
-  /\bgeopolit(?:ic|ical)\b/i,
-  /\bcentral bank\b/i,
-  /\becb\b/i,
-  /\bbank of japan\b/i,
-  /\bboj\b/i,
-  /\bearnings season\b/i,
-]
-const NON_BACKDROP_PATTERNS = [
+const SOURCE_SUFFIX_PATTERN =
+  /\s[-|:]\s(?:yahoo finance|marketwatch|the motley fool|motley fool|seeking alpha|reuters|bloomberg|investor'?s business daily|benzinga)\s*$/i
+const GENERIC_ACTIONABLE_INSIGHTS = new Set([
+  'news reported - read the details before acting',
+  'positive sentiment - worth investigating',
+  'negative sentiment - proceed with caution',
+])
+const GENERIC_IMPACT_SUMMARIES = new Set([
+  'news reported - assess impact based on your strategy',
+  'very positive news - may create short-term momentum',
+  'mildly positive - modest upside possible',
+  'very negative news - may trigger selling pressure',
+  'mildly negative - modest downside risk',
+])
+const MARKET_CONTEXT_SOURCE_ALLOWLIST = new Set([
+  'Associated Press',
+  'Barron’s',
+  "Barron's",
+  'Bloomberg',
+  'CNBC',
+  'Financial Times',
+  "Investor's Business Daily",
+  'MarketWatch',
+  'Reuters',
+  'The Wall Street Journal',
+  'Wall Street Journal',
+  'Yahoo Finance',
+])
+const NON_SIGNAL_PATTERNS = [
   /\bstocks?\s+to\s+buy\b/i,
   /\bshould\s+you\s+buy\b/i,
   /\bbest\s+\w+\s+(?:stocks?|reits?|etfs?|funds?)\b/i,
@@ -90,43 +83,271 @@ const NON_BACKDROP_PATTERNS = [
   /\btop pick\b/i,
   /\bmy top\b/i,
   /\bstrong buy\b/i,
+  /\bstill holds true\b/i,
+  /\bwhat should i do\b/i,
+  /\bmy husband\b/i,
+  /\bmistake you can make\b/i,
+  /\bmissing the point\b/i,
+  /\bunder trump\b/i,
+  /\bwith \$\d[\d,]*\b/i,
+  /\b(?:travel|retirement|income)\b/i,
+]
+const MACRO_TOPICS: MacroTopic[] = [
+  {
+    label: 'Rates',
+    detail:
+      'Changes discount-rate pressure across growth stocks, broad indexes, and valuation multiples.',
+    patterns: [
+      /\bfed\b/i,
+      /\bpowell\b/i,
+      /\brates?\b/i,
+      /\btreasur(?:y|ies)\b/i,
+      /\byields?\b/i,
+      /\bcentral bank\b/i,
+      /\becb\b/i,
+      /\bbank of japan\b/i,
+      /\bboj\b/i,
+    ],
+  },
+  {
+    label: 'Inflation',
+    detail:
+      'Can shift rate expectations, bond yields, and equity multiples across the portfolio.',
+    patterns: [/\binflation\b/i, /\bcpi\b/i, /\bppi\b/i, /\bpce\b/i],
+  },
+  {
+    label: 'Growth',
+    detail:
+      'Changes recession or soft-landing odds and resets broad earnings expectations.',
+    patterns: [
+      /\bjobs?\b/i,
+      /\bpayrolls?\b/i,
+      /\bunemployment\b/i,
+      /\bgdp\b/i,
+      /\brecession\b/i,
+      /\beconom(?:y|ic)\b/i,
+      /\bconsumer spending\b/i,
+      /\bretail sales\b/i,
+      /\bhousing\b/i,
+    ],
+  },
+  {
+    label: 'Risk',
+    detail:
+      'Signals whether risk appetite is strengthening or tightening across many holdings at once.',
+    patterns: [
+      /\bvix\b/i,
+      /\bshort-covering\b/i,
+      /\brisk[- ]on\b/i,
+      /\brisk[- ]off\b/i,
+      /\bshaky footing\b/i,
+      /\bmarket breadth\b/i,
+      /\bstock market\b/i,
+      /\bwall street\b/i,
+      /\bs&p(?:\s+500)?\b/i,
+      /\bnasdaq\b/i,
+      /\bdow\b/i,
+      /\brussell\b/i,
+    ],
+  },
+  {
+    label: 'Sector Leadership',
+    detail:
+      'Shows whether market leadership is broadening or narrowing across major sectors and index weights.',
+    patterns: [
+      /\bsoftware stocks?\b/i,
+      /\bsemiconductors?\b/i,
+      /\bbanks?\b/i,
+      /\benergy stocks?\b/i,
+      /\bsector\b/i,
+      /\bbuy areas\b/i,
+      /\bchart of the day\b/i,
+    ],
+  },
+  {
+    label: 'Geopolitics',
+    detail:
+      'Can reprice energy, shipping, defense, and broad market risk premiums very quickly.',
+    patterns: [
+      /\biran\b/i,
+      /\boil\b/i,
+      /\bcrude\b/i,
+      /\bopec\b/i,
+      /\btariffs?\b/i,
+      /\btrade war\b/i,
+      /\bgeopolit(?:ic|ical)\b/i,
+    ],
+  },
 ]
 
 function matchesAnyPattern(text: string, patterns: RegExp[]) {
   return patterns.some((pattern) => pattern.test(text))
 }
 
+function cleanText(value?: string | null) {
+  if (!value) {
+    return ''
+  }
+  return value
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function normalizedText(value: string) {
+  return cleanText(value)
+    .normalize('NFKD')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(SOURCE_SUFFIX_PATTERN, '')
+    .replace(/[^a-z0-9\s]/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
+function articleDecisionScore(article: SentimentArticle) {
+  return article.decisionValueScore ?? null
+}
+
+function canonicalHeadline(article: SentimentArticle) {
+  return normalizedText(article.canonicalHeadline ?? article.headline)
+}
+
 function articleContext(article: SentimentArticle) {
   return [
-    article.headline,
-    article.summary,
-    article.impactSummary,
-    article.actionableInsight,
+    cleanText(article.headline),
+    cleanText(article.summary),
+    cleanText(article.impactSummary),
+    cleanText(article.actionableInsight),
   ]
     .filter(Boolean)
     .join(' ')
 }
 
-function isBackdropHeadline(article: SentimentArticle) {
+function hasGenericFallbackCopy(article: SentimentArticle) {
+  const actionable = normalizedText(article.actionableInsight ?? '')
+  const impact = normalizedText(article.impactSummary ?? '')
+  return (
+    (!actionable || GENERIC_ACTIONABLE_INSIGHTS.has(actionable)) &&
+    (!impact || GENERIC_IMPACT_SUMMARIES.has(impact))
+  )
+}
+
+function hasSubstantiveSummary(article: SentimentArticle) {
+  return cleanText(article.summary).length >= 80
+}
+
+function isQuestionableArticle(article: SentimentArticle) {
+  return matchesAnyPattern(articleContext(article), NON_SIGNAL_PATTERNS)
+}
+
+function detailForSymbolArticle(article: SentimentArticle) {
+  const decisionReason = cleanText(article.decisionValueReason)
+  if (decisionReason) {
+    return decisionReason
+  }
+
+  const actionable = cleanText(article.actionableInsight)
+  if (
+    actionable &&
+    !GENERIC_ACTIONABLE_INSIGHTS.has(normalizedText(actionable))
+  ) {
+    return actionable
+  }
+
+  const impact = cleanText(article.impactSummary)
+  if (impact && !GENERIC_IMPACT_SUMMARIES.has(normalizedText(impact))) {
+    return impact
+  }
+
+  const summary = cleanText(article.summary)
+  if (summary) {
+    return summary
+  }
+
+  return 'New development tied to this symbol.'
+}
+
+function macroTopicForArticle(article: SentimentArticle) {
+  if (article.marketContextTopic) {
+    return (
+      MACRO_TOPICS.find((topic) => topic.label === article.marketContextTopic) ?? {
+        label: article.marketContextTopic,
+        detail: cleanText(article.decisionValueReason) || cleanText(article.summary),
+        patterns: [],
+      }
+    )
+  }
+  if (isQuestionableArticle(article)) {
+    return null
+  }
   const context = articleContext(article)
   if (!context) {
+    return null
+  }
+  return MACRO_TOPICS.find((topic) => matchesAnyPattern(context, topic.patterns)) ?? null
+}
+
+function shouldSurfaceSymbolArticle(article: SentimentArticle) {
+  const decisionScore = articleDecisionScore(article)
+  if (decisionScore !== null) {
+    return decisionScore >= 0.55
+  }
+  if (isQuestionableArticle(article)) {
     return false
   }
+  return (
+    article.isMaterialEvent === true ||
+    article.qualityPrediction === true ||
+    !hasGenericFallbackCopy(article)
+  )
+}
 
-  if (matchesAnyPattern(context, NON_BACKDROP_PATTERNS)) {
+function shouldSurfaceMacroArticle(article: SentimentArticle) {
+  const decisionScore = articleDecisionScore(article)
+  if (decisionScore !== null) {
+    return (
+      Boolean(article.marketContextTopic) &&
+      decisionScore >= 0.6 &&
+      article.sourceSignalTier !== 'commentary'
+    )
+  }
+  const topic = macroTopicForArticle(article)
+  if (!topic) {
     return false
   }
+  if (!MARKET_CONTEXT_SOURCE_ALLOWLIST.has(cleanText(article.source))) {
+    return false
+  }
+  return article.qualityPrediction === true || hasSubstantiveSummary(article)
+}
 
-  const headline = article.headline.trim()
-  const separatorIndex = headline.indexOf(':')
-  if (separatorIndex > 0) {
-    const prefix = headline.slice(0, separatorIndex)
-    if (!matchesAnyPattern(prefix, BACKDROP_PATTERNS)) {
-      return false
+function bestSymbolArticle(articles: SentimentArticle[] | undefined) {
+  const candidates = (articles ?? []).filter(shouldSurfaceSymbolArticle)
+  if (candidates.length === 0) {
+    return null
+  }
+
+  return [...candidates].sort((left, right) => {
+    const rightScore = articleDecisionScore(right) ?? -1
+    const leftScore = articleDecisionScore(left) ?? -1
+    if (rightScore !== leftScore) {
+      return rightScore - leftScore
     }
-  }
 
-  return matchesAnyPattern(context, BACKDROP_PATTERNS)
+    const rightQuality = right.qualityConfidence ?? 0
+    const leftQuality = left.qualityConfidence ?? 0
+    if (rightQuality !== leftQuality) {
+      return rightQuality - leftQuality
+    }
+
+    return (
+      new Date(right.publishedAt ?? 0).getTime() -
+      new Date(left.publishedAt ?? 0).getTime()
+    )
+  })[0]
 }
 
 function toneForArticle(article: SentimentArticle | undefined): HeadlineTone {
@@ -141,10 +362,11 @@ function toneForArticle(article: SentimentArticle | undefined): HeadlineTone {
 }
 
 function headlineDetail(article: SentimentArticle | undefined) {
+  if (!article) {
+    return 'Applicable context is still building for this headline.'
+  }
   return (
-    article?.actionableInsight ||
-    article?.impactSummary ||
-    article?.summary ||
+    detailForSymbolArticle(article) ||
     'Applicable context is still building for this headline.'
   )
 }
@@ -170,8 +392,8 @@ function buildHeadlineGroups({
 }): HeadlineGroup[] {
   const symbolHeadlines = watchlistItems
     .map((item) => {
-      const article = item.recentNews?.articles?.[0]
-      if (!article) {
+      const article = bestSymbolArticle(item.recentNews?.articles)
+      if (!article || !shouldSurfaceSymbolArticle(article)) {
         return null
       }
 
@@ -205,65 +427,92 @@ function buildHeadlineGroups({
     article: SentimentArticle,
     groupLabel: string,
     symbol?: string,
+    options?: { badge?: string; detail?: string },
   ): RelevantHeadline => {
     const href =
       symbol && !article.url ? `/symbols/${symbol}` : article.url ?? '/portfolio'
     return {
       id: `${groupLabel.toLowerCase()}-${symbol ?? 'market'}-${article.contentHash}`,
       headline: article.headline,
-      detail: headlineDetail(article),
+      detail: options?.detail ?? headlineDetail(article),
       href,
       external: Boolean(article.url),
       tone: toneForArticle(article),
-      badge: symbol ?? groupLabel,
+      badge: options?.badge ?? symbol ?? groupLabel,
       symbol,
       publishedAt: article.publishedAt,
       source: article.source,
     }
   }
 
-  const heldItems = symbolHeadlines
-    .filter((entry) => entry.held)
-    .slice(0, MAX_HEADLINES_PER_GROUP)
-    .map((entry) => {
-      seen.add(entry.article.headline)
-      return toHeadline(entry.article, 'Held', entry.symbol)
-    })
+  const heldItems: RelevantHeadline[] = []
+  for (const entry of symbolHeadlines) {
+    if (!entry.held || heldItems.length >= MAX_HEADLINES_PER_GROUP) {
+      continue
+    }
+    const canonical = canonicalHeadline(entry.article)
+    if (seen.has(canonical)) {
+      continue
+    }
+    seen.add(canonical)
+    heldItems.push(toHeadline(entry.article, 'Holdings', entry.symbol))
+  }
 
-  const watchingItems = symbolHeadlines
-    .filter((entry) => !entry.held && !seen.has(entry.article.headline))
-    .slice(0, MAX_HEADLINES_PER_GROUP)
-    .map((entry) => {
-      seen.add(entry.article.headline)
-      return toHeadline(entry.article, 'Watching', entry.symbol)
-    })
+  const watchingItems: RelevantHeadline[] = []
+  for (const entry of symbolHeadlines) {
+    if (entry.held || watchingItems.length >= MAX_HEADLINES_PER_GROUP) {
+      continue
+    }
+    const canonical = canonicalHeadline(entry.article)
+    if (seen.has(canonical)) {
+      continue
+    }
+    seen.add(canonical)
+    watchingItems.push(toHeadline(entry.article, 'Watchlist', entry.symbol))
+  }
 
-  const backdropItems = (marketNews?.articles ?? [])
-    .filter(
-      (article) => !seen.has(article.headline) && isBackdropHeadline(article),
+  const marketContextItems: RelevantHeadline[] = []
+  for (const article of marketNews?.articles ?? []) {
+    if (marketContextItems.length >= MAX_HEADLINES_PER_GROUP) {
+      break
+    }
+    const canonical = canonicalHeadline(article)
+    if (seen.has(canonical) || !shouldSurfaceMacroArticle(article)) {
+      continue
+    }
+    seen.add(canonical)
+    const topic = macroTopicForArticle(article)
+    marketContextItems.push(
+      toHeadline(article, 'Market Context', undefined, {
+        badge: topic?.label ?? 'Market Context',
+        detail:
+          cleanText(article.decisionValueReason) ||
+          topic?.detail ||
+          cleanText(article.summary),
+      }),
     )
-    .slice(0, MAX_HEADLINES_PER_GROUP)
-    .map((article) => toHeadline(article, 'Backdrop'))
+  }
 
   const groups: HeadlineGroup[] = [
     {
-      id: 'held',
-      title: 'Held',
-      description: 'News tied directly to positions you already own.',
+      id: 'holdings',
+      title: 'Holdings',
+      description: 'Only new developments tied directly to positions you already own.',
       items: heldItems,
     },
     {
-      id: 'watching',
-      title: 'Watching',
-      description: 'Signals and headlines tied to names you are tracking.',
+      id: 'watchlist',
+      title: 'Watchlist',
+      description:
+        'Only symbol-specific developments worth revisiting on names you are tracking.',
       items: watchingItems,
     },
     {
-      id: 'backdrop',
-      title: 'Backdrop',
+      id: 'marketContext',
+      title: 'Market Context',
       description:
-        'Macro, policy, and risk headlines only when they can move many holdings at once.',
-      items: backdropItems,
+        'Macro and regime changes only when they can affect multiple holdings at once.',
+      items: marketContextItems,
     },
   ]
 
@@ -379,12 +628,11 @@ export function InvestingNewsPanel({
     return (
       <SectionCard
         title="News"
-        description="Applicable headlines will appear here once market or symbol news is available."
+        description="This panel stays quiet unless the news is specific to your holdings, watchlist, or market context."
         variant="surface"
       >
         <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/15 px-5 py-10 text-sm text-text-muted">
-          No relevant headlines yet. Refresh symbols or market data to
-          repopulate this view.
+          Nothing decision-useful right now. Duplicated, generic, and non-portfolio headlines stay hidden on purpose.
         </div>
       </SectionCard>
     )

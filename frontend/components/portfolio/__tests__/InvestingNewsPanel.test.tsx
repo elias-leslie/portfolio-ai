@@ -21,6 +21,7 @@ function buildArticle(
     source: 'MarketWatch',
     publishedAt: '2026-04-11T11:30:00Z',
     fetchedAt: '2026-04-11T11:35:00Z',
+    isMaterialEvent: false,
     sentiment: {
       score: 0,
       label: 'neutral',
@@ -28,6 +29,8 @@ function buildArticle(
       model: 'test',
     },
     contentHash: 'article-default',
+    qualityPrediction: true,
+    qualityConfidence: 0.8,
     ...overrides,
   }
 }
@@ -87,7 +90,7 @@ describe('InvestingNewsPanel', () => {
     })
   })
 
-  it('keeps held and watching news while filtering backdrop headlines to true macro context', () => {
+  it('keeps holdings and watchlist signals while deduping and tightening market context headlines', () => {
     useNewsIntelligenceMock.mockReturnValue({
       data: {
         symbol: '__MARKET__',
@@ -101,17 +104,35 @@ describe('InvestingNewsPanel', () => {
           modelBreakdown: {},
         },
         articles: [
-          buildArticle(),
           buildArticle({
-            headline: 'EMCOR Group: Solid Business That Is Fully Valued',
-            summary: 'Single-name valuation note.',
-            source: 'Seeking Alpha',
-            contentHash: 'article-emcor',
+            headline:
+              "Fed Chair Jerome Powell's 6-Word Warning to Wall Street Still Holds True More Than 6 Months Later",
+            summary: null,
+            qualityPrediction: false,
+            qualityConfidence: 0.56,
+            contentHash: 'article-powell-commentary',
+          }),
+          buildArticle({
+            headline:
+              "Software stocks are plunging. Why that's a warning sign for the entire market",
+            summary:
+              'A sharp drawdown in software leadership can signal narrower breadth and weaker risk appetite across the broader market.',
+            source: 'MarketWatch',
+            contentHash: 'article-software-risk',
+          }),
+          buildArticle({
+            headline:
+              "Software stocks are plunging. Why that's a warning sign for the entire market - Yahoo Finance",
+            summary:
+              'A sharp drawdown in software leadership can signal narrower breadth and weaker risk appetite across the broader market.',
+            source: 'Yahoo Finance',
+            contentHash: 'article-software-risk-yf',
           }),
           buildArticle({
             headline: 'High-Yield REITs I Would Trust For Retirement Income',
             summary: 'Income listicle.',
             source: 'Seeking Alpha',
+            qualityPrediction: false,
             contentHash: 'article-reit',
           }),
         ],
@@ -157,14 +178,15 @@ describe('InvestingNewsPanel', () => {
       />,
     )
 
-    expect(screen.getByRole('heading', { name: 'Held' })).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: 'Watching' }),
+      screen.getByRole('heading', { name: 'Holdings' }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: 'Backdrop' }),
+      screen.getByRole('heading', { name: 'Watchlist' }),
     ).toBeInTheDocument()
-    expect(screen.queryByText(/^Market$/)).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Market Context' }),
+    ).toBeInTheDocument()
 
     expect(
       screen.getByText('VTI keeps attracting broad market inflows'),
@@ -173,18 +195,31 @@ describe('InvestingNewsPanel', () => {
       screen.getByText('NVDA expands data-center backlog'),
     ).toBeInTheDocument()
     expect(
-      screen.getByText('Fed minutes reinforce higher-for-longer rate outlook'),
+      screen.getByText(
+        "Software stocks are plunging. Why that's a warning sign for the entire market",
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Sector Leadership')).toBeInTheDocument()
+    expect(
+      screen.getByText(/market leadership is broadening or narrowing/i),
     ).toBeInTheDocument()
 
     expect(
-      screen.queryByText('EMCOR Group: Solid Business That Is Fully Valued'),
+      screen.queryByText(
+        "Fed Chair Jerome Powell's 6-Word Warning to Wall Street Still Holds True More Than 6 Months Later",
+      ),
     ).not.toBeInTheDocument()
     expect(
       screen.queryByText('High-Yield REITs I Would Trust For Retirement Income'),
     ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        "Software stocks are plunging. Why that's a warning sign for the entire market - Yahoo Finance",
+      ),
+    ).not.toBeInTheDocument()
   })
 
-  it('shows the empty-state copy when only irrelevant leftover market noise is available', () => {
+  it('shows the quiet-state copy when only generic or irrelevant market noise is available', () => {
     useNewsIntelligenceMock.mockReturnValue({
       data: {
         symbol: '__MARKET__',
@@ -202,12 +237,14 @@ describe('InvestingNewsPanel', () => {
             headline: "Rubrik's Growth Engines Are Working, But 18% Dilution Risk Weighs On The Upside",
             summary: 'Single-name analysis.',
             source: 'Seeking Alpha',
+            qualityPrediction: false,
             contentHash: 'article-rbrk',
           }),
           buildArticle({
             headline: 'Will AI start going rogue? The chorus of warnings is getting louder.',
             summary: 'Technology culture feature.',
             source: 'MarketWatch',
+            qualityPrediction: false,
             contentHash: 'article-ai',
           }),
         ],
@@ -218,14 +255,66 @@ describe('InvestingNewsPanel', () => {
 
     expect(
       screen.getByText(
-        'No relevant headlines yet. Refresh symbols or market data to repopulate this view.',
+        'Nothing decision-useful right now. Duplicated, generic, and non-portfolio headlines stay hidden on purpose.',
       ),
     ).toBeInTheDocument()
-    expect(screen.queryByText('Backdrop')).not.toBeInTheDocument()
+    expect(screen.queryByText('Market Context')).not.toBeInTheDocument()
     expect(
       screen.queryByText(
         "Rubrik's Growth Engines Are Working, But 18% Dilution Risk Weighs On The Upside",
       ),
+    ).not.toBeInTheDocument()
+  })
+
+  it('picks the best symbol article instead of only checking the first recent headline', () => {
+    render(
+      <InvestingNewsPanel
+        positions={[buildPosition({ symbol: 'AMZN' })]}
+        watchlistItems={[
+          buildWatchlistItem({
+            symbol: 'AMZN',
+            signalStrength: 60,
+            recentNews: {
+              articles: [
+                buildArticle({
+                  symbol: 'AMZN',
+                  headline: 'Amazon stock is one of 5 names to watch this week',
+                  summary: 'Generic commentary.',
+                  source: 'Seeking Alpha',
+                  qualityPrediction: false,
+                  qualityConfidence: 0.3,
+                  decisionValueScore: 0.0,
+                  decisionValueLabel: 'low',
+                  decisionValueReason:
+                    'Commentary-heavy source with weaker decision value.',
+                  contentHash: 'amzn-generic',
+                }),
+                buildArticle({
+                  symbol: 'AMZN',
+                  headline: 'Amazon expands same-day delivery footprint again',
+                  summary:
+                    'The company expanded same-day delivery coverage into more markets, a direct operating update for the held position.',
+                  source: 'Reuters',
+                  qualityPrediction: true,
+                  qualityConfidence: 0.84,
+                  decisionValueScore: 0.78,
+                  decisionValueLabel: 'high',
+                  decisionValueReason:
+                    'High-impact company event with direct fundamental implications.',
+                  contentHash: 'amzn-real',
+                }),
+              ],
+            },
+          }),
+        ]}
+      />,
+    )
+
+    expect(
+      screen.getByText('Amazon expands same-day delivery footprint again'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('Amazon stock is one of 5 names to watch this week'),
     ).not.toBeInTheDocument()
   })
 })

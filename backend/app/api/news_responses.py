@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from app.services.news_decision_support import assess_news_article
+
 
 class SentimentScoreResponse(BaseModel):
     """Serialized sentiment score metadata."""
@@ -43,6 +45,13 @@ class NewsArticleResponse(BaseModel):
     story_id: str | None = None
     is_primary_article: bool = False
     coverage_count: int = 1
+    event_category: str | None = None
+    market_context_topic: str | None = None
+    source_signal_tier: str | None = None
+    canonical_headline: str | None = None
+    decision_value_score: float | None = None
+    decision_value_label: str | None = None
+    decision_value_reason: str | None = None
 
 
 class NewsSummaryResponse(BaseModel):
@@ -93,6 +102,8 @@ def serialize_article(article: object) -> NewsArticleResponse:
         else ""
     )
 
+    assessment = assess_news_article(article)
+
     return NewsArticleResponse(
         symbol=article.symbol,
         headline=article.headline,
@@ -113,6 +124,13 @@ def serialize_article(article: object) -> NewsArticleResponse:
         story_id=getattr(article, "story_id", None),
         is_primary_article=getattr(article, "is_primary_article", False),
         coverage_count=getattr(article, "coverage_count", 1),
+        event_category=assessment.event_category,
+        market_context_topic=assessment.market_context_topic,
+        source_signal_tier=assessment.source_signal_tier,
+        canonical_headline=assessment.canonical_headline,
+        decision_value_score=assessment.decision_value_score,
+        decision_value_label=assessment.decision_value_label,
+        decision_value_reason=assessment.decision_value_reason,
     )
 
 

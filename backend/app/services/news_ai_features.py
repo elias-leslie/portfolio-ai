@@ -38,7 +38,7 @@ def _build_clusterer_articles(articles: list[NewsArticle]) -> list[Any]:
                 symbol=article.symbol,
                 headline=article.headline,
                 summary=article.summary,
-                vendor=article.vendor or "unknown",
+                vendor=article.source or article.vendor or "unknown",
                 published_at=article.published_at or article.fetched_at,
                 sentiment_score=article.sentiment.score,
                 is_material_event=article.is_material_event,

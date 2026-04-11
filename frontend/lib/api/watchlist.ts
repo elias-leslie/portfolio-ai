@@ -53,6 +53,7 @@ export interface SentimentScoreMeta {
 export interface SentimentArticle {
   symbol: string
   headline: string
+  articleHash?: string | null
   url?: string | null
   summary?: string | null
   source?: string | null
@@ -64,13 +65,26 @@ export interface SentimentArticle {
   sentiment: SentimentScoreMeta
   contentHash: string
   raw?: Record<string, unknown>
+  filingType?: string | null
+  isMaterialEvent?: boolean
   // AI-generated insights
   impactSummary?: string | null
   actionableInsight?: string | null
+  // ML quality prediction
+  qualityPrediction?: boolean | null
+  qualityConfidence?: number | null
   // Story clustering metadata
   storyId?: string | null
   isPrimaryArticle?: boolean
   coverageCount?: number
+  // Structured decision support
+  eventCategory?: string | null
+  marketContextTopic?: string | null
+  sourceSignalTier?: string | null
+  canonicalHeadline?: string | null
+  decisionValueScore?: number | null
+  decisionValueLabel?: 'high' | 'medium' | 'low' | null
+  decisionValueReason?: string | null
 }
 
 export interface RecentNewsPayload {
