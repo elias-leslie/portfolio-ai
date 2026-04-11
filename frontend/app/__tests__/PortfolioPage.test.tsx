@@ -368,4 +368,26 @@ describe('PortfolioPage', () => {
     expect(screen.getByRole('button', { name: 'Symbols' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Holdings' })).toBeInTheDocument()
   })
+
+  it('hides symbol filters and search until watchlist data finishes loading', async () => {
+    const user = userEvent.setup()
+    mockUseWatchlist.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+      isFetching: true,
+    })
+
+    const { default: PortfolioPage } = await import('../portfolio/page')
+
+    render(<PortfolioPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Symbols' }))
+
+    expect(screen.getByText('Watchlist Loading')).toBeInTheDocument()
+    expect(screen.queryByText('Filter Bar')).not.toBeInTheDocument()
+    expect(screen.queryByText('Search Bar')).not.toBeInTheDocument()
+    expect(screen.queryByText('Watchlist Empty State')).not.toBeInTheDocument()
+  })
 })

@@ -44,8 +44,8 @@ export default function PortfolioPage() {
     error: accountsError,
     refetch: refetchAccounts,
   } = useAccounts()
-  const { data: portfolio } = usePortfolio()
-  const { data: analytics } = usePortfolioAnalytics()
+  const { data: portfolio, isLoading: portfolioLoading } = usePortfolio()
+  const { data: analytics, isLoading: analyticsLoading } = usePortfolioAnalytics()
   const {
     data: watchlistData,
     isLoading: watchlistLoading,
@@ -138,26 +138,6 @@ export default function PortfolioPage() {
       badge: totalCount > 0 ? String(totalCount) : undefined,
       content: (
         <div className="space-y-4">
-          <WatchlistFilterBar
-            totalCount={totalCount}
-            signalFilter={signalFilter}
-            onSignalChange={setSignalFilter}
-            styleFilter={styleFilter}
-            onStyleChange={setStyleFilter}
-            riskFilter={riskFilter}
-            onRiskChange={setRiskFilter}
-            counts={counts}
-            hasActiveFilters={hasActiveFilters}
-            onReset={resetFilters}
-          />
-
-          <WatchlistSearchBar
-            value={searchQuery}
-            onChange={setSearchQuery}
-            resultCount={filteredItems.length}
-            totalCount={totalCount}
-          />
-
           {watchlistError ? (
             <WatchlistErrorView
               message={watchlistError.message}
@@ -170,36 +150,57 @@ export default function PortfolioPage() {
 
           {watchlistLoading ? <WatchlistLoadingSkeleton /> : null}
 
-          {!watchlistLoading && !watchlistError && totalCount === 0 ? (
-            <WatchlistEmptyState
-              title="No symbols yet"
-              detail="Add a symbol to start tracking setups, scores, and held names in one investing workspace."
-              primaryAction={{
-                label: 'Add Symbol',
-                onClick: () => setAddSymbolOpen(true),
-              }}
-            />
-          ) : null}
+          {!watchlistLoading && !watchlistError ? (
+            <>
+              <WatchlistFilterBar
+                totalCount={totalCount}
+                signalFilter={signalFilter}
+                onSignalChange={setSignalFilter}
+                styleFilter={styleFilter}
+                onStyleChange={setStyleFilter}
+                riskFilter={riskFilter}
+                onRiskChange={setRiskFilter}
+                counts={counts}
+                hasActiveFilters={hasActiveFilters}
+                onReset={resetFilters}
+              />
 
-          {!watchlistLoading &&
-          !watchlistError &&
-          totalCount > 0 &&
-          filteredItems.length === 0 ? (
-            <WatchlistEmptyState
-              title="No symbols match the current filters"
-              detail="Clear the search or reset the filters to bring your symbol list back into view."
-              primaryAction={{
-                label: 'Show all symbols',
-                onClick: resetFilters,
-              }}
-            />
-          ) : null}
+              <WatchlistSearchBar
+                value={searchQuery}
+                onChange={setSearchQuery}
+                resultCount={filteredItems.length}
+                totalCount={totalCount}
+              />
 
-          {!watchlistLoading && !watchlistError && filteredItems.length > 0 ? (
-            <WatchlistTable
-              items={filteredItems}
-              refreshStatus={refreshStatus}
-            />
+              {totalCount === 0 ? (
+                <WatchlistEmptyState
+                  title="No symbols yet"
+                  detail="Add a symbol to start tracking setups, scores, and held names in one investing workspace."
+                  primaryAction={{
+                    label: 'Add Symbol',
+                    onClick: () => setAddSymbolOpen(true),
+                  }}
+                />
+              ) : null}
+
+              {totalCount > 0 && filteredItems.length === 0 ? (
+                <WatchlistEmptyState
+                  title="No symbols match the current filters"
+                  detail="Clear the search or reset the filters to bring your symbol list back into view."
+                  primaryAction={{
+                    label: 'Show all symbols',
+                    onClick: resetFilters,
+                  }}
+                />
+              ) : null}
+
+              {filteredItems.length > 0 ? (
+                <WatchlistTable
+                  items={filteredItems}
+                  refreshStatus={refreshStatus}
+                />
+              ) : null}
+            </>
           ) : null}
         </div>
       ),
@@ -256,7 +257,8 @@ export default function PortfolioPage() {
       <InvestingOverviewPanel
         portfolio={portfolio}
         analytics={analytics}
-        accountsCount={accounts?.length ?? 0}
+        accountsCount={accounts ? accounts.length : null}
+        isCoreLoading={accountsLoading || portfolioLoading || analyticsLoading}
       />
 
       <WorkspaceTabs

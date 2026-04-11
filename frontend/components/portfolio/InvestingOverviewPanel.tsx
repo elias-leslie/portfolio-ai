@@ -106,18 +106,29 @@ export function InvestingOverviewPanel({
   portfolio,
   analytics,
   accountsCount,
+  isCoreLoading = false,
 }: {
   portfolio?: PortfolioResponse | null
   analytics?: PortfolioAnalytics | null
-  accountsCount: number
+  accountsCount: number | null
+  isCoreLoading?: boolean
 }) {
   const { data: market } = useMarketIntelligence()
   const { data: marketNews } = useNewsIntelligence(undefined, { limit: 24 })
   const [highlightedMetric] = useState(readHighlightedMetric)
 
+  const portfolioMetricsLoading = isCoreLoading && !portfolio
+  const analyticsLoading = isCoreLoading && !analytics
+  const accountsLoading = isCoreLoading && accountsCount == null
   const positionCount = portfolio?.positions.length ?? 0
   const totalGain = portfolio?.totalGain
-  const portfolioHealth = describePortfolioHealth(analytics)
+  const portfolioHealth = analyticsLoading
+    ? {
+        label: 'Loading…',
+        detail: 'Loading concentration and diversification.',
+        tone: 'default' as const,
+      }
+    : describePortfolioHealth(analytics)
   const marketMood = describeMarketMood(market?.fearGreed)
   const volatility = describeVolatility(market?.indicators.vix?.value)
   const tenYearRate = describeTenYearRate(market?.indicators.tnx?.value)
@@ -140,17 +151,31 @@ export function InvestingOverviewPanel({
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <OverviewStat
             label="Portfolio Value"
-            value={formatCurrencyWhole(portfolio?.totalValue)}
-            detail={`${positionCount} position${positionCount === 1 ? '' : 's'} across ${accountsCount} account${accountsCount === 1 ? '' : 's'}.`}
+            value={
+              portfolioMetricsLoading
+                ? 'Loading…'
+                : formatCurrencyWhole(portfolio?.totalValue)
+            }
+            detail={
+              portfolioMetricsLoading || accountsLoading
+                ? 'Loading holdings and account coverage.'
+                : `${positionCount} position${positionCount === 1 ? '' : 's'} across ${accountsCount ?? 0} account${accountsCount === 1 ? '' : 's'}.`
+            }
             featured
           />
           <OverviewStat
             label="Total Gain"
-            value={formatCurrencyWhole(totalGain)}
-            detail={formatPercent(portfolio?.totalGainPct, {
-              decimals: 2,
-              sign: true,
-            })}
+            value={
+              portfolioMetricsLoading ? 'Loading…' : formatCurrencyWhole(totalGain)
+            }
+            detail={
+              portfolioMetricsLoading
+                ? 'Loading portfolio performance.'
+                : formatPercent(portfolio?.totalGainPct, {
+                    decimals: 2,
+                    sign: true,
+                  })
+            }
             tone={totalGain == null ? 'default' : totalGain >= 0 ? 'gain' : 'loss'}
             featured
           />

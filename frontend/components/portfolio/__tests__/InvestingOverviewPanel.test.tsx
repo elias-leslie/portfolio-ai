@@ -179,4 +179,28 @@ describe('InvestingOverviewPanel', () => {
       'ring-primary/35',
     )
   })
+
+  it('shows loading copy instead of false zero-data facts while core portfolio data is still loading', () => {
+    render(
+      <InvestingOverviewPanel
+        portfolio={null}
+        analytics={null}
+        accountsCount={null}
+        isCoreLoading
+      />,
+    )
+
+    expect(screen.getAllByText('Loading…').length).toBeGreaterThanOrEqual(2)
+    expect(
+      screen.getByText('Loading holdings and account coverage.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Loading portfolio performance.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Loading concentration and diversification.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/0 positions across 0 accounts/i),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Awaiting data')).not.toBeInTheDocument()
+  })
 })
