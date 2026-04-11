@@ -27,13 +27,107 @@ type RelevantHeadline = {
 }
 
 type HeadlineGroup = {
-  id: 'held' | 'watching' | 'market'
+  id: 'held' | 'watching' | 'backdrop'
   title: string
   description: string
   items: RelevantHeadline[]
 }
 
 const MAX_HEADLINES_PER_GROUP = 5
+const BACKDROP_PATTERNS = [
+  /\bfed\b/i,
+  /\bpowell\b/i,
+  /\brates?\b/i,
+  /\btreasur(?:y|ies)\b/i,
+  /\byields?\b/i,
+  /\binflation\b/i,
+  /\bcpi\b/i,
+  /\bppi\b/i,
+  /\bpce\b/i,
+  /\bjobs?\b/i,
+  /\bpayrolls?\b/i,
+  /\bunemployment\b/i,
+  /\bgdp\b/i,
+  /\brecession\b/i,
+  /\beconom(?:y|ic)\b/i,
+  /\bconsumer spending\b/i,
+  /\bretail sales\b/i,
+  /\bhousing\b/i,
+  /\bwall street\b/i,
+  /\bstock market\b/i,
+  /\bmarket breadth\b/i,
+  /\brisk[- ]on\b/i,
+  /\brisk[- ]off\b/i,
+  /\bs&p(?:\s+500)?\b/i,
+  /\bnasdaq\b/i,
+  /\bdow\b/i,
+  /\brussell\b/i,
+  /\bvix\b/i,
+  /\boil\b/i,
+  /\bcrude\b/i,
+  /\bopec\b/i,
+  /\btariffs?\b/i,
+  /\btrade war\b/i,
+  /\bgeopolit(?:ic|ical)\b/i,
+  /\bcentral bank\b/i,
+  /\becb\b/i,
+  /\bbank of japan\b/i,
+  /\bboj\b/i,
+  /\bearnings season\b/i,
+]
+const NON_BACKDROP_PATTERNS = [
+  /\bstocks?\s+to\s+buy\b/i,
+  /\bshould\s+you\s+buy\b/i,
+  /\bbest\s+\w+\s+(?:stocks?|reits?|etfs?|funds?)\b/i,
+  /\bretirement income\b/i,
+  /\bhigh-yield\b/i,
+  /\bdividend\b/i,
+  /\bfully valued\b/i,
+  /\bworth investigating\b/i,
+  /\bdilution risk\b/i,
+  /\bi would trust\b/i,
+  /\bprice target\b/i,
+  /\btop pick\b/i,
+  /\bmy top\b/i,
+  /\bstrong buy\b/i,
+]
+
+function matchesAnyPattern(text: string, patterns: RegExp[]) {
+  return patterns.some((pattern) => pattern.test(text))
+}
+
+function articleContext(article: SentimentArticle) {
+  return [
+    article.headline,
+    article.summary,
+    article.impactSummary,
+    article.actionableInsight,
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
+function isBackdropHeadline(article: SentimentArticle) {
+  const context = articleContext(article)
+  if (!context) {
+    return false
+  }
+
+  if (matchesAnyPattern(context, NON_BACKDROP_PATTERNS)) {
+    return false
+  }
+
+  const headline = article.headline.trim()
+  const separatorIndex = headline.indexOf(':')
+  if (separatorIndex > 0) {
+    const prefix = headline.slice(0, separatorIndex)
+    if (!matchesAnyPattern(prefix, BACKDROP_PATTERNS)) {
+      return false
+    }
+  }
+
+  return matchesAnyPattern(context, BACKDROP_PATTERNS)
+}
 
 function toneForArticle(article: SentimentArticle | undefined): HeadlineTone {
   const label = article?.sentiment?.label?.toLowerCase()
@@ -121,7 +215,7 @@ function buildHeadlineGroups({
       href,
       external: Boolean(article.url),
       tone: toneForArticle(article),
-      badge: symbol ?? 'Market',
+      badge: symbol ?? groupLabel,
       symbol,
       publishedAt: article.publishedAt,
       source: article.source,
@@ -144,10 +238,12 @@ function buildHeadlineGroups({
       return toHeadline(entry.article, 'Watching', entry.symbol)
     })
 
-  const marketItems = (marketNews?.articles ?? [])
-    .filter((article) => !seen.has(article.headline))
+  const backdropItems = (marketNews?.articles ?? [])
+    .filter(
+      (article) => !seen.has(article.headline) && isBackdropHeadline(article),
+    )
     .slice(0, MAX_HEADLINES_PER_GROUP)
-    .map((article) => toHeadline(article, 'Market'))
+    .map((article) => toHeadline(article, 'Backdrop'))
 
   const groups: HeadlineGroup[] = [
     {
@@ -163,10 +259,11 @@ function buildHeadlineGroups({
       items: watchingItems,
     },
     {
-      id: 'market',
-      title: 'Market',
-      description: 'Broad headlines only when they change the backdrop.',
-      items: marketItems,
+      id: 'backdrop',
+      title: 'Backdrop',
+      description:
+        'Macro, policy, and risk headlines only when they can move many holdings at once.',
+      items: backdropItems,
     },
   ]
 
