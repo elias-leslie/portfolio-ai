@@ -13,7 +13,13 @@ from app.services._household_document_pipeline_utils import (
     parse_decimal,
     parse_row_date,
 )
-from app.services._household_finance_utils import to_float
+from app.services._household_finance_utils import (
+    normalize_priority,
+    normalize_question_direction,
+    normalize_question_format,
+    normalize_question_options,
+    to_float,
+)
 from app.services.household_finance_rows import FIELD_LABELS
 from app.storage.types import DatabaseConnection
 
@@ -191,15 +197,15 @@ def _build_question_candidate(
         id=str(uuid.uuid4()),
         field_name=str(question.get("field_name") or "").strip() or None,
         status="open",
-        priority=service._normalize_priority(question.get("priority")),
+        priority=normalize_priority(question.get("priority")),
         question=str(question.get("question") or "").strip(),
         rationale=str(question.get("rationale")) if question.get("rationale") is not None else None,
         recommendation=str(question.get("recommendation")) if question.get("recommendation") is not None else None,
         answer_text=None,
         source_document_id=document.id,
-        question_format=service._normalize_question_format(question.get("question_format")),
-        options=service._normalize_question_options(question.get("options")),
-        direction=service._normalize_question_direction(question.get("direction")),
+        question_format=normalize_question_format(question.get("question_format")),
+        options=normalize_question_options(question.get("options")),
+        direction=normalize_question_direction(question.get("direction")),
         metadata={
             "document_id": document.id,
             "recommendation": question.get("recommendation"),

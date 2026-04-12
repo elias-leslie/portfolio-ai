@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select'
 import type {
   HouseholdAccountSummary,
+  HouseholdDiscoveredAccount,
   HouseholdDocument,
   HouseholdTrackedAccountInput,
 } from '@/lib/api/household'
@@ -35,13 +36,14 @@ import { formatCurrencyWhole } from '@/lib/formatters'
 import { formatRelativeTime } from '@/lib/utils'
 import { EvidenceUploadComposer } from './EvidenceUploadComposer'
 
-type MoneyAccountsFocus = 'coverage' | null
+type MoneyAccountsFocus = 'coverage' | 'discovered' | null
 
 const freshnessTone = {
   fresh: 'border-gain/25 bg-gain/5 text-gain',
   aging: 'border-warning/25 bg-warning/5 text-warning',
   stale: 'border-loss/25 bg-loss/5 text-loss',
   needs_evidence: 'border-primary/25 bg-primary/5 text-primary',
+  not_applicable: 'border-border/40 bg-surface/70 text-text-muted',
 }
 
 const ASSET_GROUP_OPTIONS = [
@@ -91,6 +93,7 @@ interface TrackedAccountDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   account?: HouseholdAccountSummary | null
+  seed?: HouseholdTrackedAccountInput | null
 }
 
 function defaultAccountType(assetGroup: string) {
@@ -99,17 +102,23 @@ function defaultAccountType(assetGroup: string) {
 
 function buildInitialState(
   account?: HouseholdAccountSummary | null,
+  seed?: HouseholdTrackedAccountInput | null,
 ): HouseholdTrackedAccountInput {
-  const assetGroup = account?.assetGroup ?? 'cash'
+  const assetGroup = account?.assetGroup ?? seed?.assetGroup ?? 'cash'
   return {
-    label: account?.label ?? '',
+    label: account?.label ?? seed?.label ?? '',
     assetGroup,
-    accountType: account?.accountType ?? defaultAccountType(assetGroup),
-    sourceType: account?.sourceType ?? SOURCE_TYPE_BY_ASSET_GROUP[assetGroup] ?? 'other',
-    institutionName: account?.institutionName ?? '',
-    ownerName: account?.ownerName ?? '',
-    accountMask: account?.accountMask ?? '',
-    notes: account?.notes ?? '',
+    accountType:
+      account?.accountType ?? seed?.accountType ?? defaultAccountType(assetGroup),
+    sourceType:
+      account?.sourceType ??
+      seed?.sourceType ??
+      SOURCE_TYPE_BY_ASSET_GROUP[assetGroup] ??
+      'other',
+    institutionName: account?.institutionName ?? seed?.institutionName ?? '',
+    ownerName: account?.ownerName ?? seed?.ownerName ?? '',
+    accountMask: account?.accountMask ?? seed?.accountMask ?? '',
+    notes: account?.notes ?? seed?.notes ?? '',
   }
 }
 
@@ -117,18 +126,19 @@ function TrackedAccountDialog({
   open,
   onOpenChange,
   account = null,
+  seed = null,
 }: TrackedAccountDialogProps) {
   const createAccount = useCreateHouseholdTrackedAccount()
   const updateAccount = useUpdateHouseholdTrackedAccount()
   const [form, setForm] = useState<HouseholdTrackedAccountInput>(
-    buildInitialState(account),
+    buildInitialState(account, seed),
   )
 
   useEffect(() => {
     if (open) {
-      setForm(buildInitialState(account))
+      setForm(buildInitialState(account, seed))
     }
-  }, [account, open])
+  }, [account, open, seed])
 
   const accountTypeOptions = ACCOUNT_TYPE_OPTIONS[form.assetGroup] ?? ACCOUNT_TYPE_OPTIONS.other
   const canSubmit = form.label.trim().length > 0
@@ -162,7 +172,9 @@ function TrackedAccountDialog({
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit tracked account' : 'Add tracked account'}</DialogTitle>
           <DialogDescription>
-            Create a real account row first, then let Jenny attach evidence to it over time.
+            {seed && !isEditing
+              ? 'Jenny spotted this account from imported evidence. Confirm the row, then attach evidence over time.'
+              : 'Create a real account row first, then let Jenny attach evidence to it over time.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -293,26 +305,40 @@ function accountMetaLine(account: HouseholdAccountSummary) {
 }
 
 function accountSubline(account: HouseholdAccountSummary) {
+  const parts: string[] = []
   if (account.linkedPortfolioAccountName) {
-    return `Linked to ${account.linkedPortfolioAccountName}`
+    parts.push(`Linked to ${account.linkedPortfolioAccountName}`)
+  }
+  if (account.lastBalanceAt) {
+    parts.push(`Balance ${account.balanceFreshnessLabel.toLowerCase()}`)
+  }
+  if (account.moneyRole === 'spend_driver') {
+    parts.push(`Transactions ${account.transactionFreshnessLabel.toLowerCase()}`)
   }
   if (account.lastEvidenceAt) {
-    return `Last evidence ${formatRelativeTime(account.lastEvidenceAt)}`
+    parts.push(`Last evidence ${formatRelativeTime(account.lastEvidenceAt)}`)
   }
-  return 'No evidence linked yet'
+  return parts.length > 0 ? parts.join(' · ') : 'No evidence linked yet'
+}
+
+function moneyRoleLabel(role: string) {
+  return role === 'spend_driver' ? 'Spending account' : 'Net worth only'
 }
 
 export function MoneyAccountsPanel({
   accounts,
   documents,
+  discoveredAccounts = [],
   focus = null,
 }: {
   accounts: HouseholdAccountSummary[]
   documents: HouseholdDocument[]
+  discoveredAccounts?: HouseholdDiscoveredAccount[]
   focus?: MoneyAccountsFocus
 }) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingAccount, setEditingAccount] = useState<HouseholdAccountSummary | null>(null)
+  const [draftSeed, setDraftSeed] = useState<HouseholdTrackedAccountInput | null>(null)
   const [deletingAccount, setDeletingAccount] =
     useState<HouseholdAccountSummary | null>(null)
   const focusedAccountId =
@@ -351,6 +377,99 @@ export function MoneyAccountsPanel({
           needs proof.
         </div>
       ) : null}
+      {focus === 'discovered' ? (
+        <div className="rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-text">
+          Today sent you here because Jenny found account hints inside uploaded
+          evidence. Confirm real accounts first so missing balances and cash
+          moves stop distorting totals.
+        </div>
+      ) : null}
+
+      {discoveredAccounts.length > 0 ? (
+        <div
+          className={`rounded-3xl border bg-surface-muted/15 p-5 ${
+            focus === 'discovered'
+              ? 'border-primary/50 ring-1 ring-primary/30'
+              : 'border-border/40'
+          }`}
+        >
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-text">
+                Possible accounts Jenny found
+              </p>
+              <p className="mt-1 text-sm text-text-muted">
+                Soft-added from statements and transfers. Confirm only real
+                accounts you want included in money tracking.
+              </p>
+            </div>
+            <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
+              {discoveredAccounts.length} possible account
+              {discoveredAccounts.length === 1 ? '' : 's'}
+            </p>
+          </div>
+
+          <div className="mt-4 grid gap-3 xl:grid-cols-2">
+            {discoveredAccounts.map((account) => (
+              <div
+                key={account.key}
+                className="rounded-2xl border border-border/40 bg-surface/70 p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-text">
+                      {account.suggestedLabel}
+                    </p>
+                    <p className="mt-1 text-xs text-text-muted">
+                      {[account.assetGroup, account.accountType, account.institution]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-border/40 bg-surface px-2.5 py-1 text-xs text-text-muted">
+                    {Math.round(account.confidence * 100)}% match
+                  </span>
+                </div>
+                <p className="mt-3 text-sm text-text-muted">{account.detail}</p>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-muted">
+                  <span className="rounded-full border border-border/40 bg-surface px-2.5 py-1">
+                    Seen {account.occurrenceCount} time
+                    {account.occurrenceCount === 1 ? '' : 's'}
+                  </span>
+                  {account.partialAccount ? (
+                    <span className="rounded-full border border-border/40 bg-surface px-2.5 py-1">
+                      …{account.partialAccount}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-4">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditingAccount(null)
+                      setDraftSeed({
+                        label: account.suggestedLabel,
+                        assetGroup: account.assetGroup,
+                        accountType: account.accountType,
+                        sourceType: account.sourceType,
+                        institutionName: account.institution,
+                        accountMask: account.partialAccount ?? '',
+                        notes: account.sampleDescription ?? '',
+                      })
+                      setDialogOpen(true)
+                    }}
+                  >
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Create tracked row
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-3 rounded-3xl border border-border/40 bg-surface-muted/15 p-5 md:flex-row md:items-end md:justify-between">
         <div>
@@ -365,6 +484,7 @@ export function MoneyAccountsPanel({
           type="button"
           onClick={() => {
             setEditingAccount(null)
+            setDraftSeed(null)
             setDialogOpen(true)
           }}
         >
@@ -425,6 +545,26 @@ export function MoneyAccountsPanel({
                         >
                           {account.freshnessLabel}
                         </span>
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-xs ${
+                            freshnessTone[
+                              account.balanceFreshnessStatus as keyof typeof freshnessTone
+                            ] ?? freshnessTone.needs_evidence
+                          }`}
+                        >
+                          Balance {account.balanceFreshnessLabel}
+                        </span>
+                        {account.moneyRole === 'spend_driver' ? (
+                          <span
+                            className={`rounded-full border px-2.5 py-1 text-xs ${
+                              freshnessTone[
+                                account.transactionFreshnessStatus as keyof typeof freshnessTone
+                              ] ?? freshnessTone.needs_evidence
+                            }`}
+                          >
+                            Tx {account.transactionFreshnessLabel}
+                          </span>
+                        ) : null}
                         <span className="rounded-full border border-border/40 bg-surface/70 px-2.5 py-1 text-xs text-text-muted">
                           {account.evidenceCount} source
                           {account.evidenceCount === 1 ? '' : 's'}
@@ -454,13 +594,29 @@ export function MoneyAccountsPanel({
                   <AccordionContent className="pb-5">
                     <div className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
                       <div className="space-y-4">
-                        <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="grid gap-3 sm:grid-cols-4">
                           <div className="rounded-2xl border border-border/30 bg-surface-muted/20 p-4">
                             <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
-                              Freshness
+                              Balance
                             </p>
                             <p className="mt-2 text-sm font-semibold text-text">
-                              {account.freshnessLabel}
+                              {account.balanceFreshnessLabel}
+                            </p>
+                          </div>
+                          <div className="rounded-2xl border border-border/30 bg-surface-muted/20 p-4">
+                            <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
+                              Transactions
+                            </p>
+                            <p className="mt-2 text-sm font-semibold text-text">
+                              {account.transactionFreshnessLabel}
+                            </p>
+                          </div>
+                          <div className="rounded-2xl border border-border/30 bg-surface-muted/20 p-4">
+                            <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
+                              Money role
+                            </p>
+                            <p className="mt-2 text-sm font-semibold text-text">
+                              {moneyRoleLabel(account.moneyRole)}
                             </p>
                           </div>
                           <div className="rounded-2xl border border-border/30 bg-surface-muted/20 p-4">
@@ -477,12 +633,29 @@ export function MoneyAccountsPanel({
                                     : 'Evidence-backed'}
                             </p>
                           </div>
-                          <div className="rounded-2xl border border-border/30 bg-surface-muted/20 p-4">
-                            <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
-                              Documents
+                        </div>
+
+                        <div className="rounded-2xl border border-border/30 bg-surface-muted/20 p-4">
+                          <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
+                            Coverage
+                          </p>
+                          <div className="mt-3 space-y-2 text-sm text-text-muted">
+                            <p>
+                              Balance evidence:{' '}
+                              {account.lastBalanceAt
+                                ? formatRelativeTime(account.lastBalanceAt)
+                                : 'Missing'}
                             </p>
-                            <p className="mt-2 text-sm font-semibold text-text">
-                              {account.evidenceCount}
+                            <p>
+                              Transactions:{' '}
+                              {account.lastTransactionAt
+                                ? formatRelativeTime(account.lastTransactionAt)
+                                : account.moneyRole === 'spend_driver'
+                                  ? 'Missing'
+                                  : 'Not required'}
+                            </p>
+                            <p>
+                              Documents: {account.evidenceCount}
                             </p>
                           </div>
                         </div>
@@ -537,6 +710,7 @@ export function MoneyAccountsPanel({
                                   variant="outline"
                                   onClick={() => {
                                     setEditingAccount(account)
+                                    setDraftSeed(null)
                                     setDialogOpen(true)
                                   }}
                                 >
@@ -603,8 +777,15 @@ export function MoneyAccountsPanel({
 
       <TrackedAccountDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open)
+          if (!open) {
+            setEditingAccount(null)
+            setDraftSeed(null)
+          }
+        }}
         account={editingAccount}
+        seed={draftSeed}
       />
 
       <Dialog

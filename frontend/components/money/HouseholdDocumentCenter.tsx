@@ -4,6 +4,7 @@ import { SectionCard } from '@/components/shared/SectionCard'
 import type {
   HouseholdDocument,
   HouseholdDocumentRequirement,
+  HouseholdInboxItem,
   HouseholdTransactionDateIssue,
   ImportCenter,
 } from '@/lib/api/household'
@@ -15,25 +16,27 @@ export function HouseholdDocumentCenter({
   importCenter,
   documentRequirements = [],
   dateQualityIssues = [],
+  moneyInbox = [],
   focusedReview = false,
 }: {
   documents: HouseholdDocument[]
   importCenter?: ImportCenter
   documentRequirements?: HouseholdDocumentRequirement[]
   dateQualityIssues?: HouseholdTransactionDateIssue[]
+  moneyInbox?: HouseholdInboxItem[]
   focusedReview?: boolean
 }) {
   return (
     <SectionCard
       variant="surface"
       title="Evidence Intake"
-      description="Add anything once. Jenny should determine what it is, what matters, and whether it belongs in cash-flow, portfolio, planning, or reference context."
+      description="Add money evidence once. Jenny should determine what it is, which account it affects, and whether it updates balances, transactions, recurring spend, or price tracking."
     >
       <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
         <div id="add-evidence-upload">
           <EvidenceUploadComposer
             title="Add anything"
-            description="Statements, screenshots, exports, payroll docs, bills, and receipts all go through the same intake path."
+            description="Statements, screenshots, exports, copied account text, payroll docs, bills, and receipts all go through the same intake path."
           />
         </div>
 
@@ -42,6 +45,7 @@ export function HouseholdDocumentCenter({
           importCenter={importCenter}
           documentRequirements={documentRequirements}
           dateQualityIssues={dateQualityIssues}
+          moneyInbox={moneyInbox}
           focusedReview={focusedReview}
         />
       </div>

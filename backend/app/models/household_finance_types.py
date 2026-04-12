@@ -23,6 +23,10 @@ class HouseholdOverview(BaseModel):
     visibility_score: int
     visibility_label: str
     next_best_action: str
+    net_worth_status: str = "current"
+    net_worth_detail: str = "Net worth reflects current covered accounts."
+    monthly_spend_status: str = "current"
+    monthly_spend_detail: str = "Monthly spend reflects current covered transaction accounts."
 
 
 class HouseholdResolvedValue(BaseModel):
@@ -97,6 +101,28 @@ class HouseholdMerchantInsight(BaseModel):
     recommendation: str
 
 
+class HouseholdPriceInsight(BaseModel):
+    merchant: str
+    item_name: str
+    signal_type: str = "price_change"
+    latest_price: float
+    previous_price: float
+    price_change: float
+    price_change_pct: float | None = None
+    latest_date: str
+    previous_date: str
+    latest_unit_label: str | None = None
+    previous_unit_label: str | None = None
+    unit_measure: str | None = None
+    latest_unit_price: float | None = None
+    previous_unit_price: float | None = None
+    unit_price_change_pct: float | None = None
+    size_change_pct: float | None = None
+    shrinkflation_flag: bool = False
+    confidence: float = 0.0
+    recommendation: str
+
+
 class HouseholdMonthlyTrendPoint(BaseModel):
     month: str
     total_spend: float
@@ -118,6 +144,7 @@ class HouseholdReports(BaseModel):
     executive: HouseholdExecutiveReport
     category_breakdown: list[HouseholdCategoryBreakdown] = Field(default_factory=list)
     merchant_highlights: list[HouseholdMerchantInsight] = Field(default_factory=list)
+    price_insights: list[HouseholdPriceInsight] = Field(default_factory=list)
     monthly_spend_trend: list[HouseholdMonthlyTrendPoint] = Field(default_factory=list)
     recent_transactions: list[HouseholdRecentTransaction] = Field(default_factory=list)
 
@@ -301,8 +328,17 @@ class HouseholdAccountSummary(BaseModel):
     linked_portfolio_account_name: str | None = None
     tracked_account_id: str | None = None
     account_origin: str = "evidence"
+    money_role: str = "net_worth_only"
     last_evidence_at: str | None = None
     days_since_evidence: int | None = None
+    last_balance_at: str | None = None
+    days_since_balance: int | None = None
+    balance_freshness_status: str = "needs_evidence"
+    balance_freshness_label: str = "Needs evidence"
+    last_transaction_at: str | None = None
+    days_since_transaction: int | None = None
+    transaction_freshness_status: str = "needs_evidence"
+    transaction_freshness_label: str = "Needs evidence"
     freshness_status: str
     freshness_label: str
     match_status: str
@@ -321,6 +357,20 @@ class HouseholdInboxItem(BaseModel):
     related_account_id: str | None = None
     related_question_id: str | None = None
     related_document_ids: list[str] = Field(default_factory=list)
+
+
+class HouseholdDiscoveredAccount(BaseModel):
+    key: str
+    institution: str
+    partial_account: str | None = None
+    suggested_label: str
+    asset_group: str
+    account_type: str
+    source_type: str
+    confidence: float = 0.0
+    occurrence_count: int = 1
+    sample_description: str | None = None
+    detail: str
 
 
 class HouseholdDocument(BaseModel):

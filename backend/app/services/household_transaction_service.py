@@ -6,10 +6,12 @@ import hashlib
 import json
 import re
 import uuid
+from csv import reader as csv_reader
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 from itertools import pairwise
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -22,6 +24,7 @@ from app.services._household_report_builder import (
     _merchant_root,
     build_household_reports,
 )
+from app.services._household_spend_filters import is_budget_driving_expense
 from app.storage import get_storage
 
 logger = get_logger(__name__)
@@ -46,12 +49,13 @@ WEEKLY_INTERVAL_MAX = 10
 BIWEEKLY_INTERVAL_MAX = 20
 MONTHLY_INTERVAL_MAX = 45
 
-# Minimum observed dates needed before inferring a billing cadence
-MIN_DATES_FOR_CADENCE = 3
+# Minimum observed dates needed before inferring a provisional billing cadence
+MIN_DATES_FOR_CADENCE = 2
 
 # Cadence confidence based on sample size
-CADENCE_CONFIDENCE_MINIMAL = 0.72  # exactly MIN_DATES_FOR_CADENCE observations
-CADENCE_CONFIDENCE_STANDARD = 0.82  # more than MIN_DATES_FOR_CADENCE observations
+CADENCE_CONFIDENCE_EARLY = 0.62  # exactly 2 observations
+CADENCE_CONFIDENCE_MINIMAL = 0.72  # exactly 3 observations
+CADENCE_CONFIDENCE_STANDARD = 0.82  # more than 3 observations
 
 
 # ---------------------------------------------------------------------------
@@ -88,11 +92,18 @@ def _classify_statement_flow(description: str) -> str:
 
 def _classify_wells_flow(description: str) -> str:
     normalized = description.lower()
-    if "payroll" in normalized or "deposit" in normalized:
+    if "payroll" in normalized or "deposit" in normalized or "ui benefit" in normalized:
         return "income"
-    if "transfer from" in normalized:
+    if "transfer from" in normalized or "zelle from" in normalized:
         return "transfer_in"
-    if "transfer to" in normalized or "zelle to" in normalized:
+    if (
+        "transfer to" in normalized
+        or "zelle to" in normalized
+        or "credit crd epay" in normalized
+        or "inst xfer" in normalized
+        or "moneyline" in normalized
+        or "atm withdrawal" in normalized
+    ):
         return "transfer_out"
     return "expense"
 
@@ -100,6 +111,10 @@ def _classify_wells_flow(description: str) -> str:
 def _classify_merchant(*, raw_merchant: str, description: str, amount: float | None = None) -> tuple[str, str]:
     normalized = _merchant_root(f"{raw_merchant} {description}")
     rules = [
+        (["payroll", "ui benefit"], ("Income", "essential")),
+        (["zelle from", "transfer from"], ("Transfers", "mixed")),
+        (["credit crd epay", "payment thank you", "inst xfer", "online transfer", "recurring transfer", "moneyline", "zelle to"], ("Transfers", "mixed")),
+        (["atm withdrawal"], ("Cash", "mixed")),
         (["walmart", "wal mart", "wm supercenter", "publix", "whole foods", "food patch", "aldi", "kroger", "costco", "trader joe"], ("Groceries", "essential")),
         (["dukeenergy", "duke energy", "utilities", "mortgage", "comcast", "xfinity", "att", "a t t", "verizon", "tmobile", "t mobile", "spectrum"], ("Bills", "essential")),
         (["geico", "statefarm", "state farm", "progressive", "allstate", "insurance"], ("Insurance", "essential")),
@@ -111,8 +126,6 @@ def _classify_merchant(*, raw_merchant: str, description: str, amount: float | N
         (["spotify", "cloudflare", "prime", "netflix", "hulu", "disney", "hbo", "apple music", "youtube"], ("Subscriptions", "discretionary")),
         (["target", "tjmaxx", "american eagle", "sephora", "amazon"], ("Retail", "discretionary")),
         (["chipotle", "bonefish", "cantina", "mcdonald", "starbucks", "dunkin", "chick fil", "wendy", "taco bell", "subway", "pizza", "grubhub", "doordash", "ubereats"], ("Dining", "discretionary")),
-        (["payroll"], ("Income", "essential")),
-        (["transfer", "payment thank you", "payment"], ("Transfers", "mixed")),
     ]
     for keywords, classification in rules:
         if any(keyword in normalized for keyword in keywords):
@@ -169,6 +182,20 @@ def _parse_decimal(raw_value: str) -> Decimal | None:
         return None
 
 
+def _normalize_csv_header(raw_value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "_", raw_value.strip().lower())
+    return normalized.strip("_")
+
+
+def _looks_like_mask_only(value: str | None) -> bool:
+    if not value:
+        return False
+    cleaned = re.sub(r"[^A-Za-z0-9]+", "", value.strip())
+    if len(cleaned) < 4:
+        return False
+    return " " not in value.strip() and any(char.isdigit() for char in cleaned)
+
+
 # ---------------------------------------------------------------------------
 # Data model
 # ---------------------------------------------------------------------------
@@ -215,14 +242,21 @@ class HouseholdTransactionService:
         if not isinstance(structured_data, dict):
             structured_data = {}
 
+        stored_path = self._document_stored_path(document)
+        effective_account_label = self._resolved_account_label(
+            document_label=getattr(document, "account_label", None),
+            structured_data=structured_data,
+        )
+
         transactions = self._extract_transactions(
             filename=document.filename,
             source_type=str(reviewed.get("source_type") or document.source_type),
             document_type=str(reviewed.get("document_type") or document.document_type),
             extracted_text=extracted_text,
             structured_data=structured_data,
-            account_label=document.account_label,
+            account_label=effective_account_label,
             review_summary=str(reviewed.get("summary") or ""),
+            stored_path=stored_path,
         )
         if not transactions:
             return {"inserted": 0, "updated": 0}
@@ -401,7 +435,7 @@ class HouseholdTransactionService:
                     ORDER BY created_at DESC
                     LIMIT 1
                 ) r ON TRUE
-                WHERE d.source_type IN ('bank', 'credit_card', 'receipt')
+                WHERE d.source_type IN ('bank', 'credit_card', 'brokerage', 'receipt')
                   AND NOT EXISTS (
                       SELECT 1
                       FROM household_transactions t
@@ -467,7 +501,8 @@ class HouseholdTransactionService:
                     COALESCE(description, merchant, 'Imported order') AS description,
                     amount,
                     dataset_type,
-                    document_id
+                    document_id,
+                    row_metadata
                 FROM household_import_rows
                 WHERE amount IS NOT NULL
                 ORDER BY row_date DESC NULLS LAST
@@ -484,6 +519,13 @@ class HouseholdTransactionService:
             except (TypeError, ValueError):
                 amount = None
             if amount is None:
+                continue
+            if not is_budget_driving_expense(
+                flow_type="expense",
+                category=str(row[4] or ""),
+                description=str(row[1]),
+                merchant=str(row[8] or row[2] or row[1]),
+            ):
                 continue
             report_rows.append(
                 {
@@ -523,6 +565,7 @@ class HouseholdTransactionService:
                 "document_type": "import",
                 "source_type": str(row[4] or "import"),
                 "source_kind": "import",
+                "metadata": row[6] if len(row) > 6 else None,
             }
             report_rows.append(candidate_row)
 
@@ -584,13 +627,26 @@ class HouseholdTransactionService:
         structured_data: dict[str, Any],
         account_label: str | None,
         review_summary: str,
+        stored_path: Path | None,
     ) -> list[ExtractedTransaction]:
-        if not extracted_text and source_type != "receipt":
+        if not extracted_text and stored_path is None and source_type != "receipt":
             return []
 
         transactions: list[ExtractedTransaction] = []
         if filename.lower().endswith((".ofx", ".qfx")) or "<stmttrn>" in extracted_text.lower():
             transactions.extend(self._parse_ofx_transactions(extracted_text, account_label, source_type))
+        elif (
+            stored_path is not None
+            and stored_path.suffix.lower() == ".csv"
+            and source_type in {"bank", "credit_card", "brokerage"}
+        ):
+            transactions.extend(
+                self._parse_statement_csv(
+                    stored_path=stored_path,
+                    source_type=source_type,
+                    account_label=account_label,
+                )
+            )
         elif source_type == "credit_card" and document_type == "statement":
             transactions.extend(self._parse_chase_statement(extracted_text, account_label))
         elif source_type == "bank" and document_type == "statement":
@@ -628,6 +684,276 @@ class HouseholdTransactionService:
                     )
                 )
 
+        return transactions
+
+    @staticmethod
+    def _document_stored_path(document: Any) -> Path | None:
+        metadata = getattr(document, "metadata", None)
+        if not isinstance(metadata, dict):
+            return None
+        stored_path = metadata.get("stored_path")
+        if not isinstance(stored_path, str) or not stored_path:
+            return None
+        path = Path(stored_path)
+        return path if path.exists() else None
+
+    @staticmethod
+    def _resolved_account_label(
+        *,
+        document_label: str | None,
+        structured_data: dict[str, Any],
+    ) -> str | None:
+        hint = str(structured_data.get("account_hint") or "").strip() or None
+        mask = str(structured_data.get("account_mask") or "").strip() or None
+        if hint and (_looks_like_mask_only(document_label) or document_label == mask):
+            return hint
+        return document_label or hint or None
+
+    @staticmethod
+    def _pick_csv_column(
+        row: dict[str, str],
+        *,
+        exact: tuple[str, ...] = (),
+        contains: tuple[str, ...] = (),
+        exclude: tuple[str, ...] = (),
+    ) -> str | None:
+        for key in row:
+            if key in exact:
+                return key
+        for key in row:
+            if contains and not all(token in key for token in contains):
+                continue
+            if any(token in key for token in exclude):
+                continue
+            return key
+        return None
+
+    @classmethod
+    def _looks_like_statement_csv(cls, row: dict[str, str]) -> bool:
+        date_key = cls._pick_csv_column(
+            row,
+            exact=(
+                "date",
+                "transaction_date",
+                "run_date",
+                "activity_date",
+                "trade_date",
+                "posted_date",
+            ),
+            contains=("date",),
+            exclude=("settlement", "download"),
+        )
+        amount_key = cls._pick_csv_column(
+            row,
+            exact=("amount", "transaction_amount", "net_amount"),
+            contains=("amount",),
+            exclude=("subtotal", "price", "fee", "commission", "interest"),
+        )
+        description_key = cls._pick_csv_column(
+            row,
+            exact=("action", "description", "merchant", "memo", "payee", "name"),
+            contains=("description",),
+        )
+        return date_key is not None and amount_key is not None and description_key is not None
+
+    @classmethod
+    def _extract_csv_signed_amount(cls, row: dict[str, str]) -> Decimal | None:
+        amount_key = cls._pick_csv_column(
+            row,
+            exact=("amount", "transaction_amount", "net_amount"),
+            contains=("amount",),
+            exclude=("subtotal", "price", "fee", "commission", "interest", "balance"),
+        )
+        if amount_key is not None:
+            amount = _parse_decimal(row.get(amount_key, ""))
+            if amount is not None:
+                return amount
+
+        debit_key = cls._pick_csv_column(
+            row,
+            exact=("debit", "withdrawal", "outflow"),
+            contains=("debit",),
+            exclude=("card",),
+        )
+        credit_key = cls._pick_csv_column(
+            row,
+            exact=("credit", "deposit", "inflow"),
+            contains=("credit",),
+        )
+        debit = _parse_decimal(row.get(debit_key, "")) if debit_key is not None else None
+        credit = _parse_decimal(row.get(credit_key, "")) if credit_key is not None else None
+        if debit is not None and debit != 0:
+            return -abs(debit)
+        if credit is not None and credit != 0:
+            return abs(credit)
+        return None
+
+    @classmethod
+    def _extract_csv_transaction_date(cls, row: dict[str, str]) -> date | None:
+        date_key = cls._pick_csv_column(
+            row,
+            exact=(
+                "date",
+                "transaction_date",
+                "run_date",
+                "activity_date",
+                "trade_date",
+                "posted_date",
+            ),
+            contains=("date",),
+            exclude=("settlement", "download"),
+        )
+        if date_key is None:
+            return None
+        return _parse_date_value(row.get(date_key, ""))
+
+    @classmethod
+    def _extract_csv_posted_date(cls, row: dict[str, str]) -> date | None:
+        posted_key = cls._pick_csv_column(
+            row,
+            exact=("settlement_date", "posted_date", "posting_date"),
+            contains=("settlement",),
+        )
+        if posted_key is None:
+            return None
+        return _parse_date_value(row.get(posted_key, ""))
+
+    @staticmethod
+    def _compose_csv_description(row: dict[str, str]) -> str:
+        values: list[str] = []
+        seen: set[str] = set()
+        for key in ("action", "description", "merchant", "payee", "name", "memo", "symbol", "type"):
+            raw = row.get(key, "").strip()
+            if not raw:
+                continue
+            normalized = raw.lower()
+            if normalized in {"no description", "n/a", "na"}:
+                continue
+            if key == "type" and normalized in {"cash", "checking", "savings", "debit", "credit"}:
+                continue
+            dedupe_key = re.sub(r"\s+", " ", normalized)
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            values.append(raw)
+        return " | ".join(values) if values else "CSV transaction"
+
+    @staticmethod
+    def _classify_statement_csv_flow(
+        *,
+        description: str,
+        source_type: str,
+        signed_amount: Decimal,
+        category: str,
+        essentiality: str,
+    ) -> tuple[str, str, str]:
+        normalized = description.lower()
+        compact = re.sub(r"[^a-z0-9]+", "", normalized)
+        is_positive = signed_amount > 0
+        transfer_category = ("Transfers", "mixed")
+        resolved_flow: str | None = None
+        resolved_category = category
+        resolved_essentiality = essentiality
+
+        income_tokens = ("dividend", "interest paid", "interest received", "interest credit")
+        transfer_tokens = ("funds transfer", "transfer received", "zelle", "online transfer")
+        compact_transfer_tokens = ("epay", "cepay", "instxfer", "moneyline")
+
+        if source_type == "credit_card":
+            resolved_flow = "expense" if signed_amount < 0 else "payment"
+        elif any(token in normalized for token in income_tokens):
+            resolved_flow = "income"
+        elif any(token in normalized for token in ("reinvestment", "reinvest", "sweep into")):
+            resolved_flow = "investment"
+        elif "payment thank you" in normalized:
+            resolved_flow = "payment"
+        elif any(token in normalized for token in transfer_tokens) or any(token in compact for token in compact_transfer_tokens) or category.lower() == "transfers":
+            resolved_flow = "transfer_in" if is_positive else "transfer_out"
+
+        if resolved_flow in {"payment", "transfer_in", "transfer_out", "investment"}:
+            resolved_category, resolved_essentiality = transfer_category
+        elif resolved_flow == "income":
+            resolved_category, resolved_essentiality = "Income", "essential"
+        elif resolved_flow is None:
+            if signed_amount < 0:
+                resolved_flow = "expense"
+            else:
+                resolved_flow = "income"
+                resolved_category, resolved_essentiality = "Income", "essential"
+
+        return resolved_flow, resolved_category, resolved_essentiality
+
+    def _parse_statement_csv(
+        self,
+        *,
+        stored_path: Path,
+        source_type: str,
+        account_label: str | None,
+    ) -> list[ExtractedTransaction]:
+        try:
+            with stored_path.open("r", encoding="utf-8-sig", errors="ignore", newline="") as handle:
+                raw_reader = csv_reader(handle)
+                headers: list[str] | None = None
+                rows = []
+                for raw_values in raw_reader:
+                    if not any((value or "").strip() for value in raw_values):
+                        continue
+                    if headers is None:
+                        headers = [str(value or "").strip() for value in raw_values]
+                        continue
+                    normalized_row = {
+                        _normalize_csv_header(header): (
+                            raw_values[index].strip() if index < len(raw_values) and raw_values[index] is not None else ""
+                        )
+                        for index, header in enumerate(headers)
+                        if header
+                    }
+                    if any(value for value in normalized_row.values()):
+                        rows.append(normalized_row)
+        except OSError:
+            return []
+
+        if not rows or not self._looks_like_statement_csv(rows[0]):
+            return []
+
+        transactions: list[ExtractedTransaction] = []
+        for row in rows:
+            transaction_date = self._extract_csv_transaction_date(row)
+            signed_amount = self._extract_csv_signed_amount(row)
+            if transaction_date is None or signed_amount is None or signed_amount == 0:
+                continue
+
+            description = self._compose_csv_description(row)
+            category, essentiality = _classify_merchant(
+                raw_merchant=description,
+                description=description,
+                amount=float(abs(signed_amount)),
+            )
+            flow_type, category, essentiality = self._classify_statement_csv_flow(
+                description=description,
+                source_type=source_type,
+                signed_amount=signed_amount,
+                category=category,
+                essentiality=essentiality,
+            )
+            transactions.append(
+                ExtractedTransaction(
+                    transaction_date=transaction_date,
+                    posted_date=self._extract_csv_posted_date(row),
+                    description=description,
+                    raw_merchant=description,
+                    amount=abs(signed_amount),
+                    flow_type=flow_type,
+                    category=category,
+                    essentiality=essentiality,
+                    confidence=0.84,
+                    account_label=account_label,
+                    metadata={
+                        "source": "statement_csv",
+                        "balance_after": row.get("cash_balance") or row.get("balance"),
+                    },
+                )
+            )
         return transactions
 
     def _parse_ofx_transactions(
@@ -702,16 +1028,22 @@ class HouseholdTransactionService:
 
         rows: list[ExtractedTransaction] = []
         in_activity = False
+        activity_header = "Date of Transaction Merchant Name or Transaction Description"
+        previous_normalized_line = ""
         for raw_line in extracted_text.splitlines():
             line = raw_line.strip()
             if not line:
                 continue
-            if "Date of Transaction Merchant Name or Transaction Description" in line:
+            normalized_line = re.sub(r"\s+", " ", line)
+            header_window = f"{previous_normalized_line} {normalized_line}".strip()
+            if activity_header in normalized_line or activity_header in header_window:
                 in_activity = True
+                previous_normalized_line = normalized_line
                 continue
             if not in_activity:
+                previous_normalized_line = normalized_line
                 continue
-            if line.startswith("Fees Charged") or line.startswith("Interest Charged"):
+            if normalized_line.startswith("Fees Charged") or normalized_line.startswith("Interest Charged"):
                 break
 
             match = re.match(
@@ -719,6 +1051,7 @@ class HouseholdTransactionService:
                 line,
             )
             if not match:
+                previous_normalized_line = normalized_line
                 continue
 
             transaction_date = _statement_transaction_date(
@@ -726,11 +1059,13 @@ class HouseholdTransactionService:
                 statement_date=statement_date,
             )
             if transaction_date is None:
+                previous_normalized_line = normalized_line
                 continue
 
             description = match.group("desc").strip()
             amount = _parse_decimal(match.group("amount"))
             if amount is None:
+                previous_normalized_line = normalized_line
                 continue
             flow_type = _classify_statement_flow(description)
             if flow_type != "expense":
@@ -750,6 +1085,7 @@ class HouseholdTransactionService:
                     metadata={"source": "statement_activity"},
                 )
             )
+            previous_normalized_line = normalized_line
         return rows
 
     def _parse_wells_fargo_statement(
@@ -931,7 +1267,7 @@ class HouseholdTransactionService:
             for earlier, later in pairwise(ordered_dates)
             if (later - earlier).days > 0
         ]
-        if len(intervals) < 2:
+        if len(intervals) < 1:
             return None
 
         median_interval = sorted(intervals)[len(intervals) // 2]
@@ -944,7 +1280,12 @@ class HouseholdTransactionService:
         else:
             label = "less frequent"
 
-        confidence = CADENCE_CONFIDENCE_MINIMAL if len(ordered_dates) == MIN_DATES_FOR_CADENCE else CADENCE_CONFIDENCE_STANDARD
+        if len(ordered_dates) == 2:
+            confidence = CADENCE_CONFIDENCE_EARLY
+        elif len(ordered_dates) == 3:
+            confidence = CADENCE_CONFIDENCE_MINIMAL
+        else:
+            confidence = CADENCE_CONFIDENCE_STANDARD
         return {
             "label": label,
             "confidence": confidence,
@@ -955,10 +1296,20 @@ class HouseholdTransactionService:
         }
 
     def _merchant_recommendation(self, *, merchant: str, category: str, cadence: str) -> str:
-        if category == "Groceries" and cadence in {"likely weekly", "likely bi-weekly"}:
-            return f"Use {merchant} as a budget anchor and compare it against Publix, Whole Foods, and Amazon for recurring essentials."
-        if category == "Subscriptions":
-            return f"Audit {merchant} for downgrade or cancellation opportunities."
-        if category == "Retail":
-            return f"Treat {merchant} as a discretionary merchant until Jenny proves it is mostly essentials."
-        return f"Keep tracking {merchant} so Jenny can tighten category and card-optimization guidance."
+        merchant_key = _merchant_root(merchant)
+        recommendation = "Keep tracking {merchant} so Jenny can tighten category and card-optimization guidance."
+        if merchant_key == "amazon":
+            recommendation = "Track repeat Amazon items against Walmart, Target, and Subscribe & Save so Jenny can flag cheaper substitutions."
+        elif merchant_key.startswith("walmart"):
+            recommendation = "Use Walmart basket history as a price anchor and compare it against Amazon, Aldi, Publix, and warehouse-club equivalents."
+        elif category == "Groceries" and cadence in {"likely weekly", "likely bi-weekly"}:
+            recommendation = f"Use {merchant} as a budget anchor and compare it against Publix, Whole Foods, and Amazon for recurring essentials."
+        elif category == "Subscriptions":
+            recommendation = f"Audit {merchant} for downgrade or cancellation opportunities."
+        elif category == "Bills" and cadence in {"likely monthly", "less frequent"}:
+            recommendation = f"Watch {merchant} for month-over-month bill creep and renegotiation opportunities."
+        elif category == "Retail":
+            recommendation = f"Treat {merchant} as a discretionary merchant until Jenny proves it is mostly essentials."
+        else:
+            recommendation = recommendation.format(merchant=merchant)
+        return recommendation

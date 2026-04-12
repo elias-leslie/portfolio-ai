@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 from agent_hub.models.content import ImageContent
@@ -62,10 +63,11 @@ def test_baseline_review_detects_walmart_order_details() -> None:
         document_type="other",
         extracted_text="Order details - Walmart.com\nFresh Whole Brussels Sprouts\nOrder total $83.21",
     )
+    structured_data = cast(dict[str, Any], payload["structured_data"])
 
     assert payload["document_type"] == "receipt"
     assert payload["source_type"] == "receipt"
-    assert payload["structured_data"]["merchant"] == "Walmart"
+    assert structured_data["merchant"] == "Walmart"
 
 
 def test_baseline_review_detects_amazon_order_history_csv() -> None:
@@ -75,10 +77,11 @@ def test_baseline_review_detects_amazon_order_history_csv() -> None:
         document_type="other",
         extracted_text="Order Date,Order ID,Payment Instrument Type,Website\n2026-03-01,123-1234567-1234567,VISA,Amazon.com",
     )
+    structured_data = cast(dict[str, Any], payload["structured_data"])
 
     assert payload["document_type"] == "receipt"
     assert payload["source_type"] == "receipt"
-    assert payload["structured_data"]["merchant"] == "Amazon"
+    assert structured_data["merchant"] == "Amazon"
 
 
 def test_extract_csv_text_preserves_amazon_price_columns(tmp_path: Path) -> None:
@@ -138,6 +141,35 @@ def test_extract_pdf_text_uses_ocr_fallback_for_low_signal_pages(
     assert "Order total $83.21" in extracted
 
 
+@patch(f"{_TEXT_MODULE}.PdfReader")
+def test_extract_pdf_text_keeps_later_statement_pages(
+    mock_pdf_reader: MagicMock,
+    tmp_path: Path,
+) -> None:
+    from app.services._household_document_text import _extract_pdf_text
+
+    pdf_path = tmp_path / "statement.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+
+    pages = []
+    for index in range(6):
+        page = MagicMock()
+        page.extract_text.return_value = f"Page {index + 1} summary\n"
+        pages.append(page)
+    pages[4].extract_text.return_value = (
+        "Page 5 transactions\n"
+        "Date of Transaction Merchant  Name or Transaction Description $ Amount\n"
+        "04/10 Amazon.com 10.77\n"
+    )
+    mock_pdf_reader.return_value.pages = pages
+
+    extracted = _extract_pdf_text(pdf_path)
+
+    assert extracted is not None
+    assert "Page 5 transactions" in extracted
+    assert "04/10 Amazon.com 10.77" in extracted
+
+
 @patch(f"{_TEXT_MODULE}._extract_image_text")
 def test_extract_text_uses_image_ocr(image_ocr: MagicMock, tmp_path: Path) -> None:
     image_ocr.return_value = "Walmart 23.41 VISA"
@@ -157,10 +189,31 @@ def test_baseline_review_detects_wells_fargo_checking_statement() -> None:
         document_type="other",
         extracted_text="Wells Fargo Everyday Checking\nFebruary 27, 2026 Page 1 of 5",
     )
+    structured_data = cast(dict[str, Any], payload["structured_data"])
 
     assert payload["document_type"] == "statement"
     assert payload["source_type"] == "bank"
-    assert payload["structured_data"]["account_hint"] == "Wells Fargo Everyday Checking"
+    assert structured_data["account_hint"] == "Wells Fargo Everyday Checking"
+
+
+def test_baseline_review_keeps_chase_statement_when_walmart_merchant_appears() -> None:
+    payload = _baseline_review(
+        filename="20260311-statements-9728-.pdf",
+        source_type="other",
+        document_type="other",
+        extracted_text=(
+            "AUTOPAY IS ON\n"
+            "www.chase.com/amazon\n"
+            "Date of\n"
+            "Transaction Merchant  Name or Transaction Description $ Amount\n"
+            "02/22     WAL-MART #1712 LARGO FL -83.31\n"
+        ),
+    )
+    structured_data = cast(dict[str, Any], payload["structured_data"])
+
+    assert payload["document_type"] == "statement"
+    assert payload["source_type"] == "credit_card"
+    assert structured_data["account_hint"] == "Chase Amazon card"
 
 
 def test_baseline_review_detects_529_college_fund_snapshot() -> None:
@@ -176,11 +229,146 @@ def test_baseline_review_detects_529_college_fund_snapshot() -> None:
             "$3,089.15\n"
         ),
     )
+    structured_data = cast(dict[str, Any], payload["structured_data"])
 
     assert payload["document_type"] == "brokerage_statement"
     assert payload["source_type"] == "brokerage"
-    assert payload["structured_data"]["account_hint"] == "529 college savings account"
+    assert structured_data["account_hint"] == "529 college savings account"
     assert "529" in payload["summary"]
+
+
+def test_baseline_review_detects_cash_management_account_text() -> None:
+    payload = _baseline_review(
+        filename="add-anything.txt",
+        source_type="other",
+        document_type="other",
+        extracted_text=(
+            "Cash Management (Joint WROS)\n"
+            "Cash Account: Z38367298\n"
+            "Account total balance, $39,400.59\n"
+            "Cash available to withdraw\n"
+            "$33,400.59\n"
+            "Recent activity\n"
+            "Apr-08-2026\n"
+            "DIRECT DEBIT DUKEENERGY BILL PAY (Cash)\n"
+            "-$142.25\n"
+        ),
+    )
+    structured_data = cast(dict[str, Any], payload["structured_data"])
+
+    assert payload["document_type"] == "brokerage_statement"
+    assert payload["source_type"] == "brokerage"
+    assert structured_data["account_hint"] == "Cash Management (Joint WROS)"
+    accounts = structured_data["financial_accounts"]
+    assert isinstance(accounts, list)
+    assert accounts[0]["balance"] == "39,400.59"
+    assert accounts[0]["cash_balance"] == "33,400.59"
+    assert accounts[0]["account_mask"] == "Z38367298"
+    assert "cash management account snapshot" in payload["summary"].lower()
+
+
+def test_baseline_review_detects_generic_statement_csv_account_snapshot() -> None:
+    payload = _baseline_review(
+        filename="History_for_Account_Z38367298.csv",
+        source_type="other",
+        document_type="other",
+        extracted_text=(
+            "\ufeffRun Date, Action, Symbol, Description, Type, Price ($), Quantity, Commission ($), Fees ($), "
+            "Accrued Interest ($), Amount ($), Cash Balance ($), Settlement Date\n"
+            "04/08/2026, DIRECT DEBIT DUKEENERGY BILL PAY (Cash), , No Description, Cash, , 0.000, , , , -142.25, 39400.59,\n"
+        ),
+    )
+    structured_data = cast(dict[str, Any], payload["structured_data"])
+
+    assert payload["document_type"] == "brokerage_statement"
+    assert payload["source_type"] == "brokerage"
+    assert payload["confidence"] == 0.9
+    assert structured_data["account_hint"] == "Account Z38367298"
+    accounts = structured_data["financial_accounts"]
+    assert isinstance(accounts, list)
+    assert accounts[0]["account_mask"] == "Z38367298"
+    assert accounts[0]["balance"] == "39400.59"
+    assert accounts[0]["as_of_date"] == "2026-04-08"
+
+
+def test_baseline_review_detects_fidelity_positions_csv_and_groups_accounts() -> None:
+    payload = _baseline_review(
+        filename="Portfolio_Positions_Apr-12-2026 (1).csv",
+        source_type="other",
+        document_type="other",
+        extracted_text=(
+            "Account Number,Account Name,Symbol,Description,Quantity,Last Price,Last Price Change,Current Value,Today's Gain/Loss Dollar,Today's Gain/Loss Percent,Total Gain/Loss Dollar,Total Gain/Loss Percent,Percent Of Account,Cost Basis Total,Average Cost Basis,Type\n"
+            "245944181,Traditional IRA,SPAXX**,HELD IN MONEY MARKET,,,,$1971.10,,,,,0.57%,,,Cash,\n"
+            "245944181,Traditional IRA,VTI,VANGUARD TOTAL STK MKT ETF,994.409,$335.05,-$0.40,$333176.73,-$397.77,-0.12%,+$78794.92,+30.97%,96.00%,$254381.81,$255.81,Cash,\n"
+            "250696445,ROTH IRA,SPAXX**,HELD IN MONEY MARKET,,,,$48014.15,,,,,100.00%,,,Cash,\n"
+            "Date downloaded Apr-12-2026 6:21 p.m ET\n"
+        ),
+    )
+    structured_data = cast(dict[str, Any], payload["structured_data"])
+
+    assert payload["source_type"] == "retirement"
+    assert payload["document_type"] == "retirement_statement"
+    accounts = structured_data["financial_accounts"]
+    assert isinstance(accounts, list)
+    assert len(accounts) == 2
+    assert accounts[0]["account_name"] == "Traditional IRA"
+    assert accounts[0]["account_mask"] == "245944181"
+    assert accounts[0]["balance"] == "335147.83"
+    assert accounts[1]["account_name"] == "ROTH IRA"
+    assert accounts[1]["account_mask"] == "250696445"
+    assert accounts[1]["balance"] == "48014.15"
+    assert structured_data["provider_name"] == "Fidelity"
+    assert structured_data["account_hint"] == "Fidelity positions export (2 accounts)"
+    assert structured_data["statement_period"] == "2026-04-12"
+
+
+@patch.object(HouseholdDocumentReviewService, "_touch_signature")
+@patch.object(HouseholdDocumentReviewService, "_find_signature")
+def test_review_uses_baseline_account_identity_for_csv_header_signature(
+    find_signature: MagicMock,
+    touch_signature: MagicMock,
+    tmp_path: Path,
+) -> None:
+    csv_path = tmp_path / "Portfolio_Positions_Apr-12-2026 (1).csv"
+    csv_path.write_text(
+        (
+            "Account Number,Account Name,Symbol,Description,Quantity,Last Price,Last Price Change,Current Value,Today's Gain/Loss Dollar,Today's Gain/Loss Percent,Total Gain/Loss Dollar,Total Gain/Loss Percent,Percent Of Account,Cost Basis Total,Average Cost Basis,Type\n"
+            "245944181,Traditional IRA,SPAXX**,HELD IN MONEY MARKET,,,,$1971.10,,,,,0.57%,,,Cash,\n"
+            "250696445,ROTH IRA,SPAXX**,HELD IN MONEY MARKET,,,,$48014.15,,,,,100.00%,,,Cash,\n"
+            "Date downloaded Apr-12-2026 6:21 p.m ET\n"
+        ),
+        encoding="utf-8",
+    )
+    find_signature.return_value = {
+        "id": "sig-1",
+        "signature_type": "csv_header",
+        "source_type": "brokerage",
+        "document_type": "brokerage_statement",
+        "merchant": None,
+        "account_hint": "Z35217544",
+        "confidence": 0.99,
+    }
+    service = HouseholdDocumentReviewService()
+
+    payload = service.review(
+        document_id="doc-1",
+        filename=csv_path.name,
+        stored_path=csv_path,
+        content_type="text/csv",
+        source_type="other",
+        document_type="other",
+    )
+    structured_data = cast(dict[str, Any], payload["structured_data"])
+
+    assert payload["source_type"] == "retirement"
+    assert payload["document_type"] == "retirement_statement"
+    assert payload["summary"] == "Fidelity positions export covering 2 retirement accounts totaling $49,985.25."
+    accounts = structured_data["financial_accounts"]
+    assert isinstance(accounts, list)
+    assert accounts[0]["account_mask"] == "245944181"
+    assert accounts[1]["account_mask"] == "250696445"
+    assert structured_data["account_hint"] == "Fidelity positions export (2 accounts)"
+    touch_signature.assert_called_once_with("sig-1")
 
 
 def test_baseline_review_detects_credit_card_qfx_export() -> None:

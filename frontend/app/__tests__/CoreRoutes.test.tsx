@@ -30,6 +30,8 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
         totalTrackedAssets: 28500,
         liabilitiesTotal: 2500,
         netWorth: 26000,
+        netWorthStatus: 'current',
+        netWorthDetail: '$28,500 assets less $2,500 liabilities.',
         trackedAccountCount: 3,
         needsRefreshCount: 1,
         candidateAccountCount: 1,
@@ -39,6 +41,8 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
         lastTransactionDate: '2026-03-09',
         visibilityScore: 88,
         visibilityLabel: 'Strong household visibility',
+        monthlySpendStatus: 'current',
+        monthlySpendDetail: '3 months of recent evidence coverage.',
         nextBestAction: 'Refresh Chase Amazon card',
       },
       profile: {
@@ -127,6 +131,7 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
       },
       evidenceAccounts: [],
       accounts: [],
+      discoveredAccounts: [],
       inbox: [],
       questions: [],
       jennyBrief: {

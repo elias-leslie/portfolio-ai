@@ -18,6 +18,8 @@ export interface HouseholdOverview {
   totalTrackedAssets: number
   liabilitiesTotal: number
   netWorth: number
+  netWorthStatus: string
+  netWorthDetail: string
   trackedAccountCount: number
   needsRefreshCount: number
   candidateAccountCount: number
@@ -27,6 +29,8 @@ export interface HouseholdOverview {
   lastTransactionDate: string | null
   visibilityScore: number
   visibilityLabel: string
+  monthlySpendStatus: string
+  monthlySpendDetail: string
   nextBestAction: string
 }
 
@@ -117,6 +121,28 @@ export interface HouseholdMerchantInsight {
   recommendation: string
 }
 
+export interface HouseholdPriceInsight {
+  merchant: string
+  itemName: string
+  signalType: string
+  latestPrice: number
+  previousPrice: number
+  priceChange: number
+  priceChangePct?: number | null
+  latestDate: string
+  previousDate: string
+  latestUnitLabel?: string | null
+  previousUnitLabel?: string | null
+  unitMeasure?: string | null
+  latestUnitPrice?: number | null
+  previousUnitPrice?: number | null
+  unitPriceChangePct?: number | null
+  sizeChangePct?: number | null
+  shrinkflationFlag: boolean
+  confidence: number
+  recommendation: string
+}
+
 export interface HouseholdMonthlyTrendPoint {
   month: string
   totalSpend: number
@@ -138,6 +164,7 @@ export interface HouseholdReports {
   executive: HouseholdExecutiveReport
   categoryBreakdown: HouseholdCategoryBreakdown[]
   merchantHighlights: HouseholdMerchantInsight[]
+  priceInsights?: HouseholdPriceInsight[]
   monthlySpendTrend: HouseholdMonthlyTrendPoint[]
   recentTransactions: HouseholdRecentTransaction[]
 }
@@ -298,6 +325,20 @@ export interface HouseholdTrackedAccountInput {
   notes?: string | null
 }
 
+export interface HouseholdDiscoveredAccount {
+  key: string
+  institution: string
+  partialAccount?: string | null
+  suggestedLabel: string
+  assetGroup: string
+  accountType: string
+  sourceType: string
+  confidence: number
+  occurrenceCount: number
+  sampleDescription?: string | null
+  detail: string
+}
+
 export interface HouseholdAccountSummary {
   id: string
   label: string
@@ -321,8 +362,17 @@ export interface HouseholdAccountSummary {
   linkedPortfolioAccountName: string | null
   trackedAccountId: string | null
   accountOrigin: string
+  moneyRole: string
   lastEvidenceAt: string | null
   daysSinceEvidence: number | null
+  lastBalanceAt: string | null
+  daysSinceBalance: number | null
+  balanceFreshnessStatus: string
+  balanceFreshnessLabel: string
+  lastTransactionAt: string | null
+  daysSinceTransaction: number | null
+  transactionFreshnessStatus: string
+  transactionFreshnessLabel: string
   freshnessStatus: string
   freshnessLabel: string
   matchStatus: string
@@ -442,6 +492,7 @@ export interface HouseholdFinanceDashboard {
   importCenter: ImportCenter
   evidenceAccounts: HouseholdEvidenceAccount[]
   accounts: HouseholdAccountSummary[]
+  discoveredAccounts: HouseholdDiscoveredAccount[]
   inbox: HouseholdInboxItem[]
   questions: HouseholdQuestion[]
   jennyBrief: JennyMoneyBrief
@@ -477,7 +528,9 @@ export interface HouseholdProfileUpdate {
 }
 
 export interface HouseholdDocumentUpload {
-  file: File
+  file?: File
+  rawText?: string
+  filename?: string
   sourceType?: string
   documentType?: string
   accountLabel?: string
@@ -547,8 +600,21 @@ export async function deleteHouseholdTrackedAccount(
 export async function uploadHouseholdDocument(
   payload: HouseholdDocumentUpload,
 ): Promise<HouseholdDocument> {
+  const rawText = payload.rawText?.trim()
+  const file =
+    payload.file ??
+    (rawText
+      ? new File(
+          [rawText],
+          payload.filename?.trim() || 'pasted-evidence.txt',
+          { type: 'text/plain' },
+        )
+      : null)
+  if (!file) {
+    throw new Error('Upload requires a file or pasted text.')
+  }
   const form = new FormData()
-  form.append('file', payload.file)
+  form.append('file', file)
   if (payload.sourceType) {
     form.append('source_type', payload.sourceType)
   }

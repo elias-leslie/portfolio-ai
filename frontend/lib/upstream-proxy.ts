@@ -35,13 +35,15 @@ export async function proxyRequest(
     new URL(request.url).searchParams.toString(),
   )
   const body =
-    method === 'GET' || method === 'HEAD' ? undefined : await request.text()
+    method === 'GET' || method === 'HEAD'
+      ? undefined
+      : await request.arrayBuffer()
   const forwardedHeaders = new Headers(request.headers)
   forwardedHeaders.delete('host')
   const response = await fetch(url, {
     method,
     headers: forwardedHeaders,
-    ...(body ? { body } : {}),
+    ...(body && body.byteLength > 0 ? { body } : {}),
   })
   return proxyResponse(response)
 }

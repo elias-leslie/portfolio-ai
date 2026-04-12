@@ -27,6 +27,7 @@ from app.services.household_document_review import HouseholdDocumentReviewServic
 from app.services.household_evidence_service import HouseholdEvidenceService
 from app.services.household_finance_rows import FIELD_LABELS
 from app.services.household_planning_service import HouseholdPlanningService
+from app.services.household_product_enrichment_service import HouseholdProductEnrichmentService
 from app.services.household_profile_service import HouseholdProfileService
 from app.services.household_question_command_service import HouseholdQuestionCommandService
 from app.services.household_question_reconciler import HouseholdQuestionReconciler
@@ -50,6 +51,7 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         )
         self.transaction_service = HouseholdTransactionService()
         self.evidence_service = HouseholdEvidenceService()
+        self.product_enrichment_service = HouseholdProductEnrichmentService()
         self.dashboard_composer = HouseholdDashboardComposer()
         self.document_pipeline = HouseholdDocumentPipeline()
         self.question_reconciler = HouseholdQuestionReconciler()

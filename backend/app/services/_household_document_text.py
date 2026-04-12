@@ -17,6 +17,9 @@ from app.logging_config import get_logger
 
 logger = get_logger(__name__)
 
+_PDF_PAGE_LIMIT = 6
+_MAX_EXTRACTED_TEXT_CHARS = 30000
+
 # Signal terms that indicate the PDF has usable financial content (skip OCR if present).
 _FINANCIAL_SIGNAL_TERMS = (
     "$", "order total", "total", "subtotal", "amount due",
@@ -50,7 +53,7 @@ def _prepare_and_ocr(image: Image.Image) -> str | None:
         for line in result
         if isinstance(line, (list, tuple)) and len(line) > 1 and isinstance(line[1], str)
     ).strip()
-    return text[:12000] if text else None
+    return text[:_MAX_EXTRACTED_TEXT_CHARS] if text else None
 
 
 # ---------------------------------------------------------------------------
@@ -97,7 +100,7 @@ def _render_pdf_pages_to_png(stored_path: Path, *, scale: float, max_pages: int)
 
 def _extract_pdf_image_text(stored_path: Path) -> str | None:
     try:
-        png_pages = _render_pdf_pages_to_png(stored_path, scale=2, max_pages=3)
+        png_pages = _render_pdf_pages_to_png(stored_path, scale=2, max_pages=_PDF_PAGE_LIMIT)
     except Exception as exc:
         logger.warning("household_pdf_ocr_failed", path=str(stored_path), error=str(exc))
         return None
@@ -108,14 +111,14 @@ def _extract_pdf_image_text(stored_path: Path) -> str | None:
         if page_text:
             ocr_chunks.append(page_text)
     merged = "\n\n".join(ocr_chunks).strip()
-    return merged[:12000] if merged else None
+    return merged[:_MAX_EXTRACTED_TEXT_CHARS] if merged else None
 
 
 def _extract_pdf_text(stored_path: Path) -> str | None:
     try:
         reader = PdfReader(str(stored_path))
         chunks: list[str] = []
-        for page in reader.pages[:4]:
+        for page in reader.pages[:_PDF_PAGE_LIMIT]:
             text = page.extract_text() or ""
             if text.strip():
                 chunks.append(text.strip())
@@ -127,7 +130,7 @@ def _extract_pdf_text(stored_path: Path) -> str | None:
             ocr_text = _extract_pdf_image_text(stored_path)
             if ocr_text:
                 merged = _merge_text_fragments(merged, ocr_text)
-        return merged[:12000] if merged else None
+        return merged[:_MAX_EXTRACTED_TEXT_CHARS] if merged else None
     except Exception as exc:
         logger.warning("household_pdf_extract_failed", path=str(stored_path), error=str(exc))
         return None

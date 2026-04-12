@@ -7,6 +7,7 @@ from typing import Any
 from app.models.household_finance import (
     HouseholdBudgetSnapshot,
     HouseholdCategorizationCandidate,
+    HouseholdDiscoveredAccount,
     HouseholdFinanceDashboard,
     HouseholdRecurringCommitment,
     HouseholdRetirementContributionTracker,
@@ -37,6 +38,8 @@ from app.services._household_dashboard_queries import (
     fetch_categorization_queue,
     fetch_confirmed_facts,
     fetch_current_month_spend,
+    fetch_latest_transaction_dates_by_account_label,
+    fetch_latest_transaction_dates_by_document,
     fetch_monthly_retirement_contributions,
     fetch_recurring_commitments,
     fetch_transaction_date_issues,
@@ -53,6 +56,16 @@ class HouseholdDashboardComposer:
         resolved_values, visible_questions = resolve_dashboard_values(
             service, profile=d["profile"], reports=d["reports"], questions=d["questions"]
         )
+        latest_transaction_dates_by_document = fetch_latest_transaction_dates_by_document(
+            service.storage
+        )
+        latest_transaction_dates_by_account_label = (
+            fetch_latest_transaction_dates_by_account_label(service.storage)
+        )
+        discovered_accounts = [
+            HouseholdDiscoveredAccount.model_validate(item)
+            for item in detect_unknown_accounts(service.storage, d["documents"])
+        ]
         account_summaries = build_account_summaries(
             evidence_accounts=d["evidence_accounts"],
             documents=d["documents"],
@@ -60,9 +73,12 @@ class HouseholdDashboardComposer:
             tracked_accounts=d["tracked_accounts"],
             holdings_by_account=d["holdings_by_account"],
             statement_freshness=freshness,
+            latest_transaction_dates_by_document=latest_transaction_dates_by_document,
+            latest_transaction_dates_by_account_label=latest_transaction_dates_by_account_label,
         )
         inbox = build_money_inbox(
             accounts=account_summaries,
+            discovered_accounts=discovered_accounts,
             questions=visible_questions,
             tracked_documents=len(d["documents"]),
             parsed_documents=sum(1 for document in d["documents"] if document.status in {"parsed", "needs_review"}),
@@ -83,7 +99,7 @@ class HouseholdDashboardComposer:
             profile=d["profile"], planning=d["planning"], documents=d["documents"],
             questions=visible_questions, resolved_values=resolved_values, reports=d["reports"],
             confirmed_facts=fetch_confirmed_facts(service.storage),
-            detected_accounts=detect_unknown_accounts(service.storage, d["documents"]),
+            detected_accounts=[account.model_dump() for account in discovered_accounts],
             freshness=freshness,
             categorization_queue=categorization_queue,
         )
@@ -98,7 +114,7 @@ class HouseholdDashboardComposer:
             cash_reserve=cash_reserve, total_tracked_assets=total_tracked_assets,
             categorization_queue=categorization_queue, recurring_commitments=recurring_commitments,
             transaction_date_issues=transaction_date_issues,
-            account_summaries=account_summaries, inbox=inbox,
+            account_summaries=account_summaries, discovered_accounts=discovered_accounts, inbox=inbox,
         )
 
     def build_budget_snapshot(self, service: Any, *, profile: Any, reports: Any) -> HouseholdBudgetSnapshot:

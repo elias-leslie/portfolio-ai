@@ -176,6 +176,250 @@ def _apply_account_freshness_visibility_cap(
     return min(visibility_score, 99)
 
 
+def _pluralize(count: int, singular: str, plural: str | None = None) -> str:
+    return singular if count == 1 else (plural or f"{singular}s")
+
+
+def _format_issue_counts(parts: list[str]) -> str:
+    if not parts:
+        return ""
+    if len(parts) == 1:
+        return parts[0]
+    if len(parts) == 2:
+        return f"{parts[0]} and {parts[1]}"
+    return f"{', '.join(parts[:-1])}, and {parts[-1]}"
+
+
+def _latest_visible_date(
+    accounts: list[Any],
+    *,
+    attr_name: str,
+) -> str | None:
+    return max(
+        (
+            str(getattr(account, attr_name))
+            for account in accounts
+            if getattr(account, attr_name, None)
+        ),
+        default=None,
+    )
+
+
+def _net_worth_trust(
+    account_summaries: list[Any],
+) -> tuple[str, str]:
+    if not account_summaries:
+        return (
+            "unavailable",
+            "Net worth is not available yet because Jenny has not matched any balance-bearing accounts.",
+        )
+
+    visible_accounts = [
+        account
+        for account in account_summaries
+        if account.current_value is not None
+    ]
+    currentish_accounts = [
+        account
+        for account in visible_accounts
+        if account.balance_freshness_status in {"fresh", "aging"}
+    ]
+    if not visible_accounts:
+        return (
+            "unavailable",
+            "Net worth is not available yet because Jenny does not have any usable balance evidence.",
+        )
+
+    missing_balance_count = sum(
+        1
+        for account in account_summaries
+        if account.current_value is None
+        or account.balance_freshness_status == "needs_evidence"
+    )
+    stale_balance_count = sum(
+        1
+        for account in account_summaries
+        if account.balance_freshness_status == "stale"
+    )
+    aging_balance_count = sum(
+        1
+        for account in account_summaries
+        if account.balance_freshness_status == "aging"
+    )
+    candidate_count = sum(
+        1
+        for account in account_summaries
+        if account.match_status == "candidate"
+    )
+    latest_balance_at = _latest_visible_date(
+        visible_accounts,
+        attr_name="last_balance_at",
+    )
+    as_of_detail = (
+        f" Latest visible balance date {latest_balance_at[:10]}."
+        if latest_balance_at is not None
+        else ""
+    )
+
+    issue_parts: list[str] = []
+    if missing_balance_count > 0:
+        issue_parts.append(
+            f"{missing_balance_count} {_pluralize(missing_balance_count, 'account')} missing current balances"
+        )
+    if stale_balance_count > 0:
+        issue_parts.append(
+            f"{stale_balance_count} {_pluralize(stale_balance_count, 'account')} stale"
+        )
+    if candidate_count > 0:
+        issue_parts.append(
+            f"{candidate_count} possible {_pluralize(candidate_count, 'account')} still need confirmation"
+        )
+    if issue_parts:
+        return (
+            "estimated",
+            (
+                f"Net worth estimate from {len(visible_accounts)} of {len(account_summaries)} tracked "
+                f"{_pluralize(len(account_summaries), 'account')}. "
+                f"{_format_issue_counts(issue_parts).capitalize()}."
+                f"{as_of_detail}"
+            ),
+        )
+    if aging_balance_count > 0:
+        return (
+            "stale",
+            (
+                f"Net worth subtotal from {len(visible_accounts)} tracked "
+                f"{_pluralize(len(visible_accounts), 'account')}. "
+                f"{aging_balance_count} {_pluralize(aging_balance_count, 'account')} should refresh before review."
+                f"{as_of_detail}"
+            ),
+        )
+
+    if latest_balance_at is not None:
+        return (
+            "current",
+            f"Net worth reflects {len(currentish_accounts)} covered {_pluralize(len(currentish_accounts), 'account')} through {latest_balance_at[:10]}.",
+        )
+    return (
+        "current",
+        f"Net worth reflects {len(currentish_accounts)} covered {_pluralize(len(currentish_accounts), 'account')}.",
+    )
+
+
+def _monthly_spend_trust(
+    account_summaries: list[Any],
+    statement_freshness: dict[str, Any],
+) -> tuple[str, str]:
+    spend_accounts = [
+        account
+        for account in account_summaries
+        if account.money_role == "spend_driver"
+    ]
+    if not spend_accounts:
+        return (
+            "unavailable",
+            "Monthly spend is not available yet because Jenny does not have any checking, card, or debt accounts with transaction history.",
+        )
+
+    fresh_transaction_count = sum(
+        1
+        for account in spend_accounts
+        if account.transaction_freshness_status == "fresh"
+    )
+    aging_transaction_count = sum(
+        1
+        for account in spend_accounts
+        if account.transaction_freshness_status == "aging"
+    )
+    stale_transaction_count = sum(
+        1
+        for account in spend_accounts
+        if account.transaction_freshness_status == "stale"
+    )
+    missing_transaction_count = sum(
+        1
+        for account in spend_accounts
+        if account.transaction_freshness_status == "needs_evidence"
+    )
+    historical_transaction_count = sum(
+        1
+        for account in spend_accounts
+        if account.last_transaction_at is not None
+        or account.transaction_freshness_status in {"fresh", "aging", "stale"}
+    )
+    latest_transaction_date = statement_freshness.get("most_recent_date")
+    days_since_latest = statement_freshness.get("days_since_latest")
+    gap_months = statement_freshness.get("gap_months") or []
+    coverage_months = int(statement_freshness.get("coverage_months") or 0)
+    visible_spend_accounts = max(
+        fresh_transaction_count + aging_transaction_count + stale_transaction_count,
+        historical_transaction_count,
+    )
+    latest_suffix = (
+        f" Latest covered transaction date {latest_transaction_date}."
+        if latest_transaction_date is not None
+        else ""
+    )
+
+    if coverage_months <= 0 and visible_spend_accounts <= 0:
+        return (
+            "unavailable",
+            "Monthly spend is not available yet because Jenny does not have any usable spending history.",
+        )
+
+    issue_parts: list[str] = []
+    if missing_transaction_count > 0:
+        issue_parts.append(
+            f"{missing_transaction_count} {_pluralize(missing_transaction_count, 'spending account')} missing transactions"
+        )
+    if stale_transaction_count > 0:
+        issue_parts.append(
+            f"{stale_transaction_count} {_pluralize(stale_transaction_count, 'spending account')} stale"
+        )
+    if gap_months:
+        issue_parts.append(str(gap_months[0]).lower())
+    if days_since_latest is None:
+        issue_parts.append("latest covered transaction date unknown")
+    elif days_since_latest > 7:
+        issue_parts.append(f"latest covered transaction is {days_since_latest} days old")
+    if fresh_transaction_count + aging_transaction_count <= 0 and visible_spend_accounts > 0:
+        return (
+            "stale",
+            (
+                f"Monthly spend subtotal is based on older history from {visible_spend_accounts} of "
+                f"{len(spend_accounts)} spending {_pluralize(len(spend_accounts), 'account')}."
+                f"{latest_suffix} Refresh before using it for a weekly review."
+            ),
+        )
+    if issue_parts:
+        return (
+            "estimated",
+            (
+                f"Monthly spend estimate from {visible_spend_accounts} of {len(spend_accounts)} spending "
+                f"{_pluralize(len(spend_accounts), 'account')}. "
+                f"{_format_issue_counts(issue_parts).capitalize()}."
+                f"{latest_suffix}"
+            ),
+        )
+    if aging_transaction_count > 0:
+        return (
+            "stale",
+            (
+                f"Monthly spend subtotal comes from {fresh_transaction_count + aging_transaction_count} covered "
+                f"spending {_pluralize(fresh_transaction_count + aging_transaction_count, 'account')}, "
+                f"but {aging_transaction_count} should refresh before weekly review."
+                f"{latest_suffix}"
+            ),
+        )
+
+    detail = (
+        f"Monthly spend reflects {fresh_transaction_count} covered "
+        f"{_pluralize(fresh_transaction_count, 'spending account')}"
+        f"{f' through {latest_transaction_date}' if latest_transaction_date else ''}."
+    )
+    return ("current", detail)
+
+
 def build_jenny_needs(
     *, profile: HouseholdProfile, planning: Any, documents: list[Any], questions: list[Any],
     resolved_values: list[HouseholdResolvedValue], reports: HouseholdReports,
@@ -268,11 +512,18 @@ def build_overview(
     last_transaction_date = latest_report_transaction or (
         str(statement_freshness.get("most_recent_date")) if statement_freshness.get("most_recent_date") else None
     )
+    net_worth_status, net_worth_detail = _net_worth_trust(account_summaries)
+    monthly_spend_status, monthly_spend_detail = _monthly_spend_trust(
+        account_summaries,
+        statement_freshness,
+    )
     overview = HouseholdOverview(
         invested_assets=invested_assets, retirement_assets=retirement_assets,
         taxable_assets=taxable_assets, cash_reserve=cash_reserve,
         total_tracked_assets=total_tracked_assets, liabilities_total=liabilities_total,
         net_worth=net_worth,
+        net_worth_status=net_worth_status,
+        net_worth_detail=net_worth_detail,
         tracked_account_count=len(account_summaries),
         needs_refresh_count=needs_refresh_count,
         candidate_account_count=sum(1 for account in account_summaries if account.match_status == "candidate"),
@@ -285,6 +536,8 @@ def build_overview(
         last_transaction_date=last_transaction_date,
         visibility_score=visibility_score,
         visibility_label=_call_service_override(service, "_visibility_label", visibility_label, visibility_score),
+        monthly_spend_status=monthly_spend_status,
+        monthly_spend_detail=monthly_spend_detail,
         next_best_action=_call_service_override(
             service,
             "_next_best_action",
@@ -481,7 +734,7 @@ def assemble_finance_dashboard(
     cash_reserve: float, total_tracked_assets: float,
     categorization_queue: list[Any], recurring_commitments: list[Any],
     transaction_date_issues: list[Any],
-    account_summaries: list[Any], inbox: list[Any],
+    account_summaries: list[Any], discovered_accounts: list[Any], inbox: list[Any],
 ) -> HouseholdFinanceDashboard:
     profile, reports, documents, planning = d["profile"], d["reports"], d["documents"], d["planning"]
     return HouseholdFinanceDashboard(
@@ -517,6 +770,7 @@ def assemble_finance_dashboard(
         import_center=build_import_center(documents, planning),
         evidence_accounts=d["evidence_accounts"],
         accounts=account_summaries,
+        discovered_accounts=discovered_accounts,
         inbox=inbox,
         questions=visible_questions,
         jenny_brief=build_jenny_brief(profile, reports, resolved_values),

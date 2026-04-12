@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import type {
   HouseholdDocument,
   HouseholdDocumentRequirement,
+  HouseholdInboxItem,
   HouseholdTransactionDateIssue,
   ImportCenter,
 } from '@/lib/api/household'
@@ -14,17 +15,20 @@ export function ImportCenterSidebar({
   importCenter,
   documentRequirements,
   dateQualityIssues = [],
+  moneyInbox = [],
   focusedReview = false,
 }: {
   documents: HouseholdDocument[]
   importCenter?: ImportCenter
   documentRequirements: HouseholdDocumentRequirement[]
   dateQualityIssues?: HouseholdTransactionDateIssue[]
+  moneyInbox?: HouseholdInboxItem[]
   focusedReview?: boolean
 }) {
   return (
     <div className="space-y-3">
       {importCenter ? <IntakeSummaryCard importCenter={importCenter} /> : null}
+      {moneyInbox.length > 0 ? <MoneyInboxCard items={moneyInbox} /> : null}
       {dateQualityIssues.length > 0 ? (
         <DateQualityIssuesCard
           issues={dateQualityIssues}
@@ -37,14 +41,53 @@ export function ImportCenterSidebar({
       {documents.length === 0 ? (
         <div className="rounded-2xl border border-border/50 bg-surface-muted/20 p-5 text-sm text-text-muted">
           No evidence yet. Start with whatever best reflects your finances right
-          now: statements, brokerage screenshots, exports, payroll docs, bills,
-          or receipts.
+          now: statements, card or brokerage screenshots, exports, bills,
+          receipts, or copied account text.
         </div>
       ) : (
         documents.map((document) => (
           <DocumentCard key={document.id} document={document} />
         ))
       )}
+    </div>
+  )
+}
+
+function MoneyInboxCard({ items }: { items: HouseholdInboxItem[] }) {
+  return (
+    <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-text">Needed right now</p>
+          <p className="mt-1 text-sm text-text-muted">
+            Exact blockers Jenny needs resolved before money numbers become fully trustworthy.
+          </p>
+        </div>
+        <Badge variant="outline">{items.length}</Badge>
+      </div>
+      <div className="mt-3 space-y-3">
+        {items.slice(0, 4).map((item) => (
+          <div
+            key={item.id}
+            className="rounded-2xl border border-border/40 bg-surface/70 p-3"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-text">{item.title}</p>
+                <p className="mt-1 text-sm text-text-muted">{item.detail}</p>
+              </div>
+              <Badge variant="outline">{item.priority}</Badge>
+            </div>
+            {item.actionHref ? (
+              <div className="mt-3">
+                <Button asChild size="sm" variant="outline">
+                  <a href={item.actionHref}>{item.actionLabel}</a>
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -152,8 +195,8 @@ function IntakeSummaryCard({ importCenter }: { importCenter: ImportCenter }) {
     <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
       <p className="text-sm font-semibold text-text">Recent intake status</p>
       <p className="mt-1 text-sm text-text-muted">
-        Jenny keeps using the same inbox for raw uploads and parsed financial
-        evidence.
+        Jenny keeps using the same inbox for raw money uploads and parsed
+        account evidence.
       </p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-border/40 bg-surface/60 p-3">
@@ -187,6 +230,20 @@ function IntakeSummaryCard({ importCenter }: { importCenter: ImportCenter }) {
           )}
         </div>
       </div>
+      {importCenter.automations.length > 0 ? (
+        <div className="mt-4 rounded-2xl border border-border/40 bg-surface/60 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+            Smart intake paths
+          </p>
+          <div className="mt-2 space-y-2">
+            {importCenter.automations.slice(0, 4).map((automation) => (
+              <p key={automation} className="text-sm text-text-muted">
+                {automation}
+              </p>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

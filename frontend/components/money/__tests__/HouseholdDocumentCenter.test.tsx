@@ -57,6 +57,28 @@ describe('HouseholdDocumentCenter', () => {
     })
   })
 
+  it('uploads pasted raw text through the same intake path', async () => {
+    mutateAsync.mockResolvedValue(undefined)
+    render(<HouseholdDocumentCenter documents={[]} />)
+
+    await userEvent.type(
+      screen.getByLabelText(/or paste raw account text/i),
+      'CHASE AMAZON CARD\nStatement ending 04/10/2026\nPayment due 05/05/2026',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /upload text/i }))
+
+    await waitFor(() => {
+        expect(mutateAsync).toHaveBeenCalledWith(
+          expect.objectContaining({
+            rawText:
+              'CHASE AMAZON CARD\nStatement ending 04/10/2026\nPayment due 05/05/2026',
+            accountLabel: undefined,
+          }),
+        )
+    })
+  })
+
   it('stages multiple selected files and uploads them together', async () => {
     mutateAsync.mockResolvedValue(undefined)
     render(<HouseholdDocumentCenter documents={[]} />)
@@ -220,6 +242,53 @@ describe('HouseholdDocumentCenter', () => {
       screen.getByText(/statement window mar 1, 2026 to mar 31, 2026/i),
     ).toBeInTheDocument()
     expect(screen.getByText(/classifier 87%/i)).toBeInTheDocument()
+  })
+
+  it('surfaces exact money blockers and smart intake paths', () => {
+    render(
+      <HouseholdDocumentCenter
+        documents={[]}
+        importCenter={{
+          headline: 'Import',
+          trackedDocuments: 8,
+          parsedDocuments: 5,
+          suggestedFirstUploads: ['Checking account statement'],
+          automations: [
+            'Forward retailer email receipts to intake.',
+            'Upload statements only when account sync is stale.',
+          ],
+          supportedDocuments: [],
+        }}
+        moneyInbox={[
+          {
+            id: 'account-main-checking-stale-transactions',
+            category: 'account',
+            priority: 'high',
+            title: 'Add statements for Main Checking',
+            detail:
+              'Need a bank or card statement/export covering 2026-03-12 through 2026-04-12. Blocks monthly spend, budget status, and safe to spend.',
+            actionLabel: 'Add statements',
+            actionHref: '/money?utility=evidence',
+            relatedAccountId: 'account-1',
+            relatedQuestionId: null,
+            relatedDocumentIds: ['doc-1'],
+          },
+        ]}
+      />,
+    )
+
+    expect(screen.getByText(/needed right now/i)).toBeInTheDocument()
+    expect(screen.getByText(/add statements for main checking/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/covering 2026-03-12 through 2026-04-12/i),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/smart intake paths/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/forward retailer email receipts to intake/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /add statements/i }),
+    ).toHaveAttribute('href', '/money?utility=evidence')
   })
 
   it('surfaces focused future-date evidence issues without treating them as applied transactions', () => {

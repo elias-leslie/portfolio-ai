@@ -262,3 +262,176 @@ def test_build_household_reports_limits_executive_summary_to_recent_months() -> 
     assert reports.category_breakdown[0].total_spend == 3300.0
     assert reports.monthly_spend_trend[0].month == "2025-03"
     assert reports.monthly_spend_trend[-1].month == "2025-08"
+
+
+def test_build_household_reports_emits_price_insights_from_repeated_import_items() -> None:
+    reports = build_household_reports(
+        report_rows=[
+            {
+                "date": date(2026, 2, 5),
+                "merchant": "Amazon",
+                "description": "Nate's 100% Pure, Raw & Unfiltered Honey - 32oz",
+                "amount": 13.99,
+                "category": "Household shopping",
+                "essentiality": "mixed",
+                "account_label": None,
+                "document_id": "doc-old",
+                "document_type": "import",
+                "source_type": "amazon_order_history",
+                "source_kind": "import",
+                "metadata": {
+                    "ASIN": "B00CMQD3VS",
+                    "Unit Price": "13.99",
+                    "Product Name": "Nate's 100% Pure, Raw & Unfiltered Honey - 32oz",
+                },
+            },
+            {
+                "date": date(2026, 3, 2),
+                "merchant": "Amazon",
+                "description": "Nate's 100% Pure, Raw & Unfiltered Honey - 32oz",
+                "amount": 14.26,
+                "category": "Household shopping",
+                "essentiality": "mixed",
+                "account_label": None,
+                "document_id": "doc-new",
+                "document_type": "import",
+                "source_type": "amazon_order_history",
+                "source_kind": "import",
+                "metadata": {
+                    "ASIN": "B00CMQD3VS",
+                    "Unit Price": "14.26",
+                    "Product Name": "Nate's 100% Pure, Raw & Unfiltered Honey - 32oz",
+                },
+            },
+        ],
+        cadence_for_dates=lambda dates: {"label": "monthly"} if len(dates) > 1 else None,
+        merchant_recommendation=lambda *, merchant, category, cadence: f"{merchant}:{category}:{cadence}",
+    )
+
+    assert len(reports.price_insights) == 1
+    assert reports.price_insights[0].merchant == "Amazon"
+    assert reports.price_insights[0].latest_price == 14.26
+    assert reports.price_insights[0].previous_price == 13.99
+    assert reports.price_insights[0].price_change == 0.27
+    assert reports.price_insights[0].latest_unit_label == "32 oz"
+    assert reports.price_insights[0].unit_price_change_pct == 1.9
+    assert reports.price_insights[0].shrinkflation_flag is False
+
+
+def test_build_household_reports_flags_shrinkflation_when_size_drops_without_price_relief() -> None:
+    reports = build_household_reports(
+        report_rows=[
+            {
+                "date": date(2026, 1, 8),
+                "merchant": "Amazon",
+                "description": "Triscuit Reduced Fat Whole Grain Wheat Crackers, 12 oz",
+                "amount": 3.89,
+                "category": "Household shopping",
+                "essentiality": "mixed",
+                "account_label": None,
+                "document_id": "doc-before",
+                "document_type": "import",
+                "source_type": "amazon_order_history",
+                "source_kind": "import",
+                "metadata": {
+                    "Unit Price": "3.89",
+                    "Product Name": "Triscuit Reduced Fat Whole Grain Wheat Crackers, 12 oz",
+                },
+            },
+            {
+                "date": date(2026, 3, 8),
+                "merchant": "Amazon",
+                "description": "Triscuit Reduced Fat Whole Grain Wheat Crackers, 10.5 oz",
+                "amount": 3.89,
+                "category": "Household shopping",
+                "essentiality": "mixed",
+                "account_label": None,
+                "document_id": "doc-after",
+                "document_type": "import",
+                "source_type": "amazon_order_history",
+                "source_kind": "import",
+                "metadata": {
+                    "Unit Price": "3.89",
+                    "Product Name": "Triscuit Reduced Fat Whole Grain Wheat Crackers, 10.5 oz",
+                },
+            },
+        ],
+        cadence_for_dates=lambda dates: {"label": "monthly"} if len(dates) > 1 else None,
+        merchant_recommendation=lambda *, merchant, category, cadence: f"{merchant}:{category}:{cadence}",
+    )
+
+    assert len(reports.price_insights) == 1
+    insight = reports.price_insights[0]
+    assert insight.signal_type == "shrinkflation"
+    assert insight.shrinkflation_flag is True
+    assert insight.latest_unit_label == "10.5 oz"
+    assert insight.previous_unit_label == "12 oz"
+    assert insight.size_change_pct == -12.5
+    assert insight.unit_price_change_pct == 14.3
+
+
+def test_build_household_reports_uses_cached_product_enrichment_measure_when_title_lacks_size() -> None:
+    reports = build_household_reports(
+        report_rows=[
+            {
+                "date": date(2026, 2, 5),
+                "merchant": "Amazon",
+                "description": "Honey reorder",
+                "amount": 13.99,
+                "category": "Household shopping",
+                "essentiality": "mixed",
+                "account_label": None,
+                "document_id": "doc-old",
+                "document_type": "import",
+                "source_type": "amazon_order_history",
+                "source_kind": "import",
+                "metadata": {
+                    "ASIN": "B00CMQD3VS",
+                    "Unit Price": "13.99",
+                    "Product Name": "Honey reorder",
+                    "product_enrichment": {
+                        "package_measure": {
+                            "display_label": "32 oz",
+                            "normalized_quantity": 32,
+                            "normalized_unit": "weight_oz",
+                            "raw_quantity": 32,
+                            "raw_unit": "oz",
+                        }
+                    },
+                },
+            },
+            {
+                "date": date(2026, 3, 2),
+                "merchant": "Amazon",
+                "description": "Honey reorder",
+                "amount": 14.26,
+                "category": "Household shopping",
+                "essentiality": "mixed",
+                "account_label": None,
+                "document_id": "doc-new",
+                "document_type": "import",
+                "source_type": "amazon_order_history",
+                "source_kind": "import",
+                "metadata": {
+                    "ASIN": "B00CMQD3VS",
+                    "Unit Price": "14.26",
+                    "Product Name": "Honey reorder",
+                    "product_enrichment": {
+                        "package_measure": {
+                            "display_label": "32 oz",
+                            "normalized_quantity": 32,
+                            "normalized_unit": "weight_oz",
+                            "raw_quantity": 32,
+                            "raw_unit": "oz",
+                        }
+                    },
+                },
+            },
+        ],
+        cadence_for_dates=lambda dates: {"label": "monthly"} if len(dates) > 1 else None,
+        merchant_recommendation=lambda *, merchant, category, cadence: f"{merchant}:{category}:{cadence}",
+    )
+
+    assert len(reports.price_insights) == 1
+    assert reports.price_insights[0].latest_unit_label == "32 oz"
+    assert reports.price_insights[0].unit_price_change_pct == 1.9

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import date
+from datetime import UTC, date, datetime
+from decimal import Decimal
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -38,13 +40,37 @@ class _FakeStorage:
         yield self.conn
 
 
+class _SequenceConnection:
+    def __init__(self, responses: list[list[tuple[Any, ...]]]) -> None:
+        self._responses = responses
+
+    def execute(
+        self,
+        sql: str,
+        params: list[Any] | None = None,
+    ) -> SimpleNamespace:
+        del sql, params
+        rows = self._responses.pop(0)
+        return SimpleNamespace(fetchall=lambda: rows)
+
+
+class _SequenceStorage:
+    def __init__(self, responses: list[list[tuple[Any, ...]]]) -> None:
+        self.conn = _SequenceConnection(responses)
+
+    @contextmanager
+    def connection(self):
+        yield self.conn
+
+
 def test_parse_chase_statement_extracts_walmart_activity_lines() -> None:
     service = HouseholdTransactionService()
 
     transactions = service._parse_chase_statement(
         (
             "ELIAS B LESLIE Page 2 of 4 Statement Date: 01/11/26\n"
-            "Date of Transaction Merchant Name or Transaction Description $ Amount\n"
+            "Date of\n"
+            "Transaction Merchant  Name or Transaction Description $ Amount\n"
             "12/11 & WAL-MART #5831 LARGO FL 149.21\n"
             "12/12 & WM SUPERCENTER #5831 LARGO FL 30.00\n"
             "12/23 & Payment Thank You-Mobile -5757.53\n"
@@ -82,6 +108,36 @@ def test_parse_wells_fargo_statement_extracts_payroll_and_spotify() -> None:
     assert transactions[1].category == "Income"
 
 
+def test_parse_wells_fargo_statement_reclassifies_transfers_benefits_and_card_payments() -> None:
+    service = HouseholdTransactionService()
+
+    transactions = service._parse_wells_fargo_statement(
+        (
+            "February 25, 2026 Page 2 of 5\n"
+            "Transaction history\n"
+            "2/17   Chase Credit Crd Epay 260215 9126729844 Elias Leslie  5,645.34       1,100.00\n"
+            "2/18   Paypal Inst Xfer 260218 Tbl.Leslie Elias Leslie  3,520.25       1,200.00\n"
+            "2/18   Zelle From Michael Wiley on 02/18 Ref # Wfct0Ztbcn6L  506.31       1,706.31\n"
+            "2/18   FL Deo Ui Benefit 260214 xxxxx5852 Elias B Leslie  247.00       1,953.31\n"
+            "Totals $9,918.90 $5,959.62\n"
+        ),
+        "Wells Fargo Everyday Checking",
+    )
+
+    assert [transaction.flow_type for transaction in transactions] == [
+        "transfer_out",
+        "transfer_out",
+        "transfer_in",
+        "income",
+    ]
+    assert [transaction.category for transaction in transactions] == [
+        "Transfers",
+        "Transfers",
+        "Transfers",
+        "Income",
+    ]
+
+
 def test_parse_ofx_transactions_extracts_credit_card_expenses_and_payments() -> None:
     service = HouseholdTransactionService()
 
@@ -101,9 +157,60 @@ def test_parse_ofx_transactions_extracts_credit_card_expenses_and_payments() -> 
     assert len(transactions) == 2
     assert transactions[0].flow_type == "expense"
     assert float(transactions[0].amount) == 14.99
+    assert transactions[0].metadata is not None
     assert transactions[0].metadata["fitid"] == "abc123"
     assert transactions[1].flow_type == "payment"
     assert float(transactions[1].amount) == 1200.00
+
+
+def test_extract_transactions_parses_generic_cash_management_csv(tmp_path: Path) -> None:
+    service = HouseholdTransactionService()
+    csv_path = tmp_path / "History_for_Account_Z38367298.csv"
+    csv_path.write_text(
+        (
+            "Run Date,Action,Symbol,Description,Type,Price ($),Quantity,Commission ($),"
+            "Fees ($),Accrued Interest ($),Amount ($),Cash Balance ($),Settlement Date\n"
+            "04/08/2026,\"DIRECT DEBIT DUKEENERGY BILL PAY (Cash)\",,No Description,Cash,,0.000,,,,-142.25,39400.59,\n"
+            "04/06/2026,\"Electronic Funds Transfer Received (Cash)\",,No Description,Cash,,0.000,,,,6000,39542.84,\n"
+            "03/31/2026,\"REINVESTMENT FIDELITY GOVERNMENT MONEY MARKET (SPAXX) (Cash)\",SPAXX,\"FIDELITY GOVERNMENT MONEY MARKET\",Cash,1,91.96,,,,-91.96,33542.84,\n"
+            "03/31/2026,\"DIVIDEND RECEIVED FIDELITY GOVERNMENT MONEY MARKET (SPAXX) (Cash)\",SPAXX,\"FIDELITY GOVERNMENT MONEY MARKET\",Cash,,0.000,,,,91.96,33542.84,\n"
+            "03/27/2026,\"DIRECT DEBIT CHASE CREDIT CEPAY (Cash)\",,No Description,Cash,,0.000,,,,-6178.67,33485.87,\n"
+        ),
+        encoding="utf-8",
+    )
+
+    transactions = service._extract_transactions(
+        filename=csv_path.name,
+        source_type="brokerage",
+        document_type="brokerage_statement",
+        extracted_text="brokerage csv preview",
+        structured_data={"account_hint": "Cash Management (Joint WROS)"},
+        account_label="Cash Management (Joint WROS)",
+        review_summary="Brokerage statement with investable assets and account activity.",
+        stored_path=csv_path,
+    )
+
+    assert len(transactions) == 5
+    assert [transaction.flow_type for transaction in transactions] == [
+        "expense",
+        "transfer_in",
+        "investment",
+        "income",
+        "transfer_out",
+    ]
+    assert [transaction.category for transaction in transactions] == [
+        "Bills",
+        "Transfers",
+        "Transfers",
+        "Income",
+        "Transfers",
+    ]
+    assert transactions[0].account_label == "Cash Management (Joint WROS)"
+    assert float(transactions[0].amount) == 142.25
+    assert float(transactions[1].amount) == 6000.00
+    assert transactions[0].metadata is not None
+    assert transactions[0].metadata["source"] == "statement_csv"
+    assert transactions[0].metadata["balance_after"] == "39400.59"
 
 
 def test_merchant_aliases_collapse_walmart_variants() -> None:
@@ -148,3 +255,61 @@ def test_import_document_transactions_holds_future_dated_receipts_for_review() -
     assert metadata_update is not None
     assert '"date_quality_summary"' in metadata_update[0]
     assert '"held_for_date_review": 1' in metadata_update[0]
+
+
+def test_build_reports_excludes_cash_movement_rows_even_when_stored_as_expense() -> None:
+    service = HouseholdTransactionService()
+    service.storage = _SequenceStorage(
+        [
+            [
+                (
+                    datetime(2026, 2, 17, tzinfo=UTC),
+                    "Chase Credit Crd Epay 260215 9126729844 Elias Leslie",
+                    "Chase Credit Crd Epay 260215 9126729844 Elias Leslie",
+                    Decimal("5645.34"),
+                    "Bills",
+                    "essential",
+                    "Wells Fargo Everyday Checking",
+                    "doc-card-payment",
+                    "Chase Credit Crd Epay 260215 9126729844 Elias Leslie",
+                    "statement",
+                    "bank",
+                ),
+                (
+                    datetime(2026, 2, 9, tzinfo=UTC),
+                    "Dukeenergy Bill Pay 910066616132 Elias B Leslie",
+                    "Dukeenergy Bill Pay 910066616132 Elias B Leslie",
+                    Decimal("177.51"),
+                    "Bills",
+                    "essential",
+                    "Wells Fargo Everyday Checking",
+                    "doc-utility",
+                    "Dukeenergy Bill Pay 910066616132 Elias B Leslie",
+                    "statement",
+                    "bank",
+                ),
+            ],
+            [],
+        ]
+    )
+
+    reports = service.build_reports()
+
+    assert reports.executive.average_monthly_spend == 177.51
+    assert reports.executive.average_monthly_essentials == 177.51
+    assert reports.executive.tracked_expense_count == 1
+    assert [transaction.merchant for transaction in reports.recent_transactions] == [
+        "Dukeenergy Bill Pay 910066616132 Elias B Leslie"
+    ]
+
+
+def test_dates_to_cadence_accepts_two_observations_as_provisional_signal() -> None:
+    service = HouseholdTransactionService()
+
+    cadence = service._dates_to_cadence(
+        [date(2026, 1, 7), date(2026, 2, 9)]
+    )
+
+    assert cadence is not None
+    assert cadence["label"] == "likely monthly"
+    assert cadence["confidence"] == 0.62

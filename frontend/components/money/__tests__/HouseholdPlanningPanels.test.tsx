@@ -24,6 +24,8 @@ describe('HouseholdPlanningPanels', () => {
             totalTrackedAssets: 0,
             liabilitiesTotal: 0,
             netWorth: 0,
+            netWorthStatus: 'unavailable',
+            netWorthDetail: 'Net worth is not available yet because Jenny does not have any tracked balances.',
             trackedAccountCount: 0,
             needsRefreshCount: 0,
             candidateAccountCount: 0,
@@ -33,6 +35,9 @@ describe('HouseholdPlanningPanels', () => {
             lastTransactionDate: null,
             visibilityScore: 60,
             visibilityLabel: 'Developing',
+            monthlySpendStatus: 'unavailable',
+            monthlySpendDetail:
+              'Monthly spend is not available yet because Jenny does not have any checking, card, or debt accounts with transaction history.',
             nextBestAction: 'Upload more statements.',
           },
           profile: {
@@ -122,6 +127,7 @@ describe('HouseholdPlanningPanels', () => {
           },
           evidenceAccounts: [],
           accounts: [],
+          discoveredAccounts: [],
           inbox: [],
           questions: [],
           jennyBrief: {
@@ -186,6 +192,8 @@ describe('HouseholdPlanningPanels', () => {
             totalTrackedAssets: 425000,
             liabilitiesTotal: 0,
             netWorth: 425000,
+            netWorthStatus: 'current',
+            netWorthDetail: 'Net worth reflects 4 covered accounts through 2026-03-09.',
             trackedAccountCount: 0,
             needsRefreshCount: 0,
             candidateAccountCount: 0,
@@ -195,6 +203,9 @@ describe('HouseholdPlanningPanels', () => {
             lastTransactionDate: '2026-03-09',
             visibilityScore: 95,
             visibilityLabel: 'Excellent',
+            monthlySpendStatus: 'current',
+            monthlySpendDetail:
+              'Monthly spend reflects 2 covered spending accounts through 2026-03-09.',
             nextBestAction: 'Review retirement strategies.',
           },
           profile: {
@@ -318,6 +329,7 @@ describe('HouseholdPlanningPanels', () => {
           },
           evidenceAccounts: [],
           accounts: [],
+          discoveredAccounts: [],
           inbox: [],
           questions: [],
           jennyBrief: {

@@ -90,7 +90,23 @@ class HouseholdDocumentReviewService:
         )
         signature_review = self._signature_review(filename=filename, extracted_text=extracted_text)
         if signature_review is not None:
+            signature_type = str(signature_review.pop("_signature_type", "") or "")
             signature_review["extracted_text"] = extracted_text
+            baseline_structured = baseline.get("structured_data")
+            has_strong_baseline_identity = False
+            if isinstance(baseline_structured, dict):
+                financial_accounts = baseline_structured.get("financial_accounts")
+                has_strong_baseline_identity = bool(
+                    (isinstance(financial_accounts, list) and financial_accounts)
+                    or baseline_structured.get("merchant")
+                    or baseline_structured.get("account_hint")
+                )
+            if has_strong_baseline_identity and signature_type in {"csv_header", "filename_pattern"}:
+                return self._merge_signature_pattern_with_baseline(
+                    signature_review=signature_review,
+                    baseline=baseline,
+                    extracted_text=extracted_text,
+                )
             return signature_review
 
         if AGENT_HUB_ENABLED:
@@ -172,6 +188,29 @@ class HouseholdDocumentReviewService:
         reviewed["document_type"] = str(reviewed.get("document_type") or baseline["document_type"])
         reviewed["extracted_text"] = extracted_text
         return reviewed
+
+    @staticmethod
+    def _merge_signature_pattern_with_baseline(
+        *,
+        signature_review: dict[str, Any],
+        baseline: dict[str, Any],
+        extracted_text: str | None,
+    ) -> dict[str, Any]:
+        merged = {
+            **baseline,
+            "summary": str(baseline.get("summary") or signature_review.get("summary") or ""),
+            "source_type": str(baseline.get("source_type") or signature_review.get("source_type") or "other"),
+            "document_type": str(baseline.get("document_type") or signature_review.get("document_type") or "other"),
+            "confidence": max(
+                float(signature_review.get("confidence") or 0.0),
+                float(baseline.get("confidence") or 0.0),
+            ),
+            "structured_data": baseline.get("structured_data") if isinstance(baseline.get("structured_data"), dict) else {},
+            "inferred_values": baseline.get("inferred_values") if isinstance(baseline.get("inferred_values"), list) else [],
+            "questions": baseline.get("questions") if isinstance(baseline.get("questions"), list) else [],
+            "extracted_text": extracted_text,
+        }
+        return merged
 
     def build_signature_candidates(
         self,
@@ -268,6 +307,7 @@ class HouseholdDocumentReviewService:
                 merchant=signature["merchant"],
                 account_hint=signature["account_hint"],
             ),
+            "_signature_type": signature["signature_type"],
         }
 
     def _find_signature(self, signature_keys: list[str]) -> dict[str, Any] | None:

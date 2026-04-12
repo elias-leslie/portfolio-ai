@@ -14,6 +14,7 @@ from app.models.household_finance_types import (
     HouseholdCategorizationCandidate,
     HouseholdCategoryBreakdown,
     HouseholdConfirmedFact,
+    HouseholdDiscoveredAccount,
     HouseholdDocument,
     HouseholdDocumentList,
     HouseholdDocumentReview,
@@ -24,6 +25,7 @@ from app.models.household_finance_types import (
     HouseholdMonthlyTrendPoint,
     HouseholdOpportunity,
     HouseholdOverview,
+    HouseholdPriceInsight,
     HouseholdQuestion,
     HouseholdQuestionList,
     HouseholdRecentTransaction,
@@ -59,6 +61,7 @@ __all__ = [
     "HouseholdCategorizationCandidate",
     "HouseholdCategoryBreakdown",
     "HouseholdConfirmedFact",
+    "HouseholdDiscoveredAccount",
     "HouseholdDocument",
     "HouseholdDocumentList",
     "HouseholdDocumentReview",
@@ -70,6 +73,7 @@ __all__ = [
     "HouseholdMonthlyTrendPoint",
     "HouseholdOpportunity",
     "HouseholdOverview",
+    "HouseholdPriceInsight",
     "HouseholdProfile",
     "HouseholdProfileUpdate",
     "HouseholdQuestion",
@@ -168,6 +172,7 @@ class HouseholdFinanceDashboard(BaseModel):
     import_center: ImportCenter
     evidence_accounts: list[HouseholdEvidenceAccount] = Field(default_factory=list)
     accounts: list[HouseholdAccountSummary] = Field(default_factory=list)
+    discovered_accounts: list[HouseholdDiscoveredAccount] = Field(default_factory=list)
     inbox: list[HouseholdInboxItem] = Field(default_factory=list)
     questions: list[HouseholdQuestion] = Field(default_factory=list)
     jenny_brief: JennyMoneyBrief

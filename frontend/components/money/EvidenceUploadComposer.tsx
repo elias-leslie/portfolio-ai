@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { useUploadHouseholdDocument } from '@/lib/hooks/useHousehold'
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
@@ -26,6 +27,7 @@ export function EvidenceUploadComposer({
   const upload = useUploadHouseholdDocument()
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [files, setFiles] = useState<File[]>([])
+  const [rawText, setRawText] = useState('')
   const [isDragActive, setIsDragActive] = useState(false)
   const [dedupedCount, setDedupedCount] = useState(0)
   const inputId =
@@ -36,10 +38,13 @@ export function EvidenceUploadComposer({
 
   const resetComposer = () => {
     setFiles([])
+    setRawText('')
     setIsDragActive(false)
     setDedupedCount(0)
     if (inputRef.current) inputRef.current.value = ''
   }
+
+  const trimmedRawText = rawText.trim()
 
   const pickFiles = (
     incoming: FileList | File[] | null | undefined,
@@ -88,15 +93,36 @@ export function EvidenceUploadComposer({
 
   const handlePaste = (event: ClipboardEvent<HTMLDivElement>) => {
     const incoming = pickFiles(event.clipboardData.files)
-    if (incoming.length === 0) return
+    if (incoming.length > 0) {
+      event.preventDefault()
+      stageIncomingFiles(incoming)
+      return
+    }
+    const pastedText = event.clipboardData.getData('text/plain').trim()
+    if (!pastedText) return
     event.preventDefault()
-    stageIncomingFiles(incoming)
+    setRawText((current) => {
+      if (!current.trim()) return pastedText
+      if (current.includes(pastedText)) return current
+      return `${current.trimEnd()}\n\n${pastedText}`
+    })
   }
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     setIsDragActive(false)
-    stageIncomingFiles(pickDraggedFiles(event))
+    const droppedFiles = pickDraggedFiles(event)
+    if (droppedFiles.length > 0) {
+      stageIncomingFiles(droppedFiles)
+      return
+    }
+    const droppedText = event.dataTransfer.getData('text/plain').trim()
+    if (!droppedText) return
+    setRawText((current) => {
+      if (!current.trim()) return droppedText
+      if (current.includes(droppedText)) return current
+      return `${current.trimEnd()}\n\n${droppedText}`
+    })
   }
 
   const handleDropzoneKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -106,16 +132,31 @@ export function EvidenceUploadComposer({
   }
 
   const handleUpload = async () => {
-    if (files.length === 0) return
+    if (files.length === 0 && !trimmedRawText) return
     try {
-      await Promise.all(
-        files.map((file) =>
+      const uploads = [
+        ...files.map((file) =>
           upload.mutateAsync({
             file,
             accountLabel: accountLabel ?? undefined,
           }),
         ),
-      )
+      ]
+      if (trimmedRawText) {
+        uploads.push(
+          upload.mutateAsync({
+            rawText: trimmedRawText,
+            filename:
+              `${accountLabel ?? title}`
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '') || 'pasted-evidence'
+              + '.txt',
+            accountLabel: accountLabel ?? undefined,
+          }),
+        )
+      }
+      await Promise.all(uploads)
       resetComposer()
     } catch {
       // Upload hook already surfaces the error toast.
@@ -172,12 +213,12 @@ export function EvidenceUploadComposer({
           <p className="font-medium text-text">
             {accountLabel
               ? 'Drop account evidence here'
-              : 'Paste or drop screenshots or files here'}
+              : 'Paste text or drop screenshots and files here'}
           </p>
           <p className="mt-1">
             {accountLabel
               ? 'Jenny will use the selected account as a routing hint, then verify the actual document contents before applying anything.'
-              : 'Jenny will infer the account, financial area, and what to update from the file itself.'}
+              : 'Jenny will infer the account, document type, dates, and what money view to update from the evidence itself.'}
           </p>
           {files.length > 0 ? (
             <div className="mt-3 space-y-1 text-text">
@@ -200,6 +241,17 @@ export function EvidenceUploadComposer({
               ) : null}
             </div>
           ) : null}
+          {trimmedRawText ? (
+            <div className="mt-3 rounded-2xl border border-border/40 bg-surface/80 p-3 text-left">
+              <p className="font-medium text-text">Raw text ready to upload</p>
+              <p className="mt-1 text-xs text-text-muted">
+                {trimmedRawText.length} characters
+              </p>
+              <p className="mt-2 max-h-24 overflow-hidden whitespace-pre-wrap text-sm text-text-muted">
+                {trimmedRawText}
+              </p>
+            </div>
+          ) : null}
         </div>
 
         <div>
@@ -214,6 +266,24 @@ export function EvidenceUploadComposer({
           />
         </div>
 
+        <div className="grid gap-2">
+          <Label htmlFor={`${inputId}-text`}>Or paste raw account text</Label>
+          <Textarea
+            id={`${inputId}-text`}
+            value={rawText}
+            onChange={(event) => setRawText(event.target.value)}
+            placeholder={
+              accountLabel
+                ? 'Paste copied account text here if you scraped it from the account portal.'
+                : 'Paste copied statement, balance, transaction, invoice, or account text here.'
+            }
+            rows={compact ? 5 : 7}
+          />
+          <p className="text-xs text-text-muted">
+            Jenny will store the pasted text as evidence and review it through the same intake path as uploaded files.
+          </p>
+        </div>
+
         {dedupedCount > 0 ? (
           <div className="rounded-2xl border border-warning/30 bg-warning/10 p-3 text-sm text-text-muted">
             Skipped {dedupedCount} duplicate file
@@ -225,20 +295,24 @@ export function EvidenceUploadComposer({
           <Button
             type="button"
             onClick={() => void handleUpload()}
-            disabled={files.length === 0 || upload.isPending}
+            disabled={(files.length === 0 && !trimmedRawText) || upload.isPending}
             aria-busy={upload.isPending}
           >
             {upload.isPending
               ? 'Uploading...'
-              : files.length > 1
+              : files.length > 1 && !trimmedRawText
                 ? 'Upload files'
-                : 'Upload file'}
+                : files.length === 1 && !trimmedRawText
+                  ? 'Upload file'
+                  : trimmedRawText && files.length === 0
+                    ? 'Upload text'
+                    : 'Upload evidence'}
           </Button>
           <Button
             type="button"
             variant="outline"
             onClick={resetComposer}
-            disabled={files.length === 0 || upload.isPending}
+            disabled={(files.length === 0 && !trimmedRawText) || upload.isPending}
             aria-busy={upload.isPending}
           >
             Clear

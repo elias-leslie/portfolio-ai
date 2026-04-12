@@ -18,18 +18,22 @@ vi.mock('@/components/money/MoneyAccountsPanel', () => ({
     <div>
       Money Accounts Panel
       {focus === 'coverage' ? <span>Account coverage focused</span> : null}
+      {focus === 'discovered' ? <span>Discovered accounts focused</span> : null}
     </div>
   ),
 }))
 vi.mock('@/components/money/HouseholdDocumentCenter', () => ({
   HouseholdDocumentCenter: ({
     focusedReview,
+    documentRequirements,
   }: {
     focusedReview?: boolean
+    documentRequirements?: Array<unknown>
   }) => (
     <div>
       Document Center
       {focusedReview ? <span>Date quality focused</span> : null}
+      <span>Money requirements: {documentRequirements?.length ?? 0}</span>
     </div>
   ),
 }))
@@ -60,6 +64,8 @@ function buildDashboard() {
       totalTrackedAssets: 28500,
       liabilitiesTotal: 2500,
       netWorth: 26000,
+      netWorthStatus: 'current',
+      netWorthDetail: '$28,500 assets less $2,500 liabilities.',
       trackedAccountCount: 3,
       needsRefreshCount: 1,
       candidateAccountCount: 1,
@@ -69,6 +75,8 @@ function buildDashboard() {
       lastTransactionDate: '2026-03-09',
       visibilityScore: 88,
       visibilityLabel: 'Strong household visibility',
+      monthlySpendStatus: 'current',
+      monthlySpendDetail: '3 months of recent evidence coverage.',
       nextBestAction: 'Refresh Chase Amazon card',
     },
     profile: {
@@ -177,8 +185,19 @@ function buildDashboard() {
         sourceTypes: ['brokerage'],
         linkedPortfolioAccountId: null,
         linkedPortfolioAccountName: null,
+        trackedAccountId: null,
+        accountOrigin: 'evidence',
+        moneyRole: 'net_worth_only',
         lastEvidenceAt: '2026-03-09T00:00:00Z',
         daysSinceEvidence: 1,
+        lastBalanceAt: '2026-03-09T00:00:00Z',
+        daysSinceBalance: 1,
+        balanceFreshnessStatus: 'fresh',
+        balanceFreshnessLabel: 'Fresh',
+        lastTransactionAt: null,
+        daysSinceTransaction: null,
+        transactionFreshnessStatus: 'not_applicable',
+        transactionFreshnessLabel: 'Not required',
         freshnessStatus: 'fresh',
         freshnessLabel: 'Fresh',
         matchStatus: 'tracked',
@@ -186,6 +205,7 @@ function buildDashboard() {
         gapFlags: [],
       },
     ],
+    discoveredAccounts: [],
     inbox: [
       {
         id: 'inbox-1',
@@ -306,6 +326,52 @@ describe('MoneyPage', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('asks for evidence when Jenny has missing-data needs', async () => {
+    useHouseholdDashboardMock.mockReturnValue({
+      data: {
+        ...buildDashboard(),
+        overview: {
+          ...buildDashboard().overview,
+          monthlySpendStatus: 'estimated',
+          monthlySpendDetail:
+            'Monthly spend estimate: 1 spending account missing transactions.',
+        },
+        inbox: [
+          {
+            id: 'account-main-checking-missing_transaction_history',
+            category: 'account',
+            priority: 'high',
+            title: 'Add statements for Main Checking',
+            detail:
+              'Jenny has some account evidence here but not enough linked transaction history to trust cash-flow calculations.',
+            actionLabel: 'Add statements',
+            actionHref: '/money?utility=evidence',
+            relatedAccountId: 'account-1',
+            relatedQuestionId: null,
+            relatedDocumentIds: ['doc-1'],
+          },
+        ],
+      },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+
+    const { default: MoneyPage } = await import('../money/page')
+
+    render(<MoneyPage />)
+
+    expect(screen.getByText('Fix Money Data')).toBeInTheDocument()
+    expect(screen.getByText('Add statements for Main Checking')).toBeInTheDocument()
+    expect(
+      screen.getByText(/not enough linked transaction history/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Add statements' }),
+    ).toHaveAttribute('href', '/money?utility=evidence')
+  })
+
   it('shows retry for the intake tab when document loading fails', async () => {
     const user = userEvent.setup()
     const refetchDocuments = vi.fn()
@@ -333,6 +399,46 @@ describe('MoneyPage', () => {
     render(<MoneyPage />)
 
     expect(screen.getByText('Document Center')).toBeInTheDocument()
+    expect(screen.getByText('Money requirements: 0')).toBeInTheDocument()
+  })
+
+  it('keeps planning-only document requirements out of the default money intake flow', async () => {
+    useHouseholdDashboardMock.mockReturnValue({
+      data: {
+        ...buildDashboard(),
+        planning: {
+          ...buildDashboard().planning,
+          documentRequirements: [
+            {
+              id: 'req-tax',
+              requirementKey: 'core-tax-return',
+              documentKind: 'tax_return',
+              label: 'Most recent tax return',
+              status: 'missing',
+              priority: 'high',
+              relatedSection: 'taxes',
+              relatedRecordId: null,
+              rationale: 'Needed for taxes.',
+              notes: null,
+              source: 'system',
+              satisfiedByDocumentId: null,
+              createdAt: '2026-04-01T00:00:00Z',
+              updatedAt: '2026-04-01T00:00:00Z',
+            },
+          ],
+        },
+      },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+    window.history.replaceState({}, '', '/money?utility=evidence')
+    const { default: MoneyPage } = await import('../money/page')
+
+    render(<MoneyPage />)
+
+    expect(screen.getByText('Money requirements: 0')).toBeInTheDocument()
   })
 
   it('focuses the date-quality evidence review from the focus query param', async () => {
@@ -361,6 +467,20 @@ describe('MoneyPage', () => {
 
     expect(screen.getByText('Money Accounts Panel')).toBeInTheDocument()
     expect(screen.getByText('Account coverage focused')).toBeInTheDocument()
+  })
+
+  it('opens the accounts tab with discovered-account focus from the focus query param', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/money?tab=accounts&focus=discovered-accounts',
+    )
+    const { default: MoneyPage } = await import('../money/page')
+
+    render(<MoneyPage />)
+
+    expect(screen.getByText('Money Accounts Panel')).toBeInTheDocument()
+    expect(screen.getByText('Discovered accounts focused')).toBeInTheDocument()
   })
 
   it('opens focused planning from the utility and focus query params', async () => {

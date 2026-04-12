@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any, cast
 from unittest.mock import Mock, patch
 
 from app.models.household_finance import (
@@ -87,10 +88,10 @@ def test_get_dashboard_returns_composed_household_view() -> None:
         ],
     )
 
-    service.get_profile = Mock(return_value=profile)
-    service.list_documents = Mock(return_value=HouseholdDocumentList(items=[]))
-    service.list_questions = Mock(return_value=HouseholdQuestionList(items=[question]))
-    service.get_resolved_values = Mock(return_value=[resolved_value])
+    service.get_profile = cast(Any, Mock(return_value=profile))
+    service.list_documents = cast(Any, Mock(return_value=HouseholdDocumentList(items=[])))
+    service.list_questions = cast(Any, Mock(return_value=HouseholdQuestionList(items=[question])))
+    service.get_resolved_values = cast(Any, Mock(return_value=[resolved_value]))
     mock_conn = Mock()
     mock_conn.execute.return_value.fetchall.return_value = []
     mock_conn.execute.return_value.fetchone.side_effect = [
@@ -107,7 +108,9 @@ def test_get_dashboard_returns_composed_household_view() -> None:
     service.portfolio_mgr.get_positions.return_value = []
     service.transaction_service = Mock()
     service.transaction_service.build_reports.return_value = reports
-    service.get_planning_snapshot = Mock(return_value=empty_household_planning_snapshot())
+    service.get_planning_snapshot = cast(
+        Any, Mock(return_value=empty_household_planning_snapshot())
+    )
 
     assembly_path = "app.services._household_dashboard_assembly"
     with (
@@ -132,6 +135,8 @@ def test_get_dashboard_returns_composed_household_view() -> None:
     assert dashboard.overview.visibility_score == 88
     assert dashboard.overview.coverage_months == 3
     assert dashboard.overview.last_transaction_date == "2026-03-07"
+    assert dashboard.overview.net_worth_status == "unavailable"
+    assert dashboard.overview.monthly_spend_status == "unavailable"
     assert dashboard.budget_readiness.status == "ready_for_budgeting"
     assert dashboard.retirement_preparedness.status == "scenario_ready"
     assert dashboard.questions[0].id == "question-1"

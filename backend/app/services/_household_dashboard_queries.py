@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from app.logging_config import get_logger
@@ -21,6 +21,7 @@ from app.services._household_dashboard_builders import (
     suggest_category,
     suggest_essentiality,
 )
+from app.services._household_spend_filters import non_spend_sql_predicate
 
 logger = get_logger(__name__)
 
@@ -28,6 +29,11 @@ def _current_transaction_date_predicate(alias: str | None = None) -> str:
     qualifier = f"{alias}." if alias else ""
     return f"{qualifier}transaction_date <= CURRENT_DATE"
 
+
+_NON_SPEND_TRANSACTION_SQL = non_spend_sql_predicate(
+    text_expressions=["t.description", "t.raw_merchant"],
+    category_expression="t.category",
+)
 
 _CATEGORIZATION_SQL = f"""
     SELECT
@@ -42,14 +48,16 @@ _CATEGORIZATION_SQL = f"""
         COALESCE(similar_txns.similar_count, 0) AS similar_count
     FROM household_transactions t
     LEFT JOIN (
-        SELECT merchant_id, COUNT(*) AS similar_count
-        FROM household_transactions
-        WHERE flow_type = 'expense'
-          AND {_current_transaction_date_predicate()}
+        SELECT t.merchant_id, COUNT(*) AS similar_count
+        FROM household_transactions t
+        WHERE t.flow_type = 'expense'
+          AND {_current_transaction_date_predicate("t")}
+          AND NOT {_NON_SPEND_TRANSACTION_SQL}
         GROUP BY merchant_id
     ) similar_txns ON similar_txns.merchant_id = t.merchant_id
     WHERE t.flow_type = 'expense'
       AND {_current_transaction_date_predicate("t")}
+      AND NOT {_NON_SPEND_TRANSACTION_SQL}
       AND COALESCE(t.confidence, 0) < 0.60
     ORDER BY CAST(t.amount AS DOUBLE PRECISION) DESC, COALESCE(similar_txns.similar_count, 0) DESC
     LIMIT %s
@@ -66,6 +74,7 @@ _RECURRING_SQL = f"""
     LEFT JOIN household_merchants m ON m.id = t.merchant_id
     WHERE t.flow_type = 'expense'
       AND {_current_transaction_date_predicate("t")}
+      AND NOT {_NON_SPEND_TRANSACTION_SQL}
     GROUP BY 1, 2
     HAVING COUNT(*) >= 2
     ORDER BY average_amount DESC
@@ -93,20 +102,23 @@ _RETIREMENT_CONTRIBUTION_SQL = f"""
 
 _MONTH_SPEND_SQL = f"""
     SELECT COALESCE(SUM(CAST(amount AS DOUBLE PRECISION)), 0)
-    FROM household_transactions
-    WHERE flow_type = 'expense'
-      AND transaction_date >= date_trunc('month', CURRENT_DATE)
-      AND {_current_transaction_date_predicate()}
+    FROM household_transactions t
+    WHERE t.flow_type = 'expense'
+      AND t.transaction_date >= date_trunc('month', CURRENT_DATE)
+      AND {_current_transaction_date_predicate("t")}
+      AND NOT {_NON_SPEND_TRANSACTION_SQL}
 """
 
 _UNKNOWN_ACCOUNT_SQL = f"""
-    SELECT DISTINCT
+    SELECT
         t.description,
-        t.flow_type
+        t.flow_type,
+        COUNT(*) AS occurrence_count
     FROM household_transactions t
     WHERE t.flow_type IN ('transfer_out', 'payment')
       AND {_current_transaction_date_predicate("t")}
-    ORDER BY t.description
+    GROUP BY t.description, t.flow_type
+    ORDER BY COUNT(*) DESC, t.description
     LIMIT 500
 """
 
@@ -115,9 +127,10 @@ _STATEMENT_FRESHNESS_SQL = f"""
         MAX(transaction_date) AS most_recent_date,
         COUNT(DISTINCT date_trunc('month', transaction_date)) AS coverage_months,
         MIN(transaction_date) AS earliest_date
-    FROM household_transactions
-    WHERE flow_type = 'expense'
-      AND {_current_transaction_date_predicate()}
+    FROM household_transactions t
+    WHERE t.flow_type = 'expense'
+      AND {_current_transaction_date_predicate("t")}
+      AND NOT {_NON_SPEND_TRANSACTION_SQL}
 """
 
 _FUTURE_TRANSACTION_QUALITY_SQL = """
@@ -273,10 +286,115 @@ def _canonicalize_institution(description: str, fallback: str) -> str:
     return fallback
 
 
+def _title_account_label(institution: str, partial_account: str) -> str:
+    if partial_account:
+        return f"{institution.title()} · …{partial_account}"
+    return institution.title()
+
+
+def _discovered_account_profile(
+    *,
+    institution: str,
+    description: str,
+    flow_type: str,
+) -> tuple[str, str, str, float]:
+    normalized = description.upper()
+    asset_group = "other"
+    account_type = "other"
+    source_type = "other"
+    confidence = 0.5
+
+    if "ROTH" in normalized:
+        asset_group, account_type, source_type, confidence = (
+            "retirement",
+            "roth",
+            "retirement",
+            0.82,
+        )
+    elif "401" in normalized:
+        asset_group, account_type, source_type, confidence = (
+            "retirement",
+            "401k",
+            "retirement",
+            0.82,
+        )
+    elif "IRA" in normalized:
+        asset_group, account_type, source_type, confidence = (
+            "retirement",
+            "ira",
+            "retirement",
+            0.8,
+        )
+    elif "HSA" in normalized:
+        asset_group, account_type, source_type, confidence = (
+            "retirement",
+            "hsa",
+            "retirement",
+            0.78,
+        )
+    elif "529" in normalized:
+        asset_group, account_type, source_type, confidence = (
+            "education",
+            "529",
+            "education",
+            0.8,
+        )
+    elif any(token in normalized for token in ("MORTGAGE", "LOAN", "HELOC")):
+        asset_group, account_type, source_type, confidence = (
+            "debt",
+            "loan",
+            "debt",
+            0.72,
+        )
+    elif flow_type == "payment" or institution in {
+        "CHASE",
+        "AMEX",
+        "DISCOVER",
+        "CITI",
+        "CAPITAL ONE",
+        "BARCLAYS",
+    }:
+        asset_group, account_type, source_type, confidence = (
+            "credit",
+            "credit_card",
+            "credit_card",
+            0.76,
+        )
+    elif any(token in normalized for token in ("CHECKING", "SAVINGS", "CASH MANAGEMENT")):
+        asset_group, account_type, source_type, confidence = (
+            "cash",
+            "checking",
+            "bank",
+            0.74,
+        )
+    elif institution in {"FIDELITY", "SCHWAB", "VANGUARD"}:
+        asset_group, account_type, source_type, confidence = (
+            "taxable",
+            "brokerage",
+            "brokerage",
+            0.62,
+        )
+    return asset_group, account_type, source_type, confidence
+
+
+def _discovered_account_detail(
+    *,
+    occurrence_count: int,
+    description: str,
+    asset_group: str,
+) -> str:
+    role = "monthly spending" if asset_group in {"cash", "credit", "debt"} else "net worth"
+    return (
+        f"Seen {occurrence_count} time{'s' if occurrence_count != 1 else ''} in transfer or payment descriptions. "
+        f"If this is yours, add it so Jenny can stop treating it as an unknown {role} endpoint."
+        + (f" Example: {_short_excerpt(description, max_length=120) or description}." if description else "")
+    )
+
+
 def detect_unknown_accounts(
     storage: Any,
     documents: list[Any],
-) -> list[dict[str, str]]:
+) -> list[dict[str, Any]]:
     """Detect references to external accounts in transaction descriptions not matched to any document."""
     with storage.connection() as conn:
         rows = conn.execute(_UNKNOWN_ACCOUNT_SQL).fetchall()
@@ -295,9 +413,11 @@ def detect_unknown_accounts(
             if inst:
                 known_labels.add(str(inst).upper())
 
-    detected: dict[str, dict[str, str]] = {}
+    detected: dict[str, dict[str, Any]] = {}
     for row in rows:
         description = str(row[0] or "")
+        flow_type = str(row[1] or "")
+        occurrence_count = int(row[2] or 0)
         match = _INSTITUTION_PATTERN.search(description)
         if not match:
             continue
@@ -309,10 +429,47 @@ def detect_unknown_accounts(
             continue
         if partial_account and partial_account in known_hints:
             continue
+        asset_group, account_type, source_type, confidence = _discovered_account_profile(
+            institution=institution,
+            description=description,
+            flow_type=flow_type,
+        )
         if key not in detected:
-            detected[key] = {"institution": institution, "partial_account": partial_account, "key": key}
+            detected[key] = {
+                "institution": institution,
+                "partial_account": partial_account,
+                "key": key,
+                "suggested_label": _title_account_label(institution, partial_account),
+                "asset_group": asset_group,
+                "account_type": account_type,
+                "source_type": source_type,
+                "confidence": confidence,
+                "occurrence_count": occurrence_count,
+                "sample_description": description,
+                "detail": _discovered_account_detail(
+                    occurrence_count=occurrence_count,
+                    description=description,
+                    asset_group=asset_group,
+                ),
+            }
+            continue
+        detected[key]["occurrence_count"] = int(detected[key]["occurrence_count"]) + occurrence_count
+        if len(description) > len(str(detected[key].get("sample_description") or "")):
+            detected[key]["sample_description"] = description
+            detected[key]["detail"] = _discovered_account_detail(
+                occurrence_count=int(detected[key]["occurrence_count"]),
+                description=description,
+                asset_group=str(detected[key]["asset_group"]),
+            )
 
-    return list(detected.values())
+    return sorted(
+        detected.values(),
+        key=lambda item: (
+            -int(item.get("occurrence_count") or 0),
+            -float(item.get("confidence") or 0.0),
+            str(item.get("suggested_label") or ""),
+        ),
+    )
 
 
 def check_statement_freshness(storage: Any) -> dict[str, Any]:
@@ -495,6 +652,54 @@ def fetch_monthly_retirement_contributions(storage: Any) -> float:
 
 def fetch_current_month_spend(storage: Any) -> float:
     return _fetch_scalar_float(storage, _MONTH_SPEND_SQL)
+
+
+def fetch_latest_transaction_dates_by_document(storage: Any) -> dict[str, date]:
+    with storage.connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT document_id, MAX(transaction_date) AS latest_transaction_date
+            FROM household_transactions
+            WHERE document_id IS NOT NULL
+            GROUP BY document_id
+            """
+        ).fetchall()
+
+    latest_by_document: dict[str, date] = {}
+    for row in rows:
+        document_id = str(row[0]) if row[0] is not None else None
+        latest_raw = row[1]
+        if document_id is None or latest_raw is None:
+            continue
+        if isinstance(latest_raw, datetime):
+            latest_by_document[document_id] = latest_raw.date()
+        elif isinstance(latest_raw, date):
+            latest_by_document[document_id] = latest_raw
+    return latest_by_document
+
+
+def fetch_latest_transaction_dates_by_account_label(storage: Any) -> dict[str, date]:
+    with storage.connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT account_label, MAX(transaction_date) AS latest_transaction_date
+            FROM household_transactions
+            WHERE account_label IS NOT NULL
+            GROUP BY account_label
+            """
+        ).fetchall()
+
+    latest_by_label: dict[str, date] = {}
+    for row in rows:
+        label = str(row[0]).strip() if row[0] is not None else ""
+        latest_raw = row[1]
+        if not label or latest_raw is None:
+            continue
+        if isinstance(latest_raw, datetime):
+            latest_by_label[label] = latest_raw.date()
+        elif isinstance(latest_raw, date):
+            latest_by_label[label] = latest_raw
+    return latest_by_label
 
 
 _INCOME_MONTHLY_AVG_SQL = f"""

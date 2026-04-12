@@ -288,7 +288,17 @@ class HouseholdDocumentPipeline:
                 inserted=inserted, duplicates=duplicates,
             )
             conn.commit()
-        return {"dataset_type": dataset_type, "inserted": inserted, "duplicates": duplicates}
+        enrichment_summary = service.product_enrichment_service.enrich_import_rows(
+            service,
+            document_id=document.id,
+            dataset_type=dataset_type,
+        )
+        return {
+            "dataset_type": dataset_type,
+            "inserted": inserted,
+            "duplicates": duplicates,
+            "enrichment": enrichment_summary,
+        }
 
     def apply_review_outputs(
         self,

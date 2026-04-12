@@ -317,25 +317,25 @@ def test_household_actions_use_specific_labels_and_focused_destinations() -> Non
     service = object.__new__(HomeActionService)
     service._household_service = lambda: SimpleNamespace(
         get_dashboard=lambda: SimpleNamespace(
-            jenny_needs=[
+            inbox=[
                 SimpleNamespace(
                     id="need_account_completeness",
-                    need_type="confirm",
+                    category="coverage",
                     title="Are all accounts covered?",
                     detail="Confirm account coverage.",
                     priority="high",
-                    status="unsatisfied",
+                    action_label="Review accounts",
                     action_href="/money?tab=accounts&focus=account-coverage",
                     related_question_id=None,
                 ),
                 SimpleNamespace(
-                    id="need_planning_housing",
-                    need_type="set",
-                    title="Complete housing planning",
-                    detail="Add owned home costs.",
-                    priority="high",
-                    status="unsatisfied",
-                    action_href="/money?utility=planning&focus=housing",
+                    id="discover-chase-1234",
+                    category="account",
+                    title="Confirm possible account: Chase · …1234",
+                    detail="Imported transfers reference a likely Chase card ending in 1234.",
+                    priority="medium",
+                    action_label="Review accounts",
+                    action_href="/money?tab=accounts&focus=discovered-accounts",
                     related_question_id=None,
                 ),
             ]
@@ -346,5 +346,5 @@ def test_household_actions_use_specific_labels_and_focused_destinations() -> Non
 
     assert actions[0]["action_label"] == "Review accounts"
     assert actions[0]["href"] == "/money?tab=accounts&focus=account-coverage"
-    assert actions[1]["action_label"] == "Add housing info"
-    assert actions[1]["href"] == "/money?utility=planning&focus=housing"
+    assert actions[1]["action_label"] == "Review accounts"
+    assert actions[1]["href"] == "/money?tab=accounts&focus=discovered-accounts"

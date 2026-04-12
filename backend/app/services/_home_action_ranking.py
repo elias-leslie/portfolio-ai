@@ -69,15 +69,18 @@ def household_rank_score(need: object) -> float:
     need_type = str(getattr(need, "need_type", "") or "")
     priority = getattr(need, "priority", "low")
 
+    score = action_rank_score(priority)
     if "focus=account-coverage" in action_href:
-        return action_rank_score(priority, impact=260.0, freshness=140.0, effort=20.0)
-    if "utility=evidence" in action_href:
-        return action_rank_score(priority, impact=180.0, freshness=160.0, effort=60.0)
-    if "utility=planning" in action_href:
+        score = action_rank_score(priority, impact=260.0, freshness=140.0, effort=20.0)
+    elif "focus=discovered-accounts" in action_href:
+        score = action_rank_score(priority, impact=220.0, freshness=120.0, effort=30.0)
+    elif "utility=evidence" in action_href:
+        score = action_rank_score(priority, impact=180.0, freshness=160.0, effort=60.0)
+    elif "utility=planning" in action_href:
         impact = 170.0 if "housing" in need_id else 130.0
-        return action_rank_score(priority, impact=impact, effort=80.0)
-    if getattr(need, "related_question_id", None):
-        return action_rank_score(priority, impact=120.0, freshness=80.0, effort=40.0)
-    if need_type == "confirm":
-        return action_rank_score(priority, impact=120.0, effort=40.0)
-    return action_rank_score(priority)
+        score = action_rank_score(priority, impact=impact, effort=80.0)
+    elif getattr(need, "related_question_id", None):
+        score = action_rank_score(priority, impact=120.0, freshness=80.0, effort=40.0)
+    elif need_type == "confirm":
+        score = action_rank_score(priority, impact=120.0, effort=40.0)
+    return score

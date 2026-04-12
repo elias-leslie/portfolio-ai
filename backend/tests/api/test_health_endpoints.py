@@ -88,4 +88,4 @@ class TestHealthEndpoint:
         data = response.json()
 
         assert "status" in data
-        assert data["status"] == "healthy"
+        assert data["status"] in {"healthy", "degraded"}

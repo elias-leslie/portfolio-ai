@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import csv
 import re
+from datetime import datetime
+from io import StringIO
 
 # Text preview length for structured_data summaries
 TEXT_PREVIEW_LENGTH = 500
@@ -203,6 +206,320 @@ def _classify_529(structured_data: _StructuredData) -> tuple[str, str, float, st
     return "brokerage", "brokerage_statement", 0.9, "529 college savings account snapshot with beneficiary balances."
 
 
+def _parse_natural_date(value: str | None) -> str | None:
+    if not value:
+        return None
+    cleaned = " ".join(value.strip().split())
+    for pattern in ("%B %d, %Y", "%b %d, %Y", "%b-%d-%Y", "%B-%d-%Y", "%m/%d/%Y", "%m/%d/%y"):
+        try:
+            return datetime.strptime(cleaned, pattern).date().isoformat()
+        except ValueError:
+            continue
+    return None
+
+
+def _normalize_csv_header(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "_", value.replace("\ufeff", "").strip().lower())
+    return normalized.strip("_")
+
+
+def _csv_rows_from_text(extracted_text: str | None) -> tuple[list[str], list[dict[str, str]]]:
+    if not extracted_text:
+        return [], []
+    reader = csv.reader(StringIO(extracted_text.lstrip("\ufeff")))
+    headers: list[str] | None = None
+    normalized_headers: list[str] = []
+    rows: list[dict[str, str]] = []
+    for raw_row in reader:
+        cleaned = [str(cell or "").strip() for cell in raw_row]
+        if not any(cleaned):
+            continue
+        if headers is None:
+            headers = cleaned
+            normalized_headers = [_normalize_csv_header(cell) for cell in cleaned]
+            continue
+        padded = cleaned + [""] * max(0, len(normalized_headers) - len(cleaned))
+        row_dict = {
+            normalized_headers[index]: padded[index]
+            for index in range(len(normalized_headers))
+            if normalized_headers[index]
+        }
+        if row_dict:
+            rows.append(row_dict)
+    return normalized_headers, rows
+
+
+def _numeric_string(value: str | None) -> str | None:
+    if not value:
+        return None
+    match = re.search(r"[-+]?\$?([0-9][0-9,]*\.\d+)", value)
+    return match.group(1).replace(",", "") if match else None
+
+
+def _float_value(value: str | None) -> float | None:
+    numeric = _numeric_string(value)
+    if numeric is None:
+        return None
+    try:
+        return float(numeric)
+    except ValueError:
+        return None
+
+
+def _extract_cash_management_account(text: str) -> dict[str, object] | None:
+    balance_match = re.search(
+        r"account total balance(?: on date:\s*([A-Za-z]{3,9}[- ][0-9]{1,2}(?:,|-)[0-9]{4}))?(?: is)?\s*,?\s*\$([0-9][0-9,]*\.\d{2})",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if balance_match is None:
+        return None
+    available_cash_match = re.search(
+        r"cash available to withdraw\s*\$([0-9][0-9,]*\.\d{2})",
+        text,
+        flags=re.IGNORECASE,
+    )
+    account_name_match = re.search(
+        r"(?im)^(cash management(?:\s*\([^)\n]+\))?)\s*$",
+        text,
+    )
+    account_mask_match = re.search(
+        r"cash account:\s*([A-Za-z0-9*]+)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    account_hint = account_name_match.group(1).strip() if account_name_match else "Cash Management"
+    as_of_match = re.search(
+        r"as of\s*([A-Za-z]{3,9}[- ][0-9]{1,2}(?:,|-)[0-9]{4})",
+        text,
+        flags=re.IGNORECASE,
+    )
+    as_of_date = _parse_natural_date(as_of_match.group(1) if as_of_match else None)
+    if as_of_date is None:
+        as_of_date = _parse_natural_date(balance_match.group(1))
+    return {
+        "asset_group": "taxable",
+        "account_type": "brokerage",
+        "account_name": account_hint,
+        "account_hint": account_hint,
+        "account_mask": account_mask_match.group(1).strip() if account_mask_match is not None else None,
+        "balance": balance_match.group(2),
+        "cash_balance": (
+            available_cash_match.group(1) if available_cash_match is not None else balance_match.group(2)
+        ),
+        "currency": "USD",
+        "as_of_date": as_of_date,
+    }
+
+
+def _classify_cash_management(
+    extracted_text: str | None,
+    structured_data: _StructuredData,
+) -> tuple[str, str, float, str]:
+    account = _extract_cash_management_account(extracted_text or "")
+    if account is not None:
+        structured_data["account_hint"] = account["account_hint"]
+        structured_data["financial_accounts"] = [account]
+        if account.get("balance") is not None:
+            structured_data["total_amount"] = account["balance"]
+        if account.get("as_of_date") is not None:
+            structured_data["statement_period"] = f"As of {account['as_of_date']}"
+    return (
+        "brokerage",
+        "brokerage_statement",
+        0.9,
+        "Cash management account snapshot with recent activity, balance details, and available cash.",
+    )
+
+
+def _extract_statement_csv_account(
+    *,
+    filename: str,
+    extracted_text: str | None,
+) -> dict[str, object] | None:
+    if not extracted_text:
+        return None
+    normalized_headers, data_rows = _csv_rows_from_text(extracted_text)
+    if not normalized_headers or not data_rows:
+        return None
+    header_set = set(normalized_headers)
+    if not {"run_date", "action", "amount", "cash_balance"}.issubset(header_set):
+        return None
+
+    first_row = data_rows[0]
+    account_mask_match = re.search(
+        r"(?:history|activity|transactions?)_for_account_([A-Za-z0-9*]+)",
+        filename,
+        flags=re.IGNORECASE,
+    )
+    account_mask = account_mask_match.group(1).strip() if account_mask_match is not None else None
+    as_of_date = _parse_natural_date(first_row.get("run_date"))
+    balance = first_row.get("cash_balance") or None
+    if not balance:
+        return None
+
+    account_hint = f"Account {account_mask}" if account_mask else "Imported cash account"
+    return {
+        "asset_group": "taxable",
+        "account_type": "brokerage",
+        "account_name": account_hint,
+        "account_hint": account_hint,
+        "account_mask": account_mask,
+        "balance": balance,
+        "cash_balance": balance,
+        "currency": "USD",
+        "as_of_date": as_of_date,
+    }
+
+
+def _fidelity_account_type(account_name: str) -> tuple[str, str, str]:
+    normalized = account_name.lower()
+    if "roth" in normalized:
+        return "retirement", "roth_ira", "retirement"
+    if "traditional ira" in normalized or "rollover ira" in normalized or normalized.endswith(" ira"):
+        return "retirement", "ira", "retirement"
+    if "529" in normalized:
+        return "education", "529", "education"
+    return "taxable", "brokerage", "brokerage"
+
+
+def _extract_fidelity_positions_accounts(
+    *,
+    extracted_text: str | None,
+) -> tuple[str, str, float, str, _StructuredData] | None:
+    headers, rows = _csv_rows_from_text(extracted_text)
+    required = {"account_number", "account_name", "symbol", "description", "current_value", "type"}
+    if not required.issubset(set(headers)):
+        return None
+
+    grouped: dict[tuple[str, str], dict[str, object]] = {}
+    for row in rows:
+        account_number = row.get("account_number", "").strip()
+        account_name = row.get("account_name", "").strip()
+        current_value = _float_value(row.get("current_value"))
+        if not account_number or not account_name or current_value is None:
+            continue
+        asset_group, account_type, source_type = _fidelity_account_type(account_name)
+        group = grouped.setdefault(
+            (account_number, account_name),
+            {
+                "balance_total": 0.0,
+                "cash_total": 0.0,
+                "holdings": [],
+                "asset_group": asset_group,
+                "account_type": account_type,
+                "source_type": source_type,
+                "account_number": account_number,
+                "account_name": account_name,
+            },
+        )
+        symbol = row.get("symbol", "").replace("*", "").strip()
+        description = row.get("description", "").strip()
+        quantity = _numeric_string(row.get("quantity"))
+        weight_pct = _numeric_string(row.get("percent_of_account"))
+        position_type = row.get("type", "").strip().lower()
+        group["balance_total"] = float(group["balance_total"]) + current_value
+        is_cash_like = (
+            symbol.upper() in {"SPAXX", "FCASH", "FDRXX"}
+            or "money market" in description.lower()
+            or position_type == "cash"
+        )
+        if is_cash_like:
+            group["cash_total"] = float(group["cash_total"]) + current_value
+        holdings = group["holdings"]
+        if isinstance(holdings, list):
+            holdings.append(
+                {
+                    "symbol": symbol or None,
+                    "description": description or None,
+                    "quantity": quantity,
+                    "market_value": f"{current_value:.2f}",
+                    "weight_pct": weight_pct,
+                }
+            )
+
+    if not grouped:
+        return None
+
+    date_match = re.search(
+        r"date downloaded\s+([A-Za-z]{3,9}-[0-9]{1,2}-[0-9]{4})",
+        extracted_text or "",
+        flags=re.IGNORECASE,
+    )
+    as_of_date = _parse_natural_date(date_match.group(1) if date_match else None)
+    financial_accounts: list[dict[str, object]] = []
+    source_types: set[str] = set()
+    total_balance = 0.0
+    for (_, account_name), group in grouped.items():
+        balance_total = round(float(group["balance_total"]), 2)
+        cash_total = round(float(group["cash_total"]), 2)
+        holdings_value = round(balance_total - cash_total, 2)
+        source_type = str(group["source_type"])
+        source_types.add(source_type)
+        total_balance += balance_total
+        financial_accounts.append(
+            {
+                "asset_group": group["asset_group"],
+                "account_type": group["account_type"],
+                "institution_name": "Fidelity",
+                "account_name": account_name,
+                "account_hint": account_name,
+                "account_mask": str(group["account_number"]),
+                "currency": "USD",
+                "balance": f"{balance_total:.2f}",
+                "holdings_value": f"{holdings_value:.2f}",
+                "cash_balance": f"{cash_total:.2f}",
+                "as_of_date": as_of_date,
+                "holdings": group["holdings"],
+            }
+        )
+
+    source_type = "retirement" if source_types == {"retirement"} else "brokerage"
+    document_type = "retirement_statement" if source_type == "retirement" else "brokerage_statement"
+    account_count = len(financial_accounts)
+    structured_data: _StructuredData = {
+        "provider_name": "Fidelity",
+        "currency": "USD",
+        "financial_accounts": financial_accounts,
+        "total_amount": f"{total_balance:.2f}",
+        "account_count": account_count,
+    }
+    if as_of_date is not None:
+        structured_data["statement_period"] = as_of_date
+    if account_count == 1:
+        structured_data["account_hint"] = str(financial_accounts[0]["account_name"])
+    else:
+        structured_data["account_hint"] = f"Fidelity positions export ({account_count} accounts)"
+    summary = (
+        f"Fidelity positions export covering {account_count} "
+        f"{'retirement' if source_type == 'retirement' else 'brokerage'} "
+        f"{'account' if account_count == 1 else 'accounts'} totaling ${total_balance:,.2f}."
+    )
+    return source_type, document_type, 0.95, summary, structured_data
+
+
+def _classify_statement_csv(
+    *,
+    filename: str,
+    extracted_text: str | None,
+    structured_data: _StructuredData,
+) -> tuple[str, str, float, str] | None:
+    account = _extract_statement_csv_account(filename=filename, extracted_text=extracted_text)
+    if account is None:
+        return None
+    structured_data["account_hint"] = account["account_hint"]
+    structured_data["financial_accounts"] = [account]
+    structured_data["total_amount"] = account["balance"]
+    if account.get("as_of_date") is not None:
+        structured_data["statement_period"] = f"As of {account['as_of_date']}"
+    return (
+        "brokerage",
+        "brokerage_statement",
+        0.9,
+        "Structured account export with dated cash activity and running balance.",
+    )
+
+
 def _classify_by_content(
     *,
     filename: str,
@@ -225,14 +542,47 @@ def _classify_by_content(
 
     if is_amazon_order:
         inferred_source, inferred_document, confidence, summary = _classify_amazon(text_lower, structured_data)
-    elif "walmart.com" in text_lower or "order details - walmart.com" in text_lower or "walmart" in filename_lower:
+    elif filename_lower.endswith(".csv"):
+        fidelity_positions = _extract_fidelity_positions_accounts(
+            extracted_text=extracted_text,
+        )
+        if fidelity_positions is not None:
+            (
+                inferred_source,
+                inferred_document,
+                confidence,
+                summary,
+                positions_structured_data,
+            ) = fidelity_positions
+            structured_data.update(positions_structured_data)
+        else:
+            statement_csv = _classify_statement_csv(
+                filename=filename,
+                extracted_text=extracted_text,
+                structured_data=structured_data,
+            )
+            if statement_csv is not None:
+                inferred_source, inferred_document, confidence, summary = statement_csv
+    elif "chase.com/amazon" in text_lower or "autopay is on" in text_lower:
+        inferred_source, inferred_document, confidence, summary = _classify_chase_amazon(structured_data)
+    elif (
+        "order details - walmart.com" in text_lower
+        or ("walmart.com" in text_lower and "order details" in text_lower)
+        or "walmart" in filename_lower
+    ):
         inferred_source, inferred_document, confidence, summary = _classify_walmart(structured_data)
     elif "wells fargo everyday checking" in text_lower:
         inferred_source, inferred_document, confidence, summary = _classify_wells_fargo(structured_data)
-    elif "chase.com/amazon" in text_lower or "autopay is on" in text_lower:
-        inferred_source, inferred_document, confidence, summary = _classify_chase_amazon(structured_data)
     elif "529" in text_lower or "college fnd" in text_lower or "college fund" in text_lower:
         inferred_source, inferred_document, confidence, summary = _classify_529(structured_data)
+    elif "cash management" in text_lower and (
+        "account total balance" in text_lower
+        or "cash available to withdraw" in text_lower
+        or "recent activity" in text_lower
+    ):
+        inferred_source, inferred_document, confidence, summary = _classify_cash_management(
+            extracted_text, structured_data
+        )
     elif "brokerage" in text_lower or "positions" in text_lower or "dividends" in text_lower:
         inferred_source, inferred_document, confidence = "brokerage", "brokerage_statement", 0.8
         summary = "Brokerage statement with investable assets and account activity."

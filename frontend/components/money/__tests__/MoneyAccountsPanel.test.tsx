@@ -53,8 +53,17 @@ const accounts = [
     linkedPortfolioAccountName: null,
     trackedAccountId: 'tracked-1',
     accountOrigin: 'tracked',
+    moneyRole: 'spend_driver',
     lastEvidenceAt: '2026-04-07T00:00:00Z',
     daysSinceEvidence: 2,
+    lastBalanceAt: '2026-04-07T00:00:00Z',
+    daysSinceBalance: 2,
+    balanceFreshnessStatus: 'fresh',
+    balanceFreshnessLabel: 'Fresh',
+    lastTransactionAt: '2026-04-06T00:00:00Z',
+    daysSinceTransaction: 3,
+    transactionFreshnessStatus: 'fresh',
+    transactionFreshnessLabel: 'Fresh',
     freshnessStatus: 'fresh',
     freshnessLabel: 'Fresh',
     matchStatus: 'linked',
@@ -89,6 +98,23 @@ const documents = [
     uploadedAt: '2026-04-07T00:00:00Z',
     parsedAt: '2026-04-07T00:05:00Z',
     metadata: {},
+  },
+]
+
+const discoveredAccounts = [
+  {
+    key: 'discover-wells-4421',
+    institution: 'Wells Fargo',
+    partialAccount: '4421',
+    suggestedLabel: 'Wells Fargo · …4421',
+    assetGroup: 'cash',
+    accountType: 'checking',
+    sourceType: 'bank',
+    confidence: 0.88,
+    occurrenceCount: 2,
+    sampleDescription: 'ONLINE TRANSFER FROM WELLS FARGO 4421',
+    detail:
+      'Statement activity references a likely Wells Fargo checking account ending in 4421. Confirm it if this is a real household account.',
   },
 ]
 
@@ -134,6 +160,29 @@ describe('MoneyAccountsPanel', () => {
     })
   })
 
+  it('uploads pasted raw text with the selected account as a hint', async () => {
+    const user = userEvent.setup()
+    render(<MoneyAccountsPanel accounts={accounts} documents={documents} />)
+
+    await user.click(screen.getByRole('button', { name: /main checking/i }))
+    await user.type(
+      screen.getByLabelText(/or paste raw account text/i),
+      'Available balance $25,057\nPosted transaction 04/06/2026\nVendor: Amazon',
+    )
+
+    await user.click(screen.getByRole('button', { name: /upload text/i }))
+
+    await waitFor(() => {
+        expect(uploadMutateAsync).toHaveBeenCalledWith(
+          expect.objectContaining({
+            rawText:
+              'Available balance $25,057\nPosted transaction 04/06/2026\nVendor: Amazon',
+            accountLabel: 'Main Checking',
+          }),
+        )
+    })
+  })
+
   it('creates a tracked account from the add account dialog', async () => {
     const user = userEvent.setup()
     render(<MoneyAccountsPanel accounts={accounts} documents={documents} />)
@@ -154,11 +203,88 @@ describe('MoneyAccountsPanel', () => {
     })
   })
 
+  it('prefills a tracked account from a discovered account hint', async () => {
+    const user = userEvent.setup()
+    render(
+      <MoneyAccountsPanel
+        accounts={accounts}
+        documents={documents}
+        discoveredAccounts={discoveredAccounts}
+        focus="discovered"
+      />,
+    )
+
+    expect(
+      screen.getByText(/possible accounts jenny found/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/today sent you here because jenny found account hints/i),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /create tracked row/i }))
+
+    expect(screen.getByLabelText(/account label/i)).toHaveValue(
+      'Wells Fargo · …4421',
+    )
+    expect(screen.getByLabelText(/institution/i)).toHaveValue('Wells Fargo')
+    expect(screen.getByLabelText(/account mask/i)).toHaveValue('4421')
+
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    await waitFor(() => {
+      expect(createMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          label: 'Wells Fargo · …4421',
+          institutionName: 'Wells Fargo',
+          accountMask: '4421',
+          assetGroup: 'cash',
+          accountType: 'checking',
+          sourceType: 'bank',
+        }),
+      )
+    })
+  })
+
+  it('edits and renames a tracked account', async () => {
+    const user = userEvent.setup()
+    render(<MoneyAccountsPanel accounts={accounts} documents={documents} />)
+
+    await user.click(screen.getByRole('button', { name: /main checking/i }))
+    await user.click(screen.getByRole('button', { name: /edit/i }))
+    const labelInput = screen.getByLabelText(/account label/i)
+    await user.clear(labelInput)
+    await user.type(labelInput, 'Household Checking')
+    await user.click(screen.getByRole('button', { name: /save account/i }))
+
+    await waitFor(() => {
+      expect(updateMutateAsync).toHaveBeenCalledWith({
+        accountId: 'tracked-1',
+        payload: expect.objectContaining({
+          label: 'Household Checking',
+        }),
+      })
+    })
+  })
+
+  it('deletes a tracked account from the row dialog', async () => {
+    const user = userEvent.setup()
+    render(<MoneyAccountsPanel accounts={accounts} documents={documents} />)
+
+    await user.click(screen.getByRole('button', { name: /main checking/i }))
+    await user.click(screen.getByRole('button', { name: /delete/i }))
+    await user.click(screen.getByRole('button', { name: /delete account/i }))
+
+    await waitFor(() => {
+      expect(deleteMutateAsync).toHaveBeenCalledWith('tracked-1')
+    })
+  })
+
   it('opens and highlights the first account needing coverage when focused from Today', () => {
     render(
       <MoneyAccountsPanel
         accounts={accounts}
         documents={documents}
+        discoveredAccounts={[]}
         focus="coverage"
       />,
     )

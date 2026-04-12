@@ -50,23 +50,29 @@ def _portfolio_position_for_symbol(storage: object | None, symbol: str | None):
         return None
 
 
-def _household_action_label(need: object) -> str:
-    action_href = str(getattr(need, "action_href", "") or "")
-    need_id = str(getattr(need, "id", "") or "")
-    need_type = str(getattr(need, "need_type", "") or "")
+def _household_action_label(item: object) -> str:
+    action_href = str(getattr(item, "action_href", "") or "")
+    need_id = str(getattr(item, "id", "") or "")
+    need_type = str(getattr(item, "need_type", "") or "")
+    action_label = str(getattr(item, "action_label", "") or "")
 
-    if "focus=account-coverage" in action_href:
-        return "Review accounts"
-    if "utility=evidence" in action_href:
-        return "Add evidence"
-    if "utility=planning" in action_href:
+    label = action_label or "Resolve"
+    if "focus=account-coverage" in action_href or "focus=discovered-accounts" in action_href:
+        label = "Review accounts"
+    elif "utility=evidence" in action_href:
+        label = action_label or "Add evidence"
+    elif "utility=planning" in action_href:
         section = need_id.removeprefix("need_planning_").replace("_", " ")
-        return f"Add {section} info" if section and section != need_id else "Add planning info"
-    if getattr(need, "related_question_id", None):
-        return "Answer question"
-    if need_type == "confirm":
-        return "Confirm"
-    return "Resolve"
+        label = (
+            f"Add {section} info"
+            if section and section != need_id
+            else "Add planning info"
+        )
+    elif getattr(item, "related_question_id", None):
+        label = "Answer question"
+    elif need_type == "confirm":
+        label = "Confirm"
+    return label
 
 
 class HomeActionService:
@@ -454,21 +460,21 @@ class HomeActionService:
             return []
 
         actions: list[dict[str, object]] = []
-        unsatisfied = [n for n in dashboard.jenny_needs if n.status == "unsatisfied"]
-        for index, need in enumerate(unsatisfied[:3], start=1):
+        items = [item for item in dashboard.inbox if item.category != "question"]
+        for index, item in enumerate(items[:4], start=1):
             actions.append(
                 {
-                    "id": f"household-{index}-{need.need_type}",
+                    "id": f"household-{index}-{item.id}",
                     "source": "household",
                     "category": "household",
-                    "priority": need.priority,
-                    "title": need.title,
-                    "detail": need.detail,
-                    "action_label": _household_action_label(need),
-                    "href": need.action_href or "/money",
+                    "priority": item.priority,
+                    "title": item.title,
+                    "detail": item.detail,
+                    "action_label": _household_action_label(item),
+                    "href": item.action_href or "/money",
                     "symbol": None,
                     "badge": "Household",
-                    "_rank_score": household_rank_score(need),
+                    "_rank_score": household_rank_score(item),
                 }
             )
 

@@ -33,6 +33,11 @@ _CADENCE_OFFSETS: dict[str, timedelta | relativedelta] = {
 
 _SUBSCRIPTION_CATEGORIES = {"subscriptions", "dining"}
 _RECURRING_CADENCES = {"monthly", "biweekly", "weekly", "quarterly"}
+_CADENCE_LABEL_MAP = {
+    "likely weekly": "weekly",
+    "likely bi-weekly": "biweekly",
+    "likely monthly": "monthly",
+}
 
 _CATEGORY_KEYWORDS: list[tuple[list[str], str]] = [
     (["spotify", "netflix", "prime"], "Subscriptions"),
@@ -80,18 +85,19 @@ def build_recurring_commitment(
     today: date,
 ) -> HouseholdRecurringCommitment | None:
     """Build a single recurring commitment from a DB row, or return None to skip."""
-    if cadence not in _RECURRING_CADENCES:
+    normalized_cadence = _CADENCE_LABEL_MAP.get(cadence, cadence)
+    if normalized_cadence not in _RECURRING_CADENCES:
         return None
     average_amount = float(row[2] or 0.0)
     last_seen = row[4]
     if last_seen is None:
         return None
     merchant = str(row[0])
-    annualized_cost = average_amount * _CADENCE_MULTIPLIERS.get(cadence, 12)
+    annualized_cost = average_amount * _CADENCE_MULTIPLIERS.get(normalized_cadence, 12)
     commitment_type = (
         "subscription" if str(row[1]).lower() in _SUBSCRIPTION_CATEGORIES else "bill"
     )
-    next_expected = estimate_next_commitment_date(last_seen, cadence)
+    next_expected = estimate_next_commitment_date(last_seen, normalized_cadence)
     next_expected_date = (
         datetime.fromisoformat(next_expected).date() if next_expected is not None else None
     )
@@ -120,7 +126,8 @@ def build_sinking_funds(
 ) -> list[HouseholdSinkingFund]:
     funds: list[HouseholdSinkingFund] = []
     for commitment in recurring_commitments:
-        if commitment.cadence not in {"quarterly", "irregular"} and commitment.average_amount < 150:
+        normalized_cadence = _CADENCE_LABEL_MAP.get(commitment.cadence, commitment.cadence)
+        if normalized_cadence not in {"quarterly", "irregular"} and commitment.average_amount < 150:
             continue
         monthly_target = round(commitment.annualized_cost / 12, 2)
         funds.append(

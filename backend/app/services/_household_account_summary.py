@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from app.models.household_finance import (
     HouseholdAccountGap,
     HouseholdAccountSummary,
+    HouseholdDiscoveredAccount,
     HouseholdDocument,
     HouseholdEvidenceAccount,
     HouseholdInboxItem,
@@ -18,20 +19,32 @@ from app.services._money_workspace_routes import (
     MONEY_ACCOUNTS_ROUTE,
     MONEY_CLARIFICATIONS_ROUTE,
     MONEY_DATE_QUALITY_ROUTE,
+    MONEY_DISCOVERED_ACCOUNTS_ROUTE,
     MONEY_EVIDENCE_ROUTE,
 )
 
 _PRIORITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 _SEVERITY_PRIORITY = {"high": "high", "medium": "medium", "low": "low"}
 _INBOX_CATEGORY_ORDER = {"intake": 0, "coverage": 1, "question": 2, "account": 3}
-_FRESHNESS_THRESHOLDS = {
-    "cash": (45, 90),
-    "credit": (45, 90),
-    "debt": (45, 90),
-    "taxable": (60, 120),
-    "retirement": (60, 120),
-    "education": (60, 120),
-    "other": (90, 180),
+_BALANCE_FRESHNESS_THRESHOLDS = {
+    "cash": (3, 7),
+    "credit": (3, 7),
+    "debt": (7, 14),
+    "taxable": (7, 30),
+    "retirement": (7, 30),
+    "education": (7, 30),
+    "other": (14, 30),
+}
+_TRANSACTION_FRESHNESS_THRESHOLDS = {
+    "spend_driver": (3, 7),
+    "net_worth_only": (7, 30),
+}
+_FRESHNESS_SEVERITY = {
+    "fresh": 0,
+    "aging": 1,
+    "stale": 2,
+    "needs_evidence": 3,
+    "not_applicable": -1,
 }
 _PORTFOLIO_ACCOUNT_GROUPS = {
     "401k": "retirement",
@@ -174,15 +187,79 @@ def _portfolio_source_type(account: Any) -> str:
     return "portfolio"
 
 
-def _freshness_state(asset_group: str, *, days_since: int | None) -> tuple[str, str]:
+def _freshness_state_from_thresholds(
+    thresholds: dict[str, tuple[int, int]],
+    threshold_key: str,
+    *,
+    days_since: int | None,
+    empty_label: str = "Needs evidence",
+) -> tuple[str, str]:
     if days_since is None:
-        return "needs_evidence", "Needs evidence"
-    fresh_days, aging_days = _FRESHNESS_THRESHOLDS.get(asset_group, _FRESHNESS_THRESHOLDS["other"])
+        return "needs_evidence", empty_label
+    fresh_days, aging_days = thresholds.get(
+        threshold_key, thresholds["other" if "other" in thresholds else "net_worth_only"]
+    )
     if days_since <= fresh_days:
         return "fresh", "Fresh"
     if days_since <= aging_days:
         return "aging", "Refresh soon"
     return "stale", "Stale"
+
+
+def _money_role(asset_group: str, account_type: str, label: str) -> str:
+    normalized = " ".join([_normalize_text(asset_group), _normalize_text(account_type), _normalize_text(label)])
+    if asset_group in {"cash", "credit", "debt"}:
+        return "spend_driver"
+    if asset_group == "taxable" and any(
+        token in normalized
+        for token in ("checking", "savings", "cash management", "cash_management")
+    ):
+        return "spend_driver"
+    return "net_worth_only"
+
+
+def _combine_freshness(
+    *,
+    money_role: str,
+    balance_status: str,
+    balance_label: str,
+    transaction_status: str,
+    transaction_label: str,
+) -> tuple[str, str]:
+    if money_role != "spend_driver" or transaction_status == "not_applicable":
+        return balance_status, balance_label
+    if _FRESHNESS_SEVERITY[transaction_status] >= _FRESHNESS_SEVERITY[balance_status]:
+        return transaction_status, transaction_label
+    return balance_status, balance_label
+
+
+def _latest_transaction_timestamp(
+    document_ids: list[str],
+    *,
+    label_candidates: set[str],
+    account_mask: str | None,
+    latest_transaction_dates_by_document: dict[str, date],
+    latest_transaction_dates_by_account_label: dict[str, date],
+) -> datetime | None:
+    transaction_dates = [
+        latest_transaction_dates_by_document[document_id]
+        for document_id in document_ids
+        if latest_transaction_dates_by_document.get(document_id) is not None
+    ]
+    normalized_mask = _normalize_text(account_mask)
+    for raw_label, transaction_date in latest_transaction_dates_by_account_label.items():
+        normalized_label = _normalize_text(raw_label)
+        if not normalized_label:
+            continue
+        if normalized_label in label_candidates:
+            transaction_dates.append(transaction_date)
+            continue
+        if normalized_mask and normalized_mask in normalized_label:
+            transaction_dates.append(transaction_date)
+    latest_date = max(transaction_dates, default=None)
+    if latest_date is None:
+        return None
+    return datetime.combine(latest_date, datetime.min.time(), tzinfo=UTC)
 
 
 def _confidence_for_summary(
@@ -208,17 +285,22 @@ def _confidence_for_summary(
 def _match_portfolio_account(
     *,
     label: str,
+    account_name: str | None,
     asset_group: str,
     portfolio_accounts: list[Any],
 ) -> Any | None:
     normalized_label = _normalize_text(label)
-    if not normalized_label:
+    normalized_account_name = _normalize_text(account_name)
+    if not normalized_label and not normalized_account_name:
         return None
     matches = [
         account
         for account in portfolio_accounts
         if _portfolio_asset_group(account) == asset_group
-        and _normalize_text(_portfolio_label(account)) == normalized_label
+        and _normalize_text(_portfolio_label(account)) in {
+            normalized_label,
+            normalized_account_name,
+        }
     ]
     return matches[0] if len(matches) == 1 else None
 
@@ -226,6 +308,7 @@ def _match_portfolio_account(
 def _match_tracked_account(
     *,
     label: str,
+    account_name: str | None,
     hint_label: str | None,
     asset_group: str,
     institution_name: str | None,
@@ -235,7 +318,7 @@ def _match_tracked_account(
     normalized_asset_group = _normalize_text(asset_group)
     label_candidates = {
         _normalize_text(candidate)
-        for candidate in (label, hint_label)
+        for candidate in (label, account_name, hint_label)
         if _normalize_text(candidate)
     }
     evidence_signature = (
@@ -309,6 +392,91 @@ def _top_gap(gaps: list[HouseholdAccountGap]) -> HouseholdAccountGap | None:
     return sorted(gaps, key=lambda gap: (_PRIORITY_ORDER[_SEVERITY_PRIORITY[gap.severity]], gap.title))[0]
 
 
+def _format_date_label(value: str | None) -> str | None:
+    dt = _parse_datetime(value)
+    return dt.date().isoformat() if dt is not None else None
+
+
+def _join_with_and(items: list[str]) -> str:
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return f"{', '.join(items[:-1])}, and {items[-1]}"
+
+
+def _account_blocked_metrics(account: HouseholdAccountSummary, gap_code: str) -> list[str]:
+    blocks: list[str] = []
+    if gap_code in {
+        "missing_evidence",
+        "missing_current_state",
+        "refresh_balance_soon",
+        "stale_balance",
+        "refresh_soon",
+        "stale_evidence",
+        "incomplete_application",
+        "missing_balance",
+    }:
+        blocks.append("net worth")
+    if account.money_role == "spend_driver" and gap_code in {
+        "missing_evidence",
+        "refresh_transactions_soon",
+        "stale_transactions",
+        "missing_transaction_history",
+        "statement_gap",
+        "missing_current_state",
+    }:
+        blocks.extend(["monthly spend", "budget status", "safe to spend"])
+    return blocks
+
+
+def _account_request_detail(account: HouseholdAccountSummary, gap_code: str) -> str | None:
+    today = datetime.now(UTC).date()
+    last_balance = _parse_datetime(account.last_balance_at)
+    last_transaction = _parse_datetime(account.last_transaction_at)
+    blocks = _account_blocked_metrics(account, gap_code)
+    block_suffix = f" Blocks {_join_with_and(blocks)}." if blocks else ""
+    detail: str | None = None
+
+    if gap_code in {"refresh_transactions_soon", "stale_transactions"}:
+        start = (last_transaction.date() + timedelta(days=1)) if last_transaction is not None else today - timedelta(days=30)
+        detail = (
+            f"Need a bank or card statement/export covering {start.isoformat()} through {today.isoformat()}."
+            f"{block_suffix}"
+        )
+    elif gap_code == "missing_transaction_history":
+        start = (today - timedelta(days=30)).isoformat()
+        detail = (
+            f"Need a statement or export covering at least {start} through {today.isoformat()} so Jenny can trust cash-flow."
+            f"{block_suffix}"
+        )
+    elif gap_code in {"refresh_balance_soon", "stale_balance", "refresh_soon", "stale_evidence"}:
+        if last_balance is not None:
+            detail = (
+                f"Need a newer balance statement, screenshot, or export after {last_balance.date().isoformat()}."
+                f"{block_suffix}"
+            )
+        else:
+            detail = f"Need current balance evidence as of {today.isoformat()}.{block_suffix}"
+    elif gap_code in {"missing_evidence", "missing_current_state", "incomplete_application", "missing_balance"}:
+        if account.money_role == "spend_driver":
+            start = (today - timedelta(days=30)).isoformat()
+            detail = (
+                f"Need the latest statement or export covering {start} through {today.isoformat()}."
+                f"{block_suffix}"
+            )
+        else:
+            detail = (
+                f"Need a current statement, screenshot, or export as of {today.isoformat()}."
+                f"{block_suffix}"
+            )
+    elif gap_code == "statement_gap":
+        detail = f"Need the missing statement month(s) uploaded to close known ledger gaps.{block_suffix}"
+    return detail
+
+
 def _build_account_gaps(
     *,
     summary: HouseholdAccountSummary,
@@ -326,31 +494,109 @@ def _build_account_gaps(
                 detail="Jenny could not extract a usable balance, holdings value, or cash balance for this account.",
             )
         )
-    if summary.freshness_status == "aging":
+    if summary.balance_freshness_status == "aging":
         gaps.append(
             HouseholdAccountGap(
-                code="refresh_soon",
+                code="refresh_balance_soon",
                 severity="medium",
-                title="Refresh soon",
-                detail="This account is getting stale. Upload newer evidence before Jenny relies on it for recommendations.",
+                title="Refresh balance soon",
+                detail="The latest balance evidence is getting old. Upload newer evidence before Jenny relies on this as current state.",
             )
         )
-    if summary.freshness_status == "stale":
+    if summary.balance_freshness_status == "stale":
         gaps.append(
             HouseholdAccountGap(
-                code="stale_evidence",
+                code="stale_balance",
                 severity="high",
-                title="Stale evidence",
-                detail="This account has not been refreshed recently enough to trust it as current state.",
+                title="Stale balance",
+                detail="The latest balance evidence is too old to trust this account as current state.",
             )
         )
-    if summary.freshness_status == "needs_evidence":
+    if summary.balance_freshness_status == "needs_evidence":
         gaps.append(
             HouseholdAccountGap(
                 code="missing_evidence",
                 severity="high",
                 title="Needs evidence",
                 detail="The account exists in the system, but Jenny does not have supporting financial evidence for it yet.",
+            )
+        )
+    if summary.money_role == "spend_driver" and summary.transaction_freshness_status == "aging":
+        gaps.append(
+            HouseholdAccountGap(
+                code="refresh_transactions_soon",
+                severity="medium",
+                title="Refresh transaction history soon",
+                detail="This spending account has not been refreshed recently enough for a confident weekly cash-flow review.",
+            )
+        )
+    if summary.money_role == "spend_driver" and summary.transaction_freshness_status == "stale":
+        gaps.append(
+            HouseholdAccountGap(
+                code="stale_transactions",
+                severity="high",
+                title="Stale transaction history",
+                detail="This spending account is too old to trust for current monthly-spend, budget, or safe-to-spend calculations.",
+            )
+        )
+    if (
+        summary.money_role == "spend_driver"
+        and summary.evidence_count > 0
+        and summary.transaction_freshness_status == "needs_evidence"
+    ):
+        gaps.append(
+            HouseholdAccountGap(
+                code="missing_transaction_history",
+                severity="high",
+                title="Missing transaction history",
+                detail="Jenny has some account evidence here but not enough linked transaction history to trust cash-flow calculations.",
+            )
+        )
+    if (
+        summary.money_role == "spend_driver"
+        and summary.balance_freshness_status == "fresh"
+        and summary.transaction_freshness_status == "not_applicable"
+    ):
+        gaps.append(
+            HouseholdAccountGap(
+                code="missing_transaction_history",
+                severity="high",
+                title="Missing transaction history",
+                detail="Jenny can see this account but cannot yet tie it to recent transaction history.",
+            )
+        )
+    existing_gap_codes = {gap.code for gap in gaps}
+    if summary.freshness_status == "aging" and not (
+        {"refresh_balance_soon", "refresh_transactions_soon"} & existing_gap_codes
+    ):
+        gaps.append(
+            HouseholdAccountGap(
+                code="refresh_soon",
+                severity="medium",
+                title="Refresh soon",
+                detail="Part of this account's current state is aging and should be refreshed before weekly review.",
+            )
+        )
+    if summary.freshness_status == "stale" and not (
+        {"stale_balance", "stale_transactions"} & existing_gap_codes
+    ):
+        gaps.append(
+            HouseholdAccountGap(
+                code="stale_evidence",
+                severity="high",
+                title="Stale evidence",
+                detail="Part of this account's current state is stale enough that Jenny should not trust it as current.",
+            )
+        )
+    if summary.freshness_status == "needs_evidence" and not (
+        {"missing_evidence", "missing_transaction_history", "missing_balance"} & existing_gap_codes
+    ):
+        gaps.append(
+            HouseholdAccountGap(
+                code="missing_current_state",
+                severity="high",
+                title="Missing current state",
+                detail="Jenny cannot confirm enough current evidence to treat this account as covered.",
             )
         )
     if summary.match_status == "candidate":
@@ -403,7 +649,11 @@ def build_account_summaries(
     tracked_accounts: list[HouseholdTrackedAccount],
     holdings_by_account: dict[str, float],
     statement_freshness: dict[str, Any],
+    latest_transaction_dates_by_document: dict[str, date] | None = None,
+    latest_transaction_dates_by_account_label: dict[str, date] | None = None,
 ) -> list[HouseholdAccountSummary]:
+    latest_transaction_dates_by_document = latest_transaction_dates_by_document or {}
+    latest_transaction_dates_by_account_label = latest_transaction_dates_by_account_label or {}
     documents_by_id = {document.id: document for document in documents}
     grouped: dict[str, list[HouseholdEvidenceAccount]] = defaultdict(list)
     for account in evidence_accounts:
@@ -412,6 +662,7 @@ def build_account_summaries(
     tracked_portfolio_matches = {
         account.id: _match_portfolio_account(
             label=_tracked_label(account),
+            account_name=_tracked_label(account),
             asset_group=account.asset_group,
             portfolio_accounts=portfolio_accounts,
         )
@@ -433,11 +684,69 @@ def build_account_summaries(
             ),
         )
         latest_document = documents_by_id.get(latest.document_id)
-        last_dt = _latest_evidence_timestamp(latest, latest_document)
-        days_since = (datetime.now(UTC).date() - last_dt.date()).days if last_dt is not None else None
+        account_label = _account_label(latest)
+        money_role = _money_role(latest.asset_group, latest.account_type, account_label)
+        last_balance_dt = _latest_evidence_timestamp(latest, latest_document)
+        days_since_balance = (
+            (datetime.now(UTC).date() - last_balance_dt.date()).days
+            if last_balance_dt is not None
+            else None
+        )
+        balance_freshness_status, balance_freshness_label = _freshness_state_from_thresholds(
+            _BALANCE_FRESHNESS_THRESHOLDS,
+            latest.asset_group,
+            days_since=days_since_balance,
+        )
+        hint_label = latest_document.account_label if latest_document is not None else None
+        transaction_label_candidates = {
+            _normalize_text(candidate)
+            for candidate in (
+                account_label,
+                hint_label,
+                latest.account_name,
+                latest.institution_name,
+            )
+            if _normalize_text(candidate)
+        }
+        if latest.account_mask:
+            transaction_label_candidates.add(_normalize_text(latest.account_mask))
+        last_transaction_dt = _latest_transaction_timestamp(
+            [str(account.document_id) for account in accounts if account.document_id],
+            label_candidates=transaction_label_candidates,
+            account_mask=latest.account_mask,
+            latest_transaction_dates_by_document=latest_transaction_dates_by_document,
+            latest_transaction_dates_by_account_label=latest_transaction_dates_by_account_label,
+        )
+        days_since_transaction = (
+            (datetime.now(UTC).date() - last_transaction_dt.date()).days
+            if last_transaction_dt is not None
+            else None
+        )
+        if money_role == "spend_driver":
+            transaction_freshness_status, transaction_freshness_label = (
+                _freshness_state_from_thresholds(
+                    _TRANSACTION_FRESHNESS_THRESHOLDS,
+                    money_role,
+                    days_since=days_since_transaction,
+                    empty_label="Needs transactions",
+                )
+            )
+        else:
+            transaction_freshness_status, transaction_freshness_label = (
+                "not_applicable",
+                "Not required",
+            )
+        freshness_status, freshness_label = _combine_freshness(
+            money_role=money_role,
+            balance_status=balance_freshness_status,
+            balance_label=balance_freshness_label,
+            transaction_status=transaction_freshness_status,
+            transaction_label=transaction_freshness_label,
+        )
         tracked_account = _match_tracked_account(
-            label=_account_label(latest),
-            hint_label=latest_document.account_label if latest_document is not None else None,
+            label=account_label,
+            account_name=latest.account_name,
+            hint_label=hint_label,
             asset_group=latest.asset_group,
             institution_name=latest.institution_name,
             account_mask=latest.account_mask,
@@ -447,6 +756,7 @@ def build_account_summaries(
             linked_tracked_ids.add(tracked_account.id)
         portfolio_account = _match_portfolio_account(
             label=_tracked_label(tracked_account) if tracked_account is not None else _account_label(latest),
+            account_name=latest.account_name,
             asset_group=latest.asset_group,
             portfolio_accounts=portfolio_accounts,
         )
@@ -454,6 +764,42 @@ def build_account_summaries(
             linked_portfolio_ids.add(portfolio_account.id)
         effective_asset_group = (
             tracked_account.asset_group if tracked_account is not None else latest.asset_group
+        )
+        effective_label = (
+            _tracked_label(tracked_account)
+            if tracked_account is not None
+            else _portfolio_label(portfolio_account)
+            if portfolio_account is not None
+            else account_label
+        )
+        effective_account_type = (
+            tracked_account.account_type if tracked_account is not None else latest.account_type
+        )
+        effective_money_role = _money_role(
+            effective_asset_group,
+            effective_account_type,
+            effective_label,
+        )
+        if effective_money_role == "spend_driver":
+            transaction_freshness_status, transaction_freshness_label = (
+                _freshness_state_from_thresholds(
+                    _TRANSACTION_FRESHNESS_THRESHOLDS,
+                    effective_money_role,
+                    days_since=days_since_transaction,
+                    empty_label="Needs transactions",
+                )
+            )
+        else:
+            transaction_freshness_status, transaction_freshness_label = (
+                "not_applicable",
+                "Not required",
+            )
+        freshness_status, freshness_label = _combine_freshness(
+            money_role=effective_money_role,
+            balance_status=balance_freshness_status,
+            balance_label=balance_freshness_label,
+            transaction_status=transaction_freshness_status,
+            transaction_label=transaction_freshness_label,
         )
         match_confidence = _confidence_for_summary(
             latest,
@@ -465,9 +811,9 @@ def build_account_summaries(
             match_status = "linked"
         summary = HouseholdAccountSummary(
             id=group_key,
-            label=_tracked_label(tracked_account) if tracked_account is not None else _account_label(latest),
+            label=effective_label,
             asset_group=effective_asset_group,
-            account_type=tracked_account.account_type if tracked_account is not None else latest.account_type,
+            account_type=effective_account_type,
             source_type=tracked_account.source_type if tracked_account is not None else latest.source_type,
             institution_name=tracked_account.institution_name if tracked_account is not None and tracked_account.institution_name is not None else latest.institution_name,
             owner_name=tracked_account.owner_name if tracked_account is not None and tracked_account.owner_name is not None else latest.owner_name,
@@ -486,10 +832,19 @@ def build_account_summaries(
             linked_portfolio_account_name=_portfolio_label(portfolio_account) if portfolio_account is not None else None,
             tracked_account_id=tracked_account.id if tracked_account is not None else None,
             account_origin="tracked" if tracked_account is not None else "evidence",
-            last_evidence_at=last_dt.isoformat() if last_dt is not None else None,
-            days_since_evidence=days_since,
-            freshness_status=_freshness_state(effective_asset_group, days_since=days_since)[0],
-            freshness_label=_freshness_state(effective_asset_group, days_since=days_since)[1],
+            money_role=effective_money_role,
+            last_evidence_at=last_balance_dt.isoformat() if last_balance_dt is not None else None,
+            days_since_evidence=days_since_balance,
+            last_balance_at=last_balance_dt.isoformat() if last_balance_dt is not None else None,
+            days_since_balance=days_since_balance,
+            balance_freshness_status=balance_freshness_status,
+            balance_freshness_label=balance_freshness_label,
+            last_transaction_at=last_transaction_dt.isoformat() if last_transaction_dt is not None else None,
+            days_since_transaction=days_since_transaction,
+            transaction_freshness_status=transaction_freshness_status,
+            transaction_freshness_label=transaction_freshness_label,
+            freshness_status=freshness_status,
+            freshness_label=freshness_label,
             match_status=match_status,
             match_confidence=match_confidence,
         )
@@ -514,6 +869,19 @@ def build_account_summaries(
                 linked_portfolio_account_id=account.id,
                 linked_portfolio_account_name=_portfolio_label(account),
                 account_origin="portfolio",
+                money_role=_money_role(
+                    _portfolio_asset_group(account),
+                    str(account.account_type),
+                    _portfolio_label(account),
+                ),
+                last_balance_at=None,
+                days_since_balance=None,
+                balance_freshness_status="needs_evidence",
+                balance_freshness_label="Needs evidence",
+                last_transaction_at=None,
+                days_since_transaction=None,
+                transaction_freshness_status="not_applicable",
+                transaction_freshness_label="Not required",
                 freshness_status="needs_evidence",
                 freshness_label="Needs evidence",
                 match_status="tracked",
@@ -541,6 +909,19 @@ def build_account_summaries(
                 linked_portfolio_account_name=_portfolio_label(portfolio_account) if portfolio_account is not None else None,
                 tracked_account_id=account.id,
                 account_origin="tracked",
+                money_role=_money_role(account.asset_group, account.account_type, account.label),
+                last_balance_at=None,
+                days_since_balance=None,
+                balance_freshness_status="needs_evidence",
+                balance_freshness_label="Needs evidence",
+                last_transaction_at=None,
+                days_since_transaction=None,
+                transaction_freshness_status=(
+                    "needs_evidence" if _money_role(account.asset_group, account.account_type, account.label) == "spend_driver" else "not_applicable"
+                ),
+                transaction_freshness_label=(
+                    "Needs transactions" if _money_role(account.asset_group, account.account_type, account.label) == "spend_driver" else "Not required"
+                ),
                 freshness_status="needs_evidence",
                 freshness_label="Needs evidence",
                 match_status="tracked",
@@ -589,11 +970,13 @@ def build_account_summaries(
 def build_money_inbox(
     *,
     accounts: list[HouseholdAccountSummary],
+    discovered_accounts: list[HouseholdDiscoveredAccount] | None = None,
     questions: list[Any],
     tracked_documents: int,
     parsed_documents: int,
     statement_freshness: dict[str, Any],
 ) -> list[HouseholdInboxItem]:
+    discovered_accounts = discovered_accounts or []
     items: list[HouseholdInboxItem] = []
     if tracked_documents == 0:
         items.append(
@@ -660,7 +1043,9 @@ def build_money_inbox(
                 category="coverage",
                 priority="medium",
                 title="Close transaction history gaps",
-                detail=str(gap_months[0]),
+                detail=(
+                    f"{gap_months[0]}. Upload the missing statement or export month so month-over-month and budget pacing stop drifting."
+                ),
                 action_label="Review accounts",
                 action_href=MONEY_ACCOUNTS_ROUTE,
             )
@@ -689,29 +1074,69 @@ def build_money_inbox(
             continue
         action_href = MONEY_ACCOUNTS_ROUTE
         action_label = "Review account"
-        if top_gap.code in {"missing_evidence", "refresh_soon", "stale_evidence", "incomplete_application"}:
+        title = f"Review {account.label}"
+        if top_gap.code in {
+            "missing_evidence",
+            "missing_current_state",
+            "refresh_balance_soon",
+            "stale_balance",
+            "refresh_soon",
+            "stale_evidence",
+            "incomplete_application",
+        }:
+            action_href = MONEY_EVIDENCE_ROUTE
             action_label = "Add evidence"
+            title = (
+                f"Refresh {account.label}"
+                if top_gap.code in {
+                    "refresh_balance_soon",
+                    "refresh_soon",
+                    "stale_balance",
+                    "stale_evidence",
+                }
+                else f"Add evidence for {account.label}"
+            )
+        elif top_gap.code in {
+            "refresh_transactions_soon",
+            "stale_transactions",
+            "missing_transaction_history",
+            "statement_gap",
+        }:
+            action_href = MONEY_EVIDENCE_ROUTE
+            action_label = "Add statements"
+            title = (
+                f"Refresh transactions for {account.label}"
+                if top_gap.code in {"refresh_transactions_soon", "stale_transactions"}
+                else f"Add statements for {account.label}"
+            )
         elif top_gap.code == "unconfirmed_match":
             action_label = "Confirm account"
+            title = f"Confirm {account.label}"
+        detail = _account_request_detail(account, top_gap.code) or top_gap.detail
         items.append(
             HouseholdInboxItem(
                 id=f"account-{account.id}-{top_gap.code}",
                 category="account",
                 priority=_SEVERITY_PRIORITY[top_gap.severity],
-                title=(
-                    f"Refresh {account.label}"
-                    if top_gap.code in {"refresh_soon", "stale_evidence"}
-                    else f"Add evidence for {account.label}"
-                    if top_gap.code in {"missing_evidence", "incomplete_application"}
-                    else f"Confirm {account.label}"
-                    if top_gap.code == "unconfirmed_match"
-                    else f"Review {account.label}"
-                ),
-                detail=top_gap.detail,
+                title=title,
+                detail=detail,
                 action_label=action_label,
                 action_href=action_href,
                 related_account_id=account.id,
                 related_document_ids=account.document_ids,
+            )
+        )
+
+    for discovered in discovered_accounts[:4]:
+        items.append(
+            HouseholdInboxItem(
+                id=f"discovered-{discovered.key}",
+                category="account",
+                priority="medium",
+                title=f"Confirm possible account: {discovered.suggested_label}",
+                detail=discovered.detail,
+                action_label="Review accounts",
+                action_href=MONEY_DISCOVERED_ACCOUNTS_ROUTE,
             )
         )
 

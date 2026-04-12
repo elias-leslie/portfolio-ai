@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
@@ -12,11 +14,207 @@ from app.models.household_finance import (
     HouseholdExecutiveReport,
     HouseholdMerchantInsight,
     HouseholdMonthlyTrendPoint,
+    HouseholdPriceInsight,
     HouseholdRecentTransaction,
     HouseholdReports,
 )
 
 _EXECUTIVE_WINDOW_MONTHS = 6
+_UNIT_PATTERN = (
+    r"fluid ounces?|fl\.?\s*oz|ounces?|ounce|oz|pounds?|lbs?|lb|grams?|gram|g|kilograms?|kg|"
+    r"milliliters?|milliliter|ml|liters?|liter|l|count|ct|capsules?|softgels?|tablets?|pieces?"
+)
+_MULTIPACK_SIZE_RE = re.compile(
+    rf"\b(?P<count>\d+(?:\.\d+)?)\s*(?:x|-)\s*(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>{_UNIT_PATTERN})\b",
+    re.IGNORECASE,
+)
+_SIMPLE_SIZE_RE = re.compile(
+    rf"\b(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>{_UNIT_PATTERN})\b",
+    re.IGNORECASE,
+)
+_SIZE_TOKEN_RE = re.compile(
+    rf"\b\d+(?:\.\d+)?\s*(?:x|-)?\s*\d*(?:\.\d+)?\s*(?:{_UNIT_PATTERN})\b",
+    re.IGNORECASE,
+)
+_STRIP_TOKENS_RE = re.compile(
+    r"\b(pack|packs|box|boxes|bottle|bottles|bag|bags|jar|jars|case|cases|day supply|serving|servings)\b",
+    re.IGNORECASE,
+)
+_WEIGHT_CONVERSIONS = {
+    "oz": ("weight_oz", 1.0, "oz"),
+    "ounce": ("weight_oz", 1.0, "oz"),
+    "ounces": ("weight_oz", 1.0, "oz"),
+    "lb": ("weight_oz", 16.0, "lb"),
+    "lbs": ("weight_oz", 16.0, "lb"),
+    "pound": ("weight_oz", 16.0, "lb"),
+    "pounds": ("weight_oz", 16.0, "lb"),
+    "g": ("weight_oz", 0.035274, "g"),
+    "gram": ("weight_oz", 0.035274, "g"),
+    "grams": ("weight_oz", 0.035274, "g"),
+    "kg": ("weight_oz", 35.274, "kg"),
+    "kilogram": ("weight_oz", 35.274, "kg"),
+    "kilograms": ("weight_oz", 35.274, "kg"),
+}
+_VOLUME_CONVERSIONS = {
+    "fl oz": ("volume_fl_oz", 1.0, "fl oz"),
+    "fluid ounce": ("volume_fl_oz", 1.0, "fl oz"),
+    "fluid ounces": ("volume_fl_oz", 1.0, "fl oz"),
+    "ml": ("volume_fl_oz", 0.033814, "ml"),
+    "milliliter": ("volume_fl_oz", 0.033814, "ml"),
+    "milliliters": ("volume_fl_oz", 0.033814, "ml"),
+    "l": ("volume_fl_oz", 33.814, "L"),
+    "liter": ("volume_fl_oz", 33.814, "L"),
+    "liters": ("volume_fl_oz", 33.814, "L"),
+}
+_COUNT_CONVERSIONS = {
+    "count": ("count", 1.0, "count"),
+    "ct": ("count", 1.0, "count"),
+    "capsule": ("count", 1.0, "capsules"),
+    "capsules": ("count", 1.0, "capsules"),
+    "softgel": ("count", 1.0, "softgels"),
+    "softgels": ("count", 1.0, "softgels"),
+    "tablet": ("count", 1.0, "tablets"),
+    "tablets": ("count", 1.0, "tablets"),
+    "piece": ("count", 1.0, "count"),
+    "pieces": ("count", 1.0, "count"),
+}
+
+
+@dataclass(frozen=True)
+class _PackageMeasure:
+    normalized_quantity: float
+    normalized_unit: str
+    display_label: str
+    raw_quantity: float
+    raw_unit: str
+    score: float
+
+
+def _coerce_metadata(raw_metadata: Any) -> dict[str, Any]:
+    if isinstance(raw_metadata, dict):
+        return raw_metadata
+    if isinstance(raw_metadata, str) and raw_metadata.strip():
+        try:
+            parsed = json.loads(raw_metadata)
+        except json.JSONDecodeError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
+def _parse_decimal_text(value: Any) -> float | None:
+    if value in (None, ""):
+        return None
+    text = str(value).strip().replace(",", "")
+    try:
+        parsed = float(text)
+    except ValueError:
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _singularize_unit(raw_unit: str) -> str:
+    normalized = raw_unit.strip().lower().replace(".", "")
+    normalized = re.sub(r"\s+", " ", normalized)
+    if normalized in {"floz", "fl oz", "fluid ounce", "fluid ounces"}:
+        return "fl oz"
+    return normalized
+
+
+def _build_measure(*, quantity: float, raw_unit: str, multiplier: float = 1.0) -> _PackageMeasure | None:
+    unit = _singularize_unit(raw_unit)
+    conversion = (
+        _WEIGHT_CONVERSIONS.get(unit)
+        or _VOLUME_CONVERSIONS.get(unit)
+        or _COUNT_CONVERSIONS.get(unit)
+    )
+    if conversion is None:
+        return None
+    normalized_unit, factor, label_unit = conversion
+    raw_total = quantity * multiplier
+    normalized_quantity = raw_total * factor
+    if normalized_quantity <= 0:
+        return None
+    score = 0.0
+    if normalized_unit.startswith("weight") or normalized_unit.startswith("volume"):
+        score += 70.0
+    else:
+        score += 55.0
+    if multiplier > 1:
+        score += 12.0
+    score += min(normalized_quantity, 500.0) / 50.0
+    raw_display = f"{multiplier:g} x {quantity:g} {label_unit}" if multiplier > 1 else f"{quantity:g} {label_unit}"
+    return _PackageMeasure(
+        normalized_quantity=round(normalized_quantity, 4),
+        normalized_unit=normalized_unit,
+        display_label=raw_display,
+        raw_quantity=raw_total,
+        raw_unit=label_unit,
+        score=round(score, 4),
+    )
+
+
+def _extract_package_measure(description: str, metadata: dict[str, Any]) -> _PackageMeasure | None:
+    cached_enrichment = metadata.get("product_enrichment")
+    cached_enrichment_dict = cached_enrichment if isinstance(cached_enrichment, dict) else {}
+    cached_measure = cached_enrichment_dict.get("package_measure")
+    if isinstance(cached_measure, dict):
+        normalized_quantity = _parse_decimal_text(cached_measure.get("normalized_quantity"))
+        normalized_unit = str(cached_measure.get("normalized_unit") or "").strip()
+        display_label = str(cached_measure.get("display_label") or "").strip()
+        raw_quantity = _parse_decimal_text(cached_measure.get("raw_quantity")) or normalized_quantity
+        raw_unit = str(cached_measure.get("raw_unit") or "").strip() or normalized_unit
+        if (
+            normalized_quantity is not None
+            and normalized_unit
+            and display_label
+            and raw_quantity is not None
+        ):
+            return _PackageMeasure(
+                normalized_quantity=normalized_quantity,
+                normalized_unit=normalized_unit,
+                display_label=display_label,
+                raw_quantity=raw_quantity,
+                raw_unit=raw_unit,
+                score=999.0,
+            )
+
+    text = " ".join(
+        part
+        for part in (
+            str(metadata.get("Product Name") or "").strip(),
+            description.strip(),
+        )
+        if part
+    )
+    if not text:
+        return None
+
+    candidates: list[_PackageMeasure] = []
+    for match in _MULTIPACK_SIZE_RE.finditer(text):
+        count = _parse_decimal_text(match.group("count"))
+        value = _parse_decimal_text(match.group("value"))
+        if count is None or value is None:
+            continue
+        candidate = _build_measure(quantity=value, raw_unit=match.group("unit"), multiplier=count)
+        if candidate is not None:
+            candidates.append(candidate)
+
+    for match in _SIMPLE_SIZE_RE.finditer(text):
+        value = _parse_decimal_text(match.group("value"))
+        if value is None:
+            continue
+        candidate = _build_measure(quantity=value, raw_unit=match.group("unit"))
+        if candidate is not None:
+            candidates.append(candidate)
+
+    if not candidates:
+        return None
+
+    return max(
+        candidates,
+        key=lambda candidate: (candidate.score, candidate.normalized_quantity),
+    )
 
 
 def _transaction_date(row: dict[str, Any]) -> date | None:
@@ -90,6 +288,199 @@ def collapse_report_rows(report_rows: list[dict[str, Any]]) -> list[dict[str, An
             continue
         collapsed_rows.append(row)
     return collapsed_rows
+
+
+def _normalized_item_key(merchant: str, description: str) -> str:
+    description_without_sizes = _SIZE_TOKEN_RE.sub(" ", description.lower())
+    description_without_sizes = _STRIP_TOKENS_RE.sub(" ", description_without_sizes)
+    normalized = _merchant_root(f"{merchant} {description_without_sizes}")
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _observed_import_price(row: dict[str, Any], metadata: dict[str, Any]) -> float | None:
+    unit_price = _parse_decimal_text(metadata.get("Unit Price"))
+    if unit_price is not None:
+        return unit_price
+    subtotal = _parse_decimal_text(metadata.get("Shipment Item Subtotal"))
+    quantity = _parse_decimal_text(metadata.get("Original Quantity"))
+    if subtotal is not None and quantity not in (None, 0):
+        return round(subtotal / quantity, 2)
+    amount = row.get("amount")
+    try:
+        parsed_amount = float(amount) if amount is not None else None
+    except (TypeError, ValueError):
+        parsed_amount = None
+    return parsed_amount if parsed_amount and parsed_amount > 0 else None
+
+
+def _signal_priority(insight: HouseholdPriceInsight) -> tuple[int, float, str]:
+    if insight.shrinkflation_flag:
+        magnitude = abs(insight.unit_price_change_pct or insight.size_change_pct or 0.0)
+        return (0, -magnitude, insight.latest_date)
+    if (insight.unit_price_change_pct or 0.0) > 0:
+        return (1, -abs(insight.unit_price_change_pct or 0.0), insight.latest_date)
+    if insight.price_change > 0:
+        return (2, -abs(insight.price_change), insight.latest_date)
+    return (3, -abs(insight.price_change), insight.latest_date)
+
+
+def _build_price_insights(
+    *,
+    expense_rows: list[dict[str, Any]],
+) -> list[HouseholdPriceInsight]:
+    item_history: dict[str, list[dict[str, Any]]] = {}
+    for row in expense_rows:
+        if row.get("source_kind") != "import":
+            continue
+        metadata = _coerce_metadata(row.get("metadata"))
+        description = str(metadata.get("Product Name") or row.get("description") or "").strip()
+        merchant = str(row.get("merchant") or "").strip()
+        row_date = row.get("date")
+        amount = _observed_import_price(row, metadata)
+        if not description or not merchant or not isinstance(row_date, date) or amount is None or amount <= 0:
+            continue
+        item_key = _normalized_item_key(merchant, description)
+        if not item_key:
+            continue
+        package_measure = _extract_package_measure(description, metadata)
+        item_history.setdefault(item_key, []).append(
+            {
+                "merchant": merchant,
+                "description": description,
+                "date": row_date,
+                "amount": amount,
+                "identifier": str(metadata.get("ASIN") or metadata.get("UPC") or metadata.get("GTIN") or "").strip(),
+                "measure": package_measure,
+            }
+        )
+
+    insights: list[HouseholdPriceInsight] = []
+    for rows in item_history.values():
+        if len(rows) < 2:
+            continue
+        ordered = sorted(rows, key=lambda row: row["date"], reverse=True)
+        latest = ordered[0]
+        previous = next(
+            (
+                row
+                for row in ordered[1:]
+                if (
+                    row["date"] != latest["date"]
+                    or abs(row["amount"] - latest["amount"]) > 0.01
+                    or (
+                        row.get("measure") is not None
+                        and latest.get("measure") is not None
+                        and row["measure"].display_label != latest["measure"].display_label
+                    )
+                )
+            ),
+            None,
+        )
+        if previous is None:
+            continue
+        price_change = round(latest["amount"] - previous["amount"], 2)
+        price_change_pct = (
+            round((price_change / previous["amount"]) * 100, 1)
+            if previous["amount"] > 0
+            else None
+        )
+        latest_measure = latest.get("measure")
+        previous_measure = previous.get("measure")
+        measures_comparable = (
+            latest_measure is not None
+            and previous_measure is not None
+            and latest_measure.normalized_unit == previous_measure.normalized_unit
+        )
+        latest_unit_price = (
+            round(latest["amount"] / latest_measure.normalized_quantity, 4)
+            if measures_comparable and latest_measure.normalized_quantity > 0
+            else None
+        )
+        previous_unit_price = (
+            round(previous["amount"] / previous_measure.normalized_quantity, 4)
+            if measures_comparable and previous_measure.normalized_quantity > 0
+            else None
+        )
+        unit_price_change_pct = (
+            round(((latest_unit_price - previous_unit_price) / previous_unit_price) * 100, 1)
+            if latest_unit_price is not None
+            and previous_unit_price is not None
+            and previous_unit_price > 0
+            else None
+        )
+        size_change_pct = (
+            round(
+                ((latest_measure.normalized_quantity - previous_measure.normalized_quantity)
+                 / previous_measure.normalized_quantity)
+                * 100,
+                1,
+            )
+            if measures_comparable and previous_measure.normalized_quantity > 0
+            else None
+        )
+        shrinkflation_flag = bool(
+            measures_comparable
+            and latest_measure.normalized_quantity < previous_measure.normalized_quantity * 0.985
+            and latest["amount"] >= previous["amount"] - 0.05
+        )
+        if not shrinkflation_flag and abs(price_change) < 0.15 and abs(unit_price_change_pct or 0.0) < 3.0:
+            continue
+
+        same_identifier = bool(latest["identifier"] and latest["identifier"] == previous["identifier"])
+        confidence = 0.58
+        if measures_comparable:
+            confidence += 0.18
+        if same_identifier:
+            confidence += 0.18
+        if latest_measure is not None and previous_measure is not None:
+            confidence += 0.06
+        confidence = round(min(confidence, 0.95), 2)
+
+        if shrinkflation_flag:
+            signal_type = "shrinkflation"
+            recommendation = (
+                "Sticker price held roughly flat while package size shrank. Track unit price first and compare the current pack against Walmart, Target, or another equivalent size before rebuying."
+            )
+        elif (unit_price_change_pct or 0.0) >= 5.0:
+            signal_type = "unit_price_up"
+            recommendation = (
+                "Unit price is up materially versus the prior buy. Compare equivalent pack sizes across Amazon, Walmart, Target, or local stores before reordering."
+            )
+        elif price_change > 0:
+            signal_type = "price_up"
+            recommendation = (
+                "Ticket price is up versus the prior buy. Compare Amazon against Walmart, Target, or local alternatives before reordering."
+            )
+        else:
+            signal_type = "price_down"
+            recommendation = (
+                "Price is down versus the prior buy. This is a better re-buy window if you still need it."
+            )
+        insights.append(
+            HouseholdPriceInsight(
+                merchant=str(latest["merchant"]),
+                item_name=str(latest["description"]),
+                signal_type=signal_type,
+                latest_price=round(latest["amount"], 2),
+                previous_price=round(previous["amount"], 2),
+                price_change=price_change,
+                price_change_pct=price_change_pct,
+                latest_date=latest["date"].isoformat(),
+                previous_date=previous["date"].isoformat(),
+                latest_unit_label=latest_measure.display_label if latest_measure is not None else None,
+                previous_unit_label=previous_measure.display_label if previous_measure is not None else None,
+                unit_measure=latest_measure.normalized_unit if latest_measure is not None else None,
+                latest_unit_price=latest_unit_price,
+                previous_unit_price=previous_unit_price,
+                unit_price_change_pct=unit_price_change_pct,
+                size_change_pct=size_change_pct,
+                shrinkflation_flag=shrinkflation_flag,
+                confidence=confidence,
+                recommendation=recommendation,
+            )
+        )
+
+    return sorted(insights, key=_signal_priority)[:6]
 
 
 def build_household_reports(
@@ -239,6 +630,7 @@ def build_household_reports(
         executive=executive,
         category_breakdown=category_breakdown,
         merchant_highlights=merchant_highlights,
+        price_insights=_build_price_insights(expense_rows=expense_only),
         monthly_spend_trend=monthly_spend_trend,
         recent_transactions=recent_transactions,
     )
