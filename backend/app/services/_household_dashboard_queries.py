@@ -401,17 +401,37 @@ def detect_unknown_accounts(
 
     known_labels: set[str] = set()
     known_hints: set[str] = set()
+    known_entities_by_source: dict[str, set[str]] = {}
     for doc in documents:
+        doc_source_type = str(getattr(doc, "source_type", "") or "")
+        label_candidates: set[str] = set()
         if hasattr(doc, "account_label") and doc.account_label:
-            known_labels.add(doc.account_label.upper())
+            label_candidates.add(str(doc.account_label).upper())
         meta = getattr(doc, "metadata", {}) or {}
         if isinstance(meta, dict):
-            hint = meta.get("account_hint", "")
-            if hint:
-                known_hints.add(str(hint).upper())
-            inst = meta.get("institution", "")
-            if inst:
-                known_labels.add(str(inst).upper())
+            structured = meta.get("structured_data")
+            structured_data = structured if isinstance(structured, dict) else {}
+            for hint in (
+                meta.get("account_hint", ""),
+                structured_data.get("account_hint", ""),
+            ):
+                if hint:
+                    normalized_hint = str(hint).upper()
+                    known_hints.add(normalized_hint)
+                    label_candidates.add(normalized_hint)
+            for inst in (
+                meta.get("institution", ""),
+                structured_data.get("institution", ""),
+            ):
+                if inst:
+                    label_candidates.add(str(inst).upper())
+        for candidate in label_candidates:
+            known_labels.add(candidate)
+            if doc_source_type:
+                known_entities_by_source.setdefault(doc_source_type, set()).add(candidate)
+                for institution_name in _KNOWN_INSTITUTIONS:
+                    if institution_name in candidate:
+                        known_entities_by_source[doc_source_type].add(institution_name)
 
     detected: dict[str, dict[str, Any]] = {}
     for row in rows:
@@ -434,6 +454,11 @@ def detect_unknown_accounts(
             description=description,
             flow_type=flow_type,
         )
+        known_for_source = known_entities_by_source.get(source_type, set())
+        if institution in known_for_source or any(
+            institution in candidate for candidate in known_for_source
+        ):
+            continue
         if key not in detected:
             detected[key] = {
                 "institution": institution,

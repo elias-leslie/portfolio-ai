@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import date, timedelta
+from types import SimpleNamespace
 from typing import Any
 
 from app.services import _household_dashboard_queries as queries
@@ -132,3 +133,24 @@ def test_current_fact_queries_share_current_date_guard() -> None:
     ]
 
     assert all("transaction_date <= CURRENT_DATE" in sql for sql in guarded_queries)
+
+
+def test_detect_unknown_accounts_skips_institution_when_known_account_exists_for_same_source_type() -> None:
+    storage = _FakeStorage(
+        [
+            [
+                ("DIRECT DEBIT CHASE CREDIT CEPAY (Cash)", "transfer_out", 1),
+            ]
+        ]
+    )
+    documents = [
+        SimpleNamespace(
+            account_label="Chase Amazon card",
+            source_type="credit_card",
+            metadata={"structured_data": {"account_hint": "Chase Amazon card"}},
+        )
+    ]
+
+    detected = queries.detect_unknown_accounts(storage, documents)
+
+    assert detected == []
