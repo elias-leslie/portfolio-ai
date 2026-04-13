@@ -506,6 +506,59 @@ def test_build_account_summaries_merge_same_institution_mask_across_source_types
     assert summaries[0].last_balance_at.startswith("2026-04-12")
 
 
+def test_build_account_summaries_merge_legacy_label_mask_with_new_account_mask() -> None:
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="acct-legacy",
+                document_id="doc-legacy",
+                source_type="retirement",
+                asset_group="retirement",
+                account_type="retirement",
+                institution_name=None,
+                account_name="Rollover IRA #267328698 — 100% cash, held in money market",
+                account_mask=None,
+                owner_name=None,
+                currency="USD",
+                balance=8230.59,
+                holdings_value=8230.59,
+                cash_balance=None,
+                as_of_date="2026-03-09",
+                confidence=0.95,
+                metadata={},
+            ),
+            HouseholdEvidenceAccount(
+                id="acct-new",
+                document_id="doc-new",
+                source_type="retirement",
+                asset_group="retirement",
+                account_type="ira",
+                institution_name="Fidelity",
+                account_name="Rollover IRA",
+                account_mask="267328698",
+                owner_name=None,
+                currency="USD",
+                balance=8428.38,
+                holdings_value=8400.17,
+                cash_balance=28.21,
+                as_of_date="2026-04-13",
+                confidence=0.97,
+                metadata={},
+            ),
+        ],
+        documents=[],
+        portfolio_accounts=[],
+        tracked_accounts=[],
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    assert len(summaries) == 1
+    assert summaries[0].current_value == 8428.38
+    assert summaries[0].last_balance_at is not None
+    assert summaries[0].last_balance_at.startswith("2026-04-13")
+
+
 def test_build_money_inbox_surfaces_discovered_accounts_with_review_route() -> None:
     inbox = build_money_inbox(
         accounts=[],

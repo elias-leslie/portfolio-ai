@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -62,6 +63,22 @@ def _normalize_text(value: object) -> str:
 
 def _compact_key(*parts: object) -> str:
     return "|".join(_normalize_text(part) for part in parts if _normalize_text(part))
+
+
+def _derive_account_mask(
+    account_mask: str | None,
+    account_name: str | None,
+) -> str:
+    normalized_mask = _normalize_text(account_mask)
+    if normalized_mask:
+        return normalized_mask
+    normalized_name = _normalize_text(account_name)
+    if not normalized_name:
+        return ""
+    match = re.search(r"(?:#|acct(?:ount)?\s*)([a-z0-9]{4,})", normalized_name)
+    if match is not None:
+        return match.group(1)
+    return ""
 
 
 def _parse_datetime(value: object) -> datetime | None:
@@ -144,7 +161,7 @@ def _account_label(account: HouseholdEvidenceAccount) -> str:
 def _evidence_group_key(account: HouseholdEvidenceAccount) -> str:
     institution = _normalize_text(account.institution_name)
     name = _normalize_text(account.account_name)
-    mask = _normalize_text(account.account_mask)
+    mask = _derive_account_mask(account.account_mask, account.account_name)
     account_type = _normalize_text(account.account_type)
     asset_group = _normalize_text(account.asset_group)
     if mask:
