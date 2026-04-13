@@ -115,6 +115,22 @@ def _owners_match(left: str | None, right: str | None) -> bool:
     return len(left_tokens) > 1 and len(right_tokens) > 1 and left_tokens[-1] == right_tokens[-1]
 
 
+def _owner_is_household_scope(value: str | None) -> bool:
+    tokens = set(_owner_tokens(value))
+    if not tokens:
+        return False
+    return bool(tokens & {"and", "joint", "shared", "household"})
+
+
+def _duplicate_label_key(value: str | None) -> str:
+    normalized = _normalize_text(value)
+    if not normalized:
+        return ""
+    normalized = re.sub(r"\([^)]*\)", "", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized
+
+
 def _derive_account_mask(
     account_mask: str | None,
     account_name: str | None,
@@ -291,6 +307,23 @@ def _money_role(asset_group: str, account_type: str, label: str) -> str:
     return "net_worth_only"
 
 
+def _allows_unique_institution_fallback(
+    *,
+    asset_group: str,
+    account_type: str | None,
+    label: str,
+    account_name: str | None,
+    hint_label: str | None,
+    institution_name: str | None,
+) -> bool:
+    combined_label = " ".join(
+        part
+        for part in (label, account_name, hint_label, institution_name)
+        if _normalize_text(part)
+    )
+    return _money_role(asset_group, account_type or "", combined_label) == "spend_driver"
+
+
 def _combine_freshness(
     *,
     money_role: str,
@@ -398,6 +431,7 @@ def _match_tracked_account(
     account_name: str | None,
     hint_label: str | None,
     asset_group: str,
+    account_type: str | None,
     institution_name: str | None,
     owner_name: str | None,
     account_mask: str | None,
@@ -417,6 +451,12 @@ def _match_tracked_account(
         if institution_name and account_mask
         else ""
     )
+    same_institution_candidates = [
+        account
+        for account in tracked_accounts
+        if _normalize_text(account.asset_group) == normalized_asset_group
+        and _normalize_text(account.institution_name) == normalized_institution
+    ]
     ranked: list[tuple[int, HouseholdTrackedAccount]] = []
     for account in tracked_accounts:
         if _normalize_text(account.asset_group) != normalized_asset_group:
@@ -441,7 +481,27 @@ def _match_tracked_account(
             and _owners_match(tracked_owner, normalized_owner)
         ):
             score = 3
-        elif _normalize_text(account.label) in label_candidates:
+        elif _normalize_text(account.label) in label_candidates or (
+            normalized_institution
+            and tracked_institution == normalized_institution
+            and account.account_mask is None
+            and len(same_institution_candidates) == 1
+            and len(tracked_tokens & evidence_tokens) >= 1
+            and _allows_unique_institution_fallback(
+                asset_group=asset_group,
+                account_type=account_type,
+                label=label,
+                account_name=account_name,
+                hint_label=hint_label,
+                institution_name=institution_name,
+            )
+            and (
+                not normalized_owner
+                or not tracked_owner
+                or _owners_match(tracked_owner, normalized_owner)
+                or _owner_is_household_scope(account.owner_name)
+            )
+        ):
             score = 2
         elif (
             len(tracked_tokens & evidence_tokens) >= 2
@@ -760,8 +820,30 @@ def build_account_summaries(
     latest_transaction_dates_by_account_label = latest_transaction_dates_by_account_label or {}
     documents_by_id = {document.id: document for document in documents}
     grouped: dict[str, list[HouseholdEvidenceAccount]] = defaultdict(list)
+    grouped_tracked_matches: dict[str, HouseholdTrackedAccount] = {}
     for account in evidence_accounts:
-        grouped[_evidence_group_key(account)].append(account)
+        document = documents_by_id.get(account.document_id)
+        evidence_group_key = _evidence_group_key(account)
+        matched_tracked_account = _match_tracked_account(
+            group_key=evidence_group_key,
+            label=_account_label(account),
+            account_name=account.account_name,
+            hint_label=document.account_label if document is not None else None,
+            asset_group=account.asset_group,
+            account_type=account.account_type,
+            institution_name=account.institution_name,
+            owner_name=account.owner_name,
+            account_mask=account.account_mask,
+            tracked_accounts=tracked_accounts,
+        )
+        group_key = (
+            _tracked_summary_key(matched_tracked_account)
+            if matched_tracked_account is not None
+            else evidence_group_key
+        )
+        grouped[group_key].append(account)
+        if matched_tracked_account is not None:
+            grouped_tracked_matches[group_key] = matched_tracked_account
 
     tracked_portfolio_matches = {
         account.id: _match_portfolio_account(
@@ -777,7 +859,7 @@ def build_account_summaries(
     }
     linked_tracked_ids: set[str] = set()
     summaries: list[HouseholdAccountSummary] = []
-    duplicate_candidates: defaultdict[tuple[str, str], list[str]] = defaultdict(list)
+    duplicate_candidates: defaultdict[tuple[str, str, str, str], list[str]] = defaultdict(list)
 
     for group_key, accounts in grouped.items():
         latest = max(
@@ -851,12 +933,13 @@ def build_account_summaries(
             transaction_status=transaction_freshness_status,
             transaction_label=transaction_freshness_label,
         )
-        tracked_account = _match_tracked_account(
+        tracked_account = grouped_tracked_matches.get(group_key) or _match_tracked_account(
             group_key=group_key,
             label=account_label,
             account_name=latest.account_name,
             hint_label=hint_label,
             asset_group=latest.asset_group,
+            account_type=latest.account_type,
             institution_name=latest.institution_name,
             owner_name=latest.owner_name,
             account_mask=latest.account_mask,
@@ -964,8 +1047,9 @@ def build_account_summaries(
             _normalize_text(summary.institution_name),
             summary.asset_group,
             _normalize_text(summary.owner_name),
+            _duplicate_label_key(summary.label),
         )
-        if duplicate_key[0] and latest.account_mask is None:
+        if duplicate_key[0] and duplicate_key[3] and latest.account_mask is None:
             duplicate_candidates[duplicate_key].append(summary.id)
 
     for account in portfolio_accounts:
