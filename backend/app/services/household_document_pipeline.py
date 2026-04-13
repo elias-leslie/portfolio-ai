@@ -7,7 +7,7 @@ import uuid
 from csv import DictReader
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from fastapi import UploadFile
 
@@ -53,6 +53,30 @@ __all__ = [
     "parse_decimal",
     "parse_row_date",
 ]
+
+_ACCOUNT_EVIDENCE_SOURCE_TYPES = frozenset({"bank", "credit_card", "brokerage", "retirement"})
+_ACCOUNT_EVIDENCE_DOCUMENT_TYPES = frozenset(
+    {"statement", "brokerage_statement", "retirement_statement"}
+)
+
+
+def _structured_data_dict(reviewed: dict[str, object]) -> dict[str, object]:
+    structured_data = reviewed.get("structured_data")
+    return cast(dict[str, object], structured_data) if isinstance(structured_data, dict) else {}
+
+
+def _should_merge_planning_items(reviewed: dict[str, object]) -> bool:
+    source_type = str(reviewed.get("source_type") or "").strip()
+    document_type = str(reviewed.get("document_type") or "").strip()
+    structured_data = _structured_data_dict(reviewed)
+    financial_accounts = structured_data.get("financial_accounts")
+    has_financial_accounts = isinstance(financial_accounts, list) and bool(financial_accounts)
+    if has_financial_accounts:
+        return False
+    return not (
+        source_type in _ACCOUNT_EVIDENCE_SOURCE_TYPES
+        and document_type in _ACCOUNT_EVIDENCE_DOCUMENT_TYPES
+    )
 
 
 class HouseholdDocumentPipeline:
@@ -154,12 +178,20 @@ class HouseholdDocumentPipeline:
         stored_path = document.metadata.get("stored_path")
         if not isinstance(stored_path, str) or not stored_path:
             return
+        stored_file = Path(stored_path)
+        if not stored_file.exists():
+            logger.warning(
+                "household_document_source_missing_for_review",
+                document_id=document.id,
+                stored_path=stored_path,
+            )
+            return
 
         now = datetime.now(UTC).isoformat()
         reviewed = service.review_service.review(
             document_id=document.id,
             filename=document.filename,
-            stored_path=Path(stored_path),
+            stored_path=stored_file,
             content_type=document.content_type,
             source_type=document.source_type,
             document_type=document.document_type,
@@ -319,15 +351,28 @@ class HouseholdDocumentPipeline:
         )
         planning_items = reviewed.get("planning_items")
         planning_count = 0
+        planning_skipped = 0
+        planning_error: str | None = None
         if isinstance(planning_items, list):
             dict_items = [item for item in planning_items if isinstance(item, dict)]
-            if dict_items:
-                service.merge_planning_items(
-                    items=dict_items,
-                    provenance="document_review",
-                    source_document_id=document.id,
-                )
-                planning_count = len(dict_items)
+            if dict_items and _should_merge_planning_items(reviewed):
+                try:
+                    service.merge_planning_items(
+                        items=dict_items,
+                        provenance="document_review",
+                        source_document_id=document.id,
+                    )
+                    planning_count = len(dict_items)
+                except Exception as exc:
+                    planning_skipped = len(dict_items)
+                    planning_error = str(exc)
+                    logger.warning(
+                        "household_document_planning_merge_skipped",
+                        document_id=document.id,
+                        error=str(exc),
+                    )
+            else:
+                planning_skipped = len(dict_items)
         inferred_count = 0
         raw_inferred_values = reviewed.get("inferred_values")
         if not isinstance(raw_inferred_values, list):
@@ -358,6 +403,8 @@ class HouseholdDocumentPipeline:
             "transactions": transaction_summary,
             "evidence_accounts": evidence_account_count,
             "planning_items": planning_count,
+            "planning_items_skipped": planning_skipped,
+            "planning_error": planning_error,
             "inferred_values": inferred_count,
             "needs_follow_up": not impacts,
         }

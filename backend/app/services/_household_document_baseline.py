@@ -344,6 +344,65 @@ def _extract_cash_management_account(text: str) -> dict[str, object] | None:
     }
 
 
+def _extract_529_account(text: str) -> dict[str, object] | None:
+    beneficiary_matches = list(
+        re.finditer(
+            r"(?im)^college\s*f(?:nd|und)\s*-\s*(?P<name>[^\n]+)\n\s*\$?(?P<amount>[0-9][0-9,]*\.\d{2})",
+            text,
+        )
+    )
+    if not beneficiary_matches and "529" not in text.lower():
+        return None
+
+    beneficiary_holdings: list[dict[str, object]] = []
+    total_balance = 0.0
+    for match in beneficiary_matches:
+        name = " ".join(match.group("name").strip().split())
+        amount = _float_value(match.group("amount"))
+        if not name or amount is None:
+            continue
+        beneficiary_holdings.append(
+            {
+                "description": f"Beneficiary: {name}",
+                "market_value": f"{amount:.2f}",
+            }
+        )
+        total_balance += amount
+
+    if not beneficiary_holdings:
+        amounts = re.findall(r"\$([0-9][0-9,]*\.\d{2})", text)
+        if not amounts:
+            return None
+        total_balance = float(amounts[0].replace(",", ""))
+
+    normalized_text = " ".join(text.split())
+    account_mask_match = re.search(
+        r"\b529[^\n]*?([A-Z0-9-]{6,})\b",
+        normalized_text,
+        flags=re.IGNORECASE,
+    )
+    as_of_match = re.search(
+        r"as of\s*([A-Za-z]{3,9}[- ][0-9]{1,2}(?:,|-)[0-9]{4})",
+        text,
+        flags=re.IGNORECASE,
+    )
+    as_of_date = _parse_natural_date(as_of_match.group(1) if as_of_match else None)
+    return {
+        "asset_group": "education",
+        "account_type": "529",
+        "account_name": "529 college savings account",
+        "account_hint": "529 college savings account",
+        "account_mask": account_mask_match.group(1) if account_mask_match is not None else None,
+        "institution_name": "529 College Savings",
+        "currency": "USD",
+        "balance": f"{total_balance:.2f}",
+        "cash_balance": None,
+        "holdings_value": f"{total_balance:.2f}",
+        "holdings": beneficiary_holdings or None,
+        "as_of_date": as_of_date,
+    }
+
+
 def _extract_frs_investment_plan_account(text: str) -> dict[str, object] | None:
     if "frs investment plan" not in text.lower():
         return None
@@ -384,6 +443,46 @@ def _extract_frs_investment_plan_account(text: str) -> dict[str, object] | None:
         "institution_name": "Florida Retirement System (FRS)",
         "statement_start": start_date,
         "statement_end": end_date,
+    }
+
+
+def _extract_defined_contribution_plan_account(text: str) -> dict[str, object] | None:
+    text_lower = text.lower()
+    if not any(token in text_lower for token in ("401(k)", "403(b)", "457(b)", "deferred compensation plan")):
+        return None
+    total_match = re.search(
+        r"total\s*:\s*\$([0-9][0-9,]*\.\d{2})",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if total_match is None:
+        return None
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return None
+    account_name = lines[0]
+    institution_name = lines[1] if len(lines) > 1 else None
+    as_of_match = re.search(
+        r"as of\s*([0-9]{2}/[0-9]{2}/[0-9]{4})",
+        text,
+        flags=re.IGNORECASE,
+    )
+    as_of_date = _parse_natural_date(as_of_match.group(1) if as_of_match else None)
+    balance = total_match.group(1).replace(",", "")
+    return {
+        "balance": balance,
+        "currency": "USD",
+        "holdings": [],
+        "as_of_date": as_of_date,
+        "owner_name": None,
+        "asset_group": "retirement",
+        "account_hint": account_name,
+        "account_name": account_name,
+        "account_type": "401k",
+        "cash_balance": None,
+        "holdings_value": balance,
+        "institution_name": institution_name,
+        "statement_end": as_of_date,
     }
 
 
@@ -444,6 +543,36 @@ def _classify_cash_management(
         "brokerage_statement",
         0.9,
         "Cash management account snapshot with recent activity, balance details, and available cash.",
+    )
+
+
+def _classify_defined_contribution_plan(
+    extracted_text: str | None,
+    structured_data: _StructuredData,
+) -> tuple[str, str, float, str] | None:
+    if not extracted_text:
+        return None
+    account = _extract_defined_contribution_plan_account(extracted_text)
+    if account is None:
+        return None
+    structured_data.update(
+        {
+            "currency": "USD",
+            "provider_name": account.get("institution_name"),
+            "account_hint": account["account_hint"],
+            "financial_accounts": [account],
+            "total_amount": account["balance"],
+        }
+    )
+    if account.get("statement_end"):
+        structured_data["statement_period"] = f"As of {account['statement_end']}"
+    institution_name = str(account.get("institution_name") or "Employer retirement plan")
+    return (
+        "retirement",
+        "retirement_statement",
+        0.91,
+        f"{institution_name} retirement-plan snapshot for {account['account_name']}. "
+        f"Total balance ${account['balance']}.",
     )
 
 
@@ -828,6 +957,12 @@ def _classify_by_content(
         inferred_source, inferred_document, confidence, summary = _classify_wells_fargo(structured_data)
     elif "529" in text_lower or "college fnd" in text_lower or "college fund" in text_lower:
         inferred_source, inferred_document, confidence, summary = _classify_529(structured_data)
+        account = _extract_529_account(extracted_text or "")
+        if account is not None:
+            structured_data["financial_accounts"] = [account]
+            structured_data["total_amount"] = str(account["balance"])
+            if account.get("as_of_date") is not None:
+                structured_data["statement_period"] = f"As of {account['as_of_date']}"
     elif "cash management" in text_lower and (
         "account total balance" in text_lower
         or "cash available to withdraw" in text_lower
@@ -840,6 +975,10 @@ def _classify_by_content(
         frs_statement = _classify_frs_investment_plan(extracted_text, structured_data)
         if frs_statement is not None:
             inferred_source, inferred_document, confidence, summary = frs_statement
+    elif any(token in text_lower for token in ("401(k)", "403(b)", "457(b)", "deferred compensation plan")):
+        defined_contribution_statement = _classify_defined_contribution_plan(extracted_text, structured_data)
+        if defined_contribution_statement is not None:
+            inferred_source, inferred_document, confidence, summary = defined_contribution_statement
     elif "brokerage" in text_lower or "positions" in text_lower or "dividends" in text_lower:
         inferred_source, inferred_document, confidence = "brokerage", "brokerage_statement", 0.8
         summary = "Brokerage statement with investable assets and account activity."

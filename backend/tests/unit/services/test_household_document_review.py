@@ -6,8 +6,6 @@ from pathlib import Path
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
-from agent_hub.models.content import ImageContent
-
 from app.services.household_document_review import (
     HouseholdDocumentReviewService,
     _baseline_review,
@@ -16,7 +14,6 @@ from app.services.household_document_review import (
     _extract_text,
     _parse_review_payload,
 )
-from app.services.household_review_agent_service import HOUSEHOLD_REVIEW_AGENT_SLUG
 
 # Patch targets use the module where the name is looked up at runtime.
 _TEXT_MODULE = "app.services._household_document_text"
@@ -235,6 +232,11 @@ def test_baseline_review_detects_529_college_fund_snapshot() -> None:
     assert payload["source_type"] == "brokerage"
     assert structured_data["account_hint"] == "529 college savings account"
     assert "529" in payload["summary"]
+    accounts = structured_data["financial_accounts"]
+    assert isinstance(accounts, list)
+    assert len(accounts) == 1
+    assert accounts[0]["account_type"] == "529"
+    assert accounts[0]["balance"] == "6176.44"
 
 
 def test_baseline_review_detects_cash_management_account_text() -> None:
@@ -524,6 +526,7 @@ def test_signature_review_enriches_summary_and_amount(
 def test_signature_review_skips_generic_image_name(
     find_signature: MagicMock,
 ) -> None:
+    find_signature.return_value = None
     service = HouseholdDocumentReviewService()
 
     payload = service._signature_review(
@@ -532,13 +535,10 @@ def test_signature_review_skips_generic_image_name(
     )
 
     assert payload is None
-    find_signature.assert_not_called()
+    find_signature.assert_called_once()
 
 
-@patch(f"{_LLM_MODULE}._pdf_image_blocks")
-def test_build_messages_includes_pdf_preview_images(pdf_image_blocks: MagicMock) -> None:
-    pdf_image_blocks.return_value = [ImageContent.from_base64("ZmFrZQ==", media_type="image/png")]
-
+def test_build_messages_uses_single_text_message() -> None:
     messages = _build_messages(
         payload={
             "document_id": "doc-1",
@@ -561,9 +561,10 @@ def test_build_messages_includes_pdf_preview_images(pdf_image_blocks: MagicMock)
         },
     )
 
-    pdf_image_blocks.assert_called_once_with(Path("/tmp/statement.pdf"))
     assert len(messages) == 1
-    assert len(messages[0].content) == 3
+    assert isinstance(messages[0].content, str)
+    assert "Document metadata:" in messages[0].content
+    assert "Extracted text preview:" in messages[0].content
 
 
 @patch("app.services.household_document_review.AGENT_HUB_ENABLED", True)
@@ -573,7 +574,7 @@ def test_review_with_llm_uses_dedicated_financial_document_agent(mock_client_cla
     service = HouseholdDocumentReviewService(agent_service=agent_service)
 
     mock_sdk_client = MagicMock()
-    mock_sdk_client._client.complete.return_value.content = (
+    mock_sdk_client.complete_messages.return_value.content = (
         '{"summary":"Receipt","document_type":"receipt","source_type":"receipt","confidence":0.9,'
         '"structured_data":{"merchant":"Amazon"},"inferred_values":[],"questions":[]}'
     )
@@ -603,7 +604,31 @@ def test_review_with_llm_uses_dedicated_financial_document_agent(mock_client_cla
 
     assert payload is not None
     agent_service.ensure_agent.assert_called_once()
-    mock_sdk_client._client.complete.assert_called_once()
-    kwargs = mock_sdk_client._client.complete.call_args.kwargs
-    assert kwargs["agent_slug"] == HOUSEHOLD_REVIEW_AGENT_SLUG
+    mock_sdk_client.complete_messages.assert_called_once()
+    kwargs = mock_sdk_client.complete_messages.call_args.kwargs
+    assert kwargs["response_format"] == {"type": "json_object"}
     assert kwargs["use_memory"] is True
+
+
+def test_baseline_review_detects_defined_contribution_retirement_plan_from_raw_text() -> None:
+    payload = _baseline_review(
+        filename="add-anything.txt",
+        source_type="other",
+        document_type="other",
+        extracted_text=(
+            "Pinellas County Schools 457(b) Deferred Compensation Plan\n"
+            "Pinellas County Schools\n"
+            "Fixed Funds, as of 04/10/2026\n"
+            "Variable/Mutual Funds, as of 04/10/2026\n"
+            "Total: $95,961.72\n"
+        ),
+    )
+    structured_data = cast(dict[str, Any], payload["structured_data"])
+    financial_accounts = cast(list[dict[str, Any]], structured_data["financial_accounts"])
+
+    assert payload["document_type"] == "retirement_statement"
+    assert payload["source_type"] == "retirement"
+    assert payload["confidence"] >= 0.9
+    assert structured_data["provider_name"] == "Pinellas County Schools"
+    assert financial_accounts[0]["account_name"] == "Pinellas County Schools 457(b) Deferred Compensation Plan"
+    assert financial_accounts[0]["balance"] == "95961.72"

@@ -152,12 +152,10 @@ class HouseholdDocumentReviewService:
                 extracted_text=extracted_text,
                 baseline_review=baseline_review,
             )
-            response = client._client.complete(
-                project_id="portfolio-ai",
-                agent_slug=HOUSEHOLD_REVIEW_AGENT_SLUG,
+            response = client.complete_messages(
                 messages=messages,
-                temperature=0.1,
                 purpose="household_document_review",
+                response_format={"type": "json_object"},
                 use_memory=True,
                 thinking_level="low",
             )
@@ -236,6 +234,17 @@ class HouseholdDocumentReviewService:
             )
         if not extracted_text:
             return candidates
+        non_empty_lines = [line.strip() for line in extracted_text.splitlines() if line.strip()]
+        if non_empty_lines:
+            prefix = " | ".join(non_empty_lines[:4]).lower()
+            prefix = re.sub(r"\d", "#", prefix)
+            prefix = re.sub(r"[^a-z0-9()|]+", "_", prefix)
+            prefix = re.sub(r"_+", "_", prefix).strip("_")
+            if len(prefix) >= 16:
+                digest = hashlib.sha256(prefix.encode("utf-8")).hexdigest()[:24]
+                candidates.append(
+                    ("text_prefix", f"text_prefix::{digest}", {"normalized_prefix": prefix})
+                )
         if filename.lower().endswith(".csv"):
             first_line = next(
                 (line.strip() for line in extracted_text.splitlines() if line.strip()), ""

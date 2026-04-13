@@ -123,7 +123,7 @@ class JennyReviewEngine:
         started_at: datetime,
     ) -> dict[str, Any]:
         try:
-            response = client.generate(prompt=prompt, system=spec.system_prompt, purpose=f"jenny:{spec.agent_slug}")
+            response = client.generate(prompt=prompt, purpose=f"jenny:{spec.agent_slug}")
             service.agent_run_repo.store_message(run_id, "assistant", response.content)
             parsed = self.parse_agent_response(response.content, spec.agent_slug)
             parsed.setdefault("metadata", {})

@@ -2,33 +2,12 @@
 
 from __future__ import annotations
 
-import base64
 import json
 import re
 from pathlib import Path
 from typing import Any
 
-from agent_hub.models.content import ImageContent, MessageInput, TextContent
-
-from app.logging_config import get_logger
-from app.services._household_document_text import _render_pdf_pages_to_png
-
-logger = get_logger(__name__)
-
-def _pdf_image_blocks(stored_path: Path) -> list[ImageContent]:
-    blocks: list[ImageContent] = []
-    try:
-        for png_bytes in _render_pdf_pages_to_png(stored_path, scale=1.5, max_pages=2):
-            blocks.append(
-                ImageContent.from_base64(
-                    base64.b64encode(png_bytes).decode("utf-8"),
-                    media_type="image/png",
-                )
-            )
-    except Exception as exc:
-        logger.warning("household_pdf_preview_failed", path=str(stored_path), error=str(exc))
-        return []
-    return blocks
+from agent_hub.models.content import MessageInput
 
 
 def _build_messages(
@@ -39,30 +18,22 @@ def _build_messages(
     extracted_text: str | None,
     baseline_review: dict[str, Any],
 ) -> list[MessageInput]:
-    content_blocks: list[Any] = [
-        TextContent(
-            text=(
-                "Review this uploaded household finance document using your assigned Agent Hub prompts.\n\n"
-                "Document metadata:\n"
-                f"{json.dumps(payload, indent=2)}\n\n"
-                "Deterministic reviewer baseline:\n"
-                f"{json.dumps(baseline_review, indent=2)}\n\n"
-                "Use extracted text and visual evidence to improve or correct the baseline review."
-            )
-        )
+    prompt_parts = [
+        "Review this uploaded household finance document using your assigned Agent Hub prompts.",
+        "",
+        "Document metadata:",
+        json.dumps(payload, indent=2),
+        "",
+        "Deterministic reviewer baseline:",
+        json.dumps(baseline_review, indent=2),
+        "",
+        "Use extracted text to improve or correct the baseline review.",
     ]
     if extracted_text:
-        content_blocks.append(TextContent(text=f"Extracted text preview:\n{extracted_text[:12000]}"))
-    if stored_path.suffix.lower() == ".pdf" or content_type == "application/pdf":
-        content_blocks.extend(_pdf_image_blocks(stored_path))
-    if content_type and content_type.startswith("image/"):
-        content_blocks.append(
-            ImageContent.from_base64(
-                base64.b64encode(stored_path.read_bytes()).decode("utf-8"),
-                media_type=content_type,
-            )
-        )
-    return [MessageInput(role="user", content=content_blocks)]
+        prompt_parts.extend(["", "Extracted text preview:", extracted_text[:12000]])
+    else:
+        prompt_parts.extend(["", "Extracted text preview:", "[none]"])
+    return [MessageInput(role="user", content="\n".join(prompt_parts))]
 
 
 def _parse_review_payload(content: Any) -> dict[str, Any]:
