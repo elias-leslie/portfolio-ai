@@ -144,6 +144,20 @@ function TrackedAccountDialog({
   const accountTypeOptions = ACCOUNT_TYPE_OPTIONS[form.assetGroup] ?? ACCOUNT_TYPE_OPTIONS.other
   const canSubmit = form.label.trim().length > 0
   const isEditing = Boolean(account?.trackedAccountId)
+  const isPrefilled = Boolean(seed) && !isEditing
+  const dialogTitle = isEditing
+    ? 'Edit tracked account'
+    : isPrefilled
+      ? 'Track account'
+      : 'Add tracked account'
+  const dialogDescription = isPrefilled
+    ? 'Jenny found this account from evidence. Confirm the details once, then keep attaching evidence to this row over time.'
+    : 'Create a real account row first, then let Jenny attach evidence to it over time.'
+  const submitLabel = isEditing
+    ? 'Save account'
+    : isPrefilled
+      ? 'Save account details'
+      : 'Create account'
 
   const setAssetGroup = (assetGroup: string) => {
     setForm((current) => ({
@@ -171,12 +185,8 @@ function TrackedAccountDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Edit tracked account' : 'Add tracked account'}</DialogTitle>
-          <DialogDescription>
-            {seed && !isEditing
-              ? 'Jenny spotted this account from imported evidence. Confirm the row, then attach evidence over time.'
-              : 'Create a real account row first, then let Jenny attach evidence to it over time.'}
-          </DialogDescription>
+          <DialogTitle>{dialogTitle}</DialogTitle>
+          <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
@@ -300,11 +310,7 @@ function TrackedAccountDialog({
             }
             aria-busy={createAccount.isPending || updateAccount.isPending}
           >
-            {createAccount.isPending || updateAccount.isPending
-              ? 'Saving...'
-              : isEditing
-                ? 'Save account'
-                : 'Create account'}
+            {createAccount.isPending || updateAccount.isPending ? 'Saving...' : submitLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

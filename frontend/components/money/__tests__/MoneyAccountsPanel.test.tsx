@@ -241,8 +241,9 @@ describe('MoneyAccountsPanel', () => {
     )
     expect(screen.getByLabelText(/institution/i)).toHaveValue('Wells Fargo')
     expect(screen.getByLabelText(/account mask/i)).toHaveValue('4421')
+    expect(screen.getByText('Track account')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /create account/i }))
+    await user.click(screen.getByRole('button', { name: /save account details/i }))
 
     await waitFor(() => {
       expect(createMutateAsync).toHaveBeenCalledWith(
@@ -303,11 +304,12 @@ describe('MoneyAccountsPanel', () => {
       'Cash Management (Joint WROS)',
     )
     expect(screen.getByLabelText(/account mask/i)).toHaveValue('Z38367298')
+    expect(screen.getByText('Track account')).toBeInTheDocument()
 
     const labelInput = screen.getByLabelText(/account label/i)
     await user.clear(labelInput)
     await user.type(labelInput, 'Main Cash Management')
-    await user.click(screen.getByRole('button', { name: /create account/i }))
+    await user.click(screen.getByRole('button', { name: /save account details/i }))
 
     await waitFor(() => {
       expect(createMutateAsync).toHaveBeenCalledWith(
