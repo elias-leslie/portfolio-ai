@@ -464,6 +464,7 @@ def _match_tracked_account(
         tracked_institution = _normalize_text(account.institution_name)
         tracked_owner = _normalize_text(account.owner_name)
         tracked_tokens = _match_tokens(account.label, account.institution_name)
+        identity_locked = bool(account.match_key or account.account_mask)
         score = 0
         if account.match_key and _normalize_text(account.match_key) == _normalize_text(group_key):
             score = 5
@@ -475,13 +476,17 @@ def _match_tracked_account(
         ):
             score = 4
         elif (
+            not identity_locked
+            and
             normalized_institution
             and normalized_owner
             and tracked_institution == normalized_institution
             and _owners_match(tracked_owner, normalized_owner)
         ):
             score = 3
-        elif _normalize_text(account.label) in label_candidates or (
+        elif (not identity_locked and _normalize_text(account.label) in label_candidates) or (
+            not identity_locked
+            and
             normalized_institution
             and tracked_institution == normalized_institution
             and account.account_mask is None
@@ -504,6 +509,8 @@ def _match_tracked_account(
         ):
             score = 2
         elif (
+            not identity_locked
+            and
             len(tracked_tokens & evidence_tokens) >= 2
             and not (
                 normalized_owner
@@ -955,9 +962,7 @@ def build_account_summaries(
         )
         if portfolio_account is not None:
             linked_portfolio_ids.add(portfolio_account.id)
-        effective_asset_group = (
-            tracked_account.asset_group if tracked_account is not None else latest.asset_group
-        )
+        effective_asset_group = latest.asset_group
         effective_label = (
             _tracked_label(tracked_account)
             if tracked_account is not None
@@ -965,9 +970,7 @@ def build_account_summaries(
             if portfolio_account is not None
             else account_label
         )
-        effective_account_type = (
-            tracked_account.account_type if tracked_account is not None else latest.account_type
-        )
+        effective_account_type = latest.account_type
         effective_money_role = _money_role(
             effective_asset_group,
             effective_account_type,
@@ -1007,11 +1010,11 @@ def build_account_summaries(
             label=effective_label,
             asset_group=effective_asset_group,
             account_type=effective_account_type,
-            source_type=tracked_account.source_type if tracked_account is not None else latest.source_type,
-            match_key=tracked_account.match_key if tracked_account is not None and tracked_account.match_key is not None else group_key,
-            institution_name=tracked_account.institution_name if tracked_account is not None and tracked_account.institution_name is not None else latest.institution_name,
-            owner_name=tracked_account.owner_name if tracked_account is not None and tracked_account.owner_name is not None else latest.owner_name,
-            account_mask=tracked_account.account_mask if tracked_account is not None and tracked_account.account_mask is not None else latest.account_mask,
+            source_type=latest.source_type,
+            match_key=tracked_account.match_key if tracked_account is not None else group_key,
+            institution_name=latest.institution_name,
+            owner_name=latest.owner_name if latest.owner_name is not None else tracked_account.owner_name if tracked_account is not None else None,
+            account_mask=latest.account_mask,
             notes=tracked_account.notes if tracked_account is not None else None,
             currency=latest.currency,
             current_value=_account_value(latest),

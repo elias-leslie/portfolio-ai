@@ -150,6 +150,7 @@ function TrackedAccountDialog({
   const canSubmit = form.label.trim().length > 0
   const isEditing = Boolean(account?.trackedAccountId)
   const isPrefilled = Boolean(seed) && !isEditing
+  const identityLocked = Boolean(isEditing && account?.evidenceCount && account.evidenceCount > 0)
   const dialogTitle = isEditing
     ? 'Edit tracked account'
     : isPrefilled
@@ -157,6 +158,8 @@ function TrackedAccountDialog({
       : 'Add tracked account'
   const dialogDescription = isPrefilled
     ? 'Jenny found this account from evidence. Confirm the details once, then keep attaching evidence to this row over time.'
+    : identityLocked
+      ? 'Rename this account or add notes here. Identity fields stay tied to linked evidence so one account cannot silently turn into another.'
     : 'Create a real account row first, then let Jenny attach evidence to it over time.'
   const submitLabel = isEditing
     ? 'Save account'
@@ -210,7 +213,7 @@ function TrackedAccountDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="money-account-group">Asset group</Label>
-              <Select value={form.assetGroup} onValueChange={setAssetGroup}>
+              <Select value={form.assetGroup} onValueChange={setAssetGroup} disabled={identityLocked}>
                 <SelectTrigger id="money-account-group">
                   <SelectValue />
                 </SelectTrigger>
@@ -228,6 +231,7 @@ function TrackedAccountDialog({
               <Label htmlFor="money-account-type">Account type</Label>
               <Select
                 value={form.accountType}
+                disabled={identityLocked}
                 onValueChange={(accountType) =>
                   setForm((current) => ({ ...current, accountType }))
                 }
@@ -252,6 +256,7 @@ function TrackedAccountDialog({
               <Input
                 id="money-account-institution"
                 value={form.institutionName ?? ''}
+                disabled={identityLocked}
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
@@ -267,6 +272,7 @@ function TrackedAccountDialog({
               <Input
                 id="money-account-mask"
                 value={form.accountMask ?? ''}
+                disabled={identityLocked}
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
@@ -283,6 +289,7 @@ function TrackedAccountDialog({
             <Input
               id="money-account-owner"
               value={form.ownerName ?? ''}
+              disabled={identityLocked}
               onChange={(event) =>
                 setForm((current) => ({
                   ...current,
