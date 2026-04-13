@@ -16,6 +16,7 @@ interface EvidenceUploadComposerProps {
   description: string
   accountLabel?: string | null
   compact?: boolean
+  highlighted?: boolean
 }
 
 export function EvidenceUploadComposer({
@@ -23,6 +24,7 @@ export function EvidenceUploadComposer({
   description,
   accountLabel = null,
   compact = false,
+  highlighted = false,
 }: EvidenceUploadComposerProps) {
   const upload = useUploadHouseholdDocument()
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -168,6 +170,7 @@ export function EvidenceUploadComposer({
       className={[
         'rounded-2xl border bg-surface-muted/15',
         accountLabel ? 'border-primary/25 bg-primary/5' : 'border-border/40',
+        highlighted ? 'ring-2 ring-primary/40 shadow-[0_0_0_1px_rgba(96,165,250,0.18)]' : '',
         compact ? 'p-4' : 'p-5',
       ].join(' ')}
     >

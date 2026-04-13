@@ -37,6 +37,7 @@ import { formatRelativeTime } from '@/lib/utils'
 import { EvidenceUploadComposer } from './EvidenceUploadComposer'
 
 type MoneyAccountsFocus = 'coverage' | 'discovered' | null
+type MoneyAccountsIntent = 'evidence' | 'review' | null
 
 const freshnessTone = {
   fresh: 'border-gain/25 bg-gain/5 text-gain',
@@ -330,11 +331,15 @@ export function MoneyAccountsPanel({
   documents,
   discoveredAccounts = [],
   focus = null,
+  selectedAccountId = null,
+  intent = null,
 }: {
   accounts: HouseholdAccountSummary[]
   documents: HouseholdDocument[]
   discoveredAccounts?: HouseholdDiscoveredAccount[]
   focus?: MoneyAccountsFocus
+  selectedAccountId?: string | null
+  intent?: MoneyAccountsIntent
 }) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingAccount, setEditingAccount] = useState<HouseholdAccountSummary | null>(null)
@@ -342,12 +347,13 @@ export function MoneyAccountsPanel({
   const [deletingAccount, setDeletingAccount] =
     useState<HouseholdAccountSummary | null>(null)
   const focusedAccountId =
-    focus === 'coverage'
+    selectedAccountId ??
+    (focus === 'coverage'
       ? accounts.find(
           (account) =>
             account.gapFlags.length > 0 || account.freshnessStatus !== 'fresh',
         )?.id
-      : undefined
+      : undefined)
   const [openAccountId, setOpenAccountId] = useState<string | undefined>(
     focusedAccountId,
   )
@@ -361,6 +367,23 @@ export function MoneyAccountsPanel({
       setOpenAccountId(focusedAccountId)
     }
   }, [focusedAccountId])
+
+  useEffect(() => {
+    if (!selectedAccountId || openAccountId !== selectedAccountId) {
+      return
+    }
+    const targetId =
+      intent === 'evidence'
+        ? `account-evidence-upload-${selectedAccountId}`
+        : `account-${selectedAccountId}`
+    const scrollTarget = document.getElementById(targetId)
+    if (!scrollTarget) {
+      return
+    }
+    requestAnimationFrame(() => {
+      scrollTarget.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
+    })
+  }, [intent, openAccountId, selectedAccountId])
 
   const handleDelete = async (account: HouseholdAccountSummary) => {
     if (!account.trackedAccountId) return
@@ -688,12 +711,18 @@ export function MoneyAccountsPanel({
                           </div>
                         ) : null}
 
-                        <EvidenceUploadComposer
-                          compact
-                          title="Add evidence to this account"
-                          description="Use this when you already know the account. Jenny still verifies the contents before applying any update."
-                          accountLabel={account.label}
-                        />
+                        <div id={`account-evidence-upload-${account.id}`}>
+                          <EvidenceUploadComposer
+                            compact
+                            highlighted={
+                              account.id === selectedAccountId &&
+                              intent === 'evidence'
+                            }
+                            title="Add evidence to this account"
+                            description="Use this when you already know the account. Jenny still verifies the contents before applying any update."
+                            accountLabel={account.label}
+                          />
+                        </div>
                       </div>
 
                       <div className="space-y-4">

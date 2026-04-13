@@ -21,6 +21,7 @@ from app.services._money_workspace_routes import (
     MONEY_CLARIFICATIONS_ROUTE,
     MONEY_DATE_QUALITY_ROUTE,
     MONEY_EVIDENCE_ROUTE,
+    money_account_focus_route,
 )
 
 
@@ -211,7 +212,7 @@ def test_build_money_inbox_prioritizes_questions_and_account_gaps() -> None:
     assert any(item.related_account_id == account_summaries[0].id for item in inbox)
     assert any(
         item.related_account_id == account_summaries[0].id
-        and item.action_href == MONEY_EVIDENCE_ROUTE
+        and item.action_href == money_account_focus_route(account_summaries[0].id, intent='evidence')
         for item in inbox
     )
     assert any(item.category == "coverage" for item in inbox)
@@ -311,7 +312,10 @@ def test_build_account_summaries_marks_stale_spending_transactions_and_routes_to
 
     assert any(item.title == "Refresh transactions for Wells Fargo · Joint Checking" for item in inbox)
     assert any(item.action_label == "Add statements" for item in inbox)
-    assert any(item.action_href == MONEY_EVIDENCE_ROUTE for item in inbox)
+    assert any(
+        item.action_href == money_account_focus_route(summary.id, intent='evidence')
+        for item in inbox
+    )
     assert any(
         "covering" in item.detail
         and "Blocks monthly spend, budget status, and safe to spend." in item.detail

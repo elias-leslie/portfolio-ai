@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type {
@@ -25,6 +26,19 @@ export function ImportCenterSidebar({
   moneyInbox?: HouseholdInboxItem[]
   focusedReview?: boolean
 }) {
+  useEffect(() => {
+    if (!focusedReview) {
+      return
+    }
+    const target = document.getElementById('date-quality-review')
+    if (!target) {
+      return
+    }
+    requestAnimationFrame(() => {
+      target.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
+    })
+  }, [focusedReview, dateQualityIssues.length])
+
   return (
     <div className="space-y-3">
       {importCenter ? <IntakeSummaryCard importCenter={importCenter} /> : null}

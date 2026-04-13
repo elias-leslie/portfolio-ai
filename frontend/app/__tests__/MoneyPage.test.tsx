@@ -14,11 +14,21 @@ vi.mock('@/components/money/MoneyOverviewPanel', () => ({
   MoneyOverviewPanel: () => <div>Money Overview Panel</div>,
 }))
 vi.mock('@/components/money/MoneyAccountsPanel', () => ({
-  MoneyAccountsPanel: ({ focus }: { focus?: string | null }) => (
+  MoneyAccountsPanel: ({
+    focus,
+    selectedAccountId,
+    intent,
+  }: {
+    focus?: string | null
+    selectedAccountId?: string | null
+    intent?: string | null
+  }) => (
     <div>
       Money Accounts Panel
       {focus === 'coverage' ? <span>Account coverage focused</span> : null}
       {focus === 'discovered' ? <span>Discovered accounts focused</span> : null}
+      {selectedAccountId ? <span>Selected account: {selectedAccountId}</span> : null}
+      {intent ? <span>Account intent: {intent}</span> : null}
     </div>
   ),
 }))
@@ -481,6 +491,23 @@ describe('MoneyPage', () => {
 
     expect(screen.getByText('Money Accounts Panel')).toBeInTheDocument()
     expect(screen.getByText('Discovered accounts focused')).toBeInTheDocument()
+  })
+
+  it('opens the accounts tab on the exact account upload step from query params', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      '/money?tab=accounts&account=evidence%7Ccash-management%7Cbrokerage&intent=evidence',
+    )
+    const { default: MoneyPage } = await import('../money/page')
+
+    render(<MoneyPage />)
+
+    expect(screen.getByText('Money Accounts Panel')).toBeInTheDocument()
+    expect(
+      screen.getByText('Selected account: evidence|cash-management|brokerage'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Account intent: evidence')).toBeInTheDocument()
   })
 
   it('opens focused planning from the utility and focus query params', async () => {

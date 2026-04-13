@@ -166,6 +166,7 @@ type MoneyFocus =
   | 'account-coverage'
   | 'discovered-accounts'
   | PlanningFocusSection
+type MoneyIntent = 'evidence' | 'review'
 
 const planningFocusSections = new Set<string>([
   'household',
@@ -223,6 +224,32 @@ function readRequestedFocus(): MoneyFocus | null {
   )
 }
 
+function resolveRequestedIntent(
+  requested: string | null | undefined,
+): MoneyIntent | null {
+  return requested === 'evidence' || requested === 'review'
+    ? requested
+    : null
+}
+
+function readRequestedIntent(): MoneyIntent | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  return resolveRequestedIntent(
+    new URLSearchParams(window.location.search).get('intent'),
+  )
+}
+
+function readRequestedAccountId(): string | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  return new URLSearchParams(window.location.search).get('account')
+}
+
 function syncUtilityToLocation(
   nextUtility: MoneyUtility | null,
   nextFocus: MoneyFocus | null = null,
@@ -252,6 +279,12 @@ export default function MoneyPage() {
   const [focusedReview, setFocusedReview] = useState<MoneyFocus | null>(
     readRequestedFocus,
   )
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
+    readRequestedAccountId,
+  )
+  const [selectedIntent, setSelectedIntent] = useState<MoneyIntent | null>(
+    readRequestedIntent,
+  )
   const {
     data: dashboard,
     isLoading,
@@ -276,12 +309,22 @@ export default function MoneyPage() {
         const requested = readRequestedUtility()
         return current === requested ? current : requested
       })
+      const requestedAccountId = readRequestedAccountId()
+      setSelectedAccountId((current) =>
+        current === requestedAccountId ? current : requestedAccountId,
+      )
+      const requestedIntent = readRequestedIntent()
+      setSelectedIntent((current) =>
+        current === requestedIntent ? current : requestedIntent,
+      )
     }
 
+    window.addEventListener('locationchange', syncFromLocation)
     window.addEventListener('popstate', syncFromLocation)
     syncFromLocation()
 
     return () => {
+      window.removeEventListener('locationchange', syncFromLocation)
       window.removeEventListener('popstate', syncFromLocation)
     }
   }, [])
@@ -495,6 +538,8 @@ export default function MoneyPage() {
                 ? 'discovered'
                 : null
           }
+          selectedAccountId={selectedAccountId}
+          intent={selectedIntent}
         />
       ),
     },

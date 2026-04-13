@@ -21,6 +21,7 @@ from app.services._money_workspace_routes import (
     MONEY_DATE_QUALITY_ROUTE,
     MONEY_DISCOVERED_ACCOUNTS_ROUTE,
     MONEY_EVIDENCE_ROUTE,
+    money_account_focus_route,
 )
 
 _PRIORITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
@@ -1113,6 +1114,7 @@ def build_money_inbox(
                 }
                 else f"Add evidence for {account.label}"
             )
+            action_href = money_account_focus_route(account.id, intent="evidence")
         elif top_gap.code in {
             "refresh_transactions_soon",
             "stale_transactions",
@@ -1126,9 +1128,11 @@ def build_money_inbox(
                 if top_gap.code in {"refresh_transactions_soon", "stale_transactions"}
                 else f"Add statements for {account.label}"
             )
+            action_href = money_account_focus_route(account.id, intent="evidence")
         elif top_gap.code == "unconfirmed_match":
             action_label = "Confirm account"
             title = f"Confirm {account.label}"
+            action_href = money_account_focus_route(account.id)
         detail = _account_request_detail(account, top_gap.code) or top_gap.detail
         items.append(
             HouseholdInboxItem(
