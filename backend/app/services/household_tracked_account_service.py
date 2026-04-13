@@ -41,6 +41,29 @@ def _normalize_asset_group(value: str) -> str:
     return lowered
 
 
+def _identity_key(
+    *,
+    label: str,
+    asset_group: str,
+    account_type: str,
+    source_type: str,
+    institution_name: str | None,
+    account_mask: str | None,
+) -> str | None:
+    normalized_institution = _clean_text(institution_name)
+    normalized_mask = _clean_text(account_mask)
+    if normalized_institution and normalized_mask:
+        return f"institution-mask::{normalized_institution.lower()}|{normalized_mask.lower()}"
+    if normalized_mask:
+        return f"mask::{normalized_mask.lower()}|{asset_group.lower()}|{account_type.lower()}"
+    if normalized_institution:
+        return (
+            "institution-label::"
+            f"{normalized_institution.lower()}|{asset_group.lower()}|{source_type.lower()}|{label.lower()}"
+        )
+    return None
+
+
 class HouseholdTrackedAccountService:
     """Persist manually tracked accounts used by the Money workspace."""
 
@@ -65,6 +88,7 @@ class HouseholdTrackedAccountService:
         payload: HouseholdTrackedAccountInput,
     ) -> HouseholdTrackedAccount:
         account = self._normalize_payload(payload)
+        self._ensure_unique_identity(service, account=account)
         account_id = str(uuid.uuid4())
         now = datetime.now(UTC).isoformat()
         with service.storage.connection() as conn:
@@ -106,6 +130,7 @@ class HouseholdTrackedAccountService:
         if existing is None:
             return None
         account = self._normalize_payload(payload)
+        self._ensure_unique_identity(service, account=account, exclude_account_id=account_id)
         with service.storage.connection() as conn:
             conn.execute(
                 """
@@ -182,3 +207,36 @@ class HouseholdTrackedAccountService:
             "account_mask": _clean_text(payload.account_mask),
             "notes": _clean_text(payload.notes),
         }
+
+    def _ensure_unique_identity(
+        self,
+        service: Any,
+        *,
+        account: dict[str, str | None],
+        exclude_account_id: str | None = None,
+    ) -> None:
+        identity = _identity_key(
+            label=str(account["label"] or ""),
+            asset_group=str(account["asset_group"] or ""),
+            account_type=str(account["account_type"] or ""),
+            source_type=str(account["source_type"] or ""),
+            institution_name=account["institution_name"],
+            account_mask=account["account_mask"],
+        )
+        if identity is None:
+            return
+        for existing in self.list_accounts(service, limit=500):
+            if exclude_account_id is not None and existing.id == exclude_account_id:
+                continue
+            existing_identity = _identity_key(
+                label=existing.label,
+                asset_group=existing.asset_group,
+                account_type=existing.account_type,
+                source_type=existing.source_type,
+                institution_name=existing.institution_name,
+                account_mask=existing.account_mask,
+            )
+            if existing_identity == identity:
+                raise ValueError(
+                    f"Tracked account already exists for {existing.label}. Rename that row instead of creating a duplicate."
+                )

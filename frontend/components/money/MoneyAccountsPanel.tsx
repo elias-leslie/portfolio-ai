@@ -322,6 +322,19 @@ function accountSubline(account: HouseholdAccountSummary) {
   return parts.length > 0 ? parts.join(' · ') : 'No evidence linked yet'
 }
 
+function seedFromAccount(account: HouseholdAccountSummary): HouseholdTrackedAccountInput {
+  return {
+    label: account.label,
+    assetGroup: account.assetGroup,
+    accountType: account.accountType,
+    sourceType: account.sourceType,
+    institutionName: account.institutionName ?? '',
+    ownerName: account.ownerName ?? '',
+    accountMask: account.accountMask ?? '',
+    notes: account.notes ?? '',
+  }
+}
+
 function moneyRoleLabel(role: string) {
   return role === 'spend_driver' ? 'Spending account' : 'Net worth only'
 }
@@ -731,34 +744,50 @@ export function MoneyAccountsPanel({
                             <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
                               Supporting documents
                             </p>
-                            {account.trackedAccountId ? (
-                              <div className="flex gap-2">
+                            <div className="flex gap-2">
+                              {account.trackedAccountId ? (
+                                <>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditingAccount(account)
+                                      setDraftSeed(null)
+                                      setDialogOpen(true)
+                                    }}
+                                  >
+                                    <Pencil className="mr-2 h-4 w-4" />
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setDeletingAccount(account)}
+                                    disabled={deleteAccount.isPending}
+                                    aria-busy={deleteAccount.isPending}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete
+                                  </Button>
+                                </>
+                              ) : (
                                 <Button
                                   type="button"
                                   size="sm"
                                   variant="outline"
                                   onClick={() => {
-                                    setEditingAccount(account)
-                                    setDraftSeed(null)
+                                    setEditingAccount(null)
+                                    setDraftSeed(seedFromAccount(account))
                                     setDialogOpen(true)
                                   }}
                                 >
                                   <Pencil className="mr-2 h-4 w-4" />
-                                  Edit
+                                  Track / rename
                                 </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => setDeletingAccount(account)}
-                                  disabled={deleteAccount.isPending}
-                                  aria-busy={deleteAccount.isPending}
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete
-                                </Button>
-                              </div>
-                            ) : null}
+                              )}
+                            </div>
                           </div>
 
                           {account.documentIds.length === 0 ? (

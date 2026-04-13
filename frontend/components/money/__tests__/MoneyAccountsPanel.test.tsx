@@ -118,6 +118,19 @@ const discoveredAccounts = [
   },
 ]
 
+const evidenceOnlyAccounts = [
+  {
+    ...accounts[0],
+    id: 'account-2',
+    label: 'Cash Management (Joint WROS)',
+    accountMask: 'Z38367298',
+    trackedAccountId: null,
+    accountOrigin: 'evidence',
+    linkedPortfolioAccountId: 'portfolio-1',
+    linkedPortfolioAccountName: 'Cash Management (Joint WROS)',
+  },
+]
+
 describe('MoneyAccountsPanel', () => {
   beforeEach(() => {
     uploadMutateAsync.mockReset()
@@ -276,6 +289,34 @@ describe('MoneyAccountsPanel', () => {
 
     await waitFor(() => {
       expect(deleteMutateAsync).toHaveBeenCalledWith('tracked-1')
+    })
+  })
+
+  it('creates a tracked row from an evidence-backed account so name can be customized', async () => {
+    const user = userEvent.setup()
+    render(<MoneyAccountsPanel accounts={evidenceOnlyAccounts} documents={documents} />)
+
+    await user.click(screen.getByRole('button', { name: /cash management \(joint wros\)/i }))
+    await user.click(screen.getByRole('button', { name: /track \/ rename/i }))
+
+    expect(screen.getByLabelText(/account label/i)).toHaveValue(
+      'Cash Management (Joint WROS)',
+    )
+    expect(screen.getByLabelText(/account mask/i)).toHaveValue('Z38367298')
+
+    const labelInput = screen.getByLabelText(/account label/i)
+    await user.clear(labelInput)
+    await user.type(labelInput, 'Main Cash Management')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    await waitFor(() => {
+      expect(createMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          label: 'Main Cash Management',
+          accountMask: 'Z38367298',
+          sourceType: 'bank',
+        }),
+      )
     })
   })
 
