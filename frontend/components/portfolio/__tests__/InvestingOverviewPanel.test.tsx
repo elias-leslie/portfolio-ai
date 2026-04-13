@@ -203,4 +203,26 @@ describe('InvestingOverviewPanel', () => {
     ).not.toBeInTheDocument()
     expect(screen.queryByText('Awaiting data')).not.toBeInTheDocument()
   })
+
+  it('prefers evidence-backed household portfolio totals when they exceed positioned accounts', () => {
+    render(
+      <InvestingOverviewPanel
+        portfolio={portfolio}
+        analytics={analytics}
+        accountsCount={2}
+        householdPortfolioValue={1126639.66}
+        householdInvestmentAccountsCount={8}
+      />,
+    )
+
+    expect(screen.getByText('$1,126,640')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /8 evidence-backed investment accounts on file\. Live position analytics cover 1 position across 2 position accounts\./i,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/\+12\.50% on positioned assets only\./i),
+    ).toBeInTheDocument()
+  })
 })

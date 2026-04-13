@@ -106,11 +106,15 @@ export function InvestingOverviewPanel({
   portfolio,
   analytics,
   accountsCount,
+  householdPortfolioValue = null,
+  householdInvestmentAccountsCount = null,
   isCoreLoading = false,
 }: {
   portfolio?: PortfolioResponse | null
   analytics?: PortfolioAnalytics | null
   accountsCount: number | null
+  householdPortfolioValue?: number | null
+  householdInvestmentAccountsCount?: number | null
   isCoreLoading?: boolean
 }) {
   const { data: market } = useMarketIntelligence()
@@ -122,6 +126,29 @@ export function InvestingOverviewPanel({
   const accountsLoading = isCoreLoading && accountsCount == null
   const positionCount = portfolio?.positions.length ?? 0
   const totalGain = portfolio?.totalGain
+  const displayPortfolioValue = householdPortfolioValue ?? portfolio?.totalValue
+  const hasHouseholdCoverage =
+    householdPortfolioValue != null &&
+    portfolio?.totalValue != null &&
+    Math.abs(householdPortfolioValue - portfolio.totalValue) > 1
+  const portfolioValueDetail =
+    portfolioMetricsLoading || accountsLoading
+      ? 'Loading holdings and account coverage.'
+      : hasHouseholdCoverage
+        ? `${householdInvestmentAccountsCount ?? 0} evidence-backed investment account${householdInvestmentAccountsCount === 1 ? '' : 's'} on file. Live position analytics cover ${positionCount} position${positionCount === 1 ? '' : 's'} across ${accountsCount ?? 0} position account${accountsCount === 1 ? '' : 's'}.`
+        : `${positionCount} position${positionCount === 1 ? '' : 's'} across ${accountsCount ?? 0} account${accountsCount === 1 ? '' : 's'}.`
+  const gainDetail =
+    portfolioMetricsLoading
+      ? 'Loading portfolio performance.'
+      : hasHouseholdCoverage
+        ? `${formatPercent(portfolio?.totalGainPct, {
+            decimals: 2,
+            sign: true,
+          })} on positioned assets only.`
+        : formatPercent(portfolio?.totalGainPct, {
+            decimals: 2,
+            sign: true,
+          })
   const portfolioHealth = analyticsLoading
     ? {
         label: 'Loading…',
@@ -154,13 +181,9 @@ export function InvestingOverviewPanel({
             value={
               portfolioMetricsLoading
                 ? 'Loading…'
-                : formatCurrencyWhole(portfolio?.totalValue)
+                : formatCurrencyWhole(displayPortfolioValue)
             }
-            detail={
-              portfolioMetricsLoading || accountsLoading
-                ? 'Loading holdings and account coverage.'
-                : `${positionCount} position${positionCount === 1 ? '' : 's'} across ${accountsCount ?? 0} account${accountsCount === 1 ? '' : 's'}.`
-            }
+            detail={portfolioValueDetail}
             featured
           />
           <OverviewStat
@@ -168,14 +191,7 @@ export function InvestingOverviewPanel({
             value={
               portfolioMetricsLoading ? 'Loading…' : formatCurrencyWhole(totalGain)
             }
-            detail={
-              portfolioMetricsLoading
-                ? 'Loading portfolio performance.'
-                : formatPercent(portfolio?.totalGainPct, {
-                    decimals: 2,
-                    sign: true,
-                  })
-            }
+            detail={gainDetail}
             tone={totalGain == null ? 'default' : totalGain >= 0 ? 'gain' : 'loss'}
             featured
           />

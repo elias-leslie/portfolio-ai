@@ -306,6 +306,7 @@ export interface HouseholdTrackedAccount {
   assetGroup: string
   accountType: string
   sourceType: string
+  matchKey?: string | null
   institutionName: string | null
   ownerName: string | null
   accountMask: string | null
@@ -319,6 +320,7 @@ export interface HouseholdTrackedAccountInput {
   assetGroup: string
   accountType: string
   sourceType: string
+  matchKey?: string | null
   institutionName?: string | null
   ownerName?: string | null
   accountMask?: string | null
@@ -345,6 +347,7 @@ export interface HouseholdAccountSummary {
   assetGroup: string
   accountType: string
   sourceType: string
+  matchKey?: string | null
   institutionName: string | null
   ownerName: string | null
   accountMask: string | null

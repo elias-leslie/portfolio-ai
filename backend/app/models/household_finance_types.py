@@ -279,6 +279,7 @@ class HouseholdTrackedAccount(BaseModel):
     asset_group: str
     account_type: str
     source_type: str
+    match_key: str | None = None
     institution_name: str | None = None
     owner_name: str | None = None
     account_mask: str | None = None
@@ -292,6 +293,7 @@ class HouseholdTrackedAccountInput(BaseModel):
     asset_group: str
     account_type: str
     source_type: str
+    match_key: str | None = None
     institution_name: str | None = None
     owner_name: str | None = None
     account_mask: str | None = None
@@ -311,6 +313,7 @@ class HouseholdAccountSummary(BaseModel):
     asset_group: str
     account_type: str
     source_type: str
+    match_key: str | None = None
     institution_name: str | None = None
     owner_name: str | None = None
     account_mask: str | None = None

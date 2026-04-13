@@ -116,6 +116,11 @@ function buildInitialState(
       seed?.sourceType ??
       SOURCE_TYPE_BY_ASSET_GROUP[assetGroup] ??
       'other',
+    matchKey:
+      account?.matchKey ??
+      seed?.matchKey ??
+      (account && account.accountOrigin !== 'tracked' ? account.id : '') ??
+      '',
     institutionName: account?.institutionName ?? seed?.institutionName ?? '',
     ownerName: account?.ownerName ?? seed?.ownerName ?? '',
     accountMask: account?.accountMask ?? seed?.accountMask ?? '',
@@ -352,6 +357,7 @@ function seedFromAccount(account: HouseholdAccountSummary): HouseholdTrackedAcco
     assetGroup: account.assetGroup,
     accountType: account.accountType,
     sourceType: account.sourceType,
+    matchKey: account.matchKey ?? (account.accountOrigin !== 'tracked' ? account.id : ''),
     institutionName: account.institutionName ?? '',
     ownerName: account.ownerName ?? '',
     accountMask: account.accountMask ?? '',

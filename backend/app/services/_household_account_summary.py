@@ -55,6 +55,23 @@ _PORTFOLIO_ACCOUNT_GROUPS = {
     "Roth": "retirement",
     "Taxable": "taxable",
 }
+_MATCH_TOKEN_STOPWORDS = {
+    "account",
+    "accounts",
+    "bank",
+    "bill",
+    "card",
+    "cash",
+    "credit",
+    "fund",
+    "investment",
+    "joint",
+    "management",
+    "plan",
+    "retirement",
+    "statement",
+    "system",
+}
 
 
 def _normalize_text(value: object) -> str:
@@ -70,6 +87,16 @@ def _owner_tokens(value: str | None) -> list[str]:
     if not normalized:
         return []
     return [token for token in re.split(r"[^a-z0-9]+", normalized) if token]
+
+
+def _match_tokens(*values: str | None) -> set[str]:
+    tokens: set[str] = set()
+    for value in values:
+        for token in _owner_tokens(value):
+            if len(token) < 3 or token in _MATCH_TOKEN_STOPWORDS:
+                continue
+            tokens.add(token)
+    return tokens
 
 
 def _owners_match(left: str | None, right: str | None) -> bool:
@@ -366,6 +393,7 @@ def _match_portfolio_account(
 
 def _match_tracked_account(
     *,
+    group_key: str,
     label: str,
     account_name: str | None,
     hint_label: str | None,
@@ -383,6 +411,7 @@ def _match_tracked_account(
         for candidate in (label, account_name, hint_label)
         if _normalize_text(candidate)
     }
+    evidence_tokens = _match_tokens(label, account_name, hint_label, institution_name)
     evidence_signature = (
         _compact_key(institution_name, account_mask)
         if institution_name and account_mask
@@ -394,8 +423,11 @@ def _match_tracked_account(
             continue
         tracked_institution = _normalize_text(account.institution_name)
         tracked_owner = _normalize_text(account.owner_name)
+        tracked_tokens = _match_tokens(account.label, account.institution_name)
         score = 0
-        if (
+        if account.match_key and _normalize_text(account.match_key) == _normalize_text(group_key):
+            score = 5
+        elif (
             evidence_signature
             and account.institution_name
             and account.account_mask
@@ -411,6 +443,15 @@ def _match_tracked_account(
             score = 3
         elif _normalize_text(account.label) in label_candidates:
             score = 2
+        elif (
+            len(tracked_tokens & evidence_tokens) >= 2
+            and not (
+                normalized_owner
+                and tracked_owner
+                and not _owners_match(tracked_owner, normalized_owner)
+            )
+        ):
+            score = 1
         if score > 0:
             ranked.append((score, account))
     if not ranked:
@@ -811,6 +852,7 @@ def build_account_summaries(
             transaction_label=transaction_freshness_label,
         )
         tracked_account = _match_tracked_account(
+            group_key=group_key,
             label=account_label,
             account_name=latest.account_name,
             hint_label=hint_label,
@@ -883,6 +925,7 @@ def build_account_summaries(
             asset_group=effective_asset_group,
             account_type=effective_account_type,
             source_type=tracked_account.source_type if tracked_account is not None else latest.source_type,
+            match_key=tracked_account.match_key if tracked_account is not None and tracked_account.match_key is not None else group_key,
             institution_name=tracked_account.institution_name if tracked_account is not None and tracked_account.institution_name is not None else latest.institution_name,
             owner_name=tracked_account.owner_name if tracked_account is not None and tracked_account.owner_name is not None else latest.owner_name,
             account_mask=tracked_account.account_mask if tracked_account is not None and tracked_account.account_mask is not None else latest.account_mask,
@@ -935,6 +978,7 @@ def build_account_summaries(
                 asset_group=_portfolio_asset_group(account),
                 account_type=str(account.account_type),
                 source_type=_portfolio_source_type(account),
+                match_key=None,
                 current_value=_portfolio_value(account, holdings_by_account),
                 cash_balance=float(getattr(account, "cash_balance", 0.0) or 0.0),
                 latest_document_id=None,
@@ -972,6 +1016,7 @@ def build_account_summaries(
                 asset_group=account.asset_group,
                 account_type=account.account_type,
                 source_type=account.source_type,
+                match_key=account.match_key,
                 institution_name=account.institution_name,
                 owner_name=account.owner_name,
                 account_mask=account.account_mask,

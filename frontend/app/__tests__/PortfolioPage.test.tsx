@@ -13,6 +13,7 @@ import {
   useRefreshWatchlist,
   useWatchlist,
 } from '@/lib/hooks/useWatchlist'
+import { useHouseholdDashboard } from '@/lib/hooks/useHousehold'
 
 vi.mock('@/components/portfolio/AccountsWithPositions', () => {
   const MockComponent = ({
@@ -108,6 +109,10 @@ vi.mock('@/lib/hooks/useWatchlist', () => ({
   useRefreshStatus: vi.fn(),
 }))
 
+vi.mock('@/lib/hooks/useHousehold', () => ({
+  useHouseholdDashboard: vi.fn(),
+}))
+
 vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
@@ -123,6 +128,7 @@ const mockUsePortfolioAnalytics = usePortfolioAnalytics as unknown as Mock
 const mockUseWatchlist = useWatchlist as unknown as Mock
 const mockUseRefreshWatchlist = useRefreshWatchlist as unknown as Mock
 const mockUseRefreshStatus = useRefreshStatus as unknown as Mock
+const mockUseHouseholdDashboard = useHouseholdDashboard as unknown as Mock
 
 describe('PortfolioPage', () => {
   const addPositionMutate = vi.fn()
@@ -208,6 +214,12 @@ describe('PortfolioPage', () => {
     })
     mockUseRefreshStatus.mockReturnValue({
       data: { isRefreshing: false },
+    })
+    mockUseHouseholdDashboard.mockReturnValue({
+      data: {
+        accounts: [],
+        portfolioContext: null,
+      },
     })
   })
 

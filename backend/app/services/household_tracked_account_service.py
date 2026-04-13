@@ -43,6 +43,7 @@ def _normalize_asset_group(value: str) -> str:
 
 def _identity_key(
     *,
+    match_key: str | None,
     label: str,
     asset_group: str,
     account_type: str,
@@ -51,9 +52,12 @@ def _identity_key(
     owner_name: str | None,
     account_mask: str | None,
 ) -> str | None:
+    normalized_match_key = _clean_text(match_key)
     normalized_institution = _clean_text(institution_name)
     normalized_owner = _clean_text(owner_name)
     normalized_mask = _clean_text(account_mask)
+    if normalized_match_key:
+        return f"match::{normalized_match_key.lower()}"
     if normalized_institution and normalized_mask:
         return f"institution-mask::{normalized_institution.lower()}|{normalized_mask.lower()}"
     if normalized_mask:
@@ -74,7 +78,7 @@ class HouseholdTrackedAccountService:
             rows = conn.execute(
                 """
                 SELECT id, label, asset_group, account_type, source_type,
-                       institution_name, owner_name, account_mask, notes,
+                       match_key, institution_name, owner_name, account_mask, notes,
                        created_at, updated_at
                 FROM household_tracked_accounts
                 ORDER BY updated_at DESC, created_at DESC
@@ -98,9 +102,9 @@ class HouseholdTrackedAccountService:
                 """
                 INSERT INTO household_tracked_accounts (
                     id, label, asset_group, account_type, source_type,
-                    institution_name, owner_name, account_mask, notes,
+                    match_key, institution_name, owner_name, account_mask, notes,
                     created_at, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 [
                     account_id,
@@ -108,6 +112,7 @@ class HouseholdTrackedAccountService:
                     account["asset_group"],
                     account["account_type"],
                     account["source_type"],
+                    account["match_key"],
                     account["institution_name"],
                     account["owner_name"],
                     account["account_mask"],
@@ -141,6 +146,7 @@ class HouseholdTrackedAccountService:
                     asset_group = %s,
                     account_type = %s,
                     source_type = %s,
+                    match_key = %s,
                     institution_name = %s,
                     owner_name = %s,
                     account_mask = %s,
@@ -153,6 +159,7 @@ class HouseholdTrackedAccountService:
                     account["asset_group"],
                     account["account_type"],
                     account["source_type"],
+                    account["match_key"],
                     account["institution_name"],
                     account["owner_name"],
                     account["account_mask"],
@@ -178,7 +185,7 @@ class HouseholdTrackedAccountService:
             row = conn.execute(
                 """
                 SELECT id, label, asset_group, account_type, source_type,
-                       institution_name, owner_name, account_mask, notes,
+                       match_key, institution_name, owner_name, account_mask, notes,
                        created_at, updated_at
                 FROM household_tracked_accounts
                 WHERE id = %s
@@ -204,6 +211,7 @@ class HouseholdTrackedAccountService:
             "asset_group": _normalize_asset_group(payload.asset_group),
             "account_type": account_type,
             "source_type": source_type.lower(),
+            "match_key": _clean_text(payload.match_key),
             "institution_name": _clean_text(payload.institution_name),
             "owner_name": _clean_text(payload.owner_name),
             "account_mask": _clean_text(payload.account_mask),
@@ -218,6 +226,7 @@ class HouseholdTrackedAccountService:
         exclude_account_id: str | None = None,
     ) -> None:
         identity = _identity_key(
+            match_key=account["match_key"],
             label=str(account["label"] or ""),
             asset_group=str(account["asset_group"] or ""),
             account_type=str(account["account_type"] or ""),
@@ -232,6 +241,7 @@ class HouseholdTrackedAccountService:
             if exclude_account_id is not None and existing.id == exclude_account_id:
                 continue
             existing_identity = _identity_key(
+                match_key=existing.match_key,
                 label=existing.label,
                 asset_group=existing.asset_group,
                 account_type=existing.account_type,

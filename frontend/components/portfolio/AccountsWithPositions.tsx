@@ -30,6 +30,7 @@ export interface AccountsWithPositionsContentProps
   accountsLoading: boolean
   accountsFetching?: boolean
   accountsError?: Error | null
+  evidenceInvestmentAccountsCount?: number | null
   onRetryAccounts?: () => void
 }
 
@@ -38,6 +39,7 @@ export function AccountsWithPositionsContent({
   accountsLoading,
   accountsFetching,
   accountsError,
+  evidenceInvestmentAccountsCount = null,
   onRetryAccounts,
   onAddAccount,
   onAddPosition,
@@ -140,6 +142,10 @@ export function AccountsWithPositionsContent({
                 {accounts.length} account{accounts.length !== 1 ? 's' : ''} •{' '}
                 {portfolio?.positions.length || 0} position
                 {portfolio?.positions.length !== 1 ? 's' : ''}
+                {evidenceInvestmentAccountsCount != null &&
+                evidenceInvestmentAccountsCount > accounts.length
+                  ? ` · ${evidenceInvestmentAccountsCount} evidence-backed investment accounts`
+                  : ''}
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -167,6 +173,15 @@ export function AccountsWithPositionsContent({
           </div>
         </CardHeader>
         <CardContent>
+          {evidenceInvestmentAccountsCount != null &&
+          evidenceInvestmentAccountsCount > accounts.length ? (
+            <div className="mb-4 rounded-xl border border-border/50 bg-surface-muted/20 p-4 text-sm text-text-muted">
+              Statement evidence covers {evidenceInvestmentAccountsCount} investment account
+              {evidenceInvestmentAccountsCount === 1 ? '' : 's'}, but live position tracking
+              here currently covers {accounts.length} position account
+              {accounts.length === 1 ? '' : 's'}.
+            </div>
+          ) : null}
           {portfolio?.positions.length === 0 ? (
             <div className="mb-4 rounded-xl border border-border/50 bg-surface-muted/20 p-4 text-sm text-text-muted">
               Accounts exist, but no live positions are tracked yet.

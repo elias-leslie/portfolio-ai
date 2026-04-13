@@ -939,6 +939,146 @@ def test_build_account_summaries_links_prefixed_evidence_to_tracked_account_by_a
     assert summaries[0].match_status == "linked"
 
 
+def test_build_account_summaries_links_renamed_tracked_account_by_match_key() -> None:
+    documents = [
+        HouseholdDocument(
+            id="doc-chase",
+            filename="chase.pdf",
+            source_type="credit_card",
+            document_type="statement",
+            status="parsed",
+            account_label="Chase Amazon card",
+            file_size_bytes=10,
+            content_type="application/pdf",
+            classification_confidence=0.95,
+            review_status="complete",
+            review_summary="Reviewed",
+            review_confidence=0.95,
+            statement_start=None,
+            statement_end=_iso(1),
+            uploaded_at=_iso(1),
+            parsed_at=_iso(1),
+            metadata={"file_available": True, "application_summary": {"status": "applied"}},
+        )
+    ]
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="acct-chase",
+                document_id="doc-chase",
+                source_type="credit_card",
+                asset_group="credit",
+                account_type="credit_card",
+                institution_name=None,
+                account_name="Chase Amazon card",
+                account_mask=None,
+                owner_name=None,
+                currency="USD",
+                balance=2958.17,
+                holdings_value=None,
+                cash_balance=None,
+                as_of_date=_iso(1),
+                confidence=0.94,
+                metadata={},
+            )
+        ],
+        documents=documents,
+        portfolio_accounts=[],
+        tracked_accounts=[
+            HouseholdTrackedAccount(
+                id="tracked-chase",
+                label="Amazon Chase (CC)",
+                asset_group="credit",
+                account_type="credit_card",
+                source_type="credit_card",
+                match_key="evidence|chase amazon card|credit_card",
+                institution_name="Chase",
+                owner_name="Elias and Mariana",
+                account_mask=None,
+                notes=None,
+                created_at=_iso(10),
+                updated_at=_iso(1),
+            )
+        ],
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    assert len(summaries) == 1
+    assert summaries[0].label == "Amazon Chase (CC)"
+    assert summaries[0].tracked_account_id == "tracked-chase"
+    assert summaries[0].match_key == "evidence|chase amazon card|credit_card"
+
+
+def test_build_account_summaries_legacy_token_fallback_links_unique_credit_card_match() -> None:
+    documents = [
+        HouseholdDocument(
+            id="doc-chase",
+            filename="chase.pdf",
+            source_type="credit_card",
+            document_type="statement",
+            status="parsed",
+            account_label="Chase Amazon card",
+            file_size_bytes=10,
+            content_type="application/pdf",
+            classification_confidence=0.95,
+            review_status="complete",
+            review_summary="Reviewed",
+            review_confidence=0.95,
+            statement_start=None,
+            statement_end=_iso(1),
+            uploaded_at=_iso(1),
+            parsed_at=_iso(1),
+            metadata={"file_available": True, "application_summary": {"status": "applied"}},
+        )
+    ]
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="acct-chase",
+                document_id="doc-chase",
+                source_type="credit_card",
+                asset_group="credit",
+                account_type="credit_card",
+                institution_name=None,
+                account_name="Chase Amazon card",
+                account_mask=None,
+                owner_name=None,
+                currency="USD",
+                balance=2958.17,
+                holdings_value=None,
+                cash_balance=None,
+                as_of_date=_iso(1),
+                confidence=0.94,
+                metadata={},
+            )
+        ],
+        documents=documents,
+        portfolio_accounts=[],
+        tracked_accounts=[
+            HouseholdTrackedAccount(
+                id="tracked-chase",
+                label="Amazon Chase (CC)",
+                asset_group="credit",
+                account_type="credit_card",
+                source_type="credit_card",
+                institution_name="Chase",
+                owner_name="Elias and Mariana",
+                account_mask=None,
+                notes=None,
+                created_at=_iso(10),
+                updated_at=_iso(1),
+            )
+        ],
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    assert len(summaries) == 1
+    assert summaries[0].label == "Amazon Chase (CC)"
+    assert summaries[0].tracked_account_id == "tracked-chase"
+
+
 def test_build_account_summaries_uses_portfolio_label_for_linked_evidence_accounts() -> None:
     documents = [
         HouseholdDocument(

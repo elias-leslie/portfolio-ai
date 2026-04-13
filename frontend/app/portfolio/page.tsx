@@ -29,6 +29,7 @@ import {
   usePortfolio,
   usePortfolioAnalytics,
 } from '@/lib/hooks/usePortfolio'
+import { useHouseholdDashboard } from '@/lib/hooks/useHousehold'
 import {
   useRefreshStatus,
   useRefreshWatchlist,
@@ -46,6 +47,7 @@ export default function PortfolioPage() {
   } = useAccounts()
   const { data: portfolio, isLoading: portfolioLoading } = usePortfolio()
   const { data: analytics, isLoading: analyticsLoading } = usePortfolioAnalytics()
+  const { data: householdDashboard } = useHouseholdDashboard()
   const {
     data: watchlistData,
     isLoading: watchlistLoading,
@@ -79,6 +81,11 @@ export default function PortfolioPage() {
   const [addSymbolOpen, setAddSymbolOpen] = useState(false)
 
   const positionCount = portfolio?.positions.length ?? 0
+  const evidenceInvestmentAccounts = (householdDashboard?.accounts ?? []).filter(
+    (account) =>
+      account.currentValue != null &&
+      ['retirement', 'taxable', 'education'].includes(account.assetGroup),
+  )
 
   const openPositionDialog = (nextAccountId?: string) => {
     const id = nextAccountId ?? (accounts?.length === 1 ? accounts[0].id : '')
@@ -215,6 +222,7 @@ export default function PortfolioPage() {
           accountsLoading={accountsLoading}
           accountsFetching={accountsFetching}
           accountsError={accountsError}
+          evidenceInvestmentAccountsCount={evidenceInvestmentAccounts.length}
           onRetryAccounts={() => {
             void refetchAccounts()
           }}
@@ -258,6 +266,10 @@ export default function PortfolioPage() {
         portfolio={portfolio}
         analytics={analytics}
         accountsCount={accounts ? accounts.length : null}
+        householdPortfolioValue={
+          householdDashboard?.portfolioContext?.totalPortfolioValue ?? null
+        }
+        householdInvestmentAccountsCount={evidenceInvestmentAccounts.length}
         isCoreLoading={accountsLoading || portfolioLoading || analyticsLoading}
       />
 
