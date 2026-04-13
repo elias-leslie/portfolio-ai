@@ -319,6 +319,69 @@ def test_build_account_summaries_marks_stale_spending_transactions_and_routes_to
     )
 
 
+def test_build_account_summaries_use_activity_observed_through_for_spend_driver_freshness() -> None:
+    documents = [
+        HouseholdDocument(
+            id="doc-cash",
+            filename="cash-activity.txt",
+            source_type="brokerage",
+            document_type="brokerage_statement",
+            status="parsed",
+            account_label="Cash Management (Joint WROS)",
+            file_size_bytes=10,
+            content_type="text/plain",
+            classification_confidence=0.94,
+            review_status="complete",
+            review_summary="Reviewed",
+            review_confidence=0.94,
+            statement_start=None,
+            statement_end=_iso(0),
+            uploaded_at=_iso(0),
+            parsed_at=_iso(0),
+            metadata={
+                "file_available": True,
+                "application_summary": {"status": "applied"},
+            },
+        )
+    ]
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="acct-cash",
+                document_id="doc-cash",
+                source_type="brokerage",
+                asset_group="taxable",
+                account_type="brokerage",
+                institution_name="Fidelity",
+                account_name="Cash Management (Joint WROS)",
+                account_mask="Z38367298",
+                owner_name=None,
+                currency="USD",
+                balance=39400.59,
+                holdings_value=39400.59,
+                cash_balance=33400.59,
+                as_of_date=_iso(0),
+                confidence=0.95,
+                metadata={"activity_observed_through": _iso(0)},
+            )
+        ],
+        documents=documents,
+        portfolio_accounts=[],
+        tracked_accounts=[],
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+        latest_transaction_dates_by_document={"doc-cash": (datetime.now(UTC) - timedelta(days=5)).date()},
+    )
+
+    assert len(summaries) == 1
+    summary = summaries[0]
+    assert summary.money_role == "spend_driver"
+    assert summary.last_transaction_at is not None
+    assert summary.last_transaction_at.startswith((datetime.now(UTC) - timedelta(days=5)).date().isoformat())
+    assert summary.transaction_freshness_status == "fresh"
+    assert not any(gap.code == "refresh_transactions_soon" for gap in summary.gap_flags)
+
+
 def test_build_money_inbox_surfaces_discovered_accounts_with_review_route() -> None:
     inbox = build_money_inbox(
         accounts=[],

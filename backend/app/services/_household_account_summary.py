@@ -262,6 +262,19 @@ def _latest_transaction_timestamp(
     return datetime.combine(latest_date, datetime.min.time(), tzinfo=UTC)
 
 
+def _latest_transaction_coverage_timestamp(
+    accounts: list[HouseholdEvidenceAccount],
+    *,
+    latest_transaction_dt: datetime | None,
+) -> datetime | None:
+    coverage_dates = [latest_transaction_dt] if latest_transaction_dt is not None else []
+    for account in accounts:
+        observed_through = _parse_datetime(account.metadata.get("activity_observed_through"))
+        if observed_through is not None:
+            coverage_dates.append(observed_through)
+    return max(coverage_dates, default=None)
+
+
 def _confidence_for_summary(
     latest: HouseholdEvidenceAccount,
     *,
@@ -717,9 +730,13 @@ def build_account_summaries(
             latest_transaction_dates_by_document=latest_transaction_dates_by_document,
             latest_transaction_dates_by_account_label=latest_transaction_dates_by_account_label,
         )
+        transaction_coverage_dt = _latest_transaction_coverage_timestamp(
+            accounts,
+            latest_transaction_dt=last_transaction_dt,
+        )
         days_since_transaction = (
-            (datetime.now(UTC).date() - last_transaction_dt.date()).days
-            if last_transaction_dt is not None
+            (datetime.now(UTC).date() - transaction_coverage_dt.date()).days
+            if transaction_coverage_dt is not None
             else None
         )
         if money_role == "spend_driver":

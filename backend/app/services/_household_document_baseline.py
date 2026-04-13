@@ -297,6 +297,24 @@ def _extract_cash_management_account(text: str) -> dict[str, object] | None:
     as_of_date = _parse_natural_date(as_of_match.group(1) if as_of_match else None)
     if as_of_date is None:
         as_of_date = _parse_natural_date(balance_match.group(1))
+    has_activity_table = bool(
+        re.search(r"activity\s*&\s*orders", text, flags=re.IGNORECASE)
+        or re.search(r"recent activity", text, flags=re.IGNORECASE)
+    )
+    has_activity_rows = bool(
+        re.search(
+            r"(?m)^[A-Z][a-z]{2}[-/][0-9]{2}[-/][0-9]{4}\s*$",
+            text,
+        )
+        or re.search(
+            r"[A-Z][a-z]{2}[-/][0-9]{2}[-/][0-9]{4}",
+            text,
+        )
+        or re.search(
+            r"(?m)^[A-Z][a-z]{2}-[0-9]{2}-[0-9]{4}\n.+\n[-+]?\$?[0-9][0-9,]*\.\d{2}",
+            text,
+        )
+    )
     return {
         "asset_group": "taxable",
         "account_type": "brokerage",
@@ -309,6 +327,7 @@ def _extract_cash_management_account(text: str) -> dict[str, object] | None:
         ),
         "currency": "USD",
         "as_of_date": as_of_date,
+        "activity_observed_through": as_of_date if has_activity_table and has_activity_rows else None,
     }
 
 
@@ -369,6 +388,7 @@ def _extract_statement_csv_account(
         "cash_balance": balance,
         "currency": "USD",
         "as_of_date": as_of_date,
+        "activity_observed_through": as_of_date,
     }
 
 

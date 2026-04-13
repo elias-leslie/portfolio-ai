@@ -245,6 +245,7 @@ def test_baseline_review_detects_cash_management_account_text() -> None:
         extracted_text=(
             "Cash Management (Joint WROS)\n"
             "Cash Account: Z38367298\n"
+            "As of Apr-08-2026 8:29 AM ET\n"
             "Account total balance, $39,400.59\n"
             "Cash available to withdraw\n"
             "$33,400.59\n"
@@ -264,6 +265,8 @@ def test_baseline_review_detects_cash_management_account_text() -> None:
     assert accounts[0]["balance"] == "39,400.59"
     assert accounts[0]["cash_balance"] == "33,400.59"
     assert accounts[0]["account_mask"] == "Z38367298"
+    assert accounts[0]["as_of_date"] == "2026-04-08"
+    assert accounts[0]["activity_observed_through"] == "2026-04-08"
     assert "cash management account snapshot" in payload["summary"].lower()
 
 
@@ -289,6 +292,7 @@ def test_baseline_review_detects_generic_statement_csv_account_snapshot() -> Non
     assert accounts[0]["account_mask"] == "Z38367298"
     assert accounts[0]["balance"] == "39400.59"
     assert accounts[0]["as_of_date"] == "2026-04-08"
+    assert accounts[0]["activity_observed_through"] == "2026-04-08"
 
 
 def test_baseline_review_detects_fidelity_positions_csv_and_groups_accounts() -> None:
