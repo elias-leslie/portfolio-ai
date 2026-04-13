@@ -1,0 +1,40 @@
+"""Unit tests for Jenny household maintenance service."""
+
+from __future__ import annotations
+
+from typing import Any, cast
+from unittest.mock import MagicMock
+
+from app.services.jenny_household_maintenance_service import JennyHouseholdMaintenanceService
+
+
+def test_replay_candidate_documents_targets_weak_docs_not_all_add_anything() -> None:
+    maintenance = JennyHouseholdMaintenanceService()
+    service = MagicMock()
+    connection = service.storage.connection.return_value.__enter__.return_value
+    connection.execute.return_value.fetchall.return_value = []
+
+    maintenance._replay_candidate_documents(service)
+
+    query = connection.execute.call_args.args[0]
+    assert "filename = 'add-anything'" not in query
+    assert "application_summary" in query
+
+
+def test_run_daily_maintenance_pass_reads_dashboard_from_household_service() -> None:
+    maintenance = JennyHouseholdMaintenanceService()
+    service = MagicMock()
+    dashboard = MagicMock()
+    dashboard.overview.net_worth_status = "current"
+    dashboard.overview.monthly_spend_status = "estimated"
+    dashboard.inbox = []
+    service.household_service.get_dashboard.return_value = dashboard
+    cast(Any, maintenance)._replay_candidate_documents = MagicMock(
+        return_value={"attempted": 0, "recovered": 0, "missing_source": 0, "unresolved": 0}
+    )
+    cast(Any, maintenance)._sync_household_notifications = MagicMock(return_value=0)
+
+    result = maintenance.run_daily_maintenance_pass(service, routine_id="routine-1")
+
+    service.household_service.get_dashboard.assert_called_once_with()
+    assert result["documents_reviewed"] == 0

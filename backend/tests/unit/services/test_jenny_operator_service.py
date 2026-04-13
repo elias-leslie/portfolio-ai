@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any, cast
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -220,7 +221,7 @@ def test_run_daily_operator_reuses_existing_active_routine() -> None:
     )
     service._fail_stale_routines = Mock(return_value=0)
     service._get_active_routine = Mock(return_value=active_routine)
-    service.get_dashboard = Mock(return_value=JennyDashboard())
+    cast(Any, service).get_dashboard = Mock(return_value=JennyDashboard())
     service._create_routine = Mock()
 
     result = service.run_daily_operator(triggered_by="manual")
@@ -253,7 +254,7 @@ def test_run_daily_operator_completes_workflow_and_notifications() -> None:
     service.workflow_orchestrator = Mock()
     service.portfolio_mgr = Mock()
     service.portfolio_mgr.get_positions.return_value = [position]
-    service._select_symbols = Mock(return_value=["AAPL"])
+    cast(Any, service)._select_symbols = Mock(return_value=["AAPL"])
     service.price_fetcher = Mock()
     service.price_fetcher.fetch_price_data.return_value = {"AAPL": Mock(price=201.0)}
     service._build_symbol_profiles = Mock(
@@ -271,12 +272,12 @@ def test_run_daily_operator_completes_workflow_and_notifications() -> None:
             }
         ]
     )
-    service._save_agent_evaluation = Mock()
+    cast(Any, service)._save_agent_evaluation = Mock()
     service._create_notifications = Mock(return_value=1)
-    service._build_routine_summary = Mock(return_value="Reviewed 1 symbol.")
+    cast(Any, service)._build_routine_summary = Mock(return_value="Reviewed 1 symbol.")
     service._complete_routine = Mock()
     service._get_routine = Mock(return_value=routine)
-    service.get_dashboard = Mock(return_value=JennyDashboard())
+    cast(Any, service).get_dashboard = Mock(return_value=JennyDashboard())
 
     result = service.run_daily_operator(triggered_by="manual")
 
@@ -301,6 +302,56 @@ def test_run_daily_operator_completes_workflow_and_notifications() -> None:
         "Reviewed 1 symbol.",
         1,
         1,
+    )
+    service.workflow_orchestrator.complete_workflow.assert_called_once()
+
+
+def test_run_daily_household_maintenance_completes_workflow_and_notifications() -> None:
+    """Daily household maintenance should reuse Jenny routine rails."""
+    service = _service()
+    routine = JennyRoutine(
+        id="routine-hh-1",
+        routine_type="daily_household_maintenance",
+        status="completed",
+        triggered_by="manual",
+        summary="Household maintenance complete.",
+        agents_used=[],
+        symbols_scanned=3,
+        notifications_created=2,
+        started_at="2026-03-07T12:00:00+00:00",
+        completed_at="2026-03-07T12:01:00+00:00",
+        metadata={},
+    )
+    service._fail_stale_routines = Mock(return_value=0)
+    service._get_active_routine = Mock(return_value=None)
+    service._create_routine = Mock(return_value=("routine-hh-1", "workflow-hh-1"))
+    service.workflow_orchestrator = Mock()
+    service._run_household_maintenance_pass = Mock(
+        return_value={
+            "summary": "Household maintenance complete.",
+            "documents_reviewed": 3,
+            "notifications_created": 2,
+        }
+    )
+    service._complete_routine = Mock()
+    service._get_routine = Mock(return_value=routine)
+    cast(Any, service).get_dashboard = Mock(return_value=JennyDashboard())
+
+    result = service.run_daily_household_maintenance(triggered_by="manual")
+
+    assert result.routine.id == "routine-hh-1"
+    service.workflow_orchestrator.update_workflow_status.assert_called_once_with(
+        "workflow-hh-1",
+        status="running",
+        current_step="reviewing_household_money",
+    )
+    service._run_household_maintenance_pass.assert_called_once_with(routine_id="routine-hh-1")
+    service._complete_routine.assert_called_once_with(
+        "routine-hh-1",
+        "completed",
+        "Household maintenance complete.",
+        3,
+        2,
     )
     service.workflow_orchestrator.complete_workflow.assert_called_once()
 
@@ -506,7 +557,7 @@ def test_create_notifications_adds_invalidation_alerts() -> None:
     service.thesis_service.check_invalidation_triggers.return_value = [
         "Signal flipped from BUY to AVOID",
     ]
-    service._aggregate_symbol_review = Mock(
+    cast(Any, service)._aggregate_symbol_review = Mock(
         return_value=Mock(
             final_verdict="hold",
             average_confidence=0.6,
@@ -550,7 +601,7 @@ def test_create_notifications_skips_missing_thesis_alert_for_passive_funds() -> 
     service.thesis_service = Mock()
     service.thesis_service.get_thesis.return_value = None
     service.thesis_service.check_invalidation_triggers.return_value = []
-    service._aggregate_symbol_review = Mock(
+    cast(Any, service)._aggregate_symbol_review = Mock(
         return_value=Mock(
             final_verdict="hold",
             average_confidence=0.61,
@@ -628,7 +679,7 @@ def test_create_notifications_uses_position_action_for_live_holdings() -> None:
         reasons=["Trend intact."],
         evaluations=[Mock(recommendation="Scale out a little.")],
     )
-    service._aggregate_symbol_review = Mock(return_value=review)
+    cast(Any, service)._aggregate_symbol_review = Mock(return_value=review)
     service._upsert_notification = Mock()
     service._build_position_action_map = Mock(
         return_value={
@@ -672,7 +723,7 @@ def test_create_notifications_skips_generic_review_alert_for_small_profitable_ho
         reasons=["Mixed conviction."],
         evaluations=[Mock(recommendation="Wait for cleaner evidence.")],
     )
-    service._aggregate_symbol_review = Mock(return_value=review)
+    cast(Any, service)._aggregate_symbol_review = Mock(return_value=review)
     service._upsert_notification = Mock()
     service._build_position_action_map = Mock(
         return_value={
@@ -718,7 +769,7 @@ def test_get_latest_symbol_reviews_uses_newest_routine_per_symbol() -> None:
         aggregated_inputs.append((symbol, evaluations))
         return Mock(symbol=symbol)
 
-    service._aggregate_symbol_review = Mock(side_effect=capture)
+    cast(Any, service)._aggregate_symbol_review = Mock(side_effect=capture)
 
     reviews = service._get_latest_symbol_reviews(limit=8)
 

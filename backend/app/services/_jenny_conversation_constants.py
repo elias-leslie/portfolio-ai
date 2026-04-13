@@ -1,4 +1,4 @@
-"""Constants, schemas, and system prompts for Jenny conversation service."""
+"""Constants and schemas for Jenny conversation service."""
 
 from __future__ import annotations
 
@@ -57,24 +57,10 @@ PURPOSE_CHAT = "portfolio_jenny_chat"
 PURPOSE_RECONCILE = "portfolio_jenny_reconcile"
 PURPOSE_PLANNING_EXTRACT = "portfolio_jenny_planning_extract"
 
-# ── System prompts ─────────────────────────────────────────────────────────────
-SYSTEM_CHAT = (
-    "You are Jenny inside Portfolio-AI. Help with household planning, retirement, "
-    "portfolio accounts, held positions, symbol questions, uploads, routines, status, and any "
-    "Portfolio-AI workflow or product context. "
-    "Use the supplied context as your live source of truth. If the user asks for data that is not "
-    "present in the supplied context, say what is missing instead of inventing it. "
-    "If the user appears to have answered one of Jenny's open household questions, acknowledge it naturally. "
-    "Be proactive about diagnosis and the next best corrective step, but do not claim a mutation, ingest, "
-    "or workflow side effect unless the supplied context proves it."
-)
-SYSTEM_RECONCILE = (
-    "Return JSON only. Extract only confident answers that the user's message directly supports."
-)
-SYSTEM_PLANNING_EXTRACT = (
-    "Return JSON only. Extract only information the user clearly stated and that should update"
-    " the household planning record."
-)
+# ── Runtime prompt slugs ───────────────────────────────────────────────────────
+PROMPT_CHAT_SYSTEM = "portfolio-jenny-chat-system"
+PROMPT_RECONCILE_SYSTEM = "portfolio-jenny-reconcile-system"
+PROMPT_PLANNING_EXTRACT_SYSTEM = "portfolio-jenny-planning-extract-system"
 
 # ── Response schemas ───────────────────────────────────────────────────────────
 RECONCILIATION_RESPONSE_FORMAT: dict[str, object] = {

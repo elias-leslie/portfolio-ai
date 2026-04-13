@@ -15,6 +15,8 @@ from app.services._jenny_conversation_llm import (
     reconcile_message,
 )
 
+_PROMPT_LOADER = "app.services._jenny_conversation_llm.require_agent_hub_prompt"
+
 
 def _question(question_id: str) -> HouseholdQuestion:
     return HouseholdQuestion(
@@ -40,7 +42,10 @@ def test_complete_conversation_serializes_datetime_context() -> None:
     client = Mock()
     client.complete_messages.return_value = SimpleNamespace(content="ok", session_id="session-1")
 
-    with patch("app.services._jenny_conversation_llm.make_client", return_value=client):
+    with (
+        patch("app.services._jenny_conversation_llm.make_client", return_value=client),
+        patch(_PROMPT_LOADER, return_value="system"),
+    ):
         result = complete_conversation(
             message="hello",
             session_id="session-1",
@@ -63,7 +68,10 @@ def test_reconcile_message_serializes_datetime_context() -> None:
         content='{"answers":[{"question_id":"question-1","answer_text":"60"}]}'
     )
 
-    with patch("app.services._jenny_conversation_llm.make_client", return_value=client):
+    with (
+        patch("app.services._jenny_conversation_llm.make_client", return_value=client),
+        patch(_PROMPT_LOADER, return_value="system"),
+    ):
         answers = reconcile_message(
             message="I want to retire at 60.",
             open_questions=[_question("question-1")],
@@ -81,7 +89,10 @@ def test_extract_planning_updates_serializes_datetime_context() -> None:
         content='{"profile_updates":{},"planning_items":[]}'
     )
 
-    with patch("app.services._jenny_conversation_llm.make_client", return_value=client):
+    with (
+        patch("app.services._jenny_conversation_llm.make_client", return_value=client),
+        patch(_PROMPT_LOADER, return_value="system"),
+    ):
         updates = extract_planning_updates(
             message="Set our emergency fund target to thirty thousand.",
             context={"generated_at": datetime(2026, 4, 4, 7, 21, tzinfo=UTC)},
@@ -100,8 +111,9 @@ def test_make_client_uses_persona_with_memory(mock_client_cls: Mock) -> None:
     mock_client_cls.assert_called_once_with(agent_slug="persona", use_memory=True)
 
 
+@patch(_PROMPT_LOADER, return_value="system")
 @patch("app.services._jenny_conversation_llm.make_client")
-def test_reconcile_message_uses_chat_agent_without_memory(mock_make_client: Mock) -> None:
+def test_reconcile_message_uses_chat_agent_without_memory(mock_make_client: Mock, _: Mock) -> None:
     client = Mock()
     client.complete_messages.return_value = SimpleNamespace(
         content='{"answers":[{"question_id":"question-1","answer_text":"60"}]}'
@@ -117,8 +129,9 @@ def test_reconcile_message_uses_chat_agent_without_memory(mock_make_client: Mock
     mock_make_client.assert_called_once_with(agent_slug="chat", use_memory=False)
 
 
+@patch(_PROMPT_LOADER, return_value="system")
 @patch("app.services._jenny_conversation_llm.make_client")
-def test_complete_conversation_uses_chat_agent_without_memory(mock_make_client: Mock) -> None:
+def test_complete_conversation_uses_chat_agent_without_memory(mock_make_client: Mock, _: Mock) -> None:
     client = Mock()
     client.complete_messages.return_value = SimpleNamespace(content="ok", session_id="session-1")
     mock_make_client.return_value = client
@@ -134,8 +147,9 @@ def test_complete_conversation_uses_chat_agent_without_memory(mock_make_client: 
     assert client.complete_messages.call_args.kwargs["use_memory"] is False
 
 
+@patch(_PROMPT_LOADER, return_value="system")
 @patch("app.services._jenny_conversation_llm.make_client")
-def test_extract_planning_updates_uses_chat_agent_without_memory(mock_make_client: Mock) -> None:
+def test_extract_planning_updates_uses_chat_agent_without_memory(mock_make_client: Mock, _: Mock) -> None:
     client = Mock()
     client.complete_messages.return_value = SimpleNamespace(
         content='{"profile_updates":{},"planning_items":[]}'
@@ -151,8 +165,9 @@ def test_extract_planning_updates_uses_chat_agent_without_memory(mock_make_clien
     mock_make_client.assert_called_once_with(agent_slug="chat", use_memory=False)
 
 
+@patch(_PROMPT_LOADER, return_value="system")
 @patch("app.services._jenny_conversation_llm.make_client")
-def test_extract_planning_updates_retries_with_relaxed_json_mode(mock_make_client: Mock) -> None:
+def test_extract_planning_updates_retries_with_relaxed_json_mode(mock_make_client: Mock, _: Mock) -> None:
     client = Mock()
     client.complete_messages.side_effect = [
         RuntimeError("schema rejected response"),
@@ -173,8 +188,9 @@ def test_extract_planning_updates_retries_with_relaxed_json_mode(mock_make_clien
     assert updates == {"profile_updates": {}, "planning_items": []}
 
 
+@patch(_PROMPT_LOADER, return_value="system")
 @patch("app.services._jenny_conversation_llm.make_client")
-def test_extract_planning_updates_strips_narration_tags_around_json(mock_make_client: Mock) -> None:
+def test_extract_planning_updates_strips_narration_tags_around_json(mock_make_client: Mock, _: Mock) -> None:
     client = Mock()
     client.complete_messages.return_value = SimpleNamespace(
         content='{"profile_updates":{"emergency_fund_target_amount":30000},"planning_items":[]}\n[[S:completed:Saved planning changes]]'
@@ -193,8 +209,9 @@ def test_extract_planning_updates_strips_narration_tags_around_json(mock_make_cl
     }
 
 
+@patch(_PROMPT_LOADER, return_value="system")
 @patch("app.services._jenny_conversation_llm.make_client")
-def test_extract_planning_updates_normalizes_nested_household_updates(mock_make_client: Mock) -> None:
+def test_extract_planning_updates_normalizes_nested_household_updates(mock_make_client: Mock, _: Mock) -> None:
     client = Mock()
     client.complete_messages.return_value = SimpleNamespace(
         content=(
@@ -243,8 +260,9 @@ def test_extract_planning_updates_normalizes_nested_household_updates(mock_make_
     }
 
 
+@patch(_PROMPT_LOADER, return_value="system")
 @patch("app.services._jenny_conversation_llm.make_client")
-def test_extract_planning_updates_normalizes_planning_items_with_nested_data(mock_make_client: Mock) -> None:
+def test_extract_planning_updates_normalizes_planning_items_with_nested_data(mock_make_client: Mock, _: Mock) -> None:
     client = Mock()
     client.complete_messages.return_value = SimpleNamespace(
         content=(
@@ -290,8 +308,9 @@ def test_extract_planning_updates_normalizes_planning_items_with_nested_data(moc
     }
 
 
+@patch(_PROMPT_LOADER, return_value="system")
 @patch("app.services._jenny_conversation_llm.make_client")
-def test_extract_planning_updates_normalizes_change_operations(mock_make_client: Mock) -> None:
+def test_extract_planning_updates_normalizes_change_operations(mock_make_client: Mock, _: Mock) -> None:
     client = Mock()
     client.complete_messages.return_value = SimpleNamespace(
         content=(

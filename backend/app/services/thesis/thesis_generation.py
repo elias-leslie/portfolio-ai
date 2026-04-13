@@ -8,7 +8,8 @@ from typing import Any
 
 from ...agents.llm_client import DualProviderClient
 from ...logging_config import get_logger
-from .thesis_prompts import THESIS_GENERATION_PROMPT
+from ..agent_hub_prompt_service import render_agent_hub_prompt, require_agent_hub_prompt
+from .thesis_prompts import THESIS_GENERATION_PROMPT, THESIS_GENERATION_SYSTEM_PROMPT
 
 logger = get_logger(__name__)
 
@@ -155,15 +156,17 @@ class ThesisGenerator:
 
         # Build prompt
         intelligence_json = json.dumps(self._sanitize_intelligence_for_prompt(intelligence), indent=2)
-        prompt = THESIS_GENERATION_PROMPT.format(intelligence_json=intelligence_json)
+        prompt = render_agent_hub_prompt(
+            THESIS_GENERATION_PROMPT,
+            intelligence_json=intelligence_json,
+        )
 
         logger.info("thesis_generation_started", prompt_length=len(prompt))
 
         try:
             response = llm.generate(
                 prompt=prompt,
-                system="You are an expert equity analyst. Always respond with valid JSON.",
-                temperature=0.7,  # Allow some creativity in reasoning
+                system=require_agent_hub_prompt(THESIS_GENERATION_SYSTEM_PROMPT),
                 purpose="thesis_generation",
             )
 

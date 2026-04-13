@@ -55,3 +55,20 @@ async def jenny_weekly_learning_wf(input: EmptyInput, ctx: Context) -> dict[str,
     from ..tasks.jenny_operator_tasks import run_weekly_learning_task
 
     return await asyncio.to_thread(run_weekly_learning_task)
+
+
+@hatchet.task(
+    name="portfolio-jenny-daily-household-maintenance",
+    input_validator=EmptyInput,
+    retries=1,
+    on_crons=["15 13 * * *"],
+    concurrency=ConcurrencyExpression(
+        expression="'portfolio-jenny-daily-household-maintenance'",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+    ),
+)
+async def jenny_daily_household_maintenance_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    from ..tasks.jenny_operator_tasks import run_daily_household_maintenance_task
+
+    return await asyncio.to_thread(run_daily_household_maintenance_task)

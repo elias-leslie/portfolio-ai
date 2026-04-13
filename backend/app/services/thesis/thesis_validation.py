@@ -7,8 +7,9 @@ from typing import Any
 
 from ...logging_config import get_logger
 from ...models.thesis import ThesisValidation
+from ..agent_hub_prompt_service import render_agent_hub_prompt, require_agent_hub_prompt
 from .thesis_generation import ThesisGenerator
-from .thesis_prompts import THESIS_VALIDATION_PROMPT
+from .thesis_prompts import THESIS_VALIDATION_PROMPT, THESIS_VALIDATION_SYSTEM_PROMPT
 
 logger = get_logger(__name__)
 
@@ -40,16 +41,17 @@ class ThesisValidator:
             # Build validation prompt
             intelligence_json = json.dumps(intelligence, indent=2)
             thesis_json = json.dumps(thesis_data, indent=2)
-            prompt = THESIS_VALIDATION_PROMPT.format(
-                intelligence_json=intelligence_json, thesis_json=thesis_json
+            prompt = render_agent_hub_prompt(
+                THESIS_VALIDATION_PROMPT,
+                intelligence_json=intelligence_json,
+                thesis_json=thesis_json,
             )
 
             logger.info("thesis_validation_started", prompt_length=len(prompt))
 
             response = validator.generate(
                 prompt=prompt,
-                system="You are a thorough investment thesis reviewer. Always respond with valid JSON.",
-                temperature=0.3,  # Lower temperature for consistent reviews
+                system=require_agent_hub_prompt(THESIS_VALIDATION_SYSTEM_PROMPT),
                 purpose="thesis_validation",
             )
 

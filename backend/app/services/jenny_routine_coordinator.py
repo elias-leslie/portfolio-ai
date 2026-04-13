@@ -220,6 +220,98 @@ class JennyRoutineCoordinator:
             dashboard=service.get_dashboard(),
         )
 
+    def run_daily_household_maintenance(self, service: Any, triggered_by: str = "system") -> Any:
+        stale_handler = service.__dict__.get("_fail_stale_routines")
+        if callable(stale_handler):
+            stale_handler("daily_household_maintenance")
+        else:
+            self.fail_stale_routines(service, "daily_household_maintenance")
+
+        active_routine_getter = service.__dict__.get("_get_active_routine")
+        active_routine = (
+            active_routine_getter("daily_household_maintenance")
+            if callable(active_routine_getter)
+            else self.get_active_routine(service, "daily_household_maintenance")
+        )
+        if active_routine is not None:
+            return service.JennyRunResponse(
+                routine=active_routine,
+                dashboard=service.get_dashboard(),
+            )
+
+        routine_creator = service.__dict__.get("_create_routine")
+        if callable(routine_creator):
+            routine_id, workflow_id = routine_creator("daily_household_maintenance", triggered_by)
+        else:
+            routine_id, workflow_id = self.create_routine(service, "daily_household_maintenance", triggered_by)
+
+        docs_reviewed = 0
+        notification_count = 0
+        try:
+            service.workflow_orchestrator.update_workflow_status(
+                workflow_id,
+                status="running",
+                current_step="reviewing_household_money",
+            )
+            maintenance = service._run_household_maintenance_pass(routine_id=routine_id)
+            summary = str(maintenance.get("summary") or "Ran Jenny household maintenance.")
+            docs_reviewed = int(maintenance.get("documents_reviewed") or 0)
+            notification_count = int(maintenance.get("notifications_created") or 0)
+            routine_completer = service.__dict__.get("_complete_routine")
+            if callable(routine_completer):
+                routine_completer(
+                    routine_id,
+                    "completed",
+                    summary,
+                    docs_reviewed,
+                    notification_count,
+                )
+            else:
+                self.complete_routine(
+                    service,
+                    routine_id,
+                    "completed",
+                    summary,
+                    docs_reviewed,
+                    notification_count,
+                )
+            service.workflow_orchestrator.complete_workflow(
+                workflow_id,
+                {
+                    "routine_id": routine_id,
+                    "summary": summary,
+                    "documents_reviewed": docs_reviewed,
+                    "notifications_created": notification_count,
+                },
+            )
+        except Exception as exc:
+            logger.error("jenny_daily_household_maintenance_failed", error=str(exc), exc_info=True)
+            routine_completer = service.__dict__.get("_complete_routine")
+            if callable(routine_completer):
+                routine_completer(
+                    routine_id,
+                    "failed",
+                    f"Jenny household maintenance failed: {exc}",
+                    docs_reviewed,
+                    notification_count,
+                )
+            else:
+                self.complete_routine(
+                    service,
+                    routine_id,
+                    "failed",
+                    f"Jenny household maintenance failed: {exc}",
+                    docs_reviewed,
+                    notification_count,
+                )
+            service.workflow_orchestrator.fail_workflow(workflow_id, str(exc), retry=False)
+            raise
+
+        return service.JennyRunResponse(
+            routine=service._get_routine(routine_id),
+            dashboard=service.get_dashboard(),
+        )
+
     def create_routine(
         self,
         service: Any,

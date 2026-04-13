@@ -28,7 +28,9 @@ from app.repositories.agent_repository import AgentRunRepository
 from app.services._jenny_agent_specs import AGENT_SPECS, JennyAgentSpec  # noqa: F401 - re-exported
 from app.services._jenny_evaluation_store import save_agent_evaluation
 from app.services._jenny_scoring import aggregate_symbol_review
+from app.services.household_finance_service import HouseholdFinanceService
 from app.services.jenny_dashboard_reader import JennyDashboardReader
+from app.services.jenny_household_maintenance_service import JennyHouseholdMaintenanceService
 from app.services.jenny_learning_service import JennyLearningService
 from app.services.jenny_review_engine import JennyReviewEngine
 from app.services.jenny_routine_coordinator import JennyRoutineCoordinator
@@ -79,6 +81,9 @@ _LEARNING_SERVICE_METHODS: dict[str, str] = {
     "_refresh_scorecards": "refresh_scorecards",
     "_build_scorecard": "build_scorecard",
 }
+_HOUSEHOLD_MAINTENANCE_METHODS: dict[str, str] = {
+    "_run_household_maintenance_pass": "run_daily_maintenance_pass",
+}
 
 # Combined lookup: method_name → (sub_service_attr, target_method_name, delegate_mode)
 _DELEGATE_MAP: dict[str, tuple[str, str, _DelegateMode]] = {
@@ -97,6 +102,10 @@ _DELEGATE_MAP: dict[str, tuple[str, str, _DelegateMode]] = {
     **{k: ("symbol_profile_service", v, "positional") for k, v in _SYMBOL_PROFILE_METHODS.items()},
     **{k: ("dashboard_reader", v, "positional") for k, v in _DASHBOARD_READER_METHODS.items()},
     **{k: ("learning_service", v, "positional") for k, v in _LEARNING_SERVICE_METHODS.items()},
+    **{
+        k: ("household_maintenance_service", v, "positional")
+        for k, v in _HOUSEHOLD_MAINTENANCE_METHODS.items()
+    },
 }
 
 
@@ -125,6 +134,8 @@ class JennyOperatorService:
         self.symbol_profile_service = JennySymbolProfileService()
         self.dashboard_reader = JennyDashboardReader()
         self.learning_service = JennyLearningService()
+        self.household_service = HouseholdFinanceService()
+        self.household_maintenance_service = JennyHouseholdMaintenanceService()
 
     def __getattr__(self, name: str) -> Any:
         """Forward delegation-only methods to the appropriate sub-service."""
@@ -171,6 +182,10 @@ class JennyOperatorService:
     def run_weekly_learning(self, triggered_by: str = "system") -> JennyRunResponse:
         """Run Jenny's weekly trade review and scorecard update."""
         return self.routine_coordinator.run_weekly_learning(self, triggered_by)
+
+    def run_daily_household_maintenance(self, triggered_by: str = "system") -> JennyRunResponse:
+        """Run Jenny's daily household-money maintenance pass."""
+        return self.routine_coordinator.run_daily_household_maintenance(self, triggered_by)
 
     def _select_symbols(self, live_positions: list[Any]) -> list[str]:
         symbols = [position.symbol for position in live_positions]

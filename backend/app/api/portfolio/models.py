@@ -226,7 +226,7 @@ class JennyDashboardResponse(BaseModel):
 
 
 class JennyRunRequest(BaseModel):
-    routine_type: Literal["daily_operator", "weekly_learning"] = Field(
+    routine_type: Literal["daily_operator", "daily_household_maintenance", "weekly_learning"] = Field(
         ..., description="Jenny routine to run"
     )
 

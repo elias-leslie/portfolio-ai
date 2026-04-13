@@ -1,4 +1,4 @@
-"""Data models and constants for cross-validation service."""
+"""Data models and prompt slugs for cross-validation service."""
 
 from __future__ import annotations
 
@@ -85,29 +85,5 @@ DEFAULT_SETTINGS: CrossValidationSettings = {
 }
 
 
-CLAUDE_VALIDATION_PROMPT = """You are reviewing output from another AI (Gemini) for accuracy and quality.
-
-ORIGINAL OUTPUT TO REVIEW:
-{generator_output}
-
-CONTEXT:
-- Type: {context_type}
-- Symbol: {context_symbol}
-
-YOUR TASK:
-1. Verify factual accuracy of any claims
-2. Check logical consistency of reasoning
-3. Evaluate risk assessment if applicable
-4. Assess confidence level appropriateness
-
-RESPOND IN THIS JSON FORMAT:
-{{
-  "approved": true/false,
-  "confidence": 0.0-1.0,
-  "review_summary": "Brief summary of your review",
-  "issues_found": ["list", "of", "issues"] or [],
-  "suggestions": ["list", "of", "improvements"] or [],
-  "disagreement_reasons": ["factual", "logical", "risk_assessment", "confidence"] or []
-}}
-
-Be thorough but fair. Approve if output is accurate and well-reasoned."""
+CROSS_VALIDATION_REVIEW_PROMPT = "portfolio-cross-validation-review-template"
+CROSS_VALIDATION_REVIEW_SYSTEM_PROMPT = "portfolio-cross-validation-review-system"

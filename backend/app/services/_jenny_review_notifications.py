@@ -13,6 +13,7 @@ MANAGED_NOTIFICATION_CATEGORIES = frozenset(
         "watchlist_buy_candidate",
     }
 )
+_MANAGED_NOTIFICATION_PREFIXES = ("position_", "household_inbox:")
 
 
 def extract_symbol_profile(evaluations: list[dict[str, Any]]) -> dict[str, Any]:
@@ -213,7 +214,7 @@ def create_notifications(
 
 
 def is_managed_notification_category(category: str) -> bool:
-    return category.startswith("position_") or category in MANAGED_NOTIFICATION_CATEGORIES
+    return category.startswith(_MANAGED_NOTIFICATION_PREFIXES) or category in MANAGED_NOTIFICATION_CATEGORIES
 
 
 def resolve_superseded_notifications(

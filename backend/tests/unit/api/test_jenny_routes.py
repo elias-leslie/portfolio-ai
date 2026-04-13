@@ -95,6 +95,24 @@ def test_run_jenny_routine_dispatches_daily_operator(mocker: MockerFixture) -> N
     mocked.assert_called_once_with(triggered_by="manual")
 
 
+def test_run_jenny_routine_dispatches_daily_household_maintenance(mocker: MockerFixture) -> None:
+    """Manual Jenny run should dispatch household maintenance when requested."""
+    service = Mock(
+        run_daily_household_maintenance=Mock(
+            return_value=Mock(model_dump=Mock(return_value=_run_response_payload()))
+        ),
+    )
+    mocker.patch("app.api.portfolio.jenny_routes._service", return_value=service)
+
+    response = client.post(
+        "/api/portfolio/jenny/run",
+        json={"routine_type": "daily_household_maintenance"},
+    )
+
+    assert response.status_code == 200
+    service.run_daily_household_maintenance.assert_called_once_with(triggered_by="manual")
+
+
 def test_acknowledge_notification_returns_404_when_missing(mocker: MockerFixture) -> None:
     """Missing notifications should return 404."""
     mocker.patch(

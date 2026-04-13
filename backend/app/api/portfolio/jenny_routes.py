@@ -43,6 +43,8 @@ def _run_jenny_routine_payload(payload: JennyRunRequest) -> JennyRunResponseMode
     service = _service()
     if payload.routine_type == "weekly_learning":
         result = service.run_weekly_learning(triggered_by="manual")
+    elif payload.routine_type == "daily_household_maintenance":
+        result = service.run_daily_household_maintenance(triggered_by="manual")
     elif payload.routine_type == "daily_operator":
         result = service.run_daily_operator(triggered_by="manual")
     else:

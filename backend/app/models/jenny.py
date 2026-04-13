@@ -8,7 +8,12 @@ from pydantic import BaseModel, Field
 
 JennySeverity = Literal["critical", "warning", "info"]
 JennyVerdict = Literal["buy", "hold", "review", "trim", "exit", "avoid"]
-JennyRoutineType = Literal["daily_operator", "weekly_learning", "manual_refresh"]
+JennyRoutineType = Literal[
+    "daily_operator",
+    "daily_household_maintenance",
+    "weekly_learning",
+    "manual_refresh",
+]
 
 
 class JennyRoutine(BaseModel):

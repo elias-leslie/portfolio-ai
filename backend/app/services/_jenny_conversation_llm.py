@@ -12,16 +12,17 @@ from app.utils.json_helpers import json_serializer
 
 from ._jenny_conversation_constants import (
     PLANNING_UPDATE_SCHEMA,
+    PROMPT_CHAT_SYSTEM,
+    PROMPT_PLANNING_EXTRACT_SYSTEM,
+    PROMPT_RECONCILE_SYSTEM,
     PURPOSE_CHAT,
     PURPOSE_PLANNING_EXTRACT,
     PURPOSE_RECONCILE,
     RECONCILIATION_RESPONSE_FORMAT,
-    SYSTEM_CHAT,
-    SYSTEM_PLANNING_EXTRACT,
-    SYSTEM_RECONCILE,
 )
 from ._jenny_conversation_context import question_summary
 from ._jenny_response_cleanup import extract_json_object_text
+from .agent_hub_prompt_service import require_agent_hub_prompt
 
 logger = get_logger(__name__)
 _EMPTY_PLANNING_UPDATES: dict[str, Any] = {"profile_updates": {}, "planning_items": []}
@@ -61,7 +62,7 @@ def complete_conversation(
             purpose=PURPOSE_CHAT,
             session_id=session_id,
             thinking_level="low",
-            system_prompt=SYSTEM_CHAT,
+            system_prompt=require_agent_hub_prompt(PROMPT_CHAT_SYSTEM),
             use_memory=False,
         )
     finally:
@@ -89,7 +90,7 @@ def reconcile_message(
             messages=[{"role": "user", "content": prompt}],
             purpose=PURPOSE_RECONCILE,
             thinking_level="minimal",
-            system_prompt=SYSTEM_RECONCILE,
+            system_prompt=require_agent_hub_prompt(PROMPT_RECONCILE_SYSTEM),
             response_format=RECONCILIATION_RESPONSE_FORMAT,
             use_memory=False,
         )
@@ -143,7 +144,7 @@ def extract_planning_updates(
             "messages": [{"role": "user", "content": prompt}],
             "purpose": PURPOSE_PLANNING_EXTRACT,
             "thinking_level": "minimal",
-            "system_prompt": SYSTEM_PLANNING_EXTRACT,
+            "system_prompt": require_agent_hub_prompt(PROMPT_PLANNING_EXTRACT_SYSTEM),
             "use_memory": False,
         }
         try:

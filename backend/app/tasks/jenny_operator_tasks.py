@@ -20,3 +20,9 @@ def run_weekly_learning_task() -> dict[str, Any]:
     """Run Jenny's weekly learning and scorecard refresh."""
     result = JennyOperatorService().run_weekly_learning(triggered_by="scheduled")
     return result.model_dump()
+
+
+def run_daily_household_maintenance_task() -> dict[str, Any]:
+    """Run Jenny's daily household-money maintenance pass."""
+    result = JennyOperatorService().run_daily_household_maintenance(triggered_by="scheduled")
+    return result.model_dump()

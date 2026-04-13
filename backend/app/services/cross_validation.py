@@ -16,10 +16,10 @@ from typing import Any
 
 from ..agents.clients.agent_hub_client import AgentHubAPIClient
 from ..agents.clients.base_client import LLMClient, LLMResponse
-from ..constants import CLAUDE_SONNET, GEMINI_FLASH
 from ..logging_config import get_logger
 from ._cross_validation_models import (
-    CLAUDE_VALIDATION_PROMPT,
+    CROSS_VALIDATION_REVIEW_PROMPT,
+    CROSS_VALIDATION_REVIEW_SYSTEM_PROMPT,
     DEFAULT_SETTINGS,
     CrossValidationSettings,
     DisagreementReason,
@@ -35,10 +35,12 @@ from ._cross_validation_storage import (
 from ._cross_validation_storage import (
     save_result as _save_result,
 )
+from .agent_hub_prompt_service import render_agent_hub_prompt, require_agent_hub_prompt
 
 # Re-export everything so existing imports continue to work
 __all__ = [
-    "CLAUDE_VALIDATION_PROMPT",
+    "CROSS_VALIDATION_REVIEW_PROMPT",
+    "CROSS_VALIDATION_REVIEW_SYSTEM_PROMPT",
     "DEFAULT_SETTINGS",
     "CrossValidationService",
     "CrossValidationSettings",
@@ -106,26 +108,26 @@ class CrossValidationService:
         """Ensure generator client is initialized."""
         if self._generator is None and not self._generator_initialized:
             try:
-                self._generator = AgentHubAPIClient(model=GEMINI_FLASH)
+                self._generator = AgentHubAPIClient(agent_slug="equity-analyst")
             except RuntimeError as e:
-                logger.warning("gemini_not_available", error=str(e))
+                logger.warning("cross_validation_generator_unavailable", error=str(e))
             finally:
                 self._generator_initialized = True
         if self._generator is None:
-            raise RuntimeError("Generator client (Gemini) not available")
+            raise RuntimeError("Generator client not available")
         return self._generator
 
     def _ensure_validator(self) -> LLMClient:
         """Ensure validator client is initialized."""
         if self._validator is None and not self._validator_initialized:
             try:
-                self._validator = AgentHubAPIClient(model=CLAUDE_SONNET)
+                self._validator = AgentHubAPIClient(agent_slug="risk-manager")
             except RuntimeError as e:
-                logger.warning("claude_not_available", error=str(e))
+                logger.warning("cross_validation_validator_unavailable", error=str(e))
             finally:
                 self._validator_initialized = True
         if self._validator is None:
-            raise RuntimeError("Validator client (Claude) not available")
+            raise RuntimeError("Validator client not available")
         return self._validator
 
     def validate(
@@ -150,7 +152,8 @@ class CrossValidationService:
             )
 
         validator = self._ensure_validator()
-        prompt = CLAUDE_VALIDATION_PROMPT.format(
+        prompt = render_agent_hub_prompt(
+            CROSS_VALIDATION_REVIEW_PROMPT,
             generator_output=generator_output,
             context_type=context_type,
             context_symbol=context_symbol or "N/A",
@@ -164,8 +167,7 @@ class CrossValidationService:
         try:
             response = validator.generate(
                 prompt=prompt,
-                system="You are a thorough AI output reviewer. Always respond with valid JSON.",
-                temperature=0.3,
+                system=require_agent_hub_prompt(CROSS_VALIDATION_REVIEW_SYSTEM_PROMPT),
                 purpose="cross_validation",
             )
             return self._build_result(
@@ -191,8 +193,8 @@ class CrossValidationService:
     ) -> tuple[LLMResponse, ValidationResult]:
         """Generate output with Gemini and validate with Claude."""
         generator = self._ensure_generator()
-        logger.info("gemini_generating", prompt_length=len(prompt))
-        response = generator.generate(prompt=prompt, system=system, purpose="gemini_generation")
+        logger.info("cross_validation_generator_running", prompt_length=len(prompt))
+        response = generator.generate(prompt=prompt, system=system, purpose="cross_validation_generation")
         try:
             result = self.validate(
                 generator_output=response.content,
@@ -256,11 +258,11 @@ class CrossValidationService:
             if r in _VALID_DISAGREEMENT_VALUES
         ]
         result = ValidationResult(
-            generator_provider="gemini",
+            generator_provider=str(getattr(self._generator, "provider", "agent_hub")),
             generator_model=self._generator.get_model_name() if self._generator else "",
             generator_output=generator_output,
             generator_confidence=generator_confidence,
-            validator_provider="claude",
+            validator_provider=str(getattr(validator, "provider", "agent_hub")),
             validator_model=validator.get_model_name() if hasattr(validator, "get_model_name") else "",
             validator_review=review_data.get("review_summary", response.content),
             validator_approved=approved,
