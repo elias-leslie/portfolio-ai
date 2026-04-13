@@ -395,7 +395,7 @@ def test_build_account_summaries_merge_same_mask_across_alias_names() -> None:
                 source_type="brokerage",
                 asset_group="taxable",
                 account_type="brokerage",
-                institution_name=None,
+                institution_name="Fidelity",
                 account_name="Cash Management (Joint WROS)",
                 account_mask="Z38367298",
                 owner_name=None,
@@ -438,9 +438,10 @@ def test_build_account_summaries_merge_same_mask_across_alias_names() -> None:
     )
 
     assert len(summaries) == 1
-    assert summaries[0].label == "Cash Management (Joint WROS)"
+    assert summaries[0].label == "Fidelity · Cash Management (Joint WROS)"
     assert summaries[0].account_mask == "Z38367298"
     assert summaries[0].evidence_count == 2
+    assert summaries[0].institution_name == "Fidelity"
 
 
 def test_build_account_summaries_merge_same_institution_mask_across_source_types() -> None:

@@ -437,12 +437,10 @@ def _extract_fidelity_positions_accounts(
         description = row.get("description", "").strip()
         quantity = _numeric_string(row.get("quantity"))
         weight_pct = _numeric_string(row.get("percent_of_account"))
-        position_type = row.get("type", "").strip().lower()
         group["balance_total"] = float(group["balance_total"]) + current_value
         is_cash_like = (
             symbol.upper() in {"SPAXX", "FCASH", "FDRXX"}
             or "money market" in description.lower()
-            or position_type == "cash"
         )
         if is_cash_like:
             group["cash_total"] = float(group["cash_total"]) + current_value

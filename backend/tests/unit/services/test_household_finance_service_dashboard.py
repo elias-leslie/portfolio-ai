@@ -7,6 +7,7 @@ from typing import Any, cast
 from unittest.mock import Mock, patch
 
 from app.models.household_finance import (
+    HouseholdAccountSummary,
     HouseholdDocumentList,
     HouseholdExecutiveReport,
     HouseholdProfile,
@@ -17,7 +18,10 @@ from app.models.household_finance import (
     HouseholdResolvedValue,
 )
 from app.models.household_planning import empty_household_planning_snapshot
-from app.services._household_dashboard_assembly import _apply_account_freshness_visibility_cap
+from app.services._household_dashboard_assembly import (
+    _apply_account_freshness_visibility_cap,
+    build_overview,
+)
 from app.services.household_finance_service import HouseholdFinanceService
 
 
@@ -167,3 +171,170 @@ def test_visibility_score_is_capped_when_account_freshness_is_degraded() -> None
             Mock(freshness_status="stale"),
         ],
     ) == 99
+
+
+def test_build_overview_prefers_account_summary_totals_over_legacy_portfolio_inputs() -> None:
+    account_summaries = [
+        HouseholdAccountSummary(
+            id="rollover",
+            label="Rollover IRA",
+            asset_group="retirement",
+            account_type="ira",
+            source_type="retirement",
+            current_value=8230.59,
+            cash_balance=None,
+            money_role="net_worth_only",
+            last_balance_at="2026-03-09T00:00:00+00:00",
+            balance_freshness_status="stale",
+            balance_freshness_label="Stale",
+            transaction_freshness_status="not_applicable",
+            transaction_freshness_label="Not required",
+            freshness_status="stale",
+            freshness_label="Stale",
+            match_status="tracked",
+        ),
+        HouseholdAccountSummary(
+            id="529",
+            label="529",
+            asset_group="education",
+            account_type="529",
+            source_type="brokerage",
+            current_value=3087.29,
+            cash_balance=None,
+            money_role="net_worth_only",
+            last_balance_at="2026-03-12T00:00:00+00:00",
+            balance_freshness_status="stale",
+            balance_freshness_label="Stale",
+            transaction_freshness_status="not_applicable",
+            transaction_freshness_label="Not required",
+            freshness_status="stale",
+            freshness_label="Stale",
+            match_status="tracked",
+        ),
+        HouseholdAccountSummary(
+            id="cash",
+            label="Cash Management",
+            asset_group="taxable",
+            account_type="brokerage",
+            source_type="brokerage",
+            current_value=39400.59,
+            cash_balance=39400.59,
+            money_role="spend_driver",
+            last_balance_at="2026-04-13T00:00:00+00:00",
+            balance_freshness_status="fresh",
+            balance_freshness_label="Fresh",
+            transaction_freshness_status="aging",
+            transaction_freshness_label="Refresh soon",
+            freshness_status="aging",
+            freshness_label="Refresh soon",
+            match_status="linked",
+        ),
+        HouseholdAccountSummary(
+            id="tod",
+            label="Individual - TOD",
+            asset_group="taxable",
+            account_type="brokerage",
+            source_type="brokerage",
+            current_value=507248.61,
+            cash_balance=2917.07,
+            money_role="net_worth_only",
+            last_balance_at="2026-04-13T00:00:00+00:00",
+            balance_freshness_status="fresh",
+            balance_freshness_label="Fresh",
+            transaction_freshness_status="not_applicable",
+            transaction_freshness_label="Not required",
+            freshness_status="fresh",
+            freshness_label="Fresh",
+            match_status="linked",
+        ),
+        HouseholdAccountSummary(
+            id="trad",
+            label="Traditional IRA",
+            asset_group="retirement",
+            account_type="ira",
+            source_type="retirement",
+            current_value=347053.83,
+            cash_balance=1971.10,
+            money_role="net_worth_only",
+            last_balance_at="2026-04-13T00:00:00+00:00",
+            balance_freshness_status="fresh",
+            balance_freshness_label="Fresh",
+            transaction_freshness_status="not_applicable",
+            transaction_freshness_label="Not required",
+            freshness_status="fresh",
+            freshness_label="Fresh",
+            match_status="linked",
+        ),
+        HouseholdAccountSummary(
+            id="roth",
+            label="ROTH IRA",
+            asset_group="retirement",
+            account_type="roth_ira",
+            source_type="retirement",
+            current_value=48014.15,
+            cash_balance=48014.15,
+            money_role="net_worth_only",
+            last_balance_at="2026-04-13T00:00:00+00:00",
+            balance_freshness_status="fresh",
+            balance_freshness_label="Fresh",
+            transaction_freshness_status="not_applicable",
+            transaction_freshness_label="Not required",
+            freshness_status="fresh",
+            freshness_label="Fresh",
+            match_status="linked",
+        ),
+        HouseholdAccountSummary(
+            id="card",
+            label="Chase Amazon card",
+            asset_group="credit",
+            account_type="credit_card",
+            source_type="credit_card",
+            current_value=2958.17,
+            cash_balance=None,
+            money_role="spend_driver",
+            last_balance_at="2026-04-12T00:00:00+00:00",
+            balance_freshness_status="fresh",
+            balance_freshness_label="Fresh",
+            transaction_freshness_status="fresh",
+            transaction_freshness_label="Fresh",
+            freshness_status="fresh",
+            freshness_label="Fresh",
+            match_status="tracked",
+        ),
+    ]
+    reports = HouseholdReports(
+        executive=HouseholdExecutiveReport(
+            headline="Visible household cash flow",
+            summary="Current spending is visible.",
+            average_monthly_spend=3000.0,
+            average_monthly_essentials=2000.0,
+            average_monthly_discretionary=700.0,
+            recent_30_day_spend=2500.0,
+            recurring_merchant_count=2,
+            tracked_expense_count=8,
+            coverage_months=3,
+        ),
+        recent_transactions=[],
+    )
+
+    overview, retirement_assets, taxable_assets, cash_reserve, total_tracked_assets = build_overview(
+        accounts=[Mock(id="legacy", account_type="Taxable", cash_balance=999999.0)],
+        live_positions=[],
+        evidence_accounts=[],
+        account_summaries=account_summaries,
+        inbox=[],
+        statement_freshness={"coverage_months": 3, "gap_months": [], "most_recent_date": "2026-04-10"},
+        reports=reports,
+        holdings_by_account={"legacy": 999999.0},
+        documents=[],
+        questions=[],
+        resolved_values=[],
+        service=None,
+    )
+
+    assert round(total_tracked_assets, 2) == 953035.06
+    assert round(overview.liabilities_total, 2) == 2958.17
+    assert round(overview.net_worth, 2) == 950076.89
+    assert round(retirement_assets, 2) == 403298.57
+    assert round(taxable_assets, 2) == 549736.49
+    assert round(cash_reserve, 2) == 39400.59

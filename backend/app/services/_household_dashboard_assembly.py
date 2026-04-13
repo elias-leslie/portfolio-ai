@@ -205,6 +205,58 @@ def _latest_visible_date(
     )
 
 
+def _overview_totals_from_account_summaries(
+    account_summaries: list[Any],
+) -> tuple[float, float, float, float, float, float] | None:
+    if not account_summaries:
+        return None
+
+    asset_accounts = [
+        account
+        for account in account_summaries
+        if account.current_value is not None and account.asset_group not in {"credit", "debt"}
+    ]
+    liability_accounts = [
+        account
+        for account in account_summaries
+        if account.current_value is not None and account.asset_group in {"credit", "debt"}
+    ]
+    if not asset_accounts and not liability_accounts:
+        return None
+
+    total_tracked_assets = sum(float(account.current_value or 0.0) for account in asset_accounts)
+    liabilities_total = sum(float(account.current_value or 0.0) for account in liability_accounts)
+    retirement_assets = sum(
+        float(account.current_value or 0.0)
+        for account in asset_accounts
+        if account.asset_group == "retirement"
+    )
+    taxable_assets = sum(
+        float(account.current_value or 0.0)
+        for account in asset_accounts
+        if account.asset_group in {"taxable", "education"}
+    )
+    cash_reserve = sum(
+        float(
+            account.cash_balance
+            if account.cash_balance is not None
+            else account.current_value or 0.0
+        )
+        for account in asset_accounts
+        if account.asset_group in {"cash", "taxable"}
+        and account.money_role == "spend_driver"
+    )
+    invested_assets = max(total_tracked_assets - cash_reserve, 0.0)
+    return (
+        invested_assets,
+        cash_reserve,
+        retirement_assets,
+        taxable_assets,
+        total_tracked_assets,
+        liabilities_total,
+    )
+
+
 def _net_worth_trust(
     account_summaries: list[Any],
 ) -> tuple[str, str]:
@@ -449,16 +501,27 @@ def build_overview(
     questions: list[Any], resolved_values: list[HouseholdResolvedValue],
     service: Any | None = None,
 ) -> tuple[HouseholdOverview, float, float, float, float]:
-    invested_assets = sum(holdings_by_account.values())
-    cash_reserve = sum(a.cash_balance for a in accounts)
-    retirement_assets = 0.0
-    taxable_assets = 0.0
-    for account in accounts:
-        account_total = account.cash_balance + holdings_by_account.get(account.id, 0.0)
-        if account.account_type in RETIREMENT_ACCOUNT_TYPES:
-            retirement_assets += account_total
-        if account.account_type in TAXABLE_ACCOUNT_TYPES:
-            taxable_assets += account_total
+    summary_totals = _overview_totals_from_account_summaries(account_summaries)
+    if summary_totals is not None:
+        (
+            invested_assets,
+            cash_reserve,
+            retirement_assets,
+            taxable_assets,
+            total_tracked_assets,
+            liabilities_total,
+        ) = summary_totals
+    else:
+        invested_assets = sum(holdings_by_account.values())
+        cash_reserve = sum(a.cash_balance for a in accounts)
+        retirement_assets = 0.0
+        taxable_assets = 0.0
+        for account in accounts:
+            account_total = account.cash_balance + holdings_by_account.get(account.id, 0.0)
+            if account.account_type in RETIREMENT_ACCOUNT_TYPES:
+                retirement_assets += account_total
+            if account.account_type in TAXABLE_ACCOUNT_TYPES:
+                taxable_assets += account_total
     evidence_totals = service.evidence_service.totals_by_group(evidence_accounts) if service is not None else {
         "cash": 0.0,
         "retirement": 0.0,
@@ -480,8 +543,9 @@ def build_overview(
         invested_assets += taxable_fallback
     if invested_assets <= 0:
         invested_assets += evidence_totals.get("other", 0.0)
-    total_tracked_assets = invested_assets + cash_reserve
-    liabilities_total = evidence_totals.get("debt", 0.0) + evidence_totals.get("credit", 0.0)
+    if summary_totals is None:
+        total_tracked_assets = invested_assets + cash_reserve
+        liabilities_total = evidence_totals.get("debt", 0.0) + evidence_totals.get("credit", 0.0)
     net_worth = total_tracked_assets - liabilities_total
     rnv = lambda field: resolved_numeric_value(resolved_values, field)  # noqa: E731
     effective_account_count = len(account_summaries) or len(accounts) or len(evidence_accounts)

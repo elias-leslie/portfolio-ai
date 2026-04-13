@@ -147,8 +147,6 @@ def _evidence_group_key(account: HouseholdEvidenceAccount) -> str:
     mask = _normalize_text(account.account_mask)
     account_type = _normalize_text(account.account_type)
     asset_group = _normalize_text(account.asset_group)
-    if institution and mask:
-        return _compact_key("evidence", institution, mask)
     if mask:
         return _compact_key("evidence", mask, asset_group or account_type)
     if institution and name:
