@@ -630,6 +630,51 @@ export function MoneyAccountsPanel({
                   <AccordionContent className="pb-5">
                     <div className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
                       <div className="space-y-4">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          {account.trackedAccountId ? (
+                            <>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setEditingAccount(account)
+                                  setDraftSeed(null)
+                                  setDialogOpen(true)
+                                }}
+                              >
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Edit
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setDeletingAccount(account)}
+                                disabled={deleteAccount.isPending}
+                                aria-busy={deleteAccount.isPending}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </Button>
+                            </>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setEditingAccount(null)
+                                setDraftSeed(seedFromAccount(account))
+                                setDialogOpen(true)
+                              }}
+                            >
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Track / rename
+                            </Button>
+                          )}
+                        </div>
+
                         <div className="grid gap-3 sm:grid-cols-4">
                           <div className="rounded-2xl border border-border/30 bg-surface-muted/20 p-4">
                             <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
@@ -744,50 +789,6 @@ export function MoneyAccountsPanel({
                             <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
                               Supporting documents
                             </p>
-                            <div className="flex gap-2">
-                              {account.trackedAccountId ? (
-                                <>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => {
-                                      setEditingAccount(account)
-                                      setDraftSeed(null)
-                                      setDialogOpen(true)
-                                    }}
-                                  >
-                                    <Pencil className="mr-2 h-4 w-4" />
-                                    Edit
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setDeletingAccount(account)}
-                                    disabled={deleteAccount.isPending}
-                                    aria-busy={deleteAccount.isPending}
-                                  >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Delete
-                                  </Button>
-                                </>
-                              ) : (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    setEditingAccount(null)
-                                    setDraftSeed(seedFromAccount(account))
-                                    setDialogOpen(true)
-                                  }}
-                                >
-                                  <Pencil className="mr-2 h-4 w-4" />
-                                  Track / rename
-                                </Button>
-                              )}
-                            </div>
                           </div>
 
                           {account.documentIds.length === 0 ? (
