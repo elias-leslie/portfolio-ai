@@ -13,6 +13,10 @@ CLAUDE_HAIKU = "claude-haiku-4-5"
 GEMINI_FLASH = "gemini-3-flash-preview"
 GEMINI_PRO = "gemini-3.1-pro-preview"
 
+# OpenAI models via Agent Hub / Codex
+OPENAI_GPT_5_4 = "codex/gpt-5.4"
+
 # Default models for each use case
 DEFAULT_CLAUDE_MODEL = CLAUDE_SONNET
 DEFAULT_GEMINI_MODEL = GEMINI_FLASH
+DEFAULT_OPENAI_MODEL = OPENAI_GPT_5_4

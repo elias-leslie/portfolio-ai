@@ -90,6 +90,15 @@ class Settings(BaseSettings):
     # Filesystem paths
     artifacts_dir: Path = PROJECT_ROOT / "data" / "artifacts"
 
+    @field_validator("agent_hub_url", mode="before")
+    @classmethod
+    def normalize_agent_hub_url(cls, v: str | None) -> str:
+        """Treat blank env overrides as unset and fall back to local default."""
+        if v is None:
+            return f"http://localhost:{AGENT_HUB_BACKEND_PORT}"
+        text = str(v).strip()
+        return text or f"http://localhost:{AGENT_HUB_BACKEND_PORT}"
+
     @model_validator(mode="after")
     def resolve_agent_hub_enabled(self) -> Settings:
         """Enable Agent Hub automatically when a client id is configured."""
