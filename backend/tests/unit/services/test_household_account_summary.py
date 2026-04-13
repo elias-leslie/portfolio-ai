@@ -613,6 +613,76 @@ def test_build_account_summaries_keep_same_plan_separate_by_owner_without_mask()
     assert sum(summary.current_value or 0.0 for summary in summaries) == 173406.81
 
 
+def test_build_account_summaries_do_not_apply_owner_specific_tracked_label_to_sibling_account() -> None:
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="acct-elias",
+                document_id="doc-elias",
+                source_type="retirement",
+                asset_group="retirement",
+                account_type="401k",
+                institution_name="Florida Retirement System (FRS)",
+                account_name="FRS Investment Plan",
+                account_mask=None,
+                owner_name="Elias B. Leslie",
+                currency="USD",
+                balance=42404.62,
+                holdings_value=42404.62,
+                cash_balance=None,
+                as_of_date="2026-04-10",
+                confidence=0.96,
+                metadata={},
+            ),
+            HouseholdEvidenceAccount(
+                id="acct-mariana",
+                document_id="doc-mariana",
+                source_type="retirement",
+                asset_group="retirement",
+                account_type="401k",
+                institution_name="Florida Retirement System (FRS)",
+                account_name="FRS Investment Plan",
+                account_mask=None,
+                owner_name="Mariana Leslie",
+                currency="USD",
+                balance=131002.19,
+                holdings_value=131002.19,
+                cash_balance=None,
+                as_of_date="2026-04-10",
+                confidence=0.97,
+                metadata={},
+            ),
+        ],
+        documents=[],
+        portfolio_accounts=[],
+        tracked_accounts=[
+            HouseholdTrackedAccount(
+                id="tracked-elias",
+                label="Elias - Florida Retirement System (FRS)",
+                asset_group="retirement",
+                account_type="401k",
+                source_type="retirement",
+                institution_name="Florida Retirement System (FRS)",
+                owner_name="Elias B. Leslie",
+                account_mask=None,
+                notes=None,
+                created_at="2026-04-13T00:00:00Z",
+                updated_at="2026-04-13T00:00:00Z",
+            )
+        ],
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    labels = {summary.owner_name: summary.label for summary in summaries}
+    tracked_ids = {summary.owner_name: summary.tracked_account_id for summary in summaries}
+
+    assert labels["Elias B. Leslie"] == "Elias - Florida Retirement System (FRS)"
+    assert tracked_ids["Elias B. Leslie"] == "tracked-elias"
+    assert labels["Mariana Leslie"] == "Florida Retirement System (FRS) · FRS Investment Plan (Mariana Leslie)"
+    assert tracked_ids["Mariana Leslie"] is None
+
+
 def test_build_money_inbox_surfaces_discovered_accounts_with_review_route() -> None:
     inbox = build_money_inbox(
         accounts=[],

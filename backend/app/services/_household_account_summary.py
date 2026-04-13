@@ -348,10 +348,13 @@ def _match_tracked_account(
     hint_label: str | None,
     asset_group: str,
     institution_name: str | None,
+    owner_name: str | None,
     account_mask: str | None,
     tracked_accounts: list[HouseholdTrackedAccount],
 ) -> HouseholdTrackedAccount | None:
     normalized_asset_group = _normalize_text(asset_group)
+    normalized_institution = _normalize_text(institution_name)
+    normalized_owner = _normalize_text(owner_name)
     label_candidates = {
         _normalize_text(candidate)
         for candidate in (label, account_name, hint_label)
@@ -366,24 +369,25 @@ def _match_tracked_account(
     for account in tracked_accounts:
         if _normalize_text(account.asset_group) != normalized_asset_group:
             continue
+        tracked_institution = _normalize_text(account.institution_name)
+        tracked_owner = _normalize_text(account.owner_name)
         score = 0
-        if _normalize_text(account.label) in label_candidates:
-            score = 3
-        elif (
+        if (
             evidence_signature
             and account.institution_name
             and account.account_mask
-            and _compact_key(account.institution_name, account.account_mask)
-            == evidence_signature
+            and _compact_key(account.institution_name, account.account_mask) == evidence_signature
         ):
-            score = 2
+            score = 4
         elif (
-            hint_label
-            and account.institution_name
-            and _normalize_text(account.institution_name)
-            == _normalize_text(institution_name)
+            normalized_institution
+            and normalized_owner
+            and tracked_institution == normalized_institution
+            and tracked_owner == normalized_owner
         ):
-            score = 1
+            score = 3
+        elif _normalize_text(account.label) in label_candidates:
+            score = 2
         if score > 0:
             ranked.append((score, account))
     if not ranked:
@@ -789,6 +793,7 @@ def build_account_summaries(
             hint_label=hint_label,
             asset_group=latest.asset_group,
             institution_name=latest.institution_name,
+            owner_name=latest.owner_name,
             account_mask=latest.account_mask,
             tracked_accounts=tracked_accounts,
         )

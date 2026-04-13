@@ -264,6 +264,21 @@ function TrackedAccountDialog({
           </div>
 
           <div className="grid gap-2">
+            <Label htmlFor="money-account-owner">Owner</Label>
+            <Input
+              id="money-account-owner"
+              value={form.ownerName ?? ''}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  ownerName: event.target.value,
+                }))
+              }
+              placeholder="Elias B. Leslie"
+            />
+          </div>
+
+          <div className="grid gap-2">
             <Label htmlFor="money-account-notes">Notes</Label>
             <Input
               id="money-account-notes"
@@ -301,6 +316,9 @@ function accountMetaLine(account: HouseholdAccountSummary) {
   const parts = [account.assetGroup, account.accountType]
   if (account.institutionName) {
     parts.push(account.institutionName)
+  }
+  if (account.ownerName) {
+    parts.push(account.ownerName)
   }
   return parts.join(' · ')
 }
