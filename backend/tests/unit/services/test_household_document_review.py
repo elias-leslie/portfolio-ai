@@ -270,6 +270,39 @@ def test_baseline_review_detects_cash_management_account_text() -> None:
     assert "cash management account snapshot" in payload["summary"].lower()
 
 
+def test_baseline_review_detects_frs_investment_plan_statement() -> None:
+    payload = _baseline_review(
+        filename="Elias_FRS_Account Statement.pdf",
+        source_type="other",
+        document_type="other",
+        extracted_text=(
+            "FRS Investment Plan-Your Account\n"
+            "Information\n"
+            "ELIAS B. LESLIE\n"
+            "3636 AVOCADO DR\n"
+            "LARGO FL 33770-4553\n"
+            "Total Account Balance: $42,404.62\n"
+            "Account summary\n"
+            "Breakdown of all your account details from 01-01-\n"
+            "2026 to 04-10-2026.\n"
+            "$42,332.11\n"
+            "-$12.00\n"
+            "$84.51\n"
+            "$42,404.62\n"
+        ),
+    )
+    structured_data = cast(dict[str, Any], payload["structured_data"])
+    financial_accounts = cast(list[dict[str, Any]], structured_data["financial_accounts"])
+
+    assert payload["document_type"] == "retirement_statement"
+    assert payload["source_type"] == "retirement"
+    assert structured_data["total_amount"] == "42404.62"
+    assert structured_data["statement_period"] == "2026-01-01 to 2026-04-10"
+    assert financial_accounts[0]["owner_name"] == "Elias B. Leslie"
+    assert financial_accounts[0]["balance"] == "42404.62"
+    assert "42404.62" in payload["summary"]
+
+
 def test_baseline_review_detects_generic_statement_csv_account_snapshot() -> None:
     payload = _baseline_review(
         filename="History_for_Account_Z38367298.csv",

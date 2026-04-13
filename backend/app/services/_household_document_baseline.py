@@ -210,12 +210,25 @@ def _parse_natural_date(value: str | None) -> str | None:
     if not value:
         return None
     cleaned = " ".join(value.strip().split())
-    for pattern in ("%B %d, %Y", "%b %d, %Y", "%b-%d-%Y", "%B-%d-%Y", "%m/%d/%Y", "%m/%d/%y"):
+    cleaned = cleaned.replace("- ", "-").replace(" -", "-")
+    for pattern in ("%B %d, %Y", "%b %d, %Y", "%b-%d-%Y", "%B-%d-%Y", "%m/%d/%Y", "%m/%d/%y", "%m-%d-%Y"):
         try:
             return datetime.strptime(cleaned, pattern).date().isoformat()
         except ValueError:
             continue
     return None
+
+
+def _display_owner_name(value: str | None) -> str | None:
+    if not value:
+        return None
+    cleaned = " ".join(value.strip().split())
+    if not cleaned:
+        return None
+    alpha = [char for char in cleaned if char.isalpha()]
+    if alpha and all(char.isupper() for char in alpha):
+        return cleaned.title()
+    return cleaned
 
 
 def _normalize_csv_header(value: str) -> str:
@@ -329,6 +342,89 @@ def _extract_cash_management_account(text: str) -> dict[str, object] | None:
         "as_of_date": as_of_date,
         "activity_observed_through": as_of_date if has_activity_table and has_activity_rows else None,
     }
+
+
+def _extract_frs_investment_plan_account(text: str) -> dict[str, object] | None:
+    if "frs investment plan" not in text.lower():
+        return None
+    total_balance_match = re.search(
+        r"total account balance\s*:\s*\$([0-9][0-9,]*\.\d{2})",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if total_balance_match is None:
+        return None
+    owner_match = re.search(
+        r"information\s+([A-Z][A-Z .'-]+)\s+\d{3,5}\s",
+        text,
+        flags=re.IGNORECASE,
+    )
+    period_match = re.search(
+        r"from\s+([0-9]{2}-[0-9]{2}-\s*[0-9]{4})\s+to\s+([0-9]{2}-[0-9]{2}-[0-9]{4})",
+        text,
+        flags=re.IGNORECASE,
+    )
+    start_date = _parse_natural_date(period_match.group(1) if period_match else None)
+    end_date = _parse_natural_date(period_match.group(2) if period_match else None)
+    owner_name = _display_owner_name(owner_match.group(1) if owner_match else None)
+    balance = total_balance_match.group(1).replace(",", "")
+    account_name = "FRS Investment Plan"
+    return {
+        "balance": balance,
+        "currency": "USD",
+        "holdings": [],
+        "as_of_date": end_date,
+        "owner_name": owner_name,
+        "asset_group": "retirement",
+        "account_hint": account_name,
+        "account_name": account_name,
+        "account_type": "retirement",
+        "cash_balance": None,
+        "holdings_value": balance,
+        "institution_name": "Florida Retirement System (FRS)",
+        "statement_start": start_date,
+        "statement_end": end_date,
+    }
+
+
+def _classify_frs_investment_plan(
+    extracted_text: str | None,
+    structured_data: _StructuredData,
+) -> tuple[str, str, float, str] | None:
+    if not extracted_text:
+        return None
+    account = _extract_frs_investment_plan_account(extracted_text)
+    if account is None:
+        return None
+    owner_name = _display_owner_name(str(account.get("owner_name") or "")) or "account owner"
+    start_date = str(account.get("statement_start") or "")
+    end_date = str(account.get("statement_end") or "")
+    structured_data.update(
+        {
+            "currency": "USD",
+            "owner_name": account.get("owner_name"),
+            "provider_name": "Florida Retirement System (FRS)",
+            "account_hint": account["account_hint"],
+            "financial_accounts": [account],
+            "total_amount": account["balance"],
+        }
+    )
+    if start_date and end_date:
+        structured_data["statement_period"] = f"{start_date} to {end_date}"
+    elif end_date:
+        structured_data["statement_period"] = end_date
+    period_phrase = (
+        f"Period {structured_data['statement_period']}. "
+        if structured_data.get("statement_period")
+        else ""
+    )
+    return (
+        "retirement",
+        "retirement_statement",
+        0.94,
+        f"Florida Retirement System (FRS) Investment Plan statement for {owner_name}. "
+        f"{period_phrase}Total balance ${account['balance']}.",
+    )
 
 
 def _classify_cash_management(
@@ -740,6 +836,10 @@ def _classify_by_content(
         inferred_source, inferred_document, confidence, summary = _classify_cash_management(
             extracted_text, structured_data
         )
+    elif "frs investment plan" in text_lower or "florida retirement system" in text_lower:
+        frs_statement = _classify_frs_investment_plan(extracted_text, structured_data)
+        if frs_statement is not None:
+            inferred_source, inferred_document, confidence, summary = frs_statement
     elif "brokerage" in text_lower or "positions" in text_lower or "dividends" in text_lower:
         inferred_source, inferred_document, confidence = "brokerage", "brokerage_statement", 0.8
         summary = "Brokerage statement with investable assets and account activity."
@@ -788,9 +888,9 @@ def _baseline_review(
     )
 
     statement_period, total_amount = _extract_amounts(extracted_text)
-    if statement_period:
+    if statement_period and not structured_data.get("statement_period"):
         structured_data["statement_period"] = statement_period
-    if total_amount:
+    if total_amount and not structured_data.get("total_amount"):
         structured_data["total_amount"] = total_amount
 
     return {
