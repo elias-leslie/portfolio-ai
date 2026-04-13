@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import json
-import subprocess
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from app.agents.clients.agent_hub_client import AgentHubAPIClient
 from app.logging_config import get_logger
 from app.ml.article_quality_classifier import ArticleQualityClassifier
+from app.services.agent_hub_prompt_service import render_agent_hub_prompt, require_agent_hub_prompt
 from app.storage.types import DatabaseConnection
 
 logger = get_logger(__name__)
@@ -23,22 +24,15 @@ _MODEL_NAME = "article_quality"
 _QUERY_LIMIT = 500
 _HASH_HEADLINE_LENGTH = 50
 _HEADLINE_MATCH_LENGTH = 40
-_GEMINI_TIMEOUT_SECONDS = 300
-_GEMINI_ENV = {"HOME": str(Path.home()), "PATH": "/usr/local/bin:/usr/bin:/bin"}
+_ARTICLE_LABELING_AGENT_SLUG = "equity-analyst"
+_ARTICLE_LABELING_TEMPLATE = "portfolio-article-quality-labeling-template"
+_ARTICLE_LABELING_SYSTEM = "portfolio-article-quality-labeling-system"
 _QUERY_ARTICLES_SQL = f"""
         SELECT symbol, headline, summary
         FROM news_cache
         ORDER BY fetched_at DESC
         LIMIT {_QUERY_LIMIT}
     """
-_GEMINI_PROMPT = """You are a financial news quality analyst. Review these news articles (pipe-delimited: symbol|headline|summary) and for EACH article, determine if it's USEFUL for stock investors.
-
-USEFUL: Specific numbers, regulatory filings, material events, analyst actions with targets, objective data.
-NOT USEFUL: Clickbait, listicles, vague speculation, opinion without data, generic commentary, marketing.
-
-Return ONLY a JSON array: [{"symbol": "...", "headline": "first 60 chars", "is_useful": true/false, "reasons": ["reason1"], "confidence": "high/medium/low", "explanation": "brief"}]
-
-Reason codes: specific_data, regulatory_filing, material_event, analyst_action, clickbait, listicle, too_vague, opinion_fluff, generic_commentary, marketing, duplicate"""
 _METRICS_INSERT_SQL = """
         INSERT INTO ml_model_metrics
         (model_name, model_version, trained_at, training_samples, test_samples,
@@ -103,33 +97,32 @@ def _row_to_article(row: Any) -> dict[str, str]:
 
 
 def _label_articles_with_gemini(new_articles: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Send articles to Gemini for quality labeling."""
-    logger.info("labeling_articles_with_gemini", count=len(new_articles))
-    tmp_path = _write_articles_to_tempfile(new_articles)
-
+    """Send articles to Agent Hub for quality labeling."""
+    logger.info("labeling_articles_with_agent_hub", count=len(new_articles))
+    prompt = render_agent_hub_prompt(
+        _ARTICLE_LABELING_TEMPLATE,
+        article_rows="\n".join(
+            f"{article['symbol']}|{article['headline']}|{article['summary']}"
+            for article in new_articles
+        ),
+    )
+    client = AgentHubAPIClient(agent_slug=_ARTICLE_LABELING_AGENT_SLUG)
     try:
-        with Path(tmp_path).open(encoding="utf-8") as tmp_file:
-            result = subprocess.run(
-                ["gemini", "--prompt", _GEMINI_PROMPT],
-                stdin=tmp_file,
-                capture_output=True,
-                text=True,
-                timeout=_GEMINI_TIMEOUT_SECONDS,
-                check=False,
-                env=_GEMINI_ENV,
-            )
+        response = client.generate(
+            prompt=prompt,
+            system=require_agent_hub_prompt(_ARTICLE_LABELING_SYSTEM),
+            purpose="article_quality_labeling",
+        )
     finally:
-        Path(tmp_path).unlink(missing_ok=True)
+        client.close()
 
-    if result.returncode != 0:
-        raise RuntimeError(f"Gemini labeling failed: {result.stderr}")
-
-    gemini_labels = _parse_gemini_output(result.stdout, result.stderr)
-    logger.info("gemini_labeling_complete", count=len(gemini_labels))
-    return gemini_labels
+    labels = _parse_gemini_output(response.content, "")
+    logger.info("agent_hub_labeling_complete", count=len(labels))
+    return labels
 
 
 def _write_articles_to_tempfile(new_articles: list[dict[str, Any]]) -> str:
+    """Legacy helper kept for test compatibility."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as tmp:
         for article in new_articles:
             tmp.write(f"{article['symbol']}|{article['headline']}|{article['summary']}\n")
