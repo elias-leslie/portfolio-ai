@@ -151,7 +151,9 @@ function TrackedAccountDialog({
   const isEditing = Boolean(account?.trackedAccountId)
   const isPrefilled = Boolean(seed) && !isEditing
   const identityLocked = Boolean(isEditing && account?.evidenceCount && account.evidenceCount > 0)
-  const dialogTitle = isEditing
+  const dialogTitle = identityLocked
+    ? 'Edit account label'
+    : isEditing
     ? 'Edit tracked account'
     : isPrefilled
       ? 'Track account'
@@ -161,7 +163,9 @@ function TrackedAccountDialog({
     : identityLocked
       ? 'Rename this account or add notes here. Identity fields stay tied to linked evidence so one account cannot silently turn into another.'
     : 'Create a real account row first, then let Jenny attach evidence to it over time.'
-  const submitLabel = isEditing
+  const submitLabel = identityLocked
+    ? 'Save label'
+    : isEditing
     ? 'Save account'
     : isPrefilled
       ? 'Save account details'

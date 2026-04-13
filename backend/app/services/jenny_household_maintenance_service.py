@@ -35,6 +35,7 @@ class JennyHouseholdMaintenanceService:
     """Replay weak money evidence and sync the money inbox into Jenny."""
 
     def run_daily_maintenance_pass(self, service: Any, *, routine_id: str) -> dict[str, Any]:
+        synced_accounts = service.household_service.sync_linked_tracked_accounts()
         replay_stats = self._replay_candidate_documents(service)
         dashboard = service.household_service.get_dashboard()
         notification_count = self._sync_household_notifications(
@@ -42,9 +43,10 @@ class JennyHouseholdMaintenanceService:
             routine_id=routine_id,
             dashboard=dashboard,
         )
-        summary = self._build_summary(dashboard, replay_stats, notification_count)
+        summary = self._build_summary(dashboard, replay_stats, notification_count, synced_accounts)
         return {
             "summary": summary,
+            "linked_accounts_synced": synced_accounts,
             "documents_reviewed": replay_stats["attempted"],
             "documents_recovered": replay_stats["recovered"],
             "missing_sources": replay_stats["missing_source"],
@@ -140,9 +142,11 @@ class JennyHouseholdMaintenanceService:
         dashboard: HouseholdFinanceDashboard,
         replay_stats: dict[str, int],
         notification_count: int,
+        synced_accounts: int,
     ) -> str:
         overview = dashboard.overview
         return (
+            f"Synced {synced_accounts} linked tracked accounts from evidence. "
             f"Replayed {replay_stats['attempted']} household documents "
             f"({replay_stats['recovered']} recovered, {replay_stats['missing_source']} missing source). "
             f"Net worth is {overview.net_worth_status}; monthly spend is {overview.monthly_spend_status}; "

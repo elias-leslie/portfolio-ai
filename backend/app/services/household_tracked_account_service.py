@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import uuid
+from collections import defaultdict
 from datetime import UTC, datetime
 from typing import Any
 
 from app.models.household_finance import (
+    HouseholdEvidenceAccount,
     HouseholdTrackedAccount,
     HouseholdTrackedAccountInput,
 )
@@ -87,6 +89,76 @@ class HouseholdTrackedAccountService:
                 [max(limit, 1)],
             ).fetchall()
         return [row_to_tracked_account(row, iso=iso) for row in rows]
+
+    def sync_linked_accounts_from_evidence(self, service: Any, *, limit: int = 500) -> int:
+        tracked_accounts = self.list_accounts(service, limit=limit)
+        evidence_by_match_key = self._latest_evidence_by_match_key(service, limit=limit)
+        updates: list[tuple[str, str, str, str, str | None, str | None, str | None]] = []
+
+        for account in tracked_accounts:
+            if not account.match_key:
+                continue
+            evidence = evidence_by_match_key.get(account.match_key)
+            if evidence is None:
+                continue
+            next_asset_group = evidence.asset_group
+            next_account_type = evidence.account_type
+            next_source_type = evidence.source_type
+            next_institution_name = evidence.institution_name
+            next_owner_name = evidence.owner_name if evidence.owner_name is not None else account.owner_name
+            next_account_mask = evidence.account_mask if evidence.account_mask is not None else account.account_mask
+            if (
+                account.asset_group == next_asset_group
+                and account.account_type == next_account_type
+                and account.source_type == next_source_type
+                and account.institution_name == next_institution_name
+                and account.owner_name == next_owner_name
+                and account.account_mask == next_account_mask
+            ):
+                continue
+            updates.append(
+                (
+                    next_asset_group,
+                    next_account_type,
+                    next_source_type,
+                    next_institution_name,
+                    next_owner_name,
+                    next_account_mask,
+                    account.id,
+                )
+            )
+
+        if not updates:
+            return 0
+
+        now = datetime.now(UTC).isoformat()
+        with service.storage.connection() as conn:
+            for asset_group, account_type, source_type, institution_name, owner_name, account_mask, account_id in updates:
+                conn.execute(
+                    """
+                    UPDATE household_tracked_accounts
+                    SET asset_group = %s,
+                        account_type = %s,
+                        source_type = %s,
+                        institution_name = %s,
+                        owner_name = %s,
+                        account_mask = %s,
+                        updated_at = %s
+                    WHERE id = %s
+                    """,
+                    [
+                        asset_group,
+                        account_type,
+                        source_type,
+                        institution_name,
+                        owner_name,
+                        account_mask,
+                        now,
+                        account_id,
+                    ],
+                )
+            conn.commit()
+        return len(updates)
 
     def create_account(
         self,
@@ -262,3 +334,51 @@ class HouseholdTrackedAccountService:
                 raise ValueError(
                     f"Tracked account already exists for {existing.label}. Rename that row instead of creating a duplicate."
                 )
+
+    def _latest_evidence_by_match_key(
+        self,
+        service: Any,
+        *,
+        limit: int,
+    ) -> dict[str, HouseholdEvidenceAccount]:
+        grouped: dict[str, list[HouseholdEvidenceAccount]] = defaultdict(list)
+        for account in service.list_evidence_accounts(limit=limit):
+            match_key = self._evidence_match_key(account)
+            if match_key:
+                grouped[match_key].append(account)
+        latest_by_match_key: dict[str, HouseholdEvidenceAccount] = {}
+        for match_key, accounts in grouped.items():
+            latest_by_match_key[match_key] = max(
+                accounts,
+                key=lambda account: (
+                    account.as_of_date or "",
+                    float(account.confidence or 0.0),
+                ),
+            )
+        return latest_by_match_key
+
+    @staticmethod
+    def _evidence_match_key(account: HouseholdEvidenceAccount) -> str | None:
+        normalized_institution = _clean_text(account.institution_name)
+        normalized_name = _clean_text(account.account_name)
+        normalized_owner = _clean_text(account.owner_name)
+        normalized_mask = _clean_text(account.account_mask)
+        normalized_type = _clean_text(account.account_type)
+        normalized_group = _clean_text(account.asset_group)
+        if normalized_mask:
+            return f"evidence|{normalized_mask.lower()}|{(normalized_group or normalized_type or '').lower()}"
+        if normalized_institution and normalized_name:
+            if normalized_owner:
+                return (
+                    "evidence|"
+                    f"{normalized_institution.lower()}|{normalized_name.lower()}|{normalized_owner.lower()}|{(normalized_type or normalized_group or '').lower()}"
+                )
+            return (
+                "evidence|"
+                f"{normalized_institution.lower()}|{normalized_name.lower()}|{(normalized_type or normalized_group or '').lower()}"
+            )
+        if normalized_name:
+            if normalized_owner:
+                return f"evidence|{normalized_name.lower()}|{normalized_owner.lower()}|{(normalized_type or normalized_group or '').lower()}"
+            return f"evidence|{normalized_name.lower()}|{(normalized_type or normalized_group or '').lower()}"
+        return None

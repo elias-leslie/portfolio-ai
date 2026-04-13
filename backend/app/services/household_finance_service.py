@@ -62,6 +62,7 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         self.tracked_account_service = HouseholdTrackedAccountService()
 
     def get_dashboard(self) -> HouseholdFinanceDashboard:
+        self.tracked_account_service.sync_linked_accounts_from_evidence(self)
         return self.dashboard_composer.build_dashboard(self)
 
     def get_profile(self) -> HouseholdProfile:
@@ -103,6 +104,9 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
 
     def delete_tracked_account(self, account_id: str) -> bool:
         return self.tracked_account_service.delete_account(self, account_id)
+
+    def sync_linked_tracked_accounts(self, *, limit: int = 500) -> int:
+        return self.tracked_account_service.sync_linked_accounts_from_evidence(self, limit=limit)
 
     def _upload_root(self) -> Path:
         return Path(__file__).resolve().parents[2] / "data" / "household_uploads"
