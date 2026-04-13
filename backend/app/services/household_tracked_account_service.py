@@ -48,9 +48,11 @@ def _identity_key(
     account_type: str,
     source_type: str,
     institution_name: str | None,
+    owner_name: str | None,
     account_mask: str | None,
 ) -> str | None:
     normalized_institution = _clean_text(institution_name)
+    normalized_owner = _clean_text(owner_name)
     normalized_mask = _clean_text(account_mask)
     if normalized_institution and normalized_mask:
         return f"institution-mask::{normalized_institution.lower()}|{normalized_mask.lower()}"
@@ -59,7 +61,7 @@ def _identity_key(
     if normalized_institution:
         return (
             "institution-label::"
-            f"{normalized_institution.lower()}|{asset_group.lower()}|{source_type.lower()}|{label.lower()}"
+            f"{normalized_institution.lower()}|{(normalized_owner or '').lower()}|{asset_group.lower()}|{source_type.lower()}|{label.lower()}"
         )
     return None
 
@@ -221,6 +223,7 @@ class HouseholdTrackedAccountService:
             account_type=str(account["account_type"] or ""),
             source_type=str(account["source_type"] or ""),
             institution_name=account["institution_name"],
+            owner_name=account["owner_name"],
             account_mask=account["account_mask"],
         )
         if identity is None:
@@ -234,6 +237,7 @@ class HouseholdTrackedAccountService:
                 account_type=existing.account_type,
                 source_type=existing.source_type,
                 institution_name=existing.institution_name,
+                owner_name=existing.owner_name,
                 account_mask=existing.account_mask,
             )
             if existing_identity == identity:

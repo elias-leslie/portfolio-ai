@@ -559,6 +559,60 @@ def test_build_account_summaries_merge_legacy_label_mask_with_new_account_mask()
     assert summaries[0].last_balance_at.startswith("2026-04-13")
 
 
+def test_build_account_summaries_keep_same_plan_separate_by_owner_without_mask() -> None:
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="acct-elias",
+                document_id="doc-elias",
+                source_type="retirement",
+                asset_group="retirement",
+                account_type="retirement",
+                institution_name="Florida Retirement System (FRS)",
+                account_name="FRS Investment Plan",
+                account_mask=None,
+                owner_name="Elias B. Leslie",
+                currency="USD",
+                balance=42404.62,
+                holdings_value=42404.62,
+                cash_balance=None,
+                as_of_date="2026-04-10",
+                confidence=0.96,
+                metadata={},
+            ),
+            HouseholdEvidenceAccount(
+                id="acct-mariana",
+                document_id="doc-mariana",
+                source_type="retirement",
+                asset_group="retirement",
+                account_type="retirement",
+                institution_name="Florida Retirement System (FRS)",
+                account_name="FRS Investment Plan",
+                account_mask=None,
+                owner_name="Mariana Leslie",
+                currency="USD",
+                balance=131002.19,
+                holdings_value=131002.19,
+                cash_balance=None,
+                as_of_date="2026-04-10",
+                confidence=0.97,
+                metadata={},
+            ),
+        ],
+        documents=[],
+        portfolio_accounts=[],
+        tracked_accounts=[],
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    assert len(summaries) == 2
+    labels = {summary.label for summary in summaries}
+    assert "Florida Retirement System (FRS) · FRS Investment Plan (Elias B. Leslie)" in labels
+    assert "Florida Retirement System (FRS) · FRS Investment Plan (Mariana Leslie)" in labels
+    assert sum(summary.current_value or 0.0 for summary in summaries) == 173406.81
+
+
 def test_build_money_inbox_surfaces_discovered_accounts_with_review_route() -> None:
     inbox = build_money_inbox(
         accounts=[],

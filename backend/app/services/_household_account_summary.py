@@ -147,28 +147,36 @@ def _asset_group_label(asset_group: str) -> str:
 
 
 def _account_label(account: HouseholdEvidenceAccount) -> str:
+    owner = _normalize_text(account.owner_name)
+    derived_mask = _derive_account_mask(account.account_mask, account.account_name)
+    owner_suffix = f" ({account.owner_name})" if owner and not derived_mask else ""
     if account.institution_name and account.account_name:
-        return f"{account.institution_name} · {account.account_name}"
+        return f"{account.institution_name} · {account.account_name}{owner_suffix}"
     if account.account_name:
-        return account.account_name
+        return f"{account.account_name}{owner_suffix}"
     if account.institution_name:
         if account.account_mask:
             return f"{account.institution_name} · …{account.account_mask}"
-        return account.institution_name
+        return f"{account.institution_name}{owner_suffix}"
     return account.account_type.replace("_", " ").title()
 
 
 def _evidence_group_key(account: HouseholdEvidenceAccount) -> str:
     institution = _normalize_text(account.institution_name)
     name = _normalize_text(account.account_name)
+    owner = _normalize_text(account.owner_name)
     mask = _derive_account_mask(account.account_mask, account.account_name)
     account_type = _normalize_text(account.account_type)
     asset_group = _normalize_text(account.asset_group)
     if mask:
         return _compact_key("evidence", mask, asset_group or account_type)
     if institution and name:
+        if owner:
+            return _compact_key("evidence", institution, name, owner, account_type or asset_group)
         return _compact_key("evidence", institution, name, account_type or asset_group)
     if name:
+        if owner:
+            return _compact_key("evidence", name, owner, account_type or asset_group)
         return _compact_key("evidence", name, account_type or asset_group)
     return _compact_key("evidence", account.id)
 
@@ -881,7 +889,11 @@ def build_account_summaries(
             match_confidence=match_confidence,
         )
         summaries.append(summary)
-        duplicate_key = (_normalize_text(summary.institution_name), summary.asset_group)
+        duplicate_key = (
+            _normalize_text(summary.institution_name),
+            summary.asset_group,
+            _normalize_text(summary.owner_name),
+        )
         if duplicate_key[0] and latest.account_mask is None:
             duplicate_candidates[duplicate_key].append(summary.id)
 
