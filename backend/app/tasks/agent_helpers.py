@@ -109,7 +109,7 @@ def run_agent_task(
     try:
         storage = get_storage()
         agent_tools = setup_agent_tools(storage)
-        llm_client = DualProviderClient(primary="gemini")
+        llm_client = DualProviderClient()
 
         agent = agent_class(storage=storage, tools=agent_tools, llm_client=llm_client)
         result = agent.run()

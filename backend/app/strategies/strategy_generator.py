@@ -11,6 +11,7 @@ from typing import Any
 
 from app.agents.llm_client import DualProviderClient, LLMResponse
 from app.logging_config import get_logger
+from app.services.agent_hub_prompt_service import render_agent_hub_prompt, require_agent_hub_prompt
 
 from .models import (
     ExpectedCharacteristics,
@@ -21,81 +22,8 @@ from .models import (
 
 logger = get_logger(__name__)
 
-# System prompt template for strategy generation
-STRATEGY_GENERATOR_PROMPT = """You are a quantitative trading strategist. Your job is to analyze market research and generate a trading strategy configuration.
-
-**Your Task**:
-1. Analyze the research across all dimensions (news, fundamentals, technical, macro, sector)
-2. Identify the dominant market theme (e.g., "strong momentum with positive earnings", "sector rotation opportunity")
-3. Design a strategy that capitalizes on this theme
-4. Generate a JSON configuration with strategy parameters
-
-**Strategy Types to Consider**:
-- **Momentum**: Strong uptrend + positive news + sector strength → aggressive entries
-- **Value**: Undervalued fundamentals + improving sentiment → patient entries
-- **Event**: Material news event + earnings proximity → short-term tactical
-- **Reversal**: Oversold technical + improving fundamentals → contrarian entries
-- **Defensive**: High volatility + weak sentiment → conservative entries only
-
-**Critical Rules**:
-- Confirmation weights MUST sum to exactly 1.0
-- All thresholds must be within reasonable ranges (RSI 0-100, sentiment -1 to +1)
-- Confidence must reflect research quality (low quality = lower confidence)
-- If research is insufficient (overall_confidence < 0.5), recommend "no_strategy" type
-
-**Output Format**:
-Respond with ONLY a valid JSON object (no markdown, no explanation outside JSON):
-
-{
-  "strategy_type": "momentum|value|event|reversal|defensive|no_strategy",
-  "reasoning": "2-3 sentence explanation of why this strategy fits the research",
-  "confidence": 0.7,
-
-  "parameters": {
-    "weight_price_trend": 0.20,
-    "weight_rsi_health": 0.10,
-    "weight_momentum": 0.15,
-    "weight_volume": 0.10,
-    "weight_fundamentals": 0.15,
-    "weight_news_sentiment": 0.20,
-    "weight_sector_alignment": 0.10,
-
-    "min_confirmations": 6,
-    "min_weighted_score": 0.65,
-
-    "stop_loss_atr_multiplier": 2.0,
-    "max_holding_days": 60,
-    "position_sizing_method": "fixed_dollars",
-    "position_size_value": 10000.00,
-
-    "rsi_oversold_threshold": 30,
-    "rsi_overbought_threshold": 70,
-    "volume_multiplier_threshold": 0.7,
-    "news_sentiment_threshold": 0.2
-  },
-
-  "expected_characteristics": {
-    "avg_holding_period_days": 45,
-    "expected_win_rate": 0.55,
-    "expected_sharpe": 1.3,
-    "risk_level": "medium"
-  }
-}
-
-**Weight Guidelines**:
-- Momentum strategy: Higher weight on momentum (0.25), sector (0.15), price trend (0.20)
-- Value strategy: Higher weight on fundamentals (0.30), valuation (via price_trend 0.15)
-- Event strategy: Higher weight on news (0.35), volume (0.15)
-- Reversal strategy: Higher weight on RSI (0.20), fundamentals (0.25)
-- Defensive strategy: Balanced weights (0.14-0.15 each), high min_weighted_score (0.70)
-
-**Risk Level Guidelines**:
-- Low: Sharpe > 2.0, win rate > 0.65, conservative thresholds
-- Medium-low: Sharpe 1.5-2.0, win rate 0.55-0.65
-- Medium: Sharpe 1.0-1.5, win rate 0.50-0.55
-- Medium-high: Sharpe 0.7-1.0, win rate 0.45-0.50
-- High: Sharpe < 0.7, win rate < 0.45 (event trading, high risk)
-"""
+STRATEGY_GENERATOR_PROMPT = "portfolio-strategy-generator-template"
+STRATEGY_GENERATOR_SYSTEM_PROMPT = "portfolio-strategy-generator-system"
 
 
 class StrategyGeneratorAgent:
@@ -103,9 +31,7 @@ class StrategyGeneratorAgent:
 
     def __init__(self) -> None:
         """Initialize strategy generator agent."""
-        self.llm_client = DualProviderClient(
-            primary="gemini",  # Fast and cheap
-        )
+        self.llm_client = DualProviderClient(agent_slug="trade-manager")
 
     async def generate_strategy(self, research: ResearchInsights) -> StrategyGenerationResult:
         """Generate trading strategy from research insights.
@@ -122,11 +48,10 @@ class StrategyGeneratorAgent:
         # Format research into prompt
         research_json = self._format_research_prompt(research)
 
-        prompt = f"""**Input Research Summary**:
-{research_json}
-
-Based on this research, generate a trading strategy configuration as valid JSON.
-"""
+        prompt = render_agent_hub_prompt(
+            STRATEGY_GENERATOR_PROMPT,
+            research_json=research_json,
+        )
 
         logger.info(
             f"Generating strategy for {research.symbol} "
@@ -137,8 +62,7 @@ Based on this research, generate a trading strategy configuration as valid JSON.
         try:
             response: LLMResponse = self.llm_client.generate(
                 prompt=prompt,
-                system=STRATEGY_GENERATOR_PROMPT,
-                temperature=0.3,  # Low temperature for consistent output
+                system=require_agent_hub_prompt(STRATEGY_GENERATOR_SYSTEM_PROMPT),
                 purpose="strategy_generation",
             )
 
