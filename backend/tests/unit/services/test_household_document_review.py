@@ -326,6 +326,47 @@ def test_baseline_review_detects_fidelity_positions_csv_and_groups_accounts() ->
     assert structured_data["statement_period"] == "2026-04-12"
 
 
+def test_baseline_review_detects_fidelity_statement_summary_csv_and_groups_accounts() -> None:
+    payload = _baseline_review(
+        filename="Statement3312026.csv",
+        source_type="other",
+        document_type="other",
+        extracted_text=(
+            "Account Type,Account,Beginning mkt Value,Change in Investment,Ending mkt Value,Short Balance,Ending Net Value,Dividends This Period,Dividends Year to Date,Interest This Year,Interest Year to Date,Total This Period,Total Year to Date\n"
+            "ROTH IRA,250696445,47622.95,391.20,48014.15,,,,,,,391.20,391.20\n"
+            "Individual - TOD,Z35217544,507160.48,-21008.66,486151.82,,,1497.11,1497.11,,,1497.11,1497.11\n"
+            "Traditional IRA,245944181,346819.86,-14619.08,332200.78,,,,,,,1011.10,1011.10\n"
+            "Symbol/CUSIP,Description,Quantity,Price,Beginning Value,Ending Value,Cost Basis\n"
+        ),
+    )
+    structured_data = cast(dict[str, Any], payload["structured_data"])
+
+    assert payload["source_type"] == "brokerage"
+    assert payload["document_type"] == "brokerage_statement"
+    assert payload["confidence"] == 0.92
+    assert payload["summary"] == (
+        "Fidelity statement summary covering 3 mixed accounts totaling $866,366.75."
+    )
+    accounts = cast(list[dict[str, Any]], structured_data["financial_accounts"])
+    assert len(accounts) == 3
+    assert accounts[0]["account_name"] == "ROTH IRA"
+    assert accounts[0]["account_mask"] == "250696445"
+    assert accounts[0]["source_type"] == "retirement"
+    assert accounts[0]["balance"] == "48014.15"
+    assert accounts[0]["as_of_date"] == "2026-03-31"
+    assert accounts[1]["account_name"] == "Individual - TOD"
+    assert accounts[1]["account_mask"] == "Z35217544"
+    assert accounts[1]["source_type"] == "brokerage"
+    assert accounts[1]["balance"] == "486151.82"
+    assert accounts[2]["account_name"] == "Traditional IRA"
+    assert accounts[2]["account_mask"] == "245944181"
+    assert accounts[2]["source_type"] == "retirement"
+    assert accounts[2]["balance"] == "332200.78"
+    assert structured_data["provider_name"] == "Fidelity"
+    assert structured_data["account_hint"] == "Fidelity statement summary (3 accounts)"
+    assert structured_data["statement_period"] == "2026-03-31"
+
+
 @patch.object(HouseholdDocumentReviewService, "_touch_signature")
 @patch.object(HouseholdDocumentReviewService, "_find_signature")
 def test_review_uses_baseline_account_identity_for_csv_header_signature(

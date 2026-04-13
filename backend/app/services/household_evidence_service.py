@@ -236,7 +236,8 @@ class HouseholdEvidenceService:
         for raw_account in raw_accounts:
             if not isinstance(raw_account, dict):
                 continue
-            account_type = _string_or_none(raw_account.get("account_type")) or source_type
+            account_source_type = _string_or_none(raw_account.get("source_type")) or source_type
+            account_type = _string_or_none(raw_account.get("account_type")) or account_source_type
             institution_name = (
                 _string_or_none(raw_account.get("institution_name"))
                 or _string_or_none(raw_account.get("institution"))
@@ -259,9 +260,9 @@ class HouseholdEvidenceService:
             cash_balance = _decimal_or_none(raw_account.get("cash_balance")) or _decimal_or_none(raw_account.get("available_cash"))
             if balance is None and (holdings_value is not None or cash_balance is not None):
                 balance = round((holdings_value or 0.0) + (cash_balance or 0.0), 4)
-            if holdings_value is None and balance is not None and source_type in {"brokerage", "retirement"}:
+            if holdings_value is None and balance is not None and account_source_type in {"brokerage", "retirement"}:
                 holdings_value = balance
-            if cash_balance is None and balance is not None and source_type == "bank":
+            if cash_balance is None and balance is not None and account_source_type == "bank":
                 cash_balance = balance
             as_of_date = parse_row_date(_string_or_none(raw_account.get("as_of_date"))) or fallback_as_of_date
             confidence = _decimal_or_none(raw_account.get("confidence")) or _decimal_or_none(reviewed.get("confidence"))
@@ -296,8 +297,8 @@ class HouseholdEvidenceService:
             }
             normalized_accounts.append(
                 {
-                    "source_type": source_type,
-                    "asset_group": _asset_group(raw_account.get("asset_group"), source_type=source_type),
+                    "source_type": account_source_type,
+                    "asset_group": _asset_group(raw_account.get("asset_group"), source_type=account_source_type),
                     "account_type": account_type,
                     "institution_name": institution_name,
                     "account_name": account_name,

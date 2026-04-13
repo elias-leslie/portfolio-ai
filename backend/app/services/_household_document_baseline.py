@@ -479,6 +479,7 @@ def _extract_fidelity_positions_accounts(
         total_balance += balance_total
         financial_accounts.append(
             {
+                "source_type": source_type,
                 "asset_group": group["asset_group"],
                 "account_type": group["account_type"],
                 "institution_name": "Fidelity",
@@ -516,6 +517,130 @@ def _extract_fidelity_positions_accounts(
         f"{'account' if account_count == 1 else 'accounts'} totaling ${total_balance:,.2f}."
     )
     return source_type, document_type, 0.95, summary, structured_data
+
+
+def _parse_filename_statement_date(filename: str) -> str | None:
+    for run in re.findall(r"\d{7,8}", filename):
+        year = int(run[-4:])
+        month_day = run[:-4]
+        for month_len in (1, 2):
+            if len(month_day) <= month_len:
+                continue
+            month = int(month_day[:month_len])
+            day = int(month_day[month_len:])
+            try:
+                return datetime(year, month, day).date().isoformat()
+            except ValueError:
+                continue
+    return None
+
+
+def _extract_fidelity_statement_summary_accounts(
+    *,
+    filename: str,
+    extracted_text: str | None,
+) -> tuple[str, str, float, str, _StructuredData] | None:
+    if not extracted_text:
+        return None
+    raw_lines = extracted_text.splitlines()
+    first_nonempty = next((line for line in raw_lines if line.strip()), "")
+    headers = [_normalize_csv_header(cell) for cell in next(csv.reader([first_nonempty]), [])]
+    required = {
+        "account_type",
+        "account",
+        "beginning_mkt_value",
+        "change_in_investment",
+        "ending_mkt_value",
+    }
+    if not required.issubset(set(headers)):
+        return None
+
+    summary_rows: list[dict[str, str]] = []
+    header_len = len(headers)
+    for raw_line in raw_lines[1:]:
+        if not raw_line.strip():
+            break
+        parsed = next(csv.reader([raw_line]), [])
+        if not parsed:
+            continue
+        normalized_first = _normalize_csv_header(parsed[0] if parsed else "")
+        if normalized_first in {"symbol_cusip", "symbol", "subtotal_of_core_account"}:
+            break
+        padded = [str(cell or "").strip() for cell in parsed] + [""] * max(0, header_len - len(parsed))
+        row = {
+            headers[index]: padded[index]
+            for index in range(header_len)
+            if headers[index]
+        }
+        if row.get("account_type") and row.get("account"):
+            summary_rows.append(row)
+
+    if not summary_rows:
+        return None
+
+    as_of_date = _parse_filename_statement_date(filename)
+    financial_accounts: list[dict[str, object]] = []
+    source_types: set[str] = set()
+    total_balance = 0.0
+    for row in summary_rows:
+        account_name = row.get("account_type", "").strip()
+        account_mask = row.get("account", "").strip()
+        if not account_name or not account_mask:
+            continue
+        ending_value = _float_value(row.get("ending_net_value")) or _float_value(row.get("ending_mkt_value"))
+        if ending_value is None:
+            continue
+        asset_group, account_type, source_type = _fidelity_account_type(account_name)
+        source_types.add(source_type)
+        total_balance += ending_value
+        financial_accounts.append(
+            {
+                "source_type": source_type,
+                "asset_group": asset_group,
+                "account_type": account_type,
+                "institution_name": "Fidelity",
+                "account_name": account_name,
+                "account_hint": account_name,
+                "account_mask": account_mask,
+                "currency": "USD",
+                "balance": f"{ending_value:.2f}",
+                "holdings_value": f"{ending_value:.2f}",
+                "cash_balance": None,
+                "as_of_date": as_of_date,
+                "metadata": {
+                    "statement_source": "summary_csv",
+                    "change_in_investment": row.get("change_in_investment"),
+                    "beginning_market_value": row.get("beginning_mkt_value"),
+                },
+            }
+        )
+
+    if not financial_accounts:
+        return None
+
+    source_type = "retirement" if source_types == {"retirement"} else "brokerage"
+    document_type = "retirement_statement" if source_type == "retirement" else "brokerage_statement"
+    account_count = len(financial_accounts)
+    structured_data: _StructuredData = {
+        "provider_name": "Fidelity",
+        "currency": "USD",
+        "financial_accounts": financial_accounts,
+        "total_amount": f"{total_balance:.2f}",
+        "account_count": account_count,
+    }
+    if as_of_date is not None:
+        structured_data["statement_period"] = as_of_date
+    structured_data["account_hint"] = (
+        str(financial_accounts[0]["account_name"])
+        if account_count == 1
+        else f"Fidelity statement summary ({account_count} accounts)"
+    )
+    summary = (
+        f"Fidelity statement summary covering {account_count} "
+        f"{'retirement' if source_type == 'retirement' else 'mixed'} "
+        f"{'account' if account_count == 1 else 'accounts'} totaling ${total_balance:,.2f}."
+    )
+    return source_type, document_type, 0.92, summary, structured_data
 
 
 def _classify_statement_csv(
@@ -576,13 +701,27 @@ def _classify_by_content(
             ) = fidelity_positions
             structured_data.update(positions_structured_data)
         else:
-            statement_csv = _classify_statement_csv(
+            fidelity_statement_summary = _extract_fidelity_statement_summary_accounts(
                 filename=filename,
                 extracted_text=extracted_text,
-                structured_data=structured_data,
             )
-            if statement_csv is not None:
-                inferred_source, inferred_document, confidence, summary = statement_csv
+            if fidelity_statement_summary is not None:
+                (
+                    inferred_source,
+                    inferred_document,
+                    confidence,
+                    summary,
+                    statement_structured_data,
+                ) = fidelity_statement_summary
+                structured_data.update(statement_structured_data)
+            else:
+                statement_csv = _classify_statement_csv(
+                    filename=filename,
+                    extracted_text=extracted_text,
+                    structured_data=structured_data,
+                )
+                if statement_csv is not None:
+                    inferred_source, inferred_document, confidence, summary = statement_csv
     elif "chase.com/amazon" in text_lower or "autopay is on" in text_lower:
         inferred_source, inferred_document, confidence, summary = _classify_chase_amazon(structured_data)
     elif (

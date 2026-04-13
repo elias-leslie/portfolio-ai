@@ -386,6 +386,125 @@ def test_build_account_summaries_use_activity_observed_through_for_spend_driver_
     assert not any(gap.code == "refresh_transactions_soon" for gap in summary.gap_flags)
 
 
+def test_build_account_summaries_merge_same_mask_across_alias_names() -> None:
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="acct-summary",
+                document_id="doc-summary",
+                source_type="brokerage",
+                asset_group="taxable",
+                account_type="brokerage",
+                institution_name=None,
+                account_name="Cash Management (Joint WROS)",
+                account_mask="Z38367298",
+                owner_name=None,
+                currency="USD",
+                balance=39400.59,
+                holdings_value=33400.59,
+                cash_balance=33400.59,
+                as_of_date=_iso(3),
+                confidence=0.95,
+                metadata={},
+            ),
+            HouseholdEvidenceAccount(
+                id="acct-csv",
+                document_id="doc-csv",
+                source_type="brokerage",
+                asset_group="taxable",
+                account_type="brokerage",
+                institution_name=None,
+                account_name="Account Z38367298",
+                account_mask="Z38367298",
+                owner_name=None,
+                currency="USD",
+                balance=39400.59,
+                holdings_value=39400.59,
+                cash_balance=39400.59,
+                as_of_date=_iso(5),
+                confidence=0.9,
+                metadata={},
+            ),
+        ],
+        documents=[],
+        portfolio_accounts=[],
+        tracked_accounts=[],
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+        latest_transaction_dates_by_account_label={
+            "Cash Management (Joint WROS)": (datetime.now(UTC) - timedelta(days=5)).date(),
+            "Account Z38367298": (datetime.now(UTC) - timedelta(days=5)).date(),
+        },
+    )
+
+    assert len(summaries) == 1
+    assert summaries[0].label == "Cash Management (Joint WROS)"
+    assert summaries[0].account_mask == "Z38367298"
+    assert summaries[0].evidence_count == 2
+
+
+def test_build_account_summaries_merge_same_institution_mask_across_source_types() -> None:
+    portfolio_account = Account(
+        id="portfolio-roth",
+        name="ROTH IRA",
+        account_type="Roth",
+        cash_balance=0.0,
+    )
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="acct-older",
+                document_id="doc-older",
+                source_type="brokerage",
+                asset_group="retirement",
+                account_type="roth_ira",
+                institution_name="Fidelity",
+                account_name="ROTH IRA",
+                account_mask="250696445",
+                owner_name=None,
+                currency="USD",
+                balance=48014.15,
+                holdings_value=48014.15,
+                cash_balance=None,
+                as_of_date="2026-03-31",
+                confidence=0.92,
+                metadata={},
+            ),
+            HouseholdEvidenceAccount(
+                id="acct-newer",
+                document_id="doc-newer",
+                source_type="retirement",
+                asset_group="retirement",
+                account_type="roth_ira",
+                institution_name="Fidelity",
+                account_name="ROTH IRA",
+                account_mask="250696445",
+                owner_name=None,
+                currency="USD",
+                balance=48014.15,
+                holdings_value=48014.15,
+                cash_balance=None,
+                as_of_date="2026-04-12",
+                confidence=0.95,
+                metadata={},
+            ),
+        ],
+        documents=[],
+        portfolio_accounts=[portfolio_account],
+        tracked_accounts=[],
+        holdings_by_account={"portfolio-roth": 48014.15},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    assert len(summaries) == 1
+    assert summaries[0].label == "ROTH IRA"
+    assert summaries[0].source_type == "retirement"
+    assert summaries[0].evidence_count == 2
+    assert summaries[0].linked_portfolio_account_id == "portfolio-roth"
+    assert summaries[0].last_balance_at is not None
+    assert summaries[0].last_balance_at.startswith("2026-04-12")
+
+
 def test_build_money_inbox_surfaces_discovered_accounts_with_review_route() -> None:
     inbox = build_money_inbox(
         accounts=[],
