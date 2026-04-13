@@ -683,6 +683,87 @@ def test_build_account_summaries_do_not_apply_owner_specific_tracked_label_to_si
     assert tracked_ids["Mariana Leslie"] is None
 
 
+def test_build_account_summaries_match_owner_specific_tracked_row_with_short_owner_name() -> None:
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="acct-elias",
+                document_id="doc-elias",
+                source_type="retirement",
+                asset_group="retirement",
+                account_type="401k",
+                institution_name="Florida Retirement System (FRS)",
+                account_name="FRS Investment Plan",
+                account_mask=None,
+                owner_name="Elias B. Leslie",
+                currency="USD",
+                balance=42404.62,
+                holdings_value=42404.62,
+                cash_balance=None,
+                as_of_date="2026-04-10",
+                confidence=0.96,
+                metadata={},
+            ),
+            HouseholdEvidenceAccount(
+                id="acct-mariana",
+                document_id="doc-mariana",
+                source_type="retirement",
+                asset_group="retirement",
+                account_type="401k",
+                institution_name="Florida Retirement System (FRS)",
+                account_name="FRS Investment Plan",
+                account_mask=None,
+                owner_name="Mariana Leslie",
+                currency="USD",
+                balance=131002.19,
+                holdings_value=131002.19,
+                cash_balance=None,
+                as_of_date="2026-04-10",
+                confidence=0.97,
+                metadata={},
+            ),
+        ],
+        documents=[],
+        portfolio_accounts=[],
+        tracked_accounts=[
+            HouseholdTrackedAccount(
+                id="tracked-elias",
+                label="FRS",
+                asset_group="retirement",
+                account_type="401k",
+                source_type="retirement",
+                institution_name="Florida Retirement System (FRS)",
+                owner_name="Elias",
+                account_mask=None,
+                notes=None,
+                created_at="2026-04-13T00:00:00Z",
+                updated_at="2026-04-13T00:00:00Z",
+            ),
+            HouseholdTrackedAccount(
+                id="tracked-mariana",
+                label="FRS",
+                asset_group="retirement",
+                account_type="401k",
+                source_type="retirement",
+                institution_name="Florida Retirement System (FRS)",
+                owner_name="Mariana",
+                account_mask=None,
+                notes=None,
+                created_at="2026-04-13T00:00:00Z",
+                updated_at="2026-04-13T00:00:00Z",
+            ),
+        ],
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    tracked_ids = {summary.current_value: summary.tracked_account_id for summary in summaries}
+
+    assert len(summaries) == 2
+    assert tracked_ids[42404.62] == "tracked-elias"
+    assert tracked_ids[131002.19] == "tracked-mariana"
+
+
 def test_build_money_inbox_surfaces_discovered_accounts_with_review_route() -> None:
     inbox = build_money_inbox(
         accounts=[],

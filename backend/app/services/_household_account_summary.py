@@ -65,6 +65,29 @@ def _compact_key(*parts: object) -> str:
     return "|".join(_normalize_text(part) for part in parts if _normalize_text(part))
 
 
+def _owner_tokens(value: str | None) -> list[str]:
+    normalized = _normalize_text(value)
+    if not normalized:
+        return []
+    return [token for token in re.split(r"[^a-z0-9]+", normalized) if token]
+
+
+def _owners_match(left: str | None, right: str | None) -> bool:
+    left_tokens = _owner_tokens(left)
+    right_tokens = _owner_tokens(right)
+    if not left_tokens or not right_tokens:
+        return False
+    if left_tokens == right_tokens:
+        return True
+    if left_tokens[0] != right_tokens[0]:
+        return False
+    left_set = set(left_tokens)
+    right_set = set(right_tokens)
+    if left_set <= right_set or right_set <= left_set:
+        return True
+    return len(left_tokens) > 1 and len(right_tokens) > 1 and left_tokens[-1] == right_tokens[-1]
+
+
 def _derive_account_mask(
     account_mask: str | None,
     account_name: str | None,
@@ -383,7 +406,7 @@ def _match_tracked_account(
             normalized_institution
             and normalized_owner
             and tracked_institution == normalized_institution
-            and tracked_owner == normalized_owner
+            and _owners_match(tracked_owner, normalized_owner)
         ):
             score = 3
         elif _normalize_text(account.label) in label_candidates:
