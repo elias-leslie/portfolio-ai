@@ -291,6 +291,8 @@ def upsert_signature_record(
     now: str,
 ) -> None:
     """Upsert one document signature row."""
+    metadata_payload = dict(metadata)
+    metadata_payload["structured_data"] = structured_data
     conn.execute(
         """
         INSERT INTO household_document_signatures (
@@ -319,7 +321,7 @@ def upsert_signature_record(
             structured_data.get("merchant"),
             structured_data.get("account_hint"),
             confidence,
-            document_id, json.dumps(metadata), now, now, now,
+            document_id, json.dumps(metadata_payload), now, now, now,
         ],
     )
 

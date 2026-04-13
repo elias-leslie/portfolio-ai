@@ -239,6 +239,43 @@ def test_baseline_review_detects_529_college_fund_snapshot() -> None:
     assert accounts[0]["balance"] == "6176.44"
 
 
+def test_build_signature_candidates_skips_generic_add_anything_filename() -> None:
+    service = HouseholdDocumentReviewService()
+
+    candidates = service.build_signature_candidates(
+        filename="add-anything.bin",
+        extracted_text="Random account text",
+    )
+
+    assert all(candidate[0] != "filename_pattern" for candidate in candidates)
+
+
+def test_signature_review_skips_weak_money_signature_without_financial_accounts() -> None:
+    service = HouseholdDocumentReviewService()
+    with patch.object(
+        service,
+        "_find_signature",
+        MagicMock(
+            return_value={
+                "id": "sig-1",
+                "signature_type": "text_prefix",
+                "source_type": "brokerage",
+                "document_type": "brokerage_statement",
+                "merchant": None,
+                "account_hint": "529 college savings account",
+                "confidence": 0.97,
+                "structured_data": {},
+            }
+        ),
+    ):
+        reviewed = service._signature_review(
+            filename="add-anything.bin",
+            extracted_text="College Fnd - Sophia\n$3,147.46",
+        )
+
+    assert reviewed is None
+
+
 def test_baseline_review_detects_cash_management_account_text() -> None:
     payload = _baseline_review(
         filename="add-anything.txt",

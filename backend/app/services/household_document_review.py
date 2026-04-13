@@ -34,6 +34,8 @@ logger = get_logger(__name__)
 
 _GENERIC_FILENAME_PATTERN_STEMS = frozenset(
     {
+        "add",
+        "anything",
         "attachment",
         "capture",
         "document",
@@ -49,6 +51,8 @@ _GENERIC_FILENAME_PATTERN_STEMS = frozenset(
         "upload",
     }
 )
+
+_MONEY_SIGNATURE_SOURCE_TYPES = frozenset({"bank", "credit_card", "brokerage", "retirement"})
 
 # Re-export for backward compatibility with tests and other importers.
 __all__ = [
@@ -278,16 +282,28 @@ class HouseholdDocumentReviewService:
         threshold = 0.94 if signature["signature_type"] == "filename_pattern" else 0.9
         if confidence < threshold:
             return None
+        signature_structured = signature.get("structured_data")
+        if not isinstance(signature_structured, dict):
+            signature_structured = {}
+        if (
+            str(signature.get("source_type") or "") in _MONEY_SIGNATURE_SOURCE_TYPES
+            and str(signature.get("signature_type") or "") not in {"csv_header", "filename_pattern"}
+            and not (
+                isinstance(signature_structured.get("financial_accounts"), list)
+                and bool(signature_structured.get("financial_accounts"))
+            )
+        ):
+            return None
 
-        structured_data: dict[str, Any] = {
-            "merchant": signature["merchant"],
-            "account_hint": signature["account_hint"],
-            "text_preview": extracted_text[:TEXT_PREVIEW_LENGTH] if extracted_text else None,
-        }
+        structured_data: dict[str, Any] = dict(signature_structured)
+        structured_data.setdefault("merchant", signature["merchant"])
+        structured_data.setdefault("account_hint", signature["account_hint"])
+        if extracted_text:
+            structured_data["text_preview"] = extracted_text[:TEXT_PREVIEW_LENGTH]
         statement_period, total_amount = _extract_amounts(extracted_text)
-        if statement_period:
+        if statement_period and not structured_data.get("statement_period"):
             structured_data["statement_period"] = statement_period
-        if total_amount:
+        if total_amount and not structured_data.get("total_amount"):
             structured_data["total_amount"] = total_amount
 
         subject = structured_data.get("merchant") or structured_data.get("account_hint")
@@ -327,7 +343,7 @@ class HouseholdDocumentReviewService:
                 """
                 SELECT
                     id, signature_type, source_type, document_type,
-                    merchant, account_hint, confidence
+                    merchant, account_hint, confidence, metadata
                 FROM household_document_signatures
                 WHERE signature_key = ANY(%s)
                 ORDER BY confidence DESC NULLS LAST, updated_at DESC
@@ -345,6 +361,11 @@ class HouseholdDocumentReviewService:
             "merchant": str(row[4]) if row[4] is not None else None,
             "account_hint": str(row[5]) if row[5] is not None else None,
             "confidence": float(row[6]) if row[6] is not None else None,
+            "structured_data": (
+                row[7].get("structured_data")
+                if isinstance(row[7], dict)
+                else None
+            ),
         }
 
     def _touch_signature(self, signature_id: str) -> None:
