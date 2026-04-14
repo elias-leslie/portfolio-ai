@@ -18,13 +18,19 @@ from typing import Any
 from app.logging_config import get_logger
 from app.models.household_finance import (
     HouseholdReports,
+    HouseholdSpendingCategory,
+    HouseholdSpendingSummary,
+    HouseholdSpendingTransaction,
+    HouseholdSpendingView,
 )
 from app.services._household_report_builder import (
     _merchant_aliases,
     _merchant_root,
     build_household_reports,
+    collapse_report_rows,
 )
 from app.services._household_spend_filters import is_budget_driving_expense
+from app.services._household_time_windows import resolve_household_time_window
 from app.storage import get_storage
 
 logger = get_logger(__name__)
@@ -471,10 +477,137 @@ class HouseholdTransactionService:
         return {"inserted": inserted, "updated": updated}
 
     def build_reports(self) -> HouseholdReports:
+        return build_household_reports(
+            report_rows=self._load_report_rows(),
+            cadence_for_dates=self._dates_to_cadence,
+            merchant_recommendation=self._merchant_recommendation,
+        )
+
+    def build_spending_view(self, *, window: str = "1m") -> HouseholdSpendingView:
+        timeframe = resolve_household_time_window(window)
+        report_rows = self._load_report_rows()
+        filtered_rows = [
+            row
+            for row in report_rows
+            if row["date"] <= timeframe.end_date
+            and (timeframe.start_date is None or row["date"] >= timeframe.start_date)
+        ]
+        analytics_rows = [
+            row for row in filtered_rows if row.get("source_kind") != "import"
+        ]
+        spend_rows = [
+            row
+            for row in collapse_report_rows(analytics_rows)
+            if float(row["amount"]) > 0
+        ]
+
+        if not spend_rows:
+            return HouseholdSpendingView(
+                generated_at=datetime.now(UTC).isoformat(),
+                summary=HouseholdSpendingSummary(
+                    timeframe_key=timeframe.key,
+                    timeframe_label=timeframe.label,
+                    start_date=timeframe.start_date.isoformat() if timeframe.start_date else None,
+                    end_date=timeframe.end_date.isoformat(),
+                ),
+            )
+
+        monthly_totals: dict[str, float] = {}
+        monthly_counts: dict[str, int] = {}
+        category_totals: dict[tuple[str, str], float] = {}
+        category_counts: dict[tuple[str, str], int] = {}
+        account_labels = {
+            str(row["account_label"]).strip()
+            for row in spend_rows
+            if row.get("account_label")
+        }
+
+        for row in spend_rows:
+            month_key = row["date"].strftime("%Y-%m")
+            monthly_totals[month_key] = monthly_totals.get(month_key, 0.0) + float(
+                row["amount"]
+            )
+            monthly_counts[month_key] = monthly_counts.get(month_key, 0) + 1
+            category_key = (str(row["category"]), str(row["essentiality"]))
+            category_totals[category_key] = category_totals.get(category_key, 0.0) + float(
+                row["amount"]
+            )
+            category_counts[category_key] = category_counts.get(category_key, 0) + 1
+
+        coverage_months = (
+            timeframe.window_months
+            if timeframe.window_months is not None
+            else max(len(monthly_totals), 1)
+        )
+        total_spend = round(sum(float(row["amount"]) for row in spend_rows), 2)
+
+        return HouseholdSpendingView(
+            generated_at=datetime.now(UTC).isoformat(),
+            summary=HouseholdSpendingSummary(
+                timeframe_key=timeframe.key,
+                timeframe_label=timeframe.label,
+                start_date=timeframe.start_date.isoformat() if timeframe.start_date else None,
+                end_date=timeframe.end_date.isoformat(),
+                total_spend=total_spend,
+                average_monthly_spend=round(total_spend / coverage_months, 2),
+                transaction_count=len(spend_rows),
+                coverage_months=coverage_months,
+                account_count=len(account_labels),
+            ),
+            categories=[
+                HouseholdSpendingCategory(
+                    category=category,
+                    essentiality=essentiality,
+                    total_spend=round(amount, 2),
+                    average_monthly_spend=round(amount / coverage_months, 2),
+                    share_of_spend=round(amount / total_spend if total_spend > 0 else 0.0, 4),
+                    transaction_count=category_counts[(category, essentiality)],
+                )
+                for (category, essentiality), amount in sorted(
+                    category_totals.items(),
+                    key=lambda item: item[1],
+                    reverse=True,
+                )
+            ],
+            monthly_trend=[
+                {
+                    "month": month,
+                    "total_spend": round(monthly_totals[month], 2),
+                    "transaction_count": monthly_counts[month],
+                }
+                for month in sorted(monthly_totals.keys())
+            ],
+            transactions=[
+                HouseholdSpendingTransaction(
+                    date=row["date"].isoformat(),
+                    merchant=str(row["merchant"]),
+                    description=str(row["description"]),
+                    amount=round(float(row["amount"]), 2),
+                    category=str(row["category"]),
+                    essentiality=str(row["essentiality"]),
+                    account_label=(
+                        str(row["account_label"]) if row.get("account_label") else None
+                    ),
+                    source_document_id=str(row["document_id"]),
+                    source_kind=str(row.get("source_kind") or ""),
+                    source_type=str(row.get("source_type") or ""),
+                    document_type=str(row.get("document_type") or ""),
+                )
+                for row in sorted(
+                    spend_rows,
+                    key=lambda item: (item["date"], float(item["amount"])),
+                    reverse=True,
+                )
+            ],
+        )
+
+    def _load_report_rows(self) -> list[dict[str, Any]]:
         with self.storage.connection() as conn:
             expense_rows = conn.execute(
                 """
                 SELECT
+                    t.id,
+                    t.household_account_id,
                     t.transaction_date,
                     t.description,
                     t.raw_merchant,
@@ -485,7 +618,9 @@ class HouseholdTransactionService:
                     t.document_id,
                     COALESCE(m.canonical_name, t.raw_merchant, t.description) AS canonical_name,
                     d.document_type,
-                    d.source_type
+                    d.source_type,
+                    d.filename,
+                    t.row_hash
                 FROM household_transactions t
                 LEFT JOIN household_merchants m ON m.id = t.merchant_id
                 LEFT JOIN household_documents d ON d.id = t.document_id
@@ -496,14 +631,18 @@ class HouseholdTransactionService:
             import_rows = conn.execute(
                 """
                 SELECT
+                    r.id,
                     row_date,
                     COALESCE(merchant, 'Amazon') AS merchant,
                     COALESCE(description, merchant, 'Imported order') AS description,
                     amount,
                     dataset_type,
                     document_id,
-                    row_metadata
-                FROM household_import_rows
+                    row_metadata,
+                    d.filename,
+                    r.row_hash
+                FROM household_import_rows r
+                JOIN household_documents d ON d.id = r.document_id
                 WHERE amount IS NOT NULL
                 ORDER BY row_date DESC NULLS LAST
                 """
@@ -511,69 +650,72 @@ class HouseholdTransactionService:
 
         report_rows: list[dict[str, Any]] = []
         for row in expense_rows:
-            transaction_date = row[0]
+            transaction_date = row[2]
             if not isinstance(transaction_date, datetime):
                 continue
             try:
-                amount: float | None = float(row[3]) if row[3] is not None else None
+                amount: float | None = float(row[5]) if row[5] is not None else None
             except (TypeError, ValueError):
                 amount = None
             if amount is None:
                 continue
             if not is_budget_driving_expense(
                 flow_type="expense",
-                category=str(row[4] or ""),
-                description=str(row[1]),
-                merchant=str(row[8] or row[2] or row[1]),
+                category=str(row[6] or ""),
+                description=str(row[3]),
+                merchant=str(row[10] or row[4] or row[3]),
             ):
                 continue
             report_rows.append(
                 {
+                    "id": str(row[0]),
+                    "household_account_id": str(row[1]) if row[1] is not None else None,
                     "date": transaction_date.date(),
-                    "merchant": str(row[8] or row[2] or row[1]),
-                    "description": str(row[1]),
+                    "merchant": str(row[10] or row[4] or row[3]),
+                    "description": str(row[3]),
                     "amount": amount,
-                    "category": str(row[4] or "Uncategorized"),
-                    "essentiality": str(row[5] or "mixed"),
-                    "account_label": str(row[6]) if row[6] is not None else None,
-                    "document_id": str(row[7]),
-                    "document_type": str(row[9] or ""),
-                    "source_type": str(row[10] or ""),
+                    "category": str(row[6] or "Uncategorized"),
+                    "essentiality": str(row[7] or "mixed"),
+                    "account_label": str(row[8]) if row[8] is not None else None,
+                    "document_id": str(row[9]),
+                    "document_type": str(row[11] or ""),
+                    "source_type": str(row[12] or ""),
+                    "source_document_filename": str(row[13] or ""),
+                    "row_hash": str(row[14]),
                     "source_kind": "transaction",
                 }
             )
 
         for row in import_rows:
-            row_date = row[0]
+            row_date = row[1]
             if not isinstance(row_date, datetime):
                 continue
             try:
-                amount = float(row[3]) if row[3] is not None else None
+                amount = float(row[4]) if row[4] is not None else None
             except (TypeError, ValueError):
                 amount = None
             if amount is None:
                 continue
             candidate_row = {
+                "id": str(row[0]),
                 "date": row_date.date(),
-                "merchant": str(row[1]),
-                "description": str(row[2]),
+                "merchant": str(row[2]),
+                "description": str(row[3]),
                 "amount": amount,
                 "category": "Household shopping",
                 "essentiality": "mixed",
                 "account_label": None,
-                "document_id": str(row[5]),
+                "document_id": str(row[6]),
                 "document_type": "import",
-                "source_type": str(row[4] or "import"),
+                "source_type": str(row[5] or "import"),
+                "source_document_filename": str(row[8] or ""),
+                "row_hash": str(row[9]),
                 "source_kind": "import",
-                "metadata": row[6] if len(row) > 6 else None,
+                "metadata": row[7] if len(row) > 7 else None,
             }
             report_rows.append(candidate_row)
 
-        return build_household_reports(
-            report_rows=report_rows,
-            cadence_for_dates=self._dates_to_cadence,
-            merchant_recommendation=self._merchant_recommendation,
-        )
+        return report_rows
 
     def infer_merchant_cadence(self, *, merchant: str) -> dict[str, object] | None:
         with self.storage.connection() as conn:

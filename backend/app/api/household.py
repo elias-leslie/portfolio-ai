@@ -22,6 +22,7 @@ from app.models.household_finance import (
     HouseholdQuestion,
     HouseholdQuestionAnswer,
     HouseholdQuestionList,
+    HouseholdSpendingView,
     HouseholdTrackedAccount,
     HouseholdTrackedAccountInput,
     HouseholdTransactionCategoryUpdate,
@@ -46,9 +47,24 @@ async def get_household_dashboard() -> HouseholdFinanceDashboard:
 
 
 @router.get("/ledger", response_model=HouseholdLedger)
-async def get_household_ledger(limit: int = 200) -> HouseholdLedger:
+async def get_household_ledger(
+    window: str = "all",
+    kind: str = "all",
+    limit: int = 10000,
+) -> HouseholdLedger:
     """Return recent transaction/import provenance for household audit."""
-    return await run_in_threadpool(_service().get_ledger, limit=limit)
+    return await run_in_threadpool(
+        _service().get_ledger,
+        window=window,
+        kind=kind,
+        limit=limit,
+    )
+
+
+@router.get("/spending", response_model=HouseholdSpendingView)
+async def get_household_spending(window: str = "1m") -> HouseholdSpendingView:
+    """Return timeframe-aware household spending analytics."""
+    return await run_in_threadpool(_service().get_spending, window=window)
 
 
 @router.get("/profile", response_model=HouseholdProfile)

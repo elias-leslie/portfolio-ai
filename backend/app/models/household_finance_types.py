@@ -143,6 +143,7 @@ class HouseholdRecentTransaction(BaseModel):
 class HouseholdLedgerEntry(BaseModel):
     id: str
     kind: str
+    flow_type: str | None = None
     household_account_id: str | None = None
     account_label: str | None = None
     date: str | None = None
@@ -160,14 +161,65 @@ class HouseholdLedgerEntry(BaseModel):
     source_document_filename: str | None = None
     source_type: str | None = None
     document_type: str | None = None
+    balance_after: float | None = None
     uploaded_at: str | None = None
 
 
 class HouseholdLedger(BaseModel):
     generated_at: str
+    timeframe_key: str = "all"
+    timeframe_label: str
+    start_date: str | None = None
+    end_date: str | None = None
     transaction_count: int
     import_row_count: int
+    total_entry_count: int = 0
+    debit_total: float = 0.0
+    credit_total: float = 0.0
     entries: list[HouseholdLedgerEntry] = Field(default_factory=list)
+
+
+class HouseholdSpendingCategory(BaseModel):
+    category: str
+    essentiality: str
+    total_spend: float
+    average_monthly_spend: float
+    share_of_spend: float
+    transaction_count: int
+
+
+class HouseholdSpendingTransaction(BaseModel):
+    date: str
+    merchant: str
+    description: str
+    amount: float
+    category: str
+    essentiality: str
+    account_label: str | None = None
+    source_document_id: str | None = None
+    source_kind: str | None = None
+    source_type: str | None = None
+    document_type: str | None = None
+
+
+class HouseholdSpendingSummary(BaseModel):
+    timeframe_key: str
+    timeframe_label: str
+    start_date: str | None = None
+    end_date: str | None = None
+    total_spend: float = 0.0
+    average_monthly_spend: float = 0.0
+    transaction_count: int = 0
+    coverage_months: int = 0
+    account_count: int = 0
+
+
+class HouseholdSpendingView(BaseModel):
+    generated_at: str
+    summary: HouseholdSpendingSummary
+    categories: list[HouseholdSpendingCategory] = Field(default_factory=list)
+    monthly_trend: list[HouseholdMonthlyTrendPoint] = Field(default_factory=list)
+    transactions: list[HouseholdSpendingTransaction] = Field(default_factory=list)
 
 
 class HouseholdReports(BaseModel):

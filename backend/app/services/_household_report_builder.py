@@ -251,11 +251,54 @@ def _merchant_aliases(raw_merchant: str) -> set[str]:
     return {alias for alias in aliases if alias}
 
 
+_NOISE_TOKENS = {
+    "sale",
+    "payment",
+    "thank",
+    "purchase",
+    "debit",
+    "credit",
+    "card",
+    "online",
+    "pending",
+    "posted",
+    "bill",
+    "wa",
+    "com",
+}
+
+
+def _transaction_identity_tokens(row: dict[str, Any]) -> set[str]:
+    text = " ".join(
+        str(value)
+        for value in (
+            row.get("merchant") or "",
+            row.get("description") or "",
+        )
+        if value
+    ).lower()
+    tokens = {
+        token
+        for token in re.findall(r"[a-z0-9#]{4,}", text)
+        if token not in _NOISE_TOKENS
+    }
+    return tokens
+
+
 def report_rows_overlap(existing_row: dict[str, Any], candidate_row: dict[str, Any]) -> bool:
     if existing_row.get("date") != candidate_row.get("date"):
         return False
     if abs(float(existing_row.get("amount", 0.0)) - float(candidate_row.get("amount", 0.0))) > 0.005:
         return False
+
+    existing_account_id = str(existing_row.get("household_account_id") or "").strip()
+    candidate_account_id = str(candidate_row.get("household_account_id") or "").strip()
+    if existing_account_id and existing_account_id == candidate_account_id:
+        shared_tokens = _transaction_identity_tokens(existing_row).intersection(
+            _transaction_identity_tokens(candidate_row)
+        )
+        if len(shared_tokens) >= 2:
+            return True
 
     existing_aliases = _merchant_aliases(str(existing_row.get("merchant") or ""))
     candidate_aliases = _merchant_aliases(str(candidate_row.get("merchant") or ""))
@@ -491,8 +534,16 @@ def build_household_reports(
 ) -> HouseholdReports:
     today = date.today()
     current_rows = [row for row in report_rows if _is_current_transaction(row, today=today)]
-    expense_only = [row for row in collapse_report_rows(current_rows) if row["amount"] > 0]
-    if not expense_only:
+    collapsed_rows = collapse_report_rows(current_rows)
+    analytics_source_rows = [
+        row for row in current_rows if row.get("source_kind") != "import"
+    ]
+    analytics_rows = [
+        row
+        for row in collapse_report_rows(analytics_source_rows)
+        if row["amount"] > 0
+    ]
+    if not analytics_rows:
         return HouseholdReports(
             executive=HouseholdExecutiveReport(
                 headline="Jenny needs more transaction evidence to build a cash-flow report.",
@@ -504,14 +555,15 @@ def build_household_reports(
                 recurring_merchant_count=0,
                 tracked_expense_count=0,
                 coverage_months=0,
-            )
+            ),
+            price_insights=_build_price_insights(expense_rows=collapsed_rows),
         )
 
     monthly_totals: dict[str, float] = {}
     monthly_counts: dict[str, int] = {}
     recent_cutoff = today.toordinal() - 30
 
-    for row in expense_only:
+    for row in analytics_rows:
         month_key = row["date"].strftime("%Y-%m")
         monthly_totals[month_key] = monthly_totals.get(month_key, 0.0) + row["amount"]
         monthly_counts[month_key] = monthly_counts.get(month_key, 0) + 1
@@ -520,7 +572,7 @@ def build_household_reports(
     recent_month_set = set(recent_month_keys)
     recent_rows = [
         row
-        for row in expense_only
+        for row in analytics_rows
         if row["date"].strftime("%Y-%m") in recent_month_set
     ]
     category_totals: dict[tuple[str, str], float] = {}
@@ -630,7 +682,7 @@ def build_household_reports(
         executive=executive,
         category_breakdown=category_breakdown,
         merchant_highlights=merchant_highlights,
-        price_insights=_build_price_insights(expense_rows=expense_only),
+        price_insights=_build_price_insights(expense_rows=collapsed_rows),
         monthly_spend_trend=monthly_spend_trend,
         recent_transactions=recent_transactions,
     )

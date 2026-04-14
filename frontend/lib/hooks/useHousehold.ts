@@ -9,6 +9,7 @@ import {
   deleteHouseholdTrackedAccount,
   fetchHouseholdDashboard,
   fetchHouseholdLedger,
+  fetchHouseholdSpending,
   fetchHouseholdDocuments,
   type HouseholdDocumentUpload,
   type HouseholdPlanningUpdate,
@@ -48,10 +49,25 @@ export function useHouseholdDocuments() {
   })
 }
 
-export function useHouseholdLedger() {
+export function useHouseholdLedger(params?: {
+  window?: string
+  kind?: string
+  limit?: number
+}) {
   return useQuery({
-    queryKey: ['household', 'ledger'],
-    queryFn: fetchHouseholdLedger,
+    queryKey: ['household', 'ledger', params ?? {}],
+    queryFn: () => fetchHouseholdLedger(params),
+    staleTime: 0,
+    refetchInterval: 1000 * 30,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+  })
+}
+
+export function useHouseholdSpending(params?: { window?: string }) {
+  return useQuery({
+    queryKey: ['household', 'spending', params ?? {}],
+    queryFn: () => fetchHouseholdSpending(params),
     staleTime: 0,
     refetchInterval: 1000 * 30,
     refetchOnMount: 'always',

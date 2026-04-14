@@ -52,6 +52,9 @@ vi.mock('@/components/money/HouseholdProfileCard', () => ({
 vi.mock('@/components/money/MoneyLedgerPanel', () => ({
   MoneyLedgerPanel: () => <div>Money Ledger Panel</div>,
 }))
+vi.mock('@/components/money/MoneySpendingPanel', () => ({
+  MoneySpendingPanel: () => <div>Money Spending Panel</div>,
+}))
 vi.mock('@/components/money/HouseholdPlanningPanels', () => ({
   HouseholdPlanningPanels: ({
     focusedSection,

@@ -452,6 +452,7 @@ export interface HouseholdQuestionList {
 export interface HouseholdLedgerEntry {
   id: string
   kind: string
+  flowType?: string | null
   householdAccountId?: string | null
   accountLabel?: string | null
   date?: string | null
@@ -469,14 +470,65 @@ export interface HouseholdLedgerEntry {
   sourceDocumentFilename?: string | null
   sourceType?: string | null
   documentType?: string | null
+  balanceAfter?: number | null
   uploadedAt?: string | null
 }
 
 export interface HouseholdLedger {
   generatedAt: string
+  timeframeKey: string
+  timeframeLabel: string
+  startDate?: string | null
+  endDate?: string | null
   transactionCount: number
   importRowCount: number
+  totalEntryCount: number
+  debitTotal: number
+  creditTotal: number
   entries: HouseholdLedgerEntry[]
+}
+
+export interface HouseholdSpendingCategory {
+  category: string
+  essentiality: string
+  totalSpend: number
+  averageMonthlySpend: number
+  shareOfSpend: number
+  transactionCount: number
+}
+
+export interface HouseholdSpendingTransaction {
+  date: string
+  merchant: string
+  description: string
+  amount: number
+  category: string
+  essentiality: string
+  accountLabel?: string | null
+  sourceDocumentId?: string | null
+  sourceKind?: string | null
+  sourceType?: string | null
+  documentType?: string | null
+}
+
+export interface HouseholdSpendingSummary {
+  timeframeKey: string
+  timeframeLabel: string
+  startDate?: string | null
+  endDate?: string | null
+  totalSpend: number
+  averageMonthlySpend: number
+  transactionCount: number
+  coverageMonths: number
+  accountCount: number
+}
+
+export interface HouseholdSpendingView {
+  generatedAt: string
+  summary: HouseholdSpendingSummary
+  categories: HouseholdSpendingCategory[]
+  monthlyTrend: HouseholdMonthlyTrendPoint[]
+  transactions: HouseholdSpendingTransaction[]
 }
 
 export interface JennyNeed {
@@ -614,8 +666,38 @@ export async function fetchHouseholdDocuments(): Promise<HouseholdDocumentList> 
   return get<HouseholdDocumentList>('/api/intake/evidence')
 }
 
-export async function fetchHouseholdLedger(): Promise<HouseholdLedger> {
-  return get<HouseholdLedger>('/api/household/ledger')
+export async function fetchHouseholdLedger(params?: {
+  window?: string
+  kind?: string
+  limit?: number
+}): Promise<HouseholdLedger> {
+  const search = new URLSearchParams()
+  if (params?.window) {
+    search.set('window', params.window)
+  }
+  if (params?.kind) {
+    search.set('kind', params.kind)
+  }
+  if (params?.limit != null) {
+    search.set('limit', String(params.limit))
+  }
+  const query = search.toString()
+  return get<HouseholdLedger>(
+    query ? `/api/household/ledger?${query}` : '/api/household/ledger',
+  )
+}
+
+export async function fetchHouseholdSpending(params?: {
+  window?: string
+}): Promise<HouseholdSpendingView> {
+  const search = new URLSearchParams()
+  if (params?.window) {
+    search.set('window', params.window)
+  }
+  const query = search.toString()
+  return get<HouseholdSpendingView>(
+    query ? `/api/household/spending?${query}` : '/api/household/spending',
+  )
 }
 
 export async function fetchHouseholdQuestions(): Promise<HouseholdQuestionList> {

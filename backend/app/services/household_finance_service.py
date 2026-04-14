@@ -12,6 +12,7 @@ from app.models.household_finance import (
     HouseholdProfile,
     HouseholdProfileUpdate,
     HouseholdResolvedValue,
+    HouseholdSpendingView,
     HouseholdTrackedAccount,
     HouseholdTrackedAccountInput,
     HouseholdTransactionCategoryUpdate,
@@ -73,8 +74,22 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
     def get_profile(self) -> HouseholdProfile:
         return self.profile_service.get_profile(self)
 
-    def get_ledger(self, *, limit: int = 200) -> HouseholdLedger:
-        return self.ledger_service.get_ledger(self, limit=limit)
+    def get_ledger(
+        self,
+        *,
+        window: str = "all",
+        kind: str = "all",
+        limit: int = 10000,
+    ) -> HouseholdLedger:
+        return self.ledger_service.get_ledger(
+            self,
+            window=window,
+            kind=kind,
+            limit=limit,
+        )
+
+    def get_spending(self, *, window: str = "1m") -> HouseholdSpendingView:
+        return self.transaction_service.build_spending_view(window=window)
 
     def update_profile(self, payload: HouseholdProfileUpdate) -> HouseholdProfile:
         return self.profile_service.update_profile(self, payload)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -263,6 +263,8 @@ def test_build_reports_excludes_cash_movement_rows_even_when_stored_as_expense()
         [
             [
                 (
+                    "txn-card-payment",
+                    None,
                     datetime(2026, 2, 17, tzinfo=UTC),
                     "Chase Credit Crd Epay 260215 9126729844 Elias Leslie",
                     "Chase Credit Crd Epay 260215 9126729844 Elias Leslie",
@@ -274,8 +276,12 @@ def test_build_reports_excludes_cash_movement_rows_even_when_stored_as_expense()
                     "Chase Credit Crd Epay 260215 9126729844 Elias Leslie",
                     "statement",
                     "bank",
+                    "payment.csv",
+                    "hash-card-payment",
                 ),
                 (
+                    "txn-utility",
+                    None,
                     datetime(2026, 2, 9, tzinfo=UTC),
                     "Dukeenergy Bill Pay 910066616132 Elias B Leslie",
                     "Dukeenergy Bill Pay 910066616132 Elias B Leslie",
@@ -287,6 +293,8 @@ def test_build_reports_excludes_cash_movement_rows_even_when_stored_as_expense()
                     "Dukeenergy Bill Pay 910066616132 Elias B Leslie",
                     "statement",
                     "bank",
+                    "utility.csv",
+                    "hash-utility",
                 ),
             ],
             [],
@@ -301,6 +309,153 @@ def test_build_reports_excludes_cash_movement_rows_even_when_stored_as_expense()
     assert [transaction.merchant for transaction in reports.recent_transactions] == [
         "Dukeenergy Bill Pay 910066616132 Elias B Leslie"
     ]
+
+
+def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() -> None:
+    today = date.today()
+    service = HouseholdTransactionService()
+    service.storage = _SequenceStorage(
+        [
+            [
+                (
+                    "txn-amazon",
+                    None,
+                    datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                    "AMAZON MKTPL*B70K66JV1 | Sale",
+                    "AMAZON MKTPL*B70K66JV1 | Sale",
+                    Decimal("41.81"),
+                    "Retail",
+                    "discretionary",
+                    "Chase Amazon card",
+                    "doc-amazon",
+                    "Amazon",
+                    "statement",
+                    "credit_card",
+                    "chase.csv",
+                    "hash-amazon",
+                ),
+                (
+                    "txn-grocery",
+                    None,
+                    datetime.combine(today.replace(day=max(today.day - 5, 1)), datetime.min.time(), tzinfo=UTC),
+                    "WM SUPERCENTER #5831 | Sale",
+                    "WM SUPERCENTER #5831 | Sale",
+                    Decimal("155.75"),
+                    "Groceries",
+                    "essential",
+                    "Chase Amazon card",
+                    "doc-grocery",
+                    "Walmart (Store #5831)",
+                    "statement",
+                    "credit_card",
+                    "chase.csv",
+                    "hash-grocery",
+                ),
+                (
+                    "txn-old",
+                    None,
+                    datetime.combine(today - timedelta(days=75), datetime.min.time(), tzinfo=UTC),
+                    "OLD GROCERY",
+                    "OLD GROCERY",
+                    Decimal("75.00"),
+                    "Groceries",
+                    "essential",
+                    "Old card",
+                    "doc-old",
+                    "Old Grocery",
+                    "statement",
+                    "credit_card",
+                    "old.csv",
+                    "hash-old",
+                ),
+            ],
+            [
+                (
+                    "import-amazon",
+                    datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                    "Amazon",
+                    "AMAZON MKTPL*B70K66JV1 | Sale",
+                    Decimal("41.81"),
+                    "amazon_order_history",
+                    "doc-import",
+                    {"account_label": "Visa - 9728"},
+                    "order_history.csv",
+                    "hash-import",
+                ),
+            ],
+        ]
+    )
+
+    spending = service.build_spending_view(window="1m")
+
+    assert spending.summary.timeframe_key == "1m"
+    assert spending.summary.transaction_count == 2
+    assert round(spending.summary.total_spend, 2) == 197.56
+    assert spending.summary.coverage_months == 1
+    assert spending.summary.average_monthly_spend == 197.56
+    assert [category.category for category in spending.categories] == [
+        "Groceries",
+        "Retail",
+    ]
+    assert len(spending.transactions) == 2
+    assert [row.merchant for row in spending.transactions] == [
+        "Amazon",
+        "Walmart (Store #5831)",
+    ]
+    assert all(row.source_kind == "transaction" for row in spending.transactions)
+
+
+def test_build_spending_view_dedupes_same_account_statement_and_activity_rows() -> None:
+    today = date.today()
+    household_account_id = "acct-chase"
+    service = HouseholdTransactionService()
+    service.storage = _SequenceStorage(
+        [
+            [
+                (
+                    "txn-statement",
+                    household_account_id,
+                    datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                    "Amazon.com*BD3JQ51U1 Amzn.com/bill WA",
+                    "AMAZON MKTPL*BD3JQ51U1",
+                    Decimal("26.76"),
+                    "Retail",
+                    "discretionary",
+                    "Chase Amazon card",
+                    "doc-statement",
+                    "Amazon",
+                    "statement",
+                    "credit_card",
+                    "statement.pdf",
+                    "hash-statement",
+                ),
+                (
+                    "txn-export",
+                    household_account_id,
+                    datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                    "Amazon.com*BD3JQ51U1 | Sale",
+                    "Amazon",
+                    Decimal("26.76"),
+                    "Retail",
+                    "discretionary",
+                    "Chase credit card activity export",
+                    "doc-export",
+                    "Amazon",
+                    "statement",
+                    "credit_card",
+                    "activity.csv",
+                    "hash-export",
+                ),
+            ],
+            [],
+        ]
+    )
+
+    spending = service.build_spending_view(window="1m")
+
+    assert spending.summary.transaction_count == 1
+    assert spending.summary.total_spend == 26.76
+    assert len(spending.transactions) == 1
 
 
 def test_dates_to_cadence_accepts_two_observations_as_provisional_signal() -> None:

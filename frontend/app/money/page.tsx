@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { HouseholdDocumentCenter } from '@/components/money/HouseholdDocumentCenter'
 import { MoneyLedgerPanel } from '@/components/money/MoneyLedgerPanel'
+import { MoneySpendingPanel } from '@/components/money/MoneySpendingPanel'
 import {
   HouseholdPlanningPanels,
   type PlanningFocusSection,
@@ -31,7 +32,6 @@ import {
 } from '@/components/ui/dialog'
 import {
   useHouseholdDashboard,
-  useHouseholdLedger,
   useHouseholdDocuments,
 } from '@/lib/hooks/useHousehold'
 import { useClientReady } from '@/lib/hooks/useClientReady'
@@ -200,14 +200,6 @@ function MoneyPageContent() {
     refetch: refetchDocuments,
     isFetching: isFetchingDocuments,
   } = useHouseholdDocuments()
-  const {
-    data: ledger,
-    error: ledgerError,
-    refetch: refetchLedger,
-    isLoading: isLoadingLedger,
-    isFetching: isFetchingLedger,
-  } = useHouseholdLedger()
-
   useEffect(() => {
     const syncFromLocation = () => {
       const currentUrl = new URL(window.location.href)
@@ -328,12 +320,7 @@ function MoneyPageContent() {
       value: 'spending',
       label: 'Spending',
       content: (
-        <div className="space-y-6">
-          <MoneyOverviewPanel
-            dashboard={dashboard}
-            sections={['trend', 'budget', 'categories', 'commitments']}
-          />
-        </div>
+        <MoneySpendingPanel />
       ),
     },
     {
@@ -383,17 +370,7 @@ function MoneyPageContent() {
     {
       value: 'ledger',
       label: 'Ledger',
-      content: (
-        <MoneyLedgerPanel
-          ledger={ledger}
-          isLoading={isLoadingLedger}
-          error={ledgerError instanceof Error ? ledgerError : null}
-          onRetry={() => {
-            void refetchLedger()
-          }}
-          isRetrying={isFetchingLedger}
-        />
-      ),
+      content: <MoneyLedgerPanel />,
     },
     {
       value: 'intake',
