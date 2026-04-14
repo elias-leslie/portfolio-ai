@@ -16,6 +16,7 @@ from app.models.household_finance import (
     HouseholdDocument,
     HouseholdDocumentList,
     HouseholdFinanceDashboard,
+    HouseholdLedger,
     HouseholdProfile,
     HouseholdProfileUpdate,
     HouseholdQuestion,
@@ -42,6 +43,12 @@ def _service() -> HouseholdFinanceService:
 async def get_household_dashboard() -> HouseholdFinanceDashboard:
     """Return the household finance dashboard."""
     return await run_in_threadpool(_service().get_dashboard)
+
+
+@router.get("/ledger", response_model=HouseholdLedger)
+async def get_household_ledger(limit: int = 200) -> HouseholdLedger:
+    """Return recent transaction/import provenance for household audit."""
+    return await run_in_threadpool(_service().get_ledger, limit=limit)
 
 
 @router.get("/profile", response_model=HouseholdProfile)

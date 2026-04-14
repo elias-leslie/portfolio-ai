@@ -38,6 +38,7 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
 const accounts = [
   {
     id: 'account-1',
+    householdAccountId: 'household-1',
     label: 'Main Checking',
     assetGroup: 'cash',
     accountType: 'checking',
@@ -311,6 +312,31 @@ describe('MoneyAccountsPanel', () => {
     expect(
       screen.getByRole('button', { name: /save label/i }),
     ).toBeInTheDocument()
+  })
+
+  it('keeps identity fields locked even if linked account temporarily reports zero evidence', async () => {
+    const user = userEvent.setup()
+    render(
+      <MoneyAccountsPanel
+        accounts={[
+          {
+            ...accounts[0],
+            evidenceCount: 0,
+            documentIds: [],
+            latestDocumentId: null,
+            lastEvidenceAt: null,
+          },
+        ]}
+        documents={documents}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /main checking/i }))
+    await user.click(screen.getByRole('button', { name: /edit/i }))
+
+    expect(screen.getByLabelText(/institution/i)).toBeDisabled()
+    expect(screen.getByLabelText(/account mask/i)).toBeDisabled()
+    expect(screen.getByLabelText(/owner/i)).toBeDisabled()
   })
 
   it('deletes a tracked account from the row dialog', async () => {

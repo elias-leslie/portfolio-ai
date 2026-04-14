@@ -166,6 +166,18 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdDocuments: () => ({
     data: { items: [] },
   }),
+  useHouseholdLedger: () => ({
+    data: {
+      generatedAt: '2026-03-10T00:00:00Z',
+      transactionCount: 12,
+      importRowCount: 6,
+      entries: [],
+    },
+    isLoading: false,
+    isFetching: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
 }))
 
 vi.mock('@/components/money/MoneyOverviewPanel', () => ({
@@ -173,6 +185,9 @@ vi.mock('@/components/money/MoneyOverviewPanel', () => ({
 }))
 vi.mock('@/components/money/MoneyAccountsPanel', () => ({
   MoneyAccountsPanel: () => <div>Money Accounts Panel</div>,
+}))
+vi.mock('@/components/money/MoneyLedgerPanel', () => ({
+  MoneyLedgerPanel: () => <div>Money Ledger Panel</div>,
 }))
 vi.mock('@/components/money/HouseholdDocumentCenter', () => ({
   HouseholdDocumentCenter: () => <div>Document Center</div>,

@@ -8,6 +8,7 @@ from typing import Any
 from app.models.household_finance import (
     HouseholdEvidenceAccount,
     HouseholdFinanceDashboard,
+    HouseholdLedger,
     HouseholdProfile,
     HouseholdProfileUpdate,
     HouseholdResolvedValue,
@@ -27,6 +28,7 @@ from app.services.household_document_pipeline import HouseholdDocumentPipeline
 from app.services.household_document_review import HouseholdDocumentReviewService
 from app.services.household_evidence_service import HouseholdEvidenceService
 from app.services.household_finance_rows import FIELD_LABELS
+from app.services.household_ledger_service import HouseholdLedgerService
 from app.services.household_planning_service import HouseholdPlanningService
 from app.services.household_product_enrichment_service import HouseholdProductEnrichmentService
 from app.services.household_profile_service import HouseholdProfileService
@@ -55,6 +57,7 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         self.account_registry_service = HouseholdAccountRegistryService()
         self.product_enrichment_service = HouseholdProductEnrichmentService()
         self.dashboard_composer = HouseholdDashboardComposer()
+        self.ledger_service = HouseholdLedgerService()
         self.document_pipeline = HouseholdDocumentPipeline()
         self.question_reconciler = HouseholdQuestionReconciler()
         self.profile_service = HouseholdProfileService()
@@ -69,6 +72,9 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
 
     def get_profile(self) -> HouseholdProfile:
         return self.profile_service.get_profile(self)
+
+    def get_ledger(self, *, limit: int = 200) -> HouseholdLedger:
+        return self.ledger_service.get_ledger(self, limit=limit)
 
     def update_profile(self, payload: HouseholdProfileUpdate) -> HouseholdProfile:
         return self.profile_service.update_profile(self, payload)

@@ -8,6 +8,7 @@ import {
   createHouseholdTrackedAccount,
   deleteHouseholdTrackedAccount,
   fetchHouseholdDashboard,
+  fetchHouseholdLedger,
   fetchHouseholdDocuments,
   type HouseholdDocumentUpload,
   type HouseholdPlanningUpdate,
@@ -19,17 +20,18 @@ import {
   uploadHouseholdDocument,
 } from '@/lib/api/household'
 
-/** Dashboard rebuilds server-side; 30 s keeps high-level totals visibly live. */
-const DASHBOARD_STALE_MS = 1000 * 30
-
-/** Documents and questions change on user action; 30 s balances freshness with server load. */
-const VOLATILE_STALE_MS = 1000 * 30
+async function refreshHouseholdQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  await queryClient.resetQueries({
+    queryKey: ['household'],
+    exact: false,
+  })
+}
 
 export function useHouseholdDashboard() {
   return useQuery({
     queryKey: ['household', 'dashboard'],
     queryFn: fetchHouseholdDashboard,
-    staleTime: DASHBOARD_STALE_MS,
+    staleTime: 0,
     refetchInterval: 1000 * 30,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
@@ -40,7 +42,18 @@ export function useHouseholdDocuments() {
   return useQuery({
     queryKey: ['household', 'documents'],
     queryFn: fetchHouseholdDocuments,
-    staleTime: VOLATILE_STALE_MS,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+  })
+}
+
+export function useHouseholdLedger() {
+  return useQuery({
+    queryKey: ['household', 'ledger'],
+    queryFn: fetchHouseholdLedger,
+    staleTime: 0,
+    refetchInterval: 1000 * 30,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
   })
@@ -52,12 +65,9 @@ export function useUpdateHouseholdProfile() {
   return useMutation({
     mutationFn: (payload: HouseholdProfileUpdate) =>
       updateHouseholdProfile(payload),
-    onSuccess: (profile) => {
+    onSuccess: async (profile) => {
       queryClient.setQueryData(['household', 'profile'], profile)
-      queryClient.invalidateQueries({
-        queryKey: ['household'],
-        refetchType: 'active',
-      })
+      await refreshHouseholdQueries(queryClient)
       toast.success('Household profile updated.')
     },
     onError: (error) => {
@@ -76,11 +86,8 @@ export function useUpdateHouseholdPlanning() {
   return useMutation({
     mutationFn: (payload: HouseholdPlanningUpdate) =>
       updateHouseholdPlanning(payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['household'],
-        refetchType: 'active',
-      })
+    onSuccess: async () => {
+      await refreshHouseholdQueries(queryClient)
       toast.success('Household planning sections updated.')
     },
     onError: (error) => {
@@ -99,11 +106,8 @@ export function useUploadHouseholdDocument() {
   return useMutation({
     mutationFn: (payload: HouseholdDocumentUpload) =>
       uploadHouseholdDocument(payload),
-    onSuccess: (document) => {
-      queryClient.invalidateQueries({
-        queryKey: ['household'],
-        refetchType: 'active',
-      })
+    onSuccess: async (document) => {
+      await refreshHouseholdQueries(queryClient)
       if (document.metadata?.duplicate_detected === true) {
         toast.info(`${document.filename} already exists in evidence intake.`)
         return
@@ -124,11 +128,8 @@ export function useCreateHouseholdTrackedAccount() {
   return useMutation({
     mutationFn: (payload: HouseholdTrackedAccountInput) =>
       createHouseholdTrackedAccount(payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['household'],
-        refetchType: 'active',
-      })
+    onSuccess: async () => {
+      await refreshHouseholdQueries(queryClient)
       toast.success('Tracked account created.')
     },
     onError: (error) => {
@@ -152,11 +153,8 @@ export function useUpdateHouseholdTrackedAccount() {
       accountId: string
       payload: HouseholdTrackedAccountInput
     }) => updateHouseholdTrackedAccount(accountId, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['household'],
-        refetchType: 'active',
-      })
+    onSuccess: async () => {
+      await refreshHouseholdQueries(queryClient)
       toast.success('Tracked account updated.')
     },
     onError: (error) => {
@@ -174,11 +172,8 @@ export function useDeleteHouseholdTrackedAccount() {
 
   return useMutation({
     mutationFn: (accountId: string) => deleteHouseholdTrackedAccount(accountId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['household'],
-        refetchType: 'active',
-      })
+    onSuccess: async () => {
+      await refreshHouseholdQueries(queryClient)
       toast.success('Tracked account removed.')
     },
     onError: (error) => {
@@ -202,11 +197,8 @@ export function useAnswerHouseholdQuestion() {
       questionId: string
       answerText: string
     }) => answerHouseholdQuestion(questionId, { answerText }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['household'],
-        refetchType: 'active',
-      })
+    onSuccess: async () => {
+      await refreshHouseholdQueries(queryClient)
       toast.success('Jenny updated the household plan.')
     },
     onError: (error) => {
@@ -230,11 +222,8 @@ export function useConfirmFact() {
       factKey: string
       factValue: string
     }) => confirmFact(factKey, factValue),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['household'],
-        refetchType: 'active',
-      })
+    onSuccess: async () => {
+      await refreshHouseholdQueries(queryClient)
       toast.success('Jenny noted your confirmation.')
     },
     onError: (error) => {
@@ -250,11 +239,8 @@ export function useAskJenny() {
 
   return useMutation({
     mutationFn: (question: string) => askJenny(question),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['household'],
-        refetchType: 'active',
-      })
+    onSuccess: async () => {
+      await refreshHouseholdQueries(queryClient)
       toast.success('Question sent to Jenny.')
     },
     onError: (error) => {
@@ -283,15 +269,12 @@ export function useCategorizeHouseholdTransaction() {
       applyToMerchant?: boolean
     }) =>
       categorizeHouseholdTransaction(transactionId, {
-        category,
-        essentiality,
-        applyToMerchant,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['household'],
-        refetchType: 'active',
-      })
+      category,
+      essentiality,
+      applyToMerchant,
+    }),
+    onSuccess: async () => {
+      await refreshHouseholdQueries(queryClient)
       toast.success('Household category confirmed.')
     },
     onError: (error) => {

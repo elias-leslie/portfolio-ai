@@ -449,6 +449,36 @@ export interface HouseholdQuestionList {
   items: HouseholdQuestion[]
 }
 
+export interface HouseholdLedgerEntry {
+  id: string
+  kind: string
+  householdAccountId?: string | null
+  accountLabel?: string | null
+  date?: string | null
+  postedDate?: string | null
+  merchant?: string | null
+  description: string
+  amount?: number | null
+  currency?: string | null
+  category?: string | null
+  essentiality?: string | null
+  datasetType?: string | null
+  externalRowId?: string | null
+  rowHash: string
+  sourceDocumentId?: string | null
+  sourceDocumentFilename?: string | null
+  sourceType?: string | null
+  documentType?: string | null
+  uploadedAt?: string | null
+}
+
+export interface HouseholdLedger {
+  generatedAt: string
+  transactionCount: number
+  importRowCount: number
+  entries: HouseholdLedgerEntry[]
+}
+
 export interface JennyNeed {
   id: string
   needType: string
@@ -582,6 +612,10 @@ export async function updateHouseholdPlanning(
 
 export async function fetchHouseholdDocuments(): Promise<HouseholdDocumentList> {
   return get<HouseholdDocumentList>('/api/intake/evidence')
+}
+
+export async function fetchHouseholdLedger(): Promise<HouseholdLedger> {
+  return get<HouseholdLedger>('/api/household/ledger')
 }
 
 export async function fetchHouseholdQuestions(): Promise<HouseholdQuestionList> {

@@ -108,6 +108,20 @@ function defaultAccountType(assetGroup: string) {
   return ACCOUNT_TYPE_OPTIONS[assetGroup]?.[0]?.value ?? 'other'
 }
 
+function identityManagedByCanonicalAccount(
+  account?: HouseholdAccountSummary | null,
+): boolean {
+  if (!account) {
+    return false
+  }
+  return Boolean(
+    account.householdAccountId ||
+      account.accountOrigin === 'evidence' ||
+      account.accountOrigin === 'portfolio' ||
+      account.matchStatus === 'linked',
+  )
+}
+
 function buildInitialState(
   account?: HouseholdAccountSummary | null,
   seed?: HouseholdTrackedAccountInput | null,
@@ -161,7 +175,7 @@ function TrackedAccountDialog({
   const isEditing = Boolean(account?.trackedAccountId)
   const isPrefilled = Boolean(seed) && !isEditing
   const identityLocked = Boolean(
-    isEditing && account?.evidenceCount && account.evidenceCount > 0,
+    isEditing && identityManagedByCanonicalAccount(account),
   )
   const dialogTitle = identityLocked
     ? 'Edit account label'

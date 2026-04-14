@@ -140,6 +140,36 @@ class HouseholdRecentTransaction(BaseModel):
     source_document_id: str | None = None
 
 
+class HouseholdLedgerEntry(BaseModel):
+    id: str
+    kind: str
+    household_account_id: str | None = None
+    account_label: str | None = None
+    date: str | None = None
+    posted_date: str | None = None
+    merchant: str | None = None
+    description: str
+    amount: float | None = None
+    currency: str | None = None
+    category: str | None = None
+    essentiality: str | None = None
+    dataset_type: str | None = None
+    external_row_id: str | None = None
+    row_hash: str
+    source_document_id: str | None = None
+    source_document_filename: str | None = None
+    source_type: str | None = None
+    document_type: str | None = None
+    uploaded_at: str | None = None
+
+
+class HouseholdLedger(BaseModel):
+    generated_at: str
+    transaction_count: int
+    import_row_count: int
+    entries: list[HouseholdLedgerEntry] = Field(default_factory=list)
+
+
 class HouseholdReports(BaseModel):
     executive: HouseholdExecutiveReport
     category_breakdown: list[HouseholdCategoryBreakdown] = Field(default_factory=list)

@@ -4,11 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const useHouseholdDashboardMock = vi.fn()
 const useHouseholdDocumentsMock = vi.fn()
+const useHouseholdLedgerMock = vi.fn()
 const useAnswerHouseholdQuestionMock = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdDashboard: () => useHouseholdDashboardMock(),
   useHouseholdDocuments: () => useHouseholdDocumentsMock(),
+  useHouseholdLedger: () => useHouseholdLedgerMock(),
   useAnswerHouseholdQuestion: () => useAnswerHouseholdQuestionMock(),
 }))
 
@@ -46,6 +48,9 @@ vi.mock('@/components/money/HouseholdDocumentCenter', () => ({
 }))
 vi.mock('@/components/money/HouseholdProfileCard', () => ({
   HouseholdProfileCard: () => <div>Profile Card</div>,
+}))
+vi.mock('@/components/money/MoneyLedgerPanel', () => ({
+  MoneyLedgerPanel: () => <div>Money Ledger Panel</div>,
 }))
 vi.mock('@/components/money/HouseholdPlanningPanels', () => ({
   HouseholdPlanningPanels: ({
@@ -281,6 +286,18 @@ describe('MoneyPage', () => {
     })
     useHouseholdDocumentsMock.mockReturnValue({
       data: { items: [] },
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+    useHouseholdLedgerMock.mockReturnValue({
+      data: {
+        generatedAt: '2026-03-10T00:00:00Z',
+        transactionCount: 12,
+        importRowCount: 6,
+        entries: [],
+      },
+      isLoading: false,
       isFetching: false,
       error: null,
       refetch: vi.fn(),
