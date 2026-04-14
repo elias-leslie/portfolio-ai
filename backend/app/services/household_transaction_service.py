@@ -614,7 +614,7 @@ class HouseholdTransactionService:
                     t.amount,
                     t.category,
                     t.essentiality,
-                    t.account_label,
+                    COALESCE(ta.label, a.canonical_label, t.account_label) AS account_label,
                     t.document_id,
                     COALESCE(m.canonical_name, t.raw_merchant, t.description) AS canonical_name,
                     d.document_type,
@@ -623,6 +623,14 @@ class HouseholdTransactionService:
                     t.row_hash
                 FROM household_transactions t
                 LEFT JOIN household_merchants m ON m.id = t.merchant_id
+                LEFT JOIN household_accounts a ON a.id = t.household_account_id
+                LEFT JOIN LATERAL (
+                    SELECT label
+                    FROM household_tracked_accounts ta
+                    WHERE ta.household_account_id = t.household_account_id
+                    ORDER BY ta.updated_at DESC
+                    LIMIT 1
+                ) ta ON TRUE
                 LEFT JOIN household_documents d ON d.id = t.document_id
                 WHERE t.flow_type = 'expense'
                 ORDER BY t.transaction_date DESC
