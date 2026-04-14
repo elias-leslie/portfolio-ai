@@ -6,14 +6,12 @@ import {
   useAddPosition,
   useCreateAccount,
   usePortfolio,
-  usePortfolioAnalytics,
 } from '@/lib/hooks/usePortfolio'
 import {
   useRefreshStatus,
   useRefreshWatchlist,
   useWatchlist,
 } from '@/lib/hooks/useWatchlist'
-import { useHouseholdDashboard } from '@/lib/hooks/useHousehold'
 
 vi.mock('@/components/portfolio/AccountsWithPositions', () => {
   const MockComponent = ({
@@ -83,10 +81,6 @@ vi.mock('@/components/watchlist/AddSymbolModal', () => ({
   ),
 }))
 
-vi.mock('@/components/portfolio/InvestingOverviewPanel', () => ({
-  InvestingOverviewPanel: () => <div>Investing Overview Panel</div>,
-}))
-
 vi.mock('@/components/portfolio/InvestingMarketPanel', () => ({
   InvestingMarketPanel: () => <div>Investing Market Panel</div>,
 }))
@@ -100,17 +94,12 @@ vi.mock('@/lib/hooks/usePortfolio', () => ({
   useAddPosition: vi.fn(),
   useCreateAccount: vi.fn(),
   usePortfolio: vi.fn(),
-  usePortfolioAnalytics: vi.fn(),
 }))
 
 vi.mock('@/lib/hooks/useWatchlist', () => ({
   useWatchlist: vi.fn(),
   useRefreshWatchlist: vi.fn(),
   useRefreshStatus: vi.fn(),
-}))
-
-vi.mock('@/lib/hooks/useHousehold', () => ({
-  useHouseholdDashboard: vi.fn(),
 }))
 
 vi.mock('sonner', () => ({
@@ -124,11 +113,9 @@ const mockUseAccounts = useAccounts as unknown as Mock
 const mockUseAddPosition = useAddPosition as unknown as Mock
 const mockUseCreateAccount = useCreateAccount as unknown as Mock
 const mockUsePortfolio = usePortfolio as unknown as Mock
-const mockUsePortfolioAnalytics = usePortfolioAnalytics as unknown as Mock
 const mockUseWatchlist = useWatchlist as unknown as Mock
 const mockUseRefreshWatchlist = useRefreshWatchlist as unknown as Mock
 const mockUseRefreshStatus = useRefreshStatus as unknown as Mock
-const mockUseHouseholdDashboard = useHouseholdDashboard as unknown as Mock
 
 describe('PortfolioPage', () => {
   const addPositionMutate = vi.fn()
@@ -193,12 +180,6 @@ describe('PortfolioPage', () => {
         cashBalanceTotal: 300,
       },
     })
-    mockUsePortfolioAnalytics.mockReturnValue({
-      data: {
-        diversificationScore: { score: 74 },
-        concentration: { topHoldingPct: 28 },
-      },
-    })
     mockUseWatchlist.mockReturnValue({
       data: {
         items: [{ id: 'watch-1', symbol: 'VTI', scoreAlert: false }],
@@ -214,12 +195,6 @@ describe('PortfolioPage', () => {
     })
     mockUseRefreshStatus.mockReturnValue({
       data: { isRefreshing: false },
-    })
-    mockUseHouseholdDashboard.mockReturnValue({
-      data: {
-        accounts: [],
-        portfolioContext: null,
-      },
     })
   })
 
@@ -372,7 +347,6 @@ describe('PortfolioPage', () => {
     expect(
       screen.queryByRole('button', { name: 'Add Position' }),
     ).not.toBeInTheDocument()
-    expect(screen.getByText('Investing Overview Panel')).toBeInTheDocument()
     expect(screen.getByText('Investing Market Panel')).toBeInTheDocument()
     expect(screen.queryByText('Watchlist Table')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Market' })).toBeInTheDocument()

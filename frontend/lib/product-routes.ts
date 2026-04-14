@@ -47,7 +47,9 @@ export function resolveMainProductRoute(pathname: string): MainRoute {
   )
 }
 
-export function resolveSecondaryProductRoute(pathname: string): MainRoute | null {
+export function resolveSecondaryProductRoute(
+  pathname: string,
+): MainRoute | null {
   return (
     SECONDARY_PRODUCT_ROUTES.find((route) =>
       (route.matchPrefixes ?? [route.href]).some((prefix) =>

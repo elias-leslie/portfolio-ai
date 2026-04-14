@@ -27,23 +27,18 @@ vi.mock('@/components/money/MoneyAccountsPanel', () => ({
       Money Accounts Panel
       {focus === 'coverage' ? <span>Account coverage focused</span> : null}
       {focus === 'discovered' ? <span>Discovered accounts focused</span> : null}
-      {selectedAccountId ? <span>Selected account: {selectedAccountId}</span> : null}
+      {selectedAccountId ? (
+        <span>Selected account: {selectedAccountId}</span>
+      ) : null}
       {intent ? <span>Account intent: {intent}</span> : null}
     </div>
   ),
 }))
 vi.mock('@/components/money/HouseholdDocumentCenter', () => ({
-  HouseholdDocumentCenter: ({
-    focusedReview,
-    documentRequirements,
-  }: {
-    focusedReview?: boolean
-    documentRequirements?: Array<unknown>
-  }) => (
+  HouseholdDocumentCenter: ({ focusedReview }: { focusedReview?: boolean }) => (
     <div>
       Document Center
       {focusedReview ? <span>Date quality focused</span> : null}
-      <span>Money requirements: {documentRequirements?.length ?? 0}</span>
     </div>
   ),
 }))
@@ -224,7 +219,7 @@ function buildDashboard() {
         title: 'Refresh Chase Amazon card',
         detail: 'This account is getting stale.',
         actionLabel: 'Add evidence',
-        actionHref: '/money?utility=evidence',
+        actionHref: '/money?tab=intake',
         relatedAccountId: 'account-2',
         relatedQuestionId: null,
         relatedDocumentIds: [],
@@ -236,7 +231,8 @@ function buildDashboard() {
         title: 'Is this your main checking account?',
         detail: 'Jenny needs to know if it drives recurring bills.',
         actionLabel: 'Answer',
-        actionHref: '/money#money-clarifications',
+        actionHref:
+          '/money?tab=review&focus=clarifications#money-clarifications',
         relatedAccountId: null,
         relatedQuestionId: 'question-1',
         relatedDocumentIds: ['doc-2'],
@@ -310,33 +306,34 @@ describe('MoneyPage', () => {
 
     render(<MoneyPage />)
 
-    expect(
-      screen.getByRole('button', { name: 'Accounts' }).textContent,
-    ).toBe('Accounts3')
+    expect(screen.getByRole('button', { name: 'Accounts' }).textContent).toBe(
+      'Accounts3',
+    )
     expect(screen.queryByText('Coverage')).not.toBeInTheDocument()
-    expect(screen.getByText('Net Worth')).toBeInTheDocument()
     expect(
-      screen.getByText('3 months of recent evidence coverage.'),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: /add anything/i }),
+      screen.getByRole('link', { name: /add anything/i }),
     ).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /Dashboard/i }),
     ).toBeInTheDocument()
     expect(
+      screen.getByRole('button', { name: /Spending/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Levers/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /Allocation/i }),
+    ).toBeInTheDocument()
+    expect(
       screen.getByRole('button', { name: /Accounts/i }),
     ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Intake/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Review/i })).toBeInTheDocument()
     expect(screen.getByText('Money Overview Panel')).toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: /Inbox/i }),
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: /^Intake$/i }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Net Worth')).not.toBeInTheDocument()
+    expect(screen.queryByText('Fix Money Data')).not.toBeInTheDocument()
   })
 
-  it('asks for evidence when Jenny has missing-data needs', async () => {
+  it('keeps missing-data asks out of the money dashboard', async () => {
     useHouseholdDashboardMock.mockReturnValue({
       data: {
         ...buildDashboard(),
@@ -355,7 +352,7 @@ describe('MoneyPage', () => {
             detail:
               'Jenny has some account evidence here but not enough linked transaction history to trust cash-flow calculations.',
             actionLabel: 'Add statements',
-            actionHref: '/money?utility=evidence',
+            actionHref: '/money?tab=intake',
             relatedAccountId: 'account-1',
             relatedQuestionId: null,
             relatedDocumentIds: ['doc-1'],
@@ -372,14 +369,10 @@ describe('MoneyPage', () => {
 
     render(<MoneyPage />)
 
-    expect(screen.getByText('Fix Money Data')).toBeInTheDocument()
-    expect(screen.getByText('Add statements for Main Checking')).toBeInTheDocument()
+    expect(screen.queryByText('Fix Money Data')).not.toBeInTheDocument()
     expect(
-      screen.getByText(/not enough linked transaction history/i),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('link', { name: 'Add statements' }),
-    ).toHaveAttribute('href', '/money?utility=evidence')
+      screen.queryByText('Add statements for Main Checking'),
+    ).not.toBeInTheDocument()
   })
 
   it('shows retry for the intake tab when document loading fails', async () => {
@@ -396,20 +389,19 @@ describe('MoneyPage', () => {
 
     render(<MoneyPage />)
 
-    await user.click(screen.getByRole('button', { name: 'Add anything' }))
+    await user.click(screen.getByRole('button', { name: 'Intake' }))
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(refetchDocuments).toHaveBeenCalled()
   })
 
-  it('opens the evidence utility from the utility query param', async () => {
-    window.history.replaceState({}, '', '/money?utility=evidence')
+  it('opens intake from the intake tab query param', async () => {
+    window.history.replaceState({}, '', '/money?tab=intake')
     const { default: MoneyPage } = await import('../money/page')
 
     render(<MoneyPage />)
 
     expect(screen.getByText('Document Center')).toBeInTheDocument()
-    expect(screen.getByText('Money requirements: 0')).toBeInTheDocument()
   })
 
   it('keeps planning-only document requirements out of the default money intake flow', async () => {
@@ -443,20 +435,16 @@ describe('MoneyPage', () => {
       error: null,
       refetch: vi.fn(),
     })
-    window.history.replaceState({}, '', '/money?utility=evidence')
+    window.history.replaceState({}, '', '/money?tab=intake')
     const { default: MoneyPage } = await import('../money/page')
 
     render(<MoneyPage />)
 
-    expect(screen.getByText('Money requirements: 0')).toBeInTheDocument()
+    expect(screen.getByText('Document Center')).toBeInTheDocument()
   })
 
   it('focuses the date-quality evidence review from the focus query param', async () => {
-    window.history.replaceState(
-      {},
-      '',
-      '/money?utility=evidence&focus=date-quality',
-    )
+    window.history.replaceState({}, '', '/money?tab=intake&focus=date-quality')
     const { default: MoneyPage } = await import('../money/page')
 
     render(<MoneyPage />)
@@ -510,12 +498,21 @@ describe('MoneyPage', () => {
     expect(screen.getByText('Account intent: evidence')).toBeInTheDocument()
   })
 
-  it('opens focused planning from the utility and focus query params', async () => {
+  it('opens the review tab from the clarification route', async () => {
     window.history.replaceState(
       {},
       '',
-      '/money?utility=planning&focus=housing',
+      '/money?tab=review&focus=clarifications#money-clarifications',
     )
+    const { default: MoneyPage } = await import('../money/page')
+
+    render(<MoneyPage />)
+
+    expect(screen.getByText('Clarifications')).toBeInTheDocument()
+  })
+
+  it('opens focused planning from the utility and focus query params', async () => {
+    window.history.replaceState({}, '', '/money?utility=planning&focus=housing')
     const { default: MoneyPage } = await import('../money/page')
 
     render(<MoneyPage />)

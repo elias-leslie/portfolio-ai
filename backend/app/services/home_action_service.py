@@ -50,6 +50,41 @@ def _portfolio_position_for_symbol(storage: object | None, symbol: str | None):
         return None
 
 
+def _normalized_action_title(action: dict[str, object]) -> str:
+    return " ".join(str(action.get("title", "") or "").lower().split())
+
+
+def _action_specificity_score(action: dict[str, object]) -> float:
+    source = str(action.get("source", "") or "")
+    href = str(action.get("href", "") or "")
+    detail = str(action.get("detail", "") or "")
+
+    score = {
+        "household": 40.0,
+        "portfolio": 30.0,
+        "recommendations": 25.0,
+        "workflow": 20.0,
+        "jenny": 10.0,
+    }.get(source, 0.0)
+
+    if href.startswith("/money?"):
+        score += 12.0
+    elif href.startswith("/portfolio?"):
+        score += 10.0
+    elif href.startswith("/symbols/"):
+        score += 8.0
+    elif href.startswith("/money"):
+        score += 6.0
+
+    if detail:
+        score += min(len(detail) / 80.0, 3.0)
+
+    if action.get("execution"):
+        score -= 2.0
+
+    return score
+
+
 def _household_action_label(item: object) -> str:
     action_href = str(getattr(item, "action_href", "") or "")
     need_id = str(getattr(item, "id", "") or "")
@@ -129,14 +164,29 @@ class HomeActionService:
                 }
             )
 
-        deduped: list[dict[str, object]] = []
-        seen: set[tuple[object, object, object]] = set()
+        deduped_by_key: dict[tuple[str, str | None], dict[str, object]] = {}
         for action in actions:
-            key = (action.get("title"), action.get("href"), action.get("symbol"))
-            if key in seen:
+            key = (
+                _normalized_action_title(action),
+                str(action.get("symbol") or "").upper() or None,
+            )
+            existing = deduped_by_key.get(key)
+            if existing is None:
+                deduped_by_key[key] = action
                 continue
-            seen.add(key)
-            deduped.append(action)
+
+            existing_score = (
+                _action_specificity_score(existing),
+                internal_rank_score(existing),
+            )
+            candidate_score = (
+                _action_specificity_score(action),
+                internal_rank_score(action),
+            )
+            if candidate_score > existing_score:
+                deduped_by_key[key] = action
+
+        deduped = list(deduped_by_key.values())
 
         deduped.sort(
             key=lambda action: (

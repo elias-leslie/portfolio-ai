@@ -1,10 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NewsBundle } from '@/lib/api/news'
-import type {
-  PortfolioAnalytics,
-  PortfolioResponse,
-} from '@/lib/api/portfolio'
+import type { PortfolioAnalytics, PortfolioResponse } from '@/lib/api/portfolio'
 import { InvestingOverviewPanel } from '../InvestingOverviewPanel'
 
 const useMarketIntelligenceMock = vi.fn()
@@ -204,7 +201,9 @@ describe('InvestingOverviewPanel', () => {
     expect(
       screen.getByText('Loading holdings and account coverage.'),
     ).toBeInTheDocument()
-    expect(screen.getByText('Loading portfolio performance.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Loading portfolio performance.'),
+    ).toBeInTheDocument()
     expect(
       screen.getByText('Loading concentration and diversification.'),
     ).toBeInTheDocument()
@@ -226,13 +225,10 @@ describe('InvestingOverviewPanel', () => {
     )
 
     expect(screen.getByText('$1,126,640')).toBeInTheDocument()
+    expect(screen.getByText('Household total')).toBeInTheDocument()
+    expect(screen.getByText('Positions only')).toBeInTheDocument()
     expect(
-      screen.getByText(
-        /8 evidence-backed investment accounts on file\. Live position analytics cover 1 position across 2 position accounts\./i,
-      ),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(/\+12\.50% on positioned assets only\./i),
-    ).toBeInTheDocument()
+      screen.getAllByRole('button', { name: /detail: more detail/i }),
+    ).not.toHaveLength(0)
   })
 })

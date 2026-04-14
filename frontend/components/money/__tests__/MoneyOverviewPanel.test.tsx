@@ -306,9 +306,13 @@ describe('MoneyOverviewPanel', () => {
     expect(screen.getByText('+$500')).toBeInTheDocument()
     expect(screen.getByText('$0')).toBeInTheDocument()
     expect(screen.getByText('$4,700 / $1,800')).toBeInTheDocument()
-    expect(screen.getByText('Wants are $400 above the current cap.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Wants are $400 above the current cap.'),
+    ).toBeInTheDocument()
     expect(screen.getByText(/operating cushion: \$5,000/i)).toBeInTheDocument()
-    expect(screen.getByText(/merchant to attack first: amazon/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/merchant to attack first: amazon/i),
+    ).toBeInTheDocument()
     expect(screen.getByText('Budget Pulse')).toBeInTheDocument()
     expect(screen.getByText('Latest full-month change')).toBeInTheDocument()
     expect(
@@ -318,9 +322,7 @@ describe('MoneyOverviewPanel', () => {
     expect(screen.getByText('Recurring Bills')).toBeInTheDocument()
     expect(screen.getByText('Duke Energy')).toBeInTheDocument()
     expect(screen.getByText('Savings Levers')).toBeInTheDocument()
-    expect(
-      screen.getAllByText(/honey - 32oz/i),
-    ).toHaveLength(2)
+    expect(screen.getAllByText(/honey - 32oz/i)).toHaveLength(2)
     expect(
       screen.getByText(/track repeat amazon items against walmart/i),
     ).toBeInTheDocument()
@@ -346,7 +348,7 @@ describe('MoneyOverviewPanel', () => {
               detail:
                 'This spending account is too old to trust for current monthly-spend, budget, or safe-to-spend calculations.',
               actionLabel: 'Add statements',
-              actionHref: '/money?utility=evidence',
+              actionHref: '/money?tab=intake',
               relatedAccountId: 'account-1',
               relatedQuestionId: null,
               relatedDocumentIds: ['doc-1'],
@@ -357,20 +359,13 @@ describe('MoneyOverviewPanel', () => {
     )
 
     expect(
-      screen.getAllByText('Monthly spend estimate: 1 spending account stale.'),
+      screen.getAllByRole('button', { name: /estimate: more detail/i }),
     ).not.toHaveLength(0)
-    expect(
-      screen.getAllByText('Refresh transactions for Joint Checking'),
-    ).not.toHaveLength(0)
-    expect(screen.getAllByText('Estimate')).not.toHaveLength(0)
     expect(screen.getByText('$0')).toBeInTheDocument()
     expect(screen.getByText('$4,700 / $1,800')).toBeInTheDocument()
     expect(
-      screen.getByText(/weekend spend room is estimate until spending coverage is current/i),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(/needs versus wants is estimate until spending coverage is current/i),
-    ).toBeInTheDocument()
+      screen.queryByText(/estimate from current coverage/i),
+    ).not.toBeInTheDocument()
     expect(screen.getByText('+$900')).toBeInTheDocument()
   })
 })

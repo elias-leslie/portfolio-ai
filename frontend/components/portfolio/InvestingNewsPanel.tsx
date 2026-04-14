@@ -3,8 +3,8 @@
 import { ExternalLink, Newspaper, Target } from 'lucide-react'
 import Link from 'next/link'
 import { useMemo } from 'react'
-import { Badge } from '@/components/ui/badge'
 import { SectionCard } from '@/components/shared/SectionCard'
+import { Badge } from '@/components/ui/badge'
 import type { NewsBundle } from '@/lib/api/news'
 import type { PositionWithValue } from '@/lib/api/portfolio'
 import type { SentimentArticle, WatchlistItem } from '@/lib/api/watchlist'
@@ -273,9 +273,12 @@ function detailForSymbolArticle(article: SentimentArticle) {
 function macroTopicForArticle(article: SentimentArticle) {
   if (article.marketContextTopic) {
     return (
-      MACRO_TOPICS.find((topic) => topic.label === article.marketContextTopic) ?? {
+      MACRO_TOPICS.find(
+        (topic) => topic.label === article.marketContextTopic,
+      ) ?? {
         label: article.marketContextTopic,
-        detail: cleanText(article.decisionValueReason) || cleanText(article.summary),
+        detail:
+          cleanText(article.decisionValueReason) || cleanText(article.summary),
         patterns: [],
       }
     )
@@ -287,7 +290,10 @@ function macroTopicForArticle(article: SentimentArticle) {
   if (!context) {
     return null
   }
-  return MACRO_TOPICS.find((topic) => matchesAnyPattern(context, topic.patterns)) ?? null
+  return (
+    MACRO_TOPICS.find((topic) => matchesAnyPattern(context, topic.patterns)) ??
+    null
+  )
 }
 
 function shouldSurfaceSymbolArticle(article: SentimentArticle) {
@@ -430,7 +436,9 @@ function buildHeadlineGroups({
     options?: { badge?: string; detail?: string },
   ): RelevantHeadline => {
     const href =
-      symbol && !article.url ? `/symbols/${symbol}` : article.url ?? '/portfolio'
+      symbol && !article.url
+        ? `/symbols/${symbol}`
+        : (article.url ?? '/portfolio')
     return {
       id: `${groupLabel.toLowerCase()}-${symbol ?? 'market'}-${article.contentHash}`,
       headline: article.headline,
@@ -497,7 +505,8 @@ function buildHeadlineGroups({
     {
       id: 'holdings',
       title: 'Holdings',
-      description: 'Only new developments tied directly to positions you already own.',
+      description:
+        'Only new developments tied directly to positions you already own.',
       items: heldItems,
     },
     {
@@ -588,9 +597,12 @@ function HeadlineGroupCard({ group }: { group: HeadlineGroup }) {
               </div>
 
               <p className="mt-2 text-xs text-text-muted">
-                {[headline.source, headline.publishedAt
-                  ? formatRelativeTime(headline.publishedAt)
-                  : null]
+                {[
+                  headline.source,
+                  headline.publishedAt
+                    ? formatRelativeTime(headline.publishedAt)
+                    : null,
+                ]
                   .filter(Boolean)
                   .join(' · ')}
               </p>
@@ -632,7 +644,8 @@ export function InvestingNewsPanel({
         variant="surface"
       >
         <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/15 px-5 py-10 text-sm text-text-muted">
-          Nothing decision-useful right now. Duplicated, generic, and non-portfolio headlines stay hidden on purpose.
+          Nothing decision-useful right now. Duplicated, generic, and
+          non-portfolio headlines stay hidden on purpose.
         </div>
       </SectionCard>
     )

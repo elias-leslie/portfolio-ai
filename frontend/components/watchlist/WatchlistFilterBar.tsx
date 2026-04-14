@@ -9,8 +9,8 @@ import {
 import { cn } from '@/lib/utils'
 import type { WatchlistCounts } from './useWatchlistFilters'
 import {
-  SIGNAL_FILTER_LABELS,
   type RiskFilter,
+  SIGNAL_FILTER_LABELS,
   type SignalFilter,
   type StyleFilter,
 } from './watchlistFilters'

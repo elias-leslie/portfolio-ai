@@ -6,9 +6,10 @@ MONEY_ROUTE = "/money"
 MONEY_ACCOUNT_COVERAGE_ROUTE = "/money?tab=accounts&focus=account-coverage"
 MONEY_DISCOVERED_ACCOUNTS_ROUTE = "/money?tab=accounts&focus=discovered-accounts"
 MONEY_ACCOUNTS_ROUTE = "/money?tab=accounts"
-MONEY_CLARIFICATIONS_ROUTE = "/money#money-clarifications"
-MONEY_DATE_QUALITY_ROUTE = "/money?utility=evidence&focus=date-quality"
-MONEY_EVIDENCE_ROUTE = "/money?utility=evidence"
+MONEY_REVIEW_ROUTE = "/money?tab=review"
+MONEY_CLARIFICATIONS_ROUTE = "/money?tab=review&focus=clarifications#money-clarifications"
+MONEY_DATE_QUALITY_ROUTE = "/money?tab=intake&focus=date-quality"
+MONEY_EVIDENCE_ROUTE = "/money?tab=intake"
 MONEY_PLANNING_ROUTE = "/money?utility=planning"
 
 

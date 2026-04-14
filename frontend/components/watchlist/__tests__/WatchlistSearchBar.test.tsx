@@ -14,7 +14,9 @@ describe('WatchlistSearchBar', () => {
     )
 
     expect(
-      screen.getByPlaceholderText(/search symbol, note, thesis, or live setup/i),
+      screen.getByPlaceholderText(
+        /search symbol, note, thesis, or live setup/i,
+      ),
     ).toBeInTheDocument()
     expect(
       screen.getByText(/search symbol, note, thesis headline, or live setup/i),

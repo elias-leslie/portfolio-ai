@@ -1,6 +1,12 @@
 'use client'
 
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MoneyAccountsPanel } from '../MoneyAccountsPanel'
@@ -146,13 +152,13 @@ describe('MoneyAccountsPanel', () => {
   it('renders account rows and uploads evidence with an account hint', async () => {
     render(<MoneyAccountsPanel accounts={accounts} documents={documents} />)
 
-    await userEvent.click(screen.getByRole('button', { name: /main checking/i }))
+    await userEvent.click(
+      screen.getByRole('button', { name: /main checking/i }),
+    )
 
     expect(screen.getByText('Supporting documents')).toBeInTheDocument()
     expect(screen.getByText('checking-april.pdf')).toBeInTheDocument()
-    expect(
-      screen.getByText(/hint: main checking/i),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/hint: main checking/i)).toBeInTheDocument()
 
     const input = screen.getByLabelText('Files')
     const file = new File(['pdf'], 'may.pdf', { type: 'application/pdf' })
@@ -187,13 +193,13 @@ describe('MoneyAccountsPanel', () => {
     await user.click(screen.getByRole('button', { name: /upload text/i }))
 
     await waitFor(() => {
-        expect(uploadMutateAsync).toHaveBeenCalledWith(
-          expect.objectContaining({
-            rawText:
-              'Available balance $25,057\nPosted transaction 04/06/2026\nVendor: Amazon',
-            accountLabel: 'Main Checking',
-          }),
-        )
+      expect(uploadMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          rawText:
+            'Available balance $25,057\nPosted transaction 04/06/2026\nVendor: Amazon',
+          accountLabel: 'Main Checking',
+        }),
+      )
     })
   })
 
@@ -202,7 +208,10 @@ describe('MoneyAccountsPanel', () => {
     render(<MoneyAccountsPanel accounts={accounts} documents={documents} />)
 
     await user.click(screen.getByRole('button', { name: /add account/i }))
-    await user.type(screen.getByLabelText(/account label/i), 'Emergency Savings')
+    await user.type(
+      screen.getByLabelText(/account label/i),
+      'Emergency Savings',
+    )
     await user.click(screen.getByRole('button', { name: /create account/i }))
 
     await waitFor(() => {
@@ -231,11 +240,10 @@ describe('MoneyAccountsPanel', () => {
     expect(
       screen.getByText(/possible accounts jenny found/i),
     ).toBeInTheDocument()
-    expect(
-      screen.getByText(/today sent you here because jenny found account hints/i),
-    ).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /create tracked row/i }))
+    await user.click(
+      screen.getByRole('button', { name: /create tracked row/i }),
+    )
 
     expect(screen.getByLabelText(/account label/i)).toHaveValue(
       'Wells Fargo · …4421',
@@ -244,7 +252,9 @@ describe('MoneyAccountsPanel', () => {
     expect(screen.getByLabelText(/account mask/i)).toHaveValue('4421')
     expect(screen.getByText('Track account')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /save account details/i }))
+    await user.click(
+      screen.getByRole('button', { name: /save account details/i }),
+    )
 
     await waitFor(() => {
       expect(createMutateAsync).toHaveBeenCalledWith(
@@ -270,7 +280,9 @@ describe('MoneyAccountsPanel', () => {
     const labelInput = within(dialog).getByLabelText(/account label/i)
     await user.clear(labelInput)
     await user.type(labelInput, 'Household Checking')
-    await user.click(within(dialog).getByRole('button', { name: /save label/i }))
+    await user.click(
+      within(dialog).getByRole('button', { name: /save label/i }),
+    )
 
     await waitFor(() => {
       expect(updateMutateAsync).toHaveBeenCalledWith({
@@ -296,7 +308,9 @@ describe('MoneyAccountsPanel', () => {
     expect(screen.getByLabelText(/institution/i)).toBeDisabled()
     expect(screen.getByLabelText(/account mask/i)).toBeDisabled()
     expect(screen.getByLabelText(/owner/i)).toBeDisabled()
-    expect(screen.getByRole('button', { name: /save label/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /save label/i }),
+    ).toBeInTheDocument()
   })
 
   it('deletes a tracked account from the row dialog', async () => {
@@ -314,9 +328,16 @@ describe('MoneyAccountsPanel', () => {
 
   it('creates a tracked row from an evidence-backed account so name can be customized', async () => {
     const user = userEvent.setup()
-    render(<MoneyAccountsPanel accounts={evidenceOnlyAccounts} documents={documents} />)
+    render(
+      <MoneyAccountsPanel
+        accounts={evidenceOnlyAccounts}
+        documents={documents}
+      />,
+    )
 
-    await user.click(screen.getByRole('button', { name: /cash management \(joint wros\)/i }))
+    await user.click(
+      screen.getByRole('button', { name: /cash management \(joint wros\)/i }),
+    )
     await user.click(screen.getByRole('button', { name: /track \/ rename/i }))
 
     expect(screen.getByLabelText(/account label/i)).toHaveValue(
@@ -328,7 +349,9 @@ describe('MoneyAccountsPanel', () => {
     const labelInput = screen.getByLabelText(/account label/i)
     await user.clear(labelInput)
     await user.type(labelInput, 'Main Cash Management')
-    await user.click(screen.getByRole('button', { name: /save account details/i }))
+    await user.click(
+      screen.getByRole('button', { name: /save account details/i }),
+    )
 
     await waitFor(() => {
       expect(createMutateAsync).toHaveBeenCalledWith(
@@ -351,9 +374,6 @@ describe('MoneyAccountsPanel', () => {
       />,
     )
 
-    expect(
-      screen.getByText(/today sent you here to confirm account coverage/i),
-    ).toBeInTheDocument()
     expect(screen.getByText('Supporting documents')).toBeInTheDocument()
     expect(screen.getByText(/hint: main checking/i)).toBeInTheDocument()
   })

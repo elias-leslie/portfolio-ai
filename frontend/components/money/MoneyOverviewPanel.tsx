@@ -17,6 +17,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { InfoBadge } from '@/components/shared/InfoBadge'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -35,6 +36,15 @@ const allocationColors = [
   'var(--color-chart-4)',
   'var(--color-chart-5)',
 ]
+
+export type MoneyOverviewSection =
+  | 'decision'
+  | 'allocation'
+  | 'trend'
+  | 'budget'
+  | 'categories'
+  | 'commitments'
+  | 'levers'
 
 function formatMonthLabel(value: string) {
   const date = new Date(value)
@@ -250,11 +260,44 @@ function trustStatusLabel(status: string) {
   }
 }
 
+function trustBadgeVariant(status: string) {
+  switch (normalizeTrustStatus(status)) {
+    case 'current':
+      return 'success' as const
+    case 'estimated':
+      return 'warning' as const
+    case 'stale':
+      return 'secondary' as const
+    default:
+      return 'outline' as const
+  }
+}
+
 export function MoneyOverviewPanel({
   dashboard,
+  sections,
 }: {
   dashboard: HouseholdFinanceDashboard
+  sections?: MoneyOverviewSection[]
 }) {
+  const visibleSections = new Set<MoneyOverviewSection>(
+    sections ?? [
+      'decision',
+      'allocation',
+      'trend',
+      'budget',
+      'categories',
+      'commitments',
+      'levers',
+    ],
+  )
+  const showDecision = visibleSections.has('decision')
+  const showAllocation = visibleSections.has('allocation')
+  const showTrend = visibleSections.has('trend')
+  const showBudget = visibleSections.has('budget')
+  const showCategories = visibleSections.has('categories')
+  const showCommitments = visibleSections.has('commitments')
+  const showLevers = visibleSections.has('levers')
   const allocationData = Object.entries(
     dashboard.accounts.reduce<Record<string, number>>((totals, account) => {
       if (
@@ -343,7 +386,6 @@ export function MoneyOverviewPanel({
   const spendTrustDetail = dashboard.overview.monthlySpendDetail
   const spendTrustUnavailable = spendTrustStatus === 'unavailable'
   const spendTrustDegraded = spendTrustStatus !== 'current'
-  const spendTrustLabel = trustStatusLabel(spendTrustStatus).toLowerCase()
   const weekendSpendRaw = Math.min(
     dashboard.overview.cashReserve - operatingCushion - dueSoonTotal,
     dashboard.budgetSnapshot.remainingCashAfterPlan ?? Number.POSITIVE_INFINITY,
@@ -354,15 +396,14 @@ export function MoneyOverviewPanel({
     : null
   const safeSpendStatus =
     spendTrustUnavailable || weekendSpendAllowance == null
-      ? 'review'
+      ? 'mixed'
       : weekendSpendAllowance <= 0
-          ? 'hold'
-          : weekendSpendAllowance < 150
-            ? 'tight'
-            : 'safe'
-  const safeSpendSummary = spendTrustDegraded
-    ? `Weekend spend room is ${spendTrustLabel} until spending coverage is current. ${spendTrustDetail}`
-    : 'Discretionary spend that still respects visible cash, due-soon bills, and the current plan.'
+        ? 'hold'
+        : weekendSpendAllowance < 150
+          ? 'tight'
+          : 'safe'
+  const safeSpendSummary =
+    'Discretionary spend room against visible cash, due-soon bills, and the current plan.'
   const needsAmount = dashboard.reports.executive.averageMonthlyEssentials
   const wantsAmount = dashboard.reports.executive.averageMonthlyDiscretionary
   const trackedMonthlySpend = dashboard.reports.executive.averageMonthlySpend
@@ -397,38 +438,30 @@ export function MoneyOverviewPanel({
       insight.signalType === 'unit_price_up' ||
       insight.signalType === 'price_up',
   )
-  const coverageBlockers = dashboard.inbox
-    .filter((item) => item.category !== 'question')
-    .slice(0, 3)
-    .map((item) => item.title)
-  const whyShortDrivers = spendTrustDegraded
-    ? coverageBlockers.length > 0
-      ? coverageBlockers
-      : [spendTrustDetail]
-    : [
-        monthGap != null && monthGap > 100
-          ? `${formatCurrencyWhole(monthGap)} over month-to-date pace right now.`
-          : null,
-        discretionaryGap != null && discretionaryGap > 50
-          ? `Wants are ${formatCurrencyWhole(discretionaryGap)} above the current cap.`
-          : null,
-        essentialGap != null && essentialGap > 50
-          ? `Needs are ${formatCurrencyWhole(essentialGap)} above target.`
-          : null,
-        monthComparison && monthComparison.change > 100
-          ? `${formatMonthLabel(monthComparison.latest.month)} ran ${signedCurrency(monthComparison.change)} versus ${formatMonthLabel(monthComparison.previous.month)}.`
-          : null,
-        dueSoonTotal > 0
-          ? `${formatCurrencyWhole(dueSoonTotal)} of recurring bills are due inside 14 days.`
-          : null,
-        latestPricePressure
-          ? `${latestPricePressure.itemName} is pressuring the budget via ${priceInsightBadgeLabel(latestPricePressure.signalType).toLowerCase()}.`
-          : null,
-      ].filter((item): item is string => Boolean(item))
+  const whyShortDrivers = [
+    monthGap != null && monthGap > 100
+      ? `${formatCurrencyWhole(monthGap)} over month-to-date pace right now.`
+      : null,
+    discretionaryGap != null && discretionaryGap > 50
+      ? `Wants are ${formatCurrencyWhole(discretionaryGap)} above the current cap.`
+      : null,
+    essentialGap != null && essentialGap > 50
+      ? `Needs are ${formatCurrencyWhole(essentialGap)} above target.`
+      : null,
+    monthComparison && monthComparison.change > 100
+      ? `${formatMonthLabel(monthComparison.latest.month)} ran ${signedCurrency(monthComparison.change)} versus ${formatMonthLabel(monthComparison.previous.month)}.`
+      : null,
+    dueSoonTotal > 0
+      ? `${formatCurrencyWhole(dueSoonTotal)} of recurring bills are due inside 14 days.`
+      : null,
+    latestPricePressure
+      ? `${latestPricePressure.itemName} is pressuring the budget via ${priceInsightBadgeLabel(latestPricePressure.signalType).toLowerCase()}.`
+      : null,
+  ].filter((item): item is string => Boolean(item))
   const whyShortStatus = spendTrustUnavailable
-    ? 'review'
+    ? 'mixed'
     : spendTrustDegraded
-      ? 'review'
+      ? 'mixed'
       : discretionaryGap != null && discretionaryGap > 50
         ? 'wants_driving_gap'
         : essentialGap != null && essentialGap > 50
@@ -436,10 +469,9 @@ export function MoneyOverviewPanel({
           : monthGap != null && monthGap > 100
             ? 'mixed'
             : 'inside_guardrails'
-  const whyShortSummary = spendTrustDegraded
-    ? spendTrustDetail
-    : whyShortDrivers[0] ??
-      'Nothing obvious is breaking the month right now. Shortfall risk looks more like bill timing than overspend.'
+  const whyShortSummary =
+    whyShortDrivers[0] ??
+    'Nothing obvious is breaking the month right now. Shortfall risk looks more like bill timing than overspend.'
   const saveNowLines = [
     latestPricePressure
       ? `${priceInsightBadgeLabel(latestPricePressure.signalType)}: ${latestPricePressure.itemName}`
@@ -450,7 +482,6 @@ export function MoneyOverviewPanel({
     dashboard.jennyBrief.prompts[0] ?? null,
   ].filter((item): item is string => Boolean(item))
   const watchItems = [
-    spendTrustDegraded ? spendTrustDetail : null,
     dashboard.budgetSnapshot.paceStatus === 'running_hot'
       ? dashboard.budgetSnapshot.paceDetail
       : null,
@@ -472,416 +503,437 @@ export function MoneyOverviewPanel({
 
   return (
     <div className="space-y-6">
-      <SectionCard
-        variant="surface"
-        title="Decision Board"
-        description="Answer the household questions first, then drill into the charts and transactions below."
-      >
-        <div className="grid gap-4 xl:grid-cols-2">
-          <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-text">
-                Why this month feels tight
-              </p>
-              <Badge variant={decisionBadgeVariant(whyShortStatus)}>
-                {formatEnumLabel(whyShortStatus)}
-              </Badge>
-            </div>
-            <p className="mt-3 text-2xl font-semibold text-text">
-              {spendTrustDegraded
-                ? trustCardValue(spendTrustStatus, signedCurrency(monthGap))
-                : signedCurrency(monthGap)}
-            </p>
-            <p className="mt-1 text-sm text-text-muted">
-              {!spendTrustDegraded && dashboard.budgetSnapshot.monthToDatePlan != null
-                ? 'Current month pace versus plan.'
-                : spendTrustDegraded
-                  ? 'Money data needs repair before Jenny can explain this month with confidence.'
-                  : 'Waiting on a full monthly plan for a cleaner answer.'}
-            </p>
-            <p className="mt-3 text-sm leading-relaxed text-text-muted">
-              {whyShortSummary}
-            </p>
-            <div className="mt-3 space-y-2">
-              {whyShortDrivers.slice(0, 3).map((driver) => (
-                <p key={driver} className="text-xs text-text-muted">
-                  {driver}
-                </p>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-text">
-                Safe to spend this weekend
-              </p>
-              <Badge variant={decisionBadgeVariant(safeSpendStatus)}>
-                {formatEnumLabel(safeSpendStatus)}
-              </Badge>
-            </div>
-            <p className="mt-3 text-2xl font-semibold text-text">
-              {trustCardValue(
-                spendTrustStatus,
-                formatCurrencyWhole(weekendSpendAllowance, {
-                  nullDisplay: 'Review',
-                }),
-                'Review',
-              )}
-            </p>
-            <p className="mt-1 text-sm text-text-muted">
-              {safeSpendSummary}
-            </p>
-            <div className="mt-3 space-y-2 text-xs text-text-muted">
-              {spendTrustDegraded ? (
-                <>
-                  <p>
-                    Latest covered transaction:{' '}
-                    {dashboard.overview.lastTransactionDate ?? 'Unknown'}
-                  </p>
-                  <p>
-                    Coverage: {dashboard.overview.coverageMonths} month
-                    {dashboard.overview.coverageMonths === 1 ? '' : 's'}
-                  </p>
-                  <p>
-                    Fix first: {coverageBlockers[0] ?? dashboard.overview.nextBestAction}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p>
-                    Operating cushion: {formatCurrencyWhole(operatingCushion)}
-                  </p>
-                  <p>Due in 14 days: {formatCurrencyWhole(dueSoonTotal)}</p>
-                  <p>
-                    Remaining after plan:{' '}
-                    {formatCurrencyWhole(
-                      dashboard.budgetSnapshot.remainingCashAfterPlan,
-                      { nullDisplay: 'Not set' },
-                    )}
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-text">Want vs need</p>
-              <Badge
-                variant={decisionBadgeVariant(
-                  spendTrustDegraded
-                    ? 'mixed'
-                    : needsAmount >= wantsAmount
-                      ? 'needs_leading'
-                      : 'mixed',
-                )}
-              >
-                {!spendTrustDegraded && needsShare != null
-                  ? `${formatPercent(needsShare, { decimals: 0 })} needs`
-                  : trustStatusLabel(spendTrustStatus)}
-              </Badge>
-            </div>
-            <p className="mt-3 text-2xl font-semibold text-text">
-              {trustCardValue(
-                spendTrustStatus,
-                `${formatCurrencyWhole(needsAmount)} / ${formatCurrencyWhole(wantsAmount)}`,
-                'Awaiting split',
-              )}
-            </p>
-            <p className="mt-1 text-sm text-text-muted">
-              {spendTrustDegraded
-                ? `Needs versus wants is ${spendTrustLabel} until spending coverage is current. ${spendTrustDetail}`
-                : 'Needs versus wants from the recent monthly average.'}
-            </p>
-            <div className="mt-3 space-y-2 text-xs text-text-muted">
-              {spendTrustDegraded ? (
-                whyShortDrivers.slice(0, 3).map((driver) => (
-                  <p key={driver}>{driver}</p>
-                ))
-              ) : (
-                <>
-                  <p>Needs: {formatCategoryPreview(needCategories)}</p>
-                  <p>Wants: {formatCategoryPreview(wantCategories)}</p>
-                  <p>
-                    Wants share:{' '}
-                    {formatPercent(wantsShare, {
-                      decimals: 0,
-                      nullDisplay: '—',
-                    })}
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-text">
-                Where to save next
-              </p>
-              <Badge
-                variant={decisionBadgeVariant(
-                  saveNowLines.length > 0 ? 'mixed' : 'inside_guardrails',
-                )}
-              >
-                {saveNowLines.length} live lever
-                {saveNowLines.length === 1 ? '' : 's'}
-              </Badge>
-            </div>
-            <p className="mt-3 text-2xl font-semibold text-text">
-              {priceInsights.length + merchantHighlights.length}
-            </p>
-            <p className="mt-1 text-sm text-text-muted">
-              Price moves, merchant patterns, and Jenny follow-ups worth
-              checking first.
-            </p>
-            <div className="mt-3 space-y-2">
-              {saveNowLines.length === 0 ? (
-                <p className="text-xs text-text-muted">
-                  Jenny needs more repeat-buy history before it can surface
-                  savings levers here.
-                </p>
-              ) : (
-                saveNowLines.map((line) => (
-                  <p key={line} className="text-xs text-text-muted">
-                    {line}
-                  </p>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      </SectionCard>
-
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="space-y-6">
-          <SectionCard
-            variant="surface"
-            title="Account Allocation"
-          >
-          {netWorthTrustStatus !== 'current' ? (
-            <div className="mb-4 rounded-2xl border border-warning/25 bg-warning/5 px-4 py-3 text-sm text-text-muted">
-              {dashboard.overview.netWorthDetail}
-            </div>
-          ) : null}
-          {allocationData.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/20 px-6 py-10 text-sm text-text-muted">
-              No asset allocation yet. Upload bank, brokerage, or retirement
-              evidence so Jenny can map account balances.
-            </div>
-          ) : (
-            <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={allocationData}
-                      dataKey="value"
-                      nameKey="label"
-                      innerRadius={58}
-                      outerRadius={92}
-                      paddingAngle={2}
-                      onClick={(_, index) => {
-                        const entry = allocationData[index]
-                        if (entry?.assetGroup) {
-                          setSelectedAssetGroup(entry.assetGroup)
-                        }
-                      }}
-                    >
-                      {allocationData.map((entry, index) => (
-                        <Cell
-                          key={entry.assetGroup}
-                          fill={
-                            allocationColors[index % allocationColors.length]
-                          }
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={currencyTooltipFormatter} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="space-y-3">
-                {allocationData.map((entry, index) => {
-                  const isActive = entry.assetGroup === selectedAssetGroup
-                  return (
-                    <button
-                      key={entry.assetGroup}
-                      type="button"
-                      onClick={() => setSelectedAssetGroup(entry.assetGroup)}
-                      className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition-colors ${
-                        isActive
-                          ? 'border-primary/40 bg-primary/10'
-                          : 'border-border/40 bg-surface-muted/15 hover:border-border/60'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span
-                          className="h-3 w-3 rounded-full"
-                          style={{
-                            backgroundColor:
-                              allocationColors[index % allocationColors.length],
-                          }}
-                        />
-                        <div>
-                          <p className="text-sm font-semibold text-text">
-                            {entry.label}
-                          </p>
-                          <p className="text-xs text-text-muted">
-                            {
-                              dashboard.accounts.filter(
-                                (account) =>
-                                  account.assetGroup === entry.assetGroup,
-                              ).length
-                            }{' '}
-                            account
-                            {dashboard.accounts.filter(
-                              (account) =>
-                                account.assetGroup === entry.assetGroup,
-                            ).length === 1
-                              ? ''
-                              : 's'}
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-sm font-semibold tabular-nums text-text">
-                        {formatCurrencyWhole(entry.value)}
-                      </span>
-                    </button>
-                  )
-                })}
-                {selectedAccounts.length > 0 ? (
-                  <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                      Drill-down
-                    </p>
-                    <div className="mt-3 space-y-2">
-                      {selectedAccounts.slice(0, 4).map((account) => (
-                        <div
-                          key={account.id}
-                          className="flex items-center justify-between gap-3 text-sm"
-                        >
-                          <div>
-                            <p className="font-medium text-text">
-                              {account.label}
-                            </p>
-                            <p className="text-xs text-text-muted">
-                              {account.freshnessLabel} · {account.matchStatus}
-                            </p>
-                          </div>
-                          <span className="tabular-nums text-text">
-                            {formatCurrencyWhole(account.currentValue)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-4">
-                      <Button asChild size="sm" variant="outline">
-                        <Link href="/money?tab=accounts">
-                          Open accounts
-                        </Link>
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          )}
-        </SectionCard>
-
-          <SectionCard
-            variant="surface"
-            title="Monthly Spend Trend"
-          >
-          {spendTrustDegraded ? (
-            <div className="mb-4 rounded-2xl border border-warning/25 bg-warning/5 px-4 py-3 text-sm text-text-muted">
-              {spendTrustDetail}
-            </div>
-          ) : null}
-          {dashboard.reports.monthlySpendTrend.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/20 px-6 py-10 text-sm text-text-muted">
-              No monthly spend trend yet. Upload at least one
-              transaction-bearing statement or export.
-            </div>
-          ) : (
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={dashboard.reports.monthlySpendTrend}
-                  margin={{ top: 10, right: 12, left: 0, bottom: 8 }}
-                >
-                  <XAxis
-                    dataKey="month"
-                    tickFormatter={formatMonthLabel}
-                    tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }}
-                    axisLine={{ stroke: 'var(--color-border)' }}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tickFormatter={formatThousandsAxis}
-                    tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }}
-                    axisLine={false}
-                    tickLine={false}
-                    width={40}
-                  />
-                  <Tooltip
-                    formatter={currencyTooltipFormatter}
-                    labelFormatter={monthTooltipLabelFormatter}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="totalSpend"
-                    stroke="var(--color-chart-blue)"
-                    strokeWidth={2.5}
-                    dot={{ r: 3 }}
-                    activeDot={{ r: 5 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-          </SectionCard>
-        </div>
-
-        <div className="space-y-6">
-          <SectionCard
-            variant="surface"
-            title="Budget Pulse"
-            description={dashboard.budgetSnapshot.summary}
-          >
-          {spendTrustDegraded ? (
-            <div className="mb-4 rounded-2xl border border-warning/25 bg-warning/5 px-4 py-3 text-sm text-text-muted">
-              {spendTrustDetail}
-            </div>
-          ) : null}
-          <div className="grid gap-4 md:grid-cols-2">
+      {showDecision ? (
+        <SectionCard
+          variant="surface"
+          title="Decision Board"
+          description="Current household money reads. Drill deeper in spending, levers, accounts, and intake."
+        >
+          <div className="grid gap-4 xl:grid-cols-2">
             <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-semibold text-text">
-                  Month to date
+                  Why this month feels tight
                 </p>
-                <Badge variant={paceBadgeVariant(dashboard.budgetSnapshot.paceStatus)}>
+                <div className="flex flex-wrap items-center gap-2">
+                  {spendTrustDegraded ? (
+                    <InfoBadge
+                      label={trustStatusLabel(spendTrustStatus)}
+                      detail={spendTrustDetail}
+                      variant={trustBadgeVariant(spendTrustStatus)}
+                    />
+                  ) : null}
+                  <Badge variant={decisionBadgeVariant(whyShortStatus)}>
+                    {formatEnumLabel(whyShortStatus)}
+                  </Badge>
+                </div>
+              </div>
+              <p className="mt-3 text-2xl font-semibold text-text">
+                {spendTrustDegraded
+                  ? trustCardValue(spendTrustStatus, signedCurrency(monthGap))
+                  : signedCurrency(monthGap)}
+              </p>
+              <p className="mt-1 text-sm text-text-muted">
+                {dashboard.budgetSnapshot.monthToDatePlan != null
+                  ? 'Current month pace versus plan.'
+                  : 'Waiting on a full monthly plan for a cleaner answer.'}
+              </p>
+              <p className="mt-3 text-sm leading-relaxed text-text-muted">
+                {whyShortSummary}
+              </p>
+              <div className="mt-3 space-y-2">
+                {!spendTrustDegraded
+                  ? whyShortDrivers.slice(0, 3).map((driver) => (
+                      <p key={driver} className="text-xs text-text-muted">
+                        {driver}
+                      </p>
+                    ))
+                  : null}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-text">
+                  Safe to spend this weekend
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {spendTrustDegraded ? (
+                    <InfoBadge
+                      label={trustStatusLabel(spendTrustStatus)}
+                      detail={spendTrustDetail}
+                      variant={trustBadgeVariant(spendTrustStatus)}
+                    />
+                  ) : null}
+                  <Badge variant={decisionBadgeVariant(safeSpendStatus)}>
+                    {formatEnumLabel(safeSpendStatus)}
+                  </Badge>
+                </div>
+              </div>
+              <p className="mt-3 text-2xl font-semibold text-text">
+                {trustCardValue(
+                  spendTrustStatus,
+                  formatCurrencyWhole(weekendSpendAllowance, {
+                    nullDisplay: 'Review',
+                  }),
+                  'Review',
+                )}
+              </p>
+              <p className="mt-1 text-sm text-text-muted">{safeSpendSummary}</p>
+              <div className="mt-3 space-y-2 text-xs text-text-muted">
+                <p>
+                  Operating cushion: {formatCurrencyWhole(operatingCushion)}
+                </p>
+                <p>Due in 14 days: {formatCurrencyWhole(dueSoonTotal)}</p>
+                <p>
+                  Remaining after plan:{' '}
+                  {formatCurrencyWhole(
+                    dashboard.budgetSnapshot.remainingCashAfterPlan,
+                    { nullDisplay: 'Not set' },
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-text">Want vs need</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {spendTrustDegraded ? (
+                    <InfoBadge
+                      label={trustStatusLabel(spendTrustStatus)}
+                      detail={spendTrustDetail}
+                      variant={trustBadgeVariant(spendTrustStatus)}
+                    />
+                  ) : null}
+                  <Badge
+                    variant={decisionBadgeVariant(
+                      spendTrustDegraded
+                        ? 'mixed'
+                        : needsAmount >= wantsAmount
+                          ? 'needs_leading'
+                          : 'mixed',
+                    )}
+                  >
+                    {!spendTrustDegraded && needsShare != null
+                      ? `${formatPercent(needsShare, { decimals: 0 })} needs`
+                      : 'Split'}
+                  </Badge>
+                </div>
+              </div>
+              <p className="mt-3 text-2xl font-semibold text-text">
+                {trustCardValue(
+                  spendTrustStatus,
+                  `${formatCurrencyWhole(needsAmount)} / ${formatCurrencyWhole(wantsAmount)}`,
+                  'Awaiting split',
+                )}
+              </p>
+              <p className="mt-1 text-sm text-text-muted">
+                Needs versus wants from the recent monthly average.
+              </p>
+              <div className="mt-3 space-y-2 text-xs text-text-muted">
+                <p>Needs: {formatCategoryPreview(needCategories)}</p>
+                <p>Wants: {formatCategoryPreview(wantCategories)}</p>
+                <p>
+                  Wants share:{' '}
+                  {formatPercent(wantsShare, {
+                    decimals: 0,
+                    nullDisplay: '—',
+                  })}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-text">
+                  Where to save next
+                </p>
+                <Badge
+                  variant={decisionBadgeVariant(
+                    saveNowLines.length > 0 ? 'mixed' : 'inside_guardrails',
+                  )}
+                >
+                  {saveNowLines.length} live lever
+                  {saveNowLines.length === 1 ? '' : 's'}
+                </Badge>
+              </div>
+              <p className="mt-3 text-2xl font-semibold text-text">
+                {priceInsights.length + merchantHighlights.length}
+              </p>
+              <p className="mt-1 text-sm text-text-muted">
+                Price moves, merchant patterns, and Jenny follow-ups worth
+                checking first.
+              </p>
+              <div className="mt-3 space-y-2">
+                {saveNowLines.length === 0 ? (
+                  <p className="text-xs text-text-muted">
+                    No live savings lever is visible yet.
+                  </p>
+                ) : (
+                  saveNowLines.map((line) => (
+                    <p key={line} className="text-xs text-text-muted">
+                      {line}
+                    </p>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+      ) : null}
+
+      {showAllocation || showTrend ? (
+        <div className="grid gap-6 xl:grid-cols-2">
+          {showAllocation ? (
+            <SectionCard
+              variant="surface"
+              title="Account Allocation"
+              actions={
+                netWorthTrustStatus !== 'current' ? (
+                  <InfoBadge
+                    label={trustStatusLabel(netWorthTrustStatus)}
+                    detail={dashboard.overview.netWorthDetail}
+                    variant={trustBadgeVariant(netWorthTrustStatus)}
+                  />
+                ) : undefined
+              }
+            >
+              {allocationData.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/20 px-6 py-10 text-sm text-text-muted">
+                  No asset allocation visible yet.
+                </div>
+              ) : (
+                <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={allocationData}
+                          dataKey="value"
+                          nameKey="label"
+                          innerRadius={58}
+                          outerRadius={92}
+                          paddingAngle={2}
+                          onClick={(_, index) => {
+                            const entry = allocationData[index]
+                            if (entry?.assetGroup) {
+                              setSelectedAssetGroup(entry.assetGroup)
+                            }
+                          }}
+                        >
+                          {allocationData.map((entry, index) => (
+                            <Cell
+                              key={entry.assetGroup}
+                              fill={
+                                allocationColors[
+                                  index % allocationColors.length
+                                ]
+                              }
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={currencyTooltipFormatter} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="space-y-3">
+                    {allocationData.map((entry, index) => {
+                      const isActive = entry.assetGroup === selectedAssetGroup
+                      return (
+                        <button
+                          key={entry.assetGroup}
+                          type="button"
+                          onClick={() =>
+                            setSelectedAssetGroup(entry.assetGroup)
+                          }
+                          className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition-colors ${
+                            isActive
+                              ? 'border-primary/40 bg-primary/10'
+                              : 'border-border/40 bg-surface-muted/15 hover:border-border/60'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span
+                              className="h-3 w-3 rounded-full"
+                              style={{
+                                backgroundColor:
+                                  allocationColors[
+                                    index % allocationColors.length
+                                  ],
+                              }}
+                            />
+                            <div>
+                              <p className="text-sm font-semibold text-text">
+                                {entry.label}
+                              </p>
+                              <p className="text-xs text-text-muted">
+                                {
+                                  dashboard.accounts.filter(
+                                    (account) =>
+                                      account.assetGroup === entry.assetGroup,
+                                  ).length
+                                }{' '}
+                                account
+                                {dashboard.accounts.filter(
+                                  (account) =>
+                                    account.assetGroup === entry.assetGroup,
+                                ).length === 1
+                                  ? ''
+                                  : 's'}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-sm font-semibold tabular-nums text-text">
+                            {formatCurrencyWhole(entry.value)}
+                          </span>
+                        </button>
+                      )
+                    })}
+                    {selectedAccounts.length > 0 ? (
+                      <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                          Drill-down
+                        </p>
+                        <div className="mt-3 space-y-2">
+                          {selectedAccounts.slice(0, 4).map((account) => (
+                            <div
+                              key={account.id}
+                              className="flex items-center justify-between gap-3 text-sm"
+                            >
+                              <div>
+                                <p className="font-medium text-text">
+                                  {account.label}
+                                </p>
+                                <p className="text-xs text-text-muted">
+                                  {account.freshnessLabel} ·{' '}
+                                  {account.matchStatus}
+                                </p>
+                              </div>
+                              <span className="tabular-nums text-text">
+                                {formatCurrencyWhole(account.currentValue)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-4">
+                          <Button asChild size="sm" variant="outline">
+                            <Link href="/money?tab=accounts">
+                              Open accounts
+                            </Link>
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+            </SectionCard>
+          ) : null}
+
+          {showTrend ? (
+            <SectionCard
+              variant="surface"
+              title="Monthly Spend Trend"
+              actions={
+                spendTrustDegraded ? (
+                  <InfoBadge
+                    label={trustStatusLabel(spendTrustStatus)}
+                    detail={spendTrustDetail}
+                    variant={trustBadgeVariant(spendTrustStatus)}
+                  />
+                ) : undefined
+              }
+            >
+              {dashboard.reports.monthlySpendTrend.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/20 px-6 py-10 text-sm text-text-muted">
+                  No monthly spend trend visible yet.
+                </div>
+              ) : (
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={dashboard.reports.monthlySpendTrend}
+                      margin={{ top: 10, right: 12, left: 0, bottom: 8 }}
+                    >
+                      <XAxis
+                        dataKey="month"
+                        tickFormatter={formatMonthLabel}
+                        tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }}
+                        axisLine={{ stroke: 'var(--color-border)' }}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tickFormatter={formatThousandsAxis}
+                        tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={40}
+                      />
+                      <Tooltip
+                        formatter={currencyTooltipFormatter}
+                        labelFormatter={monthTooltipLabelFormatter}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="totalSpend"
+                        stroke="var(--color-chart-blue)"
+                        strokeWidth={2.5}
+                        dot={{ r: 3 }}
+                        activeDot={{ r: 5 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </SectionCard>
+          ) : null}
+        </div>
+      ) : null}
+
+      {showBudget ? (
+        <SectionCard
+          variant="surface"
+          title="Budget Pulse"
+          description={dashboard.budgetSnapshot.summary}
+          actions={
+            spendTrustDegraded ? (
+              <InfoBadge
+                label={trustStatusLabel(spendTrustStatus)}
+                detail={spendTrustDetail}
+                variant={trustBadgeVariant(spendTrustStatus)}
+              />
+            ) : undefined
+          }
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-text">Month to date</p>
+                <Badge
+                  variant={paceBadgeVariant(
+                    dashboard.budgetSnapshot.paceStatus,
+                  )}
+                >
                   {formatEnumLabel(dashboard.budgetSnapshot.paceStatus)}
                 </Badge>
               </div>
               <p className="mt-3 text-2xl font-semibold text-text">
                 {trustCardValue(
                   spendTrustStatus,
-                  formatCurrencyWhole(dashboard.budgetSnapshot.monthToDateSpend),
+                  formatCurrencyWhole(
+                    dashboard.budgetSnapshot.monthToDateSpend,
+                  ),
                 )}
               </p>
               <p className="mt-1 text-sm text-text-muted">
-                {spendTrustDegraded
-                  ? `Month-to-date subtotal is ${spendTrustLabel} until spending coverage is current.`
-                  : `Plan: ${formatCurrencyWhole(dashboard.budgetSnapshot.monthToDatePlan, {
-                      nullDisplay: 'Not set',
-                    })}`}
+                {`Plan: ${formatCurrencyWhole(
+                  dashboard.budgetSnapshot.monthToDatePlan,
+                  { nullDisplay: 'Not set' },
+                )}`}
               </p>
               <p className="mt-3 text-sm leading-relaxed text-text-muted">
-                {spendTrustDegraded
-                  ? spendTrustDetail
-                  : dashboard.budgetSnapshot.paceDetail}
+                {dashboard.budgetSnapshot.paceDetail}
               </p>
             </div>
 
@@ -907,25 +959,22 @@ export function MoneyOverviewPanel({
               <p className="mt-3 text-2xl font-semibold text-text">
                 {trustCardValue(
                   spendTrustStatus,
-                  signedCurrency(dashboard.budgetSnapshot.discretionaryHeadroom),
+                  signedCurrency(
+                    dashboard.budgetSnapshot.discretionaryHeadroom,
+                  ),
                 )}
               </p>
               <p className="mt-1 text-sm text-text-muted">
-                {spendTrustDegraded
-                  ? `Headroom is ${spendTrustLabel} while spending coverage is degraded.`
-                  : `Monthly plan: ${formatCurrencyWhole(dashboard.budgetSnapshot.monthlyPlanTotal, {
-                      nullDisplay: 'Not set',
-                    })}`}
+                {`Monthly plan: ${formatCurrencyWhole(
+                  dashboard.budgetSnapshot.monthlyPlanTotal,
+                  { nullDisplay: 'Not set' },
+                )}`}
               </p>
               <p className="mt-3 text-sm leading-relaxed text-text-muted">
-                {spendTrustDegraded
-                  ? spendTrustDetail
-                  : `Remaining after plan: ${formatCurrencyWhole(
-                      dashboard.budgetSnapshot.remainingCashAfterPlan,
-                      {
-                        nullDisplay: 'Not available',
-                      },
-                    )}`}
+                {`Remaining after plan: ${formatCurrencyWhole(
+                  dashboard.budgetSnapshot.remainingCashAfterPlan,
+                  { nullDisplay: 'Not available' },
+                )}`}
               </p>
             </div>
           </div>
@@ -937,7 +986,9 @@ export function MoneyOverviewPanel({
                   Latest full-month change
                 </p>
                 {!spendTrustDegraded && monthComparison ? (
-                  <Badge variant={comparisonBadgeVariant(monthComparison.change)}>
+                  <Badge
+                    variant={comparisonBadgeVariant(monthComparison.change)}
+                  >
                     {formatPercent(monthComparison.changePct, {
                       decimals: 0,
                       sign: true,
@@ -960,8 +1011,8 @@ export function MoneyOverviewPanel({
                     {monthComparison
                       ? `${formatMonthLabel(monthComparison.latest.month)} versus ${formatMonthLabel(
                           monthComparison.previous.month,
-                        )}. ${spendTrustDetail}`
-                      : spendTrustDetail}
+                        )}.`
+                      : 'No full-month comparison visible yet.'}
                   </p>
                 </>
               ) : monthComparison ? (
@@ -976,8 +1027,7 @@ export function MoneyOverviewPanel({
                 </>
               ) : (
                 <p className="mt-3 text-sm text-text-muted">
-                  Jenny needs two completed months of clean spending history to
-                  show a reliable month-over-month change.
+                  No full-month comparison visible yet.
                 </p>
               )}
             </div>
@@ -987,7 +1037,7 @@ export function MoneyOverviewPanel({
               <div className="mt-3 space-y-2">
                 {watchItems.length === 0 ? (
                   <p className="text-sm text-text-muted">
-                    Jenny does not see a near-term budget risk right now.
+                    No near-term budget risk is visible right now.
                   </p>
                 ) : (
                   watchItems.map((item) => (
@@ -999,22 +1049,27 @@ export function MoneyOverviewPanel({
               </div>
             </div>
           </div>
-          </SectionCard>
+        </SectionCard>
+      ) : null}
 
-          <SectionCard
-            variant="surface"
-            title="Where Money Went"
-            description="High-level category split with drilldown into the transactions behind it."
-          >
-          {spendTrustDegraded ? (
-            <div className="mb-4 rounded-2xl border border-warning/25 bg-warning/5 px-4 py-3 text-sm text-text-muted">
-              Category totals are {spendTrustLabel} right now. {spendTrustDetail}
-            </div>
-          ) : null}
+      {showCategories ? (
+        <SectionCard
+          variant="surface"
+          title="Where Money Went"
+          description="High-level category split with drilldown into the transactions behind it."
+          actions={
+            spendTrustDegraded ? (
+              <InfoBadge
+                label={trustStatusLabel(spendTrustStatus)}
+                detail={spendTrustDetail}
+                variant={trustBadgeVariant(spendTrustStatus)}
+              />
+            ) : undefined
+          }
+        >
           {categoryData.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/20 px-6 py-10 text-sm text-text-muted">
-              Category visuals will appear once Jenny has enough transaction
-              history to categorize your spending.
+              No category split visible yet.
             </div>
           ) : (
             <div className="space-y-5">
@@ -1115,160 +1170,170 @@ export function MoneyOverviewPanel({
               </div>
             </div>
           )}
-          </SectionCard>
+        </SectionCard>
+      ) : null}
 
-          <div className="grid gap-6 lg:grid-cols-2">
+      {showCommitments || showLevers ? (
+        <div className="grid gap-6 lg:grid-cols-2">
+          {showCommitments ? (
             <SectionCard
               variant="surface"
               title="Recurring Bills"
               description="Known commitments and near-term due dates."
             >
-            <div className="space-y-3">
-              {dueSoonCommitments.length === 0 ? (
-                <p className="text-sm text-text-muted">
-                  Jenny needs more recurring bill history before it can flag
-                  due dates here.
-                </p>
-              ) : (
-                dueSoonCommitments.map((commitment) => (
-                  <div
-                    key={`${commitment.merchant}-${commitment.lastSeen}`}
-                    className="rounded-xl border border-border/30 bg-surface-muted/15 p-3"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-text">
-                        {commitment.merchant}
+              <div className="space-y-3">
+                {dueSoonCommitments.length === 0 ? (
+                  <p className="text-sm text-text-muted">
+                    No recurring bill pattern is visible yet.
+                  </p>
+                ) : (
+                  dueSoonCommitments.map((commitment) => (
+                    <div
+                      key={`${commitment.merchant}-${commitment.lastSeen}`}
+                      className="rounded-xl border border-border/30 bg-surface-muted/15 p-3"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-text">
+                          {commitment.merchant}
+                        </p>
+                        <Badge variant={paceBadgeVariant(commitment.dueStatus)}>
+                          {formatEnumLabel(commitment.dueStatus)}
+                        </Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-text-muted">
+                        {formatCurrencyWhole(commitment.averageAmount)} ·{' '}
+                        {formatEnumLabel(commitment.cadence)}
                       </p>
-                      <Badge variant={paceBadgeVariant(commitment.dueStatus)}>
-                        {formatEnumLabel(commitment.dueStatus)}
-                      </Badge>
+                      <p className="mt-1 text-xs text-text-muted">
+                        {commitment.daysUntilDue == null
+                          ? 'No due-date estimate yet.'
+                          : commitment.daysUntilDue === 0
+                            ? 'Expected today.'
+                            : `Expected in ${commitment.daysUntilDue} day${commitment.daysUntilDue === 1 ? '' : 's'}.`}
+                      </p>
                     </div>
-                    <p className="mt-2 text-sm text-text-muted">
-                      {formatCurrencyWhole(commitment.averageAmount)} ·{' '}
-                      {formatEnumLabel(commitment.cadence)}
-                    </p>
-                    <p className="mt-1 text-xs text-text-muted">
-                      {commitment.daysUntilDue == null
-                        ? 'Jenny does not have a due-date estimate yet.'
-                        : commitment.daysUntilDue === 0
-                          ? 'Expected today.'
-                          : `Expected in ${commitment.daysUntilDue} day${commitment.daysUntilDue === 1 ? '' : 's'}.`}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
+                  ))
+                )}
+              </div>
             </SectionCard>
+          ) : null}
 
+          {showLevers ? (
             <SectionCard
               variant="surface"
               title="Savings Levers"
-              description="Repeated-item price moves and merchants Jenny can optimize first."
+              description="Repeated-item price moves and merchants worth optimizing first."
             >
-            <div className="space-y-3">
-              {priceInsights.length === 0 && merchantHighlights.length === 0 ? (
-                <p className="text-sm text-text-muted">
-                  Jenny needs more merchant history before it can suggest price
-                  and optimization levers.
-                </p>
-              ) : (
-                <>
-                  {priceInsights.map((insight) => (
-                    <div
-                      key={`${insight.merchant}-${insight.itemName}`}
-                      className="rounded-xl border border-border/30 bg-surface-muted/15 p-3"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-semibold text-text">
-                          {insight.itemName}
+              <div className="space-y-3">
+                {priceInsights.length === 0 &&
+                merchantHighlights.length === 0 ? (
+                  <p className="text-sm text-text-muted">
+                    No live savings levers are visible yet.
+                  </p>
+                ) : (
+                  <>
+                    {priceInsights.map((insight) => (
+                      <div
+                        key={`${insight.merchant}-${insight.itemName}`}
+                        className="rounded-xl border border-border/30 bg-surface-muted/15 p-3"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-text">
+                            {insight.itemName}
+                          </p>
+                          <Badge
+                            variant={priceInsightBadgeVariant(
+                              insight.signalType,
+                            )}
+                          >
+                            {priceInsightBadgeLabel(insight.signalType)}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 text-xs text-text-muted">
+                          {insight.merchant} ·{' '}
+                          {formatCurrency(insight.latestPrice)} now versus{' '}
+                          {formatCurrency(insight.previousPrice)} on{' '}
+                          {insight.previousDate}
                         </p>
-                        <Badge variant={priceInsightBadgeVariant(insight.signalType)}>
-                          {priceInsightBadgeLabel(insight.signalType)}
-                        </Badge>
+                        {insight.latestUnitLabel ||
+                        insight.previousUnitLabel ? (
+                          <p className="mt-1 text-xs text-text-muted">
+                            Size: {insight.latestUnitLabel ?? 'Unknown'} now
+                            versus {insight.previousUnitLabel ?? 'Unknown'}{' '}
+                            before
+                            {insight.sizeChangePct != null
+                              ? ` (${formatPercent(insight.sizeChangePct, {
+                                  decimals: 0,
+                                  sign: true,
+                                  nullDisplay: '—',
+                                })})`
+                              : ''}
+                          </p>
+                        ) : null}
+                        {insight.latestUnitPrice != null &&
+                        insight.previousUnitPrice != null ? (
+                          <p className="mt-1 text-xs text-text-muted">
+                            Unit price:{' '}
+                            {formatCurrency(insight.latestUnitPrice, {
+                              decimals: 2,
+                            })}{' '}
+                            now versus{' '}
+                            {formatCurrency(insight.previousUnitPrice, {
+                              decimals: 2,
+                            })}{' '}
+                            before
+                            {insight.unitPriceChangePct != null
+                              ? ` (${formatPercent(insight.unitPriceChangePct, {
+                                  decimals: 0,
+                                  sign: true,
+                                  nullDisplay: '—',
+                                })})`
+                              : ''}
+                          </p>
+                        ) : (
+                          <p className="mt-1 text-xs text-text-muted">
+                            Ticket price change:{' '}
+                            {signedCurrency(insight.priceChange, {
+                              decimals: 2,
+                            })}
+                          </p>
+                        )}
+                        <p className="mt-2 text-sm leading-relaxed text-text-muted">
+                          {insight.recommendation}
+                        </p>
                       </div>
-                      <p className="mt-1 text-xs text-text-muted">
-                        {insight.merchant} · {formatCurrency(insight.latestPrice)}{' '}
-                        now versus {formatCurrency(insight.previousPrice)} on{' '}
-                        {insight.previousDate}
-                      </p>
-                      {insight.latestUnitLabel || insight.previousUnitLabel ? (
-                        <p className="mt-1 text-xs text-text-muted">
-                          Size:{' '}
-                          {insight.latestUnitLabel ?? 'Unknown'} now versus{' '}
-                          {insight.previousUnitLabel ?? 'Unknown'} before
-                          {insight.sizeChangePct != null
-                            ? ` (${formatPercent(insight.sizeChangePct, {
-                                decimals: 0,
-                                sign: true,
-                                nullDisplay: '—',
-                              })})`
-                            : ''}
-                        </p>
-                      ) : null}
-                      {insight.latestUnitPrice != null &&
-                      insight.previousUnitPrice != null ? (
-                        <p className="mt-1 text-xs text-text-muted">
-                          Unit price:{' '}
-                          {formatCurrency(insight.latestUnitPrice, {
-                            decimals: 2,
-                          })}{' '}
-                          now versus{' '}
-                          {formatCurrency(insight.previousUnitPrice, {
-                            decimals: 2,
-                          })}{' '}
-                          before
-                          {insight.unitPriceChangePct != null
-                            ? ` (${formatPercent(insight.unitPriceChangePct, {
-                                decimals: 0,
-                                sign: true,
-                                nullDisplay: '—',
-                              })})`
-                            : ''}
-                        </p>
-                      ) : (
-                        <p className="mt-1 text-xs text-text-muted">
-                          Ticket price change:{' '}
-                          {signedCurrency(insight.priceChange, {
-                            decimals: 2,
-                          })}
-                        </p>
-                      )}
-                      <p className="mt-2 text-sm leading-relaxed text-text-muted">
-                        {insight.recommendation}
-                      </p>
-                    </div>
-                  ))}
+                    ))}
 
-                  {merchantHighlights.map((merchant) => (
-                    <div
-                      key={merchant.merchant}
-                      className="rounded-xl border border-border/30 bg-surface-muted/15 p-3"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-semibold text-text">
-                          {merchant.merchant}
+                    {merchantHighlights.map((merchant) => (
+                      <div
+                        key={merchant.merchant}
+                        className="rounded-xl border border-border/30 bg-surface-muted/15 p-3"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-text">
+                            {merchant.merchant}
+                          </p>
+                          <span className="text-sm font-semibold tabular-nums text-text">
+                            {formatCurrencyWhole(merchant.totalSpend)}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-text-muted">
+                          {merchant.transactionCount} purchase
+                          {merchant.transactionCount === 1 ? '' : 's'} ·{' '}
+                          {formatEnumLabel(merchant.cadence)}
                         </p>
-                        <span className="text-sm font-semibold tabular-nums text-text">
-                          {formatCurrencyWhole(merchant.totalSpend)}
-                        </span>
+                        <p className="mt-2 text-sm leading-relaxed text-text-muted">
+                          {merchant.recommendation}
+                        </p>
                       </div>
-                      <p className="mt-1 text-xs text-text-muted">
-                        {merchant.transactionCount} purchase
-                        {merchant.transactionCount === 1 ? '' : 's'} ·{' '}
-                        {formatEnumLabel(merchant.cadence)}
-                      </p>
-                      <p className="mt-2 text-sm leading-relaxed text-text-muted">
-                        {merchant.recommendation}
-                      </p>
-                    </div>
-                  ))}
-                </>
-              )}
-            </div>
+                    ))}
+                  </>
+                )}
+              </div>
             </SectionCard>
-          </div>
+          ) : null}
         </div>
-      </div>
+      ) : null}
     </div>
   )
 }

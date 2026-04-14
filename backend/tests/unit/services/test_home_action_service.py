@@ -139,6 +139,51 @@ def test_get_action_queue_uses_rank_score_before_title_order() -> None:
     assert all("_rank_score" not in action for action in payload["actions"])
 
 
+def test_get_action_queue_prefers_specific_household_follow_up_for_duplicate_titles() -> None:
+    service = object.__new__(HomeActionService)
+    service._recommendation_actions = lambda: []
+    service._portfolio_health_actions = lambda: []
+    service._workflow_actions = lambda: []
+    service._jenny_actions = lambda: [
+        {
+            "id": "jenny-amazon-chase",
+            "source": "jenny",
+            "category": "investing",
+            "priority": "warning",
+            "title": "Refresh transactions for Amazon Chase (CC)",
+            "detail": "Add statements.",
+            "action_label": "Review decision",
+            "href": "/portfolio",
+            "symbol": None,
+            "badge": "Warning",
+            "execution": {
+                "kind": "acknowledge_notification",
+                "notification_id": "note-1",
+            },
+        }
+    ]
+    service._household_actions = lambda: [
+        {
+            "id": "household-amazon-chase",
+            "source": "household",
+            "category": "household",
+            "priority": "high",
+            "title": "Refresh transactions for Amazon Chase (CC)",
+            "detail": "Need a bank or card statement/export covering the latest gap.",
+            "action_label": "Add statements",
+            "href": "/money?tab=accounts&account=account-1&intent=evidence",
+            "symbol": None,
+            "badge": "Household",
+        }
+    ]
+
+    payload = service.get_action_queue()
+
+    assert len(payload["actions"]) == 1
+    assert payload["actions"][0]["source"] == "household"
+    assert payload["actions"][0]["href"].startswith("/money?")
+
+
 def test_jenny_actions_link_into_decision_context() -> None:
     service = object.__new__(HomeActionService)
     service._jenny_service = lambda: SimpleNamespace(

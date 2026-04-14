@@ -66,7 +66,8 @@ export function StatusWorkspace() {
     newsHealthQuery.error ? 'news pipeline' : null,
   ].filter((value): value is string => Boolean(value))
 
-  const isLoading = !hasAnyData && (healthPending || marketPending || newsPending)
+  const isLoading =
+    !hasAnyData && (healthPending || marketPending || newsPending)
   const hasFatalError = failedSections.length === 3
   const hasPartialError = failedSections.length > 0 && !hasFatalError
   const isFetching =
@@ -274,8 +275,8 @@ export function StatusWorkspace() {
                 healthPending
                   ? 'Loading system health...'
                   : healthQuery.data?.timestamp
-                  ? `Updated ${formatRelativeTime(healthQuery.data.timestamp)}`
-                  : 'Update time unavailable'
+                    ? `Updated ${formatRelativeTime(healthQuery.data.timestamp)}`
+                    : 'Update time unavailable'
               }
               tone={systemTone(healthQuery.data?.status)}
             />
@@ -289,7 +290,8 @@ export function StatusWorkspace() {
               detail={
                 marketPending
                   ? 'Loading market calendar...'
-                  : marketQuery.data?.currentTimeEt ?? 'No market clock available'
+                  : (marketQuery.data?.currentTimeEt ??
+                    'No market clock available')
               }
               tone={marketTone(marketQuery.data?.status)}
             />
@@ -299,10 +301,10 @@ export function StatusWorkspace() {
                 healthPending
                   ? 'Loading...'
                   : watchlistCoveragePct !== null
-                  ? formatPercent(watchlistCoveragePct)
-                  : formatInteger(
-                      healthQuery.data?.watchlistStats?.itemsWithScores,
-                    )
+                    ? formatPercent(watchlistCoveragePct)
+                    : formatInteger(
+                        healthQuery.data?.watchlistStats?.itemsWithScores,
+                      )
               }
               detail={
                 healthPending
@@ -318,7 +320,9 @@ export function StatusWorkspace() {
                   : formatInteger(newsHealthQuery.data?.headlines24H)
               }
               detail={
-                newsPending ? 'Loading news pipeline health...' : newsPipelineDetail
+                newsPending
+                  ? 'Loading news pipeline health...'
+                  : newsPipelineDetail
               }
               tone={newsTone(newsHealthQuery.data?.status)}
             />
@@ -333,8 +337,8 @@ export function StatusWorkspace() {
                 healthPending
                   ? 'Loading runtime details...'
                   : healthQuery.data?.version
-                  ? `Version ${healthQuery.data.version}`
-                  : 'Version unavailable'
+                    ? `Version ${healthQuery.data.version}`
+                    : 'Version unavailable'
               }
             />
             <SummaryStat
@@ -353,14 +357,16 @@ export function StatusWorkspace() {
             <SummaryStat
               label="Jobs To Review"
               value={
-                healthPending ? 'Loading...' : formatInteger(staleMaintenanceCount)
+                healthPending
+                  ? 'Loading...'
+                  : formatInteger(staleMaintenanceCount)
               }
               detail={
                 healthPending
                   ? 'Loading background job health...'
                   : staleMaintenanceCount > 0
-                  ? 'At least one background job needs attention'
-                  : 'No stuck background jobs reported'
+                    ? 'At least one background job needs attention'
+                    : 'No stuck background jobs reported'
               }
               tone={staleMaintenanceCount > 0 ? 'negative' : 'default'}
             />

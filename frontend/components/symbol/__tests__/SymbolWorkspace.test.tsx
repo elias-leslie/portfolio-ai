@@ -127,7 +127,9 @@ describe('SymbolWorkspace', () => {
               'Older review said VTI was up 31.1% and 39.2% of the portfolio.',
             positionGainPct: 31.1,
             positionWeightPct: 39.2,
-            reasons: ['Older position facts should not compete with the alert.'],
+            reasons: [
+              'Older position facts should not compete with the alert.',
+            ],
             evaluations: [],
           },
         ],
@@ -296,7 +298,9 @@ describe('SymbolWorkspace', () => {
               'Older review said VTI was up 31.1% and 39.2% of the portfolio.',
             positionGainPct: 31.1,
             positionWeightPct: 39.2,
-            reasons: ['Older position facts should not compete with the alert.'],
+            reasons: [
+              'Older position facts should not compete with the alert.',
+            ],
             evaluations: [],
           },
         ],
@@ -313,9 +317,9 @@ describe('SymbolWorkspace', () => {
 
     expect(screen.getAllByText(/exit this position/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/reduce risk now\./i).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/jenny alert · critical/i).length).toBeGreaterThan(
-      0,
-    )
+    expect(
+      screen.getAllByText(/jenny alert · critical/i).length,
+    ).toBeGreaterThan(0)
     expect(screen.getByText(/signal disagreement/i)).toBeInTheDocument()
     expect(screen.getByText(/live setup evidence/i)).toBeInTheDocument()
     expect(screen.getByText(/buy more/i)).toBeInTheDocument()
@@ -341,13 +345,17 @@ describe('SymbolWorkspace', () => {
 
     await user.click(screen.getByRole('button', { name: 'Track' }))
 
-    const newsAndAlerts = screen.getByText(/news and alerts/i).closest('section')
+    const newsAndAlerts = screen
+      .getByText(/news and alerts/i)
+      .closest('section')
     expect(newsAndAlerts).not.toBeNull()
     expect(
       within(newsAndAlerts as HTMLElement).getByText(/current jenny alert/i),
     ).toBeInTheDocument()
     expect(
-      within(newsAndAlerts as HTMLElement).getByText(/vti: exit this position/i),
+      within(newsAndAlerts as HTMLElement).getByText(
+        /vti: exit this position/i,
+      ),
     ).toBeInTheDocument()
   })
 

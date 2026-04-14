@@ -2,6 +2,7 @@
 
 import { PlusCircle } from 'lucide-react'
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog'
+import { InfoBadge } from '@/components/shared/InfoBadge'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { Accordion } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
@@ -12,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { useHouseholdDashboard } from '@/lib/hooks/useHousehold'
 import { useAccounts, usePortfolio } from '@/lib/hooks/usePortfolio'
 import { AccountAccordionItem } from './AccountAccordionItem'
 import { AccountsWithPositionsSkeleton } from './AccountsWithPositionsSkeleton'
@@ -44,6 +46,7 @@ export function AccountsWithPositionsContent({
   onAddAccount,
   onAddPosition,
 }: AccountsWithPositionsContentProps) {
+  const { data: household } = useHouseholdDashboard()
   const {
     data: portfolio,
     isLoading: portfolioLoading,
@@ -54,6 +57,21 @@ export function AccountsWithPositionsContent({
   const del = useDeleteConfirmation(portfolio?.positions)
   const edit = useEditPositionForm()
   const confirmDialog = <ConfirmActionDialog {...del.dialogProps} />
+  const linkedHouseholdAccountsByPortfolioAccountId = Object.fromEntries(
+    (household?.accounts ?? [])
+      .filter((account) => account.linkedPortfolioAccountId)
+      .map((account) => [account.linkedPortfolioAccountId as string, account]),
+  )
+  const householdInvestmentAccountsCount =
+    evidenceInvestmentAccountsCount ??
+    portfolio?.householdInvestmentAccountsCount ??
+    null
+  const accountCount = accounts?.length ?? 0
+  const householdCoverageDetail =
+    householdInvestmentAccountsCount != null &&
+    householdInvestmentAccountsCount > accountCount
+      ? `Linked household truth covers ${householdInvestmentAccountsCount} investment account${householdInvestmentAccountsCount === 1 ? '' : 's'}, while live position tracking here currently covers ${accountCount} position account${accountCount === 1 ? '' : 's'}.`
+      : null
 
   if (accountsLoading || portfolioLoading) {
     return (
@@ -142,13 +160,16 @@ export function AccountsWithPositionsContent({
                 {accounts.length} account{accounts.length !== 1 ? 's' : ''} •{' '}
                 {portfolio?.positions.length || 0} position
                 {portfolio?.positions.length !== 1 ? 's' : ''}
-                {evidenceInvestmentAccountsCount != null &&
-                evidenceInvestmentAccountsCount > accounts.length
-                  ? ` · ${evidenceInvestmentAccountsCount} evidence-backed investment accounts`
-                  : ''}
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {householdCoverageDetail ? (
+                <InfoBadge
+                  label={`${householdInvestmentAccountsCount} linked household`}
+                  detail={householdCoverageDetail}
+                  variant="outline"
+                />
+              ) : null}
               {onAddPosition && (
                 <Button
                   variant="outline"
@@ -173,15 +194,6 @@ export function AccountsWithPositionsContent({
           </div>
         </CardHeader>
         <CardContent>
-          {evidenceInvestmentAccountsCount != null &&
-          evidenceInvestmentAccountsCount > accounts.length ? (
-            <div className="mb-4 rounded-xl border border-border/50 bg-surface-muted/20 p-4 text-sm text-text-muted">
-              Statement evidence covers {evidenceInvestmentAccountsCount} investment account
-              {evidenceInvestmentAccountsCount === 1 ? '' : 's'}, but live position tracking
-              here currently covers {accounts.length} position account
-              {accounts.length === 1 ? '' : 's'}.
-            </div>
-          ) : null}
           {portfolio?.positions.length === 0 ? (
             <div className="mb-4 rounded-xl border border-border/50 bg-surface-muted/20 p-4 text-sm text-text-muted">
               Accounts exist, but no live positions are tracked yet.
@@ -192,6 +204,10 @@ export function AccountsWithPositionsContent({
               <AccountAccordionItem
                 key={account.id}
                 account={account}
+                linkedHouseholdAccount={
+                  linkedHouseholdAccountsByPortfolioAccountId[account.id] ??
+                  null
+                }
                 positions={portfolio?.positions}
                 onAddPosition={onAddPosition}
                 onDeleteAccount={del.handleDeleteAccount}

@@ -69,13 +69,13 @@ describe('HouseholdDocumentCenter', () => {
     fireEvent.click(screen.getByRole('button', { name: /upload text/i }))
 
     await waitFor(() => {
-        expect(mutateAsync).toHaveBeenCalledWith(
-          expect.objectContaining({
-            rawText:
-              'CHASE AMAZON CARD\nStatement ending 04/10/2026\nPayment due 05/05/2026',
-            accountLabel: undefined,
-          }),
-        )
+      expect(mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          rawText:
+            'CHASE AMAZON CARD\nStatement ending 04/10/2026\nPayment due 05/05/2026',
+          accountLabel: undefined,
+        }),
+      )
     })
   })
 
@@ -237,14 +237,16 @@ describe('HouseholdDocumentCenter', () => {
 
     expect(screen.getByText('8')).toBeInTheDocument()
     expect(screen.getByText(/5 parsed so far/i)).toBeInTheDocument()
-    expect(screen.getByText('Checking account statement')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Checking account statement'),
+    ).not.toBeInTheDocument()
     expect(
       screen.getByText(/statement window mar 1, 2026 to mar 31, 2026/i),
     ).toBeInTheDocument()
     expect(screen.getByText(/classifier 87%/i)).toBeInTheDocument()
   })
 
-  it('surfaces exact money blockers and smart intake paths', () => {
+  it('keeps intake focused on upload status without extra workflow copy', () => {
     render(
       <HouseholdDocumentCenter
         documents={[]}
@@ -259,36 +261,15 @@ describe('HouseholdDocumentCenter', () => {
           ],
           supportedDocuments: [],
         }}
-        moneyInbox={[
-          {
-            id: 'account-main-checking-stale-transactions',
-            category: 'account',
-            priority: 'high',
-            title: 'Add statements for Main Checking',
-            detail:
-              'Need a bank or card statement/export covering 2026-03-12 through 2026-04-12. Blocks monthly spend, budget status, and safe to spend.',
-            actionLabel: 'Add statements',
-            actionHref: '/money?utility=evidence',
-            relatedAccountId: 'account-1',
-            relatedQuestionId: null,
-            relatedDocumentIds: ['doc-1'],
-          },
-        ]}
       />,
     )
 
-    expect(screen.getByText(/needed right now/i)).toBeInTheDocument()
-    expect(screen.getByText(/add statements for main checking/i)).toBeInTheDocument()
+    expect(screen.getByText(/recent intake status/i)).toBeInTheDocument()
+    expect(screen.queryByText(/smart intake paths/i)).not.toBeInTheDocument()
     expect(
-      screen.getByText(/covering 2026-03-12 through 2026-04-12/i),
-    ).toBeInTheDocument()
-    expect(screen.getByText(/smart intake paths/i)).toBeInTheDocument()
-    expect(
-      screen.getByText(/forward retailer email receipts to intake/i),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('link', { name: /add statements/i }),
-    ).toHaveAttribute('href', '/money?utility=evidence')
+      screen.queryByText(/forward retailer email receipts to intake/i),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText(/needed right now/i)).not.toBeInTheDocument()
   })
 
   it('surfaces focused future-date evidence issues without treating them as applied transactions', () => {
@@ -319,7 +300,9 @@ describe('HouseholdDocumentCenter', () => {
       />,
     )
 
-    expect(screen.getByText(/1 transaction has a future date/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/1 transaction has a future date/i),
+    ).toBeInTheDocument()
     expect(screen.getByText('walmart-order.pdf')).toBeInTheDocument()
     expect(screen.getByText(/extracted 2026-09-03/i)).toBeInTheDocument()
     expect(screen.getByText('$164')).toBeInTheDocument()
@@ -353,8 +336,9 @@ describe('HouseholdDocumentCenter', () => {
       'aria-busy',
       'true',
     )
-    expect(
-      screen.getByRole('button', { name: /^clear$/i }),
-    ).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: /^clear$/i })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
   })
 })

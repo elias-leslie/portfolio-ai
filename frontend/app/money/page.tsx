@@ -1,7 +1,9 @@
 'use client'
 
-import Link from 'next/link'
+export const dynamic = 'force-dynamic'
+
 import { Loader2, PlusCircle, Settings2 } from 'lucide-react'
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { HouseholdDocumentCenter } from '@/components/money/HouseholdDocumentCenter'
 import {
@@ -18,7 +20,6 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { SectionCard } from '@/components/shared/SectionCard'
 import type { WorkspaceTab } from '@/components/shared/WorkspaceTabs'
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -27,12 +28,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import type { HouseholdDocumentRequirement } from '@/lib/api/household'
-import { formatCurrencyWhole } from '@/lib/formatters'
 import {
   useHouseholdDashboard,
   useHouseholdDocuments,
 } from '@/lib/hooks/useHousehold'
+import { useClientReady } from '@/lib/hooks/useClientReady'
 
 function LoadingState() {
   return (
@@ -49,120 +49,10 @@ function LoadingState() {
   )
 }
 
-function MetricCard({
-  label,
-  value,
-  detail,
-  status,
-}: {
-  label: string
-  value: string
-  detail: string
-  status?: string
-}) {
-  return (
-    <div className="rounded-2xl border border-border/40 bg-surface/60 px-4 py-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-          {label}
-        </p>
-        {status ? (
-          <Badge variant={qualityBadgeVariant(status)}>
-            {qualityLabel(status)}
-          </Badge>
-        ) : null}
-      </div>
-      <p className="mt-2 text-2xl font-semibold tracking-tight text-text">
-        {value}
-      </p>
-      <p className="mt-1 text-sm leading-relaxed text-text-muted">{detail}</p>
-    </div>
-  )
-}
-
-function needBadgeVariant(priority: string) {
-  switch (priority) {
-    case 'critical':
-      return 'error' as const
-    case 'high':
-      return 'warning' as const
-    case 'medium':
-      return 'secondary' as const
-    default:
-      return 'outline' as const
-  }
-}
-
-function trustMetricValue(
-  status: string,
-  value: string,
-  fallback: string,
-) {
-  return normalizeQualityStatus(status) === 'unavailable' ? fallback : value
-}
-
-function qualityBadgeVariant(status: string) {
-  switch (normalizeQualityStatus(status)) {
-    case 'current':
-      return 'success' as const
-    case 'estimated':
-      return 'warning' as const
-    case 'stale':
-      return 'secondary' as const
-    default:
-      return 'outline' as const
-  }
-}
-
-function qualityLabel(status: string) {
-  switch (normalizeQualityStatus(status)) {
-    case 'current':
-      return 'Current'
-    case 'estimated':
-      return 'Estimate'
-    case 'stale':
-      return 'Stale'
-    default:
-      return 'Unavailable'
-  }
-}
-
-function normalizeQualityStatus(status: string) {
-  switch (status) {
-    case 'trusted':
-      return 'current'
-    case 'partial':
-      return 'estimated'
-    case 'blocked':
-      return 'unavailable'
-    default:
-      return status
-  }
-}
-
-const MONEY_DOCUMENT_KINDS = new Set([
-  'statement',
-  'bank_statement',
-  'credit_card_statement',
-  'brokerage_statement',
-  'receipt',
-  'bill',
-  'invoice',
-  'transaction_export',
-  'csv_export',
-  'ofx_export',
-  'qfx_export',
-])
-
-function isMoneyDocumentRequirement(
-  requirement: HouseholdDocumentRequirement,
-) {
-  return MONEY_DOCUMENT_KINDS.has(requirement.documentKind)
-}
-
-type MoneyUtility = 'evidence' | 'planning'
+type MoneyUtility = 'planning'
 type MoneyFocus =
   | 'date-quality'
+  | 'clarifications'
   | 'account-coverage'
   | 'discovered-accounts'
   | PlanningFocusSection
@@ -187,7 +77,7 @@ function isPlanningFocus(
 function resolveRequestedUtility(
   requested: string | null | undefined,
 ): MoneyUtility | null {
-  return requested === 'evidence' || requested === 'planning' ? requested : null
+  return requested === 'planning' ? requested : null
 }
 
 function readRequestedUtility(): MoneyUtility | null {
@@ -205,6 +95,7 @@ function resolveRequestedFocus(
 ): MoneyFocus | null {
   if (
     requested === 'date-quality' ||
+    requested === 'clarifications' ||
     requested === 'account-coverage' ||
     requested === 'discovered-accounts' ||
     planningFocusSections.has(requested ?? '')
@@ -227,9 +118,7 @@ function readRequestedFocus(): MoneyFocus | null {
 function resolveRequestedIntent(
   requested: string | null | undefined,
 ): MoneyIntent | null {
-  return requested === 'evidence' || requested === 'review'
-    ? requested
-    : null
+  return requested === 'evidence' || requested === 'review' ? requested : null
 }
 
 function readRequestedIntent(): MoneyIntent | null {
@@ -272,7 +161,7 @@ function syncUtilityToLocation(
   window.history.replaceState(window.history.state, '', nextUrl)
 }
 
-export default function MoneyPage() {
+function MoneyPageContent() {
   const [openUtility, setOpenUtilityState] = useState<MoneyUtility | null>(
     readRequestedUtility,
   )
@@ -301,6 +190,13 @@ export default function MoneyPage() {
 
   useEffect(() => {
     const syncFromLocation = () => {
+      const currentUrl = new URL(window.location.href)
+      const currentUtility = currentUrl.searchParams.get('utility')
+      if (currentUtility === 'evidence') {
+        currentUrl.searchParams.delete('utility')
+        currentUrl.searchParams.set('tab', 'intake')
+        window.history.replaceState(window.history.state, '', currentUrl)
+      }
       const requestedFocus = readRequestedFocus()
       setFocusedReview((current) =>
         current === requestedFocus ? current : requestedFocus,
@@ -331,11 +227,9 @@ export default function MoneyPage() {
 
   const setOpenUtility = (nextUtility: MoneyUtility | null) => {
     const nextFocus =
-      nextUtility === 'evidence' && focusedReview === 'date-quality'
+      nextUtility === 'planning' && isPlanningFocus(focusedReview)
         ? focusedReview
-        : nextUtility === 'planning' && isPlanningFocus(focusedReview)
-          ? focusedReview
-          : null
+        : null
     setOpenUtilityState(nextUtility)
     setFocusedReview(nextFocus)
     syncUtilityToLocation(nextUtility, nextFocus)
@@ -372,47 +266,6 @@ export default function MoneyPage() {
   const openQuestions = dashboard.questions.filter(
     (question) => !question.answeredAt,
   )
-  const trackedDocuments =
-    documentItems.length || dashboard.importCenter.trackedDocuments
-  const moneyDocumentRequirements = (
-    dashboard.planning?.documentRequirements ?? []
-  ).filter(isMoneyDocumentRequirement)
-  const visibleMoneyInbox = dashboard.inbox
-    .filter((item) => item.category !== 'question')
-    .slice(0, 6)
-  const metrics = [
-    {
-      label: 'Net Worth',
-      value: trustMetricValue(
-        dashboard.overview.netWorthStatus,
-        formatCurrencyWhole(dashboard.overview.netWorth),
-        '—',
-      ),
-      detail: dashboard.overview.netWorthDetail,
-      status: dashboard.overview.netWorthStatus,
-    },
-    {
-      label: 'Monthly Spend',
-      value: trustMetricValue(
-        dashboard.overview.monthlySpendStatus,
-        formatCurrencyWhole(dashboard.reports.executive.averageMonthlySpend),
-        '—',
-      ),
-      detail: dashboard.overview.monthlySpendDetail,
-      status: dashboard.overview.monthlySpendStatus,
-    },
-    {
-      label: 'Visibility',
-      value: `${dashboard.overview.visibilityScore}/100`,
-      detail: `${dashboard.overview.visibilityLabel}. ${dashboard.overview.needsRefreshCount} account${dashboard.overview.needsRefreshCount === 1 ? '' : 's'} need fresh evidence.`,
-    },
-    {
-      label: 'Accounts',
-      value: String(dashboard.overview.trackedAccountCount),
-      detail: `${trackedDocuments} evidence file${trackedDocuments === 1 ? '' : 's'} · ${dashboard.overview.gapCount} active gap${dashboard.overview.gapCount === 1 ? '' : 's'}.`,
-    },
-  ]
-
   const intakeContent = documentsError ? (
     <LoadErrorState
       title="Failed to load intake documents."
@@ -428,9 +281,11 @@ export default function MoneyPage() {
     <HouseholdDocumentCenter
       documents={documentItems}
       importCenter={dashboard.importCenter}
-      documentRequirements={moneyDocumentRequirements}
-      dateQualityIssues={dashboard.transactionDateIssues}
-      moneyInbox={dashboard.inbox.filter((item) => item.category !== 'question')}
+      documentRequirements={[]}
+      dateQualityIssues={
+        focusedReview === 'date-quality' ? dashboard.transactionDateIssues : []
+      }
+      moneyInbox={[]}
       focusedReview={focusedReview === 'date-quality'}
     />
   )
@@ -441,81 +296,37 @@ export default function MoneyPage() {
       label: 'Dashboard',
       content: (
         <div className="space-y-6">
-          {dashboard.accounts.length === 0 && documentItems.length === 0 ? (
-            <SectionCard
-              variant="surface"
-              title="Get started"
-              actions={
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => setOpenUtility('evidence')}
-                >
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Add anything
-                </Button>
-              }
-            >
-              <p className="text-sm text-text-muted">
-                Upload a statement, screenshot, export, or bill and Jenny will
-                classify it, attach it to the right account when possible, or
-                create a new candidate when the account does not exist yet.
-              </p>
-            </SectionCard>
-          ) : null}
-
-          {visibleMoneyInbox.length > 0 ? (
-            <SectionCard
-              variant="surface"
-              title="Fix Money Data"
-              description="Exact account, evidence, and date blockers keeping the numbers from being trustworthy."
-            >
-              <div className="grid gap-3 lg:grid-cols-2">
-                {visibleMoneyInbox.map((item) => (
-                  <div
-                    key={item.id}
-                    className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-text">
-                          {item.title}
-                        </p>
-                        <p className="mt-1 text-xs text-text-muted">
-                          {item.detail}
-                        </p>
-                      </div>
-                      <Badge variant={needBadgeVariant(item.priority)}>
-                        {item.priority}
-                      </Badge>
-                    </div>
-                    <div className="mt-4 flex items-center justify-between gap-3">
-                      <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
-                        {item.category}
-                      </p>
-                      {item.actionHref ? (
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={item.actionHref}>{item.actionLabel}</Link>
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </SectionCard>
-          ) : null}
-
-          <MoneyOverviewPanel dashboard={dashboard} />
-
-          {openQuestions.length > 0 ? (
-            <div id="money-clarifications">
-              <JennyQuestionInbox
-                questions={openQuestions}
-                title="Clarifications"
-                description="Answer only the remaining gaps Jenny cannot infer safely."
-              />
-            </div>
-          ) : null}
+          <MoneyOverviewPanel dashboard={dashboard} sections={['decision']} />
+        </div>
+      ),
+    },
+    {
+      value: 'spending',
+      label: 'Spending',
+      content: (
+        <div className="space-y-6">
+          <MoneyOverviewPanel
+            dashboard={dashboard}
+            sections={['trend', 'budget', 'categories', 'commitments']}
+          />
+        </div>
+      ),
+    },
+    {
+      value: 'levers',
+      label: 'Levers',
+      content: (
+        <div className="space-y-6">
+          <MoneyOverviewPanel dashboard={dashboard} sections={['levers']} />
+        </div>
+      ),
+    },
+    {
+      value: 'allocation',
+      label: 'Allocation',
+      content: (
+        <div className="space-y-6">
+          <MoneyOverviewPanel dashboard={dashboard} sections={['allocation']} />
         </div>
       ),
     },
@@ -527,20 +338,48 @@ export default function MoneyPage() {
           ? String(dashboard.overview.trackedAccountCount)
           : undefined,
       content: (
-        <MoneyAccountsPanel
-          accounts={dashboard.accounts}
-          discoveredAccounts={dashboard.discoveredAccounts}
-          documents={documentItems}
-          focus={
-            focusedReview === 'account-coverage'
-              ? 'coverage'
-              : focusedReview === 'discovered-accounts'
-                ? 'discovered'
-                : null
-          }
-          selectedAccountId={selectedAccountId}
-          intent={selectedIntent}
-        />
+        <div className="space-y-6">
+          <MoneyAccountsPanel
+            accounts={dashboard.accounts}
+            discoveredAccounts={dashboard.discoveredAccounts}
+            documents={documentItems}
+            focus={
+              focusedReview === 'account-coverage'
+                ? 'coverage'
+                : focusedReview === 'discovered-accounts'
+                  ? 'discovered'
+                  : null
+            }
+            selectedAccountId={selectedAccountId}
+            intent={selectedIntent}
+          />
+        </div>
+      ),
+    },
+    {
+      value: 'intake',
+      label: 'Intake',
+      content: intakeContent,
+    },
+    {
+      value: 'review',
+      label: 'Review',
+      content: (
+        <div id="money-clarifications" className="space-y-6">
+          <SectionCard
+            variant="surface"
+            title="Clarifications"
+            description="Only answer what Jenny cannot infer safely from existing evidence."
+          >
+            {openQuestions.length > 0 ? (
+              <JennyQuestionInbox questions={openQuestions} />
+            ) : (
+              <p className="text-sm text-text-muted">
+                No open clarifications right now.
+              </p>
+            )}
+          </SectionCard>
+        </div>
       ),
     },
   ]
@@ -561,54 +400,21 @@ export default function MoneyPage() {
               <Settings2 className="mr-2 h-4 w-4" />
               Assumptions
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setOpenUtility('evidence')}
-            >
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Add anything
+            <Button asChild type="button" variant="outline" size="sm">
+              <Link href="/money?tab=intake">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add anything
+              </Link>
             </Button>
           </div>
         }
       />
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((metric) => (
-          <MetricCard
-            key={metric.label}
-            label={metric.label}
-            value={metric.value}
-            detail={metric.detail}
-            status={metric.status}
-          />
-        ))}
-      </div>
 
       <WorkspaceTabs
         defaultValue="dashboard"
         ariaLabel="Money workspace sections"
         tabs={tabs}
       />
-
-      <Dialog
-        open={openUtility === 'evidence'}
-        onOpenChange={(open) => setOpenUtility(open ? 'evidence' : null)}
-      >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
-          <DialogHeader>
-            <DialogTitle>Add anything</DialogTitle>
-          <DialogDescription>
-              Add statements, screenshots, exports, receipts, invoices, or
-              copied account text in one place. Jenny uses the evidence itself
-              to decide what it is, what matters, and which money workflow or
-              account it should update.
-          </DialogDescription>
-        </DialogHeader>
-        {intakeContent}
-        </DialogContent>
-      </Dialog>
 
       <Dialog
         open={openUtility === 'planning'}
@@ -638,4 +444,19 @@ export default function MoneyPage() {
       </Dialog>
     </PageContainer>
   )
+}
+
+export default function MoneyPage() {
+  const ready = useClientReady()
+
+  if (!ready) {
+    return (
+      <PageContainer className="space-y-6 py-8">
+        <PageHeader eyebrow="Household Finance" title="Money" />
+        <LoadingState />
+      </PageContainer>
+    )
+  }
+
+  return <MoneyPageContent />
 }

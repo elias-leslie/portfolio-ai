@@ -7,5 +7,7 @@ export function useHomeActionQueue() {
     queryFn: fetchHomeActionQueue,
     staleTime: 1000 * 30,
     refetchInterval: 1000 * 60,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   })
 }

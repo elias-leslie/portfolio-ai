@@ -152,8 +152,7 @@ export function EvidenceUploadComposer({
               `${accountLabel ?? title}`
                 .toLowerCase()
                 .replace(/[^a-z0-9]+/g, '-')
-                .replace(/^-+|-+$/g, '') || 'pasted-evidence'
-              + '.txt',
+                .replace(/^-+|-+$/g, '') || 'pasted-evidence' + '.txt',
             accountLabel: accountLabel ?? undefined,
           }),
         )
@@ -170,7 +169,9 @@ export function EvidenceUploadComposer({
       className={[
         'rounded-2xl border bg-surface-muted/15',
         accountLabel ? 'border-primary/25 bg-primary/5' : 'border-border/40',
-        highlighted ? 'ring-2 ring-primary/40 shadow-[0_0_0_1px_rgba(96,165,250,0.18)]' : '',
+        highlighted
+          ? 'ring-2 ring-primary/40 shadow-[0_0_0_1px_rgba(96,165,250,0.18)]'
+          : '',
         compact ? 'p-4' : 'p-5',
       ].join(' ')}
     >
@@ -210,7 +211,7 @@ export function EvidenceUploadComposer({
               ? 'border-primary bg-primary/10 text-text'
               : accountLabel
                 ? 'border-primary/35 bg-surface/80 text-text-muted'
-              : 'border-border/60 bg-surface/70 text-text-muted',
+                : 'border-border/60 bg-surface/70 text-text-muted',
           ].join(' ')}
         >
           <p className="font-medium text-text">
@@ -265,7 +266,9 @@ export function EvidenceUploadComposer({
             type="file"
             multiple
             accept=".pdf,.csv,.ofx,.qfx,.png,.jpg,.jpeg,.heic,.webp,.txt,.json,image/*,application/pdf,text/plain,text/csv"
-            onChange={(event) => stageIncomingFiles(pickFiles(event.target.files))}
+            onChange={(event) =>
+              stageIncomingFiles(pickFiles(event.target.files))
+            }
           />
         </div>
 
@@ -283,7 +286,8 @@ export function EvidenceUploadComposer({
             rows={compact ? 5 : 7}
           />
           <p className="text-xs text-text-muted">
-            Jenny will store the pasted text as evidence and review it through the same intake path as uploaded files.
+            Jenny will store the pasted text as evidence and review it through
+            the same intake path as uploaded files.
           </p>
         </div>
 
@@ -298,7 +302,9 @@ export function EvidenceUploadComposer({
           <Button
             type="button"
             onClick={() => void handleUpload()}
-            disabled={(files.length === 0 && !trimmedRawText) || upload.isPending}
+            disabled={
+              (files.length === 0 && !trimmedRawText) || upload.isPending
+            }
             aria-busy={upload.isPending}
           >
             {upload.isPending
@@ -315,7 +321,9 @@ export function EvidenceUploadComposer({
             type="button"
             variant="outline"
             onClick={resetComposer}
-            disabled={(files.length === 0 && !trimmedRawText) || upload.isPending}
+            disabled={
+              (files.length === 0 && !trimmedRawText) || upload.isPending
+            }
             aria-busy={upload.isPending}
           >
             Clear

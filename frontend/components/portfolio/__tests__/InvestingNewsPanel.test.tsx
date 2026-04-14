@@ -210,7 +210,9 @@ describe('InvestingNewsPanel', () => {
       ),
     ).not.toBeInTheDocument()
     expect(
-      screen.queryByText('High-Yield REITs I Would Trust For Retirement Income'),
+      screen.queryByText(
+        'High-Yield REITs I Would Trust For Retirement Income',
+      ),
     ).not.toBeInTheDocument()
     expect(
       screen.queryByText(
@@ -234,14 +236,16 @@ describe('InvestingNewsPanel', () => {
         },
         articles: [
           buildArticle({
-            headline: "Rubrik's Growth Engines Are Working, But 18% Dilution Risk Weighs On The Upside",
+            headline:
+              "Rubrik's Growth Engines Are Working, But 18% Dilution Risk Weighs On The Upside",
             summary: 'Single-name analysis.',
             source: 'Seeking Alpha',
             qualityPrediction: false,
             contentHash: 'article-rbrk',
           }),
           buildArticle({
-            headline: 'Will AI start going rogue? The chorus of warnings is getting louder.',
+            headline:
+              'Will AI start going rogue? The chorus of warnings is getting louder.',
             summary: 'Technology culture feature.',
             source: 'MarketWatch',
             qualityPrediction: false,

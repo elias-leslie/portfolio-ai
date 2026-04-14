@@ -169,9 +169,6 @@ export function HouseholdPlanningPanels({
   const focusedEditorSection = focusedSection
     ? focusSectionTargets[focusedSection]
     : null
-  const focusedPlanningLabel =
-    planningSections.find((section) => section.section === focusedSection)
-      ?.label ?? (focusedSection ? formatEnumLabel(focusedSection) : null)
 
   useEffect(() => {
     if (!focusedEditorSection) {
@@ -189,13 +186,6 @@ export function HouseholdPlanningPanels({
 
   return (
     <div className="space-y-6">
-      {focusedPlanningLabel ? (
-        <div className="rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-text">
-          Today sent you here to complete {focusedPlanningLabel.toLowerCase()}{' '}
-          planning. The matching workbook section is highlighted below.
-        </div>
-      ) : null}
-
       <div className="grid gap-4 md:grid-cols-3">
         <SectionCard
           variant="surface"

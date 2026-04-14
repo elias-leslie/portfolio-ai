@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { PlusCircle, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -8,7 +10,6 @@ import { AddAccountDialog } from '@/components/portfolio/AddAccountDialog'
 import { AddPositionDialog } from '@/components/portfolio/AddPositionDialog'
 import { InvestingMarketPanel } from '@/components/portfolio/InvestingMarketPanel'
 import { InvestingNewsPanel } from '@/components/portfolio/InvestingNewsPanel'
-import { InvestingOverviewPanel } from '@/components/portfolio/InvestingOverviewPanel'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import type { WorkspaceTab } from '@/components/shared/WorkspaceTabs'
@@ -24,12 +25,8 @@ import {
   WatchlistLoadingSkeleton,
 } from '@/components/watchlist/WatchlistStateViews'
 import { WatchlistTable } from '@/components/watchlist/WatchlistTable'
-import {
-  useAccounts,
-  usePortfolio,
-  usePortfolioAnalytics,
-} from '@/lib/hooks/usePortfolio'
-import { useHouseholdDashboard } from '@/lib/hooks/useHousehold'
+import { useClientReady } from '@/lib/hooks/useClientReady'
+import { useAccounts, usePortfolio } from '@/lib/hooks/usePortfolio'
 import {
   useRefreshStatus,
   useRefreshWatchlist,
@@ -37,7 +34,7 @@ import {
 } from '@/lib/hooks/useWatchlist'
 import { cn } from '@/lib/utils'
 
-export default function PortfolioPage() {
+function PortfolioPageContent() {
   const {
     data: accounts,
     isLoading: accountsLoading,
@@ -45,9 +42,7 @@ export default function PortfolioPage() {
     error: accountsError,
     refetch: refetchAccounts,
   } = useAccounts()
-  const { data: portfolio, isLoading: portfolioLoading } = usePortfolio()
-  const { data: analytics, isLoading: analyticsLoading } = usePortfolioAnalytics()
-  const { data: householdDashboard } = useHouseholdDashboard()
+  const { data: portfolio } = usePortfolio()
   const {
     data: watchlistData,
     isLoading: watchlistLoading,
@@ -81,18 +76,6 @@ export default function PortfolioPage() {
   const [addSymbolOpen, setAddSymbolOpen] = useState(false)
 
   const positionCount = portfolio?.positions.length ?? 0
-  const evidenceInvestmentAccounts = (householdDashboard?.accounts ?? []).filter(
-    (account) =>
-      account.currentValue != null &&
-      ['retirement', 'taxable', 'education'].includes(account.assetGroup),
-  )
-  const effectiveHouseholdPortfolioValue =
-    portfolio?.householdTotalValue ??
-    householdDashboard?.portfolioContext?.totalPortfolioValue ??
-    null
-  const effectiveHouseholdInvestmentAccountsCount =
-    portfolio?.householdInvestmentAccountsCount ?? evidenceInvestmentAccounts.length
-
   const openPositionDialog = (nextAccountId?: string) => {
     const id = nextAccountId ?? (accounts?.length === 1 ? accounts[0].id : '')
     setDefaultAccountId(id)
@@ -228,7 +211,6 @@ export default function PortfolioPage() {
           accountsLoading={accountsLoading}
           accountsFetching={accountsFetching}
           accountsError={accountsError}
-          evidenceInvestmentAccountsCount={evidenceInvestmentAccounts.length}
           onRetryAccounts={() => {
             void refetchAccounts()
           }}
@@ -243,7 +225,7 @@ export default function PortfolioPage() {
     <PageContainer className="space-y-6 py-8">
       <PageHeader
         title="Investing"
-        description="Your portfolio and the market at a glance."
+        description="Market, news, symbols, and holdings."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -268,15 +250,6 @@ export default function PortfolioPage() {
         }
       />
 
-      <InvestingOverviewPanel
-        portfolio={portfolio}
-        analytics={analytics}
-        accountsCount={accounts ? accounts.length : null}
-        householdPortfolioValue={effectiveHouseholdPortfolioValue}
-        householdInvestmentAccountsCount={effectiveHouseholdInvestmentAccountsCount}
-        isCoreLoading={accountsLoading || portfolioLoading || analyticsLoading}
-      />
-
       <WorkspaceTabs
         defaultValue="market"
         ariaLabel="Investing workspace sections"
@@ -299,4 +272,26 @@ export default function PortfolioPage() {
       />
     </PageContainer>
   )
+}
+
+export default function PortfolioPage() {
+  const ready = useClientReady()
+
+  if (!ready) {
+    return (
+      <PageContainer className="space-y-6 py-8">
+        <PageHeader title="Investing" />
+        <div className="grid gap-4 lg:grid-cols-2" role="status">
+          {[...Array(4)].map((_, index) => (
+            <div
+              key={`portfolio-skeleton-${index}`}
+              className="h-40 rounded-2xl skeleton"
+            />
+          ))}
+        </div>
+      </PageContainer>
+    )
+  }
+
+  return <PortfolioPageContent />
 }

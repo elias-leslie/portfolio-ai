@@ -1,6 +1,6 @@
-import type { NewsSentimentDetail } from '@/lib/api/watchlist'
-import type { PortfolioAnalytics } from '@/lib/api/portfolio'
 import type { EnrichedIndicator, FearGreedScore } from '@/lib/api/market-types'
+import type { PortfolioAnalytics } from '@/lib/api/portfolio'
+import type { NewsSentimentDetail } from '@/lib/api/watchlist'
 
 export type OverviewTone = 'default' | 'gain' | 'warning' | 'loss'
 
@@ -26,7 +26,10 @@ export function describePortfolioHealth(
     }
   }
 
-  if (topHoldingPct >= 35 || (diversificationScore != null && diversificationScore < 50)) {
+  if (
+    topHoldingPct >= 35 ||
+    (diversificationScore != null && diversificationScore < 50)
+  ) {
     return {
       label: 'Needs review',
       detail: `Top holding ${topHoldingPct.toFixed(1)}% · diversification ${
@@ -36,7 +39,11 @@ export function describePortfolioHealth(
     }
   }
 
-  if (diversificationScore != null && diversificationScore >= 75 && topHoldingPct < 20) {
+  if (
+    diversificationScore != null &&
+    diversificationScore >= 75 &&
+    topHoldingPct < 20
+  ) {
     return {
       label: 'Well spread',
       detail: `${analytics.numSymbols} symbols across ${
@@ -72,9 +79,11 @@ function simplifyMoodLabel(label: FearGreedScore['label'] | undefined) {
   return label
 }
 
-export function describeMarketMood(
-  mood?: FearGreedScore | null,
-): { label: string; detail: string; tone: OverviewTone } {
+export function describeMarketMood(mood?: FearGreedScore | null): {
+  label: string
+  detail: string
+  tone: OverviewTone
+} {
   if (!mood) {
     return {
       label: 'Waiting',
@@ -123,9 +132,10 @@ export function describeMarketMood(
   }
 }
 
-export function describeVolatility(
-  value?: number | null,
-): { detail: string; tone: OverviewTone } {
+export function describeVolatility(value?: number | null): {
+  detail: string
+  tone: OverviewTone
+} {
   if (value == null) {
     return {
       detail: 'Cboe Volatility Index data is still loading.',
@@ -160,9 +170,10 @@ export function describeVolatility(
   }
 }
 
-export function describeTenYearRate(
-  value?: number | null,
-): { detail: string; tone: OverviewTone } {
+export function describeTenYearRate(value?: number | null): {
+  detail: string
+  tone: OverviewTone
+} {
   if (value == null) {
     return {
       detail: 'Rate data is still loading.',
@@ -190,9 +201,7 @@ export function describeTenYearRate(
   }
 }
 
-export function describeNewsTone(
-  summary?: NewsSentimentDetail | null,
-): {
+export function describeNewsTone(summary?: NewsSentimentDetail | null): {
   label: string
   detail: string
   tone: OverviewTone

@@ -160,8 +160,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
 
       {jennyError ? (
         <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
-          Jenny review data is temporarily unavailable. Live symbol
-          intelligence is still shown below.
+          Jenny review data is temporarily unavailable. Live symbol intelligence
+          is still shown below.
         </div>
       ) : null}
 
@@ -203,8 +203,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             </p>
           ) : (
             <p className="mt-3 text-sm text-text">
-              Live signal {formatEnumLabel(data?.signal?.type, 'Unavailable')}{' '}
-              · Strength {data?.signal?.strength ?? '—'}/10
+              Live signal {formatEnumLabel(data?.signal?.type, 'Unavailable')} ·
+              Strength {data?.signal?.strength ?? '—'}/10
             </p>
           )}
           <p className="mt-2 text-xs uppercase tracking-[0.18em] text-text-muted">
@@ -402,10 +402,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                   </div>
                 </SectionCard>
 
-                <SectionCard
-                  variant="surface"
-                  title="Put This In Context"
-                >
+                <SectionCard variant="surface" title="Put This In Context">
                   <div className="grid gap-3">
                     <Link
                       href="/portfolio?tab=symbols"
@@ -423,8 +420,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                     </Link>
                     <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">
                       <AlertCircle className="mb-2 h-4 w-4 text-primary" />
-                      Thesis, position size, and review history are available
-                      on this symbol workspace.
+                      Thesis, position size, and review history are available on
+                      this symbol workspace.
                     </div>
                   </div>
                 </SectionCard>

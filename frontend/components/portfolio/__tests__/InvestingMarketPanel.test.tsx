@@ -45,9 +45,19 @@ vi.mock('@/components/market/SectorPerformanceChart', () => ({
 const yearlyHistory = {
   sectors: [
     { symbol: 'XLK', name: 'Technology', data: [], currentPct: 18.4 },
-    { symbol: 'XLC', name: 'Communication Services', data: [], currentPct: 12.1 },
+    {
+      symbol: 'XLC',
+      name: 'Communication Services',
+      data: [],
+      currentPct: 12.1,
+    },
     { symbol: 'XLI', name: 'Industrials', data: [], currentPct: 9.2 },
-    { symbol: 'XLY', name: 'Consumer Discretionary', data: [], currentPct: 5.5 },
+    {
+      symbol: 'XLY',
+      name: 'Consumer Discretionary',
+      data: [],
+      currentPct: 5.5,
+    },
     { symbol: 'XLV', name: 'Healthcare', data: [], currentPct: -2.2 },
     { symbol: 'XLE', name: 'Energy', data: [], currentPct: -8.6 },
   ],

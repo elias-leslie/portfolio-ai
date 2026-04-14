@@ -11,12 +11,21 @@ export function buildUpstreamUrl(
 }
 
 export function proxyResponse(response: Response): Response {
+  const headers = new Headers()
+  headers.set(
+    'Content-Type',
+    response.headers.get('Content-Type') ?? 'application/json',
+  )
+  headers.set('Cache-Control', 'no-store, max-age=0')
+  headers.set('Pragma', 'no-cache')
+  headers.set('Expires', '0')
+  const contentDisposition = response.headers.get('Content-Disposition')
+  if (contentDisposition) {
+    headers.set('Content-Disposition', contentDisposition)
+  }
   return new Response(response.body, {
     status: response.status,
-    headers: {
-      'Content-Type':
-        response.headers.get('Content-Type') ?? 'application/json',
-    },
+    headers,
   })
 }
 
@@ -43,6 +52,7 @@ export async function proxyRequest(
   const response = await fetch(url, {
     method,
     headers: forwardedHeaders,
+    cache: 'no-store',
     ...(body && body.byteLength > 0 ? { body } : {}),
   })
   return proxyResponse(response)

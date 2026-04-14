@@ -51,4 +51,4 @@ def test_home_action_queue_combines_household_and_portfolio_signals(tmp_path: Pa
     payload = response.json()
     assert payload["actions"]
     assert any(action["category"] == "household" for action in payload["actions"])
-    assert any(action["href"] == "/money" for action in payload["actions"])
+    assert any(str(action["href"]).startswith("/money") for action in payload["actions"])

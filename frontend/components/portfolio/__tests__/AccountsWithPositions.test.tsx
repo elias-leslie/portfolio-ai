@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { useHouseholdDashboard } from '@/lib/hooks/useHousehold'
 import {
   useAccounts,
   useDeleteAccount,
@@ -20,12 +21,16 @@ vi.mock('@/lib/hooks/usePortfolio', () => ({
   useDeletePosition: vi.fn(),
   useUpdatePosition: vi.fn(),
 }))
+vi.mock('@/lib/hooks/useHousehold', () => ({
+  useHouseholdDashboard: vi.fn(),
+}))
 
 const mockUseAccounts = useAccounts as unknown as Mock
 const mockUsePortfolio = usePortfolio as unknown as Mock
 const mockUseDeleteAccount = useDeleteAccount as unknown as Mock
 const mockUseDeletePosition = useDeletePosition as unknown as Mock
 const mockUseUpdatePosition = useUpdatePosition as unknown as Mock
+const mockUseHouseholdDashboard = useHouseholdDashboard as unknown as Mock
 
 describe('AccountsWithPositions', () => {
   beforeEach(() => {
@@ -51,6 +56,10 @@ describe('AccountsWithPositions', () => {
     mockUseUpdatePosition.mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
+    })
+    mockUseHouseholdDashboard.mockReturnValue({
+      data: null,
+      isLoading: false,
     })
   })
 
@@ -120,13 +129,95 @@ describe('AccountsWithPositions', () => {
     render(<AccountsWithPositions />)
 
     expect(screen.getByText('Roth IRA')).toBeVisible()
-    expect(screen.getByText('Manual entry')).toBeVisible()
-    expect(screen.getByText('No statement evidence linked here')).toBeVisible()
+    expect(screen.getByText('Standalone position account')).toBeVisible()
     expect(screen.getByText('$47,880.13')).toBeVisible()
     expect(screen.getByText(/Cash \$47,880\.13/)).toBeVisible()
     expect(
       screen.queryByText(/No positions in this account yet/i),
     ).not.toBeInTheDocument()
+  })
+
+  it('prefers linked household account truth when a portfolio account is linked', () => {
+    mockUseAccounts.mockReturnValue({
+      data: [
+        {
+          id: 'acct-1',
+          name: 'Brokerage',
+          accountType: 'Taxable',
+          householdAccountId: 'household-1',
+          cashBalance: 0,
+          createdAt: '2026-03-07T00:00:00Z',
+          updatedAt: '2026-03-07T00:00:00Z',
+        },
+      ],
+      isLoading: false,
+    })
+    mockUsePortfolio.mockReturnValue({
+      data: {
+        positions: [],
+        cashBalanceTotal: 0,
+        totalValue: 0,
+        totalCostBasis: 0,
+        totalGain: 0,
+        totalGainPct: 0,
+        householdInvestmentAccountsCount: 1,
+      },
+      isLoading: false,
+    })
+    mockUseHouseholdDashboard.mockReturnValue({
+      data: {
+        accounts: [
+          {
+            id: 'household-1',
+            label: 'Individual - TOD',
+            assetGroup: 'taxable',
+            accountType: 'brokerage',
+            sourceType: 'brokerage',
+            institutionName: 'Fidelity',
+            ownerName: 'Elias',
+            accountMask: '5444',
+            notes: null,
+            currency: 'USD',
+            currentValue: 507248.61,
+            balance: 507248.61,
+            holdingsValue: 506000,
+            cashBalance: 1248.61,
+            evidenceCount: 1,
+            documentIds: ['doc-1'],
+            latestDocumentId: 'doc-1',
+            sourceTypes: ['brokerage'],
+            linkedPortfolioAccountId: 'acct-1',
+            linkedPortfolioAccountName: 'Brokerage',
+            trackedAccountId: 'tracked-1',
+            accountOrigin: 'evidence',
+            moneyRole: 'net_worth_only',
+            lastEvidenceAt: '2026-04-13T00:00:00Z',
+            daysSinceEvidence: 1,
+            lastBalanceAt: '2026-04-13T00:00:00Z',
+            daysSinceBalance: 1,
+            balanceFreshnessStatus: 'fresh',
+            balanceFreshnessLabel: 'Fresh',
+            lastTransactionAt: null,
+            daysSinceTransaction: null,
+            transactionFreshnessStatus: 'not_applicable',
+            transactionFreshnessLabel: 'Not required',
+            freshnessStatus: 'fresh',
+            freshnessLabel: 'Fresh',
+            matchStatus: 'linked',
+            matchConfidence: 0.99,
+            gapFlags: [],
+          },
+        ],
+      },
+      isLoading: false,
+    })
+
+    render(<AccountsWithPositions />)
+
+    expect(screen.getByText('Individual - TOD')).toBeVisible()
+    expect(screen.getByText('Linked household account')).toBeVisible()
+    expect(screen.getByText('$507,248.61')).toBeVisible()
+    expect(screen.getByText(/Cash \$1,248\.61/)).toBeVisible()
   })
 
   it('shows a top-level add-position action and preselects the only account', async () => {

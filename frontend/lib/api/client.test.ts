@@ -96,6 +96,14 @@ describe('api client helpers', () => {
     const result = await get<{ ok: boolean }>('/api/preferences')
 
     expect(global.fetch).toHaveBeenCalledTimes(2)
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      '/api/preferences',
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+      }),
+    )
     expect(result).toEqual({ ok: true })
   })
 

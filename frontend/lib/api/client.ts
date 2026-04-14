@@ -84,6 +84,7 @@ export async function apiRequest<T>(
       const response = await fetch(fullUrl, {
         ...options,
         headers,
+        cache: options.cache ?? 'no-store',
       })
 
       // Check for HTTP errors

@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Badge } from '@/components/ui/badge'
 import { IndicatorsTrendChart } from '@/components/market/IndicatorsTrendChart'
 import { MarketStatusBadge } from '@/components/market/MarketStatusBadge'
 import { SectorPerformanceChart } from '@/components/market/SectorPerformanceChart'
@@ -12,6 +11,7 @@ import {
   timeframeToDays,
 } from '@/components/market/TimeframeSelector'
 import { SectionCard } from '@/components/shared/SectionCard'
+import { Badge } from '@/components/ui/badge'
 import {
   useMarketIntelligence,
   useSectorHistory,

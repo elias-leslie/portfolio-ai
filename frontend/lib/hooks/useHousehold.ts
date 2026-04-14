@@ -10,12 +10,12 @@ import {
   fetchHouseholdDashboard,
   fetchHouseholdDocuments,
   type HouseholdDocumentUpload,
-  type HouseholdTrackedAccountInput,
   type HouseholdPlanningUpdate,
   type HouseholdProfileUpdate,
-  updateHouseholdTrackedAccount,
+  type HouseholdTrackedAccountInput,
   updateHouseholdPlanning,
   updateHouseholdProfile,
+  updateHouseholdTrackedAccount,
   uploadHouseholdDocument,
 } from '@/lib/api/household'
 
@@ -30,6 +30,8 @@ export function useHouseholdDashboard() {
     queryKey: ['household', 'dashboard'],
     queryFn: fetchHouseholdDashboard,
     staleTime: DASHBOARD_STALE_MS,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   })
 }
 
@@ -38,6 +40,8 @@ export function useHouseholdDocuments() {
     queryKey: ['household', 'documents'],
     queryFn: fetchHouseholdDocuments,
     staleTime: VOLATILE_STALE_MS,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   })
 }
 
@@ -128,7 +132,9 @@ export function useCreateHouseholdTrackedAccount() {
     },
     onError: (error) => {
       toast.error(
-        error instanceof Error ? error.message : 'Failed to create tracked account',
+        error instanceof Error
+          ? error.message
+          : 'Failed to create tracked account',
       )
     },
   })
@@ -154,7 +160,9 @@ export function useUpdateHouseholdTrackedAccount() {
     },
     onError: (error) => {
       toast.error(
-        error instanceof Error ? error.message : 'Failed to update tracked account',
+        error instanceof Error
+          ? error.message
+          : 'Failed to update tracked account',
       )
     },
   })
@@ -174,7 +182,9 @@ export function useDeleteHouseholdTrackedAccount() {
     },
     onError: (error) => {
       toast.error(
-        error instanceof Error ? error.message : 'Failed to remove tracked account',
+        error instanceof Error
+          ? error.message
+          : 'Failed to remove tracked account',
       )
     },
   })

@@ -18,14 +18,8 @@ import type {
   SymbolIntelligence,
   SymbolRecommendationSection,
 } from '@/lib/api/symbols'
-import {
-  formatDecisionMeta,
-  formatDecisionSeverity,
-} from '@/lib/decision'
-import {
-  formatCurrency,
-  formatEnumLabel,
-} from '@/lib/formatters'
+import { formatDecisionMeta, formatDecisionSeverity } from '@/lib/decision'
+import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
 import { formatRelativeTime } from '@/lib/utils'
 import {
   formatIfNotHeldReasoning,
@@ -75,7 +69,11 @@ function hasMaterialConflict(
   decision?: SymbolDecisionSection | null,
   recommendation?: SymbolRecommendationSection | null,
 ) {
-  if (!decision || !recommendation || decision.sourceKind === 'live_signal_model') {
+  if (
+    !decision ||
+    !recommendation ||
+    decision.sourceKind === 'live_signal_model'
+  ) {
     return false
   }
 
@@ -91,7 +89,11 @@ function hasMaterialConflict(
 
 function shouldShowTradingSetup(data?: SymbolIntelligence | null) {
   const decision = data?.decision
-  if (!decision || !data?.trading || decision.sourceKind !== 'live_signal_model') {
+  if (
+    !decision ||
+    !data?.trading ||
+    decision.sourceKind !== 'live_signal_model'
+  ) {
     return false
   }
 
@@ -110,7 +112,9 @@ function formatLiveSignalEvidence(data?: SymbolIntelligence | null) {
     data?.signal?.strength != null
       ? `setup strength ${data.signal.strength}/10`
       : null,
-    data?.generatedAt ? `Updated ${formatRelativeTime(data.generatedAt)}` : null,
+    data?.generatedAt
+      ? `Updated ${formatRelativeTime(data.generatedAt)}`
+      : null,
   ].filter((part): part is string => Boolean(part))
 
   return parts.length > 0 ? parts.join(' · ') : null

@@ -25,7 +25,8 @@ describe('HouseholdPlanningPanels', () => {
             liabilitiesTotal: 0,
             netWorth: 0,
             netWorthStatus: 'unavailable',
-            netWorthDetail: 'Net worth is not available yet because Jenny does not have any tracked balances.',
+            netWorthDetail:
+              'Net worth is not available yet because Jenny does not have any tracked balances.',
             trackedAccountCount: 0,
             needsRefreshCount: 0,
             candidateAccountCount: 0,
@@ -159,9 +160,6 @@ describe('HouseholdPlanningPanels', () => {
 
     expect(screen.getByText(/no starter lanes yet/i)).toBeInTheDocument()
     expect(
-      screen.getByText(/today sent you here to complete housing planning/i),
-    ).toBeInTheDocument()
-    expect(
       screen.getByText(
         /jenny has not identified a strong retirement edge yet/i,
       ),
@@ -193,7 +191,8 @@ describe('HouseholdPlanningPanels', () => {
             liabilitiesTotal: 0,
             netWorth: 425000,
             netWorthStatus: 'current',
-            netWorthDetail: 'Net worth reflects 4 covered accounts through 2026-03-09.',
+            netWorthDetail:
+              'Net worth reflects 4 covered accounts through 2026-03-09.',
             trackedAccountCount: 0,
             needsRefreshCount: 0,
             candidateAccountCount: 0,

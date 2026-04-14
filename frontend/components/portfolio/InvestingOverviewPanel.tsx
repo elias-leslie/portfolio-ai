@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { MarketStatusBadge } from '@/components/market/MarketStatusBadge'
+import { InfoBadge } from '@/components/shared/InfoBadge'
 import { SectionCard } from '@/components/shared/SectionCard'
 import type { PortfolioAnalytics, PortfolioResponse } from '@/lib/api/portfolio'
 import { formatCurrencyWhole, formatPercent } from '@/lib/formatters'
@@ -66,6 +67,7 @@ function OverviewStat({
   label,
   value,
   detail,
+  hint,
   tone = 'default',
   featured = false,
   highlighted = false,
@@ -73,6 +75,7 @@ function OverviewStat({
   label: string
   value: string
   detail: string
+  hint?: string | null
   tone?: OverviewTone
   featured?: boolean
   highlighted?: boolean
@@ -88,9 +91,15 @@ function OverviewStat({
       <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
         {label}
       </p>
+      {hint ? (
+        <div className="mt-2">
+          <InfoBadge label="Detail" detail={hint} variant="outline" />
+        </div>
+      ) : null}
       <p
         className={cn(
-          'mt-2 font-semibold tracking-tight',
+          'font-semibold tracking-tight',
+          hint ? 'mt-3' : 'mt-2',
           featured ? 'text-3xl' : 'text-2xl',
           toneValueClasses(tone),
         )}
@@ -135,20 +144,25 @@ export function InvestingOverviewPanel({
     portfolioMetricsLoading || accountsLoading
       ? 'Loading holdings and account coverage.'
       : hasHouseholdCoverage
-        ? `${householdInvestmentAccountsCount ?? 0} evidence-backed investment account${householdInvestmentAccountsCount === 1 ? '' : 's'} on file. Live position analytics cover ${positionCount} position${positionCount === 1 ? '' : 's'} across ${accountsCount ?? 0} position account${accountsCount === 1 ? '' : 's'}.`
+        ? 'Household total'
         : `${positionCount} position${positionCount === 1 ? '' : 's'} across ${accountsCount ?? 0} account${accountsCount === 1 ? '' : 's'}.`
-  const gainDetail =
-    portfolioMetricsLoading
-      ? 'Loading portfolio performance.'
-      : hasHouseholdCoverage
-        ? `${formatPercent(portfolio?.totalGainPct, {
-            decimals: 2,
-            sign: true,
-          })} on positioned assets only.`
-        : formatPercent(portfolio?.totalGainPct, {
-            decimals: 2,
-            sign: true,
-          })
+  const portfolioValueHint = hasHouseholdCoverage
+    ? `${householdInvestmentAccountsCount ?? 0} evidence-backed investment account${householdInvestmentAccountsCount === 1 ? '' : 's'} on file. Live position analytics cover ${positionCount} position${positionCount === 1 ? '' : 's'} across ${accountsCount ?? 0} position account${accountsCount === 1 ? '' : 's'}.`
+    : null
+  const gainDetail = portfolioMetricsLoading
+    ? 'Loading portfolio performance.'
+    : hasHouseholdCoverage
+      ? 'Positions only'
+      : formatPercent(portfolio?.totalGainPct, {
+          decimals: 2,
+          sign: true,
+        })
+  const gainHint = hasHouseholdCoverage
+    ? `${formatPercent(portfolio?.totalGainPct, {
+        decimals: 2,
+        sign: true,
+      })} on positioned assets only.`
+    : null
   const portfolioHealth = analyticsLoading
     ? {
         label: 'Loading…',
@@ -184,15 +198,21 @@ export function InvestingOverviewPanel({
                 : formatCurrencyWhole(displayPortfolioValue)
             }
             detail={portfolioValueDetail}
+            hint={portfolioValueHint}
             featured
           />
           <OverviewStat
             label="Total Gain"
             value={
-              portfolioMetricsLoading ? 'Loading…' : formatCurrencyWhole(totalGain)
+              portfolioMetricsLoading
+                ? 'Loading…'
+                : formatCurrencyWhole(totalGain)
             }
             detail={gainDetail}
-            tone={totalGain == null ? 'default' : totalGain >= 0 ? 'gain' : 'loss'}
+            hint={gainHint}
+            tone={
+              totalGain == null ? 'default' : totalGain >= 0 ? 'gain' : 'loss'
+            }
             featured
           />
           <OverviewStat

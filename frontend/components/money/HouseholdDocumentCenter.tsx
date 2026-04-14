@@ -36,7 +36,7 @@ export function HouseholdDocumentCenter({
         <div id="add-evidence-upload">
           <EvidenceUploadComposer
             title="Add anything"
-            description="Statements, screenshots, exports, copied account text, payroll docs, bills, and receipts all go through the same intake path."
+            description="Statements, screenshots, exports, copied account text, bills, and receipts all go through the same intake path."
           />
         </div>
 

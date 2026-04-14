@@ -591,7 +591,10 @@ export async function updateHouseholdTrackedAccount(
   accountId: string,
   payload: HouseholdTrackedAccountInput,
 ): Promise<HouseholdTrackedAccount> {
-  return put<HouseholdTrackedAccount>(`/api/household/accounts/${accountId}`, payload)
+  return put<HouseholdTrackedAccount>(
+    `/api/household/accounts/${accountId}`,
+    payload,
+  )
 }
 
 export async function deleteHouseholdTrackedAccount(
@@ -607,11 +610,9 @@ export async function uploadHouseholdDocument(
   const file =
     payload.file ??
     (rawText
-      ? new File(
-          [rawText],
-          payload.filename?.trim() || 'pasted-evidence.txt',
-          { type: 'text/plain' },
-        )
+      ? new File([rawText], payload.filename?.trim() || 'pasted-evidence.txt', {
+          type: 'text/plain',
+        })
       : null)
   if (!file) {
     throw new Error('Upload requires a file or pasted text.')

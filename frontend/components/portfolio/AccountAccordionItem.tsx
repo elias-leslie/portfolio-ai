@@ -1,4 +1,5 @@
 import { PlusCircle, Trash2 } from 'lucide-react'
+import { InfoBadge } from '@/components/shared/InfoBadge'
 import {
   AccordionContent,
   AccordionItem,
@@ -12,18 +13,20 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import type { HouseholdAccountSummary } from '@/lib/api/household'
 import type { Account, PositionWithValue } from '@/lib/api/portfolio'
 import { formatCurrency, formatPercent } from '@/lib/formatters'
 import { formatRelativeTime } from '@/lib/utils'
+import { PositionTableRow } from './PositionTableRow'
 import {
   getAccountPositions,
   getAccountTotalGain,
   getAccountTotalValue,
 } from './portfolio-utils'
-import { PositionTableRow } from './PositionTableRow'
 
 interface AccountAccordionItemProps {
   account: Account
+  linkedHouseholdAccount?: HouseholdAccountSummary | null
   positions: PositionWithValue[] | undefined
   onAddPosition?: (accountId?: string) => void
   onDeleteAccount: (accountId: string, accountName: string) => void
@@ -33,8 +36,22 @@ interface AccountAccordionItemProps {
   isDeletingPosition: boolean
 }
 
+function linkedFreshnessVariant(status: string | null | undefined) {
+  switch (status) {
+    case 'fresh':
+      return 'success' as const
+    case 'aging':
+      return 'warning' as const
+    case 'stale':
+      return 'secondary' as const
+    default:
+      return 'outline' as const
+  }
+}
+
 export function AccountAccordionItem({
   account,
+  linkedHouseholdAccount = null,
   positions: allPositions,
   onAddPosition,
   onDeleteAccount,
@@ -44,9 +61,25 @@ export function AccountAccordionItem({
   isDeletingPosition,
 }: AccountAccordionItemProps) {
   const positions = getAccountPositions(account.id, allPositions)
-  const totalValue = getAccountTotalValue(account, allPositions)
+  const derivedTotalValue = getAccountTotalValue(account, allPositions)
+  const totalValue = linkedHouseholdAccount?.currentValue ?? derivedTotalValue
   const totalGain = getAccountTotalGain(account, allPositions)
-  const hasCashBalance = account.cashBalance > 0
+  const cashBalance = linkedHouseholdAccount?.cashBalance ?? account.cashBalance
+  const hasCashBalance = cashBalance > 0
+  const displayName = linkedHouseholdAccount?.label ?? account.name
+  const linkedDetail = linkedHouseholdAccount
+    ? [
+        `Balance ${linkedHouseholdAccount.balanceFreshnessLabel.toLowerCase()}`,
+        linkedHouseholdAccount.moneyRole === 'spend_driver'
+          ? `Transactions ${linkedHouseholdAccount.transactionFreshnessLabel.toLowerCase()}`
+          : null,
+        linkedHouseholdAccount.lastEvidenceAt
+          ? `Last evidence ${formatRelativeTime(linkedHouseholdAccount.lastEvidenceAt)}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : null
 
   return (
     <AccordionItem
@@ -59,11 +92,20 @@ export function AccountAccordionItem({
             <div className="flex flex-col items-start gap-1">
               <div className="flex items-center gap-3">
                 <span className="font-display italic text-lg tracking-tight">
-                  {account.name}
+                  {displayName}
                 </span>
                 <span className="text-xs text-text-muted bg-surface-muted px-2 py-0.5 rounded">
                   {account.accountType}
                 </span>
+                {linkedHouseholdAccount ? (
+                  <InfoBadge
+                    label={linkedHouseholdAccount.freshnessLabel}
+                    detail={linkedDetail ?? undefined}
+                    variant={linkedFreshnessVariant(
+                      linkedHouseholdAccount.freshnessStatus,
+                    )}
+                  />
+                ) : null}
               </div>
               <div className="flex items-center gap-4 text-sm">
                 <span className="text-text-muted">
@@ -84,7 +126,7 @@ export function AccountAccordionItem({
                     )}
                     {hasCashBalance && (
                       <span className="text-text-muted">
-                        Cash {formatCurrency(account.cashBalance)}
+                        Cash {formatCurrency(cashBalance)}
                       </span>
                     )}
                   </>
@@ -92,10 +134,19 @@ export function AccountAccordionItem({
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
                 <span className="rounded border border-border/40 bg-surface-muted/40 px-2 py-0.5 font-medium text-text-muted">
-                  Manual entry
+                  {linkedHouseholdAccount
+                    ? 'Linked household account'
+                    : 'Standalone position account'}
                 </span>
-                <span>Updated {formatRelativeTime(account.updatedAt)}</span>
-                <span>No statement evidence linked here</span>
+                <span>
+                  Updated{' '}
+                  {formatRelativeTime(
+                    linkedHouseholdAccount?.lastEvidenceAt ?? account.updatedAt,
+                  )}
+                </span>
+                {linkedHouseholdAccount?.institutionName ? (
+                  <span>{linkedHouseholdAccount.institutionName}</span>
+                ) : null}
               </div>
             </div>
           </div>
@@ -105,7 +156,7 @@ export function AccountAccordionItem({
           size="sm"
           onClick={(e) => {
             e.stopPropagation()
-            onDeleteAccount(account.id, account.name)
+            onDeleteAccount(account.id, displayName)
           }}
           disabled={isDeleting}
           className="h-8 w-8 p-0 ml-2"
@@ -129,7 +180,7 @@ export function AccountAccordionItem({
         {positions.length === 0 ? (
           <div className="py-8 text-center text-sm text-text-muted">
             {hasCashBalance
-              ? `This account is currently cash only with ${formatCurrency(account.cashBalance)} available.`
+              ? `This account is currently cash only with ${formatCurrency(cashBalance)} available.`
               : 'No positions in this account yet. Click "Add Position" above to get started.'}
           </div>
         ) : (

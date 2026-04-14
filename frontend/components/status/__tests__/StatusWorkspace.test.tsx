@@ -135,7 +135,9 @@ describe('StatusWorkspace', () => {
         'No fresh news in 24h. No successful news refresh is recorded.',
       ),
     ).toBeInTheDocument()
-    expect(screen.getByText('No provider health checks yet')).toBeInTheDocument()
+    expect(
+      screen.getByText('No provider health checks yet'),
+    ).toBeInTheDocument()
     expect(
       screen.getByText(
         'No app-service status entries are available right now.',
@@ -850,9 +852,7 @@ describe('StatusWorkspace', () => {
     render(<StatusWorkspace />)
 
     expect(screen.getByText('0/1 healthy')).toBeInTheDocument()
-    expect(
-      screen.getByText('1 feed needs review · 1 down'),
-    ).toBeInTheDocument()
+    expect(screen.getByText('1 feed needs review · 1 down')).toBeInTheDocument()
     expect(screen.getByText('Request success: 62.0%')).toBeInTheDocument()
     expect(
       screen.getByText('Why: Last good update is older than 24h.'),
