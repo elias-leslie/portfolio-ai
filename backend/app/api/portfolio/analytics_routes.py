@@ -11,6 +11,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response
+from app.services.household_portfolio_totals import get_effective_portfolio_totals
 
 from .models import (
     AnalyticsResponse,
@@ -114,6 +115,12 @@ def _to_performer_responses(performers: list[Any]) -> list[PositionPerformanceRe
 def _build_full_analytics_response(
     analytics: Any,
     cash_balance_total: float,
+    *,
+    effective_total_value: float | None,
+    household_total_value: float | None,
+    household_invested_total_value: float | None,
+    household_cash_reserve: float | None,
+    household_investment_accounts_count: int | None,
 ) -> AnalyticsResponse:
     """Build the full AnalyticsResponse from a computed analytics object."""
     return AnalyticsResponse(
@@ -125,6 +132,11 @@ def _build_full_analytics_response(
         },
         cash_balance_total=cash_balance_total,
         cash_inclusive_total_value=analytics.portfolio_value.total_value + cash_balance_total,
+        effective_total_value=effective_total_value,
+        household_total_value=household_total_value,
+        household_invested_total_value=household_invested_total_value,
+        household_cash_reserve=household_cash_reserve,
+        household_investment_accounts_count=household_investment_accounts_count,
         portfolio_beta=analytics.portfolio_beta,
         portfolio_volatility=analytics.portfolio_volatility,
         sharpe_ratio=analytics.sharpe_ratio,
@@ -147,6 +159,10 @@ def _build_full_analytics_response(
 def get_analytics_payload(include_paper: bool) -> AnalyticsResponse:
     portfolio_mgr = _portfolio_mgr()
     all_accounts = portfolio_mgr.get_accounts()
+    effective_totals = get_effective_portfolio_totals(
+        _storage(),
+        include_paper=include_paper,
+    )
     if not include_paper:
         accounts = [acc for acc in all_accounts if acc.account_type != "paper"]
     else:
@@ -159,7 +175,16 @@ def get_analytics_payload(include_paper: bool) -> AnalyticsResponse:
     positions = [p for p in all_positions if p.account_id in account_ids]
 
     if not positions:
-        return _empty_analytics_response(cash_balance_total)
+        response = _empty_analytics_response(cash_balance_total)
+        return response.model_copy(
+            update={
+                "effective_total_value": effective_totals.effective_total_value,
+                "household_total_value": effective_totals.household_total_value,
+                "household_invested_total_value": effective_totals.household_invested_total_value,
+                "household_cash_reserve": effective_totals.household_cash_reserve,
+                "household_investment_accounts_count": effective_totals.household_investment_accounts_count,
+            }
+        )
 
     symbols = list({p.symbol for p in positions})
     price_data = _price_fetcher().fetch_price_data(symbols)
@@ -170,7 +195,15 @@ def get_analytics_payload(include_paper: bool) -> AnalyticsResponse:
         account_ids=list(account_ids),
     )
 
-    return _build_full_analytics_response(analytics, cash_balance_total)
+    return _build_full_analytics_response(
+        analytics,
+        cash_balance_total,
+        effective_total_value=effective_totals.effective_total_value,
+        household_total_value=effective_totals.household_total_value,
+        household_invested_total_value=effective_totals.household_invested_total_value,
+        household_cash_reserve=effective_totals.household_cash_reserve,
+        household_investment_accounts_count=effective_totals.household_investment_accounts_count,
+    )
 
 
 @router.get("/analytics", response_model=AnalyticsResponse)

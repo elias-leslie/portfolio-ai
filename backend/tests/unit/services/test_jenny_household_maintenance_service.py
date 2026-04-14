@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock
 
@@ -40,3 +41,30 @@ def test_run_daily_maintenance_pass_reads_dashboard_from_household_service() -> 
 
     service.household_service.get_dashboard.assert_called_once_with()
     assert result["documents_reviewed"] == 0
+
+
+def test_replay_candidate_documents_recovers_applied_doc_without_source_file() -> None:
+    maintenance = JennyHouseholdMaintenanceService()
+    service = MagicMock()
+    connection = service.storage.connection.return_value.__enter__.return_value
+    connection.execute.return_value.fetchall.return_value = [
+        ("doc-1", "/missing/path.pdf", "parsed", "complete")
+    ]
+    service.household_service.get_document.return_value = SimpleNamespace(id="doc-1")
+    service.household_service.document_pipeline.describe_application_state.return_value = {
+        "status": "applied",
+        "impacts": ["accounts"],
+        "needs_follow_up": False,
+    }
+
+    result = maintenance._replay_candidate_documents(service)
+
+    assert result == {
+        "attempted": 0,
+        "recovered": 1,
+        "missing_source": 0,
+        "unresolved": 0,
+    }
+    service.household_service.review_document.assert_not_called()
+    service.household_service.document_pipeline.describe_application_state.assert_called_once()
+    assert connection.commit.called

@@ -7,8 +7,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Account(BaseModel):
@@ -17,10 +18,18 @@ class Account(BaseModel):
     id: str
     name: str
     account_type: Literal["IRA", "Taxable", "401k", "Roth", "HSA", "paper"]
+    household_account_id: str | None = None
     cash_balance: float = 0.0
     initial_cash: float = 0.0
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+    @field_validator("household_account_id", mode="before")
+    @classmethod
+    def _normalize_household_account_id(cls, value: object) -> object:
+        if isinstance(value, UUID):
+            return str(value)
+        return value
 
 
 class Position(BaseModel):

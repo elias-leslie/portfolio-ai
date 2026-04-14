@@ -1453,6 +1453,71 @@ def test_build_account_summaries_uses_portfolio_label_for_linked_evidence_accoun
     assert summaries[0].match_status == "linked"
 
 
+def test_build_account_summaries_prefers_portfolio_household_account_link_over_name_match() -> None:
+    documents = [
+        HouseholdDocument(
+            id="doc-cash",
+            filename="cash.txt",
+            source_type="brokerage",
+            document_type="brokerage_statement",
+            status="parsed",
+            account_label="Cash Management (Joint WROS)",
+            file_size_bytes=10,
+            content_type="text/plain",
+            classification_confidence=0.95,
+            review_status="complete",
+            review_summary="Reviewed",
+            review_confidence=0.95,
+            statement_start=None,
+            statement_end=_iso(1),
+            uploaded_at=_iso(1),
+            parsed_at=_iso(1),
+            metadata={"file_available": True, "application_summary": {"status": "applied"}},
+        )
+    ]
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="acct-cash",
+                document_id="doc-cash",
+                household_account_id="household-cash",
+                source_type="brokerage",
+                asset_group="taxable",
+                account_type="brokerage",
+                institution_name="Fidelity",
+                account_name="Cash Management (Joint WROS)",
+                account_mask="Z38367298",
+                owner_name=None,
+                currency="USD",
+                balance=39400.59,
+                holdings_value=6000.0,
+                cash_balance=33400.59,
+                as_of_date=_iso(1),
+                confidence=0.98,
+                metadata={},
+            )
+        ],
+        documents=documents,
+        portfolio_accounts=[
+            Account(
+                id="portfolio-cash",
+                name="Renamed CMA",
+                account_type="Taxable",
+                household_account_id="household-cash",
+                cash_balance=25056.8,
+            )
+        ],
+        tracked_accounts=[],
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    assert len(summaries) == 1
+    assert summaries[0].label == "Renamed CMA"
+    assert summaries[0].linked_portfolio_account_id == "portfolio-cash"
+    assert summaries[0].linked_portfolio_account_name == "Renamed CMA"
+
+
 def test_build_account_summaries_does_not_flag_distinct_same_provider_plans_as_duplicates() -> None:
     documents = [
         HouseholdDocument(

@@ -10,6 +10,7 @@ from app.logging_config import get_logger
 from app.models.household_finance import (
     HouseholdFinanceDashboard,
 )
+from app.services._household_document_pipeline_db import update_document_application_summary
 from app.services._jenny_review_notifications import (
     resolve_superseded_notifications,
     upsert_notification,
@@ -131,6 +132,9 @@ class JennyHouseholdMaintenanceService:
         for document_id, stored_path, prior_status, prior_review_status in rows:
             path = Path(str(stored_path)) if stored_path else None
             if path is None or not path.exists():
+                if self._recover_document_without_source(service, str(document_id)):
+                    recovered += 1
+                    continue
                 missing_source += 1
                 continue
             attempted += 1
@@ -151,6 +155,25 @@ class JennyHouseholdMaintenanceService:
             "missing_source": missing_source,
             "unresolved": unresolved,
         }
+
+    def _recover_document_without_source(self, service: Any, document_id: str) -> bool:
+        document = service.household_service.get_document(document_id)
+        if document is None:
+            return False
+        summary = service.household_service.document_pipeline.describe_application_state(
+            service.household_service,
+            document=document,
+        )
+        if str(summary.get("status") or "") != "applied":
+            return False
+        with service.storage.connection() as conn:
+            update_document_application_summary(
+                conn,
+                document_id=document_id,
+                application_summary=summary,
+            )
+            conn.commit()
+        return True
 
     def _sync_household_notifications(
         self,

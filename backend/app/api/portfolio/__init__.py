@@ -11,8 +11,10 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
 
-from app.middleware.cache import cache_response
+from app.logging_config import get_logger
+from app.middleware.cache import cache_response, invalidate_endpoint_cache
 from app.portfolio.current_facts import calculate_current_position_fact
+from app.services.household_portfolio_totals import get_effective_portfolio_totals
 
 from .analytics_routes import router as analytics_router
 from .jenny_routes import router as jenny_router
@@ -21,6 +23,7 @@ from .position_routes import router as position_router
 
 # Create main router
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
+logger = get_logger(__name__)
 
 
 @lru_cache(maxsize=1)
@@ -36,6 +39,11 @@ def _portfolio_mgr():
 @lru_cache(maxsize=1)
 def _price_fetcher():
     return import_module("app.portfolio.price_fetcher").PriceDataFetcher(_storage())
+
+
+@lru_cache(maxsize=1)
+def _household_service():
+    return import_module("app.services.household_finance_service").HouseholdFinanceService()
 
 
 @lru_cache(maxsize=1)
@@ -108,6 +116,11 @@ def _get_portfolio_payload(include_paper: bool) -> PortfolioResponse:
     _accounts, account_ids, cash_balance_total, positions = (
         _get_filtered_accounts_and_positions(include_paper)
     )
+    effective_totals = get_effective_portfolio_totals(
+        _storage(),
+        include_paper=include_paper,
+        household_service=_household_service(),
+    )
 
     if not positions:
         return PortfolioResponse(
@@ -117,6 +130,11 @@ def _get_portfolio_payload(include_paper: bool) -> PortfolioResponse:
             total_cost_basis=cash_balance_total,
             total_gain=0.0,
             total_gain_pct=0.0,
+            effective_total_value=effective_totals.effective_total_value,
+            household_total_value=effective_totals.household_total_value,
+            household_invested_total_value=effective_totals.household_invested_total_value,
+            household_cash_reserve=effective_totals.household_cash_reserve,
+            household_investment_accounts_count=effective_totals.household_investment_accounts_count,
         )
 
     symbols = list({p.symbol for p in positions})
@@ -143,6 +161,11 @@ def _get_portfolio_payload(include_paper: bool) -> PortfolioResponse:
         total_cost_basis=total_cost_basis,
         total_gain=total_gain,
         total_gain_pct=total_gain_pct,
+        effective_total_value=effective_totals.effective_total_value,
+        household_total_value=effective_totals.household_total_value,
+        household_invested_total_value=effective_totals.household_invested_total_value,
+        household_cash_reserve=effective_totals.household_cash_reserve,
+        household_investment_accounts_count=effective_totals.household_investment_accounts_count,
     )
 
 
@@ -157,6 +180,7 @@ def _get_accounts_payload(include_paper: bool) -> list[AccountResponse]:
             id=acc.id,
             name=acc.name,
             account_type=acc.account_type,
+            household_account_id=acc.household_account_id,
             cash_balance=acc.cash_balance,
             created_at=acc.created_at.isoformat(),
             updated_at=acc.updated_at.isoformat(),
@@ -167,13 +191,29 @@ def _get_accounts_payload(include_paper: bool) -> list[AccountResponse]:
 
 def _create_account_payload(account: AccountCreate) -> AccountResponse:
     created = _portfolio_mgr().add_account(account.name, account.account_type)
+    try:
+        _household_service().account_registry_service.sync_registry(_household_service(), limit=500)
+    except Exception as exc:
+        logger.warning(
+            "portfolio_account_household_sync_failed",
+            account_id=created.id,
+            error=str(exc),
+        )
+    invalidate_endpoint_cache("/api/portfolio", method="GET")
+    invalidate_endpoint_cache("/api/portfolio/", method="GET")
+    invalidate_endpoint_cache("/api/portfolio/analytics", method="GET")
+    persisted = next(
+        (account for account in _portfolio_mgr().get_accounts() if account.id == created.id),
+        created,
+    )
     return AccountResponse(
-        id=created.id,
-        name=created.name,
-        account_type=created.account_type,
-        cash_balance=created.cash_balance,
-        created_at=created.created_at.isoformat(),
-        updated_at=created.updated_at.isoformat(),
+        id=persisted.id,
+        name=persisted.name,
+        account_type=persisted.account_type,
+        household_account_id=persisted.household_account_id,
+        cash_balance=persisted.cash_balance,
+        created_at=persisted.created_at.isoformat(),
+        updated_at=persisted.updated_at.isoformat(),
     )
 
 
@@ -191,6 +231,18 @@ def _delete_account_payload(account_id: str) -> dict[str, str]:
     with _storage().connection() as conn:
         conn.execute("DELETE FROM portfolio_accounts WHERE id = %s", (account_id,))
         conn.commit()
+
+    try:
+        _household_service().account_registry_service.sync_registry(_household_service(), limit=500)
+    except Exception as exc:
+        logger.warning(
+            "portfolio_account_household_sync_failed",
+            account_id=account_id,
+            error=str(exc),
+        )
+    invalidate_endpoint_cache("/api/portfolio", method="GET")
+    invalidate_endpoint_cache("/api/portfolio/", method="GET")
+    invalidate_endpoint_cache("/api/portfolio/analytics", method="GET")
 
     return {"status": "deleted", "account_id": account_id}
 

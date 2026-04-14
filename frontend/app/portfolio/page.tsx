@@ -86,6 +86,12 @@ export default function PortfolioPage() {
       account.currentValue != null &&
       ['retirement', 'taxable', 'education'].includes(account.assetGroup),
   )
+  const effectiveHouseholdPortfolioValue =
+    portfolio?.householdTotalValue ??
+    householdDashboard?.portfolioContext?.totalPortfolioValue ??
+    null
+  const effectiveHouseholdInvestmentAccountsCount =
+    portfolio?.householdInvestmentAccountsCount ?? evidenceInvestmentAccounts.length
 
   const openPositionDialog = (nextAccountId?: string) => {
     const id = nextAccountId ?? (accounts?.length === 1 ? accounts[0].id : '')
@@ -266,10 +272,8 @@ export default function PortfolioPage() {
         portfolio={portfolio}
         analytics={analytics}
         accountsCount={accounts ? accounts.length : null}
-        householdPortfolioValue={
-          householdDashboard?.portfolioContext?.totalPortfolioValue ?? null
-        }
-        householdInvestmentAccountsCount={evidenceInvestmentAccounts.length}
+        householdPortfolioValue={effectiveHouseholdPortfolioValue}
+        householdInvestmentAccountsCount={effectiveHouseholdInvestmentAccountsCount}
         isCoreLoading={accountsLoading || portfolioLoading || analyticsLoading}
       />
 

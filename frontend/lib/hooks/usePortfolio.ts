@@ -126,6 +126,10 @@ export function useCreateAccount() {
         queryKey: ['portfolio'],
         refetchType: 'active',
       })
+      queryClient.invalidateQueries({
+        queryKey: ['household'],
+        refetchType: 'active',
+      })
     },
   })
 }
@@ -146,6 +150,10 @@ export function useDeleteAccount() {
       })
       queryClient.invalidateQueries({
         queryKey: ['portfolio'],
+        refetchType: 'active',
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['household'],
         refetchType: 'active',
       })
     },
@@ -178,6 +186,10 @@ export function useAddPosition() {
       // Invalidate and refetch both portfolio and analytics queries
       queryClient.invalidateQueries({
         queryKey: ['portfolio'],
+        refetchType: 'active',
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['household'],
         refetchType: 'active',
       })
     },
@@ -217,6 +229,10 @@ export function useUpdatePosition() {
         queryKey: ['portfolio'],
         refetchType: 'active',
       })
+      queryClient.invalidateQueries({
+        queryKey: ['household'],
+        refetchType: 'active',
+      })
     },
   })
 }
@@ -252,6 +268,10 @@ export function useDeletePosition() {
       // Invalidate and refetch both portfolio and analytics queries
       queryClient.invalidateQueries({
         queryKey: ['portfolio'],
+        refetchType: 'active',
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['household'],
         refetchType: 'active',
       })
     },

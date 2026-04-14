@@ -59,15 +59,14 @@ def test_symbol_portfolio_context_aggregates_multi_account_position(
     storage = _FakeStorage()
     monkeypatch.setattr(
         portfolio_context,
-        "get_live_portfolio_totals",
+        "get_effective_portfolio_totals",
         lambda *_args, **_kwargs: SimpleNamespace(
-            invested_total_value=851_070.0,
-            cash_inclusive_total_value=926_399.0,
+            effective_invested_total_value=851_070.0,
         ),
     )
 
     positions_by_symbol, summary = portfolio_context.fetch_symbol_portfolio_context(
-        storage,  # type: ignore[arg-type]
+        storage,
         ["VTI"],
     )
     section = build_portfolio_section(positions_by_symbol["VTI"], summary)

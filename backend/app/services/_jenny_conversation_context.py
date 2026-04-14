@@ -44,8 +44,10 @@ _DEFAULT_SYSTEM_STATUS = "unknown"
 _DOCUMENT_INTAKE_ROUTE = MONEY_EVIDENCE_ROUTE
 _DOCUMENT_PIPELINE_BEHAVIOR = (
     "Uploads create household document records and can update document reviews, "
-    "household transactions, and planning items. They do not auto-create "
-    "portfolio_accounts from screenshots."
+    "household transactions, canonical household accounts, linked tracked-account "
+    "labels, and planning items. They can relink existing portfolio accounts "
+    "through canonical household account identity, but they do not auto-create "
+    "new portfolio_accounts from screenshots."
 )
 
 # ── Log event names ────────────────────────────────────────────────────────────
@@ -301,6 +303,7 @@ def _build_portfolio_context(
                 "id": account.id,
                 "name": account.name,
                 "account_type": account.account_type,
+                "household_account_id": getattr(account, "household_account_id", None),
                 "cash_balance": account.cash_balance,
             }
             for account in accounts

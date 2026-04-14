@@ -9,6 +9,7 @@ export interface Account {
   id: string
   name: string
   accountType: string
+  householdAccountId: string | null
   cashBalance: number
   createdAt: string
   updatedAt: string
@@ -39,6 +40,11 @@ export interface PortfolioResponse {
   totalCostBasis: number
   totalGain: number
   totalGainPct: number
+  effectiveTotalValue: number | null
+  householdTotalValue: number | null
+  householdInvestedTotalValue: number | null
+  householdCashReserve: number | null
+  householdInvestmentAccountsCount: number | null
 }
 
 export interface PositionPerformance {
@@ -71,6 +77,11 @@ export interface PortfolioAnalytics {
   }
   cashBalanceTotal: number
   cashInclusiveTotalValue: number
+  effectiveTotalValue: number | null
+  householdTotalValue: number | null
+  householdInvestedTotalValue: number | null
+  householdCashReserve: number | null
+  householdInvestmentAccountsCount: number | null
   portfolioBeta: number
   portfolioVolatility: number
   sharpeRatio: number | null

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.logging_config import get_logger
-from app.portfolio.totals import get_live_portfolio_totals
+from app.services.household_portfolio_totals import get_effective_portfolio_totals
 from app.storage.facade import PortfolioStorage
 from app.storage.helpers import row_to_dict, rows_to_dicts
 
@@ -79,10 +79,11 @@ def fetch_symbol_portfolio_context(
         return _empty_context()
 
     try:
-        total_value = get_live_portfolio_totals(
+        totals = get_effective_portfolio_totals(
             storage,
             include_paper=False,
-        ).invested_total_value
+        )
+        total_value = totals.effective_invested_total_value
     except Exception as exc:
         logger.warning("symbol_portfolio_total_failed", error=str(exc))
         total_value = 0.0

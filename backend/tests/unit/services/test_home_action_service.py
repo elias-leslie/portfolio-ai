@@ -250,8 +250,8 @@ def test_recommendation_actions_use_decision_contract(monkeypatch) -> None:
     service.storage = object()
 
     monkeypatch.setattr(
-        "app.services.home_action_service.get_live_portfolio_totals",
-        lambda *_args, **_kwargs: SimpleNamespace(cash_inclusive_total_value=250000.0),
+        "app.services.home_action_service.get_effective_portfolio_totals",
+        lambda *_args, **_kwargs: SimpleNamespace(effective_invested_total_value=250000.0),
     )
     monkeypatch.setattr(
         "app.services.home_action_service.fetch_recommendations",

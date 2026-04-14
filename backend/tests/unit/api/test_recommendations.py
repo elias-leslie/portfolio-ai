@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -11,7 +12,6 @@ from app.api.recommendations._row_parser import parse_row
 from app.api.recommendations.router import get_recommendations
 from app.api.symbols.recommendations import generate_held_recommendation
 from app.portfolio.models import PriceData
-from app.portfolio.totals import PortfolioTotals
 
 
 def _build_row(
@@ -164,8 +164,8 @@ async def test_get_recommendations_uses_live_portfolio_total_when_no_override() 
     """Route should default sizing to the live cash-inclusive portfolio total."""
     with (
         patch(
-            "app.api.recommendations.router.get_live_portfolio_totals",
-            return_value=PortfolioTotals(cash_balance_total=2_500.0, invested_total_value=18_000.0),
+            "app.api.recommendations.router.get_effective_portfolio_totals",
+            return_value=SimpleNamespace(effective_invested_total_value=20_500.0),
         ),
         patch("app.api.recommendations.router.fetch_recommendations", return_value=[]),
     ):
@@ -180,8 +180,8 @@ async def test_get_recommendations_respects_explicit_portfolio_override() -> Non
     """Explicit sizing override should win over the live portfolio total."""
     with (
         patch(
-            "app.api.recommendations.router.get_live_portfolio_totals",
-            return_value=PortfolioTotals(cash_balance_total=2_500.0, invested_total_value=18_000.0),
+            "app.api.recommendations.router.get_effective_portfolio_totals",
+            return_value=SimpleNamespace(effective_invested_total_value=20_500.0),
         ),
         patch("app.api.recommendations.router.fetch_recommendations", return_value=[]),
     ):

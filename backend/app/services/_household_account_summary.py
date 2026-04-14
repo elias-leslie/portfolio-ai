@@ -407,11 +407,20 @@ def _confidence_for_summary(
 
 def _match_portfolio_account(
     *,
+    household_account_id: str | None,
     label: str,
     account_name: str | None,
     asset_group: str,
     portfolio_accounts: list[Any],
 ) -> Any | None:
+    if household_account_id:
+        direct = [
+            account
+            for account in portfolio_accounts
+            if str(getattr(account, "household_account_id", "") or "") == household_account_id
+        ]
+        if len(direct) == 1:
+            return direct[0]
     normalized_label = _normalize_text(label)
     normalized_account_name = _normalize_text(account_name)
     if not normalized_label and not normalized_account_name:
@@ -866,6 +875,7 @@ def build_account_summaries(
 
     tracked_portfolio_matches = {
         account.id: _match_portfolio_account(
+            household_account_id=account.household_account_id,
             label=_tracked_label(account),
             account_name=_tracked_label(account),
             asset_group=account.asset_group,
@@ -973,6 +983,7 @@ def build_account_summaries(
         if tracked_account is not None:
             linked_tracked_ids.add(tracked_account.id)
         portfolio_account = _match_portfolio_account(
+            household_account_id=latest.household_account_id,
             label=_tracked_label(tracked_account) if tracked_account is not None else _account_label(latest),
             account_name=latest.account_name,
             asset_group=latest.asset_group,

@@ -37,6 +37,7 @@ class AccountResponse(BaseModel):
     id: str
     name: str
     account_type: str
+    household_account_id: str | None = None
     cash_balance: float
     created_at: str
     updated_at: str
@@ -70,6 +71,11 @@ class PortfolioResponse(BaseModel):
     total_cost_basis: float
     total_gain: float
     total_gain_pct: float
+    effective_total_value: float | None = None
+    household_total_value: float | None = None
+    household_invested_total_value: float | None = None
+    household_cash_reserve: float | None = None
+    household_investment_accounts_count: int | None = None
 
 
 class PositionPerformanceResponse(BaseModel):
@@ -105,6 +111,11 @@ class AnalyticsResponse(BaseModel):
     portfolio_value: dict[str, float]
     cash_balance_total: float
     cash_inclusive_total_value: float
+    effective_total_value: float | None = None
+    household_total_value: float | None = None
+    household_invested_total_value: float | None = None
+    household_cash_reserve: float | None = None
+    household_investment_accounts_count: int | None = None
     portfolio_beta: float | None
     portfolio_volatility: float | None
     sharpe_ratio: float | None

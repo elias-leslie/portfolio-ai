@@ -10,7 +10,7 @@ from app.logging_config import get_logger
 from app.middleware.cache import invalidate_endpoint_cache
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
-from app.portfolio.totals import get_live_portfolio_totals
+from app.services.household_portfolio_totals import get_effective_portfolio_totals
 from app.storage import get_storage
 from app.storage.connection import get_connection_manager
 
@@ -60,9 +60,9 @@ async def get_recommendations(
         List of trade recommendations with full details
     """
     try:
-        resolved_portfolio_size = portfolio_size or get_live_portfolio_totals(
+        resolved_portfolio_size = portfolio_size or get_effective_portfolio_totals(
             get_storage(), include_paper=False
-        ).cash_inclusive_total_value
+        ).effective_invested_total_value
         if resolved_portfolio_size <= 0:
             resolved_portfolio_size = DEFAULT_PORTFOLIO_SIZE
 

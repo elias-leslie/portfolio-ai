@@ -56,6 +56,7 @@ class PortfolioManager:
             id=account_id,
             name=name,
             account_type=account_type,
+            household_account_id=None,
             cash_balance=starting_cash,
             initial_cash=starting_cash,
             created_at=now,

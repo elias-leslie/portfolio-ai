@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import Mock, patch
 
 from app.models.household_finance import (
@@ -34,7 +35,7 @@ def _question(question_id: str, *, field_name: str | None = None) -> HouseholdQu
 
 
 def test_chat_reconciles_open_questions_from_free_form_message() -> None:
-    service = JennyConversationService()
+    service = cast(Any, JennyConversationService())
     service.household_service = Mock()
     service.household_service.list_questions.return_value = HouseholdQuestionList(
         items=[_question("question-1", field_name="target_retirement_age")]
@@ -78,7 +79,7 @@ def test_chat_reconciles_open_questions_from_free_form_message() -> None:
 
 
 def test_chat_applies_profile_and_planning_updates_from_free_form_message() -> None:
-    service = JennyConversationService()
+    service = cast(Any, JennyConversationService())
     service.household_service = Mock()
     service.household_service.list_questions.return_value = HouseholdQuestionList(items=[])
     service.household_service.update_profile = Mock()
@@ -116,7 +117,7 @@ def test_chat_applies_profile_and_planning_updates_from_free_form_message() -> N
 
 
 def test_chat_survives_planning_extract_failure() -> None:
-    service = JennyConversationService()
+    service = cast(Any, JennyConversationService())
     service.household_service = Mock()
     service.household_service.list_questions.return_value = HouseholdQuestionList(items=[])
     service._build_context = Mock(
@@ -142,7 +143,7 @@ def test_chat_survives_planning_extract_failure() -> None:
 
 
 def test_chat_returns_fallback_reply_when_completion_fails() -> None:
-    service = JennyConversationService()
+    service = cast(Any, JennyConversationService())
     service.household_service = Mock()
     service.household_service.list_questions.return_value = HouseholdQuestionList(items=[])
     service._build_context = Mock(
@@ -170,7 +171,7 @@ def test_chat_returns_fallback_reply_when_completion_fails() -> None:
 
 
 def test_chat_returns_document_aware_fallback_for_upload_questions() -> None:
-    service = JennyConversationService()
+    service = cast(Any, JennyConversationService())
     service.household_service = Mock()
     service.household_service.list_questions.return_value = HouseholdQuestionList(items=[])
     service._build_context = Mock(
@@ -203,7 +204,7 @@ def test_chat_returns_document_aware_fallback_for_upload_questions() -> None:
 
 
 def test_chat_strips_agent_narration_tags_from_reply() -> None:
-    service = JennyConversationService()
+    service = cast(Any, JennyConversationService())
     service.household_service = Mock()
     service.household_service.list_questions.return_value = HouseholdQuestionList(items=[])
     service._build_context = Mock(return_value={"household": {}, "symbols": {"detected": []}})
@@ -232,7 +233,7 @@ def test_chat_strips_agent_narration_tags_from_reply() -> None:
 def test_build_context_includes_recent_documents_and_runtime_status(
     get_analytics_payload: Mock,
 ) -> None:
-    service = JennyConversationService()
+    service = cast(Any, JennyConversationService())
     service.household_service = Mock()
     service.portfolio_mgr = Mock()
     service.health_service = Mock()
@@ -310,4 +311,6 @@ def test_build_context_includes_recent_documents_and_runtime_status(
     assert context["household"]["documents"][0]["review_summary"].startswith("529 college savings")
     assert context["portfolio_ai"]["current_status"]["system"] == "healthy"
     assert context["portfolio_ai"]["pages"] == ["/money", "/status"]
-    assert "do not auto-create portfolio_accounts" in context["portfolio_ai"]["document_pipeline"]["behavior"]
+    behavior = context["portfolio_ai"]["document_pipeline"]["behavior"]
+    assert "canonical household accounts" in behavior
+    assert "do not auto-create new portfolio_accounts" in behavior

@@ -3052,6 +3052,7 @@ CREATE TABLE public.portfolio_accounts (
     account_type text NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
+    household_account_id uuid,
     cash_balance double precision DEFAULT 100000.0 NOT NULL,
     initial_cash double precision DEFAULT 100000.0 NOT NULL
 );
@@ -6089,6 +6090,13 @@ ALTER TABLE ONLY public.paper_trade_transactions
 
 ALTER TABLE ONLY public.portfolio_accounts
     ADD CONSTRAINT portfolio_accounts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: portfolio_accounts uq_portfolio_accounts_household_account_id; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_portfolio_accounts_household_account_id ON public.portfolio_accounts USING btree (household_account_id) WHERE (household_account_id IS NOT NULL);
 
 
 --
@@ -9422,6 +9430,14 @@ ALTER TABLE ONLY public.paper_trade_transactions
 -- Name: portfolio_positions portfolio_positions_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE ONLY public.portfolio_accounts
+    ADD CONSTRAINT fk_portfolio_accounts_household_account_id FOREIGN KEY (household_account_id) REFERENCES public.household_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: portfolio_positions portfolio_positions_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
 ALTER TABLE ONLY public.portfolio_positions
     ADD CONSTRAINT portfolio_positions_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.portfolio_accounts(id) ON DELETE CASCADE;
 
@@ -9591,4 +9607,3 @@ ALTER TABLE ONLY public.watchlist_technical_metrics
 --
 
 \unrestrict vkRqVkwyYCmVowZW2ufUzKpekNWJXTQWEO9gJhoIOnqaZgyp4PioeKk2flFDqaM
-

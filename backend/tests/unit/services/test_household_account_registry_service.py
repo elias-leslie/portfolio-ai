@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import Mock
 
 from app.models.household_finance import HouseholdEvidenceAccount, HouseholdTrackedAccount
+from app.portfolio.models import Account
 from app.services.household_account_identity import account_identity_candidates
 from app.services.household_account_registry_service import (
     HouseholdAccountRegistryService,
@@ -432,6 +433,126 @@ def test_prune_orphan_accounts_removes_unlinked_canonical_rows() -> None:
     assert "orphan-1" not in canonical_accounts
     assert "mask::1234|credit|credit_card" not in identity_map
     assert "live-1" in canonical_accounts
+
+
+def test_prune_orphan_accounts_keeps_portfolio_linked_canonical_rows() -> None:
+    registry = HouseholdAccountRegistryService()
+    conn = Mock()
+    conn.execute.return_value.fetchall.return_value = []
+    canonical_accounts = {
+        "portfolio-linked": _canonical(
+            account_id="portfolio-linked",
+            label="Individual - TOD",
+            asset_group="taxable",
+            account_type="brokerage",
+            source_type="brokerage",
+            institution_name="Fidelity",
+            account_mask="Z35217544",
+        )
+    }
+    identity_map = {"institution-mask::fidelity|z35217544": "portfolio-linked"}
+
+    removed = registry._prune_orphan_accounts(
+        conn,
+        canonical_accounts=canonical_accounts,
+        identity_map=identity_map,
+    )
+
+    assert removed == 0
+    assert "portfolio-linked" in canonical_accounts
+
+
+def test_sync_portfolio_accounts_links_exact_name_to_canonical_account() -> None:
+    registry = HouseholdAccountRegistryService()
+    conn = Mock()
+    canonical_accounts = {
+        "tod-id": _canonical(
+            account_id="tod-id",
+            label="Individual - TOD",
+            asset_group="taxable",
+            account_type="brokerage",
+            source_type="brokerage",
+            institution_name="Fidelity",
+            account_mask="Z35217544",
+        )
+    }
+    tracked_account = _tracked(
+        account_id="tracked-tod",
+        label="Individual - TOD",
+        asset_group="taxable",
+        account_type="brokerage",
+        source_type="brokerage",
+        institution_name="Fidelity",
+    )
+    tracked_accounts = [
+        tracked_account.model_copy(update={"household_account_id": "tod-id"})
+    ]
+    portfolio_accounts = [
+        Account(
+            id="portfolio-tod",
+            name="Individual - TOD",
+            account_type="Taxable",
+            household_account_id=None,
+            cash_balance=1427.53,
+            initial_cash=1427.53,
+        )
+    ]
+
+    linked = registry._sync_portfolio_accounts(
+        conn,
+        canonical_accounts=canonical_accounts,
+        tracked_accounts=tracked_accounts,
+        portfolio_accounts=portfolio_accounts,
+    )
+
+    assert linked == 1
+    sql, params = conn.execute.call_args.args
+    assert "UPDATE portfolio_accounts" in sql
+    assert params == ["tod-id", "portfolio-tod"]
+
+
+def test_sync_portfolio_accounts_skips_duplicate_portfolio_link_target() -> None:
+    registry = HouseholdAccountRegistryService()
+    conn = Mock()
+    canonical_accounts = {
+        "roth-id": _canonical(
+            account_id="roth-id",
+            label="ROTH IRA",
+            asset_group="retirement",
+            account_type="roth_ira",
+            source_type="retirement",
+            institution_name="Fidelity",
+        )
+    }
+    tracked_accounts: list[HouseholdTrackedAccount] = []
+    portfolio_accounts = [
+        Account(
+            id="portfolio-linked",
+            name="ROTH IRA",
+            account_type="Roth",
+            household_account_id="roth-id",
+            cash_balance=0.0,
+            initial_cash=0.0,
+        ),
+        Account(
+            id="portfolio-duplicate",
+            name="ROTH IRA",
+            account_type="Roth",
+            household_account_id=None,
+            cash_balance=0.0,
+            initial_cash=0.0,
+        ),
+    ]
+
+    linked = registry._sync_portfolio_accounts(
+        conn,
+        canonical_accounts=canonical_accounts,
+        tracked_accounts=tracked_accounts,
+        portfolio_accounts=portfolio_accounts,
+    )
+
+    assert linked == 0
+    conn.execute.assert_not_called()
 
 
 def test_resolve_from_evidence_creates_distinct_sibling_accounts() -> None:

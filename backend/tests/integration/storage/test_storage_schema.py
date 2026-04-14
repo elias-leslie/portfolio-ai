@@ -123,6 +123,7 @@ def test_portfolio_accounts_table_structure(schema_mgr: SchemaManager) -> None:
         assert "id" in columns
         assert "name" in columns
         assert "account_type" in columns
+        assert "household_account_id" in columns
         assert "created_at" in columns
         assert "updated_at" in columns
 

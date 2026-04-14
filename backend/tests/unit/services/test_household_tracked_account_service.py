@@ -59,7 +59,7 @@ class _FakeStorage:
         self._connection = connection
 
     @contextmanager
-    def connection(self):  # type: ignore[override]
+    def connection(self):
         yield self._connection
 
 
@@ -78,7 +78,7 @@ def test_ensure_unique_identity_rejects_duplicate_institution_mask() -> None:
     ]
 
     with raises(ValueError, match="already exists"):
-        service._ensure_unique_identity(  # type: ignore[attr-defined]
+        service._ensure_unique_identity(
             object(),
             account={
                 "label": "Main Cash Management",
@@ -108,7 +108,7 @@ def test_ensure_unique_identity_allows_same_row_on_update() -> None:
         )
     ]
 
-    service._ensure_unique_identity(  # type: ignore[attr-defined]
+    service._ensure_unique_identity(
         object(),
         account={
             "label": "Main Cash Management",
@@ -140,7 +140,7 @@ def test_ensure_unique_identity_allows_same_institution_label_when_owner_differs
         )
     ]
 
-    service._ensure_unique_identity(  # type: ignore[attr-defined]
+    service._ensure_unique_identity(
         object(),
         account={
             "label": "FRS Investment Plan",
@@ -172,7 +172,7 @@ def test_ensure_unique_identity_rejects_same_institution_label_and_owner() -> No
     ]
 
     with raises(ValueError, match="already exists"):
-        service._ensure_unique_identity(  # type: ignore[attr-defined]
+        service._ensure_unique_identity(
             object(),
             account={
                 "label": "FRS Investment Plan",
@@ -202,7 +202,7 @@ def test_ensure_unique_identity_rejects_duplicate_match_key() -> None:
     ]
 
     with raises(ValueError, match="already exists"):
-        service._ensure_unique_identity(  # type: ignore[attr-defined]
+        service._ensure_unique_identity(
             object(),
             account={
                 "label": "Amazon Chase (CC)",
@@ -303,3 +303,60 @@ def test_update_account_preserves_identity_fields_for_linked_accounts() -> None:
     assert params[8] == "Renamed for display"
     assert params[10] == "acct-1"
     fake_service.account_registry_service.sync_registry.assert_called_once_with(fake_service, limit=500)
+
+
+def test_update_account_ignores_owner_change_for_linked_accounts() -> None:
+    service = HouseholdTrackedAccountService()
+    existing = _tracked_account(
+        account_id="acct-2",
+        household_account_id="household-2",
+        label="Amazon Chase (CC)",
+        asset_group="credit",
+        account_type="credit_card",
+        source_type="credit_card",
+        match_key="identity::chase|5313",
+        institution_name="Chase",
+        owner_name="Elias B Leslie",
+        account_mask="5313",
+    )
+    updated = _tracked_account(
+        account_id="acct-2",
+        household_account_id="household-2",
+        label="Prime Visa",
+        asset_group="credit",
+        account_type="credit_card",
+        source_type="credit_card",
+        match_key="identity::chase|5313",
+        institution_name="Chase",
+        owner_name="Elias B Leslie",
+        account_mask="5313",
+    )
+    connection = _FakeConnection()
+    fake_service = Mock()
+    fake_service.storage = _FakeStorage(connection)
+    fake_service.account_registry_service.sync_registry = Mock()
+    service.get_account = Mock(side_effect=[existing, updated])  # type: ignore[method-assign]
+    service._ensure_unique_identity = Mock()  # type: ignore[method-assign]
+
+    payload = HouseholdTrackedAccountInput(
+        label="Prime Visa",
+        asset_group="credit",
+        account_type="credit_card",
+        source_type="credit_card",
+        match_key=None,
+        institution_name="Chase",
+        owner_name="Elias and Mariana",
+        account_mask="9728",
+        notes="Updated display name only",
+    )
+
+    result = service.update_account(fake_service, "acct-2", payload)
+
+    assert result == updated
+    _, params = connection.calls[0]
+    assert params is not None
+    assert params[0] == "Prime Visa"
+    assert params[5] == "Chase"
+    assert params[6] == "Elias B Leslie"
+    assert params[7] == "5313"
+    assert params[8] == "Updated display name only"

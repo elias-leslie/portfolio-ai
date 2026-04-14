@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 import pytest
 
 from app.portfolio.manager import PortfolioManager
@@ -59,6 +61,23 @@ def test_get_accounts(portfolio_mgr: PortfolioManager) -> None:
     assert len(accounts) == 2
     assert accounts[0].id == account1.id
     assert accounts[1].id == account2.id
+
+
+def test_get_accounts_normalizes_household_account_uuid(portfolio_mgr: PortfolioManager) -> None:
+    """UUID-backed household links from PostgreSQL should round-trip as strings."""
+    account = portfolio_mgr.add_account("IRA", "IRA")
+    household_account_id = str(uuid4())
+
+    with portfolio_mgr.storage.connection() as conn:
+        conn.execute(
+            "UPDATE portfolio_accounts SET household_account_id = %s WHERE id = %s",
+            [household_account_id, account.id],
+        )
+
+    accounts = portfolio_mgr.get_accounts()
+
+    assert len(accounts) == 1
+    assert accounts[0].household_account_id == household_account_id
 
 
 def test_add_position(portfolio_mgr: PortfolioManager) -> None:

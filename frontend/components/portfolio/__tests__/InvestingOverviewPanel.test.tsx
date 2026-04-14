@@ -44,6 +44,11 @@ const portfolio: PortfolioResponse = {
   totalCostBasis: 2000,
   totalGain: 250,
   totalGainPct: 12.5,
+  effectiveTotalValue: 2250,
+  householdTotalValue: null,
+  householdInvestedTotalValue: null,
+  householdCashReserve: null,
+  householdInvestmentAccountsCount: null,
 }
 
 const analytics: PortfolioAnalytics = {
@@ -55,6 +60,11 @@ const analytics: PortfolioAnalytics = {
   },
   cashBalanceTotal: 0,
   cashInclusiveTotalValue: 2250,
+  effectiveTotalValue: 2250,
+  householdTotalValue: null,
+  householdInvestedTotalValue: null,
+  householdCashReserve: null,
+  householdInvestmentAccountsCount: null,
   portfolioBeta: 1,
   portfolioVolatility: 12,
   sharpeRatio: 1.1,

@@ -11,7 +11,6 @@ from app.api.symbols.builders import build_portfolio_section
 from app.api.symbols.data_fetchers import get_portfolio_data
 from app.api.symbols.decisions import build_symbol_decision
 from app.logging_config import get_logger
-from app.portfolio.totals import get_live_portfolio_totals
 from app.services._home_action_ranking import (
     PRIORITY_RANK,
     action_rank_score,
@@ -22,6 +21,7 @@ from app.services._home_action_ranking import (
     public_action,
 )
 from app.services.household_finance_service import HouseholdFinanceService
+from app.services.household_portfolio_totals import get_effective_portfolio_totals
 from app.services.jenny_operator_service import JennyOperatorService
 from app.services.symbol_workflow_service import SymbolWorkflowService
 from app.storage import get_storage
@@ -241,10 +241,10 @@ class HomeActionService:
 
     def _recommendation_actions(self) -> list[dict[str, object]]:
         try:
-            portfolio_size = get_live_portfolio_totals(
+            portfolio_size = get_effective_portfolio_totals(
                 self.storage,
                 include_paper=False,
-            ).cash_inclusive_total_value
+            ).effective_invested_total_value
             recommendations = fetch_recommendations(
                 min_strength=6,
                 limit=3,

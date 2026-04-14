@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.models.household_finance import HouseholdEvidenceAccount, HouseholdTrackedAccount
+from app.portfolio.models import Account
 from app.services._household_finance_utils import iso, iso_or_none, to_float
 from app.services.household_account_identity import (
     account_identity_candidates,
@@ -36,6 +37,13 @@ _MATCH_STOPWORDS = {
     "compensation",
     "retirement",
     "ira",
+}
+_PORTFOLIO_ACCOUNT_GROUPS = {
+    "401k": "retirement",
+    "HSA": "retirement",
+    "IRA": "retirement",
+    "Roth": "retirement",
+    "Taxable": "taxable",
 }
 
 
@@ -130,12 +138,14 @@ class HouseholdAccountRegistryService:
             identity_map = self._fetch_identity_map(conn)
             evidence_accounts = self._fetch_evidence_accounts(conn, limit=limit)
             tracked_accounts = self._fetch_tracked_accounts(conn, limit=limit)
+            portfolio_accounts = self._fetch_portfolio_accounts(conn)
 
             accounts_created = 0
             accounts_merged = 0
             accounts_pruned = 0
             evidence_linked = 0
             tracked_linked = 0
+            portfolio_linked = 0
             transaction_linked = 0
 
             for evidence in evidence_accounts:
@@ -189,6 +199,12 @@ class HouseholdAccountRegistryService:
                 canonical_accounts=canonical_accounts,
                 identity_map=identity_map,
             )
+            portfolio_linked = self._sync_portfolio_accounts(
+                conn,
+                canonical_accounts=canonical_accounts,
+                tracked_accounts=tracked_accounts,
+                portfolio_accounts=portfolio_accounts,
+            )
             transaction_linked = self._sync_transactions(conn, identity_map=identity_map)
             accounts_pruned = self._prune_orphan_accounts(
                 conn,
@@ -203,11 +219,13 @@ class HouseholdAccountRegistryService:
             "accounts_pruned": accounts_pruned,
             "evidence_linked": evidence_linked,
             "tracked_linked": tracked_linked,
+            "portfolio_linked": portfolio_linked,
             "transaction_linked": transaction_linked,
         }
 
     def rebuild_registry(self, service: Any, *, limit: int = 5000) -> dict[str, int]:
         with service.storage.connection() as conn:
+            conn.execute("UPDATE portfolio_accounts SET household_account_id = NULL")
             conn.execute("UPDATE household_transactions SET household_account_id = NULL")
             conn.execute("UPDATE household_tracked_accounts SET household_account_id = NULL")
             conn.execute("UPDATE household_evidence_accounts SET household_account_id = NULL")
@@ -294,6 +312,28 @@ class HouseholdAccountRegistryService:
             [max(limit, 1)],
         ).fetchall()
         return [row_to_tracked_account(row, iso=iso) for row in rows]
+
+    def _fetch_portfolio_accounts(self, conn: Any) -> list[Account]:
+        rows = conn.execute(
+            """
+            SELECT id, name, account_type, household_account_id, cash_balance, initial_cash, created_at, updated_at
+            FROM portfolio_accounts
+            ORDER BY created_at
+            """
+        ).fetchall()
+        return [
+            Account(
+                id=str(row[0]),
+                name=str(row[1]),
+                account_type=str(row[2]),
+                household_account_id=str(row[3]) if row[3] is not None else None,
+                cash_balance=float(row[4] or 0.0),
+                initial_cash=float(row[5] or 0.0),
+                created_at=row[6],
+                updated_at=row[7],
+            )
+            for row in rows
+        ]
 
     def _resolve_from_evidence(
         self,
@@ -760,16 +800,18 @@ class HouseholdAccountRegistryService:
                 SELECT household_account_id FROM household_transactions WHERE household_account_id = ANY(%s)
                 UNION ALL
                 SELECT household_account_id FROM household_tracked_accounts WHERE household_account_id = ANY(%s)
+                UNION ALL
+                SELECT household_account_id FROM portfolio_accounts WHERE household_account_id = ANY(%s)
             ) linked
             GROUP BY household_account_id
             """,
-            [account_ids, account_ids, account_ids],
+            [account_ids, account_ids, account_ids, account_ids],
         ).fetchall()
         return {str(row[0]): int(row[1]) for row in rows if row[0] is not None}
 
     def _account_metrics(self, conn: Any, *, account_ids: list[str]) -> dict[str, dict[str, int]]:
         metrics = {
-            account_id: {"evidence": 0, "tracked": 0, "transactions": 0}
+            account_id: {"evidence": 0, "tracked": 0, "transactions": 0, "portfolio": 0}
             for account_id in account_ids
         }
         if not account_ids:
@@ -778,6 +820,7 @@ class HouseholdAccountRegistryService:
             "evidence": "SELECT household_account_id, COUNT(*) FROM household_evidence_accounts WHERE household_account_id = ANY(%s) GROUP BY household_account_id",
             "tracked": "SELECT household_account_id, COUNT(*) FROM household_tracked_accounts WHERE household_account_id = ANY(%s) GROUP BY household_account_id",
             "transactions": "SELECT household_account_id, COUNT(*) FROM household_transactions WHERE household_account_id = ANY(%s) GROUP BY household_account_id",
+            "portfolio": "SELECT household_account_id, COUNT(*) FROM portfolio_accounts WHERE household_account_id = ANY(%s) GROUP BY household_account_id",
         }
         for key, sql in queries.items():
             for row in conn.execute(sql, [account_ids]).fetchall():
@@ -844,6 +887,10 @@ class HouseholdAccountRegistryService:
         )
         conn.execute(
             "UPDATE household_transactions SET household_account_id = %s WHERE household_account_id = %s",
+            [winner_id, loser_id],
+        )
+        conn.execute(
+            "UPDATE portfolio_accounts SET household_account_id = %s WHERE household_account_id = %s",
             [winner_id, loser_id],
         )
         conn.execute(
@@ -923,11 +970,13 @@ class HouseholdAccountRegistryService:
         left_score = (
             left.get("evidence", 0) * 100
             + left.get("transactions", 0) * 10
+            + left.get("portfolio", 0) * 10
             + left.get("tracked", 0)
         )
         right_score = (
             right.get("evidence", 0) * 100
             + right.get("transactions", 0) * 10
+            + right.get("portfolio", 0) * 10
             + right.get("tracked", 0)
         )
         if right_score > left_score:
@@ -1077,6 +1126,69 @@ class HouseholdAccountRegistryService:
             updated += 1
         return updated
 
+    def _sync_portfolio_accounts(
+        self,
+        conn: Any,
+        *,
+        canonical_accounts: dict[str, HouseholdCanonicalAccount],
+        tracked_accounts: list[HouseholdTrackedAccount],
+        portfolio_accounts: list[Account],
+    ) -> int:
+        linked_portfolio_by_household_account_id = {
+            portfolio_account.household_account_id: portfolio_account.id
+            for portfolio_account in portfolio_accounts
+            if portfolio_account.household_account_id
+            and portfolio_account.household_account_id in canonical_accounts
+        }
+        tracked_by_label: dict[tuple[str, str], str] = {}
+        for tracked in tracked_accounts:
+            if not tracked.household_account_id:
+                continue
+            key = (
+                clean_text(tracked.label) or "",
+                clean_text(tracked.asset_group) or "",
+            )
+            if key[0] and key[1] and key not in tracked_by_label:
+                tracked_by_label[key] = tracked.household_account_id
+
+        canonical_by_label: dict[tuple[str, str], str] = {}
+        for account_id, canonical in canonical_accounts.items():
+            key = (
+                clean_text(canonical.canonical_label) or "",
+                clean_text(canonical.asset_group) or "",
+            )
+            if key[0] and key[1] and key not in canonical_by_label:
+                canonical_by_label[key] = account_id
+
+        updated = 0
+        for portfolio_account in portfolio_accounts:
+            asset_group = _PORTFOLIO_ACCOUNT_GROUPS.get(portfolio_account.account_type)
+            if not asset_group:
+                continue
+            if (
+                portfolio_account.household_account_id
+                and portfolio_account.household_account_id in canonical_accounts
+            ):
+                continue
+            key = (clean_text(portfolio_account.name) or "", asset_group)
+            next_account_id = tracked_by_label.get(key) or canonical_by_label.get(key)
+            if not next_account_id:
+                continue
+            existing_portfolio_id = linked_portfolio_by_household_account_id.get(next_account_id)
+            if existing_portfolio_id and existing_portfolio_id != portfolio_account.id:
+                continue
+            conn.execute(
+                """
+                UPDATE portfolio_accounts
+                SET household_account_id = %s
+                WHERE id = %s
+                """,
+                [next_account_id, portfolio_account.id],
+            )
+            linked_portfolio_by_household_account_id[next_account_id] = portfolio_account.id
+            updated += 1
+        return updated
+
     def _prune_orphan_accounts(
         self,
         conn: Any,
@@ -1091,8 +1203,9 @@ class HouseholdAccountRegistryService:
             LEFT JOIN household_evidence_accounts ea ON ea.household_account_id = a.id
             LEFT JOIN household_tracked_accounts ta ON ta.household_account_id = a.id
             LEFT JOIN household_transactions tx ON tx.household_account_id = a.id
+            LEFT JOIN portfolio_accounts pa ON pa.household_account_id = a.id
             GROUP BY a.id
-            HAVING COUNT(ea.id) = 0 AND COUNT(ta.id) = 0 AND COUNT(tx.id) = 0
+            HAVING COUNT(ea.id) = 0 AND COUNT(ta.id) = 0 AND COUNT(tx.id) = 0 AND COUNT(pa.id) = 0
             """
         ).fetchall()
         orphan_ids = [str(row[0]) for row in rows if row[0] is not None]
