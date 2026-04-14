@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type {
@@ -25,6 +25,13 @@ export function ImportCenterSidebar({
   moneyInbox?: unknown[]
   focusedReview?: boolean
 }) {
+  const [showAllDocuments, setShowAllDocuments] = useState(false)
+  const visibleDocuments = useMemo(
+    () => (showAllDocuments ? documents : documents.slice(0, 8)),
+    [documents, showAllDocuments],
+  )
+  const hiddenDocumentCount = Math.max(documents.length - visibleDocuments.length, 0)
+
   useEffect(() => {
     if (!focusedReview) {
       return
@@ -52,9 +59,25 @@ export function ImportCenterSidebar({
           No money evidence on file yet.
         </div>
       ) : (
-        documents.map((document) => (
-          <DocumentCard key={document.id} document={document} />
-        ))
+        <>
+          {visibleDocuments.map((document) => (
+            <DocumentCard key={document.id} document={document} />
+          ))}
+          {documents.length > 8 ? (
+            <div className="flex justify-center pt-1">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setShowAllDocuments((current) => !current)}
+              >
+                {showAllDocuments
+                  ? 'Show recent only'
+                  : `Show ${hiddenDocumentCount} older file${hiddenDocumentCount === 1 ? '' : 's'}`}
+              </Button>
+            </div>
+          ) : null}
+        </>
       )}
     </div>
   )
@@ -159,10 +182,10 @@ function DateQualityIssuesCard({
 function IntakeSummaryCard({ importCenter }: { importCenter: ImportCenter }) {
   return (
     <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
-      <p className="text-sm font-semibold text-text">Recent intake status</p>
+      <p className="text-sm font-semibold text-text">Recent intake</p>
       <p className="mt-1 text-sm text-text-muted">
-        One inbox. Jenny applies the same intake path to raw uploads and parsed
-        account evidence.
+        One intake rail. Latest files first. Older evidence stays available
+        without taking over the page.
       </p>
       <div className="mt-3">
         <div className="rounded-2xl border border-border/40 bg-surface/60 p-3">

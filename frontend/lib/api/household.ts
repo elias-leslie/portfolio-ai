@@ -343,6 +343,7 @@ export interface HouseholdDiscoveredAccount {
 
 export interface HouseholdAccountSummary {
   id: string
+  householdAccountId?: string | null
   label: string
   assetGroup: string
   accountType: string

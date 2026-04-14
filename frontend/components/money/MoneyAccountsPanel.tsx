@@ -374,7 +374,14 @@ function accountSubline(account: HouseholdAccountSummary) {
   if (account.linkedPortfolioAccountName) {
     parts.push(`Linked to ${account.linkedPortfolioAccountName}`)
   }
-  return parts.length > 0 ? parts.join(' · ') : 'No evidence linked yet'
+  if (parts.length === 0 && account.evidenceCount > 0) {
+    parts.push(
+      account.evidenceCount === 1
+        ? '1 supporting document'
+        : `${account.evidenceCount} supporting documents`,
+    )
+  }
+  return parts.length > 0 ? parts.join(' · ') : 'Awaiting evidence'
 }
 
 function accountCoverageDetail(

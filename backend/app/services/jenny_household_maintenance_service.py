@@ -91,6 +91,8 @@ class JennyHouseholdMaintenanceService:
                            )
                            OR COALESCE(metadata->'application_summary'->>'status', '') <> 'applied'
                            OR COALESCE((metadata->'application_summary'->>'needs_follow_up')::boolean, false)
+                           OR COALESCE(metadata->'reconciliation_summary'->>'status', '') = ''
+                           OR COALESCE(metadata->'reconciliation_summary'->>'status', '') = 'needs_retry'
                         )
                    )
                    OR (
@@ -116,6 +118,8 @@ class JennyHouseholdMaintenanceService:
                            )
                            OR COALESCE(metadata->'application_summary'->>'status', '') <> 'applied'
                            OR COALESCE((metadata->'application_summary'->>'needs_follow_up')::boolean, false)
+                           OR COALESCE(metadata->'reconciliation_summary'->>'status', '') = ''
+                           OR COALESCE(metadata->'reconciliation_summary'->>'status', '') = 'needs_retry'
                         )
                    )
                 ORDER BY uploaded_at DESC
@@ -171,6 +175,38 @@ class JennyHouseholdMaintenanceService:
                 conn,
                 document_id=document_id,
                 application_summary=summary,
+                reconciliation_summary={
+                    "status": "clear",
+                    "retry_recommended": False,
+                    "review_strategy": "recovered_without_source",
+                    "expected_account_count": 0,
+                    "evidence_account_count": int(summary.get("evidence_accounts") or 0),
+                    "transaction_changes": int(
+                        (
+                            summary.get("transactions")
+                            if isinstance(summary.get("transactions"), dict)
+                            else {}
+                        ).get("inserted")
+                        or 0
+                    ) + int(
+                        (
+                            summary.get("transactions")
+                            if isinstance(summary.get("transactions"), dict)
+                            else {}
+                        ).get("updated")
+                        or 0
+                    ),
+                    "import_changes": int(
+                        (
+                            summary.get("imports")
+                            if isinstance(summary.get("imports"), dict)
+                            else {}
+                        ).get("inserted")
+                        or 0
+                    ),
+                    "ambiguity_remaining": False,
+                    "issues": [],
+                },
             )
             conn.commit()
         return True

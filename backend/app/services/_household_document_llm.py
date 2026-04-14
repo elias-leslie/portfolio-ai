@@ -17,6 +17,9 @@ def _build_messages(
     content_type: str | None,
     extracted_text: str | None,
     baseline_review: dict[str, Any],
+    household_context: dict[str, Any] | None = None,
+    prior_review: dict[str, Any] | None = None,
+    reconciliation_summary: dict[str, Any] | None = None,
 ) -> list[MessageInput]:
     prompt_parts = [
         "Review this uploaded household finance document using your assigned Agent Hub prompts.",
@@ -26,9 +29,40 @@ def _build_messages(
         "",
         "Deterministic reviewer baseline:",
         json.dumps(baseline_review, indent=2),
-        "",
-        "Use extracted text to improve or correct the baseline review.",
     ]
+    if household_context:
+        prompt_parts.extend(
+            [
+                "",
+                "Current canonical household context:",
+                json.dumps(household_context, indent=2),
+            ]
+        )
+    if prior_review:
+        prompt_parts.extend(
+            [
+                "",
+                "Prior review attempt:",
+                json.dumps(prior_review, indent=2),
+            ]
+        )
+    if reconciliation_summary:
+        prompt_parts.extend(
+            [
+                "",
+                "Post-apply reconciliation issues from prior attempt:",
+                json.dumps(reconciliation_summary, indent=2),
+            ]
+        )
+    prompt_parts.extend(
+        [
+            "",
+            "Own full intake outcome, not just classification.",
+            "Read upload. infer all accounts, balances, transactions, and useful facts. reconcile against household context. use related evidence examples when format drift exists, but do not copy stale values. save strong identity hints. run an internal self-check. ask the user only if ambiguity remains real after all of that.",
+            "",
+            "Use extracted text to improve or correct the baseline review.",
+        ]
+    )
     if extracted_text:
         prompt_parts.extend(["", "Extracted text preview:", extracted_text[:12000]])
     else:

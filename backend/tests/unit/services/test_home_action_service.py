@@ -225,6 +225,33 @@ def test_jenny_actions_link_into_decision_context() -> None:
     assert actions[1]["href"] == "/symbols/NVDA?tab=decision"
 
 
+def test_jenny_actions_skip_household_notifications_that_already_have_precise_household_routes() -> None:
+    service = object.__new__(HomeActionService)
+    service._jenny_service = lambda: SimpleNamespace(
+        get_dashboard=lambda: JennyDashboard(
+            notifications=[
+                JennyNotification(
+                    id="note-household",
+                    routine_id="routine-1",
+                    symbol=None,
+                    category="household_inbox:account-stale-balance",
+                    severity="critical",
+                    status="open",
+                    title="Refresh Amazon Chase (CC)",
+                    detail="Add evidence.",
+                    recommendation="Add evidence.",
+                    created_at="2026-04-14T16:00:00Z",
+                )
+            ],
+            trade_reviews=[],
+        )
+    )
+
+    actions = service._jenny_actions()
+
+    assert actions == []
+
+
 def test_jenny_actions_rank_large_current_positions_above_small(monkeypatch) -> None:
     service = object.__new__(HomeActionService)
     service.storage = object()

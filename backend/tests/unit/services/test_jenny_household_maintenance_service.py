@@ -20,8 +20,10 @@ def test_replay_candidate_documents_targets_weak_docs_not_all_add_anything() -> 
     query = connection.execute.call_args.args[0]
     assert "filename = 'add-anything'" not in query
     assert "application_summary" in query
+    assert "reconciliation_summary" in query
     assert "financial_accounts" in query
     assert "source_type IN ('bank', 'credit_card', 'brokerage', 'retirement')" in query
+    assert "COALESCE(metadata->'reconciliation_summary'->>'status', '') = ''" in query
 
 
 def test_run_daily_maintenance_pass_reads_dashboard_from_household_service() -> None:
@@ -68,3 +70,6 @@ def test_replay_candidate_documents_recovers_applied_doc_without_source_file() -
     service.household_service.review_document.assert_not_called()
     service.household_service.document_pipeline.describe_application_state.assert_called_once()
     assert connection.commit.called
+    update_call = connection.execute.call_args_list[-1]
+    payload = update_call.args[1][0]
+    assert '"recovered_without_source"' in payload

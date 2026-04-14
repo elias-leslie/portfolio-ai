@@ -467,8 +467,12 @@ def update_document_application_summary(
     *,
     document_id: str,
     application_summary: dict[str, object],
+    reconciliation_summary: dict[str, object] | None = None,
 ) -> None:
     """Patch the document metadata with the evidence-application summary."""
+    payload: dict[str, object] = {"application_summary": application_summary}
+    if reconciliation_summary is not None:
+        payload["reconciliation_summary"] = reconciliation_summary
     conn.execute(
         """
         UPDATE household_documents
@@ -476,7 +480,7 @@ def update_document_application_summary(
         WHERE id = %s
         """,
         [
-            json.dumps({"application_summary": application_summary}),
+            json.dumps(payload),
             document_id,
         ],
     )

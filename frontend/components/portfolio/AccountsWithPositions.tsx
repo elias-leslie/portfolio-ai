@@ -165,7 +165,7 @@ export function AccountsWithPositionsContent({
             <div className="flex flex-wrap items-center gap-2">
               {householdCoverageDetail ? (
                 <InfoBadge
-                  label={`${householdInvestmentAccountsCount} linked household`}
+                  label={`${householdInvestmentAccountsCount} linked investment${householdInvestmentAccountsCount === 1 ? '' : 's'}`}
                   detail={householdCoverageDetail}
                   variant="outline"
                 />

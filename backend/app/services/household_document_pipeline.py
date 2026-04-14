@@ -58,6 +58,25 @@ _ACCOUNT_EVIDENCE_SOURCE_TYPES = frozenset({"bank", "credit_card", "brokerage", 
 _ACCOUNT_EVIDENCE_DOCUMENT_TYPES = frozenset(
     {"statement", "brokerage_statement", "retirement_statement"}
 )
+_MONEY_SIGNATURE_VOLATILE_FIELDS = frozenset(
+    {
+        "activity_observed_through",
+        "as_of_date",
+        "statement_period",
+        "text_preview",
+        "total_amount",
+    }
+)
+_MONEY_SIGNATURE_ACCOUNT_VOLATILE_FIELDS = frozenset(
+    {
+        "activity_observed_through",
+        "as_of_date",
+        "balance",
+        "cash_balance",
+        "confidence",
+        "holdings_value",
+    }
+)
 
 
 def _structured_data_dict(reviewed: dict[str, object]) -> dict[str, object]:
@@ -76,6 +95,88 @@ def _should_merge_planning_items(reviewed: dict[str, object]) -> bool:
     return not (
         source_type in _ACCOUNT_EVIDENCE_SOURCE_TYPES
         and document_type in _ACCOUNT_EVIDENCE_DOCUMENT_TYPES
+    )
+
+
+def _review_checks_dict(reviewed: dict[str, object]) -> dict[str, object]:
+    review_checks = reviewed.get("review_checks")
+    return cast(dict[str, object], review_checks) if isinstance(review_checks, dict) else {}
+
+
+def _reviewed_financial_accounts(reviewed: dict[str, object]) -> list[dict[str, object]]:
+    structured_data = _structured_data_dict(reviewed)
+    accounts = structured_data.get("financial_accounts")
+    if not isinstance(accounts, list):
+        return []
+    return [cast(dict[str, object], account) for account in accounts if isinstance(account, dict)]
+
+
+def _signature_structured_data(reviewed: dict[str, object], document: HouseholdDocument) -> dict[str, object]:
+    structured_data = _structured_data_dict(reviewed)
+    if not structured_data:
+        return {}
+    source_type = str(reviewed.get("source_type") or document.source_type or "")
+    if source_type not in _ACCOUNT_EVIDENCE_SOURCE_TYPES:
+        return structured_data
+    sanitized: dict[str, object] = {}
+    for key, value in structured_data.items():
+        if key in _MONEY_SIGNATURE_VOLATILE_FIELDS:
+            continue
+        if key == "financial_accounts" and isinstance(value, list):
+            stable_accounts: list[dict[str, object]] = []
+            for raw_account in value:
+                if not isinstance(raw_account, dict):
+                    continue
+                stable_account = {
+                    account_key: account_value
+                    for account_key, account_value in raw_account.items()
+                    if account_key not in _MONEY_SIGNATURE_ACCOUNT_VOLATILE_FIELDS
+                    and account_value not in (None, "", [], {})
+                }
+                if stable_account:
+                    stable_accounts.append(stable_account)
+            if stable_accounts:
+                sanitized[key] = stable_accounts
+            continue
+        if value not in (None, "", [], {}):
+            sanitized[key] = value
+    return sanitized
+
+
+def _bool_value(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "yes", "1"}:
+            return True
+        if lowered in {"false", "no", "0"}:
+            return False
+    return None
+
+
+def _is_duplicate_import_validation(
+    *,
+    import_summary: dict[str, object],
+    transaction_summary: dict[str, object],
+    evidence_account_count: int,
+    planning_count: int,
+    inferred_count: int,
+) -> bool:
+    inserted = int(import_summary.get("inserted") or 0)
+    duplicates = int(import_summary.get("duplicates") or 0)
+    dataset_type = str(import_summary.get("dataset_type") or "").strip()
+    transaction_changes = int(transaction_summary.get("inserted") or 0) + int(
+        transaction_summary.get("updated") or 0
+    )
+    return (
+        inserted == 0
+        and duplicates > 0
+        and bool(dataset_type)
+        and transaction_changes == 0
+        and evidence_account_count == 0
+        and planning_count == 0
+        and inferred_count == 0
     )
 
 
@@ -187,25 +288,54 @@ class HouseholdDocumentPipeline:
             )
             return
 
-        now = datetime.now(UTC).isoformat()
-        reviewed = service.review_service.review(
-            document_id=document.id,
-            filename=document.filename,
-            stored_path=stored_file,
-            content_type=document.content_type,
-            source_type=document.source_type,
-            document_type=document.document_type,
-        )
-        self._persist_review(service, document=document, reviewed=reviewed, now=now)
-        self.upsert_document_signatures(service, document=document, reviewed=reviewed)
-        application_summary = self.apply_review_outputs(
-            service, document=document, reviewed=reviewed
-        )
+        attempts = 0
+        max_attempts = 2
+        prior_review: dict[str, object] | None = None
+        reconciliation_summary: dict[str, object] | None = None
+        while True:
+            now = datetime.now(UTC).isoformat()
+            reviewed = service.review_service.review(
+                document_id=document.id,
+                filename=document.filename,
+                stored_path=stored_file,
+                content_type=document.content_type,
+                source_type=document.source_type,
+                document_type=document.document_type,
+                prior_review=prior_review,
+                reconciliation_summary=reconciliation_summary,
+            )
+            self._persist_review(service, document=document, reviewed=reviewed, now=now)
+            application_summary = self.apply_review_outputs(
+                service, document=document, reviewed=reviewed
+            )
+            reconciliation_summary = self._build_reconciliation_summary(
+                document=document,
+                reviewed=reviewed,
+                application_summary=application_summary,
+            )
+            if reconciliation_summary["status"] != "clear":
+                application_summary["needs_follow_up"] = True
+            if (
+                attempts + 1 < max_attempts
+                and reconciliation_summary.get("retry_recommended") is True
+            ):
+                attempts += 1
+                prior_review = reviewed
+                continue
+            self.upsert_document_signatures(
+                service,
+                document=document,
+                reviewed=reviewed,
+                application_summary=application_summary,
+                reconciliation_summary=reconciliation_summary,
+            )
+            break
         with service.storage.connection() as conn:
             update_document_application_summary(
                 conn,
                 document_id=document.id,
                 application_summary=application_summary,
+                reconciliation_summary=reconciliation_summary,
             )
             conn.commit()
 
@@ -262,7 +392,19 @@ class HouseholdDocumentPipeline:
         *,
         document: HouseholdDocument,
         reviewed: dict[str, object],
+        application_summary: dict[str, object] | None = None,
+        reconciliation_summary: dict[str, object] | None = None,
     ) -> None:
+        if (
+            isinstance(application_summary, dict)
+            and application_summary.get("status") != "applied"
+        ):
+            return
+        if isinstance(reconciliation_summary, dict):
+            if str(reconciliation_summary.get("status") or "") != "clear":
+                return
+            if bool(reconciliation_summary.get("ambiguity_remaining")):
+                return
         extracted_text = reviewed.get("extracted_text")
         if not isinstance(extracted_text, str) or not extracted_text:
             return
@@ -274,10 +416,11 @@ class HouseholdDocumentPipeline:
         structured_data = reviewed.get("structured_data")
         if not isinstance(structured_data, dict):
             structured_data = {}
+        signature_structured_data = _signature_structured_data(reviewed, document)
         shared = {
             "source_type": str(reviewed.get("source_type") or document.source_type),
             "document_type": str(reviewed.get("document_type") or document.document_type),
-            "structured_data": structured_data,
+            "structured_data": signature_structured_data,
             "confidence": to_float(reviewed.get("confidence")),
             "document_id": document.id,
             "now": datetime.now(UTC).isoformat(),
@@ -398,6 +541,15 @@ class HouseholdDocumentPipeline:
             impacts.append("planning")
         if inferred_count > 0:
             impacts.append("inferences")
+        duplicate_import_validation = _is_duplicate_import_validation(
+            import_summary=cast(dict[str, object], import_summary),
+            transaction_summary=cast(dict[str, object], transaction_summary),
+            evidence_account_count=evidence_account_count,
+            planning_count=planning_count,
+            inferred_count=inferred_count,
+        )
+        if duplicate_import_validation:
+            impacts.append("imports")
         status = "applied" if impacts else "incomplete"
 
         return {
@@ -412,6 +564,92 @@ class HouseholdDocumentPipeline:
             "planning_error": planning_error,
             "inferred_values": inferred_count,
             "needs_follow_up": not impacts,
+            "no_change": duplicate_import_validation,
+        }
+
+    def _build_reconciliation_summary(
+        self,
+        *,
+        document: HouseholdDocument,
+        reviewed: dict[str, object],
+        application_summary: dict[str, object],
+    ) -> dict[str, object]:
+        review_checks = _review_checks_dict(reviewed)
+        expected_account_count = int(
+            review_checks.get("expected_account_count")
+            or len(_reviewed_financial_accounts(reviewed))
+            or 0
+        )
+        transaction_summary = cast(
+            dict[str, object],
+            application_summary.get("transactions")
+            if isinstance(application_summary.get("transactions"), dict)
+            else {},
+        )
+        import_summary = cast(
+            dict[str, object],
+            application_summary.get("imports")
+            if isinstance(application_summary.get("imports"), dict)
+            else {},
+        )
+        evidence_account_count = int(application_summary.get("evidence_accounts") or 0)
+        transaction_changes = (
+            int(transaction_summary.get("inserted") or 0)
+            + int(transaction_summary.get("updated") or 0)
+            + int(transaction_summary.get("held_for_date_review") or 0)
+        )
+        import_changes = int(import_summary.get("inserted") or 0)
+        expects_transaction_activity = _bool_value(
+            review_checks.get("expects_transaction_activity")
+        )
+        if expects_transaction_activity is None:
+            expects_transaction_activity = (
+                str(reviewed.get("source_type") or "") in {"bank", "credit_card"}
+                and str(reviewed.get("document_type") or "") == "statement"
+            )
+        ambiguity_remaining = _bool_value(review_checks.get("ambiguity_remaining")) or False
+        issues: list[dict[str, object]] = []
+        if expected_account_count > evidence_account_count:
+            issues.append(
+                {
+                    "code": "missing_accounts",
+                    "detail": (
+                        f"Review identified {expected_account_count} account(s) but "
+                        f"only {evidence_account_count} evidence account row(s) applied."
+                    ),
+                }
+            )
+        if expects_transaction_activity and transaction_changes == 0:
+            issues.append(
+                {
+                    "code": "missing_transactions",
+                    "detail": "Review expected transaction activity but no transaction rows applied.",
+                }
+            )
+        if (
+            str(reviewed.get("source_type") or "") in _ACCOUNT_EVIDENCE_SOURCE_TYPES
+            and import_changes == 0
+            and transaction_changes == 0
+            and evidence_account_count == 0
+        ):
+            issues.append(
+                {
+                    "code": "no_applied_outputs",
+                    "detail": "Financial evidence review produced no applied imports, transactions, or accounts.",
+                }
+            )
+        status = "clear" if not issues else "needs_retry"
+        retry_recommended = bool(issues) and not ambiguity_remaining
+        return {
+            "status": status,
+            "retry_recommended": retry_recommended,
+            "review_strategy": str(reviewed.get("_review_strategy") or "unknown"),
+            "expected_account_count": expected_account_count,
+            "evidence_account_count": evidence_account_count,
+            "transaction_changes": transaction_changes,
+            "import_changes": import_changes,
+            "ambiguity_remaining": ambiguity_remaining,
+            "issues": issues,
         }
 
     def describe_application_state(
@@ -450,6 +688,15 @@ class HouseholdDocumentPipeline:
             impacts.append("planning")
         if inferred_count > 0:
             impacts.append("inferences")
+        duplicate_import_validation = _is_duplicate_import_validation(
+            import_summary=cast(dict[str, object], existing_imports_dict),
+            transaction_summary=cast(dict[str, object], existing_transactions_dict),
+            evidence_account_count=evidence_account_count,
+            planning_count=planning_count,
+            inferred_count=inferred_count,
+        )
+        if duplicate_import_validation:
+            impacts.append("imports")
 
         return {
             "status": "applied" if impacts else "incomplete",
@@ -467,4 +714,5 @@ class HouseholdDocumentPipeline:
             "planning_items": planning_count,
             "inferred_values": inferred_count,
             "needs_follow_up": not impacts,
+            "no_change": duplicate_import_validation,
         }

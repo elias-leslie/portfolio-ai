@@ -5,6 +5,8 @@ import { useMemo } from 'react'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { SectionCard } from '@/components/shared/SectionCard'
+import type { WorkspaceTab } from '@/components/shared/WorkspaceTabs'
+import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
 import { Button } from '@/components/ui/button'
 import type { NewsHealthResponse } from '@/lib/api/news'
 import {
@@ -192,6 +194,129 @@ export function StatusWorkspace() {
   const newsPipelineDetail =
     newsHealthQuery.data?.message ?? 'News health unavailable'
 
+  const statusTabs: WorkspaceTab[] = [
+    {
+      value: 'overview',
+      label: 'Overview',
+      content: (
+        <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+          {healthPending ? (
+            <LoadingSectionPanel
+              title="Core Connections"
+              description="The services and dependencies this app needs in order to stay trustworthy."
+              message="Loading core connection checks..."
+            />
+          ) : (
+            <SystemChecksPanel checkRows={checkRows} />
+          )}
+          {healthPending ? (
+            <LoadingSectionPanel
+              title="App Health"
+              description="What is running, whether the data is current, and whether background jobs are keeping up."
+              message="Loading runtime and data-recency checks..."
+            />
+          ) : (
+            <ServicePulsePanel
+              serviceRows={serviceRows}
+              dataFreshnessStatus={healthQuery.data?.dataFreshnessStatus}
+              workflowHealth={healthQuery.data?.workflowHealth}
+            />
+          )}
+        </div>
+      ),
+    },
+    {
+      value: 'sources',
+      label: 'Sources',
+      content: (
+        <div className="space-y-6">
+          <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+            {healthPending ? (
+              <LoadingSectionPanel
+                title="Data Sources"
+                description="How the outside feeds behind the app are behaving."
+                message="Loading provider health signals..."
+              />
+            ) : (
+              <SourceHealthPanel sourceRows={sourceRows} />
+            )}
+            {newsPending ? (
+              <LoadingSectionPanel
+                title="News Sources"
+                description="Which news feeds are connected and when they last produced articles."
+                message="Loading news-source diagnostics..."
+              />
+            ) : (
+              <NewsVendorsPanel vendorRows={vendorRows} />
+            )}
+          </div>
+          {healthPending ? (
+            <LoadingSectionPanel
+              title="API Limits"
+              description="Which data providers are connected and the limits they advertise."
+              message="Loading API quota coverage..."
+            />
+          ) : (
+            <QuotaCoveragePanel
+              apiQuotas={apiQuotas}
+              configuredCount={configuredQuotaCount}
+              totalCount={totalQuotaCount}
+            />
+          )}
+        </div>
+      ),
+    },
+    {
+      value: 'automation',
+      label: 'Automation',
+      badge: staleMaintenanceCount > 0 ? String(staleMaintenanceCount) : undefined,
+      content: (
+        <div className="space-y-6">
+          {healthPending ? (
+            <LoadingSectionPanel
+              title="Recent Auto-fixes"
+              description="What the app retried or repaired in the last 24 hours."
+              message="Loading recent remediation history..."
+            />
+          ) : (
+            <RecentRemediationsPanel
+              recentRemediations={healthQuery.data?.recentRemediations ?? []}
+            />
+          )}
+
+          {healthPending ? (
+            <LoadingSectionPanel
+              title="Stuck Background Jobs"
+              description="Background jobs that have stayed in a running state longer than expected."
+              message="Loading background job review..."
+            />
+          ) : (
+            <StaleMaintenancePanel
+              staleRuns={healthQuery.data?.staleMaintenanceRuns ?? []}
+            />
+          )}
+        </div>
+      ),
+    },
+    {
+      value: 'calendar',
+      label: 'Calendar',
+      content:
+        marketPending || newsPending ? (
+          <LoadingSectionPanel
+            title="Market Calendar"
+            description="Useful when deciding whether today's prices and alerts should already be moving."
+            message="Loading market timing signals..."
+          />
+        ) : (
+          <MarketTimingPanel
+            marketData={marketQuery.data}
+            newsHealth={newsHealthQuery.data}
+          />
+        ),
+    },
+  ]
+
   return (
     <PageContainer className="space-y-10 py-10">
       <PageHeader
@@ -372,103 +497,11 @@ export function StatusWorkspace() {
             />
           </section>
 
-          <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-            {healthPending ? (
-              <LoadingSectionPanel
-                title="Core Connections"
-                description="The services and dependencies this app needs in order to stay trustworthy."
-                message="Loading core connection checks..."
-              />
-            ) : (
-              <SystemChecksPanel checkRows={checkRows} />
-            )}
-            {healthPending ? (
-              <LoadingSectionPanel
-                title="App Health"
-                description="What is running, whether the data is current, and whether background jobs are keeping up."
-                message="Loading runtime and data-recency checks..."
-              />
-            ) : (
-              <ServicePulsePanel
-                serviceRows={serviceRows}
-                dataFreshnessStatus={healthQuery.data?.dataFreshnessStatus}
-                workflowHealth={healthQuery.data?.workflowHealth}
-              />
-            )}
-          </div>
-
-          <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-            {healthPending ? (
-              <LoadingSectionPanel
-                title="Data Sources"
-                description="How the outside feeds behind the app are behaving."
-                message="Loading provider health signals..."
-              />
-            ) : (
-              <SourceHealthPanel sourceRows={sourceRows} />
-            )}
-            {newsPending ? (
-              <LoadingSectionPanel
-                title="News Sources"
-                description="Which news feeds are connected and when they last produced articles."
-                message="Loading news-source diagnostics..."
-              />
-            ) : (
-              <NewsVendorsPanel vendorRows={vendorRows} />
-            )}
-          </div>
-
-          <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-            {healthPending ? (
-              <LoadingSectionPanel
-                title="API Limits"
-                description="Which data providers are connected and the limits they advertise."
-                message="Loading API quota coverage..."
-              />
-            ) : (
-              <QuotaCoveragePanel
-                apiQuotas={apiQuotas}
-                configuredCount={configuredQuotaCount}
-                totalCount={totalQuotaCount}
-              />
-            )}
-            {healthPending ? (
-              <LoadingSectionPanel
-                title="Recent Auto-fixes"
-                description="What the app retried or repaired in the last 24 hours."
-                message="Loading recent remediation history..."
-              />
-            ) : (
-              <RecentRemediationsPanel
-                recentRemediations={healthQuery.data?.recentRemediations ?? []}
-              />
-            )}
-          </div>
-
-          {healthPending ? (
-            <LoadingSectionPanel
-              title="Stuck Background Jobs"
-              description="Background jobs that have stayed in a running state longer than expected."
-              message="Loading background job review..."
-            />
-          ) : (
-            <StaleMaintenancePanel
-              staleRuns={healthQuery.data?.staleMaintenanceRuns ?? []}
-            />
-          )}
-
-          {marketPending || newsPending ? (
-            <LoadingSectionPanel
-              title="Market Calendar"
-              description="Useful when deciding whether today's prices and alerts should already be moving."
-              message="Loading market timing signals..."
-            />
-          ) : (
-            <MarketTimingPanel
-              marketData={marketQuery.data}
-              newsHealth={newsHealthQuery.data}
-            />
-          )}
+          <WorkspaceTabs
+            defaultValue="overview"
+            ariaLabel="Status workspace sections"
+            tabs={statusTabs}
+          />
         </>
       ) : null}
     </PageContainer>

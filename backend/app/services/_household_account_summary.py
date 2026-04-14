@@ -195,6 +195,53 @@ def _account_value(account: HouseholdEvidenceAccount) -> float | None:
     return None
 
 
+def _identity_completeness_score(account: HouseholdEvidenceAccount) -> int:
+    score = 0
+    if account.institution_name:
+        score += 3
+    if account.account_name:
+        score += 3
+    if _derive_account_mask(account.account_mask, account.account_name):
+        score += 4
+    if account.owner_name:
+        score += 2
+    return score
+
+
+def _best_display_account(
+    accounts: list[HouseholdEvidenceAccount],
+    documents_by_id: dict[str, HouseholdDocument],
+) -> HouseholdEvidenceAccount:
+    return max(
+        accounts,
+        key=lambda account: (
+            1 if _account_value(account) is not None else 0,
+            _identity_completeness_score(account),
+            _latest_evidence_timestamp(account, documents_by_id.get(account.document_id))
+            or datetime.min.replace(tzinfo=UTC),
+            float(account.confidence or 0.0),
+        ),
+    )
+
+
+def _best_balance_account(
+    accounts: list[HouseholdEvidenceAccount],
+    documents_by_id: dict[str, HouseholdDocument],
+) -> HouseholdEvidenceAccount:
+    candidates = [account for account in accounts if _account_value(account) is not None]
+    if not candidates:
+        return _best_display_account(accounts, documents_by_id)
+    return max(
+        candidates,
+        key=lambda account: (
+            _latest_evidence_timestamp(account, documents_by_id.get(account.document_id))
+            or datetime.min.replace(tzinfo=UTC),
+            float(account.confidence or 0.0),
+            _identity_completeness_score(account),
+        ),
+    )
+
+
 def _portfolio_value(account: Any, holdings_by_account: dict[str, float]) -> float:
     return round(float(getattr(account, "cash_balance", 0.0) or 0.0) + holdings_by_account.get(account.id, 0.0), 2)
 
@@ -900,10 +947,14 @@ def build_account_summaries(
                 float(account.confidence or 0.0),
             ),
         )
+        display_account = _best_display_account(accounts, documents_by_id)
+        balance_account = _best_balance_account(accounts, documents_by_id)
         latest_document = documents_by_id.get(latest.document_id)
-        account_label = _account_label(latest)
-        money_role = _money_role(latest.asset_group, latest.account_type, account_label)
-        last_balance_dt = _latest_evidence_timestamp(latest, latest_document)
+        display_document = documents_by_id.get(display_account.document_id)
+        balance_document = documents_by_id.get(balance_account.document_id)
+        account_label = _account_label(display_account)
+        money_role = _money_role(display_account.asset_group, display_account.account_type, account_label)
+        last_balance_dt = _latest_evidence_timestamp(balance_account, balance_document)
         days_since_balance = (
             (datetime.now(UTC).date() - last_balance_dt.date()).days
             if last_balance_dt is not None
@@ -911,27 +962,32 @@ def build_account_summaries(
         )
         balance_freshness_status, balance_freshness_label = _freshness_state_from_thresholds(
             _BALANCE_FRESHNESS_THRESHOLDS,
-            latest.asset_group,
+            display_account.asset_group,
             days_since=days_since_balance,
         )
-        hint_label = latest_document.account_label if latest_document is not None else None
-        transaction_label_candidates = {
-            _normalize_text(candidate)
+        hint_label = (
+            display_document.account_label
+            if display_document is not None and display_document.account_label
+            else latest_document.account_label if latest_document is not None else None
+        )
+        transaction_label_candidates: set[str] = set()
+        for account in accounts:
+            document = documents_by_id.get(account.document_id)
             for candidate in (
-                account_label,
-                hint_label,
-                latest.account_name,
-                latest.institution_name,
-            )
-            if _normalize_text(candidate)
-        }
-        if latest.account_mask:
-            transaction_label_candidates.add(_normalize_text(latest.account_mask))
+                _account_label(account),
+                document.account_label if document is not None else None,
+                account.account_name,
+                account.institution_name,
+                account.account_mask,
+            ):
+                normalized = _normalize_text(candidate)
+                if normalized:
+                    transaction_label_candidates.add(normalized)
         last_transaction_dt = _latest_transaction_timestamp(
             [str(account.document_id) for account in accounts if account.document_id],
-            household_account_id=latest.household_account_id,
+            household_account_id=display_account.household_account_id,
             label_candidates=transaction_label_candidates,
-            account_mask=latest.account_mask,
+            account_mask=display_account.account_mask,
             latest_transaction_dates_by_household_account=latest_transaction_dates_by_household_account,
             latest_transaction_dates_by_document=latest_transaction_dates_by_document,
             latest_transaction_dates_by_account_label=latest_transaction_dates_by_account_label,
@@ -967,28 +1023,28 @@ def build_account_summaries(
             transaction_label=transaction_freshness_label,
         )
         tracked_account = grouped_tracked_matches.get(group_key)
-        if tracked_account is None and latest.household_account_id:
-            tracked_account = tracked_by_household_account_id.get(latest.household_account_id)
+        if tracked_account is None and display_account.household_account_id:
+            tracked_account = tracked_by_household_account_id.get(display_account.household_account_id)
         if tracked_account is None:
             tracked_account = _match_tracked_account(
                 group_key=group_key,
                 label=account_label,
-                account_name=latest.account_name,
+                account_name=display_account.account_name,
                 hint_label=hint_label,
-                asset_group=latest.asset_group,
-                account_type=latest.account_type,
-                institution_name=latest.institution_name,
-                owner_name=latest.owner_name,
-                account_mask=latest.account_mask,
+                asset_group=display_account.asset_group,
+                account_type=display_account.account_type,
+                institution_name=display_account.institution_name,
+                owner_name=display_account.owner_name,
+                account_mask=display_account.account_mask,
                 tracked_accounts=tracked_accounts,
             )
         if tracked_account is not None:
             linked_tracked_ids.add(tracked_account.id)
         portfolio_account = _match_portfolio_account(
-            household_account_id=latest.household_account_id,
+            household_account_id=display_account.household_account_id,
             label=_tracked_label(tracked_account) if tracked_account is not None else _account_label(latest),
-            account_name=latest.account_name,
-            asset_group=latest.asset_group,
+            account_name=display_account.account_name,
+            asset_group=display_account.asset_group,
             portfolio_accounts=portfolio_accounts,
         )
         portfolio_valuation = (
@@ -998,7 +1054,7 @@ def build_account_summaries(
         )
         if portfolio_account is not None:
             linked_portfolio_ids.add(portfolio_account.id)
-        effective_asset_group = latest.asset_group
+        effective_asset_group = display_account.asset_group
         effective_label = (
             _tracked_label(tracked_account)
             if tracked_account is not None
@@ -1006,7 +1062,7 @@ def build_account_summaries(
             if portfolio_account is not None
             else account_label
         )
-        effective_account_type = latest.account_type
+        effective_account_type = display_account.account_type
         effective_money_role = _money_role(
             effective_asset_group,
             effective_account_type,
@@ -1034,7 +1090,7 @@ def build_account_summaries(
             transaction_label=transaction_freshness_label,
         )
         match_confidence = _confidence_for_summary(
-            latest,
+            display_account,
             evidence_count=len(accounts),
             linked=portfolio_account is not None or tracked_account is not None,
         )
@@ -1046,8 +1102,8 @@ def build_account_summaries(
             and getattr(portfolio_valuation, "priced_position_count", 0) > 0
         )
         effective_cash_balance = (
-            float(latest.cash_balance)
-            if latest.cash_balance is not None
+            float(balance_account.cash_balance)
+            if balance_account.cash_balance is not None
             else (
                 float(getattr(portfolio_valuation, "effective_cash_balance", 0.0) or 0.0)
                 if portfolio_valuation is not None
@@ -1057,40 +1113,49 @@ def build_account_summaries(
         effective_holdings_value = (
             float(getattr(portfolio_valuation, "priced_positions_value", 0.0) or 0.0)
             if has_live_pricing
-            else latest.holdings_value
+            else balance_account.holdings_value
         )
         effective_current_value = (
             float(getattr(portfolio_valuation, "priced_positions_value", 0.0) or 0.0)
             + float(effective_cash_balance or 0.0)
             if has_live_pricing and portfolio_valuation is not None
-            else _account_value(latest)
+            else _account_value(balance_account)
         )
         valuation_source = "live_quotes" if has_live_pricing else "evidence"
+        household_account_id = (
+            display_account.household_account_id
+            or tracked_account.household_account_id
+            if tracked_account is not None
+            else None
+        )
+        if household_account_id is None and portfolio_account is not None:
+            household_account_id = getattr(portfolio_account, "household_account_id", None)
         summary = HouseholdAccountSummary(
             id=group_key,
+            household_account_id=household_account_id,
             label=effective_label,
             asset_group=effective_asset_group,
             account_type=effective_account_type,
-            source_type=latest.source_type,
+            source_type=display_account.source_type,
             match_key=tracked_account.match_key if tracked_account is not None else group_key,
-            institution_name=latest.institution_name,
-            owner_name=latest.owner_name if latest.owner_name is not None else tracked_account.owner_name if tracked_account is not None else None,
-            account_mask=latest.account_mask,
+            institution_name=display_account.institution_name,
+            owner_name=display_account.owner_name if display_account.owner_name is not None else tracked_account.owner_name if tracked_account is not None else None,
+            account_mask=display_account.account_mask,
             notes=tracked_account.notes if tracked_account is not None else None,
-            currency=latest.currency,
+            currency=balance_account.currency or display_account.currency,
             current_value=effective_current_value,
-            balance=latest.balance,
+            balance=balance_account.balance,
             holdings_value=effective_holdings_value,
             cash_balance=effective_cash_balance,
             valuation_source=valuation_source,
             evidence_count=len(accounts),
             document_ids=sorted({account.document_id for account in accounts}),
-            latest_document_id=latest.document_id,
+            latest_document_id=balance_account.document_id if _account_value(balance_account) is not None else latest.document_id,
             source_types=sorted({account.source_type for account in accounts}),
             linked_portfolio_account_id=portfolio_account.id if portfolio_account is not None else None,
             linked_portfolio_account_name=_portfolio_label(portfolio_account) if portfolio_account is not None else None,
             tracked_account_id=tracked_account.id if tracked_account is not None else None,
-            account_origin="tracked" if tracked_account is not None else "evidence",
+            account_origin="evidence",
             money_role=effective_money_role,
             last_evidence_at=last_balance_dt.isoformat() if last_balance_dt is not None else None,
             days_since_evidence=days_since_balance,
@@ -1149,6 +1214,7 @@ def build_account_summaries(
         summaries.append(
             HouseholdAccountSummary(
                 id=_portfolio_summary_key(account),
+                household_account_id=getattr(account, "household_account_id", None),
                 label=_portfolio_label(account),
                 asset_group=_portfolio_asset_group(account),
                 account_type=str(account.account_type),
@@ -1233,6 +1299,7 @@ def build_account_summaries(
         summaries.append(
             HouseholdAccountSummary(
                 id=_tracked_summary_key(account),
+                household_account_id=account.household_account_id,
                 label=_tracked_label(account),
                 asset_group=account.asset_group,
                 account_type=account.account_type,

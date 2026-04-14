@@ -230,13 +230,52 @@ def test_baseline_review_detects_529_college_fund_snapshot() -> None:
 
     assert payload["document_type"] == "brokerage_statement"
     assert payload["source_type"] == "brokerage"
-    assert structured_data["account_hint"] == "529 college savings account"
+    assert structured_data["account_hint"] == "529 college savings snapshot (2 accounts)"
     assert "529" in payload["summary"]
     accounts = structured_data["financial_accounts"]
     assert isinstance(accounts, list)
-    assert len(accounts) == 1
+    assert len(accounts) == 2
     assert accounts[0]["account_type"] == "529"
-    assert accounts[0]["balance"] == "6176.44"
+    assert accounts[0]["account_name"] == "529 - Nadia"
+    assert accounts[0]["balance"] == "3087.29"
+    assert accounts[1]["account_name"] == "529 - Sophia"
+    assert accounts[1]["balance"] == "3089.15"
+    assert structured_data["total_amount"] == "6176.44"
+
+
+def test_baseline_review_splits_collegeamerica_multi_account_snapshot() -> None:
+    payload = _baseline_review(
+        filename="add-anything.txt",
+        source_type="other",
+        document_type="other",
+        extracted_text=(
+            "Your Portfolio\n"
+            "$26,371.00\n"
+            "Total Portfolio Value as of 04/10/2026\n"
+            "87595967\n"
+            "VCSP/COLLEGEAMERICA MARIANA LESLIE OWNER FBO SOPHIA O LESLIE\tAccount Value\n"
+            "$13,185.50\n"
+            "Total Account Value\n"
+            "$13,185.50\n"
+            "87595982\n"
+            "VCSP/COLLEGEAMERICA MARIANA LESLIE OWNER FBO NADIA R LESLIE\tAccount Value\n"
+            "$13,185.50\n"
+            "Total Account Value\n"
+            "$13,185.50\n"
+        ),
+    )
+    structured_data = cast(dict[str, Any], payload["structured_data"])
+
+    assert payload["document_type"] == "brokerage_statement"
+    assert payload["source_type"] == "brokerage"
+    accounts = structured_data["financial_accounts"]
+    assert isinstance(accounts, list)
+    assert len(accounts) == 2
+    assert accounts[0]["account_mask"] == "87595967"
+    assert accounts[0]["account_name"] == "529 - Sophia O Leslie"
+    assert accounts[1]["account_mask"] == "87595982"
+    assert accounts[1]["account_name"] == "529 - Nadia R Leslie"
+    assert structured_data["total_amount"] == "26371.00"
 
 
 def test_build_signature_candidates_skips_generic_add_anything_filename() -> None:
@@ -248,6 +287,257 @@ def test_build_signature_candidates_skips_generic_add_anything_filename() -> Non
     )
 
     assert all(candidate[0] != "filename_pattern" for candidate in candidates)
+
+
+def test_merge_llm_result_does_not_reintroduce_baseline_questions() -> None:
+    merged = HouseholdDocumentReviewService._merge_llm_result(
+        {
+            "summary": "Clear brokerage snapshot",
+            "source_type": "brokerage",
+            "document_type": "brokerage_statement",
+            "confidence": 0.96,
+            "structured_data": {
+                "financial_accounts": [
+                    {
+                        "account_name": "Individual - TOD",
+                        "account_mask": "Z35217544",
+                    }
+                ]
+            },
+        },
+        baseline={
+            "summary": "Baseline summary",
+            "source_type": "brokerage",
+            "document_type": "brokerage_statement",
+            "confidence": 0.7,
+            "structured_data": {"account_hint": "Individual - TOD"},
+            "questions": [{"question": "Old baseline ask"}],
+        },
+        extracted_text="Account positions as of 2026-04-13",
+    )
+
+    assert merged["questions"] == []
+    assert merged["review_checks"]["expected_account_count"] == 1
+    assert merged["review_checks"]["expects_transaction_activity"] is False
+    assert merged["review_checks"]["ambiguity_remaining"] is False
+
+
+def test_merge_llm_result_defaults_transaction_expectation_for_card_activity() -> None:
+    merged = HouseholdDocumentReviewService._merge_llm_result(
+        {
+            "summary": "Card activity export",
+            "source_type": "credit_card",
+            "document_type": "statement",
+            "confidence": 0.8,
+            "structured_data": {
+                "financial_accounts": [
+                    {
+                        "account_name": "Chase Amazon card",
+                    }
+                ]
+            },
+        },
+        baseline={
+            "summary": "Baseline",
+            "source_type": "credit_card",
+            "document_type": "statement",
+            "confidence": 0.6,
+            "structured_data": {},
+            "questions": [],
+        },
+        extracted_text="Activity Date Description Amount Running Balance",
+    )
+
+    assert merged["review_checks"]["expected_account_count"] == 1
+    assert merged["review_checks"]["expects_transaction_activity"] is True
+
+
+def test_reconcile_reviewed_accounts_reuses_canonical_credit_identity() -> None:
+    service = HouseholdDocumentReviewService(agent_service=MagicMock())
+
+    reviewed = service._reconcile_reviewed_accounts(
+        reviewed={
+            "source_type": "credit_card",
+            "document_type": "statement",
+            "structured_data": {
+                "financial_accounts": [
+                    {
+                        "account_name": "Chase Prime Visa / Amazon card",
+                        "account_type": "credit_card",
+                        "asset_group": "credit",
+                        "institution_name": "Chase",
+                        "owner_name": "Elias B Leslie",
+                        "account_mask": "5313",
+                        "match_key": "credit-lineage|chase|prime visa|elias b leslie|credit_card",
+                    }
+                ]
+            },
+        },
+        household_context={
+            "related_accounts": [
+                {
+                    "household_account_id": "household-chase",
+                    "canonical_label": "Amazon Chase (CC)",
+                    "source_type": "credit_card",
+                    "asset_group": "credit",
+                    "account_type": "credit_card",
+                    "institution_name": "Chase",
+                    "owner_name": "Elias B Leslie",
+                    "account_mask": "9728",
+                    "primary_identity_key": "credit-lineage|chase|prime visa|elias b leslie|credit_card",
+                    "identity_examples": [
+                        "credit-lineage|chase|prime visa|elias b leslie|credit_card",
+                        "institution-mask::chase|9728",
+                    ],
+                }
+            ]
+        },
+        filename="20260411-statements-9728-.pdf",
+    )
+
+    structured_data = cast(dict[str, Any], reviewed["structured_data"])
+    account = cast(dict[str, Any], structured_data["financial_accounts"][0])
+    assert account["household_account_id"] == "household-chase"
+    assert account["match_key"] == "credit-lineage|chase|prime visa|elias b leslie|credit_card"
+    assert account["account_mask"] == "9728"
+    assert account["extracted_account_mask"] == "5313"
+    assert reviewed["review_checks"]["canonical_match_count"] == 1
+
+
+def test_reconcile_reviewed_accounts_links_transaction_only_export_to_known_account() -> None:
+    service = HouseholdDocumentReviewService(agent_service=MagicMock())
+
+    reviewed = service._reconcile_reviewed_accounts(
+        reviewed={
+            "source_type": "credit_card",
+            "document_type": "statement",
+            "structured_data": {
+                "financial_accounts": [
+                    {
+                        "account_name": "Chase Amazon card",
+                        "account_type": "credit_card",
+                        "asset_group": "credit",
+                        "institution_name": "Chase",
+                        "owner_name": "Elias B Leslie",
+                        "match_key": "credit-lineage|chase|prime visa|elias b leslie|credit_card",
+                    }
+                ]
+            },
+        },
+        household_context={
+            "related_accounts": [
+                {
+                    "household_account_id": "household-chase",
+                    "canonical_label": "Amazon Chase (CC)",
+                    "source_type": "credit_card",
+                    "asset_group": "credit",
+                    "account_type": "credit_card",
+                    "institution_name": "Chase",
+                    "owner_name": "Elias B Leslie",
+                    "account_mask": "9728",
+                    "primary_identity_key": "credit-lineage|chase|prime visa|elias b leslie|credit_card",
+                    "identity_examples": [
+                        "credit-lineage|chase|prime visa|elias b leslie|credit_card",
+                    ],
+                }
+            ]
+        },
+        filename="Chasenull_Activity20260101_20260414_20260414.CSV",
+    )
+
+    structured_data = cast(dict[str, Any], reviewed["structured_data"])
+    account = cast(dict[str, Any], structured_data["financial_accounts"][0])
+    assert account["household_account_id"] == "household-chase"
+
+
+def test_reconcile_reviewed_accounts_preserves_explicit_match_key_over_stale_primary() -> None:
+    service = HouseholdDocumentReviewService(agent_service=MagicMock())
+
+    reviewed = service._reconcile_reviewed_accounts(
+        reviewed={
+            "source_type": "credit_card",
+            "document_type": "statement",
+            "structured_data": {
+                "financial_accounts": [
+                    {
+                        "account_name": "Chase Prime Visa / Amazon card",
+                        "account_type": "credit_card",
+                        "asset_group": "credit",
+                        "institution_name": "Chase",
+                        "owner_name": "Elias B Leslie",
+                        "account_mask": "9728",
+                        "match_key": "credit-lineage|chase|chase prime visa / amazon card|elias b leslie|credit_card",
+                    }
+                ]
+            },
+        },
+        household_context={
+            "related_accounts": [
+                {
+                    "household_account_id": "household-chase",
+                    "canonical_label": "Amazon Chase (CC)",
+                    "source_type": "credit_card",
+                    "asset_group": "credit",
+                    "account_type": "credit_card",
+                    "institution_name": "Chase",
+                    "owner_name": "Elias B Leslie",
+                    "account_mask": "5313",
+                    "primary_identity_key": "mask::5313|credit|credit_card",
+                    "identity_examples": [
+                        "credit-lineage|chase|chase prime visa / amazon card|elias b leslie|credit_card",
+                        "mask::5313|credit|credit_card",
+                    ],
+                }
+            ]
+        },
+        filename="20260411-statements-9728-.pdf",
+    )
+
+    structured_data = cast(dict[str, Any], reviewed["structured_data"])
+    account = cast(dict[str, Any], structured_data["financial_accounts"][0])
+    assert account["household_account_id"] == "household-chase"
+    assert account["match_key"] == "credit-lineage|chase|chase prime visa / amazon card|elias b leslie|credit_card"
+    assert account["account_mask"] == "9728"
+    assert account["account_mask"] == "9728"
+
+
+def test_merge_signature_pattern_with_baseline_keeps_signature_financial_accounts() -> None:
+    merged = HouseholdDocumentReviewService._merge_signature_pattern_with_baseline(
+        signature_review={
+            "summary": "Signature",
+            "document_type": "statement",
+            "source_type": "credit_card",
+            "confidence": 0.98,
+            "structured_data": {
+                "financial_accounts": [
+                    {
+                        "account_name": "Chase Amazon card",
+                        "account_mask": "9728",
+                        "balance": "2958.17",
+                    }
+                ]
+            },
+            "questions": [],
+        },
+        baseline={
+            "summary": "Baseline",
+            "document_type": "statement",
+            "source_type": "credit_card",
+            "confidence": 0.7,
+            "structured_data": {
+                "account_hint": "Chase Amazon card",
+                "total_amount": "2958.17",
+            },
+            "questions": [{"question": "Old baseline ask"}],
+            "inferred_values": [],
+        },
+        extracted_text="ACCOUNT SUMMARY\nNew Balance: $2,958.17",
+    )
+
+    structured_data = cast(dict[str, Any], merged["structured_data"])
+    assert structured_data["financial_accounts"][0]["account_mask"] == "9728"
+    assert structured_data["total_amount"] == "2958.17"
+    assert merged["questions"] == []
 
 
 def test_signature_review_skips_weak_money_signature_without_financial_accounts() -> None:
@@ -274,6 +564,68 @@ def test_signature_review_skips_weak_money_signature_without_financial_accounts(
         )
 
     assert reviewed is None
+
+
+@patch(f"{_REVIEW_MODULE}._extract_text")
+def test_review_skips_filename_signature_only_money_doc_without_financial_accounts(
+    extract_text: MagicMock,
+) -> None:
+    extract_text.return_value = (
+        "ACCOUNT SUMMARY\n"
+        "New Balance: $3,623.21\n"
+        "www.chase.com/amazon\n"
+    )
+    service = HouseholdDocumentReviewService(agent_service=MagicMock())
+    with (
+        patch.object(
+            service,
+            "_signature_review",
+            MagicMock(
+                return_value={
+                    "summary": "Matched learned filename pattern.",
+                    "document_type": "statement",
+                    "source_type": "credit_card",
+                    "confidence": 0.98,
+                    "structured_data": {"account_hint": "Chase Amazon card"},
+                    "_signature_type": "filename_pattern",
+                }
+            ),
+        ),
+        patch.object(
+            service,
+            "_review_with_llm",
+            MagicMock(
+                return_value={
+                    "summary": "Agent review",
+                    "document_type": "statement",
+                    "source_type": "credit_card",
+                    "confidence": 0.95,
+                    "structured_data": {
+                        "financial_accounts": [
+                            {
+                                "account_name": "Chase Amazon card",
+                                "account_mask": "9728",
+                            }
+                        ]
+                    },
+                    "questions": [],
+                }
+            ),
+        ) as review_with_llm,
+    ):
+        reviewed = service.review(
+            document_id="doc-1",
+            filename="20260311-statements-9728-.pdf",
+            stored_path=Path("/tmp/fake.pdf"),
+            content_type="application/pdf",
+            source_type="other",
+            document_type="other",
+        )
+
+    assert review_with_llm.called
+    assert reviewed["_review_strategy"] == "agent"
+    structured_data = cast(dict[str, Any], reviewed["structured_data"])
+    assert structured_data["financial_accounts"][0]["account_mask"] == "9728"
 
 
 def test_baseline_review_detects_cash_management_account_text() -> None:
@@ -679,6 +1031,27 @@ def test_build_messages_uses_single_text_message() -> None:
     assert isinstance(messages[0].content, str)
     assert "Document metadata:" in messages[0].content
     assert "Extracted text preview:" in messages[0].content
+
+
+def test_build_messages_includes_context_and_prior_attempt_when_present() -> None:
+    messages = _build_messages(
+        payload={"document_id": "doc-2", "filename": "statement.pdf"},
+        stored_path=Path("/tmp/statement.pdf"),
+        content_type="application/pdf",
+        extracted_text="Statement text",
+        baseline_review={"summary": "Statement", "structured_data": {}},
+        household_context={
+            "related_accounts": [
+                {"canonical_label": "Amazon Chase (CC)", "identity_examples": ["credit-lineage::chase|amazon"]}
+            ]
+        },
+        prior_review={"summary": "Prior attempt"},
+        reconciliation_summary={"issues": [{"code": "missing_accounts"}]},
+    )
+
+    assert "Current canonical household context:" in messages[0].content
+    assert "Prior review attempt:" in messages[0].content
+    assert "Post-apply reconciliation issues from prior attempt:" in messages[0].content
 
 
 @patch("app.services.household_document_review.AGENT_HUB_ENABLED", True)

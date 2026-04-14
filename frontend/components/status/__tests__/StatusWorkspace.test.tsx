@@ -36,9 +36,11 @@ describe('StatusWorkspace', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useRealTimers()
+    window.history.replaceState({}, '', '/status')
   })
 
-  it('shows empty-state copy for cards with no live rows and keeps zero latency visible', () => {
+  it('shows empty-state copy for cards with no live rows and keeps zero latency visible', async () => {
+    const user = userEvent.setup()
     useDetailedHealthMock.mockReturnValue(
       createQueryResult({
         data: {
@@ -136,12 +138,13 @@ describe('StatusWorkspace', () => {
       ),
     ).toBeInTheDocument()
     expect(
-      screen.getByText('No provider health checks yet'),
-    ).toBeInTheDocument()
-    expect(
       screen.getByText(
         'No app-service status entries are available right now.',
       ),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /sources/i }))
+    expect(
+      screen.getByText('No provider health checks yet'),
     ).toBeInTheDocument()
     expect(
       screen.getByText(
@@ -156,9 +159,10 @@ describe('StatusWorkspace', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows recent vendor activity when runtime success timestamps are unavailable', () => {
+  it('shows recent vendor activity when runtime success timestamps are unavailable', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-03-10T23:30:00.000Z'))
+    window.history.replaceState({}, '', '/status?tab=sources')
 
     useDetailedHealthMock.mockReturnValue(
       createQueryResult({
@@ -242,9 +246,10 @@ describe('StatusWorkspace', () => {
     expect(screen.queryByText('Last success: Never')).not.toBeInTheDocument()
   })
 
-  it('uses calculated news health when headlines are stale or empty', () => {
+  it('uses calculated news health when headlines are stale or empty', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-04-10T16:00:00.000Z'))
+    window.history.replaceState({}, '', '/status?tab=calendar')
 
     useDetailedHealthMock.mockReturnValue(
       createQueryResult({
@@ -389,15 +394,11 @@ describe('StatusWorkspace', () => {
 
     render(<StatusWorkspace />)
 
-    expect(
-      screen.getByText(
-        'No automation runs finished in the last 24h. 2 are stuck or overdue.',
-      ),
-    ).toBeInTheDocument()
     expect(screen.getByText('0 failed · 2 stuck')).toBeInTheDocument()
   })
 
-  it('shows resolved remediation history without duplicating cards', () => {
+  it('shows resolved remediation history without duplicating cards', async () => {
+    const user = userEvent.setup()
     useDetailedHealthMock.mockReturnValue(
       createQueryResult({
         data: {
@@ -473,6 +474,7 @@ describe('StatusWorkspace', () => {
 
     render(<StatusWorkspace />)
 
+    await user.click(screen.getByRole('button', { name: /automation/i }))
     expect(screen.getAllByText('technical_indicators')).toHaveLength(1)
     expect(screen.getByText('resolved')).toBeInTheDocument()
     expect(
@@ -554,7 +556,6 @@ describe('StatusWorkspace', () => {
     render(<StatusWorkspace />)
 
     expect(screen.getByText('Partial snapshot')).toBeInTheDocument()
-    expect(screen.getByText('Core Connections')).toBeInTheDocument()
     expect(
       screen.queryByText('Failed to load the operations snapshot.'),
     ).not.toBeInTheDocument()
@@ -574,7 +575,8 @@ describe('StatusWorkspace', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders partial status while the slower health query is still loading', () => {
+  it('renders partial status while the slower health query is still loading', async () => {
+    const user = userEvent.setup()
     useDetailedHealthMock.mockReturnValue(
       createQueryResult({
         data: undefined,
@@ -634,6 +636,7 @@ describe('StatusWorkspace', () => {
     expect(
       screen.getByText('Loading runtime and data-recency checks...'),
     ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /sources/i }))
     expect(
       screen.getByText('Loading provider health signals...'),
     ).toBeInTheDocument()
@@ -745,7 +748,8 @@ describe('StatusWorkspace', () => {
     expect(newsRefetch).toHaveBeenCalled()
   })
 
-  it('surfaces source cooldown and vendor notes when present', () => {
+  it('surfaces source cooldown and vendor notes when present', async () => {
+    const user = userEvent.setup()
     useDetailedHealthMock.mockReturnValue(
       createQueryResult({
         data: {
@@ -851,6 +855,14 @@ describe('StatusWorkspace', () => {
 
     render(<StatusWorkspace />)
 
+    expect(screen.getByText('Overdue')).toBeInTheDocument()
+    expect(
+      screen.getByText('1 table overdue; 1 table getting old'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/data recency issue: one table was overdue/i),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /sources/i }))
     expect(screen.getByText('0/1 healthy')).toBeInTheDocument()
     expect(screen.getByText('1 feed needs review · 1 down')).toBeInTheDocument()
     expect(screen.getByText('Request success: 62.0%')).toBeInTheDocument()
@@ -859,13 +871,6 @@ describe('StatusWorkspace', () => {
     ).toBeInTheDocument()
     expect(screen.getByText(/rate-limit hits: 3/i)).toBeInTheDocument()
     expect(screen.getByText(/pause remaining: 3m/i)).toBeInTheDocument()
-    expect(screen.getByText('Overdue')).toBeInTheDocument()
-    expect(
-      screen.getByText('1 table overdue; 1 table getting old'),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(/data recency issue: one table was overdue/i),
-    ).toBeInTheDocument()
     expect(
       screen.getByText(/1 of 1 data provider connected/i),
     ).toBeInTheDocument()
@@ -880,7 +885,8 @@ describe('StatusWorkspace', () => {
     ).toBeInTheDocument()
   })
 
-  it('uses explicit unavailable copy when status timestamps are missing', () => {
+  it('uses explicit unavailable copy when status timestamps are missing', async () => {
+    const user = userEvent.setup()
     useDetailedHealthMock.mockReturnValue(
       createQueryResult({
         data: {
@@ -953,15 +959,16 @@ describe('StatusWorkspace', () => {
 
     render(<StatusWorkspace />)
 
+    expect(screen.getByText('Update time unavailable')).toBeInTheDocument()
+    expect(
+      screen.getByText('No successful automation run recorded yet.'),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /sources/i }))
     expect(
       screen.getByText('1 feed needs review · 1 degraded'),
     ).toBeInTheDocument()
     expect(
       screen.getByText('Why: No successful fetch recorded.'),
-    ).toBeInTheDocument()
-    expect(screen.getByText('Update time unavailable')).toBeInTheDocument()
-    expect(
-      screen.getByText('No successful automation run recorded yet.'),
     ).toBeInTheDocument()
     expect(
       screen.getByText('Last good update: No successful fetch recorded'),

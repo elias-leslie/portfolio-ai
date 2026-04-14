@@ -865,7 +865,7 @@ def test_build_account_summaries_links_evidence_to_tracked_accounts() -> None:
     assert len(summaries) == 1
     assert summaries[0].label == "Main Checking"
     assert summaries[0].tracked_account_id == "tracked-1"
-    assert summaries[0].account_origin == "tracked"
+    assert summaries[0].account_origin == "evidence"
     assert summaries[0].match_status == "linked"
 
 
@@ -1672,3 +1672,107 @@ def test_build_account_summaries_uses_account_mask_to_credit_transaction_only_do
     assert summary.days_since_transaction == 4
     assert summary.transaction_freshness_status == "aging"
     assert not any(gap.code == "missing_transaction_history" for gap in summary.gap_flags)
+
+
+def test_build_account_summaries_preserve_balance_from_statement_when_newer_doc_is_transaction_only() -> None:
+    documents = [
+        HouseholdDocument(
+            id="doc-statement",
+            filename="20260411-statements-9728-.pdf",
+            source_type="credit_card",
+            document_type="statement",
+            status="parsed",
+            account_label="Prime Visa",
+            file_size_bytes=10,
+            content_type="application/pdf",
+            classification_confidence=0.99,
+            review_status="complete",
+            review_summary="Reviewed",
+            review_confidence=0.99,
+            statement_start=None,
+            statement_end="2026-04-11T00:00:00+00:00",
+            uploaded_at="2026-04-11T01:00:00+00:00",
+            parsed_at="2026-04-11T01:05:00+00:00",
+            metadata={"file_available": True, "application_summary": {"status": "applied"}},
+        ),
+        HouseholdDocument(
+            id="doc-activity",
+            filename="Chasenull_Activity20260101_20260414_20260414.CSV",
+            source_type="credit_card",
+            document_type="statement",
+            status="parsed",
+            account_label="Chase activity export",
+            file_size_bytes=10,
+            content_type="text/csv",
+            classification_confidence=0.88,
+            review_status="complete",
+            review_summary="Reviewed",
+            review_confidence=0.88,
+            statement_start=None,
+            statement_end="2026-04-14T00:00:00+00:00",
+            uploaded_at="2026-04-14T01:00:00+00:00",
+            parsed_at="2026-04-14T01:05:00+00:00",
+            metadata={"file_available": True, "application_summary": {"status": "applied"}},
+        ),
+    ]
+
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="acct-statement",
+                document_id="doc-statement",
+                household_account_id="household-chase",
+                source_type="credit_card",
+                asset_group="credit",
+                account_type="credit_card",
+                institution_name="Chase",
+                account_name="Prime Visa",
+                account_mask="9728",
+                owner_name="Elias B Leslie",
+                currency="USD",
+                balance=2958.17,
+                holdings_value=None,
+                cash_balance=None,
+                as_of_date="2026-04-11T00:00:00+00:00",
+                confidence=0.99,
+                metadata={},
+            ),
+            HouseholdEvidenceAccount(
+                id="acct-activity",
+                document_id="doc-activity",
+                household_account_id="household-chase",
+                source_type="credit_card",
+                asset_group="credit",
+                account_type="credit_card",
+                institution_name="Chase",
+                account_name="Chase Amazon card",
+                account_mask="5313",
+                owner_name="ELIAS B LESLIE",
+                currency="USD",
+                balance=None,
+                holdings_value=None,
+                cash_balance=None,
+                as_of_date="2026-04-14T00:00:00+00:00",
+                confidence=0.88,
+                metadata={"match_key": "credit-lineage|chase|prime visa|elias b leslie|credit_card"},
+            ),
+        ],
+        documents=documents,
+        portfolio_accounts=[],
+        tracked_accounts=[],
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+        latest_transaction_dates_by_household_account={
+            "household-chase": datetime(2026, 4, 12, tzinfo=UTC).date()
+        },
+    )
+
+    assert len(summaries) == 1
+    summary = summaries[0]
+    assert summary.id == "household-chase"
+    assert summary.label == "Chase · Prime Visa"
+    assert summary.account_mask == "9728"
+    assert summary.current_value == 2958.17
+    assert summary.last_balance_at == "2026-04-11T00:00:00+00:00"
+    assert summary.last_transaction_at == "2026-04-12T00:00:00+00:00"
+    assert not any(gap.code == "missing_balance" for gap in summary.gap_flags)

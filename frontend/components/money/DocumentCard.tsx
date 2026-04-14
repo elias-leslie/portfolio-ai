@@ -15,6 +15,16 @@ export function DocumentCard({ document }: { document: HouseholdDocument }) {
       ? (metadata.application_summary as Record<string, unknown>)
       : null
   const fileAvailable = metadata.file_available === true
+  const showClassifierBadge =
+    document.classificationConfidence != null && document.reviewConfidence == null
+  const showSourceAvailabilityBadge =
+    !fileAvailable &&
+    document.reviewStatus !== 'complete' &&
+    document.status !== 'parsed'
+  const classifierPct =
+    document.classificationConfidence != null
+      ? Math.round(document.classificationConfidence * 100)
+      : null
 
   return (
     <div className="rounded-2xl border border-border/50 bg-surface-muted/20 p-4">
@@ -29,18 +39,15 @@ export function DocumentCard({ document }: { document: HouseholdDocument }) {
             <Badge variant="secondary">
               {formatEnumLabel(document.status, 'staged')}
             </Badge>
-            {document.classificationConfidence != null ? (
-              <Badge variant="outline">
-                Classifier {Math.round(document.classificationConfidence * 100)}
-                %
-              </Badge>
+            {showClassifierBadge ? (
+              <Badge variant="outline">Classifier {classifierPct}%</Badge>
             ) : null}
             {applicationSummary?.status === 'applied' ? (
               <Badge variant="success">Applied</Badge>
             ) : applicationSummary?.status === 'incomplete' ? (
-              <Badge variant="outline">Needs completion</Badge>
+              <Badge variant="outline">Needs follow-up</Badge>
             ) : null}
-            {!fileAvailable ? (
+            {showSourceAvailabilityBadge ? (
               <Badge variant="outline">Source file unavailable</Badge>
             ) : null}
           </div>
@@ -122,7 +129,7 @@ function buildApplicationSummary(summary: Record<string, unknown>): string {
     )
 
   if (parts.length === 0) {
-    return 'Jenny reviewed this file, but it still needs enough usable evidence to apply it safely.'
+    return 'Reviewed, but not enough safe structured output applied yet.'
   }
   return `Applied to ${parts.join(', ')}.`
 }

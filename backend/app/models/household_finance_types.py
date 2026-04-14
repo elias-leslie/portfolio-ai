@@ -311,6 +311,7 @@ class HouseholdAccountGap(BaseModel):
 
 class HouseholdAccountSummary(BaseModel):
     id: str
+    household_account_id: str | None = None
     label: str
     asset_group: str
     account_type: str

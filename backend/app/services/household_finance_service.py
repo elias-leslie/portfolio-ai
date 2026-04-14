@@ -85,8 +85,13 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
     def update_transaction_category(self, transaction_id: str, payload: HouseholdTransactionCategoryUpdate) -> bool:
         return self.transaction_rule_service.update_transaction_category(self, transaction_id, payload)
 
-    def list_evidence_accounts(self, limit: int = 20) -> list[HouseholdEvidenceAccount]:
-        return self.evidence_service.list_accounts(self, limit=limit)
+    def list_evidence_accounts(
+        self,
+        limit: int = 20,
+        *,
+        dedupe: bool = True,
+    ) -> list[HouseholdEvidenceAccount]:
+        return self.evidence_service.list_accounts(self, limit=limit, dedupe=dedupe)
 
     def list_tracked_accounts(self, limit: int = 100) -> list[HouseholdTrackedAccount]:
         return self.tracked_account_service.list_accounts(self, limit=limit)

@@ -7,6 +7,8 @@ import re
 from datetime import datetime
 from io import StringIO
 
+from app.services.household_account_identity import looks_generic_account_mask
+
 # Text preview length for structured_data summaries
 TEXT_PREVIEW_LENGTH = 500
 # Default confidence for baseline (non-LLM) document reviews
@@ -344,32 +346,116 @@ def _extract_cash_management_account(text: str) -> dict[str, object] | None:
     }
 
 
-def _extract_529_account(text: str) -> dict[str, object] | None:
+def _extract_529_accounts(text: str) -> list[dict[str, object]] | None:
+    collegeamerica_matches = list(
+        re.finditer(
+            r"(?ims)^\s*(?P<mask>\d{6,})\s*\n"
+            r"(?P<label>VCSP/COLLEGEAMERICA[^\n]*?OWNER\s+FBO\s+(?P<name>[A-Z][A-Z .'-]+?))\s*"
+            r"(?:\t| {2,})Account Value\s*\n"
+            r"\$?(?P<amount>[0-9][0-9,]*\.\d{2})",
+            text,
+        )
+    )
     beneficiary_matches = list(
         re.finditer(
             r"(?im)^college\s*f(?:nd|und)\s*-\s*(?P<name>[^\n]+)\n\s*\$?(?P<amount>[0-9][0-9,]*\.\d{2})",
             text,
         )
     )
-    if not beneficiary_matches and "529" not in text.lower():
+    if not collegeamerica_matches and not beneficiary_matches and "529" not in text.lower():
         return None
 
-    beneficiary_holdings: list[dict[str, object]] = []
+    institution_name = (
+        "CollegeAmerica / VCSP"
+        if re.search(r"collegeamerica|vcsp", text, flags=re.IGNORECASE)
+        else "529 College Savings"
+    )
+    accounts: list[dict[str, object]] = []
     total_balance = 0.0
-    for match in beneficiary_matches:
-        name = " ".join(match.group("name").strip().split())
+    for match in collegeamerica_matches:
+        beneficiary_name = _display_owner_name(" ".join(match.group("name").strip().split()))
         amount = _float_value(match.group("amount"))
-        if not name or amount is None:
+        account_mask = match.group("mask").strip()
+        if not beneficiary_name or amount is None:
             continue
-        beneficiary_holdings.append(
+        accounts.append(
             {
-                "description": f"Beneficiary: {name}",
-                "market_value": f"{amount:.2f}",
+                "asset_group": "education",
+                "account_type": "529",
+                "account_name": f"529 - {beneficiary_name}",
+                "account_hint": "529 college savings account",
+                "beneficiary_name": beneficiary_name,
+                "account_mask": account_mask,
+                "institution_name": "CollegeAmerica / VCSP",
+                "currency": "USD",
+                "balance": f"{amount:.2f}",
+                "cash_balance": None,
+                "holdings_value": f"{amount:.2f}",
+                "holdings": [
+                    {
+                        "description": f"Beneficiary: {beneficiary_name}",
+                        "market_value": f"{amount:.2f}",
+                    }
+                ],
             }
         )
         total_balance += amount
 
-    if not beneficiary_holdings:
+    for index, match in enumerate(beneficiary_matches):
+        name = " ".join(match.group("name").strip().split())
+        amount = _float_value(match.group("amount"))
+        if not name or amount is None:
+            continue
+        block_end = (
+            beneficiary_matches[index + 1].start()
+            if index + 1 < len(beneficiary_matches)
+            else len(text)
+        )
+        block = text[match.start() : block_end]
+        account_mask_match = re.search(
+            r"\b529[^\n]*?([A-Z0-9-]{6,})\b",
+            " ".join(block.split()),
+            flags=re.IGNORECASE,
+        )
+        account_mask = account_mask_match.group(1) if account_mask_match is not None else None
+        if looks_generic_account_mask(account_mask):
+            account_mask = None
+        accounts.append(
+            {
+                "asset_group": "education",
+                "account_type": "529",
+                "account_name": f"529 - {name}",
+                "account_hint": "529 college savings account",
+                "beneficiary_name": name,
+                "account_mask": account_mask,
+                "institution_name": institution_name,
+                "currency": "USD",
+                "balance": f"{amount:.2f}",
+                "cash_balance": None,
+                "holdings_value": f"{amount:.2f}",
+                "holdings": [
+                    {
+                        "description": f"Beneficiary: {name}",
+                        "market_value": f"{amount:.2f}",
+                    }
+                ],
+            }
+        )
+        total_balance += amount
+
+    if accounts:
+        as_of_match = re.search(
+            r"as of\s*([A-Za-z]{3,9}[- ][0-9]{1,2}(?:,|-)[0-9]{4})",
+            text,
+            flags=re.IGNORECASE,
+        )
+        as_of_date = _parse_natural_date(as_of_match.group(1) if as_of_match else None)
+        if as_of_date is not None:
+            for account in accounts:
+                account["as_of_date"] = as_of_date
+        return accounts
+
+    if not beneficiary_matches:
         amounts = re.findall(r"\$([0-9][0-9,]*\.\d{2})", text)
         if not amounts:
             return None
@@ -381,26 +467,31 @@ def _extract_529_account(text: str) -> dict[str, object] | None:
         normalized_text,
         flags=re.IGNORECASE,
     )
+    account_mask = account_mask_match.group(1) if account_mask_match is not None else None
+    if looks_generic_account_mask(account_mask):
+        account_mask = None
     as_of_match = re.search(
         r"as of\s*([A-Za-z]{3,9}[- ][0-9]{1,2}(?:,|-)[0-9]{4})",
         text,
         flags=re.IGNORECASE,
     )
     as_of_date = _parse_natural_date(as_of_match.group(1) if as_of_match else None)
-    return {
-        "asset_group": "education",
-        "account_type": "529",
-        "account_name": "529 college savings account",
-        "account_hint": "529 college savings account",
-        "account_mask": account_mask_match.group(1) if account_mask_match is not None else None,
-        "institution_name": "529 College Savings",
-        "currency": "USD",
-        "balance": f"{total_balance:.2f}",
-        "cash_balance": None,
-        "holdings_value": f"{total_balance:.2f}",
-        "holdings": beneficiary_holdings or None,
-        "as_of_date": as_of_date,
-    }
+    return [
+        {
+            "asset_group": "education",
+            "account_type": "529",
+            "account_name": "529 college savings account",
+            "account_hint": "529 college savings account",
+            "account_mask": account_mask,
+            "institution_name": institution_name,
+            "currency": "USD",
+            "balance": f"{total_balance:.2f}",
+            "cash_balance": None,
+            "holdings_value": f"{total_balance:.2f}",
+            "holdings": None,
+            "as_of_date": as_of_date,
+        }
+    ]
 
 
 def _extract_frs_investment_plan_account(text: str) -> dict[str, object] | None:
@@ -955,14 +1046,32 @@ def _classify_by_content(
         inferred_source, inferred_document, confidence, summary = _classify_walmart(structured_data)
     elif "wells fargo everyday checking" in text_lower:
         inferred_source, inferred_document, confidence, summary = _classify_wells_fargo(structured_data)
-    elif "529" in text_lower or "college fnd" in text_lower or "college fund" in text_lower:
+    elif (
+        "529" in text_lower
+        or "college fnd" in text_lower
+        or "college fund" in text_lower
+        or "collegeamerica" in text_lower
+        or "vcsp/" in text_lower
+    ):
         inferred_source, inferred_document, confidence, summary = _classify_529(structured_data)
-        account = _extract_529_account(extracted_text or "")
-        if account is not None:
-            structured_data["financial_accounts"] = [account]
-            structured_data["total_amount"] = str(account["balance"])
-            if account.get("as_of_date") is not None:
-                structured_data["statement_period"] = f"As of {account['as_of_date']}"
+        accounts = _extract_529_accounts(extracted_text or "")
+        if accounts is not None:
+            structured_data["financial_accounts"] = accounts
+            total_amount = sum(float(str(account.get("balance") or 0.0)) for account in accounts)
+            structured_data["total_amount"] = f"{total_amount:.2f}"
+            account_count = len(accounts)
+            structured_data["account_count"] = account_count
+            if account_count == 1:
+                structured_data["account_hint"] = str(accounts[0]["account_name"])
+            else:
+                structured_data["account_hint"] = f"529 college savings snapshot ({account_count} accounts)"
+            as_of_values = {
+                str(account.get("as_of_date"))
+                for account in accounts
+                if account.get("as_of_date")
+            }
+            if len(as_of_values) == 1:
+                structured_data["statement_period"] = f"As of {next(iter(as_of_values))}"
     elif "cash management" in text_lower and (
         "account total balance" in text_lower
         or "cash available to withdraw" in text_lower

@@ -5,6 +5,26 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+_GENERIC_ACCOUNT_MASK_TOKENS = {
+    "account",
+    "accounts",
+    "activity",
+    "balance",
+    "balances",
+    "class",
+    "current",
+    "export",
+    "history",
+    "order",
+    "orders",
+    "portfolio",
+    "share",
+    "shares",
+    "statement",
+    "transactions",
+    "value",
+}
+
 
 def clean_text(value: object) -> str | None:
     if value is None:
@@ -21,6 +41,37 @@ def compact_key(*parts: object) -> str:
     return "|".join(part for raw in parts if (part := normalize_text(raw)))
 
 
+def looks_generic_account_mask(value: object) -> bool:
+    text = clean_text(value)
+    if not text:
+        return False
+    normalized = normalize_text(text)
+    return (
+        normalized in _GENERIC_ACCOUNT_MASK_TOKENS
+        or normalized.startswith("class ")
+        or normalized.endswith(" shares")
+    )
+
+
+def _looks_like_date_token(value: str | None) -> bool:
+    text = clean_text(value)
+    if not text:
+        return False
+    if re.fullmatch(r"(?:19|20)\d{2}", text):
+        return True
+    return bool(re.fullmatch(r"(?:19|20)\d{4,6}", text))
+
+
+def _looks_like_export_label(*values: str | None) -> bool:
+    combined = " ".join(part for value in values if (part := clean_text(value)))
+    if not combined:
+        return False
+    normalized = combined.lower()
+    if not any(token in normalized for token in ("statement", "activity", "export", "history", "transactions")):
+        return False
+    return re.search(r"(?:#|acct(?:ount)?\s*)[a-z0-9]{4,}", normalized, flags=re.IGNORECASE) is None
+
+
 def derive_account_mask(
     account_mask: str | None,
     account_name: str | None,
@@ -28,6 +79,10 @@ def derive_account_mask(
 ) -> str | None:
     normalized_mask = clean_text(account_mask)
     if normalized_mask:
+        if looks_generic_account_mask(normalized_mask):
+            return None
+        if _looks_like_date_token(normalized_mask) and _looks_like_export_label(account_name, fallback_label):
+            return None
         return normalized_mask
     candidates = [clean_text(account_name), clean_text(fallback_label)]
     for normalized_name in candidates:
@@ -37,12 +92,19 @@ def derive_account_mask(
         if match is not None:
             return match.group(1)
         stem = Path(normalized_name).stem
+        export_like = _looks_like_export_label(account_name, fallback_label)
         digit_tokens = [
             token for token in re.findall(r"[A-Za-z0-9]{4,}", stem)
             if any(char.isdigit() for char in token)
         ]
         for token in reversed(digit_tokens):
-            if re.fullmatch(r"\d{8}", token):
+            numeric_suffix = re.sub(r"^[A-Za-z_]+", "", token)
+            if (
+                re.fullmatch(r"\d{8}", token)
+                or _looks_like_date_token(token)
+                or (export_like and _looks_like_date_token(numeric_suffix))
+                or looks_generic_account_mask(token)
+            ):
                 continue
             return token
     return None

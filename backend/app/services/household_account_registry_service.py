@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+import psycopg
+
 from app.models.household_finance import HouseholdEvidenceAccount, HouseholdTrackedAccount
 from app.portfolio.models import Account
 from app.services._household_finance_utils import iso, iso_or_none, to_float
@@ -16,6 +18,7 @@ from app.services.household_account_identity import (
     account_identity_candidates,
     clean_text,
     derive_account_mask,
+    looks_generic_account_mask,
 )
 from app.services.household_finance_rows import row_to_evidence_account, row_to_tracked_account
 
@@ -96,6 +99,115 @@ def _canonical_label(
     return str(clean_text(account_type) or "Account")
 
 
+def _looks_generic_account_name(value: str | None) -> bool:
+    text = clean_text(value)
+    if not text:
+        return True
+    normalized = text.lower()
+    return normalized in {
+        "account",
+        "accounts",
+        "bank account",
+        "brokerage account",
+        "cash management account",
+        "cash management (joint wros)",
+        "cash management account (cma)",
+        "chase credit card activity export",
+        "credit card",
+        "credit card activity export",
+        "credit card statement",
+        "retirement account",
+        "529 college savings account",
+    }
+
+
+def _parse_iso_timestamp(value: object) -> datetime | None:
+    text = clean_text(value)
+    if not text:
+        return None
+    normalized = text.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+
+
+def _evidence_recency_timestamp(row: dict[str, object]) -> datetime:
+    for candidate in (
+        row.get("as_of_date"),
+        row.get("document_statement_end"),
+        row.get("document_uploaded_at"),
+        row.get("updated_at"),
+        row.get("created_at"),
+    ):
+        parsed = _parse_iso_timestamp(candidate)
+        if parsed is not None:
+            return parsed
+    return datetime.fromtimestamp(0, UTC)
+
+
+def _evidence_mask_rank(row: dict[str, object]) -> tuple[int, datetime, str]:
+    mask = clean_text(row.get("account_mask"))
+    if not mask or looks_generic_account_mask(mask):
+        return (-1, _evidence_recency_timestamp(row), "")
+    metadata = _load_json_object(row.get("metadata"))
+    filename = clean_text(metadata.get("document_filename"))
+    filename_mask = derive_account_mask(None, clean_text(row.get("account_name")), filename)
+    score = 0
+    if filename_mask and clean_text(filename_mask) == mask:
+        score += 90
+    if metadata.get("extracted_account_mask"):
+        score += 30
+    if row.get("balance") is not None or row.get("holdings_value") is not None or row.get("cash_balance") is not None:
+        score += 40
+    filename_text = (filename or "").lower()
+    if any(token in filename_text for token in ("activity", "history", "transactions", "export")):
+        score -= 35
+    if any(char.isdigit() for char in mask):
+        score += 10
+    if row.get("source_type") in {"bank", "brokerage", "retirement", "credit_card"}:
+        score += 8
+    confidence = row.get("confidence")
+    if isinstance(confidence, (int, float)):
+        score += int(float(confidence) * 5)
+    return (score, _evidence_recency_timestamp(row), mask)
+
+
+def _evidence_name_rank(row: dict[str, object]) -> tuple[int, datetime, str]:
+    name = clean_text(row.get("account_name"))
+    if not name:
+        return (-1, _evidence_recency_timestamp(row), "")
+    score = 0
+    if not _looks_generic_account_name(name):
+        score += 40
+    metadata = _load_json_object(row.get("metadata"))
+    if metadata.get("beneficiary_name"):
+        score += 25
+    if row.get("account_mask") and not looks_generic_account_mask(row.get("account_mask")):
+        score += 15
+    if row.get("owner_name"):
+        score += 10
+    confidence = row.get("confidence")
+    if isinstance(confidence, (int, float)):
+        score += int(float(confidence) * 5)
+    return (score, _evidence_recency_timestamp(row), name)
+
+
+def _canonical_identity_strength(account: HouseholdCanonicalAccount) -> int:
+    score = 0
+    if clean_text(account.institution_name):
+        score += 30
+    if clean_text(account.owner_name):
+        score += 25
+    if clean_text(account.account_mask) and not looks_generic_account_mask(account.account_mask):
+        score += 20
+    if clean_text(account.primary_identity_key):
+        score += 10
+    if clean_text(account.canonical_label) and not _looks_generic_account_name(account.canonical_label):
+        score += 10
+    return score
+
+
 def _name_tokens(*values: str | None) -> set[str]:
     tokens: set[str] = set()
     for value in values:
@@ -169,6 +281,16 @@ class HouseholdAccountRegistryService:
                     evidence_linked += 1
                     evidence.household_account_id = account_id
 
+            accounts_merged += self._merge_shadow_accounts(
+                conn,
+                canonical_accounts=canonical_accounts,
+                identity_map=identity_map,
+            )
+            self._refresh_accounts_from_linked_evidence(
+                conn,
+                canonical_accounts=canonical_accounts,
+            )
+
             for tracked in tracked_accounts:
                 account_id, created = self._resolve_from_tracked(
                     conn,
@@ -193,12 +315,6 @@ class HouseholdAccountRegistryService:
                     tracked=tracked,
                     canonical_account=canonical_accounts[account_id],
                 )
-
-            accounts_merged += self._merge_shadow_accounts(
-                conn,
-                canonical_accounts=canonical_accounts,
-                identity_map=identity_map,
-            )
             portfolio_linked = self._sync_portfolio_accounts(
                 conn,
                 canonical_accounts=canonical_accounts,
@@ -373,56 +489,93 @@ class HouseholdAccountRegistryService:
             merged = max(len(set(matched)) - 1, 0)
             created = 0
         else:
-            account_id = str(uuid.uuid4())
-            created = 1
-            primary_identity = candidates[0] if candidates else f"manual::{account_id}"
-            canonical_accounts[account_id] = HouseholdCanonicalAccount(
-                id=account_id,
-                primary_identity_key=primary_identity,
-                canonical_label=_canonical_label(
-                    institution_name=evidence.institution_name,
-                    account_name=evidence.account_name,
-                    account_mask=evidence.account_mask,
-                    account_type=evidence.account_type,
-                ),
-                asset_group=evidence.asset_group,
-                account_type=evidence.account_type,
-                source_type=evidence.source_type,
+            proposed_id = str(uuid.uuid4())
+            primary_identity = candidates[0] if candidates else f"manual::{proposed_id}"
+            canonical_label = _canonical_label(
                 institution_name=evidence.institution_name,
-                owner_name=evidence.owner_name,
-                account_mask=derive_account_mask(
-                    evidence.account_mask,
-                    evidence.account_name,
-                    self._evidence_fallback_label(evidence),
-                ),
-                metadata={},
+                account_name=evidence.account_name,
+                account_mask=evidence.account_mask,
+                account_type=evidence.account_type,
             )
-            conn.execute(
-                """
-                INSERT INTO household_accounts (
-                    id, primary_identity_key, canonical_label, asset_group, account_type, source_type,
-                    institution_name, owner_name, account_mask, metadata, created_at, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
-                """,
-                [
-                    account_id,
-                    canonical_accounts[account_id].primary_identity_key,
-                    canonical_accounts[account_id].canonical_label,
-                    evidence.asset_group,
-                    evidence.account_type,
-                    evidence.source_type,
-                    evidence.institution_name,
-                    evidence.owner_name,
-                    derive_account_mask(
-                        evidence.account_mask,
-                        evidence.account_name,
-                        self._evidence_fallback_label(evidence),
-                    ),
-                    "{}",
-                    _now_iso(),
-                    _now_iso(),
-                ],
+            derived_mask = derive_account_mask(
+                evidence.account_mask,
+                evidence.account_name,
+                self._evidence_fallback_label(evidence),
             )
+            now = _now_iso()
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO household_accounts (
+                        id, primary_identity_key, canonical_label, asset_group, account_type, source_type,
+                        institution_name, owner_name, account_mask, metadata, created_at, updated_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+                    """,
+                    [
+                        proposed_id,
+                        primary_identity,
+                        canonical_label,
+                        evidence.asset_group,
+                        evidence.account_type,
+                        evidence.source_type,
+                        evidence.institution_name,
+                        evidence.owner_name,
+                        derived_mask,
+                        "{}",
+                        now,
+                        now,
+                    ],
+                )
+                account_id = proposed_id
+                created = 1
+                canonical_accounts[account_id] = HouseholdCanonicalAccount(
+                    id=account_id,
+                    primary_identity_key=primary_identity,
+                    canonical_label=canonical_label,
+                    asset_group=evidence.asset_group,
+                    account_type=evidence.account_type,
+                    source_type=evidence.source_type,
+                    institution_name=evidence.institution_name,
+                    owner_name=evidence.owner_name,
+                    account_mask=derived_mask,
+                    metadata={},
+                )
+            except psycopg.errors.UniqueViolation:
+                conn.rollback()
+                row = conn.execute(
+                    """
+                    SELECT
+                        id,
+                        primary_identity_key,
+                        canonical_label,
+                        asset_group,
+                        account_type,
+                        source_type,
+                        institution_name,
+                        owner_name,
+                        account_mask,
+                        metadata
+                    FROM household_accounts
+                    WHERE primary_identity_key = %s
+                    """,
+                    [primary_identity],
+                ).fetchone()
+                if row is None:
+                    raise
+                account_id = str(row[0])
+                created = 0
+                canonical_accounts[account_id] = HouseholdCanonicalAccount(
+                    id=account_id,
+                    primary_identity_key=str(row[1]) if row[1] is not None else None,
+                    canonical_label=str(row[2]) if row[2] is not None else None,
+                    asset_group=str(row[3]),
+                    account_type=str(row[4]),
+                    source_type=str(row[5]),
+                    institution_name=str(row[6]) if row[6] is not None else None,
+                    owner_name=str(row[7]) if row[7] is not None else None,
+                    account_mask=str(row[8]) if row[8] is not None else None,
+                    metadata=_load_json_object(row[9]),
+                )
         self._refresh_account_from_evidence(conn, account_id=account_id, evidence=evidence, canonical_accounts=canonical_accounts)
         self._upsert_identity_candidates(
             conn,
@@ -606,6 +759,169 @@ class HouseholdAccountRegistryService:
                 account_id,
             ],
         )
+
+    def _refresh_accounts_from_linked_evidence(
+        self,
+        conn: Any,
+        *,
+        canonical_accounts: dict[str, HouseholdCanonicalAccount],
+    ) -> None:
+        account_ids = list(canonical_accounts)
+        if not account_ids:
+            return
+        rows = conn.execute(
+            """
+            SELECT
+                ea.household_account_id,
+                ea.source_type,
+                ea.asset_group,
+                ea.account_type,
+                ea.institution_name,
+                ea.account_name,
+                ea.account_mask,
+                ea.owner_name,
+                ea.balance,
+                ea.holdings_value,
+                ea.cash_balance,
+                ea.as_of_date,
+                ea.confidence,
+                ea.created_at,
+                ea.updated_at,
+                d.filename,
+                d.statement_end,
+                d.uploaded_at,
+                COALESCE(ea.metadata, '{}'::jsonb) AS metadata
+            FROM household_evidence_accounts ea
+            LEFT JOIN household_documents d ON d.id = ea.document_id
+            WHERE ea.household_account_id = ANY(%s)
+            ORDER BY ea.household_account_id, COALESCE(ea.as_of_date, d.uploaded_at, ea.updated_at, ea.created_at) DESC, ea.updated_at DESC, ea.created_at DESC
+            """,
+            [account_ids],
+        ).fetchall()
+        grouped: dict[str, list[dict[str, object]]] = {}
+        for row in rows:
+            account_id = str(row[0]) if row[0] is not None else None
+            if not account_id or account_id not in canonical_accounts:
+                continue
+            evidence_row = {
+                "household_account_id": account_id,
+                "source_type": str(row[1]) if row[1] is not None else None,
+                "asset_group": str(row[2]) if row[2] is not None else None,
+                "account_type": str(row[3]) if row[3] is not None else None,
+                "institution_name": str(row[4]) if row[4] is not None else None,
+                "account_name": str(row[5]) if row[5] is not None else None,
+                "account_mask": str(row[6]) if row[6] is not None else None,
+                "owner_name": str(row[7]) if row[7] is not None else None,
+                "balance": row[8],
+                "holdings_value": row[9],
+                "cash_balance": row[10],
+                "as_of_date": iso_or_none(row[11]),
+                "confidence": float(row[12]) if row[12] is not None else None,
+                "created_at": iso_or_none(row[13]),
+                "updated_at": iso_or_none(row[14]),
+                "document_statement_end": iso_or_none(row[16]),
+                "document_uploaded_at": iso_or_none(row[17]),
+                "metadata": _load_json_object(row[18]) | {"document_filename": str(row[15]) if row[15] is not None else None},
+            }
+            grouped.setdefault(account_id, []).append(evidence_row)
+
+        for account_id, evidence_rows in grouped.items():
+            current = canonical_accounts[account_id]
+            institution_name = next(
+                (
+                    clean_text(row.get("institution_name"))
+                    for row in evidence_rows
+                    if clean_text(row.get("institution_name"))
+                ),
+                current.institution_name,
+            )
+            owner_name = next(
+                (
+                    clean_text(row.get("owner_name"))
+                    for row in evidence_rows
+                    if clean_text(row.get("owner_name"))
+                ),
+                current.owner_name,
+            )
+            best_mask = max(evidence_rows, key=_evidence_mask_rank)
+            next_mask = clean_text(best_mask.get("account_mask")) if _evidence_mask_rank(best_mask)[0] >= 0 else None
+            best_name = max(evidence_rows, key=_evidence_name_rank)
+            next_name = clean_text(best_name.get("account_name")) if _evidence_name_rank(best_name)[0] >= 0 else None
+            next_label = _canonical_label(
+                institution_name=institution_name or current.institution_name,
+                account_name=next_name or current.canonical_label,
+                account_mask=next_mask or current.account_mask,
+                account_type=next(
+                    (
+                        clean_text(row.get("account_type"))
+                        for row in evidence_rows
+                        if clean_text(row.get("account_type"))
+                    ),
+                    current.account_type,
+                ),
+            )
+            updated = HouseholdCanonicalAccount(
+                id=current.id,
+                primary_identity_key=current.primary_identity_key,
+                canonical_label=next_label or current.canonical_label,
+                asset_group=next(
+                    (
+                        clean_text(row.get("asset_group"))
+                        for row in evidence_rows
+                        if clean_text(row.get("asset_group"))
+                    ),
+                    current.asset_group,
+                )
+                or current.asset_group,
+                account_type=next(
+                    (
+                        clean_text(row.get("account_type"))
+                        for row in evidence_rows
+                        if clean_text(row.get("account_type"))
+                    ),
+                    current.account_type,
+                )
+                or current.account_type,
+                source_type=next(
+                    (
+                        clean_text(row.get("source_type"))
+                        for row in evidence_rows
+                        if clean_text(row.get("source_type"))
+                    ),
+                    current.source_type,
+                )
+                or current.source_type,
+                institution_name=institution_name or current.institution_name,
+                owner_name=owner_name or current.owner_name,
+                account_mask=next_mask or current.account_mask,
+                metadata=current.metadata,
+            )
+            canonical_accounts[account_id] = updated
+            conn.execute(
+                """
+                UPDATE household_accounts
+                SET canonical_label = %s,
+                    asset_group = %s,
+                    account_type = %s,
+                    source_type = %s,
+                    institution_name = %s,
+                    owner_name = %s,
+                    account_mask = %s,
+                    updated_at = %s
+                WHERE id = %s
+                """,
+                [
+                    updated.canonical_label,
+                    updated.asset_group,
+                    updated.account_type,
+                    updated.source_type,
+                    updated.institution_name,
+                    updated.owner_name,
+                    updated.account_mask,
+                    _now_iso(),
+                    account_id,
+                ],
+            )
 
     def _upsert_identity_candidates(
         self,
@@ -940,13 +1256,20 @@ class HouseholdAccountRegistryService:
             if left_id not in canonical_accounts:
                 continue
             for right_id in account_ids[left_index + 1:]:
+                if left_id not in canonical_accounts:
+                    break
                 if right_id not in canonical_accounts:
                     continue
                 left = canonical_accounts[left_id]
                 right = canonical_accounts[right_id]
                 if not self._should_merge_accounts(left, right, metrics=metrics):
                     continue
-                winner_id, loser_id = self._choose_merge_winner(left_id, right_id, metrics=metrics)
+                winner_id, loser_id = self._choose_merge_winner(
+                    left_id,
+                    right_id,
+                    metrics=metrics,
+                    canonical_accounts=canonical_accounts,
+                )
                 self._merge_account(
                     conn,
                     winner_id=winner_id,
@@ -964,6 +1287,7 @@ class HouseholdAccountRegistryService:
         right_id: str,
         *,
         metrics: dict[str, dict[str, int]],
+        canonical_accounts: dict[str, HouseholdCanonicalAccount],
     ) -> tuple[str, str]:
         left = metrics.get(left_id, {})
         right = metrics.get(right_id, {})
@@ -972,12 +1296,14 @@ class HouseholdAccountRegistryService:
             + left.get("transactions", 0) * 10
             + left.get("portfolio", 0) * 10
             + left.get("tracked", 0)
+            + _canonical_identity_strength(canonical_accounts[left_id]) * 25
         )
         right_score = (
             right.get("evidence", 0) * 100
             + right.get("transactions", 0) * 10
             + right.get("portfolio", 0) * 10
             + right.get("tracked", 0)
+            + _canonical_identity_strength(canonical_accounts[right_id]) * 25
         )
         if right_score > left_score:
             return right_id, left_id
@@ -1010,7 +1336,17 @@ class HouseholdAccountRegistryService:
         tokens_compatible = bool(left_tokens) and bool(right_tokens) and (left_tokens <= right_tokens or right_tokens <= left_tokens)
 
         if left_evidence > 0 and right_evidence > 0:
-            return False
+            institution_compatible = same_institution or not left.institution_name or not right.institution_name
+            if not (institution_compatible and owner_compatible and tokens_compatible):
+                return False
+            left_strength = _canonical_identity_strength(left)
+            right_strength = _canonical_identity_strength(right)
+            weaker, stronger = (left, right) if left_strength <= right_strength else (right, left)
+            weaker_strength = min(left_strength, right_strength)
+            stronger_strength = max(left_strength, right_strength)
+            weaker_missing_core = not clean_text(weaker.institution_name) or not clean_text(weaker.owner_name)
+            stronger_has_core = bool(clean_text(stronger.institution_name) and clean_text(stronger.owner_name))
+            return weaker_missing_core and stronger_has_core and stronger_strength >= weaker_strength + 20
 
         evidence_backed = left_evidence > 0 or right_evidence > 0
         if not evidence_backed:

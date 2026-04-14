@@ -243,7 +243,6 @@ describe('HouseholdDocumentCenter', () => {
     expect(
       screen.getByText(/statement window mar 1, 2026 to mar 31, 2026/i),
     ).toBeInTheDocument()
-    expect(screen.getByText(/classifier 87%/i)).toBeInTheDocument()
   })
 
   it('keeps intake focused on upload status without extra workflow copy', () => {
@@ -264,7 +263,7 @@ describe('HouseholdDocumentCenter', () => {
       />,
     )
 
-    expect(screen.getByText(/recent intake status/i)).toBeInTheDocument()
+    expect(screen.getByText(/recent intake/i)).toBeInTheDocument()
     expect(screen.queryByText(/smart intake paths/i)).not.toBeInTheDocument()
     expect(
       screen.queryByText(/forward retailer email receipts to intake/i),

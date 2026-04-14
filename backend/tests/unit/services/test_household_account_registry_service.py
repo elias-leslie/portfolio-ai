@@ -6,7 +6,10 @@ from unittest.mock import Mock
 
 from app.models.household_finance import HouseholdEvidenceAccount, HouseholdTrackedAccount
 from app.portfolio.models import Account
-from app.services.household_account_identity import account_identity_candidates
+from app.services.household_account_identity import (
+    account_identity_candidates,
+    derive_account_mask,
+)
 from app.services.household_account_registry_service import (
     HouseholdAccountRegistryService,
     HouseholdCanonicalAccount,
@@ -133,6 +136,27 @@ def test_account_identity_candidates_emit_credit_lineage_before_mask() -> None:
     assert "institution-mask::chase|5313" in candidates
 
 
+def test_derive_account_mask_ignores_year_like_export_tokens() -> None:
+    assert (
+        derive_account_mask(
+            "2026",
+            "Credit card activity export",
+            "Chase credit card activity export dated 2026-04-14",
+        )
+        is None
+    )
+    assert (
+        derive_account_mask(
+            None,
+            "Credit card activity export",
+            "Chasenull_Activity20260101_20260414_20260414.CSV",
+        )
+        is None
+    )
+    assert derive_account_mask("Shares", "529 college savings account", None) is None
+    assert derive_account_mask("5313", "Prime Visa", None) == "5313"
+
+
 def test_should_not_merge_same_owner_sibling_evidence_accounts() -> None:
     registry = HouseholdAccountRegistryService()
     left = _canonical(
@@ -191,6 +215,41 @@ def test_should_merge_shadow_alias_into_evidence_account() -> None:
         metrics={
             "evidence": {"evidence": 1, "tracked": 0, "transactions": 0},
             "shadow": {"evidence": 0, "tracked": 1, "transactions": 0},
+        },
+    )
+
+
+def test_should_merge_weaker_evidence_alias_into_stronger_canonical_account() -> None:
+    registry = HouseholdAccountRegistryService()
+    legacy = _canonical(
+        account_id="legacy",
+        label="Chase Amazon card",
+        asset_group="credit",
+        account_type="credit_card",
+        source_type="credit_card",
+        institution_name=None,
+        owner_name=None,
+        account_mask="5313",
+    )
+    legacy.primary_identity_key = "mask::5313|credit|credit_card"
+    current = _canonical(
+        account_id="current",
+        label="Chase Prime Visa / Amazon card",
+        asset_group="credit",
+        account_type="credit_card",
+        source_type="credit_card",
+        institution_name="Chase",
+        owner_name="Elias B Leslie",
+        account_mask="9728",
+    )
+    current.primary_identity_key = "credit-lineage|chase|chase prime visa / amazon card|elias b leslie|credit_card"
+
+    assert registry._should_merge_accounts(
+        legacy,
+        current,
+        metrics={
+            "legacy": {"evidence": 4, "tracked": 0, "transactions": 120},
+            "current": {"evidence": 3, "tracked": 1, "transactions": 331},
         },
     )
 

@@ -54,6 +54,12 @@ def _normalized_action_title(action: dict[str, object]) -> str:
     return " ".join(str(action.get("title", "") or "").lower().split())
 
 
+def _is_household_jenny_decision(decision: dict[str, object]) -> bool:
+    action = str(decision.get("action", "") or "")
+    source_kind = str(decision.get("source_kind", "") or "")
+    return action.startswith("household_inbox:") or source_kind == "jenny_alert_household"
+
+
 def _action_specificity_score(action: dict[str, object]) -> float:
     source = str(action.get("source", "") or "")
     href = str(action.get("href", "") or "")
@@ -378,6 +384,8 @@ class HomeActionService:
                 notifications=[notification],
                 portfolio_position=portfolio_position,
             ).model_dump(mode="json")
+            if _is_household_jenny_decision(decision):
+                continue
             href = (
                 f"/symbols/{notification.symbol}?tab=decision"
                 if notification.symbol

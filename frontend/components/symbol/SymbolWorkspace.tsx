@@ -192,8 +192,10 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             {currentDecision?.headline ?? '—'}
           </p>
           <p className="mt-2 text-sm text-text-muted">
-            {currentDecision?.summary ??
-              'No live recommendation summary is available yet.'}
+            {currentDecision?.sourceLabel ?? 'Decision source unavailable'}
+            {currentDecision?.sourceTimestamp
+              ? ` · ${formatRelativeTime(currentDecision.sourceTimestamp)}`
+              : ''}
           </p>
           {decisionUsesLiveModel ? (
             <p className="mt-3 text-sm text-text">
@@ -207,15 +209,11 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
               Strength {data?.signal?.strength ?? '—'}/10
             </p>
           )}
-          <p className="mt-2 text-xs uppercase tracking-[0.18em] text-text-muted">
-            {currentDecision?.sourceLabel ?? 'Decision unavailable'}
-            {currentDecision?.severity
-              ? ` · ${formatEnumLabel(currentDecision.severity, 'Info')}`
-              : ''}
-            {currentDecision?.sourceTimestamp
-              ? ` · ${formatRelativeTime(currentDecision.sourceTimestamp)}`
-              : ''}
-          </p>
+          {currentDecision?.severity ? (
+            <p className="mt-2 text-xs uppercase tracking-[0.18em] text-text-muted">
+              {formatEnumLabel(currentDecision.severity, 'Info')}
+            </p>
+          ) : null}
         </SectionCard>
         <SectionCard variant="surface" title="Your Position">
           <p className="font-display italic text-2xl tabular-nums text-text">

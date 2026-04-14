@@ -24,6 +24,11 @@ from app.services._household_document_text import (
     _extract_csv_text,
     _extract_text,
 )
+from app.services.household_account_identity import (
+    account_identity_candidates,
+    clean_text,
+    derive_account_mask,
+)
 from app.services.household_review_agent_service import (
     HOUSEHOLD_REVIEW_AGENT_SLUG,
     HouseholdReviewAgentService,
@@ -53,6 +58,77 @@ _GENERIC_FILENAME_PATTERN_STEMS = frozenset(
 )
 
 _MONEY_SIGNATURE_SOURCE_TYPES = frozenset({"bank", "credit_card", "brokerage", "retirement"})
+_CONTEXT_STOPWORDS = frozenset(
+    {
+        "account",
+        "accounts",
+        "activity",
+        "amount",
+        "balance",
+        "cash",
+        "date",
+        "details",
+        "document",
+        "history",
+        "management",
+        "member",
+        "plan",
+        "positions",
+        "recent",
+        "statement",
+        "summary",
+        "total",
+        "transaction",
+        "transactions",
+        "uploaded",
+        "view",
+    }
+)
+_TRANSACTION_ACTIVITY_TERMS = (
+    "activity",
+    "amount",
+    "cash balance",
+    "debit",
+    "description",
+    "merchant",
+    "posted transactions",
+    "running balance",
+    "transaction",
+    "transactions",
+)
+_MONEY_SIGNATURE_VOLATILE_FIELDS = frozenset(
+    {
+        "activity_observed_through",
+        "as_of_date",
+        "statement_period",
+        "text_preview",
+        "total_amount",
+    }
+)
+_MONEY_SIGNATURE_ACCOUNT_VOLATILE_FIELDS = frozenset(
+    {
+        "activity_observed_through",
+        "as_of_date",
+        "balance",
+        "cash_balance",
+        "confidence",
+        "holdings_value",
+    }
+)
+_GENERIC_ACCOUNT_NAME_TERMS = frozenset(
+    {
+        "account",
+        "activity",
+        "card",
+        "credit",
+        "document",
+        "export",
+        "history",
+        "statement",
+        "transactions",
+        "upload",
+    }
+)
 
 # Re-export for backward compatibility with tests and other importers.
 __all__ = [
@@ -84,6 +160,8 @@ class HouseholdDocumentReviewService:
         content_type: str | None,
         source_type: str,
         document_type: str,
+        prior_review: dict[str, Any] | None = None,
+        reconciliation_summary: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         extracted_text = _extract_text(stored_path, content_type)
         baseline = _baseline_review(
@@ -92,13 +170,20 @@ class HouseholdDocumentReviewService:
             document_type=document_type,
             extracted_text=extracted_text,
         )
-        signature_review = self._signature_review(filename=filename, extracted_text=extracted_text)
+        household_context = self._build_household_context(
+            baseline_review=baseline,
+            extracted_text=extracted_text,
+        )
+        signature_review = None
+        if prior_review is None and reconciliation_summary is None:
+            signature_review = self._signature_review(filename=filename, extracted_text=extracted_text)
         if signature_review is not None:
             signature_type = str(signature_review.pop("_signature_type", "") or "")
             signature_review["extracted_text"] = extracted_text
             baseline_structured = baseline.get("structured_data")
             baseline_has_financial_accounts = False
             has_strong_baseline_identity = False
+            is_money_review = str(baseline.get("source_type") or "") in _MONEY_SIGNATURE_SOURCE_TYPES
             if isinstance(baseline_structured, dict):
                 financial_accounts = baseline_structured.get("financial_accounts")
                 baseline_has_financial_accounts = isinstance(financial_accounts, list) and bool(financial_accounts)
@@ -110,14 +195,42 @@ class HouseholdDocumentReviewService:
             signature_has_financial_accounts = isinstance(signature_structured, dict) and isinstance(
                 signature_structured.get("financial_accounts"), list
             ) and bool(signature_structured.get("financial_accounts"))
-            if signature_type in {"csv_header", "filename_pattern"}:
-                if has_strong_baseline_identity or signature_has_financial_accounts:
-                    return self._merge_signature_pattern_with_baseline(
+            if is_money_review:
+                if has_strong_baseline_identity or baseline_has_financial_accounts or signature_has_financial_accounts:
+                    merged_signature = self._merge_signature_pattern_with_baseline(
                         signature_review=signature_review,
                         baseline=baseline,
                         extracted_text=extracted_text,
                     )
-            else:
+                    merged_signature = self._reconcile_reviewed_accounts(
+                        reviewed=merged_signature,
+                        household_context=household_context,
+                        filename=filename,
+                    )
+                    merged_signature["_review_strategy"] = "signature"
+                    return merged_signature
+                signature_review = None
+            elif signature_type in {"csv_header", "filename_pattern"}:
+                if has_strong_baseline_identity or signature_has_financial_accounts:
+                    merged_signature = self._merge_signature_pattern_with_baseline(
+                        signature_review=signature_review,
+                        baseline=baseline,
+                        extracted_text=extracted_text,
+                    )
+                    merged_signature = self._reconcile_reviewed_accounts(
+                        reviewed=merged_signature,
+                        household_context=household_context,
+                        filename=filename,
+                    )
+                    merged_signature["_review_strategy"] = "signature"
+                    return merged_signature
+            elif signature_review is not None:
+                signature_review = self._reconcile_reviewed_accounts(
+                    reviewed=signature_review,
+                    household_context=household_context,
+                    filename=filename,
+                )
+                signature_review["_review_strategy"] = "signature"
                 return signature_review
 
         if AGENT_HUB_ENABLED:
@@ -133,15 +246,37 @@ class HouseholdDocumentReviewService:
                 content_type=content_type,
                 extracted_text=extracted_text,
                 baseline_review=baseline,
+                household_context=household_context,
+                prior_review=prior_review,
+                reconciliation_summary=reconciliation_summary,
             )
             if reviewed is not None:
-                return self._merge_llm_result(reviewed, baseline, extracted_text)
+                merged_llm = self._merge_llm_result(reviewed, baseline, extracted_text)
+                merged_llm = self._reconcile_reviewed_accounts(
+                    reviewed=merged_llm,
+                    household_context=household_context,
+                    filename=filename,
+                )
+                merged_llm["_review_strategy"] = "agent"
+                return merged_llm
 
         if baseline["confidence"] >= 0.88:
             baseline["extracted_text"] = extracted_text
+            baseline = self._reconcile_reviewed_accounts(
+                reviewed=baseline,
+                household_context=household_context,
+                filename=filename,
+            )
+            baseline["_review_strategy"] = "baseline"
             return baseline
 
         baseline["extracted_text"] = extracted_text
+        baseline = self._reconcile_reviewed_accounts(
+            reviewed=baseline,
+            household_context=household_context,
+            filename=filename,
+        )
+        baseline["_review_strategy"] = "baseline"
         return baseline
 
     def _review_with_llm(
@@ -152,28 +287,459 @@ class HouseholdDocumentReviewService:
         content_type: str | None,
         extracted_text: str | None,
         baseline_review: dict[str, Any],
+        household_context: dict[str, Any] | None = None,
+        prior_review: dict[str, Any] | None = None,
+        reconciliation_summary: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         try:
             self.agent_service.ensure_agent()
             client = AgentHubAPIClient(agent_slug=HOUSEHOLD_REVIEW_AGENT_SLUG, use_memory=True)
+            baseline_confidence = float(baseline_review.get("confidence") or 0.0)
+            thinking_level = (
+                "medium"
+                if prior_review is not None
+                or reconciliation_summary is not None
+                or baseline_confidence < 0.97
+                else "low"
+            )
             messages = _build_messages(
                 payload=payload,
                 stored_path=stored_path,
                 content_type=content_type,
                 extracted_text=extracted_text,
                 baseline_review=baseline_review,
+                household_context=household_context,
+                prior_review=prior_review,
+                reconciliation_summary=reconciliation_summary,
             )
             response = client.complete_messages(
                 messages=messages,
                 purpose="household_document_review",
                 response_format={"type": "json_object"},
                 use_memory=True,
-                thinking_level="low",
+                thinking_level=thinking_level,
             )
             return _parse_review_payload(response.content)
         except Exception as exc:
             logger.warning("household_document_review_llm_failed", error=str(exc))
             return None
+
+    def _build_household_context(
+        self,
+        *,
+        baseline_review: dict[str, Any],
+        extracted_text: str | None,
+    ) -> dict[str, Any] | None:
+        structured_data = baseline_review.get("structured_data")
+        structured = structured_data if isinstance(structured_data, dict) else {}
+        source_type = str(baseline_review.get("source_type") or "").strip()
+        institution_hint = str(
+            structured.get("provider_name")
+            or structured.get("institution_name")
+            or structured.get("merchant")
+            or ""
+        ).strip()
+        account_hint = str(structured.get("account_hint") or "").strip()
+        owner_hint = str(structured.get("owner_name") or "").strip()
+        signal_text = " ".join(
+            part
+            for part in (
+                institution_hint,
+                account_hint,
+                owner_hint,
+                (extracted_text or "")[:4000],
+            )
+            if part
+        )
+        hint_tokens = {
+            token
+            for token in re.findall(r"[a-z0-9]{3,}", signal_text.lower())
+            if token not in _CONTEXT_STOPWORDS
+        }
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    a.id,
+                    a.canonical_label,
+                    a.source_type,
+                    a.asset_group,
+                    a.account_type,
+                    a.institution_name,
+                    a.owner_name,
+                    a.account_mask,
+                    a.primary_identity_key,
+                    COALESCE(MAX(e.as_of_date)::text, NULL) AS last_as_of_date,
+                    COUNT(DISTINCT e.id) AS evidence_count
+                FROM household_accounts a
+                LEFT JOIN household_evidence_accounts e ON e.household_account_id = a.id
+                GROUP BY
+                    a.id,
+                    a.canonical_label,
+                    a.source_type,
+                    a.asset_group,
+                    a.account_type,
+                    a.institution_name,
+                    a.owner_name,
+                    a.account_mask,
+                    a.primary_identity_key,
+                    a.updated_at
+                ORDER BY MAX(e.as_of_date) DESC NULLS LAST, a.updated_at DESC
+                LIMIT 64
+                """
+            ).fetchall()
+        if not rows:
+            return None
+
+        ranked: list[tuple[int, Any]] = []
+        for row in rows:
+            haystack = " ".join(
+                str(value or "")
+                for value in row[1:9]
+            ).lower()
+            row_tokens = {
+                token
+                for token in re.findall(r"[a-z0-9]{3,}", haystack)
+                if token not in _CONTEXT_STOPWORDS
+            }
+            score = 0
+            if source_type and str(row[2] or "") == source_type:
+                score += 5
+            if institution_hint and institution_hint.lower() in haystack:
+                score += 4
+            if account_hint and account_hint.lower() in haystack:
+                score += 3
+            if owner_hint and owner_hint.lower().split(" ")[0] in haystack:
+                score += 2
+            score += len(hint_tokens & row_tokens) * 2
+            ranked.append((score, row))
+
+        ranked.sort(key=lambda item: item[0], reverse=True)
+        selected_rows = [row for score, row in ranked if score > 0][:8]
+        if not selected_rows:
+            selected_rows = [
+                row
+                for _, row in ranked
+                if not source_type or str(row[2] or "") == source_type
+            ][:6] or [row for _, row in ranked[:6]]
+
+        account_ids = [str(row[0]) for row in selected_rows]
+        identity_examples: dict[str, list[str]] = {account_id: [] for account_id in account_ids}
+        recent_evidence_examples: list[dict[str, Any]] = []
+        with self.storage.connection() as conn:
+            identity_rows = conn.execute(
+                """
+                SELECT household_account_id, identity_key
+                FROM household_account_identities
+                WHERE household_account_id = ANY(%s)
+                ORDER BY is_primary DESC, confidence DESC NULLS LAST, updated_at DESC
+                """,
+                [account_ids],
+            ).fetchall()
+            evidence_rows = conn.execute(
+                """
+                SELECT
+                    e.household_account_id,
+                    d.filename,
+                    d.source_type,
+                    d.document_type,
+                    d.review_summary,
+                    e.account_name,
+                    e.owner_name,
+                    e.account_mask,
+                    e.as_of_date
+                FROM household_evidence_accounts e
+                JOIN household_documents d ON d.id = e.document_id
+                WHERE e.household_account_id = ANY(%s)
+                ORDER BY e.as_of_date DESC NULLS LAST, d.uploaded_at DESC
+                LIMIT 12
+                """,
+                [account_ids],
+            ).fetchall()
+        for account_id, identity_key in identity_rows:
+            key = str(account_id)
+            values = identity_examples.setdefault(key, [])
+            text = str(identity_key or "").strip()
+            if text and text not in values and len(values) < 3:
+                values.append(text)
+        for row in evidence_rows:
+            recent_evidence_examples.append(
+                {
+                    "household_account_id": str(row[0]),
+                    "filename": str(row[1] or ""),
+                    "source_type": str(row[2] or ""),
+                    "document_type": str(row[3] or ""),
+                    "review_summary": str(row[4] or "") or None,
+                    "account_name": str(row[5] or "") or None,
+                    "owner_name": str(row[6] or "") or None,
+                    "account_mask": str(row[7] or "") or None,
+                    "as_of_date": str(row[8] or "") or None,
+                }
+            )
+
+        related_accounts = [
+            {
+                "household_account_id": str(row[0]),
+                "canonical_label": str(row[1] or ""),
+                "source_type": str(row[2] or ""),
+                "asset_group": str(row[3] or ""),
+                "account_type": str(row[4] or ""),
+                "institution_name": str(row[5] or "") or None,
+                "owner_name": str(row[6] or "") or None,
+                "account_mask": str(row[7] or "") or None,
+                "primary_identity_key": str(row[8] or "") or None,
+                "last_as_of_date": str(row[9] or "") or None,
+                "evidence_count": int(row[10] or 0),
+                "identity_examples": identity_examples.get(str(row[0]), []),
+            }
+            for row in selected_rows
+        ]
+        return {
+            "household_account_count": len(rows),
+            "related_accounts": related_accounts,
+            "recent_related_evidence": recent_evidence_examples,
+        }
+
+    @staticmethod
+    def _normalize_match_text(value: object) -> str:
+        return " ".join(str(value or "").strip().lower().split())
+
+    @classmethod
+    def _name_tokens(cls, *values: object) -> set[str]:
+        tokens: set[str] = set()
+        for value in values:
+            normalized = cls._normalize_match_text(value)
+            if not normalized:
+                continue
+            for token in re.split(r"[^a-z0-9]+", normalized):
+                if len(token) < 3 or token in _CONTEXT_STOPWORDS:
+                    continue
+                tokens.add(token)
+        return tokens
+
+    @classmethod
+    def _owner_matches(cls, left: object, right: object) -> bool:
+        left_tokens = [token for token in re.split(r"[^a-z0-9]+", cls._normalize_match_text(left)) if token]
+        right_tokens = [token for token in re.split(r"[^a-z0-9]+", cls._normalize_match_text(right)) if token]
+        if not left_tokens or not right_tokens:
+            return False
+        if left_tokens == right_tokens:
+            return True
+        if left_tokens[0] != right_tokens[0]:
+            return False
+        return len(left_tokens) > 1 and len(right_tokens) > 1 and left_tokens[-1] == right_tokens[-1]
+
+    @classmethod
+    def _looks_generic_account_name(cls, value: object) -> bool:
+        tokens = cls._name_tokens(value)
+        return bool(tokens) and tokens <= _GENERIC_ACCOUNT_NAME_TERMS
+
+    def _reconcile_reviewed_accounts(
+        self,
+        *,
+        reviewed: dict[str, Any],
+        household_context: dict[str, Any] | None,
+        filename: str,
+    ) -> dict[str, Any]:
+        structured_data = reviewed.get("structured_data")
+        if not isinstance(structured_data, dict) or not household_context:
+            return reviewed
+        raw_accounts = structured_data.get("financial_accounts")
+        if not isinstance(raw_accounts, list) or not raw_accounts:
+            return reviewed
+        related_accounts = household_context.get("related_accounts")
+        if not isinstance(related_accounts, list) or not related_accounts:
+            return reviewed
+
+        canonical_matches: list[dict[str, Any]] = []
+        default_source_type = str(reviewed.get("source_type") or "")
+        default_document_type = str(reviewed.get("document_type") or "")
+
+        for raw_account in raw_accounts:
+            if not isinstance(raw_account, dict):
+                continue
+            match = self._best_related_account_match(
+                raw_account=raw_account,
+                related_accounts=related_accounts,
+                default_source_type=default_source_type,
+                default_document_type=default_document_type,
+                filename=filename,
+            )
+            if match is None:
+                continue
+            related_account = match["related_account"]
+            match_method = str(match["method"])
+            match_score = int(match["score"])
+            raw_account["household_account_id"] = related_account["household_account_id"]
+            if related_account.get("primary_identity_key") and not self._normalize_match_text(raw_account.get("match_key")):
+                raw_account["match_key"] = related_account["primary_identity_key"]
+            canonical_mask = clean_text(related_account.get("account_mask"))
+            extracted_mask = clean_text(raw_account.get("account_mask"))
+            filename_mask = clean_text(derive_account_mask(None, clean_text(raw_account.get("account_name")), filename))
+            explicit_match_key = self._normalize_match_text(raw_account.get("match_key"))
+            primary_identity_key = self._normalize_match_text(related_account.get("primary_identity_key"))
+            filename_mask_applied = False
+            if filename_mask and explicit_match_key and primary_identity_key and explicit_match_key == primary_identity_key:
+                if extracted_mask and extracted_mask != filename_mask:
+                    raw_account["extracted_account_mask"] = extracted_mask
+                raw_account["account_mask"] = filename_mask
+                extracted_mask = filename_mask
+                filename_mask_applied = True
+            if canonical_mask and not extracted_mask:
+                raw_account["account_mask"] = canonical_mask
+            elif (
+                canonical_mask
+                and extracted_mask
+                and extracted_mask != canonical_mask
+                and not filename_mask_applied
+                and explicit_match_key
+                and primary_identity_key
+                and explicit_match_key == primary_identity_key
+            ):
+                raw_account["extracted_account_mask"] = extracted_mask
+                raw_account["account_mask"] = canonical_mask
+            if not clean_text(raw_account.get("institution_name")) and related_account.get("institution_name"):
+                raw_account["institution_name"] = related_account["institution_name"]
+            if not clean_text(raw_account.get("owner_name")) and related_account.get("owner_name"):
+                raw_account["owner_name"] = related_account["owner_name"]
+            if not clean_text(raw_account.get("account_type")) and related_account.get("account_type"):
+                raw_account["account_type"] = related_account["account_type"]
+            if not clean_text(raw_account.get("asset_group")) and related_account.get("asset_group"):
+                raw_account["asset_group"] = related_account["asset_group"]
+            if (
+                not clean_text(raw_account.get("account_name"))
+                or self._looks_generic_account_name(raw_account.get("account_name"))
+            ) and related_account.get("canonical_label"):
+                raw_account["account_name"] = related_account["canonical_label"]
+            raw_account["canonical_match_method"] = match_method
+            raw_account["canonical_match_score"] = match_score
+            canonical_matches.append(
+                {
+                    "household_account_id": related_account["household_account_id"],
+                    "method": match_method,
+                    "score": match_score,
+                }
+            )
+
+        if canonical_matches:
+            review_checks = dict(reviewed.get("review_checks")) if isinstance(reviewed.get("review_checks"), dict) else {}
+            review_checks["canonical_match_count"] = len(canonical_matches)
+            review_checks["canonical_matches"] = canonical_matches
+            reviewed["review_checks"] = review_checks
+        return reviewed
+
+    def _best_related_account_match(
+        self,
+        *,
+        raw_account: dict[str, Any],
+        related_accounts: list[dict[str, Any]],
+        default_source_type: str,
+        default_document_type: str,
+        filename: str,
+    ) -> dict[str, Any] | None:
+        explicit_match_key = self._normalize_match_text(raw_account.get("match_key"))
+        raw_account_name = clean_text(raw_account.get("account_name")) or clean_text(raw_account.get("account_hint"))
+        filename_mask = clean_text(derive_account_mask(None, raw_account_name, filename))
+        raw_mask = clean_text(
+            derive_account_mask(
+                clean_text(raw_account.get("account_mask")),
+                raw_account_name,
+                filename,
+            )
+        )
+        raw_institution = clean_text(raw_account.get("institution_name"))
+        raw_owner = clean_text(raw_account.get("owner_name"))
+        raw_account_type = clean_text(raw_account.get("account_type"))
+        raw_asset_group = clean_text(raw_account.get("asset_group"))
+        candidate_keys = set(
+            account_identity_candidates(
+                source_type=raw_account.get("source_type") or default_source_type,
+                asset_group=raw_asset_group,
+                account_type=raw_account_type,
+                institution_name=raw_institution,
+                account_name=raw_account_name,
+                owner_name=raw_owner,
+                account_mask=raw_mask,
+                fallback_label=raw_account_name,
+                explicit_match_key=explicit_match_key or None,
+            )
+        )
+        if not candidate_keys and default_document_type not in {"statement", "brokerage_statement", "retirement_statement"}:
+            return None
+        raw_name_tokens = self._name_tokens(
+            raw_account_name,
+            raw_account.get("institution_name"),
+            raw_account.get("account_hint"),
+        )
+        scored: list[dict[str, Any]] = []
+        for related in related_accounts:
+            if not isinstance(related, dict):
+                continue
+            score = 0
+            method = "tokens"
+            primary_identity_key = self._normalize_match_text(related.get("primary_identity_key"))
+            identity_examples = {
+                self._normalize_match_text(identity)
+                for identity in related.get("identity_examples", [])
+                if self._normalize_match_text(identity)
+            }
+            related_mask = self._normalize_match_text(related.get("account_mask"))
+            related_institution = self._normalize_match_text(related.get("institution_name"))
+            related_owner = related.get("owner_name")
+            related_account_type = self._normalize_match_text(related.get("account_type"))
+            related_asset_group = self._normalize_match_text(related.get("asset_group"))
+            related_name_tokens = self._name_tokens(
+                related.get("canonical_label"),
+                related.get("institution_name"),
+            )
+            if explicit_match_key and primary_identity_key and explicit_match_key == primary_identity_key:
+                score += 120
+                method = "explicit_match_key"
+            elif primary_identity_key and primary_identity_key in candidate_keys:
+                score += 85
+                method = "primary_identity"
+            overlap = candidate_keys & identity_examples
+            if overlap:
+                score += 50 + (len(overlap) - 1) * 10
+                if method == "tokens":
+                    method = "identity_example"
+            if raw_mask and related_mask and self._normalize_match_text(raw_mask) == related_mask:
+                score += 60
+                if method == "tokens":
+                    method = "mask"
+            elif filename_mask and related_mask and self._normalize_match_text(filename_mask) == related_mask:
+                score += 55
+                if method == "tokens":
+                    method = "filename_mask"
+            if raw_institution and related_institution and self._normalize_match_text(raw_institution) == related_institution:
+                score += 18
+            if raw_owner and self._owner_matches(raw_owner, related_owner):
+                score += 12
+            if raw_account_type and related_account_type and self._normalize_match_text(raw_account_type) == related_account_type:
+                score += 10
+            if raw_asset_group and related_asset_group and self._normalize_match_text(raw_asset_group) == related_asset_group:
+                score += 6
+            shared_name_tokens = raw_name_tokens & related_name_tokens
+            if shared_name_tokens:
+                score += min(len(shared_name_tokens) * 6, 24)
+            if score >= 40:
+                scored.append(
+                    {
+                        "related_account": related,
+                        "score": score,
+                        "method": method,
+                    }
+                )
+        if not scored:
+            return None
+        scored.sort(key=lambda item: item["score"], reverse=True)
+        best = scored[0]
+        next_score = scored[1]["score"] if len(scored) > 1 else -1
+        if int(best["score"]) >= 120:
+            return best
+        if int(best["score"]) >= 70 and int(best["score"]) >= next_score + 10:
+            return best
+        return None
 
     @staticmethod
     def _merge_llm_result(
@@ -188,15 +754,79 @@ class HouseholdDocumentReviewService:
                 {k: v for k, v in baseline["structured_data"].items() if k not in structured_data}
             )
         reviewed.setdefault("inferred_values", [])
-        reviewed.setdefault("questions", baseline["questions"])
+        reviewed.setdefault("planning_items", [])
+        if not isinstance(reviewed.get("questions"), list):
+            reviewed["questions"] = []
         if not reviewed.get("summary"):
             reviewed["summary"] = baseline["summary"]
         if reviewed.get("confidence") is None:
             reviewed["confidence"] = baseline["confidence"]
         reviewed["source_type"] = str(reviewed.get("source_type") or baseline["source_type"])
         reviewed["document_type"] = str(reviewed.get("document_type") or baseline["document_type"])
+        reviewed["review_checks"] = HouseholdDocumentReviewService._normalize_review_checks(
+            reviewed=reviewed,
+            extracted_text=extracted_text,
+        )
         reviewed["extracted_text"] = extracted_text
         return reviewed
+
+    @staticmethod
+    def _normalize_review_checks(
+        *,
+        reviewed: dict[str, Any],
+        extracted_text: str | None,
+    ) -> dict[str, Any]:
+        raw_review_checks = reviewed.get("review_checks")
+        review_checks = dict(raw_review_checks) if isinstance(raw_review_checks, dict) else {}
+        structured_data = reviewed.get("structured_data")
+        financial_accounts = []
+        if isinstance(structured_data, dict) and isinstance(structured_data.get("financial_accounts"), list):
+            financial_accounts = [
+                account
+                for account in structured_data["financial_accounts"]
+                if isinstance(account, dict)
+            ]
+        if review_checks.get("expected_account_count") in {None, ""}:
+            review_checks["expected_account_count"] = len(financial_accounts)
+        if review_checks.get("expects_transaction_activity") is None:
+            review_checks["expects_transaction_activity"] = (
+                HouseholdDocumentReviewService._looks_like_transaction_activity(
+                    reviewed=reviewed,
+                    extracted_text=extracted_text,
+                )
+            )
+        if review_checks.get("ambiguity_remaining") is None:
+            review_checks["ambiguity_remaining"] = bool(reviewed.get("questions"))
+        if (
+            review_checks.get("ambiguity_remaining")
+            and not review_checks.get("ambiguity_reason")
+            and reviewed.get("questions")
+        ):
+            review_checks["ambiguity_reason"] = "Additional user input still required."
+        return review_checks
+
+    @staticmethod
+    def _looks_like_transaction_activity(
+        *,
+        reviewed: dict[str, Any],
+        extracted_text: str | None,
+    ) -> bool:
+        source_type = str(reviewed.get("source_type") or "").strip()
+        document_type = str(reviewed.get("document_type") or "").strip()
+        if source_type in {"bank", "credit_card"} and document_type == "statement":
+            return True
+        preview = (extracted_text or "")[:6000].lower()
+        if not preview:
+            return False
+        signal_count = sum(1 for term in _TRANSACTION_ACTIVITY_TERMS if term in preview)
+        if signal_count >= 2:
+            return True
+        return bool(
+            re.search(
+                r"date[^a-z0-9]{0,20}(description|merchant|amount|balance)",
+                preview,
+            )
+        )
 
     @staticmethod
     def _merge_signature_pattern_with_baseline(
@@ -205,6 +835,19 @@ class HouseholdDocumentReviewService:
         baseline: dict[str, Any],
         extracted_text: str | None,
     ) -> dict[str, Any]:
+        baseline_structured = (
+            dict(baseline.get("structured_data"))
+            if isinstance(baseline.get("structured_data"), dict)
+            else {}
+        )
+        signature_structured = HouseholdDocumentReviewService._sanitize_money_signature_structured_data(
+            signature_review.get("structured_data"),
+            source_type=str(signature_review.get("source_type") or baseline.get("source_type") or ""),
+        )
+        merged_structured = dict(signature_structured)
+        for key, value in baseline_structured.items():
+            if value not in (None, "", [], {}):
+                merged_structured[key] = value
         merged = {
             **baseline,
             "summary": str(baseline.get("summary") or signature_review.get("summary") or ""),
@@ -214,12 +857,53 @@ class HouseholdDocumentReviewService:
                 float(signature_review.get("confidence") or 0.0),
                 float(baseline.get("confidence") or 0.0),
             ),
-            "structured_data": baseline.get("structured_data") if isinstance(baseline.get("structured_data"), dict) else {},
+            "structured_data": merged_structured,
             "inferred_values": baseline.get("inferred_values") if isinstance(baseline.get("inferred_values"), list) else [],
-            "questions": baseline.get("questions") if isinstance(baseline.get("questions"), list) else [],
+            "questions": (
+                signature_review.get("questions")
+                if isinstance(signature_review.get("questions"), list)
+                else baseline.get("questions")
+                if isinstance(baseline.get("questions"), list)
+                else []
+            ),
             "extracted_text": extracted_text,
         }
         return merged
+
+    @staticmethod
+    def _sanitize_money_signature_structured_data(
+        structured_data: object,
+        *,
+        source_type: str,
+    ) -> dict[str, Any]:
+        if not isinstance(structured_data, dict):
+            return {}
+        if str(source_type or "") not in _MONEY_SIGNATURE_SOURCE_TYPES:
+            return dict(structured_data)
+        sanitized: dict[str, Any] = {}
+        for raw_key, value in structured_data.items():
+            key = str(raw_key)
+            if key in _MONEY_SIGNATURE_VOLATILE_FIELDS:
+                continue
+            if key == "financial_accounts" and isinstance(value, list):
+                stable_accounts: list[dict[str, Any]] = []
+                for raw_account in value:
+                    if not isinstance(raw_account, dict):
+                        continue
+                    stable_account = {
+                        account_key: account_value
+                        for account_key, account_value in raw_account.items()
+                        if account_key not in _MONEY_SIGNATURE_ACCOUNT_VOLATILE_FIELDS
+                        and account_value not in (None, "", [], {})
+                    }
+                    if stable_account:
+                        stable_accounts.append(stable_account)
+                if stable_accounts:
+                    sanitized[key] = stable_accounts
+                continue
+            if value not in (None, "", [], {}):
+                sanitized[key] = value
+        return sanitized
 
     def build_signature_candidates(
         self,
@@ -289,9 +973,10 @@ class HouseholdDocumentReviewService:
         threshold = 0.94 if signature["signature_type"] == "filename_pattern" else 0.9
         if confidence < threshold:
             return None
-        signature_structured = signature.get("structured_data")
-        if not isinstance(signature_structured, dict):
-            signature_structured = {}
+        signature_structured = self._sanitize_money_signature_structured_data(
+            signature.get("structured_data"),
+            source_type=str(signature.get("source_type") or ""),
+        )
         if (
             str(signature.get("source_type") or "") in _MONEY_SIGNATURE_SOURCE_TYPES
             and str(signature.get("signature_type") or "") not in {"csv_header", "filename_pattern"}

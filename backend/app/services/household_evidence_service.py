@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from types import SimpleNamespace
 from typing import Any
@@ -38,6 +39,23 @@ def _decimal_or_none(value: object) -> float | None:
     return float(parsed) if parsed is not None else None
 
 
+def _statement_period_end_date(value: object) -> str | None:
+    text = _string_or_none(value)
+    if not text:
+        return None
+    matches = re.findall(
+        r"(?:19|20)\d{2}[-/](?:1[0-2]|0?\d)[-/](?:[12]\d|3[01]|0?\d)",
+        text,
+    )
+    if not matches:
+        compact_matches = re.findall(r"(?<!\d)((?:19|20)\d{2}(?:1[0-2]|0[1-9])(?:3[01]|[12]\d|0[1-9]))(?!\d)", text)
+        if not compact_matches:
+            return None
+        compact = compact_matches[-1]
+        return parse_row_date(f"{compact[0:4]}-{compact[4:6]}-{compact[6:8]}")
+    return parse_row_date(matches[-1])
+
+
 def _asset_group(value: object, *, source_type: str) -> str:
     normalized = str(value or "").strip().lower()
     if normalized in _ALLOWED_ASSET_GROUPS:
@@ -71,7 +89,13 @@ def _account_identity(account: HouseholdEvidenceAccount) -> tuple[str, ...]:
 class HouseholdEvidenceService:
     """Persist evidence-derived account snapshots for the money system."""
 
-    def list_accounts(self, service: Any, limit: int = 20) -> list[HouseholdEvidenceAccount]:
+    def list_accounts(
+        self,
+        service: Any,
+        limit: int = 20,
+        *,
+        dedupe: bool = True,
+    ) -> list[HouseholdEvidenceAccount]:
         fetch_limit = max(limit * 4, limit)
         with service.storage.connection() as conn:
             rows = conn.execute(
@@ -86,7 +110,9 @@ class HouseholdEvidenceService:
             )
             for row in rows
         ]
-        return self._dedupe_accounts(accounts)[:limit]
+        if dedupe:
+            return self._dedupe_accounts(accounts)[:limit]
+        return accounts[:limit]
 
     def replace_document_accounts(
         self,
@@ -104,6 +130,29 @@ class HouseholdEvidenceService:
             now_text = datetime.now(UTC).isoformat()
 
         with service.storage.connection() as conn:
+            candidate_account_ids = [
+                str(account["household_account_id"])
+                for account in normalized_accounts
+                if account.get("household_account_id")
+            ]
+            valid_account_ids: set[str] = set()
+            if candidate_account_ids:
+                valid_rows = conn.execute(
+                    "SELECT id FROM household_accounts WHERE id = ANY(%s)",
+                    [candidate_account_ids],
+                ).fetchall()
+                valid_account_ids = {str(row[0]) for row in valid_rows}
+            for account in normalized_accounts:
+                household_account_id = _string_or_none(account.get("household_account_id"))
+                if household_account_id and household_account_id not in valid_account_ids:
+                    account["household_account_id"] = None
+                    metadata = account.get("metadata")
+                    if not isinstance(metadata, dict):
+                        metadata = {}
+                        account["metadata"] = metadata
+                    metadata_dict = dict(metadata)
+                    metadata_dict["stale_household_account_id"] = household_account_id
+                    account["metadata"] = metadata_dict
             conn.execute("DELETE FROM household_evidence_accounts WHERE document_id = %s", [document.id])
             for account in normalized_accounts:
                 conn.execute(
@@ -121,7 +170,7 @@ class HouseholdEvidenceService:
                     [
                         str(uuid.uuid4()),
                         document.id,
-                        None,
+                        account["household_account_id"],
                         account["source_type"],
                         account["asset_group"],
                         account["account_type"],
@@ -234,7 +283,15 @@ class HouseholdEvidenceService:
             return []
 
         source_type = str(reviewed.get("source_type") or document.source_type or "other")
-        fallback_as_of_date = parse_row_date(_string_or_none(structured_data.get("as_of_date")))
+        root_total_amount = _decimal_or_none(structured_data.get("total_amount"))
+        fallback_as_of_date = (
+            parse_row_date(_string_or_none(structured_data.get("as_of_date")))
+            or _statement_period_end_date(structured_data.get("statement_period"))
+            or parse_row_date(_string_or_none(getattr(document, "statement_end", None)))
+            or _statement_period_end_date(_string_or_none(getattr(document, "filename", None)))
+        )
+        account_dicts = [account for account in raw_accounts if isinstance(account, dict)]
+        single_account_document = len(account_dicts) == 1
         normalized_accounts: list[dict[str, object]] = []
         for raw_account in raw_accounts:
             if not isinstance(raw_account, dict):
@@ -261,6 +318,15 @@ class HouseholdEvidenceService:
             balance = _decimal_or_none(raw_account.get("balance"))
             holdings_value = _decimal_or_none(raw_account.get("holdings_value"))
             cash_balance = _decimal_or_none(raw_account.get("cash_balance")) or _decimal_or_none(raw_account.get("available_cash"))
+            if single_account_document and root_total_amount is not None and balance is None:
+                if account_source_type == "credit_card":
+                    balance = root_total_amount
+                elif account_source_type in {"brokerage", "retirement"} and holdings_value is None and cash_balance is None:
+                    balance = root_total_amount
+                    holdings_value = root_total_amount
+                elif account_source_type == "bank" and cash_balance is None:
+                    balance = root_total_amount
+                    cash_balance = root_total_amount
             if balance is None and (holdings_value is not None or cash_balance is not None):
                 balance = round((holdings_value or 0.0) + (cash_balance or 0.0), 4)
             if holdings_value is None and balance is not None and account_source_type in {"brokerage", "retirement"}:
@@ -269,9 +335,10 @@ class HouseholdEvidenceService:
                 cash_balance = balance
             as_of_date = parse_row_date(_string_or_none(raw_account.get("as_of_date"))) or fallback_as_of_date
             confidence = _decimal_or_none(raw_account.get("confidence")) or _decimal_or_none(reviewed.get("confidence"))
+            household_account_id = _string_or_none(raw_account.get("household_account_id"))
             if not any(
                 item is not None
-                for item in (institution_name, account_name, account_mask, balance, holdings_value, cash_balance)
+                for item in (institution_name, account_name, account_mask, balance, holdings_value, cash_balance, household_account_id)
             ):
                 continue
             metadata = {
@@ -295,11 +362,13 @@ class HouseholdEvidenceService:
                     "available_cash",
                     "as_of_date",
                     "confidence",
+                    "household_account_id",
                 }
                 and value is not None
             }
             normalized_accounts.append(
                 {
+                    "household_account_id": household_account_id,
                     "source_type": account_source_type,
                     "asset_group": _asset_group(raw_account.get("asset_group"), source_type=account_source_type),
                     "account_type": account_type,
