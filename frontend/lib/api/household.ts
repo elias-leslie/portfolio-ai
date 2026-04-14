@@ -357,6 +357,7 @@ export interface HouseholdAccountSummary {
   balance: number | null
   holdingsValue: number | null
   cashBalance: number | null
+  valuationSource?: string | null
   evidenceCount: number
   documentIds: string[]
   latestDocumentId: string | null
@@ -376,6 +377,11 @@ export interface HouseholdAccountSummary {
   daysSinceTransaction: number | null
   transactionFreshnessStatus: string
   transactionFreshnessLabel: string
+  quoteUpdatedAt?: string | null
+  quoteFreshnessStatus?: string
+  quoteFreshnessLabel?: string
+  quoteSource?: string | null
+  pricedPositionCount?: number
   freshnessStatus: string
   freshnessLabel: string
   matchStatus: string

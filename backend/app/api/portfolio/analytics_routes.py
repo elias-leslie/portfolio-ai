@@ -11,6 +11,10 @@ from starlette.concurrency import run_in_threadpool
 
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response
+from app.portfolio.account_valuation import (
+    calculate_account_valuations,
+    summarize_quote_freshness,
+)
 from app.services.household_portfolio_totals import get_effective_portfolio_totals
 
 from .models import (
@@ -121,6 +125,9 @@ def _build_full_analytics_response(
     household_invested_total_value: float | None,
     household_cash_reserve: float | None,
     household_investment_accounts_count: int | None,
+    quotes_updated_at: str | None,
+    quote_freshness_status: str | None,
+    quote_freshness_label: str | None,
 ) -> AnalyticsResponse:
     """Build the full AnalyticsResponse from a computed analytics object."""
     return AnalyticsResponse(
@@ -137,6 +144,9 @@ def _build_full_analytics_response(
         household_invested_total_value=household_invested_total_value,
         household_cash_reserve=household_cash_reserve,
         household_investment_accounts_count=household_investment_accounts_count,
+        quotes_updated_at=quotes_updated_at,
+        quote_freshness_status=quote_freshness_status,
+        quote_freshness_label=quote_freshness_label,
         portfolio_beta=analytics.portfolio_beta,
         portfolio_volatility=analytics.portfolio_volatility,
         sharpe_ratio=analytics.sharpe_ratio,
@@ -159,9 +169,18 @@ def _build_full_analytics_response(
 def get_analytics_payload(include_paper: bool) -> AnalyticsResponse:
     portfolio_mgr = _portfolio_mgr()
     all_accounts = portfolio_mgr.get_accounts()
+    household_dashboard = None
+    household_service = None
+    try:
+        household_service = import_module("app.services.household_finance_service").HouseholdFinanceService()
+        household_dashboard = household_service.get_dashboard()
+    except Exception as exc:
+        logger.warning("portfolio_analytics_household_dashboard_unavailable", error=str(exc))
     effective_totals = get_effective_portfolio_totals(
         _storage(),
         include_paper=include_paper,
+        household_service=household_service,
+        dashboard=household_dashboard,
     )
     if not include_paper:
         accounts = [acc for acc in all_accounts if acc.account_type != "paper"]
@@ -169,7 +188,18 @@ def get_analytics_payload(include_paper: bool) -> AnalyticsResponse:
         accounts = all_accounts
 
     account_ids = {acc.id for acc in accounts}
-    cash_balance_total = sum(acc.cash_balance for acc in accounts)
+    cash_overrides = {}
+    if household_dashboard is not None:
+        for account in list(getattr(household_dashboard, "accounts", []) or []):
+            linked_portfolio_account_id = getattr(account, "linked_portfolio_account_id", None)
+            cash_balance = getattr(account, "cash_balance", None)
+            if linked_portfolio_account_id and cash_balance is not None:
+                cash_overrides[str(linked_portfolio_account_id)] = float(cash_balance)
+
+    cash_balance_total = sum(
+        float(cash_overrides.get(acc.id, float(getattr(acc, "cash_balance", 0.0) or 0.0)))
+        for acc in accounts
+    )
 
     all_positions = portfolio_mgr.get_positions()
     positions = [p for p in all_positions if p.account_id in account_ids]
@@ -183,11 +213,23 @@ def get_analytics_payload(include_paper: bool) -> AnalyticsResponse:
                 "household_invested_total_value": effective_totals.household_invested_total_value,
                 "household_cash_reserve": effective_totals.household_cash_reserve,
                 "household_investment_accounts_count": effective_totals.household_investment_accounts_count,
+                "quotes_updated_at": None,
+                "quote_freshness_status": None,
+                "quote_freshness_label": None,
             }
         )
 
     symbols = list({p.symbol for p in positions})
     price_data = _price_fetcher().fetch_price_data(symbols)
+    account_valuations = calculate_account_valuations(
+        accounts,
+        positions,
+        price_data,
+        cash_overrides=cash_overrides,
+    )
+    quotes_updated_at, quote_freshness_status, quote_freshness_label = summarize_quote_freshness(
+        account_valuations
+    )
     analytics = _analytics_calculator().calculate_full_analytics(
         positions,
         price_data,
@@ -203,6 +245,9 @@ def get_analytics_payload(include_paper: bool) -> AnalyticsResponse:
         household_invested_total_value=effective_totals.household_invested_total_value,
         household_cash_reserve=effective_totals.household_cash_reserve,
         household_investment_accounts_count=effective_totals.household_investment_accounts_count,
+        quotes_updated_at=quotes_updated_at.isoformat() if quotes_updated_at is not None else None,
+        quote_freshness_status=quote_freshness_status,
+        quote_freshness_label=quote_freshness_label,
     )
 
 

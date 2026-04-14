@@ -6,7 +6,7 @@ export function useHomeActionQueue() {
     queryKey: ['home', 'action-queue'],
     queryFn: fetchHomeActionQueue,
     staleTime: 1000 * 30,
-    refetchInterval: 1000 * 60,
+    refetchInterval: 1000 * 30,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
   })

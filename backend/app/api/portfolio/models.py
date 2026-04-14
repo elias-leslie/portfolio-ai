@@ -60,6 +60,8 @@ class PositionResponse(BaseModel):
     current_value: float | None = None
     gain: float | None = None
     gain_pct: float | None = None
+    price_updated_at: str | None = None
+    price_source: str | None = None
 
 
 class PortfolioResponse(BaseModel):
@@ -76,6 +78,9 @@ class PortfolioResponse(BaseModel):
     household_invested_total_value: float | None = None
     household_cash_reserve: float | None = None
     household_investment_accounts_count: int | None = None
+    quotes_updated_at: str | None = None
+    quote_freshness_status: str | None = None
+    quote_freshness_label: str | None = None
 
 
 class PositionPerformanceResponse(BaseModel):
@@ -116,6 +121,9 @@ class AnalyticsResponse(BaseModel):
     household_invested_total_value: float | None = None
     household_cash_reserve: float | None = None
     household_investment_accounts_count: int | None = None
+    quotes_updated_at: str | None = None
+    quote_freshness_status: str | None = None
+    quote_freshness_label: str | None = None
     portfolio_beta: float | None
     portfolio_volatility: float | None
     sharpe_ratio: float | None

@@ -18,11 +18,7 @@ import type { Account, PositionWithValue } from '@/lib/api/portfolio'
 import { formatCurrency, formatPercent } from '@/lib/formatters'
 import { formatRelativeTime } from '@/lib/utils'
 import { PositionTableRow } from './PositionTableRow'
-import {
-  getAccountPositions,
-  getAccountTotalGain,
-  getAccountTotalValue,
-} from './portfolio-utils'
+import { getAccountPositions } from './portfolio-utils'
 
 interface AccountAccordionItemProps {
   account: Account
@@ -61,10 +57,23 @@ export function AccountAccordionItem({
   isDeletingPosition,
 }: AccountAccordionItemProps) {
   const positions = getAccountPositions(account.id, allPositions)
-  const derivedTotalValue = getAccountTotalValue(account, allPositions)
-  const totalValue = linkedHouseholdAccount?.currentValue ?? derivedTotalValue
-  const totalGain = getAccountTotalGain(account, allPositions)
   const cashBalance = linkedHouseholdAccount?.cashBalance ?? account.cashBalance
+  const positionsValue = positions.reduce(
+    (sum, position) => sum + (position.currentValue || 0),
+    0,
+  )
+  const positionsCostBasis = positions.reduce(
+    (sum, position) => sum + position.shares * position.costBasis,
+    0,
+  )
+  const totalValue =
+    positions.length > 0
+      ? positionsValue + cashBalance
+      : linkedHouseholdAccount?.currentValue ?? cashBalance
+  const totalCostBasis =
+    positions.length > 0 ? positionsCostBasis + cashBalance : cashBalance
+  const totalGain =
+    totalCostBasis > 0 ? ((totalValue - totalCostBasis) / totalCostBasis) * 100 : 0
   const hasCashBalance = cashBalance > 0
   const displayName = linkedHouseholdAccount?.label ?? account.name
   const linkedDetail = linkedHouseholdAccount
@@ -80,6 +89,41 @@ export function AccountAccordionItem({
         .filter(Boolean)
         .join(' · ')
     : null
+  const quoteUpdatedAt =
+    linkedHouseholdAccount?.quoteUpdatedAt ??
+    positions
+      .map((position) => position.priceUpdatedAt)
+      .filter((value): value is string => Boolean(value))
+      .sort()[0] ??
+    null
+  const quoteLabel =
+    linkedHouseholdAccount?.quoteFreshnessLabel ??
+    (positions.length > 0
+      ? quoteUpdatedAt
+        ? 'Live quotes'
+        : 'Quotes pending'
+      : null)
+  const quoteDetail =
+    positions.length > 0
+      ? [
+          `${positions.length} priced position${positions.length === 1 ? '' : 's'}`,
+          quoteUpdatedAt ? `oldest quote ${formatRelativeTime(quoteUpdatedAt)}` : null,
+          linkedHouseholdAccount?.quoteSource
+            ? `source ${linkedHouseholdAccount.quoteSource}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : null
+  const evidenceLabel =
+    linkedHouseholdAccount?.lastEvidenceAt != null ? 'Evidence' : null
+  const evidenceDetail =
+    linkedHouseholdAccount?.lastEvidenceAt != null
+      ? [
+          `Last evidence ${formatRelativeTime(linkedHouseholdAccount.lastEvidenceAt)}`,
+          linkedHouseholdAccount.balanceFreshnessLabel,
+        ].join(' · ')
+      : null
 
   return (
     <AccordionItem
@@ -138,12 +182,27 @@ export function AccountAccordionItem({
                     ? 'Linked household account'
                     : 'Standalone position account'}
                 </span>
-                <span>
-                  Updated{' '}
-                  {formatRelativeTime(
-                    linkedHouseholdAccount?.lastEvidenceAt ?? account.updatedAt,
-                  )}
-                </span>
+                {quoteLabel ? (
+                  <InfoBadge
+                    label={quoteLabel}
+                    detail={quoteDetail ?? undefined}
+                    variant={linkedFreshnessVariant(
+                      linkedHouseholdAccount?.quoteFreshnessStatus ??
+                        (positions.length > 0 ? 'fresh' : undefined),
+                    )}
+                  />
+                ) : null}
+                {evidenceLabel ? (
+                  <InfoBadge
+                    label={evidenceLabel}
+                    detail={evidenceDetail ?? undefined}
+                    variant={linkedFreshnessVariant(
+                      linkedHouseholdAccount?.balanceFreshnessStatus,
+                    )}
+                  />
+                ) : (
+                  <span>No linked household evidence</span>
+                )}
                 {linkedHouseholdAccount?.institutionName ? (
                   <span>{linkedHouseholdAccount.institutionName}</span>
                 ) : null}

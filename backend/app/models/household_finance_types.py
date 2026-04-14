@@ -325,6 +325,7 @@ class HouseholdAccountSummary(BaseModel):
     balance: float | None = None
     holdings_value: float | None = None
     cash_balance: float | None = None
+    valuation_source: str | None = None
     evidence_count: int = 0
     document_ids: list[str] = Field(default_factory=list)
     latest_document_id: str | None = None
@@ -344,6 +345,11 @@ class HouseholdAccountSummary(BaseModel):
     days_since_transaction: int | None = None
     transaction_freshness_status: str = "needs_evidence"
     transaction_freshness_label: str = "Needs evidence"
+    quote_updated_at: str | None = None
+    quote_freshness_status: str = "not_applicable"
+    quote_freshness_label: str = "No live quotes"
+    quote_source: str | None = None
+    priced_position_count: int = 0
     freshness_status: str
     freshness_label: str
     match_status: str

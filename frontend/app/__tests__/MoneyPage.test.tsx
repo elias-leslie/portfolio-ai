@@ -4,10 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const useHouseholdDashboardMock = vi.fn()
 const useHouseholdDocumentsMock = vi.fn()
+const useAnswerHouseholdQuestionMock = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdDashboard: () => useHouseholdDashboardMock(),
   useHouseholdDocuments: () => useHouseholdDocumentsMock(),
+  useAnswerHouseholdQuestion: () => useAnswerHouseholdQuestionMock(),
 }))
 
 vi.mock('@/components/money/MoneyOverviewPanel', () => ({
@@ -266,6 +268,10 @@ function buildDashboard() {
 describe('MoneyPage', () => {
   beforeEach(() => {
     window.history.replaceState({}, '', '/money')
+    useAnswerHouseholdQuestionMock.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+    })
     useHouseholdDashboardMock.mockReturnValue({
       data: buildDashboard(),
       isLoading: false,

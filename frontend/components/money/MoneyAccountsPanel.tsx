@@ -374,9 +374,6 @@ function accountSubline(account: HouseholdAccountSummary) {
   if (account.linkedPortfolioAccountName) {
     parts.push(`Linked to ${account.linkedPortfolioAccountName}`)
   }
-  if (account.lastEvidenceAt) {
-    parts.push(`Last evidence ${formatRelativeTime(account.lastEvidenceAt)}`)
-  }
   return parts.length > 0 ? parts.join(' · ') : 'No evidence linked yet'
 }
 
@@ -384,12 +381,16 @@ function accountCoverageDetail(
   account: HouseholdAccountSummary,
   topGap: HouseholdAccountSummary['gapFlags'][number] | null,
 ) {
+  const pricedPositionCount = account.pricedPositionCount ?? 0
   const parts = [
     topGap ? `${topGap.title}: ${topGap.detail}` : null,
     `Balance ${account.balanceFreshnessLabel.toLowerCase()}`,
     account.moneyRole === 'spend_driver'
       ? `Transactions ${account.transactionFreshnessLabel.toLowerCase()}`
       : 'Transactions not required',
+    pricedPositionCount > 0
+      ? `${(account.quoteFreshnessLabel ?? 'live quotes').toLowerCase()} across ${pricedPositionCount} priced position${pricedPositionCount === 1 ? '' : 's'}`
+      : null,
     account.lastEvidenceAt
       ? `Last evidence ${formatRelativeTime(account.lastEvidenceAt)}`
       : 'No evidence linked yet',
@@ -617,6 +618,7 @@ export function MoneyAccountsPanel({
             {accounts.map((account) => {
               const topGap = account.gapFlags[0] ?? null
               const isFocused = account.id === focusedAccountId
+              const pricedPositionCount = account.pricedPositionCount ?? 0
               return (
                 <AccordionItem
                   key={account.id}
@@ -652,10 +654,32 @@ export function MoneyAccountsPanel({
                         >
                           {account.freshnessLabel}
                         </span>
-                        <span className="rounded-full border border-border/40 bg-surface/70 px-2.5 py-1 text-xs text-text-muted">
-                          {account.evidenceCount} source
-                          {account.evidenceCount === 1 ? '' : 's'}
-                        </span>
+                        {pricedPositionCount > 0 ? (
+                          <InfoBadge
+                            label={account.quoteFreshnessLabel ?? 'Live quotes'}
+                            detail={[
+                              `${pricedPositionCount} priced position${pricedPositionCount === 1 ? '' : 's'}`,
+                              account.quoteUpdatedAt
+                                ? `oldest quote ${formatRelativeTime(account.quoteUpdatedAt)}`
+                                : null,
+                              account.quoteSource
+                                ? `source ${account.quoteSource}`
+                                : null,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                            variant={
+                              account.quoteFreshnessStatus === 'fresh'
+                                ? 'success'
+                                : account.quoteFreshnessStatus === 'aging'
+                                  ? 'warning'
+                                  : account.quoteFreshnessStatus === 'stale'
+                                    ? 'secondary'
+                                    : 'outline'
+                            }
+                            className="bg-surface/70 text-text-muted"
+                          />
+                        ) : null}
                         <InfoBadge
                           label="Coverage"
                           detail={accountCoverageDetail(account, topGap)}
@@ -730,7 +754,7 @@ export function MoneyAccountsPanel({
                         <div className="grid gap-3 sm:grid-cols-2">
                           <div className="rounded-2xl border border-border/30 bg-surface-muted/20 p-4">
                             <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
-                              Coverage
+                              Status
                             </p>
                             <div className="mt-2 space-y-1 text-sm text-text">
                               <p>Balance {account.balanceFreshnessLabel}</p>
@@ -738,6 +762,16 @@ export function MoneyAccountsPanel({
                                 {account.moneyRole === 'spend_driver'
                                   ? `Transactions ${account.transactionFreshnessLabel}`
                                   : 'Transactions not required'}
+                              </p>
+                              {pricedPositionCount > 0 ? (
+                                <p>
+                                  Quotes {account.quoteFreshnessLabel ?? 'Live'}
+                                </p>
+                              ) : null}
+                              <p className="text-text-muted">
+                                {account.lastEvidenceAt
+                                  ? `Last evidence ${formatRelativeTime(account.lastEvidenceAt)}`
+                                  : 'No evidence linked yet'}
                               </p>
                               <p className="text-text-muted">
                                 {account.evidenceCount} source
@@ -761,29 +795,6 @@ export function MoneyAccountsPanel({
                                       : 'Evidence-backed'}
                               </p>
                             </div>
-                          </div>
-                        </div>
-
-                        <div className="rounded-2xl border border-border/30 bg-surface-muted/20 p-4">
-                          <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
-                            Latest activity
-                          </p>
-                          <div className="mt-3 space-y-2 text-sm text-text-muted">
-                            <p>
-                              Balance evidence:{' '}
-                              {account.lastBalanceAt
-                                ? formatRelativeTime(account.lastBalanceAt)
-                                : 'Missing'}
-                            </p>
-                            <p>
-                              Transactions:{' '}
-                              {account.lastTransactionAt
-                                ? formatRelativeTime(account.lastTransactionAt)
-                                : account.moneyRole === 'spend_driver'
-                                  ? 'Missing'
-                                  : 'Not required'}
-                            </p>
-                            <p>Documents: {account.evidenceCount}</p>
                           </div>
                         </div>
 

@@ -22,7 +22,7 @@ from app.models.household_finance import (
     PortfolioHouseholdContext,
     RetirementPreparedness,
 )
-from app.portfolio.current_facts import calculate_current_position_fact
+from app.portfolio.account_valuation import calculate_account_valuations
 from app.services._household_dashboard_builders import (
     build_budget_snapshot,
     build_retirement_contribution_tracker,
@@ -760,27 +760,23 @@ def gather_service_data(service: Any) -> dict[str, Any]:
     live_positions = [p for p in positions if p.account_id in account_ids]
     symbols = sorted({p.symbol for p in live_positions})
     price_data = cast(dict[str, object], service.price_fetcher.fetch_price_data(symbols)) if symbols else {}
-    holdings_by_account: dict[str, float] = {}
-    for pos in live_positions:
-        pi = price_data.get(pos.symbol)
-        current_fact = calculate_current_position_fact(
-            symbol=pos.symbol,
-            shares=pos.shares,
-            cost_basis=pos.cost_basis,
-            position_type=pos.position_type,
-            current_price=getattr(pi, "price", None) if pi is not None else None,
-        )
-        if current_fact.current_value is None:
-            continue
-        holdings_by_account[pos.account_id] = (
-            holdings_by_account.get(pos.account_id, 0.0) + current_fact.current_value
-        )
+    account_valuations = calculate_account_valuations(
+        accounts,
+        live_positions,
+        cast(dict[str, Any], price_data),
+    )
+    holdings_by_account: dict[str, float] = {
+        account_id: valuation.priced_positions_value
+        for account_id, valuation in account_valuations.items()
+        if valuation.priced_positions_value > 0
+    }
     reports = service.transaction_service.build_reports()
     return {
         "profile": profile, "planning": planning, "documents": documents, "questions": questions,
         "evidence_accounts": evidence_accounts,
         "tracked_accounts": tracked_accounts,
         "accounts": accounts, "live_positions": live_positions,
+        "account_valuations": account_valuations,
         "holdings_by_account": holdings_by_account, "reports": reports,
     }
 

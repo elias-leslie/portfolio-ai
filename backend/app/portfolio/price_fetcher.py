@@ -14,6 +14,7 @@ from ..sources import initialize_data_sources
 from ..sources.base import DATASET_REFERENCE, DatasetRequest
 from ..sources.multi_source_fetcher import MultiSourceFetcher
 from ..storage import PortfolioStorage
+from ..utils.market_hours import get_market_status
 from ._payload_parser import build_all_sources_failed_entry, parse_payload_row
 from ._price_cache import cache_prices, get_cached_prices
 from ._risk_metrics import compute_local_risk_metrics
@@ -63,7 +64,8 @@ class PriceDataFetcher:
         """
         result: dict[str, PriceData] = {}
 
-        cached_data = get_cached_prices(symbols, self.storage, self.cache_ttl_minutes)
+        cache_ttl_minutes = self._cache_ttl_minutes()
+        cached_data = get_cached_prices(symbols, self.storage, cache_ttl_minutes)
         result.update(cached_data)
 
         missing_symbols = [s for s in symbols if s not in result]
@@ -75,6 +77,14 @@ class PriceDataFetcher:
                 cache_prices(valid_data, self.storage)
 
         return result
+
+    def _cache_ttl_minutes(self) -> int:
+        market_status = get_market_status()
+        if market_status == "open":
+            return 2
+        if market_status in {"pre_market", "after_hours"}:
+            return 5
+        return max(self.cache_ttl_minutes, 30)
 
     def _fetch_fresh_prices(self, symbols: list[str]) -> dict[str, PriceData]:
         """Fetch fresh price data using MultiSourceFetcher with automatic failover.

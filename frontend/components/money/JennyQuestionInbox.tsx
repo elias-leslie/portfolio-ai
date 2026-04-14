@@ -34,10 +34,12 @@ export function JennyQuestionInbox({
   questions,
   title = 'Jenny Questions',
   description = 'Answer only the gaps Jenny cannot infer confidently from your documents and account activity.',
+  selectedQuestionId = null,
 }: {
   questions: HouseholdQuestion[]
   title?: string
   description?: string
+  selectedQuestionId?: string | null
 }) {
   const answerQuestion = useAnswerHouseholdQuestion()
   const [drafts, setDrafts] = useState<Record<string, string>>({})
@@ -50,6 +52,13 @@ export function JennyQuestionInbox({
       question.status === 'open' &&
       (question.direction == null || question.direction === 'jenny_to_user'),
   )
+  const orderedQuestions = openQuestions
+    .slice()
+    .sort((left, right) => {
+      if (selectedQuestionId && left.id === selectedQuestionId) return -1
+      if (selectedQuestionId && right.id === selectedQuestionId) return 1
+      return 0
+    })
 
   const submitAnswer = (questionId: string, answerText: string) => {
     const trimmed = answerText.trim()
@@ -95,7 +104,7 @@ export function JennyQuestionInbox({
             queue only when confidence drops.
           </div>
         ) : (
-          openQuestions.map((question) => {
+          orderedQuestions.map((question) => {
             const sourceDocument = getQuestionSourceDocument(question)
             const questionFormat = normalizeQuestionFormat(
               question.questionFormat,
@@ -105,7 +114,11 @@ export function JennyQuestionInbox({
             return (
               <div
                 key={question.id}
-                className="rounded-2xl border border-border/40 bg-surface/80 p-4"
+                className={`rounded-2xl border bg-surface/80 p-4 ${
+                  selectedQuestionId === question.id
+                    ? 'border-primary/50 ring-1 ring-primary/30'
+                    : 'border-border/40'
+                }`}
               >
                 <div className="mb-3 rounded-xl border border-border/40 bg-surface-muted/30 px-3 py-2 text-xs text-text-muted">
                   <p className="font-medium text-text">

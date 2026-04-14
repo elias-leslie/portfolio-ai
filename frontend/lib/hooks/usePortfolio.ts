@@ -23,28 +23,30 @@ import {
 
 /**
  * Hook to fetch portfolio positions with current values
- * Automatically refetches every 5 minutes to keep price-sensitive coaching current
+ * Refreshes on a short cadence so live-quoted holdings keep moving during the day.
  */
 export function usePortfolio(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['portfolio'],
     queryFn: fetchPortfolio,
     enabled: options?.enabled !== false, // Default to true
-    staleTime: 1000 * 60 * 2, // 2 minutes (reduced from 5min for fresher data)
-    refetchInterval: 1000 * 60 * 5, // Refetch every 5 minutes (reduced from 15min)
+    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 30,
+    refetchOnWindowFocus: true,
   })
 }
 
 /**
  * Hook to fetch portfolio analytics
- * Automatically refetches every 5 minutes to keep analytics aligned with latest prices
+ * Refreshes on the same short cadence as holdings so concentration and gain stay aligned.
  */
 export function usePortfolioAnalytics() {
   return useQuery({
     queryKey: ['portfolio', 'analytics'],
     queryFn: fetchAnalytics,
-    staleTime: 1000 * 60 * 2, // 2 minutes (reduced from 5min for fresher data)
-    refetchInterval: 1000 * 60 * 5, // Refetch every 5 minutes (reduced from 15min)
+    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 30,
+    refetchOnWindowFocus: true,
   })
 }
 

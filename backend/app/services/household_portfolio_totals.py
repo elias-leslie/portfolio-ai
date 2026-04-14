@@ -50,6 +50,7 @@ def get_effective_portfolio_totals(
     *,
     include_paper: bool = False,
     household_service: HouseholdFinanceService | None = None,
+    dashboard: object | None = None,
 ) -> EffectivePortfolioTotals:
     """Return live position totals plus household canonical totals when available."""
     live_totals: PortfolioTotals = get_live_portfolio_totals(storage, include_paper=include_paper)
@@ -68,7 +69,7 @@ def get_effective_portfolio_totals(
 
     try:
         service = household_service or _household_service()
-        dashboard = service.get_dashboard()
+        dashboard = dashboard or service.get_dashboard()
         overview = getattr(dashboard, "overview", None)
         accounts = list(getattr(dashboard, "accounts", []) or [])
         household_total_value = (
@@ -85,7 +86,7 @@ def get_effective_portfolio_totals(
             household_total_value or 0.0,
         )
         effective_invested_total_value = max(
-            live_cash_inclusive_total_value,
+            live_totals.invested_total_value,
             household_invested_total_value or 0.0,
         )
         return EffectivePortfolioTotals(

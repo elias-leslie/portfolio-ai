@@ -18,11 +18,11 @@ from app.models.household_finance import (
 )
 from app.services._money_workspace_routes import (
     MONEY_ACCOUNTS_ROUTE,
-    MONEY_CLARIFICATIONS_ROUTE,
     MONEY_DATE_QUALITY_ROUTE,
     MONEY_DISCOVERED_ACCOUNTS_ROUTE,
     MONEY_EVIDENCE_ROUTE,
     money_account_focus_route,
+    money_question_focus_route,
 )
 
 _PRIORITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
@@ -831,12 +831,14 @@ def build_account_summaries(
     documents: list[HouseholdDocument],
     portfolio_accounts: list[Any],
     tracked_accounts: list[HouseholdTrackedAccount],
+    account_valuations: dict[str, Any] | None = None,
     holdings_by_account: dict[str, float],
     statement_freshness: dict[str, Any],
     latest_transaction_dates_by_household_account: dict[str, date] | None = None,
     latest_transaction_dates_by_document: dict[str, date] | None = None,
     latest_transaction_dates_by_account_label: dict[str, date] | None = None,
 ) -> list[HouseholdAccountSummary]:
+    account_valuations = account_valuations or {}
     latest_transaction_dates_by_household_account = latest_transaction_dates_by_household_account or {}
     latest_transaction_dates_by_document = latest_transaction_dates_by_document or {}
     latest_transaction_dates_by_account_label = latest_transaction_dates_by_account_label or {}
@@ -989,6 +991,11 @@ def build_account_summaries(
             asset_group=latest.asset_group,
             portfolio_accounts=portfolio_accounts,
         )
+        portfolio_valuation = (
+            account_valuations.get(portfolio_account.id)
+            if portfolio_account is not None
+            else None
+        )
         if portfolio_account is not None:
             linked_portfolio_ids.add(portfolio_account.id)
         effective_asset_group = latest.asset_group
@@ -1034,6 +1041,31 @@ def build_account_summaries(
         match_status = "tracked" if match_confidence >= 0.8 else "candidate"
         if portfolio_account is not None or tracked_account is not None:
             match_status = "linked"
+        has_live_pricing = bool(
+            portfolio_valuation is not None
+            and getattr(portfolio_valuation, "priced_position_count", 0) > 0
+        )
+        effective_cash_balance = (
+            float(latest.cash_balance)
+            if latest.cash_balance is not None
+            else (
+                float(getattr(portfolio_valuation, "effective_cash_balance", 0.0) or 0.0)
+                if portfolio_valuation is not None
+                else None
+            )
+        )
+        effective_holdings_value = (
+            float(getattr(portfolio_valuation, "priced_positions_value", 0.0) or 0.0)
+            if has_live_pricing
+            else latest.holdings_value
+        )
+        effective_current_value = (
+            float(getattr(portfolio_valuation, "priced_positions_value", 0.0) or 0.0)
+            + float(effective_cash_balance or 0.0)
+            if has_live_pricing and portfolio_valuation is not None
+            else _account_value(latest)
+        )
+        valuation_source = "live_quotes" if has_live_pricing else "evidence"
         summary = HouseholdAccountSummary(
             id=group_key,
             label=effective_label,
@@ -1046,10 +1078,11 @@ def build_account_summaries(
             account_mask=latest.account_mask,
             notes=tracked_account.notes if tracked_account is not None else None,
             currency=latest.currency,
-            current_value=_account_value(latest),
+            current_value=effective_current_value,
             balance=latest.balance,
-            holdings_value=latest.holdings_value,
-            cash_balance=latest.cash_balance,
+            holdings_value=effective_holdings_value,
+            cash_balance=effective_cash_balance,
+            valuation_source=valuation_source,
             evidence_count=len(accounts),
             document_ids=sorted({account.document_id for account in accounts}),
             latest_document_id=latest.document_id,
@@ -1069,6 +1102,31 @@ def build_account_summaries(
             days_since_transaction=days_since_transaction,
             transaction_freshness_status=transaction_freshness_status,
             transaction_freshness_label=transaction_freshness_label,
+            quote_updated_at=(
+                portfolio_valuation.quote_updated_at.isoformat()
+                if has_live_pricing and getattr(portfolio_valuation, "quote_updated_at", None) is not None
+                else None
+            ),
+            quote_freshness_status=(
+                str(getattr(portfolio_valuation, "quote_freshness_status", "not_applicable"))
+                if has_live_pricing
+                else "not_applicable"
+            ),
+            quote_freshness_label=(
+                str(getattr(portfolio_valuation, "quote_freshness_label", "No live quotes"))
+                if has_live_pricing
+                else "No live quotes"
+            ),
+            quote_source=(
+                str(getattr(portfolio_valuation, "quote_source", None))
+                if has_live_pricing and getattr(portfolio_valuation, "quote_source", None)
+                else None
+            ),
+            priced_position_count=(
+                int(getattr(portfolio_valuation, "priced_position_count", 0))
+                if has_live_pricing
+                else 0
+            ),
             freshness_status=freshness_status,
             freshness_label=freshness_label,
             match_status=match_status,
@@ -1087,6 +1145,7 @@ def build_account_summaries(
     for account in portfolio_accounts:
         if getattr(account, "account_type", None) == "paper" or account.id in linked_portfolio_ids:
             continue
+        portfolio_valuation = account_valuations.get(account.id)
         summaries.append(
             HouseholdAccountSummary(
                 id=_portfolio_summary_key(account),
@@ -1095,8 +1154,27 @@ def build_account_summaries(
                 account_type=str(account.account_type),
                 source_type=_portfolio_source_type(account),
                 match_key=None,
-                current_value=_portfolio_value(account, holdings_by_account),
-                cash_balance=float(getattr(account, "cash_balance", 0.0) or 0.0),
+                current_value=(
+                    float(getattr(portfolio_valuation, "total_value", 0.0) or 0.0)
+                    if portfolio_valuation is not None
+                    else _portfolio_value(account, holdings_by_account)
+                ),
+                holdings_value=(
+                    float(getattr(portfolio_valuation, "priced_positions_value", 0.0) or 0.0)
+                    if portfolio_valuation is not None
+                    else holdings_by_account.get(account.id, 0.0)
+                ),
+                cash_balance=(
+                    float(getattr(portfolio_valuation, "effective_cash_balance", 0.0) or 0.0)
+                    if portfolio_valuation is not None
+                    else float(getattr(account, "cash_balance", 0.0) or 0.0)
+                ),
+                valuation_source=(
+                    "live_quotes"
+                    if portfolio_valuation is not None
+                    and getattr(portfolio_valuation, "priced_position_count", 0) > 0
+                    else "portfolio_cash"
+                ),
                 latest_document_id=None,
                 linked_portfolio_account_id=account.id,
                 linked_portfolio_account_name=_portfolio_label(account),
@@ -1114,6 +1192,33 @@ def build_account_summaries(
                 days_since_transaction=None,
                 transaction_freshness_status="not_applicable",
                 transaction_freshness_label="Not required",
+                quote_updated_at=(
+                    portfolio_valuation.quote_updated_at.isoformat()
+                    if portfolio_valuation is not None
+                    and getattr(portfolio_valuation, "quote_updated_at", None) is not None
+                    else None
+                ),
+                quote_freshness_status=(
+                    str(getattr(portfolio_valuation, "quote_freshness_status", "not_applicable"))
+                    if portfolio_valuation is not None
+                    else "not_applicable"
+                ),
+                quote_freshness_label=(
+                    str(getattr(portfolio_valuation, "quote_freshness_label", "No live quotes"))
+                    if portfolio_valuation is not None
+                    else "No live quotes"
+                ),
+                quote_source=(
+                    str(getattr(portfolio_valuation, "quote_source", None))
+                    if portfolio_valuation is not None
+                    and getattr(portfolio_valuation, "quote_source", None)
+                    else None
+                ),
+                priced_position_count=(
+                    int(getattr(portfolio_valuation, "priced_position_count", 0))
+                    if portfolio_valuation is not None
+                    else 0
+                ),
                 freshness_status="needs_evidence",
                 freshness_label="Needs evidence",
                 match_status="tracked",
@@ -1295,7 +1400,7 @@ def build_money_inbox(
                 title=str(question.question),
                 detail=str(getattr(question, "recommendation", None) or getattr(question, "rationale", None) or "Answering this lets Jenny keep the model aligned with reality."),
                 action_label="Answer",
-                action_href=MONEY_CLARIFICATIONS_ROUTE,
+                action_href=money_question_focus_route(str(question.id)),
                 related_question_id=question.id,
                 related_document_ids=[str(question.source_document_id)] if getattr(question, "source_document_id", None) else [],
             )

@@ -31,6 +31,8 @@ export interface PositionWithValue extends Position {
   currentValue: number
   gain: number
   gainPct: number
+  priceUpdatedAt?: string | null
+  priceSource?: string | null
 }
 
 export interface PortfolioResponse {
@@ -45,6 +47,9 @@ export interface PortfolioResponse {
   householdInvestedTotalValue: number | null
   householdCashReserve: number | null
   householdInvestmentAccountsCount: number | null
+  quotesUpdatedAt?: string | null
+  quoteFreshnessStatus?: string | null
+  quoteFreshnessLabel?: string | null
 }
 
 export interface PositionPerformance {
@@ -82,6 +87,9 @@ export interface PortfolioAnalytics {
   householdInvestedTotalValue: number | null
   householdCashReserve: number | null
   householdInvestmentAccountsCount: number | null
+  quotesUpdatedAt?: string | null
+  quoteFreshnessStatus?: string | null
+  quoteFreshnessLabel?: string | null
   portfolioBeta: number
   portfolioVolatility: number
   sharpeRatio: number | null

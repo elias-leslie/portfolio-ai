@@ -19,8 +19,8 @@ import {
   uploadHouseholdDocument,
 } from '@/lib/api/household'
 
-/** Dashboard rebuilds server-side; 60 s keeps the UI fresh without over-fetching. */
-const DASHBOARD_STALE_MS = 1000 * 60
+/** Dashboard rebuilds server-side; 30 s keeps high-level totals visibly live. */
+const DASHBOARD_STALE_MS = 1000 * 30
 
 /** Documents and questions change on user action; 30 s balances freshness with server load. */
 const VOLATILE_STALE_MS = 1000 * 30
@@ -30,6 +30,7 @@ export function useHouseholdDashboard() {
     queryKey: ['household', 'dashboard'],
     queryFn: fetchHouseholdDashboard,
     staleTime: DASHBOARD_STALE_MS,
+    refetchInterval: 1000 * 30,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
   })

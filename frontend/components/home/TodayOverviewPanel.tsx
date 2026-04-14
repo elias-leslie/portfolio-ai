@@ -21,6 +21,10 @@ function normalizeQualityStatus(status: string | null | undefined) {
       return 'estimated'
     case 'blocked':
       return 'unavailable'
+    case 'fresh':
+      return 'current'
+    case 'aging':
+      return 'stale'
     default:
       return status ?? 'unavailable'
   }
@@ -104,6 +108,10 @@ export function TodayOverviewPanel() {
     portfolio?.effectiveTotalValue ??
     portfolio?.totalValue ??
     null
+  const portfolioQuoteDetail =
+    portfolio?.quotesUpdatedAt != null
+      ? `Oldest live quote ${new Date(portfolio.quotesUpdatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`
+      : null
 
   const cards = [
     {
@@ -172,6 +180,11 @@ export function TodayOverviewPanel() {
         ? 'Loading…'
         : formatCurrencyWhole(portfolioValue),
       detail: 'Invested household assets',
+      badgeLabel: portfolio?.quoteFreshnessLabel ?? null,
+      badgeDetail: portfolioQuoteDetail,
+      badgeVariant: qualityBadgeVariant(
+        portfolio?.quoteFreshnessStatus ?? 'unavailable',
+      ),
     },
     {
       label: 'Total Gain',
@@ -179,6 +192,11 @@ export function TodayOverviewPanel() {
         ? 'Loading…'
         : formatCurrencyWhole(portfolio?.totalGain),
       detail: 'Live positioned assets',
+      badgeLabel: portfolio?.quoteFreshnessLabel ?? null,
+      badgeDetail: portfolioQuoteDetail,
+      badgeVariant: qualityBadgeVariant(
+        portfolio?.quoteFreshnessStatus ?? 'unavailable',
+      ),
     },
     {
       label: 'Portfolio Health',

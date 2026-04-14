@@ -139,6 +139,14 @@ function readRequestedAccountId(): string | null {
   return new URLSearchParams(window.location.search).get('account')
 }
 
+function readRequestedQuestionId(): string | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  return new URLSearchParams(window.location.search).get('question')
+}
+
 function syncUtilityToLocation(
   nextUtility: MoneyUtility | null,
   nextFocus: MoneyFocus | null = null,
@@ -170,6 +178,9 @@ function MoneyPageContent() {
   )
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
     readRequestedAccountId,
+  )
+  const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(
+    readRequestedQuestionId,
   )
   const [selectedIntent, setSelectedIntent] = useState<MoneyIntent | null>(
     readRequestedIntent,
@@ -212,6 +223,10 @@ function MoneyPageContent() {
       const requestedIntent = readRequestedIntent()
       setSelectedIntent((current) =>
         current === requestedIntent ? current : requestedIntent,
+      )
+      const requestedQuestionId = readRequestedQuestionId()
+      setSelectedQuestionId((current) =>
+        current === requestedQuestionId ? current : requestedQuestionId,
       )
     }
 
@@ -368,14 +383,20 @@ function MoneyPageContent() {
         <div id="money-clarifications" className="space-y-6">
           <SectionCard
             variant="surface"
-            title="Clarifications"
-            description="Only answer what Jenny cannot infer safely from existing evidence."
+            title="Review"
+            description="Targeted follow-up tools. Today owns the queue; this tab handles the selected drill-down."
           >
-            {openQuestions.length > 0 ? (
-              <JennyQuestionInbox questions={openQuestions} />
+            {focusedReview === 'clarifications' || selectedQuestionId ? (
+              <JennyQuestionInbox
+                questions={openQuestions}
+                title="Clarifications"
+                description="Resolve the targeted clarification, then return to Today."
+                selectedQuestionId={selectedQuestionId}
+              />
             ) : (
               <p className="text-sm text-text-muted">
-                No open clarifications right now.
+                Use Today → Action Queue to open a specific clarification or
+                data-quality review.
               </p>
             )}
           </SectionCard>

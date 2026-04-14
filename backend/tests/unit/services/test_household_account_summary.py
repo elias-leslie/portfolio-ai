@@ -18,10 +18,10 @@ from app.services._household_account_summary import (
 )
 from app.services._money_workspace_routes import (
     MONEY_ACCOUNTS_ROUTE,
-    MONEY_CLARIFICATIONS_ROUTE,
     MONEY_DATE_QUALITY_ROUTE,
     MONEY_EVIDENCE_ROUTE,
     money_account_focus_route,
+    money_question_focus_route,
 )
 
 
@@ -206,7 +206,7 @@ def test_build_money_inbox_prioritizes_questions_and_account_gaps() -> None:
     assert any(item.related_question_id == "question-1" for item in inbox)
     assert any(
         item.related_question_id == "question-1"
-        and item.action_href == MONEY_CLARIFICATIONS_ROUTE
+        and item.action_href == money_question_focus_route("question-1")
         for item in inbox
     )
     assert any(item.related_account_id == account_summaries[0].id for item in inbox)

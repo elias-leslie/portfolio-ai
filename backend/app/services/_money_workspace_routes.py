@@ -25,3 +25,7 @@ def money_account_focus_route(account_id: str, *, intent: str | None = None) -> 
     if intent:
         params["intent"] = intent
     return f"{MONEY_ROUTE}?{urlencode(params)}"
+
+
+def money_question_focus_route(question_id: str) -> str:
+    return f"{MONEY_ROUTE}?{urlencode({'tab': 'review', 'focus': 'clarifications', 'question': question_id})}#money-clarifications"

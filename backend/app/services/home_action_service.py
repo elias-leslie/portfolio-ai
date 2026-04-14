@@ -510,7 +510,7 @@ class HomeActionService:
             return []
 
         actions: list[dict[str, object]] = []
-        items = [item for item in dashboard.inbox if item.category != "question"]
+        items = list(dashboard.inbox)
         for index, item in enumerate(items[:4], start=1):
             actions.append(
                 {
