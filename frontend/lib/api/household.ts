@@ -472,6 +472,8 @@ export interface HouseholdLedgerEntry {
   documentType?: string | null
   balanceAfter?: number | null
   uploadedAt?: string | null
+  includedInSpend: boolean
+  exclusionReason?: string | null
 }
 
 export interface HouseholdLedger {

@@ -163,6 +163,8 @@ class HouseholdLedgerEntry(BaseModel):
     document_type: str | None = None
     balance_after: float | None = None
     uploaded_at: str | None = None
+    included_in_spend: bool = False
+    exclusion_reason: str | None = None
 
 
 class HouseholdLedger(BaseModel):

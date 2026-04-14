@@ -9,7 +9,13 @@ from typing import Any
 
 from app.models.household_finance import HouseholdLedger, HouseholdLedgerEntry
 from app.services._household_finance_utils import iso_or_none
+from app.services._household_report_builder import collapse_report_rows_with_exclusions
+from app.services._household_spend_filters import looks_like_cash_movement
 from app.services._household_time_windows import resolve_household_time_window
+from app.services.household_transaction_service import (
+    _effective_transaction_classification,
+    _effective_transaction_flow,
+)
 
 
 def _coerce_metadata(value: Any) -> dict[str, Any]:
@@ -72,6 +78,16 @@ def _effective_date(*values: Any) -> datetime:
     return datetime.min.replace(tzinfo=UTC)
 
 
+def _is_credit_flow(flow_type: str | None) -> bool:
+    normalized = (flow_type or "").strip().lower()
+    return normalized in {"income", "refund", "transfer_in"}
+
+
+def _is_debit_flow(flow_type: str | None) -> bool:
+    normalized = (flow_type or "").strip().lower()
+    return normalized in {"expense", "payment", "transfer_out", "investment"}
+
+
 def _transaction_sql(window_start: str | None, *, limit: int) -> tuple[str, list[Any]]:
     where_clauses: list[str] = ["TRUE"]
     params: list[Any] = []
@@ -87,7 +103,7 @@ def _transaction_sql(window_start: str | None, *, limit: int) -> tuple[str, list
             COALESCE(ta.label, a.canonical_label, t.account_label) AS account_label,
             t.transaction_date,
             t.posted_date,
-            COALESCE(NULLIF(t.raw_merchant, ''), NULLIF(t.description, '')) AS merchant,
+            COALESCE(m.canonical_name, NULLIF(t.raw_merchant, ''), NULLIF(t.description, '')) AS merchant,
             t.description,
             t.amount,
             t.currency,
@@ -99,8 +115,11 @@ def _transaction_sql(window_start: str | None, *, limit: int) -> tuple[str, list
             d.filename AS source_document_filename,
             d.source_type,
             d.document_type,
-            d.uploaded_at
+            d.uploaded_at,
+            m.metadata
         FROM household_transactions t
+        LEFT JOIN household_merchants m
+          ON m.id = t.merchant_id
         LEFT JOIN household_accounts a
           ON a.id = t.household_account_id
         LEFT JOIN LATERAL (
@@ -190,19 +209,120 @@ class HouseholdLedgerService:
         entries: list[tuple[datetime, HouseholdLedgerEntry]] = []
         debit_total = 0.0
         credit_total = 0.0
+        report_candidates: list[dict[str, Any]] = []
 
         for row in transaction_rows:
             metadata = _coerce_metadata(row[13])
             amount = float(row[8]) if row[8] is not None else None
+            effective_flow = _effective_transaction_flow(
+                flow_type=str(row[1] or ""),
+                raw_merchant=str(row[6] or row[7] or ""),
+                description=str(row[7] or row[6] or ""),
+                source_type=str(row[16] or ""),
+            )
+            effective_category, effective_essentiality = _effective_transaction_classification(
+                flow_type=effective_flow,
+                raw_merchant=str(row[6] or row[7] or ""),
+                description=str(row[7] or row[6] or ""),
+                amount=amount,
+                stored_category=str(row[10] or ""),
+                stored_essentiality=str(row[11] or ""),
+                merchant_metadata=row[19] if isinstance(row[19], dict) else None,
+            )
+            if amount is not None and amount > 0:
+                report_candidates.append(
+                    {
+                        "id": str(row[0]),
+                        "row_hash": str(row[12]),
+                        "household_account_id": str(row[2]) if row[2] is not None else None,
+                        "date": (
+                            row[5].date() if isinstance(row[5], datetime)
+                            else row[4].date() if isinstance(row[4], datetime)
+                            else None
+                        ),
+                        "merchant": str(row[6] or row[7] or ""),
+                        "description": str(row[7] or ""),
+                        "amount": amount,
+                        "signed_amount": -amount if effective_flow == "refund" else amount,
+                        "category": effective_category,
+                        "essentiality": effective_essentiality,
+                        "document_id": str(row[14]) if row[14] is not None else None,
+                        "document_type": str(row[17] or ""),
+                        "source_type": str(row[16] or ""),
+                        "source_document_filename": str(row[15] or ""),
+                        "source_kind": "transaction",
+                    }
+                )
+
+        for row in import_rows:
+            metadata = _coerce_metadata(row[9])
+            amount = float(row[6]) if row[6] is not None else None
+            if amount is not None and amount > 0:
+                report_candidates.append(
+                    {
+                        "id": str(row[0]),
+                        "row_hash": str(row[8]),
+                        "household_account_id": None,
+                        "date": row[3].date() if isinstance(row[3], datetime) else None,
+                        "merchant": str(row[4] or ""),
+                        "description": str(row[5] or row[4] or ""),
+                        "amount": amount,
+                        "category": "Household shopping",
+                        "essentiality": "mixed",
+                        "document_id": str(row[10]) if row[10] is not None else None,
+                        "document_type": "import",
+                        "source_type": str(row[1] or "import"),
+                        "source_document_filename": str(row[11] or ""),
+                        "source_kind": "import",
+                    }
+                )
+
+        _, excluded_row_hashes = collapse_report_rows_with_exclusions(
+            [row for row in report_candidates if row.get("date") is not None]
+        )
+
+        for row in transaction_rows:
+            metadata = _coerce_metadata(row[13])
+            amount = float(row[8]) if row[8] is not None else None
+            effective_flow = _effective_transaction_flow(
+                flow_type=str(row[1] or ""),
+                raw_merchant=str(row[6] or row[7] or ""),
+                description=str(row[7] or row[6] or ""),
+                source_type=str(row[16] or ""),
+            )
+            effective_category, effective_essentiality = _effective_transaction_classification(
+                flow_type=effective_flow,
+                raw_merchant=str(row[6] or row[7] or ""),
+                description=str(row[7] or row[6] or ""),
+                amount=amount,
+                stored_category=str(row[10] or ""),
+                stored_essentiality=str(row[11] or ""),
+                merchant_metadata=row[19] if isinstance(row[19], dict) else None,
+            )
+            exclusion_reason: str | None = None
+            included_in_spend = False
+            if effective_flow not in {"expense", "refund"}:
+                exclusion_reason = "non_expense_flow"
+            elif amount is None or amount <= 0:
+                exclusion_reason = "non_positive_amount"
+            elif looks_like_cash_movement(
+                category=effective_category,
+                description=str(row[7] or ""),
+                merchant=str(row[6] or row[7] or ""),
+            ):
+                exclusion_reason = "cash_movement"
+            else:
+                exclusion_reason = excluded_row_hashes.get(str(row[12]))
+                included_in_spend = exclusion_reason is None
             if amount is not None:
-                if amount > 0:
-                    debit_total += amount
-                elif amount < 0:
+                if _is_credit_flow(effective_flow):
                     credit_total += abs(amount)
+                elif _is_debit_flow(effective_flow) or amount > 0:
+                    debit_total += abs(amount)
             entry = HouseholdLedgerEntry(
                 id=str(row[0]),
                 kind="transaction",
-                flow_type=str(row[1]) if row[1] is not None else None,
+                flow_type=effective_flow,
                 household_account_id=str(row[2]) if row[2] is not None else None,
                 account_label=str(row[3]) if row[3] is not None else None,
                 date=iso_or_none(row[4]),
@@ -211,8 +331,8 @@ class HouseholdLedgerService:
                 description=str(row[7] or ""),
                 amount=amount,
                 currency=str(row[9]) if row[9] is not None else None,
-                category=str(row[10]) if row[10] is not None else None,
-                essentiality=str(row[11]) if row[11] is not None else None,
+                category=effective_category,
+                essentiality=effective_essentiality,
                 row_hash=str(row[12]),
                 balance_after=_metadata_decimal(
                     metadata,
@@ -226,6 +346,8 @@ class HouseholdLedgerService:
                 source_type=str(row[16]) if row[16] is not None else None,
                 document_type=str(row[17]) if row[17] is not None else None,
                 uploaded_at=iso_or_none(row[18]),
+                included_in_spend=included_in_spend,
+                exclusion_reason=exclusion_reason,
             )
             entries.append(
                 (
@@ -267,6 +389,8 @@ class HouseholdLedgerService:
                 source_type=str(row[12]) if row[12] is not None else None,
                 document_type=str(row[13]) if row[13] is not None else None,
                 uploaded_at=iso_or_none(row[14]),
+                included_in_spend=False,
+                exclusion_reason=excluded_row_hashes.get(str(row[8])) or "raw_import_only",
             )
             entries.append(
                 (

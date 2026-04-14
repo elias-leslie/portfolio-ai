@@ -13,6 +13,7 @@ _NON_SPEND_TEXT_PATTERNS = (
     "online transfer",
     "recurring transfer",
     "moneyline",
+    "venmo payment",
     "zelle from",
     "zelle to",
     "ui benefit",
@@ -48,7 +49,8 @@ def is_budget_driving_expense(
     merchant: str | None,
 ) -> bool:
     """Return True when a row should count toward household spend analytics."""
-    if (flow_type or "").strip().lower() != "expense":
+    normalized_flow = (flow_type or "").strip().lower()
+    if normalized_flow not in {"expense", "refund"}:
         return False
     return not looks_like_cash_movement(
         category=category,

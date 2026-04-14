@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils'
 
 type LedgerWindow = 'all' | '1m' | '3m' | '6m' | '12m'
 type LedgerKind = 'all' | 'transactions' | 'imports'
+type LedgerStatus = 'all' | 'counted' | 'excluded'
 
 const ledgerWindows: Array<{ value: LedgerWindow; label: string }> = [
   { value: 'all', label: 'All' },
@@ -40,6 +41,12 @@ const ledgerKinds: Array<{ value: LedgerKind; label: string }> = [
   { value: 'all', label: 'All rows' },
   { value: 'transactions', label: 'Transactions' },
   { value: 'imports', label: 'Import rows' },
+]
+
+const ledgerStatuses: Array<{ value: LedgerStatus; label: string }> = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'counted', label: 'Counted' },
+  { value: 'excluded', label: 'Excluded' },
 ]
 
 function formatLedgerDate(value?: string | null) {
@@ -65,12 +72,54 @@ function entryDate(entry: {
   return entry.postedDate ?? entry.date ?? entry.uploadedAt ?? null
 }
 
-function debitAmount(amount?: number | null) {
-  return amount != null && amount > 0 ? amount : null
+function isCreditFlow(flowType?: string | null) {
+  return ['income', 'refund', 'transfer_in'].includes(
+    (flowType ?? '').trim().toLowerCase(),
+  )
 }
 
-function creditAmount(amount?: number | null) {
-  return amount != null && amount < 0 ? Math.abs(amount) : null
+function isDebitFlow(flowType?: string | null) {
+  return ['expense', 'payment', 'transfer_out', 'investment'].includes(
+    (flowType ?? '').trim().toLowerCase(),
+  )
+}
+
+function debitAmount(amount?: number | null, flowType?: string | null) {
+  if (amount == null) {
+    return null
+  }
+  if (isCreditFlow(flowType)) {
+    return null
+  }
+  if (isDebitFlow(flowType) || amount > 0) {
+    return Math.abs(amount)
+  }
+  return null
+}
+
+function creditAmount(amount?: number | null, flowType?: string | null) {
+  if (amount == null) {
+    return null
+  }
+  if (isCreditFlow(flowType)) {
+    return Math.abs(amount)
+  }
+  if (!isDebitFlow(flowType) && amount < 0) {
+    return Math.abs(amount)
+  }
+  return null
+}
+
+function hasDistinctDescription(entry: {
+  merchant?: string | null
+  description?: string | null
+}) {
+  const merchant = (entry.merchant ?? '').trim().toLowerCase()
+  const description = (entry.description ?? '').trim().toLowerCase()
+  if (!merchant || !description) {
+    return Boolean(description)
+  }
+  return merchant !== description
 }
 
 function shortHash(value: string) {
@@ -80,6 +129,7 @@ function shortHash(value: string) {
 export function MoneyLedgerPanel() {
   const [window, setWindow] = useState<LedgerWindow>('all')
   const [kind, setKind] = useState<LedgerKind>('transactions')
+  const [status, setStatus] = useState<LedgerStatus>('counted')
   const [account, setAccount] = useState<string>('all')
   const [query, setQuery] = useState('')
   const deferredQuery = useDeferredValue(query.trim().toLowerCase())
@@ -118,6 +168,12 @@ export function MoneyLedgerPanel() {
   const visibleEntries = useMemo(() => {
     const entries = ledger?.entries ?? []
     return entries.filter((entry) => {
+      if (status === 'counted' && !entry.includedInSpend) {
+        return false
+      }
+      if (status === 'excluded' && entry.includedInSpend) {
+        return false
+      }
       if (
         account !== 'all' &&
         (entry.accountLabel?.trim() ?? '__unassigned__') !== account
@@ -137,12 +193,35 @@ export function MoneyLedgerPanel() {
         entry.sourceType,
         entry.documentType,
         entry.flowType,
+        entry.exclusionReason,
         entry.rowHash,
       ]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(deferredQuery))
     })
-  }, [account, deferredQuery, ledger?.entries])
+  }, [account, deferredQuery, ledger?.entries, status])
+
+  const includedCount = useMemo(
+    () => visibleEntries.filter((entry) => entry.includedInSpend).length,
+    [visibleEntries],
+  )
+  const excludedCount = visibleEntries.length - includedCount
+  const visibleDebitTotal = useMemo(
+    () =>
+      visibleEntries.reduce(
+        (sum, entry) => sum + (debitAmount(entry.amount, entry.flowType) ?? 0),
+        0,
+      ),
+    [visibleEntries],
+  )
+  const visibleCreditTotal = useMemo(
+    () =>
+      visibleEntries.reduce(
+        (sum, entry) => sum + (creditAmount(entry.amount, entry.flowType) ?? 0),
+        0,
+      ),
+    [visibleEntries],
+  )
 
   if (error) {
     return (
@@ -231,6 +310,18 @@ export function MoneyLedgerPanel() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={status} onValueChange={(value) => setStatus(value as LedgerStatus)}>
+              <SelectTrigger aria-label="Filter ledger by counting status">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                {ledgerStatuses.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <p className="text-xs text-text-muted">
               {ledger?.timeframeLabel ?? 'All dates'} · {visibleEntries.length}{' '}
             visible row{visibleEntries.length === 1 ? '' : 's'}
@@ -260,7 +351,7 @@ export function MoneyLedgerPanel() {
             Debits
           </p>
           <p className="mt-2 text-base font-semibold tabular-nums text-text">
-            {formatCurrency(ledger?.debitTotal, { decimals: 2 })}
+            {formatCurrency(visibleDebitTotal, { decimals: 2 })}
           </p>
             <p className="mt-1 text-xs text-text-muted">
               Outflows in current ledger filter
@@ -271,7 +362,7 @@ export function MoneyLedgerPanel() {
             Credits
           </p>
           <p className="mt-2 text-base font-semibold tabular-nums text-text">
-            {formatCurrency(ledger?.creditTotal, { decimals: 2 })}
+            {formatCurrency(visibleCreditTotal, { decimals: 2 })}
           </p>
             <p className="mt-1 text-xs text-text-muted">
               Inflows and credits in current ledger filter
@@ -285,14 +376,14 @@ export function MoneyLedgerPanel() {
               {visibleEntries.length}
             </p>
             <p className="mt-1 text-xs text-text-muted">
-              {ledger?.totalEntryCount ?? 0} total · {ledger?.transactionCount ?? 0} tx · {ledger?.importRowCount ?? 0} import
+              {includedCount} counted · {excludedCount} excluded
             </p>
           </div>
         </div>
 
       <div className="mt-5 overflow-hidden rounded-2xl border border-border/40 bg-surface/45">
         <div className="overflow-x-auto">
-          <Table className="min-w-[1220px]">
+          <Table className="min-w-[1320px]">
           <TableHeader>
             <TableRow>
               <TableHead className="sticky top-0 z-10 bg-bg/95">Date</TableHead>
@@ -304,6 +395,9 @@ export function MoneyLedgerPanel() {
               </TableHead>
               <TableHead className="sticky top-0 z-10 bg-bg/95">
                 Category
+              </TableHead>
+              <TableHead className="sticky top-0 z-10 bg-bg/95">
+                Status
               </TableHead>
               <TableHead className="sticky top-0 z-10 bg-bg/95 text-right">
                 Debit
@@ -325,13 +419,13 @@ export function MoneyLedgerPanel() {
           <TableBody>
             {isLoading && !ledger ? (
               <TableRow>
-                <TableCell colSpan={9} className="py-10 text-center text-sm text-text-muted">
+                <TableCell colSpan={10} className="py-10 text-center text-sm text-text-muted">
                   Loading ledger...
                 </TableCell>
               </TableRow>
             ) : visibleEntries.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="py-10 text-center text-sm text-text-muted">
+                <TableCell colSpan={10} className="py-10 text-center text-sm text-text-muted">
                   No rows match current filters.
                 </TableCell>
               </TableRow>
@@ -364,39 +458,56 @@ export function MoneyLedgerPanel() {
                       </div>
                     </TableCell>
                     <TableCell className="max-w-[220px] align-top">
-                      <div className="truncate font-medium text-text">
+                      <div className="line-clamp-2 whitespace-normal font-medium text-text">
                         {entry.accountLabel ?? '—'}
                       </div>
-                      <div className="truncate text-xs text-text-muted">
+                      <div className="text-xs text-text-muted">
                         {entry.currency ?? 'USD'}
                       </div>
                     </TableCell>
-                    <TableCell className="max-w-[420px] align-top">
-                      <div className="truncate font-medium text-text">
+                    <TableCell className="max-w-[460px] align-top">
+                      <div className="line-clamp-2 whitespace-normal font-medium text-text">
                         {entry.merchant || entry.description}
                       </div>
-                      <div className="truncate text-xs text-text-muted">
-                        {entry.description}
-                      </div>
+                      {hasDistinctDescription(entry) ? (
+                        <div className="line-clamp-2 whitespace-normal text-xs text-text-muted">
+                          {entry.description}
+                        </div>
+                      ) : null}
                     </TableCell>
                     <TableCell className="max-w-[200px] align-top">
-                      <div className="truncate font-medium text-text">
+                      <div className="line-clamp-2 whitespace-normal font-medium text-text">
                         {entry.category ? formatEnumLabel(entry.category) : '—'}
                       </div>
-                      <div className="truncate text-xs text-text-muted">
+                      <div className="text-xs text-text-muted">
                         {entry.essentiality
                           ? formatEnumLabel(entry.essentiality)
                           : '—'}
                       </div>
                     </TableCell>
+                    <TableCell className="max-w-[180px] align-top">
+                      <div className="flex flex-wrap gap-1">
+                        <Badge
+                          variant={entry.includedInSpend ? 'default' : 'outline'}
+                          className="w-fit"
+                        >
+                          {entry.includedInSpend ? 'Counted' : 'Excluded'}
+                        </Badge>
+                      </div>
+                      <div className="mt-1 truncate text-xs text-text-muted">
+                        {entry.exclusionReason
+                          ? formatEnumLabel(entry.exclusionReason)
+                          : 'Included in canonical spend'}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right align-top font-mono tabular-nums">
-                      {formatCurrency(debitAmount(entry.amount), {
+                      {formatCurrency(debitAmount(entry.amount, entry.flowType), {
                         decimals: 2,
                         nullDisplay: '—',
                       })}
                     </TableCell>
                     <TableCell className="text-right align-top font-mono tabular-nums">
-                      {formatCurrency(creditAmount(entry.amount), {
+                      {formatCurrency(creditAmount(entry.amount, entry.flowType), {
                         decimals: 2,
                         nullDisplay: '—',
                       })}
@@ -413,11 +524,11 @@ export function MoneyLedgerPanel() {
                         })}
                       </span>
                     </TableCell>
-                    <TableCell className="max-w-[220px] align-top">
-                      <div className="truncate font-medium text-text">
+                    <TableCell className="max-w-[240px] align-top">
+                      <div className="line-clamp-2 whitespace-normal font-medium text-text">
                         {entry.sourceDocumentFilename ?? 'Unknown source'}
                       </div>
-                      <div className="truncate text-xs text-text-muted">
+                      <div className="line-clamp-2 whitespace-normal text-xs text-text-muted">
                         {[
                           entry.sourceType
                             ? formatEnumLabel(entry.sourceType)

@@ -67,7 +67,7 @@ def test_replay_candidate_documents_recovers_applied_doc_without_source_file() -
         "missing_source": 0,
         "unresolved": 0,
     }
-    service.household_service.review_document.assert_not_called()
+    service.household_service.review_document.assert_called_once_with("doc-1")
     service.household_service.document_pipeline.describe_application_state.assert_called_once()
     assert connection.commit.called
     update_call = connection.execute.call_args_list[-1]

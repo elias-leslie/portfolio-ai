@@ -27,6 +27,9 @@ class _FakeConnection:
     def fetchone(self) -> tuple[bool]:
         return (True,)
 
+    def fetchall(self) -> list[tuple[Any, ...]]:
+        return []
+
     def commit(self) -> None:
         self.committed = True
 
@@ -57,6 +60,42 @@ class _SequenceConnection:
 class _SequenceStorage:
     def __init__(self, responses: list[list[tuple[Any, ...]]]) -> None:
         self.conn = _SequenceConnection(responses)
+
+    @contextmanager
+    def connection(self):
+        yield self.conn
+
+
+class _MerchantOverrideConnection:
+    def __init__(self) -> None:
+        self.insert_params: list[Any] | None = None
+        self.committed = False
+
+    def execute(self, sql: str, params: list[Any] | None = None) -> Any:
+        if "FROM household_merchants" in sql:
+            return SimpleNamespace(
+                fetchone=lambda: (
+                    "merchant-1",
+                    "Chase Credit Crd Epay 260215 9126729844 Elias Leslie",
+                    "Bills",
+                    "essential",
+                    {},
+                )
+            )
+        if "INSERT INTO household_transactions" in sql:
+            self.insert_params = params
+            return SimpleNamespace(fetchone=lambda: (True,))
+        if "DELETE FROM household_transactions" in sql:
+            return SimpleNamespace(fetchall=lambda: [])
+        return SimpleNamespace(fetchone=lambda: None, fetchall=lambda: [])
+
+    def commit(self) -> None:
+        self.committed = True
+
+
+class _MerchantOverrideStorage:
+    def __init__(self) -> None:
+        self.conn = _MerchantOverrideConnection()
 
     @contextmanager
     def connection(self):
@@ -138,6 +177,24 @@ def test_parse_wells_fargo_statement_reclassifies_transfers_benefits_and_card_pa
     ]
 
 
+def test_parse_wells_fargo_statement_treats_payables_as_income() -> None:
+    service = HouseholdTransactionService()
+
+    transactions = service._parse_wells_fargo_statement(
+        (
+            "January 27, 2026 Page 2 of 5\n"
+            "Transaction history\n"
+            "1/20   Pinellas Cty Sch Payables 260120 E575048859 Mariana Leslie  248.00       4,218.13\n"
+            "Totals $248.00 $4,218.13\n"
+        ),
+        "Wells Fargo Everyday Checking",
+    )
+
+    assert len(transactions) == 1
+    assert transactions[0].flow_type == "income"
+    assert transactions[0].category == "Income"
+
+
 def test_parse_ofx_transactions_extracts_credit_card_expenses_and_payments() -> None:
     service = HouseholdTransactionService()
 
@@ -161,6 +218,36 @@ def test_parse_ofx_transactions_extracts_credit_card_expenses_and_payments() -> 
     assert transactions[0].metadata["fitid"] == "abc123"
     assert transactions[1].flow_type == "payment"
     assert float(transactions[1].amount) == 1200.00
+
+
+def test_extract_transactions_treats_credit_card_csv_returns_as_refunds(tmp_path: Path) -> None:
+    service = HouseholdTransactionService()
+    csv_path = tmp_path / "credit-card-activity.csv"
+    csv_path.write_text(
+        (
+            "Date,Description,Amount\n"
+            "04/02/2026,AMAZON MKTPLACE PMTS | Return,30.82\n"
+            "04/01/2026,Amazon.com*B1234 | Sale,-79.98\n"
+        ),
+        encoding="utf-8",
+    )
+
+    transactions = service._extract_transactions(
+        filename=csv_path.name,
+        source_type="credit_card",
+        document_type="statement",
+        extracted_text="credit card csv preview",
+        structured_data={},
+        account_label="Amazon Chase (CC)",
+        review_summary="Credit card export.",
+        stored_path=csv_path,
+    )
+
+    assert len(transactions) == 2
+    assert transactions[0].flow_type == "refund"
+    assert float(transactions[0].amount) == 30.82
+    assert transactions[0].category == "Retail"
+    assert transactions[1].flow_type == "expense"
 
 
 def test_extract_transactions_parses_generic_cash_management_csv(tmp_path: Path) -> None:
@@ -248,13 +335,47 @@ def test_import_document_transactions_holds_future_dated_receipts_for_review() -
         },
     )
 
-    assert result == {"inserted": 0, "updated": 0, "held_for_date_review": 1}
+    assert result == {"inserted": 0, "updated": 0, "deleted": 0, "held_for_date_review": 1}
     assert fake_storage.conn.committed is True
     assert not any("INSERT INTO household_transactions" in sql for sql, _ in fake_storage.conn.executed)
+    assert any("DELETE FROM household_transactions" in sql for sql, _ in fake_storage.conn.executed)
     metadata_update = fake_storage.conn.executed[-1][1]
     assert metadata_update is not None
     assert '"date_quality_summary"' in metadata_update[0]
     assert '"held_for_date_review": 1' in metadata_update[0]
+
+
+def test_import_document_transactions_keeps_transfer_categories_even_with_old_merchant_rule() -> None:
+    service = HouseholdTransactionService()
+    service.storage = _MerchantOverrideStorage()
+
+    result = service.import_document_transactions(
+        document=SimpleNamespace(
+            id="doc-merchant-override",
+            filename="wells.pdf",
+            source_type="bank",
+            document_type="statement",
+            account_label="Wells Fargo Everyday Checking",
+        ),
+        reviewed={
+            "source_type": "bank",
+            "document_type": "statement",
+            "summary": "Wells Fargo statement",
+            "extracted_text": (
+                "February 25, 2026 Page 2 of 5\n"
+                "Transaction history\n"
+                "2/17   Chase Credit Crd Epay 260215 9126729844 Elias Leslie  5,645.34       1,100.00\n"
+                "Totals $5,645.34 $1,100.00\n"
+            ),
+            "structured_data": {},
+        },
+    )
+
+    assert result == {"inserted": 1, "updated": 0, "deleted": 0, "held_for_date_review": 0}
+    assert service.storage.conn.insert_params is not None
+    assert service.storage.conn.insert_params[11] == "transfer_out"
+    assert service.storage.conn.insert_params[12] == "Transfers"
+    assert service.storage.conn.insert_params[13] == "mixed"
 
 
 def test_build_reports_excludes_cash_movement_rows_even_when_stored_as_expense() -> None:
@@ -271,6 +392,7 @@ def test_build_reports_excludes_cash_movement_rows_even_when_stored_as_expense()
                     Decimal("5645.34"),
                     "Bills",
                     "essential",
+                    "expense",
                     "Wells Fargo Everyday Checking",
                     "doc-card-payment",
                     "Chase Credit Crd Epay 260215 9126729844 Elias Leslie",
@@ -278,6 +400,7 @@ def test_build_reports_excludes_cash_movement_rows_even_when_stored_as_expense()
                     "bank",
                     "payment.csv",
                     "hash-card-payment",
+                    {},
                 ),
                 (
                     "txn-utility",
@@ -288,6 +411,7 @@ def test_build_reports_excludes_cash_movement_rows_even_when_stored_as_expense()
                     Decimal("177.51"),
                     "Bills",
                     "essential",
+                    "expense",
                     "Wells Fargo Everyday Checking",
                     "doc-utility",
                     "Dukeenergy Bill Pay 910066616132 Elias B Leslie",
@@ -295,6 +419,7 @@ def test_build_reports_excludes_cash_movement_rows_even_when_stored_as_expense()
                     "bank",
                     "utility.csv",
                     "hash-utility",
+                    {},
                 ),
             ],
             [],
@@ -307,6 +432,64 @@ def test_build_reports_excludes_cash_movement_rows_even_when_stored_as_expense()
     assert reports.executive.average_monthly_essentials == 177.51
     assert reports.executive.tracked_expense_count == 1
     assert [transaction.merchant for transaction in reports.recent_transactions] == [
+        "Dukeenergy Bill Pay 910066616132 Elias B Leslie"
+    ]
+
+
+def test_build_spending_view_excludes_venmo_cash_movement_even_if_stored_as_expense() -> None:
+    today = date.today()
+    service = HouseholdTransactionService()
+    service.storage = _SequenceStorage(
+        [
+            [
+                (
+                    "txn-venmo",
+                    None,
+                    datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                    "Venmo Payment 260117 1047668918292 Mariana Leslie",
+                    "Venmo Payment 260117 1047668918292 Mariana Leslie",
+                    Decimal("30.00"),
+                    "Household",
+                    "mixed",
+                    "expense",
+                    "Wells Fargo Everyday Checking",
+                    "doc-venmo",
+                    "Venmo Payment 260117 1047668918292 Mariana Leslie",
+                    "statement",
+                    "bank",
+                    "venmo.csv",
+                    "hash-venmo",
+                    {},
+                ),
+                (
+                    "txn-utility",
+                    None,
+                    datetime.combine(today - timedelta(days=1), datetime.min.time(), tzinfo=UTC),
+                    "Dukeenergy Bill Pay 910066616132 Elias B Leslie",
+                    "Dukeenergy Bill Pay 910066616132 Elias B Leslie",
+                    Decimal("177.51"),
+                    "Bills",
+                    "essential",
+                    "expense",
+                    "Wells Fargo Everyday Checking",
+                    "doc-utility",
+                    "Dukeenergy Bill Pay 910066616132 Elias B Leslie",
+                    "statement",
+                    "bank",
+                    "utility.csv",
+                    "hash-utility",
+                    {},
+                ),
+            ],
+            [],
+        ]
+    )
+
+    spending = service.build_spending_view(window="1m")
+
+    assert spending.summary.total_spend == 177.51
+    assert spending.summary.transaction_count == 1
+    assert [row.description for row in spending.transactions] == [
         "Dukeenergy Bill Pay 910066616132 Elias B Leslie"
     ]
 
@@ -326,6 +509,7 @@ def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() ->
                     Decimal("41.81"),
                     "Retail",
                     "discretionary",
+                    "expense",
                     "Chase Amazon card",
                     "doc-amazon",
                     "Amazon",
@@ -333,6 +517,7 @@ def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() ->
                     "credit_card",
                     "chase.csv",
                     "hash-amazon",
+                    {},
                 ),
                 (
                     "txn-grocery",
@@ -343,6 +528,7 @@ def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() ->
                     Decimal("155.75"),
                     "Groceries",
                     "essential",
+                    "expense",
                     "Chase Amazon card",
                     "doc-grocery",
                     "Walmart (Store #5831)",
@@ -350,6 +536,7 @@ def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() ->
                     "credit_card",
                     "chase.csv",
                     "hash-grocery",
+                    {},
                 ),
                 (
                     "txn-old",
@@ -360,6 +547,7 @@ def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() ->
                     Decimal("75.00"),
                     "Groceries",
                     "essential",
+                    "expense",
                     "Old card",
                     "doc-old",
                     "Old Grocery",
@@ -367,6 +555,7 @@ def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() ->
                     "credit_card",
                     "old.csv",
                     "hash-old",
+                    {},
                 ),
             ],
             [
@@ -394,7 +583,7 @@ def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() ->
     assert spending.summary.coverage_months == 1
     assert spending.summary.average_monthly_spend == 197.56
     assert [category.category for category in spending.categories] == [
-        "Groceries",
+        "Household",
         "Retail",
     ]
     assert len(spending.transactions) == 2
@@ -403,6 +592,65 @@ def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() ->
         "Walmart (Store #5831)",
     ]
     assert all(row.source_kind == "transaction" for row in spending.transactions)
+
+
+def test_build_spending_view_nets_credit_card_returns_against_spend() -> None:
+    today = date.today()
+    service = HouseholdTransactionService()
+    service.storage = _SequenceStorage(
+        [
+            [
+                (
+                    "txn-sale",
+                    "acct-chase",
+                    datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                    "AMAZON MKTPL*B70K66JV1 | Sale",
+                    "AMAZON MKTPL*B70K66JV1 | Sale",
+                    Decimal("79.98"),
+                    "Retail",
+                    "discretionary",
+                    "expense",
+                    "Amazon Chase (CC)",
+                    "doc-sale",
+                    "Amazon",
+                    "statement",
+                    "credit_card",
+                    "activity.csv",
+                    "hash-sale",
+                    {},
+                ),
+                (
+                    "txn-return",
+                    "acct-chase",
+                    datetime.combine(today - timedelta(days=1), datetime.min.time(), tzinfo=UTC),
+                    "AMAZON MKTPLACE PMTS | Return",
+                    "Amazon",
+                    Decimal("30.82"),
+                    "Transfers",
+                    "mixed",
+                    "payment",
+                    "Amazon Chase (CC)",
+                    "doc-return",
+                    "Amazon",
+                    "statement",
+                    "credit_card",
+                    "activity.csv",
+                    "hash-return",
+                    {},
+                ),
+            ],
+            [],
+        ]
+    )
+
+    spending = service.build_spending_view(window="1m")
+
+    assert spending.summary.transaction_count == 2
+    assert spending.summary.total_spend == 49.16
+    assert len(spending.categories) == 1
+    assert spending.categories[0].category == "Retail"
+    assert spending.categories[0].total_spend == 49.16
+    assert [row.amount for row in spending.transactions] == [79.98, -30.82]
 
 
 def test_build_spending_view_dedupes_same_account_statement_and_activity_rows() -> None:
@@ -421,6 +669,7 @@ def test_build_spending_view_dedupes_same_account_statement_and_activity_rows() 
                     Decimal("26.76"),
                     "Retail",
                     "discretionary",
+                    "expense",
                     "Chase Amazon card",
                     "doc-statement",
                     "Amazon",
@@ -428,6 +677,7 @@ def test_build_spending_view_dedupes_same_account_statement_and_activity_rows() 
                     "credit_card",
                     "statement.pdf",
                     "hash-statement",
+                    {},
                 ),
                 (
                     "txn-export",
@@ -438,6 +688,7 @@ def test_build_spending_view_dedupes_same_account_statement_and_activity_rows() 
                     Decimal("26.76"),
                     "Retail",
                     "discretionary",
+                    "expense",
                     "Chase credit card activity export",
                     "doc-export",
                     "Amazon",
@@ -445,6 +696,7 @@ def test_build_spending_view_dedupes_same_account_statement_and_activity_rows() 
                     "credit_card",
                     "activity.csv",
                     "hash-export",
+                    {},
                 ),
             ],
             [],
@@ -456,6 +708,272 @@ def test_build_spending_view_dedupes_same_account_statement_and_activity_rows() 
     assert spending.summary.transaction_count == 1
     assert spending.summary.total_spend == 26.76
     assert len(spending.transactions) == 1
+
+
+def test_build_spending_view_dedupes_phone_and_location_variant_statement_rows() -> None:
+    today = date.today()
+    household_account_id = "acct-chase"
+    service = HouseholdTransactionService()
+    service.storage = _SequenceStorage(
+        [
+            [
+                (
+                    "txn-statement",
+                    household_account_id,
+                    datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                    "Spotify USA 877-7781161 NY",
+                    "Spotify USA 877-7781161 NY",
+                    Decimal("21.58"),
+                    "Household",
+                    "mixed",
+                    "expense",
+                    "Amazon Chase (CC)",
+                    "doc-statement",
+                    "Spotify USA 877-7781161 NY",
+                    "statement",
+                    "credit_card",
+                    "statement.pdf",
+                    "hash-statement",
+                    {},
+                ),
+                (
+                    "txn-export",
+                    household_account_id,
+                    datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                    "Spotify USA | Sale",
+                    "Spotify USA | Sale",
+                    Decimal("21.58"),
+                    "Household",
+                    "mixed",
+                    "expense",
+                    "Amazon Chase (CC)",
+                    "doc-export",
+                    "Spotify USA | Sale",
+                    "statement",
+                    "credit_card",
+                    "activity.csv",
+                    "hash-export",
+                    {},
+                ),
+            ],
+            [],
+        ]
+    )
+
+    spending = service.build_spending_view(window="1m")
+
+    assert spending.summary.transaction_count == 1
+    assert spending.summary.total_spend == 21.58
+    assert len(spending.transactions) == 1
+    assert spending.transactions[0].category == "Subscriptions"
+
+
+def test_build_spending_view_reclassifies_obvious_household_miscategorizations() -> None:
+    today = date.today()
+    service = HouseholdTransactionService()
+    service.storage = _SequenceStorage(
+        [
+            [
+                (
+                    "txn-thai",
+                    None,
+                    datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                    "THAI BAY & SUSHI RESTAURA | Sale",
+                    "THAI BAY & SUSHI RESTAURA | Sale",
+                    Decimal("127.96"),
+                    "Household",
+                    "mixed",
+                    "expense",
+                    "Amazon Chase (CC)",
+                    "doc-thai",
+                    "THAI BAY & SUSHI RESTAURA | Sale",
+                    "statement",
+                    "credit_card",
+                    "statement.pdf",
+                    "hash-thai",
+                    {},
+                ),
+                (
+                    "txn-frontier",
+                    None,
+                    datetime.combine(today - timedelta(days=1), datetime.min.time(), tzinfo=UTC),
+                    "DIRECT DEBIT FRONTIER COMMUBILL PAY (Cash)",
+                    "DIRECT DEBIT FRONTIER COMMUBILL PAY (Cash)",
+                    Decimal("34.99"),
+                    "Household",
+                    "mixed",
+                    "expense",
+                    "Cash Management Account (CMA)",
+                    "doc-frontier",
+                    "DIRECT DEBIT FRONTIER COMMUBILL PAY (Cash)",
+                    "brokerage_statement",
+                    "brokerage",
+                    "cash.csv",
+                    "hash-frontier",
+                    {},
+                ),
+            ],
+            [],
+        ]
+    )
+
+    spending = service.build_spending_view(window="1m")
+
+    categories = {tx.description: tx.category for tx in spending.transactions}
+    assert categories["THAI BAY & SUSHI RESTAURA | Sale"] == "Dining"
+    assert categories["DIRECT DEBIT FRONTIER COMMUBILL PAY (Cash)"] == "Bills"
+
+
+def test_build_spending_view_treats_mixed_big_box_merchants_conservatively() -> None:
+    today = date.today()
+    service = HouseholdTransactionService()
+    service.storage = _SequenceStorage(
+        [
+            [
+                (
+                    "txn-walmart-store",
+                    None,
+                    datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                    "WM SUPERCENTER #5831 | Sale",
+                    "WM SUPERCENTER #5831 | Sale",
+                    Decimal("155.75"),
+                    "Groceries",
+                    "essential",
+                    "expense",
+                    "Amazon Chase (CC)",
+                    "doc-walmart-store",
+                    "WM SUPERCENTER #5831 | Sale",
+                    "statement",
+                    "credit_card",
+                    "statement.pdf",
+                    "hash-walmart-store",
+                    {},
+                ),
+                (
+                    "txn-walmart-online",
+                    None,
+                    datetime.combine(today - timedelta(days=1), datetime.min.time(), tzinfo=UTC),
+                    "WALMART.COM 800-925-6278 AR",
+                    "WALMART.COM 800-925-6278 AR",
+                    Decimal("181.84"),
+                    "Groceries",
+                    "essential",
+                    "expense",
+                    "Amazon Chase (CC)",
+                    "doc-walmart-online",
+                    "WALMART.COM 800-925-6278 AR",
+                    "statement",
+                    "credit_card",
+                    "statement.pdf",
+                    "hash-walmart-online",
+                    {},
+                ),
+                (
+                    "txn-publix",
+                    None,
+                    datetime.combine(today - timedelta(days=2), datetime.min.time(), tzinfo=UTC),
+                    "PUBLIX #1309 | Sale",
+                    "PUBLIX #1309 | Sale",
+                    Decimal("45.88"),
+                    "Household",
+                    "mixed",
+                    "expense",
+                    "Amazon Chase (CC)",
+                    "doc-publix",
+                    "PUBLIX #1309 | Sale",
+                    "statement",
+                    "credit_card",
+                    "statement.pdf",
+                    "hash-publix",
+                    {},
+                ),
+            ],
+            [],
+        ]
+    )
+
+    spending = service.build_spending_view(window="1m")
+
+    categories = {tx.description: tx.category for tx in spending.transactions}
+    assert categories["WM SUPERCENTER #5831 | Sale"] == "Household"
+    assert categories["WALMART.COM 800-925-6278 AR"] == "Retail"
+    assert categories["PUBLIX #1309 | Sale"] == "Groceries"
+
+
+def test_build_spending_view_reclassifies_auto_and_airport_merchants() -> None:
+    today = date.today()
+    service = HouseholdTransactionService()
+    service.storage = _SequenceStorage(
+        [
+            [
+                (
+                    "txn-jiffy",
+                    None,
+                    datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                    "JIFFY LUBE #886 | Sale",
+                    "JIFFY LUBE #886 | Sale",
+                    Decimal("32.09"),
+                    "Household",
+                    "mixed",
+                    "expense",
+                    "Amazon Chase (CC)",
+                    "doc-jiffy",
+                    "JIFFY LUBE #886 | Sale",
+                    "statement",
+                    "credit_card",
+                    "statement.pdf",
+                    "hash-jiffy",
+                    {},
+                ),
+                (
+                    "txn-airport",
+                    None,
+                    datetime.combine(today - timedelta(days=1), datetime.min.time(), tzinfo=UTC),
+                    "International Tampa | Sale",
+                    "International Tampa | Sale",
+                    Decimal("7.68"),
+                    "Subscriptions",
+                    "discretionary",
+                    "expense",
+                    "Amazon Chase (CC)",
+                    "doc-airport",
+                    "International Tampa | Sale",
+                    "statement",
+                    "credit_card",
+                    "statement.pdf",
+                    "hash-airport",
+                    {},
+                ),
+                (
+                    "txn-bucees",
+                    None,
+                    datetime.combine(today - timedelta(days=2), datetime.min.time(), tzinfo=UTC),
+                    "BUC-EE'S #0051 FORT VALLEY GA",
+                    "BUC-EE'S #0051 FORT VALLEY GA",
+                    Decimal("67.18"),
+                    "Household",
+                    "mixed",
+                    "expense",
+                    "Amazon Chase (CC)",
+                    "doc-bucees",
+                    "BUC-EE'S #0051 FORT VALLEY GA",
+                    "statement",
+                    "credit_card",
+                    "statement.pdf",
+                    "hash-bucees",
+                    {},
+                ),
+            ],
+            [],
+        ]
+    )
+
+    spending = service.build_spending_view(window="1m")
+
+    categories = {tx.description: tx.category for tx in spending.transactions}
+    assert categories["JIFFY LUBE #886 | Sale"] == "Transportation"
+    assert categories["International Tampa | Sale"] == "Travel"
+    assert categories["BUC-EE'S #0051 FORT VALLEY GA"] == "Gas"
 
 
 def test_dates_to_cadence_accepts_two_observations_as_provisional_signal() -> None:

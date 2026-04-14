@@ -430,6 +430,24 @@ describe('MoneyPage', () => {
     expect(screen.getByText('Document Center')).toBeInTheDocument()
   })
 
+  it('opens spending from the spending tab query param', async () => {
+    window.history.replaceState({}, '', '/money?tab=spending')
+    const { default: MoneyPage } = await import('../money/page')
+
+    render(<MoneyPage />)
+
+    expect(screen.getByText('Money Spending Panel')).toBeInTheDocument()
+  })
+
+  it('opens ledger from the ledger tab query param', async () => {
+    window.history.replaceState({}, '', '/money?tab=ledger')
+    const { default: MoneyPage } = await import('../money/page')
+
+    render(<MoneyPage />)
+
+    expect(screen.getByText('Money Ledger Panel')).toBeInTheDocument()
+  })
+
   it('keeps planning-only document requirements out of the default money intake flow', async () => {
     useHouseholdDashboardMock.mockReturnValue({
       data: {

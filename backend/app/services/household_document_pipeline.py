@@ -278,6 +278,7 @@ class HouseholdDocumentPipeline:
     ) -> None:
         stored_path = document.metadata.get("stored_path")
         if not isinstance(stored_path, str) or not stored_path:
+            self._recover_review_from_latest_persisted_review(service, document)
             return
         stored_file = Path(stored_path)
         if not stored_file.exists():
@@ -286,6 +287,7 @@ class HouseholdDocumentPipeline:
                 document_id=document.id,
                 stored_path=stored_path,
             )
+            self._recover_review_from_latest_persisted_review(service, document)
             return
 
         attempts = 0
@@ -338,6 +340,76 @@ class HouseholdDocumentPipeline:
                 reconciliation_summary=reconciliation_summary,
             )
             conn.commit()
+
+    def _load_latest_review_payload(
+        self,
+        service: HouseholdFinanceService,
+        *,
+        document: HouseholdDocument,
+    ) -> dict[str, object] | None:
+        with service.storage.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT summary, confidence, extracted_text, structured_data
+                FROM household_document_reviews
+                WHERE document_id = %s
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                [document.id],
+            ).fetchone()
+        if row is None:
+            return None
+        structured_data = row[3] if isinstance(row[3], dict) else {}
+        extracted_text = row[2] if isinstance(row[2], str) else ""
+        return {
+            "source_type": document.source_type,
+            "document_type": document.document_type,
+            "summary": row[0] if row[0] is not None else None,
+            "confidence": to_float(row[1]),
+            "extracted_text": extracted_text,
+            "structured_data": structured_data,
+        }
+
+    def _recover_review_from_latest_persisted_review(
+        self,
+        service: HouseholdFinanceService,
+        document: HouseholdDocument,
+    ) -> bool:
+        reviewed = self._load_latest_review_payload(service, document=document)
+        if reviewed is None:
+            logger.warning(
+                "household_document_latest_review_missing_for_recovery",
+                document_id=document.id,
+            )
+            return False
+        application_summary = self.apply_review_outputs(
+            service,
+            document=document,
+            reviewed=reviewed,
+        )
+        reconciliation_summary = self._build_reconciliation_summary(
+            document=document,
+            reviewed=reviewed,
+            application_summary=application_summary,
+        )
+        if reconciliation_summary["status"] != "clear":
+            application_summary["needs_follow_up"] = True
+        with service.storage.connection() as conn:
+            update_document_application_summary(
+                conn,
+                document_id=document.id,
+                application_summary=application_summary,
+                reconciliation_summary=reconciliation_summary,
+            )
+            conn.commit()
+        logger.info(
+            "household_document_reapplied_latest_review",
+            document_id=document.id,
+            status=application_summary.get("status"),
+            impacts=application_summary.get("impacts"),
+        )
+        return True
 
     def _persist_review(
         self,

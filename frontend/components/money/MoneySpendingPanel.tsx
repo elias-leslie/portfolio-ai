@@ -120,6 +120,22 @@ export function MoneySpendingPanel() {
     })
   }, [deferredSearch, selectedAccount, selectedCategory, spending?.transactions])
 
+  const dailyAverage = useMemo(() => {
+    const startDate = spending?.summary.startDate
+    const endDate = spending?.summary.endDate
+    const totalSpend = spending?.summary.totalSpend ?? 0
+    if (!startDate || !endDate) {
+      return totalSpend
+    }
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    const diff = Math.max(
+      1,
+      Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1,
+    )
+    return totalSpend / diff
+  }, [spending?.summary.endDate, spending?.summary.startDate, spending?.summary.totalSpend])
+
   if (error) {
     return (
       <LoadErrorState
@@ -176,6 +192,11 @@ export function MoneySpendingPanel() {
                   )}`
                 : ''}
             </p>
+            <p className="text-xs text-text-muted">
+              Canonical expense rows only. Transfers, payroll, card payments,
+              duplicate overlaps, and raw import lines stay out of spend totals.
+              Returns and refunds net against spend automatically.
+            </p>
           </div>
           <div className="space-y-2">
             <Input
@@ -194,6 +215,24 @@ export function MoneySpendingPanel() {
                 {accountOptions.map((label) => (
                   <SelectItem key={label} value={label}>
                     {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={selectedCategory ?? 'all'}
+              onValueChange={(value) =>
+                setSelectedCategory(value === 'all' ? null : value)
+              }
+            >
+              <SelectTrigger aria-label="Filter spending by category">
+                <SelectValue placeholder="All categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {(spending?.categories ?? []).map((entry) => (
+                  <SelectItem key={entry.category} value={entry.category}>
+                    {entry.category}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -230,18 +269,22 @@ export function MoneySpendingPanel() {
           </div>
           <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
             <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
-              Transactions
+              Avg / day
             </p>
             <p className="mt-2 text-base font-semibold text-text">
-              {spending?.summary.transactionCount ?? 0}
+              {formatCurrency(dailyAverage, { decimals: 2 })}
             </p>
           </div>
           <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
             <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
-              Covered accounts
+              Counted rows
             </p>
             <p className="mt-2 text-base font-semibold text-text">
-              {spending?.summary.accountCount ?? 0}
+              {spending?.summary.transactionCount ?? 0}
+            </p>
+            <p className="mt-1 text-xs text-text-muted">
+              {spending?.summary.accountCount ?? 0} account
+              {(spending?.summary.accountCount ?? 0) === 1 ? '' : 's'}
             </p>
           </div>
         </div>
@@ -250,11 +293,11 @@ export function MoneySpendingPanel() {
       <SectionCard
         variant="surface"
         title="Where Money Went"
-        description={`Category totals for ${spending?.summary.timeframeLabel ?? 'the selected timeframe'}.`}
+        description={`Category totals for ${spending?.summary.timeframeLabel ?? 'the selected timeframe'}. Click a row or use the filter to drill into every matching transaction.`}
       >
         <div className="overflow-hidden rounded-2xl border border-border/40 bg-surface/45">
           <div className="overflow-x-auto">
-            <Table className="min-w-[860px]">
+            <Table className="min-w-[920px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Category</TableHead>
@@ -343,25 +386,30 @@ export function MoneySpendingPanel() {
         title={selectedCategory ? `${selectedCategory} transactions` : 'Transactions'}
         description={`Every matching transaction in ${spending?.summary.timeframeLabel ?? 'the selected timeframe'}. No hidden recent slice.`}
         actions={
-          selectedCategory ? (
+          selectedCategory || selectedAccount !== 'all' || search.trim() ? (
             <Button
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => setSelectedCategory(null)}
+              onClick={() => {
+                setSelectedCategory(null)
+                setSelectedAccount('all')
+                setSearch('')
+              }}
             >
-              Clear category
+              Clear filters
             </Button>
           ) : undefined
         }
       >
         <div className="overflow-hidden rounded-2xl border border-border/40 bg-surface/45">
           <div className="overflow-x-auto">
-            <Table className="min-w-[1120px]">
+            <Table className="min-w-[1280px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>
                 <TableHead>Merchant</TableHead>
+                <TableHead>Description</TableHead>
                 <TableHead>Account</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Type</TableHead>
@@ -372,13 +420,13 @@ export function MoneySpendingPanel() {
             <TableBody>
               {isLoading && !spending ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-sm text-text-muted">
+                  <TableCell colSpan={8} className="py-10 text-center text-sm text-text-muted">
                     Loading transactions...
                   </TableCell>
                 </TableRow>
               ) : visibleTransactions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-sm text-text-muted">
+                  <TableCell colSpan={8} className="py-10 text-center text-sm text-text-muted">
                     No transactions match current filters.
                   </TableCell>
                 </TableRow>
@@ -390,16 +438,18 @@ export function MoneySpendingPanel() {
                     <TableCell className="align-top font-medium text-text">
                       {formatSpendingDate(row.date)}
                     </TableCell>
-                    <TableCell className="max-w-[420px] align-top">
-                      <div className="truncate font-medium text-text">
+                    <TableCell className="max-w-[260px] align-top">
+                      <div className="line-clamp-2 whitespace-normal font-medium text-text">
                         {row.merchant}
                       </div>
-                      <div className="truncate text-xs text-text-muted">
+                    </TableCell>
+                    <TableCell className="max-w-[460px] align-top text-xs text-text-muted">
+                      <div className="line-clamp-2 whitespace-normal">
                         {row.description}
                       </div>
                     </TableCell>
-                    <TableCell className="max-w-[220px] align-top">
-                      <div className="truncate text-text">
+                    <TableCell className="max-w-[240px] align-top">
+                      <div className="line-clamp-2 whitespace-normal text-text">
                         {row.accountLabel ?? '—'}
                       </div>
                     </TableCell>

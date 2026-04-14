@@ -21,6 +21,39 @@ logger = get_logger(__name__)
 _HOUSEHOLD_NOTIFICATION_PREFIX = "household_inbox:"
 _REVIEW_LOOKBACK = timedelta(days=3)
 _REVIEW_LIMIT = 24
+_SUSPICIOUS_TRANSACTION_REPLAY_SQL = """
+                           OR EXISTS (
+                                SELECT 1
+                                FROM household_transactions tx
+                                WHERE tx.document_id = household_documents.id
+                                  AND (
+                                        (
+                                            COALESCE(tx.metadata->>'source', '') = 'receipt_summary'
+                                            AND COALESCE(household_documents.source_type, '') <> 'receipt'
+                                        )
+                                     OR tx.transaction_date::date > CURRENT_DATE
+                                     OR (
+                                            tx.flow_type = 'expense'
+                                            AND (
+                                                lower(tx.description) LIKE '%%credit crd epay%%'
+                                             OR lower(tx.description) LIKE '%%inst xfer%%'
+                                             OR lower(tx.description) LIKE '%%moneyline%%'
+                                             OR lower(tx.description) LIKE '%%zelle from%%'
+                                             OR lower(tx.description) LIKE '%%zelle to%%'
+                                             OR lower(tx.description) LIKE '%%ui benefit%%'
+                                             OR lower(tx.description) LIKE '%%payroll%%'
+                                             OR lower(tx.description) LIKE '%%payables%%'
+                                             OR lower(tx.description) LIKE '%%salary%%'
+                                             OR lower(tx.description) LIKE '%%atm withdrawal%%'
+                                             OR lower(tx.description) LIKE '%%transfer from%%'
+                                             OR lower(tx.description) LIKE '%%transfer to%%'
+                                             OR lower(tx.description) LIKE '%%online transfer%%'
+                                             OR lower(tx.description) LIKE '%%recurring transfer%%'
+                                        )
+                                     )
+                                  )
+                           )
+"""
 
 
 def _priority_to_severity(priority: str) -> str:
@@ -66,7 +99,7 @@ class JennyHouseholdMaintenanceService:
         cutoff = (datetime.now(UTC) - _REVIEW_LOOKBACK).isoformat()
         with service.storage.connection() as conn:
             rows = conn.execute(
-                """
+                f"""
                 SELECT id, metadata->>'stored_path' AS stored_path, status, review_status
                 FROM household_documents
                 WHERE status IN ('staged', 'needs_review')
@@ -93,6 +126,7 @@ class JennyHouseholdMaintenanceService:
                            OR COALESCE((metadata->'application_summary'->>'needs_follow_up')::boolean, false)
                            OR COALESCE(metadata->'reconciliation_summary'->>'status', '') = ''
                            OR COALESCE(metadata->'reconciliation_summary'->>'status', '') = 'needs_retry'
+                           {_SUSPICIOUS_TRANSACTION_REPLAY_SQL}
                         )
                    )
                    OR (
@@ -120,6 +154,7 @@ class JennyHouseholdMaintenanceService:
                            OR COALESCE((metadata->'application_summary'->>'needs_follow_up')::boolean, false)
                            OR COALESCE(metadata->'reconciliation_summary'->>'status', '') = ''
                            OR COALESCE(metadata->'reconciliation_summary'->>'status', '') = 'needs_retry'
+                           {_SUSPICIOUS_TRANSACTION_REPLAY_SQL}
                         )
                    )
                 ORDER BY uploaded_at DESC
@@ -161,6 +196,7 @@ class JennyHouseholdMaintenanceService:
         }
 
     def _recover_document_without_source(self, service: Any, document_id: str) -> bool:
+        service.household_service.review_document(document_id)
         document = service.household_service.get_document(document_id)
         if document is None:
             return False

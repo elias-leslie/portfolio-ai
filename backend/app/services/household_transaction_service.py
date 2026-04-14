@@ -98,7 +98,13 @@ def _classify_statement_flow(description: str) -> str:
 
 def _classify_wells_flow(description: str) -> str:
     normalized = description.lower()
-    if "payroll" in normalized or "deposit" in normalized or "ui benefit" in normalized:
+    if (
+        "payroll" in normalized
+        or "deposit" in normalized
+        or "ui benefit" in normalized
+        or "payables" in normalized
+        or "salary" in normalized
+    ):
         return "income"
     if "transfer from" in normalized or "zelle from" in normalized:
         return "transfer_in"
@@ -106,9 +112,12 @@ def _classify_wells_flow(description: str) -> str:
         "transfer to" in normalized
         or "zelle to" in normalized
         or "credit crd epay" in normalized
+        or "cepay" in normalized
         or "inst xfer" in normalized
         or "moneyline" in normalized
         or "atm withdrawal" in normalized
+        or "online transfer" in normalized
+        or "recurring transfer" in normalized
     ):
         return "transfer_out"
     return "expense"
@@ -117,21 +126,24 @@ def _classify_wells_flow(description: str) -> str:
 def _classify_merchant(*, raw_merchant: str, description: str, amount: float | None = None) -> tuple[str, str]:
     normalized = _merchant_root(f"{raw_merchant} {description}")
     rules = [
-        (["payroll", "ui benefit"], ("Income", "essential")),
+        (["payroll", "ui benefit", "payables", "salary", "wages"], ("Income", "essential")),
         (["zelle from", "transfer from"], ("Transfers", "mixed")),
-        (["credit crd epay", "payment thank you", "inst xfer", "online transfer", "recurring transfer", "moneyline", "zelle to"], ("Transfers", "mixed")),
+        (["credit crd epay", "payment thank you", "inst xfer", "online transfer", "recurring transfer", "moneyline", "zelle to", "venmo payment"], ("Transfers", "mixed")),
         (["atm withdrawal"], ("Cash", "mixed")),
-        (["walmart", "wal mart", "wm supercenter", "publix", "whole foods", "food patch", "aldi", "kroger", "costco", "trader joe"], ("Groceries", "essential")),
-        (["dukeenergy", "duke energy", "utilities", "mortgage", "comcast", "xfinity", "att", "a t t", "verizon", "tmobile", "t mobile", "spectrum"], ("Bills", "essential")),
-        (["geico", "statefarm", "state farm", "progressive", "allstate", "insurance"], ("Insurance", "essential")),
-        (["cvs", "walgreens", "urgent care", "pharmacy", "medical", "healthcare", "doctor", "dental"], ("Healthcare", "essential")),
-        (["shell", "speedway", "gas", "chevron", "exxon", "bp"], ("Gas", "essential")),
-        (["uber", "lyft", "parking", "toll"], ("Transportation", "discretionary")),
+        (["walmart com"], ("Retail", "discretionary")),
+        (["walmart", "wal mart", "wal-mart", "wm supercenter", "target", "costco", "sam's club", "sams club"], ("Household", "mixed")),
+        (["publix", "whole foods", "wholefds", "food patch", "aldi", "kroger", "trader joe"], ("Groceries", "essential")),
+        (["dukeenergy", "duke energy", "utilities", "mortgage", "comcast", "xfinity", "att", "a t t", "verizon", "tmobile", "t mobile", "spectrum", "frontier", "waste pro"], ("Bills", "essential")),
+        (["geico", "statefarm", "state farm", "progressive", "allstate", "insurance", "ins prem"], ("Insurance", "essential")),
+        (["cvs", "walgreens", "urgent care", "pharmacy", "medical", "healthcare", "doctor", "dental", "ortho", "labcorp", "dermatology", "womencare", "family care"], ("Healthcare", "essential")),
+        (["shell", "speedway", "gas", "chevron", "exxon", "texaco", "marathon", "wawa", "circle k", "7-eleven", "7 eleven", "buc-ee", "buc ee"], ("Gas", "essential")),
+        (["uber", "lyft", "parking", "toll", "sunpass", "jiffy lube", "valvoline", "midas", "firestone", "pep boys"], ("Transportation", "essential")),
         (["lowes", "lowe s", "home depot", "menards", "ace hardware"], ("Home", "discretionary")),
-        (["planet fitness", "gym", "ymca", "fitness"], ("Fitness", "discretionary")),
-        (["spotify", "cloudflare", "prime", "netflix", "hulu", "disney", "hbo", "apple music", "youtube"], ("Subscriptions", "discretionary")),
-        (["target", "tjmaxx", "american eagle", "sephora", "amazon"], ("Retail", "discretionary")),
-        (["chipotle", "bonefish", "cantina", "mcdonald", "starbucks", "dunkin", "chick fil", "wendy", "taco bell", "subway", "pizza", "grubhub", "doordash", "ubereats"], ("Dining", "discretionary")),
+        (["planet fitness", "gym", "ymca", "fitness", "largo rec", "rec center"], ("Fitness", "discretionary")),
+        (["spotify", "cloudflare", "prime", "netflix", "hulu", "disney", "hbo", "apple music", "youtube", "openai", "chatgpt", "claude", "anthropic", "google one", "sunbiz", "chamber"], ("Subscriptions", "discretionary")),
+        (["target", "tjmaxx", "tj maxx", "t j maxx", "american eagle", "sephora", "amazon", "dillard", "aerie", "poshmark", "alo-yoga", "alo yoga", "marshalls", "michaels", "adidas", "edikted"], ("Retail", "discretionary")),
+        (["carnival", "hotel", "suites", "airbnb", "marriott", "hilton", "delta", "united", "southwest", "international tampa", "tampa intl", "airport"], ("Travel", "discretionary")),
+        (["chipotle", "bonefish", "cantina", "mcdonald", "starbucks", "dunkin", "chick fil", "wendy", "taco bell", "subway", "pizza", "grubhub", "doordash", "ubereats", "thai", "sushi", "cinco soles", "auntie anne"], ("Dining", "discretionary")),
     ]
     for keywords, classification in rules:
         if any(keyword in normalized for keyword in keywords):
@@ -145,6 +157,109 @@ def _classify_merchant(*, raw_merchant: str, description: str, amount: float | N
             return ("Bills", "essential")
 
     return ("Household", "mixed")
+
+
+def _classification_for_flow(
+    *,
+    raw_merchant: str,
+    description: str,
+    amount: float | None,
+    flow_type: str,
+) -> tuple[str, str]:
+    if flow_type == "income":
+        return ("Income", "essential")
+    if flow_type == "refund":
+        return _classify_merchant(
+            raw_merchant=raw_merchant,
+            description=description,
+            amount=amount,
+        )
+    if flow_type in {"payment", "transfer_in", "transfer_out", "investment"}:
+        return ("Transfers", "mixed")
+    return _classify_merchant(
+        raw_merchant=raw_merchant,
+        description=description,
+        amount=amount,
+    )
+
+
+def _looks_like_mixed_big_box_merchant(*, raw_merchant: str, description: str) -> bool:
+    normalized = _merchant_root(f"{raw_merchant} {description}")
+    return any(
+        keyword in normalized
+        for keyword in (
+            "walmart",
+            "wal mart",
+            "wal mart",
+            "wm supercenter",
+            "target",
+            "costco",
+            "sam s club",
+            "sams club",
+        )
+    )
+
+
+def _is_refund_like_text(*, raw_merchant: str, description: str) -> bool:
+    normalized = _merchant_root(f"{raw_merchant} {description}")
+    return "refund" in normalized or "return" in normalized
+
+
+def _effective_transaction_flow(
+    *,
+    flow_type: str | None,
+    raw_merchant: str,
+    description: str,
+    source_type: str | None = None,
+) -> str:
+    normalized = (flow_type or "").strip().lower()
+    if _is_refund_like_text(raw_merchant=raw_merchant, description=description):
+        return "refund"
+    if normalized:
+        return normalized
+    if (source_type or "").strip().lower() == "credit_card":
+        return _classify_statement_flow(description)
+    return "expense"
+
+
+def _effective_transaction_classification(
+    *,
+    flow_type: str,
+    raw_merchant: str,
+    description: str,
+    amount: float | None,
+    stored_category: str | None,
+    stored_essentiality: str | None,
+    merchant_metadata: dict[str, Any] | None,
+) -> tuple[str, str]:
+    if isinstance(merchant_metadata, dict) and isinstance(merchant_metadata.get("manual_rule"), dict):
+        return (
+            (stored_category or "Uncategorized").strip() or "Uncategorized",
+            (stored_essentiality or "mixed").strip() or "mixed",
+        )
+
+    resolved_category, resolved_essentiality = _classification_for_flow(
+        raw_merchant=raw_merchant,
+        description=description,
+        amount=amount,
+        flow_type=flow_type,
+    )
+    stored_category_text = (stored_category or "").strip()
+    stored_essentiality_text = (stored_essentiality or "").strip()
+    if (
+        resolved_category == "Household"
+        and stored_category_text
+        and stored_category_text not in {"Household", "Uncategorized"}
+        and not _looks_like_mixed_big_box_merchant(
+            raw_merchant=raw_merchant,
+            description=description,
+        )
+    ):
+        return (
+            stored_category_text,
+            stored_essentiality_text or resolved_essentiality,
+        )
+    return resolved_category, resolved_essentiality
 
 
 def _parse_date_value(raw_value: str) -> date | None:
@@ -281,7 +396,9 @@ class HouseholdTransactionService:
 
         inserted = 0
         updated = 0
+        deleted = 0
         now = datetime.now(UTC).isoformat()
+        current_row_hashes: set[str] = set()
 
         with self.storage.connection() as conn:
             for transaction in transactions:
@@ -291,6 +408,13 @@ class HouseholdTransactionService:
                     category=transaction.category,
                     essentiality=transaction.essentiality,
                 )
+                if transaction.flow_type in {"income", "payment", "transfer_in", "transfer_out", "investment"}:
+                    category, essentiality = _classification_for_flow(
+                        raw_merchant=transaction.raw_merchant or transaction.description,
+                        description=transaction.description,
+                        amount=float(transaction.amount),
+                        flow_type=transaction.flow_type,
+                    )
                 # Auto-apply prior manual categorization with high confidence
                 if has_manual_rule:
                     transaction.confidence = max(transaction.confidence, MANUAL_RULE_CONFIDENCE)
@@ -304,6 +428,7 @@ class HouseholdTransactionService:
                         transaction.flow_type,
                     ]).encode("utf-8")
                 ).hexdigest()
+                current_row_hashes.add(row_hash)
                 metadata = {
                     "filename": document.filename,
                     "canonical_name": canonical_name,
@@ -367,6 +492,21 @@ class HouseholdTransactionService:
                 else:
                     updated += 1
 
+            deleted = len(
+                conn.execute(
+                    """
+                    DELETE FROM household_transactions
+                    WHERE document_id = %s
+                      AND row_hash <> ALL(%s)
+                    RETURNING id
+                    """,
+                    [
+                        document.id,
+                        list(current_row_hashes) if current_row_hashes else [""],
+                    ],
+                ).fetchall()
+            )
+
             conn.execute(
                 """
                 UPDATE household_documents
@@ -379,6 +519,7 @@ class HouseholdTransactionService:
                             "transaction_import_summary": {
                                 "inserted": inserted,
                                 "updated": updated,
+                                "deleted": deleted,
                                 "held_for_date_review": len(date_issues),
                             },
                             "date_quality_summary": (
@@ -417,6 +558,7 @@ class HouseholdTransactionService:
         return {
             "inserted": inserted,
             "updated": updated,
+            "deleted": deleted,
             "held_for_date_review": len(date_issues),
         }
 
@@ -498,7 +640,7 @@ class HouseholdTransactionService:
         spend_rows = [
             row
             for row in collapse_report_rows(analytics_rows)
-            if float(row["amount"]) > 0
+            if abs(float(row.get("signed_amount", row["amount"]))) > 0
         ]
 
         if not spend_rows:
@@ -524,14 +666,11 @@ class HouseholdTransactionService:
 
         for row in spend_rows:
             month_key = row["date"].strftime("%Y-%m")
-            monthly_totals[month_key] = monthly_totals.get(month_key, 0.0) + float(
-                row["amount"]
-            )
+            signed_amount = float(row.get("signed_amount", row["amount"]))
+            monthly_totals[month_key] = monthly_totals.get(month_key, 0.0) + signed_amount
             monthly_counts[month_key] = monthly_counts.get(month_key, 0) + 1
             category_key = (str(row["category"]), str(row["essentiality"]))
-            category_totals[category_key] = category_totals.get(category_key, 0.0) + float(
-                row["amount"]
-            )
+            category_totals[category_key] = category_totals.get(category_key, 0.0) + signed_amount
             category_counts[category_key] = category_counts.get(category_key, 0) + 1
 
         coverage_months = (
@@ -539,7 +678,10 @@ class HouseholdTransactionService:
             if timeframe.window_months is not None
             else max(len(monthly_totals), 1)
         )
-        total_spend = round(sum(float(row["amount"]) for row in spend_rows), 2)
+        total_spend = round(
+            sum(float(row.get("signed_amount", row["amount"])) for row in spend_rows),
+            2,
+        )
 
         return HouseholdSpendingView(
             generated_at=datetime.now(UTC).isoformat(),
@@ -582,7 +724,7 @@ class HouseholdTransactionService:
                     date=row["date"].isoformat(),
                     merchant=str(row["merchant"]),
                     description=str(row["description"]),
-                    amount=round(float(row["amount"]), 2),
+                    amount=round(float(row.get("signed_amount", row["amount"])), 2),
                     category=str(row["category"]),
                     essentiality=str(row["essentiality"]),
                     account_label=(
@@ -595,7 +737,10 @@ class HouseholdTransactionService:
                 )
                 for row in sorted(
                     spend_rows,
-                    key=lambda item: (item["date"], float(item["amount"])),
+                    key=lambda item: (
+                        item["date"],
+                        abs(float(item.get("signed_amount", item["amount"]))),
+                    ),
                     reverse=True,
                 )
             ],
@@ -614,13 +759,15 @@ class HouseholdTransactionService:
                     t.amount,
                     t.category,
                     t.essentiality,
+                    t.flow_type,
                     COALESCE(ta.label, a.canonical_label, t.account_label) AS account_label,
                     t.document_id,
                     COALESCE(m.canonical_name, t.raw_merchant, t.description) AS canonical_name,
                     d.document_type,
                     d.source_type,
                     d.filename,
-                    t.row_hash
+                    t.row_hash,
+                    m.metadata
                 FROM household_transactions t
                 LEFT JOIN household_merchants m ON m.id = t.merchant_id
                 LEFT JOIN household_accounts a ON a.id = t.household_account_id
@@ -632,7 +779,7 @@ class HouseholdTransactionService:
                     LIMIT 1
                 ) ta ON TRUE
                 LEFT JOIN household_documents d ON d.id = t.document_id
-                WHERE t.flow_type = 'expense'
+                WHERE t.flow_type IN ('expense', 'payment', 'refund')
                 ORDER BY t.transaction_date DESC
                 """
             ).fetchall()
@@ -667,11 +814,26 @@ class HouseholdTransactionService:
                 amount = None
             if amount is None:
                 continue
-            if not is_budget_driving_expense(
-                flow_type="expense",
-                category=str(row[6] or ""),
+            effective_flow = _effective_transaction_flow(
+                flow_type=str(row[8] or "expense"),
+                raw_merchant=str(row[11] or row[4] or row[3]),
                 description=str(row[3]),
-                merchant=str(row[10] or row[4] or row[3]),
+                source_type=str(row[13] or ""),
+            )
+            effective_category, effective_essentiality = _effective_transaction_classification(
+                flow_type=effective_flow,
+                raw_merchant=str(row[11] or row[4] or row[3]),
+                description=str(row[3]),
+                amount=amount,
+                stored_category=str(row[6] or ""),
+                stored_essentiality=str(row[7] or ""),
+                merchant_metadata=row[16] if isinstance(row[16], dict) else None,
+            )
+            if not is_budget_driving_expense(
+                flow_type=effective_flow,
+                category=effective_category,
+                description=str(row[3]),
+                merchant=str(row[11] or row[4] or row[3]),
             ):
                 continue
             report_rows.append(
@@ -679,17 +841,19 @@ class HouseholdTransactionService:
                     "id": str(row[0]),
                     "household_account_id": str(row[1]) if row[1] is not None else None,
                     "date": transaction_date.date(),
-                    "merchant": str(row[10] or row[4] or row[3]),
+                    "merchant": str(row[11] or row[4] or row[3]),
                     "description": str(row[3]),
                     "amount": amount,
-                    "category": str(row[6] or "Uncategorized"),
-                    "essentiality": str(row[7] or "mixed"),
-                    "account_label": str(row[8]) if row[8] is not None else None,
-                    "document_id": str(row[9]),
-                    "document_type": str(row[11] or ""),
-                    "source_type": str(row[12] or ""),
-                    "source_document_filename": str(row[13] or ""),
-                    "row_hash": str(row[14]),
+                    "signed_amount": -amount if effective_flow == "refund" else amount,
+                    "category": effective_category,
+                    "essentiality": effective_essentiality,
+                    "flow_type": effective_flow,
+                    "account_label": str(row[9]) if row[9] is not None else None,
+                    "document_id": str(row[10]),
+                    "document_type": str(row[12] or ""),
+                    "source_type": str(row[13] or ""),
+                    "source_document_filename": str(row[14] or ""),
+                    "row_hash": str(row[15]),
                     "source_kind": "transaction",
                 }
             )
@@ -814,10 +978,11 @@ class HouseholdTransactionService:
                 parsed_date = _parse_date_value(dm.group(1)) if dm else None
             parsed_amount = _parse_decimal(str(structured_data.get("total_amount")))
             if parsed_date is not None and parsed_amount is not None:
-                category, essentiality = _classify_merchant(
+                category, essentiality = _classification_for_flow(
                     raw_merchant=str(structured_data["merchant"]),
                     description=review_summary or filename,
                     amount=float(parsed_amount),
+                    flow_type="expense",
                 )
                 transactions.append(
                     ExtractedTransaction(
@@ -1000,6 +1165,10 @@ class HouseholdTransactionService:
         normalized = description.lower()
         compact = re.sub(r"[^a-z0-9]+", "", normalized)
         is_positive = signed_amount > 0
+        is_refund_like = _is_refund_like_text(
+            raw_merchant=description,
+            description=description,
+        )
         transfer_category = ("Transfers", "mixed")
         resolved_flow: str | None = None
         resolved_category = category
@@ -1010,11 +1179,16 @@ class HouseholdTransactionService:
         compact_transfer_tokens = ("epay", "cepay", "instxfer", "moneyline")
 
         if source_type == "credit_card":
-            resolved_flow = "expense" if signed_amount < 0 else "payment"
+            if signed_amount < 0:
+                resolved_flow = "expense"
+            else:
+                resolved_flow = "refund" if is_refund_like else "payment"
         elif any(token in normalized for token in income_tokens):
             resolved_flow = "income"
         elif any(token in normalized for token in ("reinvestment", "reinvest", "sweep into")):
             resolved_flow = "investment"
+        elif is_refund_like:
+            resolved_flow = "refund"
         elif "payment thank you" in normalized:
             resolved_flow = "payment"
         elif any(token in normalized for token in transfer_tokens) or any(token in compact for token in compact_transfer_tokens) or category.lower() == "transfers":
@@ -1024,6 +1198,12 @@ class HouseholdTransactionService:
             resolved_category, resolved_essentiality = transfer_category
         elif resolved_flow == "income":
             resolved_category, resolved_essentiality = "Income", "essential"
+        elif resolved_flow == "refund":
+            resolved_category, resolved_essentiality = _classify_merchant(
+                raw_merchant=description,
+                description=description,
+                amount=float(abs(signed_amount)),
+            )
         elif resolved_flow is None:
             if signed_amount < 0:
                 resolved_flow = "expense"
@@ -1138,15 +1318,19 @@ class HouseholdTransactionService:
             )
             normalized_amount = abs(amount)
             if source_type == "credit_card":
-                flow_type = "expense" if amount < 0 else "payment"
+                if amount < 0:
+                    flow_type = "expense"
+                else:
+                    flow_type = "refund" if _is_refund_like_text(raw_merchant=description, description=description) else "payment"
             else:
                 flow_type = "expense" if amount < 0 else "income"
                 if flow_type == "income" and "transfer" in description.lower():
                     flow_type = "transfer_in"
-            category, essentiality = _classify_merchant(
+            category, essentiality = _classification_for_flow(
                 raw_merchant=description,
                 description=description,
                 amount=float(normalized_amount),
+                flow_type=flow_type,
             )
             rows.append(
                 ExtractedTransaction(
@@ -1220,7 +1404,12 @@ class HouseholdTransactionService:
             flow_type = _classify_statement_flow(description)
             if flow_type != "expense":
                 amount = abs(amount)
-            category, essentiality = _classify_merchant(raw_merchant=description, description=description, amount=float(abs(amount)))
+            category, essentiality = _classification_for_flow(
+                raw_merchant=description,
+                description=description,
+                amount=float(abs(amount)),
+                flow_type=flow_type,
+            )
             rows.append(
                 ExtractedTransaction(
                     transaction_date=transaction_date,
@@ -1279,7 +1468,12 @@ class HouseholdTransactionService:
                 if amount is not None and parsed_date is not None:
                     description = re.sub(r"\d[\d,]*\.\d{2}", "", rest).strip()
                     flow_type = _classify_wells_flow(description)
-                    category, essentiality = _classify_merchant(raw_merchant=description, description=description, amount=float(amount))
+                    category, essentiality = _classification_for_flow(
+                        raw_merchant=description,
+                        description=description,
+                        amount=float(amount),
+                        flow_type=flow_type,
+                    )
                     rows.append(
                         ExtractedTransaction(
                             transaction_date=parsed_date,
@@ -1311,7 +1505,12 @@ class HouseholdTransactionService:
                     continue
                 description = " ".join(description_parts).strip()
                 flow_type = _classify_wells_flow(description)
-                category, essentiality = _classify_merchant(raw_merchant=description, description=description, amount=float(amount))
+                category, essentiality = _classification_for_flow(
+                    raw_merchant=description,
+                    description=description,
+                    amount=float(amount),
+                    flow_type=flow_type,
+                )
                 rows.append(
                     ExtractedTransaction(
                         transaction_date=current_date,
@@ -1359,17 +1558,18 @@ class HouseholdTransactionService:
         if existing is not None:
             merchant_id = str(existing[0])
             canonical_name = str(existing[1])
-            category = str(existing[2] or category)
-            essentiality = str(existing[3] or essentiality)
             metadata = existing[4] if isinstance(existing[4], dict) else {}
             has_manual_rule = bool(metadata.get("manual_rule")) if isinstance(metadata, dict) else False
+            if has_manual_rule:
+                category = str(existing[2] or category)
+                essentiality = str(existing[3] or essentiality)
             merged_aliases = sorted({*(metadata.get("alias_keys", []) if isinstance(metadata, dict) else []), *alias_keys})
             conn.execute(
                 """
                 UPDATE household_merchants
                 SET display_name = %s,
-                    primary_category = COALESCE(primary_category, %s),
-                    essentiality = COALESCE(essentiality, %s),
+                    primary_category = %s,
+                    essentiality = %s,
                     metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
                     updated_at = %s
                 WHERE id = %s

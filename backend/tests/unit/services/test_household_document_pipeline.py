@@ -241,8 +241,14 @@ def test_apply_review_outputs_keeps_account_ingestion_when_planning_merge_fails(
 
 def test_process_document_review_skips_missing_source_file() -> None:
     pipeline = HouseholdDocumentPipeline()
+    connection = MagicMock()
+    connection.execute.return_value.fetchone.return_value = None
+    context_manager = MagicMock()
+    context_manager.__enter__.return_value = connection
+    context_manager.__exit__.return_value = None
     service = SimpleNamespace(
         review_service=SimpleNamespace(review=Mock()),
+        storage=SimpleNamespace(connection=Mock(return_value=context_manager)),
     )
     document = HouseholdDocument(
         id="doc-3",
@@ -261,6 +267,63 @@ def test_process_document_review_skips_missing_source_file() -> None:
     pipeline.process_document_review(service, document)
 
     service.review_service.review.assert_not_called()
+    assert not connection.commit.called
+
+
+@patch("app.services.household_document_pipeline.update_document_application_summary")
+def test_process_document_review_reapplies_latest_review_when_source_missing(
+    update_application_summary: Mock,
+) -> None:
+    pipeline = _PipelineStub()
+    connection = MagicMock()
+    connection.execute.return_value.fetchone.return_value = (
+        "Recovered statement",
+        0.94,
+        "Transaction history",
+        {
+            "financial_accounts": [
+                {"account_name": "Wells Fargo Everyday Checking"}
+            ]
+        },
+    )
+    context_manager = MagicMock()
+    context_manager.__enter__.return_value = connection
+    context_manager.__exit__.return_value = None
+    service = SimpleNamespace(
+        review_service=SimpleNamespace(review=Mock()),
+        storage=SimpleNamespace(connection=Mock(return_value=context_manager)),
+        transaction_service=SimpleNamespace(
+            import_document_transactions=Mock(return_value={"inserted": 2, "updated": 1, "deleted": 3})
+        ),
+        evidence_service=SimpleNamespace(
+            replace_document_accounts=Mock(return_value=1)
+        ),
+        merge_planning_items=Mock(),
+    )
+    document = HouseholdDocument(
+        id="doc-3a",
+        filename="missing.pdf",
+        source_type="bank",
+        document_type="statement",
+        status="parsed",
+        account_label="Wells Fargo Everyday Checking",
+        content_type="application/pdf",
+        file_size_bytes=10,
+        classification_confidence=0.9,
+        uploaded_at="2026-04-13T00:00:00+00:00",
+        metadata={"stored_path": "/tmp/does-not-exist.pdf"},
+    )
+
+    pipeline.process_document_review(service, document)
+
+    service.review_service.review.assert_not_called()
+    service.transaction_service.import_document_transactions.assert_called_once()
+    service.evidence_service.replace_document_accounts.assert_called_once()
+    assert connection.commit.called
+    update_application_summary.assert_called_once()
+    application_summary = update_application_summary.call_args.kwargs["application_summary"]
+    transactions = application_summary["transactions"]
+    assert transactions["deleted"] == 3
 
 
 class _RetryPipeline(HouseholdDocumentPipeline):

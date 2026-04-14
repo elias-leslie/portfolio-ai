@@ -266,6 +266,17 @@ _NOISE_TOKENS = {
     "wa",
     "com",
 }
+_OVERLAP_NOISE_TOKENS = _NOISE_TOKENS | {
+    "amzn",
+    "bill",
+    "pmts",
+    "mktpl",
+    "mktplace",
+    "store",
+}
+_PHONE_RE = re.compile(r"\b\d{3}[- ]?\d{3,4}[- ]?\d{2,4}\b", re.IGNORECASE)
+_TRAILING_STATE_RE = re.compile(r"\b[a-z]{2}\b$", re.IGNORECASE)
+_TRAILING_CITY_STATE_RE = re.compile(r"\b[a-z]+(?:\s+[a-z]+)?\s+[a-z]{2}\b$", re.IGNORECASE)
 
 
 def _transaction_identity_tokens(row: dict[str, Any]) -> set[str]:
@@ -285,32 +296,108 @@ def _transaction_identity_tokens(row: dict[str, Any]) -> set[str]:
     return tokens
 
 
-def report_rows_overlap(existing_row: dict[str, Any], candidate_row: dict[str, Any]) -> bool:
-    if existing_row.get("date") != candidate_row.get("date"):
-        return False
-    if abs(float(existing_row.get("amount", 0.0)) - float(candidate_row.get("amount", 0.0))) > 0.005:
-        return False
-
-    existing_account_id = str(existing_row.get("household_account_id") or "").strip()
-    candidate_account_id = str(candidate_row.get("household_account_id") or "").strip()
-    if existing_account_id and existing_account_id == candidate_account_id:
-        shared_tokens = _transaction_identity_tokens(existing_row).intersection(
-            _transaction_identity_tokens(candidate_row)
+def _transaction_overlap_signature(row: dict[str, Any]) -> tuple[str, ...]:
+    text = " ".join(
+        str(value)
+        for value in (
+            row.get("merchant") or "",
+            row.get("description") or "",
         )
-        if len(shared_tokens) >= 2:
-            return True
+        if value
+    ).lower()
+    text = text.replace("amzn.com/bill", " ")
+    text = text.replace("mktplace pmts", " ")
+    text = text.replace("|", " ")
+    text = _PHONE_RE.sub(" ", text)
+    text = _TRAILING_CITY_STATE_RE.sub(" ", text)
+    text = _TRAILING_STATE_RE.sub(" ", text)
+    tokens = [
+        token
+        for token in re.findall(r"[a-z0-9#]{3,}", text)
+        if token not in _OVERLAP_NOISE_TOKENS
+    ]
+    return tuple(sorted(dict.fromkeys(tokens)))
+
+
+def _signatures_overlap(
+    existing_signature: tuple[str, ...],
+    candidate_signature: tuple[str, ...],
+) -> bool:
+    if not existing_signature or not candidate_signature:
+        return False
+    if existing_signature == candidate_signature:
+        return True
+    existing_tokens = set(existing_signature)
+    candidate_tokens = set(candidate_signature)
+    shared_tokens = existing_tokens.intersection(candidate_tokens)
+    if len(shared_tokens) >= 2:
+        return True
+    return bool(shared_tokens) and (
+        len(existing_tokens) == 1 or len(candidate_tokens) == 1
+    )
+
+
+def report_rows_overlap(existing_row: dict[str, Any], candidate_row: dict[str, Any]) -> bool:
+    same_date = existing_row.get("date") == candidate_row.get("date")
+    same_amount = (
+        abs(float(existing_row.get("amount", 0.0)) - float(candidate_row.get("amount", 0.0)))
+        <= 0.005
+    )
+    if not (same_date and same_amount):
+        return False
 
     existing_aliases = _merchant_aliases(str(existing_row.get("merchant") or ""))
     candidate_aliases = _merchant_aliases(str(candidate_row.get("merchant") or ""))
-    if not (existing_aliases and candidate_aliases and existing_aliases.intersection(candidate_aliases)):
-        return False
+    shared_aliases = existing_aliases.intersection(candidate_aliases)
 
-    source_kinds = {str(existing_row.get("source_kind") or ""), str(candidate_row.get("source_kind") or "")}
+    existing_account_id = str(existing_row.get("household_account_id") or "").strip()
+    candidate_account_id = str(candidate_row.get("household_account_id") or "").strip()
+    same_account = bool(existing_account_id and existing_account_id == candidate_account_id)
+    signature_overlap = False
+    generic_alias_overlap = False
+    if same_account:
+        existing_signature = _transaction_overlap_signature(existing_row)
+        candidate_signature = _transaction_overlap_signature(candidate_row)
+        signature_overlap = _signatures_overlap(existing_signature, candidate_signature)
+        generic_alias_overlap = (
+            (not existing_signature or not candidate_signature)
+            and bool(shared_aliases)
+        )
+
+    source_kinds = {
+        str(existing_row.get("source_kind") or ""),
+        str(candidate_row.get("source_kind") or ""),
+    }
+    document_types = {
+        str(existing_row.get("document_type") or ""),
+        str(candidate_row.get("document_type") or ""),
+    }
+    cross_source_duplicate = bool(shared_aliases) and (
+        "import" in source_kinds
+        or ("receipt" in document_types and len(document_types) > 1)
+    )
+    return signature_overlap or generic_alias_overlap or cross_source_duplicate
+
+
+def report_row_exclusion_reason(
+    existing_row: dict[str, Any],
+    candidate_row: dict[str, Any],
+) -> str | None:
+    if not report_rows_overlap(existing_row, candidate_row):
+        return None
+    source_kinds = {
+        str(existing_row.get("source_kind") or ""),
+        str(candidate_row.get("source_kind") or ""),
+    }
     if "import" in source_kinds:
-        return True
-
-    document_types = {str(existing_row.get("document_type") or ""), str(candidate_row.get("document_type") or "")}
-    return "receipt" in document_types and len(document_types) > 1
+        return "duplicate_of_import"
+    document_types = {
+        str(existing_row.get("document_type") or ""),
+        str(candidate_row.get("document_type") or ""),
+    }
+    if "receipt" in document_types and len(document_types) > 1:
+        return "duplicate_of_receipt"
+    return "duplicate_overlap"
 
 
 def report_row_priority(row: dict[str, Any]) -> tuple[int, str]:
@@ -325,12 +412,31 @@ def report_row_priority(row: dict[str, Any]) -> tuple[int, str]:
 
 
 def collapse_report_rows(report_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    collapsed_rows, _ = collapse_report_rows_with_exclusions(report_rows)
+    return collapsed_rows
+
+
+def collapse_report_rows_with_exclusions(
+    report_rows: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, str]]:
     collapsed_rows: list[dict[str, Any]] = []
+    excluded_rows: dict[str, str] = {}
     for row in sorted(report_rows, key=report_row_priority):
-        if any(report_rows_overlap(existing_row, row) for existing_row in collapsed_rows):
+        exclusion_reason = next(
+            (
+                report_row_exclusion_reason(existing_row, row)
+                for existing_row in collapsed_rows
+                if report_row_exclusion_reason(existing_row, row) is not None
+            ),
+            None,
+        )
+        if exclusion_reason is not None:
+            row_key = str(row.get("row_hash") or row.get("id") or "")
+            if row_key:
+                excluded_rows[row_key] = exclusion_reason
             continue
         collapsed_rows.append(row)
-    return collapsed_rows
+    return collapsed_rows, excluded_rows
 
 
 def _normalized_item_key(merchant: str, description: str) -> str:

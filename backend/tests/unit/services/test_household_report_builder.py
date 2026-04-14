@@ -49,6 +49,50 @@ def test_collapse_report_rows_prefers_import_row_over_matching_transaction() -> 
     assert collapsed[0]["document_id"] == "import-doc"
 
 
+def test_collapse_report_rows_dedupes_phone_and_location_variants_for_same_account() -> None:
+    shared_date = date(2026, 4, 8)
+
+    collapsed = collapse_report_rows(
+        [
+            {
+                "date": shared_date,
+                "merchant": "Spotify USA | Sale",
+                "description": "Spotify USA | Sale",
+                "amount": 21.58,
+                "category": "Subscriptions",
+                "essentiality": "discretionary",
+                "household_account_id": "acct-1",
+                "account_label": "Amazon Chase (CC)",
+                "document_id": "activity-doc",
+                "document_type": "statement",
+                "source_type": "credit_card",
+                "source_kind": "transaction",
+                "source_document_filename": "activity.csv",
+                "row_hash": "hash-activity",
+            },
+            {
+                "date": shared_date,
+                "merchant": "Spotify USA 877-7781161 NY",
+                "description": "Spotify USA 877-7781161 NY",
+                "amount": 21.58,
+                "category": "Subscriptions",
+                "essentiality": "discretionary",
+                "household_account_id": "acct-1",
+                "account_label": "Amazon Chase (CC)",
+                "document_id": "statement-doc",
+                "document_type": "statement",
+                "source_type": "credit_card",
+                "source_kind": "transaction",
+                "source_document_filename": "statement.pdf",
+                "row_hash": "hash-statement",
+            },
+        ]
+    )
+
+    assert len(collapsed) == 1
+    assert collapsed[0]["document_id"] == "activity-doc"
+
+
 def test_build_household_reports_uses_today_for_recent_spend_window() -> None:
     today = date.today()
 
