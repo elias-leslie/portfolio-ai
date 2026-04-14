@@ -40,6 +40,7 @@ from app.services._household_dashboard_queries import (
     fetch_current_month_spend,
     fetch_latest_transaction_dates_by_account_label,
     fetch_latest_transaction_dates_by_document,
+    fetch_latest_transaction_dates_by_household_account,
     fetch_monthly_retirement_contributions,
     fetch_recurring_commitments,
     fetch_transaction_date_issues,
@@ -62,6 +63,9 @@ class HouseholdDashboardComposer:
         latest_transaction_dates_by_account_label = (
             fetch_latest_transaction_dates_by_account_label(service.storage)
         )
+        latest_transaction_dates_by_household_account = (
+            fetch_latest_transaction_dates_by_household_account(service.storage)
+        )
         discovered_accounts = [
             HouseholdDiscoveredAccount.model_validate(item)
             for item in detect_unknown_accounts(service.storage, d["documents"])
@@ -75,6 +79,7 @@ class HouseholdDashboardComposer:
             statement_freshness=freshness,
             latest_transaction_dates_by_document=latest_transaction_dates_by_document,
             latest_transaction_dates_by_account_label=latest_transaction_dates_by_account_label,
+            latest_transaction_dates_by_household_account=latest_transaction_dates_by_household_account,
         )
         inbox = build_money_inbox(
             accounts=account_summaries,

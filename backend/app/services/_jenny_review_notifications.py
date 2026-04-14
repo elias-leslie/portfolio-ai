@@ -16,6 +16,13 @@ MANAGED_NOTIFICATION_CATEGORIES = frozenset(
 _MANAGED_NOTIFICATION_PREFIXES = ("position_", "household_inbox:")
 
 
+def _normalize_routine_id(routine_id: str) -> str:
+    try:
+        return str(uuid.UUID(str(routine_id)))
+    except (ValueError, TypeError, AttributeError):
+        return str(uuid.uuid5(uuid.NAMESPACE_URL, f"jenny-routine:{routine_id}"))
+
+
 def extract_symbol_profile(evaluations: list[dict[str, Any]]) -> dict[str, Any]:
     for evaluation in evaluations:
         profile = (evaluation.get("metadata") or {}).get("symbol_profile")
@@ -58,6 +65,7 @@ def _execute_update(
     recommendation: str | None,
 ) -> None:
     """Update an existing notification."""
+    normalized_routine_id = _normalize_routine_id(routine_id)
     conn.execute(
         """
         UPDATE jenny_notifications
@@ -70,7 +78,7 @@ def _execute_update(
         WHERE id = %s
         """,
         [
-            routine_id,
+            normalized_routine_id,
             severity,
             title,
             detail,
@@ -92,6 +100,7 @@ def _execute_insert(
     recommendation: str | None,
 ) -> None:
     """Insert a new notification."""
+    normalized_routine_id = _normalize_routine_id(routine_id)
     conn.execute(
         """
         INSERT INTO jenny_notifications (
@@ -100,7 +109,7 @@ def _execute_insert(
         """,
         [
             str(uuid.uuid4()),
-            routine_id,
+            normalized_routine_id,
             symbol,
             category,
             severity,

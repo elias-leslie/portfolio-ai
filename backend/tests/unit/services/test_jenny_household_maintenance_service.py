@@ -19,6 +19,8 @@ def test_replay_candidate_documents_targets_weak_docs_not_all_add_anything() -> 
     query = connection.execute.call_args.args[0]
     assert "filename = 'add-anything'" not in query
     assert "application_summary" in query
+    assert "financial_accounts" in query
+    assert "source_type IN ('bank', 'credit_card', 'brokerage', 'retirement')" in query
 
 
 def test_run_daily_maintenance_pass_reads_dashboard_from_household_service() -> None:

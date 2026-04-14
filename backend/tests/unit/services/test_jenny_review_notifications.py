@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import uuid
 from unittest.mock import MagicMock
 
-from app.services._jenny_review_notifications import resolve_superseded_notifications
+from app.services._jenny_review_notifications import (
+    resolve_superseded_notifications,
+    upsert_notification,
+)
 
 
 def test_resolve_superseded_notifications_closes_only_managed_stale_alerts() -> None:
@@ -69,3 +73,29 @@ def test_resolve_superseded_notifications_manages_household_inbox_categories() -
 
     assert [call.args[1] for call in update_calls] == [["resolved", "note-money"]]
     connection.commit.assert_called_once()
+
+
+def test_upsert_notification_normalizes_non_uuid_routine_id() -> None:
+    service = MagicMock()
+    connection = service.storage.connection.return_value.__enter__.return_value
+    connection.execute.return_value.fetchone.return_value = None
+
+    upsert_notification(
+        service,
+        "manual-household-fix",
+        None,
+        category="household_inbox:test",
+        severity="warning",
+        title="Title",
+        detail="Detail",
+        recommendation="Do thing",
+    )
+
+    insert_call = next(
+        call
+        for call in connection.execute.call_args_list
+        if "INSERT INTO jenny_notifications" in call.args[0]
+    )
+    normalized = insert_call.args[1][1]
+    assert normalized != "manual-household-fix"
+    assert str(uuid.UUID(normalized)) == normalized

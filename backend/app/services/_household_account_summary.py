@@ -342,8 +342,10 @@ def _combine_freshness(
 def _latest_transaction_timestamp(
     document_ids: list[str],
     *,
+    household_account_id: str | None,
     label_candidates: set[str],
     account_mask: str | None,
+    latest_transaction_dates_by_household_account: dict[str, date],
     latest_transaction_dates_by_document: dict[str, date],
     latest_transaction_dates_by_account_label: dict[str, date],
 ) -> datetime | None:
@@ -352,6 +354,8 @@ def _latest_transaction_timestamp(
         for document_id in document_ids
         if latest_transaction_dates_by_document.get(document_id) is not None
     ]
+    if household_account_id and latest_transaction_dates_by_household_account.get(household_account_id) is not None:
+        transaction_dates.append(latest_transaction_dates_by_household_account[household_account_id])
     normalized_mask = _normalize_text(account_mask)
     for raw_label, transaction_date in latest_transaction_dates_by_account_label.items():
         normalized_label = _normalize_text(raw_label)
@@ -820,34 +824,42 @@ def build_account_summaries(
     tracked_accounts: list[HouseholdTrackedAccount],
     holdings_by_account: dict[str, float],
     statement_freshness: dict[str, Any],
+    latest_transaction_dates_by_household_account: dict[str, date] | None = None,
     latest_transaction_dates_by_document: dict[str, date] | None = None,
     latest_transaction_dates_by_account_label: dict[str, date] | None = None,
 ) -> list[HouseholdAccountSummary]:
+    latest_transaction_dates_by_household_account = latest_transaction_dates_by_household_account or {}
     latest_transaction_dates_by_document = latest_transaction_dates_by_document or {}
     latest_transaction_dates_by_account_label = latest_transaction_dates_by_account_label or {}
     documents_by_id = {document.id: document for document in documents}
     grouped: dict[str, list[HouseholdEvidenceAccount]] = defaultdict(list)
     grouped_tracked_matches: dict[str, HouseholdTrackedAccount] = {}
+    tracked_by_household_account_id = {
+        account.household_account_id: account
+        for account in tracked_accounts
+        if account.household_account_id
+    }
     for account in evidence_accounts:
         document = documents_by_id.get(account.document_id)
-        evidence_group_key = _evidence_group_key(account)
-        matched_tracked_account = _match_tracked_account(
-            group_key=evidence_group_key,
-            label=_account_label(account),
-            account_name=account.account_name,
-            hint_label=document.account_label if document is not None else None,
-            asset_group=account.asset_group,
-            account_type=account.account_type,
-            institution_name=account.institution_name,
-            owner_name=account.owner_name,
-            account_mask=account.account_mask,
-            tracked_accounts=tracked_accounts,
-        )
-        group_key = (
-            _tracked_summary_key(matched_tracked_account)
-            if matched_tracked_account is not None
-            else evidence_group_key
-        )
+        matched_tracked_account = None
+        if account.household_account_id:
+            group_key = account.household_account_id
+            matched_tracked_account = tracked_by_household_account_id.get(account.household_account_id)
+        else:
+            evidence_group_key = _evidence_group_key(account)
+            matched_tracked_account = _match_tracked_account(
+                group_key=evidence_group_key,
+                label=_account_label(account),
+                account_name=account.account_name,
+                hint_label=document.account_label if document is not None else None,
+                asset_group=account.asset_group,
+                account_type=account.account_type,
+                institution_name=account.institution_name,
+                owner_name=account.owner_name,
+                account_mask=account.account_mask,
+                tracked_accounts=tracked_accounts,
+            )
+            group_key = _tracked_summary_key(matched_tracked_account) if matched_tracked_account is not None else evidence_group_key
         grouped[group_key].append(account)
         if matched_tracked_account is not None:
             grouped_tracked_matches[group_key] = matched_tracked_account
@@ -905,8 +917,10 @@ def build_account_summaries(
             transaction_label_candidates.add(_normalize_text(latest.account_mask))
         last_transaction_dt = _latest_transaction_timestamp(
             [str(account.document_id) for account in accounts if account.document_id],
+            household_account_id=latest.household_account_id,
             label_candidates=transaction_label_candidates,
             account_mask=latest.account_mask,
+            latest_transaction_dates_by_household_account=latest_transaction_dates_by_household_account,
             latest_transaction_dates_by_document=latest_transaction_dates_by_document,
             latest_transaction_dates_by_account_label=latest_transaction_dates_by_account_label,
         )
@@ -940,18 +954,22 @@ def build_account_summaries(
             transaction_status=transaction_freshness_status,
             transaction_label=transaction_freshness_label,
         )
-        tracked_account = grouped_tracked_matches.get(group_key) or _match_tracked_account(
-            group_key=group_key,
-            label=account_label,
-            account_name=latest.account_name,
-            hint_label=hint_label,
-            asset_group=latest.asset_group,
-            account_type=latest.account_type,
-            institution_name=latest.institution_name,
-            owner_name=latest.owner_name,
-            account_mask=latest.account_mask,
-            tracked_accounts=tracked_accounts,
-        )
+        tracked_account = grouped_tracked_matches.get(group_key)
+        if tracked_account is None and latest.household_account_id:
+            tracked_account = tracked_by_household_account_id.get(latest.household_account_id)
+        if tracked_account is None:
+            tracked_account = _match_tracked_account(
+                group_key=group_key,
+                label=account_label,
+                account_name=latest.account_name,
+                hint_label=hint_label,
+                asset_group=latest.asset_group,
+                account_type=latest.account_type,
+                institution_name=latest.institution_name,
+                owner_name=latest.owner_name,
+                account_mask=latest.account_mask,
+                tracked_accounts=tracked_accounts,
+            )
         if tracked_account is not None:
             linked_tracked_ids.add(tracked_account.id)
         portfolio_account = _match_portfolio_account(

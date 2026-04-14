@@ -349,6 +349,10 @@ class HouseholdDocumentPipeline:
             document=document,
             reviewed=reviewed,
         )
+        registry_summary: dict[str, int] = {}
+        registry_service = getattr(service, "account_registry_service", None)
+        if registry_service is not None:
+            registry_summary = registry_service.sync_registry(service, limit=1000)
         planning_items = reviewed.get("planning_items")
         planning_count = 0
         planning_skipped = 0
@@ -402,6 +406,7 @@ class HouseholdDocumentPipeline:
             "imports": import_summary,
             "transactions": transaction_summary,
             "evidence_accounts": evidence_account_count,
+            "account_registry": registry_summary,
             "planning_items": planning_count,
             "planning_items_skipped": planning_skipped,
             "planning_error": planning_error,

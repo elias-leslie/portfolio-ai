@@ -727,6 +727,30 @@ def fetch_latest_transaction_dates_by_account_label(storage: Any) -> dict[str, d
     return latest_by_label
 
 
+def fetch_latest_transaction_dates_by_household_account(storage: Any) -> dict[str, date]:
+    with storage.connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT household_account_id, MAX(transaction_date) AS latest_transaction_date
+            FROM household_transactions
+            WHERE household_account_id IS NOT NULL
+            GROUP BY household_account_id
+            """
+        ).fetchall()
+
+    latest_by_account: dict[str, date] = {}
+    for row in rows:
+        account_id = str(row[0]).strip() if row[0] is not None else ""
+        latest_raw = row[1]
+        if not account_id or latest_raw is None:
+            continue
+        if isinstance(latest_raw, datetime):
+            latest_by_account[account_id] = latest_raw.date()
+        elif isinstance(latest_raw, date):
+            latest_by_account[account_id] = latest_raw
+    return latest_by_account
+
+
 _INCOME_MONTHLY_AVG_SQL = f"""
     SELECT
         COUNT(*) AS months_with_income,

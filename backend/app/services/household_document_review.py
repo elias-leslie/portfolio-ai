@@ -97,21 +97,28 @@ class HouseholdDocumentReviewService:
             signature_type = str(signature_review.pop("_signature_type", "") or "")
             signature_review["extracted_text"] = extracted_text
             baseline_structured = baseline.get("structured_data")
+            baseline_has_financial_accounts = False
             has_strong_baseline_identity = False
             if isinstance(baseline_structured, dict):
                 financial_accounts = baseline_structured.get("financial_accounts")
+                baseline_has_financial_accounts = isinstance(financial_accounts, list) and bool(financial_accounts)
                 has_strong_baseline_identity = bool(
-                    (isinstance(financial_accounts, list) and financial_accounts)
+                    baseline_has_financial_accounts
                     or baseline_structured.get("merchant")
-                    or baseline_structured.get("account_hint")
                 )
-            if has_strong_baseline_identity and signature_type in {"csv_header", "filename_pattern"}:
-                return self._merge_signature_pattern_with_baseline(
-                    signature_review=signature_review,
-                    baseline=baseline,
-                    extracted_text=extracted_text,
-                )
-            return signature_review
+            signature_structured = signature_review.get("structured_data")
+            signature_has_financial_accounts = isinstance(signature_structured, dict) and isinstance(
+                signature_structured.get("financial_accounts"), list
+            ) and bool(signature_structured.get("financial_accounts"))
+            if signature_type in {"csv_header", "filename_pattern"}:
+                if has_strong_baseline_identity or signature_has_financial_accounts:
+                    return self._merge_signature_pattern_with_baseline(
+                        signature_review=signature_review,
+                        baseline=baseline,
+                        extracted_text=extracted_text,
+                    )
+            else:
+                return signature_review
 
         if AGENT_HUB_ENABLED:
             reviewed = self._review_with_llm(

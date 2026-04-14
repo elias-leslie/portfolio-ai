@@ -1,6 +1,6 @@
 'use client'
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MoneyAccountsPanel } from '../MoneyAccountsPanel'
@@ -266,10 +266,11 @@ describe('MoneyAccountsPanel', () => {
 
     await user.click(screen.getByRole('button', { name: /main checking/i }))
     await user.click(screen.getByRole('button', { name: /edit/i }))
-    const labelInput = screen.getByLabelText(/account label/i)
+    const dialog = screen.getByRole('dialog')
+    const labelInput = within(dialog).getByLabelText(/account label/i)
     await user.clear(labelInput)
     await user.type(labelInput, 'Household Checking')
-    await user.click(screen.getByRole('button', { name: /save account/i }))
+    await user.click(within(dialog).getByRole('button', { name: /save label/i }))
 
     await waitFor(() => {
       expect(updateMutateAsync).toHaveBeenCalledWith({

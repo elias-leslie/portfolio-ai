@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from unittest.mock import Mock
 
 from pytest import raises
 
-from app.models.household_finance import HouseholdEvidenceAccount, HouseholdTrackedAccount
+from app.models.household_finance import HouseholdTrackedAccount, HouseholdTrackedAccountInput
 from app.services.household_tracked_account_service import HouseholdTrackedAccountService
 
 
 def _tracked_account(
     *,
     account_id: str,
+    household_account_id: str | None = None,
     label: str,
     asset_group: str,
     account_type: str,
@@ -24,6 +26,7 @@ def _tracked_account(
 ) -> HouseholdTrackedAccount:
     return HouseholdTrackedAccount(
         id=account_id,
+        household_account_id=household_account_id,
         label=label,
         asset_group=asset_group,
         account_type=account_type,
@@ -36,6 +39,28 @@ def _tracked_account(
         created_at="2026-04-13T00:00:00Z",
         updated_at="2026-04-13T00:00:00Z",
     )
+
+
+class _FakeConnection:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, list[object] | None]] = []
+        self.committed = False
+
+    def execute(self, sql: str, params: list[object] | None = None) -> Mock:
+        self.calls.append((sql, params))
+        return Mock(rowcount=1)
+
+    def commit(self) -> None:
+        self.committed = True
+
+
+class _FakeStorage:
+    def __init__(self, connection: _FakeConnection) -> None:
+        self._connection = connection
+
+    @contextmanager
+    def connection(self):  # type: ignore[override]
+        yield self._connection
 
 
 def test_ensure_unique_identity_rejects_duplicate_institution_mask() -> None:
@@ -193,88 +218,88 @@ def test_ensure_unique_identity_rejects_duplicate_match_key() -> None:
         )
 
 
-def test_sync_linked_accounts_from_evidence_repairs_drifted_identity() -> None:
+def test_sync_linked_accounts_from_evidence_delegates_to_registry() -> None:
     service = HouseholdTrackedAccountService()
-    tracked = _tracked_account(
-        account_id="acct-1",
-        label="Pinellas County Schools 403(b) Plan",
-        asset_group="retirement",
-        account_type="roth",
-        source_type="retirement",
-        match_key="evidence|pinellas county schools|pinellas county schools 403(b) plan|retirement",
-        institution_name="Pinellas County Schools",
-        owner_name="Mariana",
-        account_mask=None,
-    )
-    service.list_accounts = lambda _service, **_kwargs: [tracked]  # type: ignore[method-assign]
-
-    fake_conn = Mock()
-    fake_ctx = Mock()
-    fake_ctx.__enter__ = Mock(return_value=fake_conn)
-    fake_ctx.__exit__ = Mock(return_value=False)
     fake_service = Mock()
-    fake_service.storage.connection.return_value = fake_ctx
-    fake_service.list_evidence_accounts.return_value = [
-        HouseholdEvidenceAccount(
-            id="evidence-1",
-            document_id="doc-1",
-            source_type="retirement",
-            asset_group="retirement",
-            account_type="retirement",
-            institution_name="Pinellas County Schools",
-            account_name="Pinellas County Schools 403(b) Plan",
-            account_mask=None,
-            owner_name=None,
-            currency="USD",
-            balance=130087.17,
-            holdings_value=130087.17,
-            cash_balance=None,
-            as_of_date="2026-04-10T00:00:00+00:00",
-            confidence=0.98,
-            metadata={},
-        )
-    ]
+    fake_service.account_registry_service.sync_registry.return_value = {"tracked_linked": 1}
 
     updated = service.sync_linked_accounts_from_evidence(fake_service)
 
     assert updated == 1
-    fake_conn.execute.assert_called_once()
-    sql, params = fake_conn.execute.call_args.args
-    assert "UPDATE household_tracked_accounts" in sql
-    assert params[0] == "retirement"
-    assert params[1] == "retirement"
-    assert params[2] == "retirement"
-    assert params[3] == "Pinellas County Schools"
-    assert params[4] == "Mariana"
-    assert params[5] is None
-    assert params[-1] == "acct-1"
+    fake_service.account_registry_service.sync_registry.assert_called_once_with(fake_service, limit=500)
 
 
 def test_sync_linked_accounts_from_evidence_ignores_unanchored_rows() -> None:
     service = HouseholdTrackedAccountService()
-    service.list_accounts = lambda _service, **_kwargs: [  # type: ignore[method-assign]
-        _tracked_account(
-            account_id="acct-1",
-            label="Amazon Chase (CC)",
-            asset_group="credit",
-            account_type="credit_card",
-            source_type="credit_card",
-            match_key=None,
-            institution_name="Chase",
-            owner_name="Elias and Mariana",
-            account_mask=None,
-        )
-    ]
-
-    fake_conn = Mock()
-    fake_ctx = Mock()
-    fake_ctx.__enter__ = Mock(return_value=fake_conn)
-    fake_ctx.__exit__ = Mock(return_value=False)
     fake_service = Mock()
-    fake_service.storage.connection.return_value = fake_ctx
-    fake_service.list_evidence_accounts.return_value = []
+    fake_service.account_registry_service.sync_registry.return_value = {"tracked_linked": 0}
 
     updated = service.sync_linked_accounts_from_evidence(fake_service)
 
     assert updated == 0
-    fake_conn.execute.assert_not_called()
+    fake_service.account_registry_service.sync_registry.assert_called_once_with(fake_service, limit=500)
+
+
+def test_update_account_preserves_identity_fields_for_linked_accounts() -> None:
+    service = HouseholdTrackedAccountService()
+    existing = _tracked_account(
+        account_id="acct-1",
+        household_account_id="household-1",
+        label="Pinellas County Schools 403(b) Plan",
+        asset_group="retirement",
+        account_type="retirement",
+        source_type="retirement",
+        match_key="identity::pinellas|403b",
+        institution_name="Pinellas County Schools",
+        owner_name="Mariana Leslie",
+        account_mask=None,
+    )
+    updated = _tracked_account(
+        account_id="acct-1",
+        household_account_id="household-1",
+        label="Pinellas 403(b)",
+        asset_group="retirement",
+        account_type="retirement",
+        source_type="retirement",
+        match_key="identity::pinellas|403b",
+        institution_name="Pinellas County Schools",
+        owner_name="Mariana Leslie",
+        account_mask=None,
+    )
+    connection = _FakeConnection()
+    fake_service = Mock()
+    fake_service.storage = _FakeStorage(connection)
+    fake_service.account_registry_service.sync_registry = Mock()
+    service.get_account = Mock(side_effect=[existing, updated])  # type: ignore[method-assign]
+    service._ensure_unique_identity = Mock()  # type: ignore[method-assign]
+
+    payload = HouseholdTrackedAccountInput(
+        label="Pinellas 403(b)",
+        asset_group="taxable",
+        account_type="brokerage",
+        source_type="brokerage",
+        match_key="override::bad",
+        institution_name="Wrong Bank",
+        owner_name="Wrong Owner",
+        account_mask="9999",
+        notes="Renamed for display",
+    )
+
+    result = service.update_account(fake_service, "acct-1", payload)
+
+    assert result == updated
+    assert connection.committed is True
+    assert len(connection.calls) == 1
+    _, params = connection.calls[0]
+    assert params is not None
+    assert params[0] == "Pinellas 403(b)"
+    assert params[1] == "retirement"
+    assert params[2] == "retirement"
+    assert params[3] == "retirement"
+    assert params[4] == "identity::pinellas|403b"
+    assert params[5] == "Pinellas County Schools"
+    assert params[6] == "Mariana Leslie"
+    assert params[7] is None
+    assert params[8] == "Renamed for display"
+    assert params[10] == "acct-1"
+    fake_service.account_registry_service.sync_registry.assert_called_once_with(fake_service, limit=500)

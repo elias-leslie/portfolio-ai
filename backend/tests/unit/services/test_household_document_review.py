@@ -492,6 +492,83 @@ def test_review_uses_baseline_account_identity_for_csv_header_signature(
     touch_signature.assert_called_once_with("sig-1")
 
 
+@patch("app.services.household_document_review.AGENT_HUB_ENABLED", True)
+@patch.object(HouseholdDocumentReviewService, "_touch_signature")
+@patch.object(HouseholdDocumentReviewService, "_review_with_llm")
+@patch.object(HouseholdDocumentReviewService, "_find_signature")
+def test_review_does_not_short_circuit_on_weak_money_filename_signature(
+    find_signature: MagicMock,
+    review_with_llm: MagicMock,
+    touch_signature: MagicMock,
+    tmp_path: Path,
+) -> None:
+    statement_path = tmp_path / "20260411-statements-9728-.txt"
+    statement_path.write_text(
+        (
+            "AUTOPAY IS ON\n"
+            "www.chase.com/amazon\n"
+            "ELIAS B LESLIE\n"
+            "Prime Visa ending 5313\n"
+            "New Balance: $2,958.17\n"
+        ),
+        encoding="utf-8",
+    )
+    find_signature.return_value = {
+        "id": "sig-weak",
+        "signature_type": "filename_pattern",
+        "source_type": "credit_card",
+        "document_type": "statement",
+        "merchant": "Amazon Prime Visa",
+        "account_hint": "Chase Amazon card",
+        "confidence": 0.99,
+        "structured_data": {
+            "account_hint": "Chase Amazon card",
+            "total_amount": "2,958.17",
+        },
+    }
+    review_with_llm.return_value = {
+        "summary": "Prime Visa statement.",
+        "source_type": "credit_card",
+        "document_type": "statement",
+        "confidence": 0.99,
+        "structured_data": {
+            "provider_name": "Chase",
+            "account_hint": "Chase Prime Visa ending 5313",
+            "financial_accounts": [
+                {
+                    "institution_name": "Chase",
+                    "account_name": "Prime Visa",
+                    "account_mask": "5313",
+                    "asset_group": "credit",
+                    "account_type": "credit_card",
+                    "balance": "2,958.17",
+                    "currency": "USD",
+                }
+            ],
+        },
+        "inferred_values": [],
+        "questions": [],
+    }
+    service = HouseholdDocumentReviewService()
+
+    payload = service.review(
+        document_id="doc-weak-signature",
+        filename=statement_path.name,
+        stored_path=statement_path,
+        content_type="text/plain",
+        source_type="other",
+        document_type="other",
+    )
+
+    structured_data = cast(dict[str, Any], payload["structured_data"])
+    review_with_llm.assert_called_once()
+    touch_signature.assert_called_once_with("sig-weak")
+    accounts = structured_data["financial_accounts"]
+    assert isinstance(accounts, list)
+    assert accounts[0]["account_mask"] == "5313"
+    assert structured_data["provider_name"] == "Chase"
+
+
 def test_baseline_review_detects_credit_card_qfx_export() -> None:
     payload = _baseline_review(
         filename="transactions.qfx",

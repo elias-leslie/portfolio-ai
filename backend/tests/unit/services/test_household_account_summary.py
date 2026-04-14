@@ -1261,6 +1261,133 @@ def test_build_account_summaries_locked_match_key_does_not_absorb_sibling_retire
     assert by_label["Pinellas County Schools · Pinellas County Schools 457(b) Deferred Compensation Plan"].tracked_account_id is None
 
 
+def test_build_account_summaries_keep_distinct_canonical_accounts_even_if_display_labels_match() -> None:
+    documents = [
+        HouseholdDocument(
+            id="doc-a",
+            filename="plan-a.txt",
+            source_type="retirement",
+            document_type="retirement_statement",
+            status="parsed",
+            account_label="Pinellas County Schools 403(b) Plan",
+            file_size_bytes=10,
+            content_type="text/plain",
+            classification_confidence=0.97,
+            review_status="complete",
+            review_summary="Reviewed",
+            review_confidence=0.97,
+            statement_start=None,
+            statement_end=_iso(1),
+            uploaded_at=_iso(1),
+            parsed_at=_iso(1),
+            metadata={"file_available": True, "application_summary": {"status": "applied"}},
+        ),
+        HouseholdDocument(
+            id="doc-b",
+            filename="plan-b.txt",
+            source_type="retirement",
+            document_type="retirement_statement",
+            status="parsed",
+            account_label="Pinellas County Schools 457(b) Deferred Compensation Plan",
+            file_size_bytes=10,
+            content_type="text/plain",
+            classification_confidence=0.97,
+            review_status="complete",
+            review_summary="Reviewed",
+            review_confidence=0.97,
+            statement_start=None,
+            statement_end=_iso(1),
+            uploaded_at=_iso(1),
+            parsed_at=_iso(1),
+            metadata={"file_available": True, "application_summary": {"status": "applied"}},
+        ),
+    ]
+
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="acct-a",
+                document_id="doc-a",
+                household_account_id="household-a",
+                source_type="retirement",
+                asset_group="retirement",
+                account_type="retirement",
+                institution_name="Pinellas County Schools",
+                account_name="Pinellas County Schools 403(b) Plan",
+                account_mask=None,
+                owner_name="Mariana Leslie",
+                currency="USD",
+                balance=130087.17,
+                holdings_value=130087.17,
+                cash_balance=None,
+                as_of_date=_iso(1),
+                confidence=0.98,
+                metadata={},
+            ),
+            HouseholdEvidenceAccount(
+                id="acct-b",
+                document_id="doc-b",
+                household_account_id="household-b",
+                source_type="retirement",
+                asset_group="retirement",
+                account_type="retirement",
+                institution_name="Pinellas County Schools",
+                account_name="Pinellas County Schools 457(b) Deferred Compensation Plan",
+                account_mask=None,
+                owner_name="Mariana Leslie",
+                currency="USD",
+                balance=95961.72,
+                holdings_value=95961.72,
+                cash_balance=None,
+                as_of_date=_iso(1),
+                confidence=0.97,
+                metadata={},
+            ),
+        ],
+        documents=documents,
+        portfolio_accounts=[],
+        tracked_accounts=[
+            HouseholdTrackedAccount(
+                id="tracked-a",
+                household_account_id="household-a",
+                label="Pinellas",
+                asset_group="retirement",
+                account_type="retirement",
+                source_type="retirement",
+                match_key=None,
+                institution_name="Pinellas County Schools",
+                owner_name="Mariana Leslie",
+                account_mask=None,
+                notes=None,
+                created_at=_iso(10),
+                updated_at=_iso(1),
+            ),
+            HouseholdTrackedAccount(
+                id="tracked-b",
+                household_account_id="household-b",
+                label="Pinellas",
+                asset_group="retirement",
+                account_type="retirement",
+                source_type="retirement",
+                match_key=None,
+                institution_name="Pinellas County Schools",
+                owner_name="Mariana Leslie",
+                account_mask=None,
+                notes=None,
+                created_at=_iso(10),
+                updated_at=_iso(1),
+            ),
+        ],
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    assert len(summaries) == 2
+    assert {summary.id for summary in summaries} == {"household-a", "household-b"}
+    assert all(summary.label == "Pinellas" for summary in summaries)
+    assert {summary.tracked_account_id for summary in summaries} == {"tracked-a", "tracked-b"}
+
+
 def test_build_account_summaries_uses_portfolio_label_for_linked_evidence_accounts() -> None:
     documents = [
         HouseholdDocument(

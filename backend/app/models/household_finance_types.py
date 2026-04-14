@@ -257,6 +257,7 @@ class ImportCenter(BaseModel):
 class HouseholdEvidenceAccount(BaseModel):
     id: str
     document_id: str
+    household_account_id: str | None = None
     source_type: str
     asset_group: str
     account_type: str
@@ -275,6 +276,7 @@ class HouseholdEvidenceAccount(BaseModel):
 
 class HouseholdTrackedAccount(BaseModel):
     id: str
+    household_account_id: str | None = None
     label: str
     asset_group: str
     account_type: str

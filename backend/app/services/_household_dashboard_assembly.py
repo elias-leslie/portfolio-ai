@@ -745,6 +745,9 @@ def build_jenny_brief(profile: Any, reports: Any, resolved_values: list[Househol
 def gather_service_data(service: Any) -> dict[str, Any]:
     service.transaction_service.backfill_from_latest_reviews(limit=100)
     service.evidence_service.backfill_from_latest_reviews(service, limit=100)
+    registry_service = getattr(service, "account_registry_service", None)
+    if registry_service is not None:
+        registry_service.sync_registry(service, limit=1000)
     profile = service.get_profile()
     planning = service.get_planning_snapshot()
     documents = service.list_documents(limit=100).items

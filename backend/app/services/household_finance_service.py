@@ -21,6 +21,7 @@ from app.portfolio.price_fetcher import PriceDataFetcher
 from app.services._household_dashboard_queries import fetch_inferred_value_rows
 from app.services._household_finance_document_methods import _HFDocumentMethods
 from app.services._household_finance_intake_methods import _HFIntakeMethods
+from app.services.household_account_registry_service import HouseholdAccountRegistryService
 from app.services.household_dashboard_composer import HouseholdDashboardComposer
 from app.services.household_document_pipeline import HouseholdDocumentPipeline
 from app.services.household_document_review import HouseholdDocumentReviewService
@@ -51,6 +52,7 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         )
         self.transaction_service = HouseholdTransactionService()
         self.evidence_service = HouseholdEvidenceService()
+        self.account_registry_service = HouseholdAccountRegistryService()
         self.product_enrichment_service = HouseholdProductEnrichmentService()
         self.dashboard_composer = HouseholdDashboardComposer()
         self.document_pipeline = HouseholdDocumentPipeline()
@@ -62,7 +64,7 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         self.tracked_account_service = HouseholdTrackedAccountService()
 
     def get_dashboard(self) -> HouseholdFinanceDashboard:
-        self.tracked_account_service.sync_linked_accounts_from_evidence(self)
+        self.account_registry_service.sync_registry(self, limit=1000)
         return self.dashboard_composer.build_dashboard(self)
 
     def get_profile(self) -> HouseholdProfile:
@@ -106,7 +108,7 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         return self.tracked_account_service.delete_account(self, account_id)
 
     def sync_linked_tracked_accounts(self, *, limit: int = 500) -> int:
-        return self.tracked_account_service.sync_linked_accounts_from_evidence(self, limit=limit)
+        return int(self.account_registry_service.sync_registry(self, limit=limit).get("tracked_linked", 0))
 
     def _upload_root(self) -> Path:
         return Path(__file__).resolve().parents[2] / "data" / "household_uploads"

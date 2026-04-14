@@ -13,7 +13,7 @@ from app.services._household_finance_utils import iso_or_none, to_float
 from app.services.household_finance_rows import row_to_evidence_account
 
 _EVIDENCE_COLS = (
-    "id, document_id, source_type, asset_group, account_type, "
+    "id, document_id, household_account_id, source_type, asset_group, account_type, "
     "institution_name, account_name, account_mask, owner_name, currency, "
     "balance, holdings_value, cash_balance, as_of_date, metadata, confidence"
 )
@@ -55,6 +55,8 @@ def _identity_text(value: object) -> str:
 
 
 def _account_identity(account: HouseholdEvidenceAccount) -> tuple[str, ...]:
+    if account.household_account_id:
+        return ("household_account_id", _identity_text(account.household_account_id))
     return (
         _identity_text(account.source_type),
         _identity_text(account.asset_group),
@@ -107,18 +109,19 @@ class HouseholdEvidenceService:
                 conn.execute(
                     """
                     INSERT INTO household_evidence_accounts (
-                        id, document_id, source_type, asset_group, account_type,
+                        id, document_id, household_account_id, source_type, asset_group, account_type,
                         institution_name, account_name, account_mask, owner_name, currency,
                         balance, holdings_value, cash_balance, as_of_date, confidence,
                         metadata, created_at, updated_at
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                         %s, %s, %s, %s, %s, %s::jsonb, %s, %s
                     )
                     """,
                     [
                         str(uuid.uuid4()),
                         document.id,
+                        None,
                         account["source_type"],
                         account["asset_group"],
                         account["account_type"],

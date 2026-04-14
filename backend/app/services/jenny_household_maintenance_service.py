@@ -35,7 +35,10 @@ class JennyHouseholdMaintenanceService:
     """Replay weak money evidence and sync the money inbox into Jenny."""
 
     def run_daily_maintenance_pass(self, service: Any, *, routine_id: str) -> dict[str, Any]:
-        synced_accounts = service.household_service.sync_linked_tracked_accounts()
+        registry_summary = service.household_service.account_registry_service.sync_registry(
+            service.household_service,
+            limit=1000,
+        )
         replay_stats = self._replay_candidate_documents(service)
         dashboard = service.household_service.get_dashboard()
         notification_count = self._sync_household_notifications(
@@ -43,10 +46,14 @@ class JennyHouseholdMaintenanceService:
             routine_id=routine_id,
             dashboard=dashboard,
         )
-        summary = self._build_summary(dashboard, replay_stats, notification_count, synced_accounts)
+        summary = self._build_summary(dashboard, replay_stats, notification_count, registry_summary)
         return {
             "summary": summary,
-            "linked_accounts_synced": synced_accounts,
+            "linked_accounts_synced": int(registry_summary.get("tracked_linked", 0)),
+            "canonical_accounts_created": int(registry_summary.get("accounts_created", 0)),
+            "canonical_accounts_merged": int(registry_summary.get("accounts_merged", 0)),
+            "evidence_accounts_linked": int(registry_summary.get("evidence_linked", 0)),
+            "transactions_linked": int(registry_summary.get("transaction_linked", 0)),
             "documents_reviewed": replay_stats["attempted"],
             "documents_recovered": replay_stats["recovered"],
             "missing_sources": replay_stats["missing_source"],
@@ -64,14 +71,50 @@ class JennyHouseholdMaintenanceService:
                 WHERE status IN ('staged', 'needs_review')
                    OR COALESCE(review_status, '') IN ('needs_review', 'failed')
                    OR (
+                        source_type IN ('bank', 'credit_card', 'brokerage', 'retirement')
+                        AND (
+                            review_confidence IS NULL
+                           OR review_confidence < 0.95
+                           OR source_type = 'other'
+                           OR document_type = 'other'
+                           OR (
+                                metadata->'structured_data'->'financial_accounts' IS NULL
+                                OR jsonb_typeof(metadata->'structured_data'->'financial_accounts') <> 'array'
+                                OR jsonb_array_length(
+                                    CASE
+                                        WHEN jsonb_typeof(metadata->'structured_data'->'financial_accounts') = 'array'
+                                        THEN metadata->'structured_data'->'financial_accounts'
+                                        ELSE '[]'::jsonb
+                                    END
+                                ) = 0
+                           )
+                           OR COALESCE(metadata->'application_summary'->>'status', '') <> 'applied'
+                           OR COALESCE((metadata->'application_summary'->>'needs_follow_up')::boolean, false)
+                        )
+                   )
+                   OR (
                         uploaded_at >= %s
                         AND (
                             review_confidence IS NULL
-                            OR review_confidence < 0.95
-                            OR source_type = 'other'
-                            OR document_type = 'other'
-                            OR COALESCE(metadata->'application_summary'->>'status', '') <> 'applied'
-                            OR COALESCE((metadata->'application_summary'->>'needs_follow_up')::boolean, false)
+                           OR review_confidence < 0.95
+                           OR source_type = 'other'
+                           OR document_type = 'other'
+                           OR (
+                                source_type IN ('bank', 'credit_card', 'brokerage', 'retirement')
+                                AND (
+                                    metadata->'structured_data'->'financial_accounts' IS NULL
+                                    OR jsonb_typeof(metadata->'structured_data'->'financial_accounts') <> 'array'
+                                    OR jsonb_array_length(
+                                        CASE
+                                            WHEN jsonb_typeof(metadata->'structured_data'->'financial_accounts') = 'array'
+                                            THEN metadata->'structured_data'->'financial_accounts'
+                                            ELSE '[]'::jsonb
+                                        END
+                                    ) = 0
+                                )
+                           )
+                           OR COALESCE(metadata->'application_summary'->>'status', '') <> 'applied'
+                           OR COALESCE((metadata->'application_summary'->>'needs_follow_up')::boolean, false)
                         )
                    )
                 ORDER BY uploaded_at DESC
@@ -142,11 +185,15 @@ class JennyHouseholdMaintenanceService:
         dashboard: HouseholdFinanceDashboard,
         replay_stats: dict[str, int],
         notification_count: int,
-        synced_accounts: int,
+        registry_summary: dict[str, int],
     ) -> str:
         overview = dashboard.overview
         return (
-            f"Synced {synced_accounts} linked tracked accounts from evidence. "
+            f"Registry created {registry_summary.get('accounts_created', 0)} account(s), "
+            f"merged {registry_summary.get('accounts_merged', 0)}, "
+            f"linked {registry_summary.get('evidence_linked', 0)} evidence row(s), "
+            f"{registry_summary.get('transaction_linked', 0)} transaction row(s), "
+            f"and {registry_summary.get('tracked_linked', 0)} tracked customization row(s). "
             f"Replayed {replay_stats['attempted']} household documents "
             f"({replay_stats['recovered']} recovered, {replay_stats['missing_source']} missing source). "
             f"Net worth is {overview.net_worth_status}; monthly spend is {overview.monthly_spend_status}; "
