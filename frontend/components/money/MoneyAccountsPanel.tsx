@@ -177,8 +177,9 @@ function TrackedAccountDialog({
   const identityLocked = Boolean(
     isEditing && identityManagedByCanonicalAccount(account),
   )
+  const ownerLocked = false
   const dialogTitle = identityLocked
-    ? 'Edit account label'
+    ? 'Edit linked account'
     : isEditing
       ? 'Edit tracked account'
       : isPrefilled
@@ -187,10 +188,10 @@ function TrackedAccountDialog({
   const dialogDescription = isPrefilled
     ? 'Jenny found this account from evidence. Confirm the details once, then keep attaching evidence to this row over time.'
     : identityLocked
-      ? 'Rename this account or add notes here. Identity fields stay tied to linked evidence so one account cannot silently turn into another.'
+      ? 'Update label, display owner, or notes here. Identity fields stay tied to linked evidence so one account cannot silently turn into another.'
       : 'Create a real account row first, then let Jenny attach evidence to it over time.'
   const submitLabel = identityLocked
-    ? 'Save label'
+    ? 'Save account details'
     : isEditing
       ? 'Save account'
       : isPrefilled
@@ -326,7 +327,7 @@ function TrackedAccountDialog({
             <Input
               id="money-account-owner"
               value={form.ownerName ?? ''}
-              disabled={identityLocked}
+              disabled={ownerLocked}
               onChange={(event) =>
                 setForm((current) => ({
                   ...current,

@@ -128,7 +128,8 @@ def _classify_merchant(*, raw_merchant: str, description: str, amount: float | N
     rules = [
         (["payroll", "ui benefit", "payables", "salary", "wages"], ("Income", "essential")),
         (["zelle from", "transfer from"], ("Transfers", "mixed")),
-        (["credit crd epay", "payment thank you", "inst xfer", "online transfer", "recurring transfer", "moneyline", "zelle to", "venmo payment"], ("Transfers", "mixed")),
+        (["credit crd epay", "payment thank you", "inst xfer", "online transfer", "recurring transfer", "moneyline", "zelle to"], ("Transfers", "mixed")),
+        (["venmo", "cash app", "cashapp"], ("P2P", "mixed")),
         (["atm withdrawal"], ("Cash", "mixed")),
         (["walmart com"], ("Retail", "discretionary")),
         (["walmart", "wal mart", "wal-mart", "wm supercenter", "target", "costco", "sam's club", "sams club"], ("Household", "mixed")),

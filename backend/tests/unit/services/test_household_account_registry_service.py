@@ -70,6 +70,14 @@ def _tracked(
     )
 
 
+class _ConnectionRecorder:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, list[object] | None]] = []
+
+    def execute(self, sql: str, params: list[object] | None = None) -> None:
+        self.calls.append((sql, params))
+
+
 def _evidence(
     *,
     evidence_id: str,
@@ -101,6 +109,44 @@ def _evidence(
         confidence=0.99,
         metadata={},
     )
+
+
+def test_sync_tracked_identity_snapshot_preserves_display_owner_for_linked_account() -> None:
+    service = HouseholdAccountRegistryService()
+    tracked = _tracked(
+        account_id="tracked-frs",
+        label="FRS",
+        asset_group="retirement",
+        account_type="401k",
+        source_type="retirement",
+        institution_name="Florida Retirement System (FRS)",
+        owner_name="Elias",
+        account_mask=None,
+        match_key="identity::frs|elias",
+    )
+    tracked.household_account_id = "household-frs"
+    canonical = _canonical(
+        account_id="household-frs",
+        label="Florida Retirement System (FRS) · FRS Investment Plan",
+        asset_group="retirement",
+        account_type="401k",
+        source_type="retirement",
+        institution_name="Florida Retirement System (FRS)",
+        owner_name="Mariana Leslie",
+        account_mask="8891",
+    )
+    conn = _ConnectionRecorder()
+
+    service._sync_tracked_identity_snapshot(  # type: ignore[attr-defined]
+        conn,
+        tracked=tracked,
+        canonical_account=canonical,
+    )
+
+    assert conn.calls
+    _, params = conn.calls[0]
+    assert params is not None
+    assert params[5] == "Elias"
 
 
 def test_account_identity_candidates_do_not_emit_owner_level_education_keys() -> None:

@@ -240,7 +240,7 @@ def test_sync_linked_accounts_from_evidence_ignores_unanchored_rows() -> None:
     fake_service.account_registry_service.sync_registry.assert_called_once_with(fake_service, limit=500)
 
 
-def test_update_account_preserves_identity_fields_for_linked_accounts() -> None:
+def test_update_account_preserves_linked_identity_fields_but_allows_owner_change() -> None:
     service = HouseholdTrackedAccountService()
     existing = _tracked_account(
         account_id="acct-1",
@@ -263,7 +263,7 @@ def test_update_account_preserves_identity_fields_for_linked_accounts() -> None:
         source_type="retirement",
         match_key="identity::pinellas|403b",
         institution_name="Pinellas County Schools",
-        owner_name="Mariana Leslie",
+        owner_name="Wrong Owner",
         account_mask=None,
     )
     connection = _FakeConnection()
@@ -298,14 +298,15 @@ def test_update_account_preserves_identity_fields_for_linked_accounts() -> None:
     assert params[3] == "retirement"
     assert params[4] == "identity::pinellas|403b"
     assert params[5] == "Pinellas County Schools"
-    assert params[6] == "Mariana Leslie"
+    assert params[6] == "Wrong Owner"
     assert params[7] is None
     assert params[8] == "Renamed for display"
     assert params[10] == "acct-1"
+    service._ensure_unique_identity.assert_not_called()
     fake_service.account_registry_service.sync_registry.assert_called_once_with(fake_service, limit=500)
 
 
-def test_update_account_ignores_owner_change_for_linked_accounts() -> None:
+def test_update_account_allows_display_owner_change_for_linked_accounts() -> None:
     service = HouseholdTrackedAccountService()
     existing = _tracked_account(
         account_id="acct-2",
@@ -328,7 +329,7 @@ def test_update_account_ignores_owner_change_for_linked_accounts() -> None:
         source_type="credit_card",
         match_key="identity::chase|5313",
         institution_name="Chase",
-        owner_name="Elias B Leslie",
+        owner_name="Elias",
         account_mask="5313",
     )
     connection = _FakeConnection()
@@ -345,7 +346,7 @@ def test_update_account_ignores_owner_change_for_linked_accounts() -> None:
         source_type="credit_card",
         match_key=None,
         institution_name="Chase",
-        owner_name="Elias and Mariana",
+        owner_name="Elias",
         account_mask="9728",
         notes="Updated display name only",
     )
@@ -357,6 +358,7 @@ def test_update_account_ignores_owner_change_for_linked_accounts() -> None:
     assert params is not None
     assert params[0] == "Prime Visa"
     assert params[5] == "Chase"
-    assert params[6] == "Elias B Leslie"
+    assert params[6] == "Elias"
     assert params[7] == "5313"
     assert params[8] == "Updated display name only"
+    service._ensure_unique_identity.assert_not_called()

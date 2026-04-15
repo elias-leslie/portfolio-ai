@@ -282,7 +282,7 @@ describe('MoneyAccountsPanel', () => {
     await user.clear(labelInput)
     await user.type(labelInput, 'Household Checking')
     await user.click(
-      within(dialog).getByRole('button', { name: /save label/i }),
+      within(dialog).getByRole('button', { name: /save account details/i }),
     )
 
     await waitFor(() => {
@@ -302,15 +302,15 @@ describe('MoneyAccountsPanel', () => {
     await user.click(screen.getByRole('button', { name: /main checking/i }))
     await user.click(screen.getByRole('button', { name: /edit/i }))
 
-    expect(screen.getByText('Edit account label')).toBeInTheDocument()
+    expect(screen.getByText('Edit linked account')).toBeInTheDocument()
     expect(
-      screen.getByText(/identity fields stay tied to linked evidence/i),
+      screen.getByText(/update label, display owner, or notes here/i),
     ).toBeInTheDocument()
     expect(screen.getByLabelText(/institution/i)).toBeDisabled()
     expect(screen.getByLabelText(/account mask/i)).toBeDisabled()
-    expect(screen.getByLabelText(/owner/i)).toBeDisabled()
+    expect(screen.getByLabelText(/owner/i)).toBeEnabled()
     expect(
-      screen.getByRole('button', { name: /save label/i }),
+      screen.getByRole('button', { name: /save account details/i }),
     ).toBeInTheDocument()
   })
 
@@ -336,7 +336,7 @@ describe('MoneyAccountsPanel', () => {
 
     expect(screen.getByLabelText(/institution/i)).toBeDisabled()
     expect(screen.getByLabelText(/account mask/i)).toBeDisabled()
-    expect(screen.getByLabelText(/owner/i)).toBeDisabled()
+    expect(screen.getByLabelText(/owner/i)).toBeEnabled()
   })
 
   it('deletes a tracked account from the row dialog', async () => {

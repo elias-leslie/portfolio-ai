@@ -764,6 +764,56 @@ def test_build_account_summaries_match_owner_specific_tracked_row_with_short_own
     assert tracked_ids[131002.19] == "tracked-mariana"
 
 
+def test_build_account_summaries_prefer_tracked_display_owner_for_linked_account() -> None:
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="acct-frs",
+                document_id="doc-frs",
+                household_account_id="household-frs",
+                source_type="retirement",
+                asset_group="retirement",
+                account_type="401k",
+                institution_name="Florida Retirement System (FRS)",
+                account_name="FRS Investment Plan",
+                account_mask=None,
+                owner_name="Mariana Leslie",
+                currency="USD",
+                balance=131002.19,
+                holdings_value=131002.19,
+                cash_balance=None,
+                as_of_date="2026-04-10",
+                confidence=0.97,
+                metadata={},
+            ),
+        ],
+        documents=[],
+        portfolio_accounts=[],
+        tracked_accounts=[
+            HouseholdTrackedAccount(
+                id="tracked-frs",
+                household_account_id="household-frs",
+                label="FRS",
+                asset_group="retirement",
+                account_type="401k",
+                source_type="retirement",
+                institution_name="Florida Retirement System (FRS)",
+                owner_name="Elias",
+                account_mask=None,
+                notes=None,
+                created_at="2026-04-13T00:00:00Z",
+                updated_at="2026-04-13T00:00:00Z",
+            ),
+        ],
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    assert len(summaries) == 1
+    assert summaries[0].owner_name == "Elias"
+    assert summaries[0].tracked_account_id == "tracked-frs"
+
+
 def test_build_money_inbox_surfaces_discovered_accounts_with_review_route() -> None:
     inbox = build_money_inbox(
         accounts=[],

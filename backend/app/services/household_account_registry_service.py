@@ -1369,7 +1369,7 @@ class HouseholdAccountRegistryService:
         next_account_type = canonical_account.account_type
         next_source_type = canonical_account.source_type
         next_institution_name = canonical_account.institution_name
-        next_owner_name = canonical_account.owner_name
+        next_owner_name = tracked.owner_name or canonical_account.owner_name
         next_account_mask = canonical_account.account_mask
         next_match_key = canonical_account.primary_identity_key or tracked.match_key
         if (

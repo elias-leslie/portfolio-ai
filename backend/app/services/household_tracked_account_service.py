@@ -106,7 +106,14 @@ class HouseholdTrackedAccountService:
         if existing is None:
             return None
         account = self._normalize_payload(payload)
-        if existing.household_account_id or existing.match_key or existing.account_mask:
+        if existing.household_account_id:
+            account["asset_group"] = existing.asset_group
+            account["account_type"] = existing.account_type
+            account["source_type"] = existing.source_type
+            account["match_key"] = existing.match_key
+            account["institution_name"] = existing.institution_name
+            account["account_mask"] = existing.account_mask
+        elif existing.match_key or existing.account_mask:
             account["asset_group"] = existing.asset_group
             account["account_type"] = existing.account_type
             account["source_type"] = existing.source_type
@@ -114,7 +121,8 @@ class HouseholdTrackedAccountService:
             account["institution_name"] = existing.institution_name
             account["owner_name"] = existing.owner_name
             account["account_mask"] = existing.account_mask
-        self._ensure_unique_identity(service, account=account, exclude_account_id=account_id)
+        if not existing.household_account_id:
+            self._ensure_unique_identity(service, account=account, exclude_account_id=account_id)
         with service.storage.connection() as conn:
             conn.execute(
                 """

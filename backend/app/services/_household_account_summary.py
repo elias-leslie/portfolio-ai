@@ -1139,7 +1139,7 @@ def build_account_summaries(
             source_type=display_account.source_type,
             match_key=tracked_account.match_key if tracked_account is not None else group_key,
             institution_name=display_account.institution_name,
-            owner_name=display_account.owner_name if display_account.owner_name is not None else tracked_account.owner_name if tracked_account is not None else None,
+            owner_name=tracked_account.owner_name if tracked_account is not None and tracked_account.owner_name is not None else display_account.owner_name,
             account_mask=display_account.account_mask,
             notes=tracked_account.notes if tracked_account is not None else None,
             currency=balance_account.currency or display_account.currency,

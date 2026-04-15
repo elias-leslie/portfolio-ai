@@ -436,7 +436,7 @@ def test_build_reports_excludes_cash_movement_rows_even_when_stored_as_expense()
     ]
 
 
-def test_build_spending_view_excludes_venmo_cash_movement_even_if_stored_as_expense() -> None:
+def test_build_spending_view_keeps_venmo_payments_visible_as_p2p_spend() -> None:
     today = date.today()
     service = HouseholdTransactionService()
     service.storage = _SequenceStorage(
@@ -487,11 +487,14 @@ def test_build_spending_view_excludes_venmo_cash_movement_even_if_stored_as_expe
 
     spending = service.build_spending_view(window="1m")
 
-    assert spending.summary.total_spend == 177.51
-    assert spending.summary.transaction_count == 1
-    assert [row.description for row in spending.transactions] == [
-        "Dukeenergy Bill Pay 910066616132 Elias B Leslie"
-    ]
+    assert spending.summary.total_spend == 207.51
+    assert spending.summary.transaction_count == 2
+    categories = {row.description: row.category for row in spending.transactions}
+    assert categories["Venmo Payment 260117 1047668918292 Mariana Leslie"] == "P2P"
+    assert {row.description for row in spending.transactions} == {
+        "Dukeenergy Bill Pay 910066616132 Elias B Leslie",
+        "Venmo Payment 260117 1047668918292 Mariana Leslie",
+    }
 
 
 def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() -> None:

@@ -17,6 +17,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -27,7 +28,7 @@ import { cn } from '@/lib/utils'
 
 type LedgerWindow = 'all' | '1m' | '3m' | '6m' | '12m'
 type LedgerKind = 'all' | 'transactions' | 'imports'
-type LedgerStatus = 'all' | 'counted' | 'excluded'
+type LedgerStatus = 'canonical' | 'all' | 'duplicates'
 
 const ledgerWindows: Array<{ value: LedgerWindow; label: string }> = [
   { value: 'all', label: 'All' },
@@ -44,9 +45,9 @@ const ledgerKinds: Array<{ value: LedgerKind; label: string }> = [
 ]
 
 const ledgerStatuses: Array<{ value: LedgerStatus; label: string }> = [
-  { value: 'all', label: 'All statuses' },
-  { value: 'counted', label: 'Counted' },
-  { value: 'excluded', label: 'Excluded' },
+  { value: 'canonical', label: 'Canonical ledger' },
+  { value: 'all', label: 'All source rows' },
+  { value: 'duplicates', label: 'Duplicates only' },
 ]
 
 function formatLedgerDate(value?: string | null) {
@@ -129,7 +130,7 @@ function shortHash(value: string) {
 export function MoneyLedgerPanel() {
   const [window, setWindow] = useState<LedgerWindow>('all')
   const [kind, setKind] = useState<LedgerKind>('transactions')
-  const [status, setStatus] = useState<LedgerStatus>('counted')
+  const [status, setStatus] = useState<LedgerStatus>('canonical')
   const [account, setAccount] = useState<string>('all')
   const [query, setQuery] = useState('')
   const deferredQuery = useDeferredValue(query.trim().toLowerCase())
@@ -168,10 +169,11 @@ export function MoneyLedgerPanel() {
   const visibleEntries = useMemo(() => {
     const entries = ledger?.entries ?? []
     return entries.filter((entry) => {
-      if (status === 'counted' && !entry.includedInSpend) {
+      const isDuplicate = (entry.exclusionReason ?? '').startsWith('duplicate')
+      if (status === 'canonical' && isDuplicate) {
         return false
       }
-      if (status === 'excluded' && entry.includedInSpend) {
+      if (status === 'duplicates' && !isDuplicate) {
         return false
       }
       if (
@@ -222,6 +224,7 @@ export function MoneyLedgerPanel() {
       ),
     [visibleEntries],
   )
+  const visibleNetMovement = visibleDebitTotal - visibleCreditTotal
 
   if (error) {
     return (
@@ -311,7 +314,7 @@ export function MoneyLedgerPanel() {
               </SelectContent>
             </Select>
             <Select value={status} onValueChange={(value) => setStatus(value as LedgerStatus)}>
-              <SelectTrigger aria-label="Filter ledger by counting status">
+              <SelectTrigger aria-label="Filter ledger row set">
                 <SelectValue placeholder="All statuses" />
               </SelectTrigger>
               <SelectContent>
@@ -325,14 +328,16 @@ export function MoneyLedgerPanel() {
             <p className="text-xs text-text-muted">
               {ledger?.timeframeLabel ?? 'All dates'} · {visibleEntries.length}{' '}
             visible row{visibleEntries.length === 1 ? '' : 's'}
-            {ledger && visibleEntries.length !== ledger.totalEntryCount
-              ? ` of ${ledger.totalEntryCount}`
-              : ''}
+            {status === 'canonical'
+              ? ' · true duplicate source rows hidden'
+              : ledger && visibleEntries.length !== ledger.totalEntryCount
+                ? ` of ${ledger.totalEntryCount}`
+                : ''}
           </p>
         </div>
       </div>
 
-        <div className="mt-5 grid gap-3 xl:grid-cols-4">
+        <div className="mt-5 grid gap-3 xl:grid-cols-5">
           <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
           <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
             Timeframe
@@ -354,7 +359,7 @@ export function MoneyLedgerPanel() {
             {formatCurrency(visibleDebitTotal, { decimals: 2 })}
           </p>
             <p className="mt-1 text-xs text-text-muted">
-              Outflows in current ledger filter
+              Debits in current ledger view
             </p>
           </div>
           <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
@@ -365,7 +370,18 @@ export function MoneyLedgerPanel() {
             {formatCurrency(visibleCreditTotal, { decimals: 2 })}
           </p>
             <p className="mt-1 text-xs text-text-muted">
-              Inflows and credits in current ledger filter
+              Credits in current ledger view
+            </p>
+          </div>
+          <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
+            <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
+              Net
+            </p>
+            <p className="mt-2 text-base font-semibold text-text">
+              {formatCurrency(Math.abs(visibleNetMovement), { decimals: 2 })}
+            </p>
+            <p className="mt-1 text-xs text-text-muted">
+              {visibleNetMovement >= 0 ? 'Net debit' : 'Net credit'}
             </p>
           </div>
           <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
@@ -549,6 +565,32 @@ export function MoneyLedgerPanel() {
               })
             )}
           </TableBody>
+          <TableFooter>
+            <TableRow>
+              <TableCell className="font-semibold text-text">Total</TableCell>
+              <TableCell className="text-text-muted">
+                {visibleEntries.length} row{visibleEntries.length === 1 ? '' : 's'}
+              </TableCell>
+              <TableCell className="text-text-muted">
+                {status === 'canonical' ? 'Canonical non-duplicate ledger rows' : 'Visible ledger rows'}
+              </TableCell>
+              <TableCell />
+              <TableCell className="text-text-muted">
+                {visibleNetMovement >= 0 ? 'Net debit' : 'Net credit'}
+              </TableCell>
+              <TableCell className="text-right font-mono tabular-nums text-text">
+                {formatCurrency(visibleDebitTotal, { decimals: 2 })}
+              </TableCell>
+              <TableCell className="text-right font-mono tabular-nums text-text">
+                {formatCurrency(visibleCreditTotal, { decimals: 2 })}
+              </TableCell>
+              <TableCell className="text-right font-mono tabular-nums text-text">
+                {formatCurrency(Math.abs(visibleNetMovement), { decimals: 2 })}
+              </TableCell>
+              <TableCell />
+              <TableCell />
+            </TableRow>
+          </TableFooter>
           </Table>
         </div>
       </div>

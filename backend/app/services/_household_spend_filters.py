@@ -13,7 +13,6 @@ _NON_SPEND_TEXT_PATTERNS = (
     "online transfer",
     "recurring transfer",
     "moneyline",
-    "venmo payment",
     "zelle from",
     "zelle to",
     "ui benefit",
