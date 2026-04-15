@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { HouseholdDocumentCenter } from '@/components/money/HouseholdDocumentCenter'
 import { MoneyLedgerPanel } from '@/components/money/MoneyLedgerPanel'
+import { MoneyLeversPanel } from '@/components/money/MoneyLeversPanel'
 import { MoneySpendingPanel } from '@/components/money/MoneySpendingPanel'
 import {
   HouseholdPlanningPanels,
@@ -327,9 +328,10 @@ function MoneyPageContent() {
       value: 'levers',
       label: 'Levers',
       content: (
-        <div className="space-y-6">
-          <MoneyOverviewPanel dashboard={dashboard} sections={['levers']} />
-        </div>
+        <MoneyLeversPanel
+          priceInsights={dashboard.reports.priceInsights ?? []}
+          recurringCommitments={dashboard.recurringCommitments}
+        />
       ),
     },
     {

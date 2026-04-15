@@ -8,6 +8,7 @@ from app.services._money_workspace_routes import (
     MONEY_ACCOUNT_COVERAGE_ROUTE,
     MONEY_DATE_QUALITY_ROUTE,
     MONEY_EVIDENCE_ROUTE,
+    MONEY_SPENDING_ROUTE,
     money_planning_focus_route,
 )
 
@@ -155,6 +156,7 @@ def _jenny_retirement_category_needs(
             title="Review spending categories",
             detail=f"{count} transaction{'s' if count != 1 else ''} need category confirmation so Jenny can trust the budget lanes.",
             priority="medium", status="unsatisfied", recurrence="as_needed",
+            action_href=MONEY_SPENDING_ROUTE,
         ))
     return needs
 

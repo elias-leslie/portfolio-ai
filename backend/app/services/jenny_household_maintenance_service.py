@@ -74,13 +74,23 @@ class JennyHouseholdMaintenanceService:
             limit=1000,
         )
         replay_stats = self._replay_candidate_documents(service)
+        audit_summary = service.household_service.transaction_audit_service.audit_transactions(
+            service.household_service,
+            limit=240,
+        )
         dashboard = service.household_service.get_dashboard()
         notification_count = self._sync_household_notifications(
             service,
             routine_id=routine_id,
             dashboard=dashboard,
         )
-        summary = self._build_summary(dashboard, replay_stats, notification_count, registry_summary)
+        summary = self._build_summary(
+            dashboard,
+            replay_stats,
+            notification_count,
+            registry_summary,
+            audit_summary,
+        )
         return {
             "summary": summary,
             "linked_accounts_synced": int(registry_summary.get("tracked_linked", 0)),
@@ -91,6 +101,10 @@ class JennyHouseholdMaintenanceService:
             "documents_reviewed": replay_stats["attempted"],
             "documents_recovered": replay_stats["recovered"],
             "missing_sources": replay_stats["missing_source"],
+            "transactions_audited": int(audit_summary.get("reviewed") or 0),
+            "transactions_auto_fixed": int(audit_summary.get("auto_fixed") or 0),
+            "transactions_agent_fixed": int(audit_summary.get("agent_fixed") or 0),
+            "transactions_flagged": int(audit_summary.get("flagged") or 0),
             "notifications_created": notification_count,
             "money_inbox_items": len(dashboard.inbox),
         }
@@ -281,6 +295,7 @@ class JennyHouseholdMaintenanceService:
         replay_stats: dict[str, int],
         notification_count: int,
         registry_summary: dict[str, int],
+        audit_summary: dict[str, int],
     ) -> str:
         overview = dashboard.overview
         return (
@@ -291,6 +306,9 @@ class JennyHouseholdMaintenanceService:
             f"and {registry_summary.get('tracked_linked', 0)} tracked customization row(s). "
             f"Replayed {replay_stats['attempted']} household documents "
             f"({replay_stats['recovered']} recovered, {replay_stats['missing_source']} missing source). "
+            f"Audited {audit_summary.get('reviewed', 0)} transaction row(s) "
+            f"({audit_summary.get('auto_fixed', 0)} deterministic, {audit_summary.get('agent_fixed', 0)} agent fixed, "
+            f"{audit_summary.get('flagged', 0)} flagged). "
             f"Net worth is {overview.net_worth_status}; monthly spend is {overview.monthly_spend_status}; "
             f"{len(dashboard.inbox)} money blockers on file and {notification_count} open Jenny household alerts."
         )

@@ -559,6 +559,21 @@ class HouseholdDocumentPipeline:
             document=document,
             reviewed=reviewed,
         )
+        transaction_audit_summary: dict[str, object] = {}
+        transaction_audit_service = getattr(service, "transaction_audit_service", None)
+        if transaction_audit_service is not None:
+            transaction_audit_summary = transaction_audit_service.audit_transactions(
+                service,
+                document_id=document.id,
+                limit=120,
+            )
+        transaction_summary = {
+            **transaction_summary,
+            "audit_reviewed": int(transaction_audit_summary.get("reviewed") or 0),
+            "audit_auto_fixed": int(transaction_audit_summary.get("auto_fixed") or 0),
+            "audit_agent_fixed": int(transaction_audit_summary.get("agent_fixed") or 0),
+            "audit_flagged": int(transaction_audit_summary.get("flagged") or 0),
+        }
         evidence_account_count = service.evidence_service.replace_document_accounts(
             service,
             document=document,

@@ -37,6 +37,7 @@ from app.services.household_question_command_service import HouseholdQuestionCom
 from app.services.household_question_reconciler import HouseholdQuestionReconciler
 from app.services.household_review_agent_service import HouseholdReviewAgentService
 from app.services.household_tracked_account_service import HouseholdTrackedAccountService
+from app.services.household_transaction_audit_service import HouseholdTransactionAuditService
 from app.services.household_transaction_rule_service import HouseholdTransactionRuleService
 from app.services.household_transaction_service import HouseholdTransactionService
 from app.storage import get_storage
@@ -65,6 +66,7 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         self.planning_service = HouseholdPlanningService()
         self.question_command_service = HouseholdQuestionCommandService()
         self.transaction_rule_service = HouseholdTransactionRuleService()
+        self.transaction_audit_service = HouseholdTransactionAuditService()
         self.tracked_account_service = HouseholdTrackedAccountService()
 
     def get_dashboard(self) -> HouseholdFinanceDashboard:

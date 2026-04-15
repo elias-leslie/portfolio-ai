@@ -45,7 +45,10 @@ _CATEGORIZATION_SQL = f"""
         t.category,
         t.essentiality,
         t.confidence,
-        COALESCE(similar_txns.similar_count, 0) AS similar_count
+        COALESCE(similar_txns.similar_count, 0) AS similar_count,
+        COALESCE(t.metadata->'audit'->>'reason', '') AS audit_reason,
+        COALESCE(t.metadata->'audit'->>'suggested_category', '') AS audit_suggested_category,
+        COALESCE(t.metadata->'audit'->>'suggested_essentiality', '') AS audit_suggested_essentiality
     FROM household_transactions t
     LEFT JOIN (
         SELECT t.merchant_id, COUNT(*) AS similar_count
@@ -58,7 +61,10 @@ _CATEGORIZATION_SQL = f"""
     WHERE t.flow_type = 'expense'
       AND {_current_transaction_date_predicate("t")}
       AND NOT {_NON_SPEND_TRANSACTION_SQL}
-      AND COALESCE(t.confidence, 0) < 0.60
+      AND (
+            COALESCE(t.confidence, 0) < 0.60
+         OR COALESCE(t.metadata->'audit'->>'status', '') = 'needs_review'
+      )
     ORDER BY CAST(t.amount AS DOUBLE PRECISION) DESC, COALESCE(similar_txns.similar_count, 0) DESC
     LIMIT %s
 """
@@ -629,10 +635,13 @@ def fetch_categorization_queue(
         rows = conn.execute(_CATEGORIZATION_SQL, [limit]).fetchall()
     results: list[HouseholdCategorizationCandidate] = []
     for row in rows:
-        if len(row) < 9:
+        if len(row) < 12:
             raise ValueError(
-                f"fetch_categorization_queue: expected 9 columns, got {len(row)}"
+                f"fetch_categorization_queue: expected 12 columns, got {len(row)}"
             )
+        audit_reason = str(row[9] or "").strip()
+        audit_suggested_category = str(row[10] or "").strip()
+        audit_suggested_essentiality = str(row[11] or "").strip()
         results.append(
             HouseholdCategorizationCandidate(
                 id=str(row[0]),
@@ -642,11 +651,16 @@ def fetch_categorization_queue(
                 transaction_date=row[4].isoformat(),
                 current_category=str(row[5] or "Household"),
                 current_essentiality=str(row[6] or "mixed"),
-                suggested_category=suggest_category(str(row[1]), str(row[2])),
-                suggested_essentiality=suggest_essentiality(str(row[1]), str(row[2])),
+                suggested_category=audit_suggested_category or suggest_category(str(row[1]), str(row[2])),
+                suggested_essentiality=(
+                    audit_suggested_essentiality or suggest_essentiality(str(row[1]), str(row[2]))
+                ),
                 confidence=float(row[7] or 0.0),
                 similar_transaction_count=max(int(row[8] or 0) - 1, 0),
-                reason="Low-confidence classification (below 60%) needs a human pass before Jenny hardens the budget lane.",
+                reason=(
+                    audit_reason
+                    or "Low-confidence classification (below 60%) needs a human pass before Jenny hardens the budget lane."
+                ),
             )
         )
     return results
