@@ -1,4 +1,4 @@
-"""Background tasks for agent execution.
+"""Legacy background tasks for agent execution.
 
 This module defines background tasks for:
 - Running AI agents (Discovery, Portfolio Analyzer)

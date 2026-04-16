@@ -7,11 +7,7 @@ Run with: python -m app.worker
 from __future__ import annotations
 
 from app.hatchet_app import hatchet
-from app.workflows.agents import (
-    run_discovery_agent_wf,
-    run_portfolio_analyzer_wf,
-    schedule_new_symbol_wf,
-)
+from app.workflows.agents import schedule_new_symbol_wf
 from app.workflows.data_refresh import (
     backfill_indicators_wf,
     calculate_fear_greed_wf,
@@ -156,9 +152,7 @@ def main() -> None:
             refresh_news_sentiment_wf,
             discover_candidates_wf,
             trim_underperforming_wf,
-            # Agents (4)
-            run_discovery_agent_wf,
-            run_portfolio_analyzer_wf,
+            # Agents (1)
             schedule_new_symbol_wf,
             # Monitoring (1)
             monitor_theses_wf,

@@ -12,6 +12,7 @@ from typing import Any
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
 from app.logging_config import get_logger
+from app.services.preferences_service import get_automation_preferences
 
 from ..hatchet_app import hatchet
 from ..utils.market_hours import is_trading_day
@@ -32,6 +33,10 @@ logger = get_logger(__name__)
     ),
 )
 async def jenny_daily_operator_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    automation = get_automation_preferences()
+    if not bool(automation["scheduled_jenny_operator_enabled"]["enabled"]):
+        logger.info("jenny_daily_operator_skipped_disabled")
+        return {"status": "skipped", "reason": "scheduled_jenny_operator_disabled"}
     if not is_trading_day():
         logger.info("jenny_daily_operator_skipped_non_trading_day", evaluated_date=str(date.today()))
         return {"status": "skipped", "reason": "Not a trading day (holiday)"}

@@ -38,6 +38,8 @@ DEFAULT_PREFERENCES = {
     "thesis_generation_enabled": None,
     "auto_remove_on_invalidation": None,
     "auto_trim_enabled": None,
+    "scheduled_jenny_operator_enabled": None,
+    "scheduled_ml_labeling_enabled": None,
 }
 
 
@@ -100,6 +102,12 @@ class PreferencesResponse(BaseModel):
     )
     auto_trim_enabled: bool = Field(
         ..., description="Allow automatic watchlist trimming for weak names"
+    )
+    scheduled_jenny_operator_enabled: bool = Field(
+        ..., description="Allow scheduled Jenny portfolio reviews to run without opening the app"
+    )
+    scheduled_ml_labeling_enabled: bool = Field(
+        ..., description="Allow scheduled article-labeling and ML retraining runs"
     )
 
 
@@ -177,6 +185,12 @@ class PreferencesUpdate(BaseModel):
     )
     auto_trim_enabled: bool | None = Field(
         None, description="Allow automatic watchlist trimming for weak names"
+    )
+    scheduled_jenny_operator_enabled: bool | None = Field(
+        None, description="Allow scheduled Jenny portfolio reviews to run without opening the app"
+    )
+    scheduled_ml_labeling_enabled: bool | None = Field(
+        None, description="Allow scheduled article-labeling and ML retraining runs"
     )
 
     @field_validator("display_timezone")

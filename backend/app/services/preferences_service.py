@@ -25,6 +25,8 @@ AUTOMATION_PREFERENCE_KEYS = (
     "thesis_generation_enabled",
     "auto_remove_on_invalidation",
     "auto_trim_enabled",
+    "scheduled_jenny_operator_enabled",
+    "scheduled_ml_labeling_enabled",
 )
 
 
@@ -49,6 +51,8 @@ def get_automation_defaults() -> dict[str, bool]:
         "thesis_generation_enabled": rules.thesis_management.thesis_generation_enabled,
         "auto_remove_on_invalidation": rules.thesis_management.auto_remove_on_invalidation,
         "auto_trim_enabled": rules.watchlist_management.auto_trim_enabled,
+        "scheduled_jenny_operator_enabled": False,
+        "scheduled_ml_labeling_enabled": False,
     }
 
 
@@ -96,11 +100,13 @@ def get_or_create_automation_preferences() -> dict[str, Any]:
                 thesis_generation_enabled,
                 auto_remove_on_invalidation,
                 auto_trim_enabled,
+                scheduled_jenny_operator_enabled,
+                scheduled_ml_labeling_enabled,
                 created_at,
                 updated_at
-            ) VALUES (%s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            [USER_ID, None, None, None, now, now],
+            [USER_ID, None, None, None, None, None, now, now],
         )
         conn.commit()
 
@@ -109,6 +115,8 @@ def get_or_create_automation_preferences() -> dict[str, Any]:
         "thesis_generation_enabled": None,
         "auto_remove_on_invalidation": None,
         "auto_trim_enabled": None,
+        "scheduled_jenny_operator_enabled": None,
+        "scheduled_ml_labeling_enabled": None,
         "created_at": now,
         "updated_at": now,
     }
@@ -147,6 +155,8 @@ def dict_to_preferences_response(prefs: dict[str, Any]) -> PreferencesResponse:
         thesis_generation_enabled=bool(automation["thesis_generation_enabled"]["enabled"]),
         auto_remove_on_invalidation=bool(automation["auto_remove_on_invalidation"]["enabled"]),
         auto_trim_enabled=bool(automation["auto_trim_enabled"]["enabled"]),
+        scheduled_jenny_operator_enabled=bool(automation["scheduled_jenny_operator_enabled"]["enabled"]),
+        scheduled_ml_labeling_enabled=bool(automation["scheduled_ml_labeling_enabled"]["enabled"]),
     )
 
 
@@ -356,6 +366,8 @@ def _update_automation_preferences(updates: dict[str, bool | None]) -> None:
             SET thesis_generation_enabled = %s,
                 auto_remove_on_invalidation = %s,
                 auto_trim_enabled = %s,
+                scheduled_jenny_operator_enabled = %s,
+                scheduled_ml_labeling_enabled = %s,
                 updated_at = %s
             WHERE id = %s
             """,
@@ -363,6 +375,8 @@ def _update_automation_preferences(updates: dict[str, bool | None]) -> None:
                 current.get("thesis_generation_enabled"),
                 current.get("auto_remove_on_invalidation"),
                 current.get("auto_trim_enabled"),
+                current.get("scheduled_jenny_operator_enabled"),
+                current.get("scheduled_ml_labeling_enabled"),
                 datetime.now(UTC),
                 current["id"],
             ],
