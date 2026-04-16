@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
+from typing import cast
 
 from app.services.automation_center_service import AutomationCenterService
 
@@ -70,6 +71,39 @@ def test_recent_runs_use_failure_summary_for_failed_jenny_runs() -> None:
 
     assert len(runs) == 1
     assert runs[0].detail == "Jenny routine failed: timed out fetching intelligence."
+
+
+def test_center_exposes_background_agent_guardrails(monkeypatch) -> None:
+    service = AutomationCenterService()
+    service.storage = _fake_storage(
+        jenny_rows=[],
+        maintenance_rows=[],
+        failure_rows=[],
+        stale_rows=[],
+    )
+    monkeypatch.setattr(
+        "app.services.automation_center_service.get_or_create_preferences",
+        lambda: {},
+    )
+    monkeypatch.setattr(
+        "app.services.automation_center_service.get_automation_preferences",
+        lambda _prefs=None: {
+            "thesis_generation_enabled": {"enabled": False, "source": "preferences"},
+            "auto_remove_on_invalidation": {"enabled": True, "source": "rules_default"},
+            "auto_trim_enabled": {"enabled": True, "source": "rules_default"},
+            "scheduled_jenny_operator_enabled": {"enabled": False, "source": "rules_default"},
+            "scheduled_ml_labeling_enabled": {"enabled": False, "source": "rules_default"},
+            "scheduled_strategy_research_enabled": {"enabled": False, "source": "rules_default"},
+        },
+    )
+
+    center = service.get_center()
+    raw_guardrails = cast(list[dict[str, object]], center["guardrails"])
+    guardrails = {str(item["key"]): item for item in raw_guardrails}
+
+    assert guardrails["scheduled_jenny_operator_enabled"]["enabled"] is False
+    assert guardrails["scheduled_ml_labeling_enabled"]["enabled"] is False
+    assert guardrails["scheduled_strategy_research_enabled"]["enabled"] is False
 
 
 def test_warnings_dedupe_repeated_failures() -> None:

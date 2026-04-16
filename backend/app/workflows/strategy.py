@@ -12,6 +12,7 @@ from typing import Any, cast
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
 from app.logging_config import get_logger
+from app.services.preferences_service import get_automation_preferences
 
 from ..hatchet_app import hatchet
 from ..utils.market_hours import NY_TZ, is_trading_day
@@ -65,6 +66,14 @@ def _skip_weekly_with_holiday_fallback(task_name: str) -> dict[str, Any] | None:
     return {"status": "skipped", "reason": "Not scheduled day"}
 
 
+def _skip_if_strategy_research_disabled(task_name: str) -> dict[str, Any] | None:
+    automation = get_automation_preferences()
+    if bool(automation["scheduled_strategy_research_enabled"]["enabled"]):
+        return None
+    logger.info("skipping_strategy_research_disabled", task_name=task_name)
+    return {"status": "skipped", "reason": "scheduled_strategy_research_disabled"}
+
+
 @hatchet.task(
     name="portfolio-eval-strategy",
     input_validator=EmptyInput,
@@ -114,6 +123,8 @@ async def auto_promote_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     ),
 )
 async def daily_strategy_refresh_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    if skip := _skip_if_strategy_research_disabled("daily-strategy-refresh"):
+        return skip
     if skip := _skip_if_not_trading_day("daily-strategy-refresh"):
         return skip
     from ..tasks.strategy.generation_tasks import daily_strategy_refresh
@@ -134,6 +145,8 @@ async def daily_strategy_refresh_wf(input: EmptyInput, ctx: Context) -> dict[str
     ),
 )
 async def weekly_strategy_gen_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    if skip := _skip_if_strategy_research_disabled("weekly-strategy-gen"):
+        return skip
     if skip := _skip_weekly_with_holiday_fallback("weekly-strategy-gen"):
         return skip
     from ..tasks.strategy.generation_tasks import weekly_strategy_generation
@@ -154,6 +167,8 @@ async def weekly_strategy_gen_wf(input: EmptyInput, ctx: Context) -> dict[str, A
     ),
 )
 async def weekly_evolution_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    if skip := _skip_if_strategy_research_disabled("weekly-evolution"):
+        return skip
     if skip := _skip_weekly_with_holiday_fallback("weekly-evolution"):
         return skip
     from ..tasks.strategy.evolution_tasks import weekly_strategy_evolution
@@ -285,6 +300,8 @@ async def weekly_optimization_wf(input: EmptyInput, ctx: Context) -> dict[str, A
     ),
 )
 async def trigger_from_seed_wf(input: SeedInput, ctx: Context) -> dict[str, Any]:
+    if skip := _skip_if_strategy_research_disabled("trigger-from-seed"):
+        return skip
     if skip := _skip_if_not_trading_day("trigger-from-seed"):
         return skip
     from ..tasks.strategy.generation_tasks import trigger_strategy_from_seed
@@ -304,6 +321,8 @@ async def trigger_from_seed_wf(input: SeedInput, ctx: Context) -> dict[str, Any]
     ),
 )
 async def trigger_top_strategies_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    if skip := _skip_if_strategy_research_disabled("trigger-top-strategies"):
+        return skip
     if skip := _skip_if_not_trading_day("trigger-top-strategies"):
         return skip
     from ..tasks.strategy.generation_tasks import trigger_strategies_for_top_watchlist

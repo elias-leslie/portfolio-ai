@@ -40,6 +40,7 @@ DEFAULT_PREFERENCES = {
     "auto_trim_enabled": None,
     "scheduled_jenny_operator_enabled": None,
     "scheduled_ml_labeling_enabled": None,
+    "scheduled_strategy_research_enabled": None,
 }
 
 
@@ -108,6 +109,9 @@ class PreferencesResponse(BaseModel):
     )
     scheduled_ml_labeling_enabled: bool = Field(
         ..., description="Allow scheduled article-labeling and ML retraining runs"
+    )
+    scheduled_strategy_research_enabled: bool = Field(
+        ..., description="Allow background strategy research and evolution agents to run automatically"
     )
 
 
@@ -191,6 +195,9 @@ class PreferencesUpdate(BaseModel):
     )
     scheduled_ml_labeling_enabled: bool | None = Field(
         None, description="Allow scheduled article-labeling and ML retraining runs"
+    )
+    scheduled_strategy_research_enabled: bool | None = Field(
+        None, description="Allow background strategy research and evolution agents to run automatically"
     )
 
     @field_validator("display_timezone")

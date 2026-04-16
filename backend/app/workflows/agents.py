@@ -1,7 +1,4 @@
-"""Agent orchestration workflows.
-
-Thin async wrappers around existing business logic in tasks/.
-"""
+"""Agent orchestration workflows."""
 
 from __future__ import annotations
 
@@ -12,43 +9,7 @@ from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
 from ..constants import TRADING_DAYS_PER_YEAR
 from ..hatchet_app import hatchet
-from .models import EmptyInput, SymbolInput
-
-
-@hatchet.task(
-    name="portfolio-run-discovery-agent",
-    input_validator=EmptyInput,
-    retries=1,
-    on_crons=["36 3 * * *"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-run-discovery-agent'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
-)
-async def run_discovery_agent_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.agent_tasks import run_discovery_agent
-
-    result = await asyncio.to_thread(run_discovery_agent)
-    return {"result": result}
-
-
-@hatchet.task(
-    name="portfolio-run-portfolio-analyzer",
-    input_validator=EmptyInput,
-    retries=1,
-    on_crons=["39 3 * * *"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-run-portfolio-analyzer'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
-)
-async def run_portfolio_analyzer_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.agent_tasks import run_portfolio_analyzer
-
-    result = await asyncio.to_thread(run_portfolio_analyzer)
-    return {"result": result}
+from .models import SymbolInput
 
 
 @hatchet.task(

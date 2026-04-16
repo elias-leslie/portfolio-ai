@@ -1,7 +1,6 @@
 """Background tasks for asynchronous execution.
 
 This package contains task modules organized by function:
-- agent_tasks: AI agent execution
 - watchlist_tasks: Watchlist score refresh
 - ingestion: Data ingestion tasks (OHLCV, analytics)
 - indicators: Technical indicator calculations (package)
@@ -17,7 +16,6 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from . import (
-        agent_tasks,
         artifact_tasks,
         cleanup,
         ingestion,
@@ -29,7 +27,6 @@ if TYPE_CHECKING:
         strategy,
         watchlist_tasks,
     )
-    from .agent_tasks import run_discovery_agent, run_portfolio_analyzer
     from .indicators import (
         backfill_technical_indicators,
         calculate_fear_greed,
@@ -42,7 +39,6 @@ if TYPE_CHECKING:
     )
 
 _MODULE_EXPORTS = {
-    "agent_tasks": ".agent_tasks",
     "artifact_tasks": ".artifact_tasks",
     "cleanup": ".cleanup",
     "ingestion": ".ingestion",
@@ -56,8 +52,6 @@ _MODULE_EXPORTS = {
 }
 
 _ATTRIBUTE_EXPORTS = {
-    "run_discovery_agent": (".agent_tasks", "run_discovery_agent"),
-    "run_portfolio_analyzer": (".agent_tasks", "run_portfolio_analyzer"),
     "backfill_technical_indicators": (".indicators", "backfill_technical_indicators"),
     "calculate_fear_greed": (".indicators", "calculate_fear_greed"),
     "update_technical_indicators": (".indicators", "update_technical_indicators"),
@@ -90,7 +84,6 @@ def __getattr__(name: str) -> ModuleType | Any:
 
 __all__ = [
     # Modules
-    "agent_tasks",
     "artifact_tasks",
     # Individual tasks (backward compatibility)
     "backfill_technical_indicators",
@@ -105,8 +98,6 @@ __all__ = [
     "reference_tasks",
     "refresh_single_symbol_scores_task",
     "refresh_watchlist_scores_task",
-    "run_discovery_agent",
-    "run_portfolio_analyzer",
     "strategy",
     "update_technical_indicators",
     "watchlist_tasks",

@@ -48,6 +48,18 @@ def test_get_automation_preferences_prefers_stored_values(monkeypatch) -> None:
         "enabled": False,
         "source": "preferences",
     }
+    assert resolved["scheduled_jenny_operator_enabled"] == {
+        "enabled": False,
+        "source": "rules_default",
+    }
+    assert resolved["scheduled_ml_labeling_enabled"] == {
+        "enabled": False,
+        "source": "rules_default",
+    }
+    assert resolved["scheduled_strategy_research_enabled"] == {
+        "enabled": False,
+        "source": "rules_default",
+    }
 
 
 def test_dict_to_preferences_response_exposes_effective_automation_values(monkeypatch) -> None:
@@ -93,6 +105,9 @@ def test_dict_to_preferences_response_exposes_effective_automation_values(monkey
     assert response.thesis_generation_enabled is False
     assert response.auto_remove_on_invalidation is False
     assert response.auto_trim_enabled is True
+    assert response.scheduled_jenny_operator_enabled is False
+    assert response.scheduled_ml_labeling_enabled is False
+    assert response.scheduled_strategy_research_enabled is False
 
 
 def test_update_preferences_allows_clearing_refresh_overrides(monkeypatch) -> None:
@@ -231,6 +246,9 @@ def test_update_preferences_allows_clearing_automation_overrides(monkeypatch) ->
             "thesis_generation_enabled": True,
             "auto_remove_on_invalidation": False,
             "auto_trim_enabled": True,
+            "scheduled_jenny_operator_enabled": True,
+            "scheduled_ml_labeling_enabled": True,
+            "scheduled_strategy_research_enabled": True,
         },
     )
 
@@ -248,6 +266,9 @@ def test_update_preferences_allows_clearing_automation_overrides(monkeypatch) ->
             thesis_generation_enabled=None,
             auto_remove_on_invalidation=None,
             auto_trim_enabled=None,
+            scheduled_jenny_operator_enabled=None,
+            scheduled_ml_labeling_enabled=None,
+            scheduled_strategy_research_enabled=None,
         )
     )
 
@@ -259,5 +280,8 @@ def test_update_preferences_allows_clearing_automation_overrides(monkeypatch) ->
             "thesis_generation_enabled": None,
             "auto_remove_on_invalidation": None,
             "auto_trim_enabled": None,
+            "scheduled_jenny_operator_enabled": None,
+            "scheduled_ml_labeling_enabled": None,
+            "scheduled_strategy_research_enabled": None,
         }
     )

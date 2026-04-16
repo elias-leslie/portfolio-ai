@@ -12,6 +12,7 @@ from typing import Any
 
 from app.constants import ERROR_MESSAGE_TRUNCATE
 from app.logging_config import get_logger
+from app.services.preferences_service import get_automation_preferences
 from app.storage.credential_loader import load_credentials_from_database
 from app.strategies.storage import get_strategy_storage
 from app.tasks.types import (
@@ -27,6 +28,11 @@ logger = get_logger(__name__)
 # Strategy limits
 TOP_WATCHLIST_SYMBOLS = 20  # Top symbols to consider for weekly strategy generation
 TOP_WATCHLIST_TRIGGER_SYMBOLS = 10  # Top symbols to consider for trigger-based generation
+
+
+def _strategy_research_enabled() -> bool:
+    automation = get_automation_preferences()
+    return bool(automation["scheduled_strategy_research_enabled"]["enabled"])
 
 
 def _run_strategy_workflow(
@@ -185,6 +191,10 @@ def weekly_strategy_generation() -> StrategyMonitoringResultDict:
     Returns:
         Summary dict with generation results
     """
+    if not _strategy_research_enabled():
+        logger.info("weekly_strategy_generation_skipped", reason="scheduled_strategy_research_disabled")
+        return {"status": "skipped", "details": ["scheduled_strategy_research_disabled"]}
+
     # Load LLM credentials (e.g., GEMINI_API_KEY) from database
     load_credentials_from_database()
 
@@ -320,6 +330,10 @@ def daily_strategy_refresh(max_symbols: int = 5) -> dict[str, Any]:
     Returns:
         Summary dict with generation results
     """
+    if not _strategy_research_enabled():
+        logger.info("daily_strategy_refresh_skipped", reason="scheduled_strategy_research_disabled")
+        return {"status": "skipped", "details": ["scheduled_strategy_research_disabled"]}
+
     logger.info("Starting daily strategy refresh", max_symbols=max_symbols)
 
     try:
@@ -418,6 +432,10 @@ def trigger_strategies_for_top_watchlist(
     Returns:
         Summary dict with generation results
     """
+    if not _strategy_research_enabled():
+        logger.info("trigger_top_watchlist_skipped", reason="scheduled_strategy_research_disabled")
+        return {"status": "skipped", "reason": "scheduled_strategy_research_disabled"}
+
     logger.info(
         "trigger_strategies_for_top_watchlist_started",
         top_n=top_n,
@@ -552,6 +570,15 @@ def trigger_strategy_from_seed(seed_id: str, symbol: str) -> dict[str, Any]:
     Returns:
         Summary dict with generation result
     """
+    if not _strategy_research_enabled():
+        logger.info("trigger_strategy_from_seed_skipped", seed_id=seed_id, reason="scheduled_strategy_research_disabled")
+        return {
+            "status": "skipped",
+            "seed_id": seed_id,
+            "symbol": symbol,
+            "reason": "scheduled_strategy_research_disabled",
+        }
+
     logger.info("Generating strategy from seed", seed_id=seed_id, symbol=symbol)
     storage = get_strategy_storage()
 

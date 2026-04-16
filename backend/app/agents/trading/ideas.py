@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
 
 from app.logging_config import get_logger
+from app.services.preferences_service import get_automation_preferences
 
 logger = get_logger(__name__)
 
@@ -74,6 +75,17 @@ def execute_store_strategy_seed(
     workflow_triggered = False
     if confidence >= 7.0:
         try:
+            automation = get_automation_preferences()
+            if not bool(automation["scheduled_strategy_research_enabled"]["enabled"]):
+                return {
+                    "seed_id": seed_id,
+                    "symbol": symbol,
+                    "confidence": confidence,
+                    "status": "stored",
+                    "workflow_triggered": False,
+                    "message": "Seed stored. Strategy workflow not triggered because background strategy research is disabled.",
+                }
+
             from app.tasks.triggers import emit_event
 
             # Update seed status to processing

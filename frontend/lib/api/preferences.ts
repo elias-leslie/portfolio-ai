@@ -55,6 +55,9 @@ export interface PreferencesResponse {
   thesisGenerationEnabled: boolean
   autoRemoveOnInvalidation: boolean
   autoTrimEnabled: boolean
+  scheduledJennyOperatorEnabled: boolean
+  scheduledMlLabelingEnabled: boolean
+  scheduledStrategyResearchEnabled: boolean
   // New weight configuration fields (migration 019)
   watchlistScoreWeights?: ScoreWeights
   priceSubWeights?: PriceSubWeights
@@ -88,6 +91,9 @@ export interface PreferencesUpdate {
   thesisGenerationEnabled?: boolean
   autoRemoveOnInvalidation?: boolean
   autoTrimEnabled?: boolean
+  scheduledJennyOperatorEnabled?: boolean
+  scheduledMlLabelingEnabled?: boolean
+  scheduledStrategyResearchEnabled?: boolean
   // New weight configuration fields (migration 019)
   watchlistScoreWeights?: ScoreWeights
   priceSubWeights?: PriceSubWeights

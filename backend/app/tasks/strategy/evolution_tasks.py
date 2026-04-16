@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from app.constants import ERROR_MESSAGE_TRUNCATE
 from app.logging_config import get_logger
+from app.services.preferences_service import get_automation_preferences
 from app.strategies.storage import StrategyStorage, get_strategy_storage
 
 if TYPE_CHECKING:
@@ -112,6 +113,11 @@ def weekly_strategy_evolution() -> dict[str, object]:
     Returns:
         Summary dict with evolution results
     """
+    automation = get_automation_preferences()
+    if not bool(automation["scheduled_strategy_research_enabled"]["enabled"]):
+        logger.info("weekly_strategy_evolution_skipped", reason="scheduled_strategy_research_disabled")
+        return {"status": "skipped", "reason": "scheduled_strategy_research_disabled"}
+
     logger.info("Starting weekly strategy evolution")
 
     from app.agents.strategy_evolution import get_strategy_evolution_agent
