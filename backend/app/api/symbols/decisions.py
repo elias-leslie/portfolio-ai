@@ -9,6 +9,10 @@ from app.models.jenny import JennyNotification, JennySymbolReview
 
 from .models import DecisionSection, PositionInfo
 
+TRIM_GAIN_THRESHOLD = 20.0
+TRIM_WEIGHT_THRESHOLD = 15.0
+DERISK_WEIGHT_THRESHOLD = 18.0
+
 
 def _format_label(value: str | None, fallback: str = "Awaiting review") -> str:
     if not value:
@@ -60,6 +64,18 @@ def _format_position_fact(symbol: str, position: PositionInfo | None) -> str | N
             "weight is unavailable."
         )
 
+    if (
+        position.concentration_method == "lookthrough"
+        and position.concentration_weight_pct is not None
+        and position.top_exposure_name
+    ):
+        return (
+            f"Current live position: {symbol.upper()} is {performance}. Fund weight is "
+            f"{position.weight_pct:.1f}% of invested assets, but largest look-through "
+            f"exposure is {position.top_exposure_name} at "
+            f"{position.concentration_weight_pct:.1f}%."
+        )
+
     return (
         f"Current live position: {symbol.upper()} is {performance} and now makes up "
         f"{position.weight_pct:.1f}% of invested assets."
@@ -97,6 +113,32 @@ def _normalize_timestamp(value: datetime | str | None) -> str | None:
     return str(value)
 
 
+def _notification_matches_live_risk(
+    notification: JennyNotification,
+    portfolio_position: PositionInfo | None,
+) -> bool:
+    if portfolio_position is None:
+        return True
+
+    if portfolio_position.concentration_method != "lookthrough":
+        return True
+
+    concentration_weight_pct = portfolio_position.concentration_weight_pct
+    if concentration_weight_pct is None:
+        return True
+
+    category = str(notification.category or "")
+    if category == "position_trim":
+        return (
+            portfolio_position.gain_pct is not None
+            and portfolio_position.gain_pct >= TRIM_GAIN_THRESHOLD
+            and concentration_weight_pct >= TRIM_WEIGHT_THRESHOLD
+        )
+    if category == "position_de_risk":
+        return concentration_weight_pct >= DERISK_WEIGHT_THRESHOLD
+    return True
+
+
 def build_symbol_decision(
     *,
     symbol: str,
@@ -107,7 +149,13 @@ def build_symbol_decision(
     portfolio_position: PositionInfo | None = None,
 ) -> DecisionSection:
     """Resolve the current decision for a symbol from Jenny + live model context."""
-    active_notification = _sort_notifications(notifications or [])[:1]
+    active_notification = _sort_notifications(
+        [
+            notification
+            for notification in (notifications or [])
+            if _notification_matches_live_risk(notification, portfolio_position)
+        ]
+    )[:1]
     if active_notification:
         notification = active_notification[0]
         current_position_fact = _format_position_fact(symbol, portfolio_position)

@@ -14,6 +14,41 @@ FEAR_GREED_FEAR_THRESHOLD = 30
 FEAR_GREED_GREED_THRESHOLD = 70
 FEAR_GREED_DEFAULT = 50
 GAIN_PCT_TRIM_THRESHOLD = 20.0
+CONCENTRATION_TRIM_THRESHOLD = 15.0
+
+
+def _effective_concentration_weight(position: dict[str, Any]) -> float | None:
+    raw_value = position.get("concentration_weight_pct")
+    if raw_value is None:
+        raw_value = position.get("weight_pct")
+    try:
+        return float(raw_value) if raw_value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _lookthrough_reason(position: dict[str, Any], concentration_weight_pct: float | None) -> str | None:
+    if str(position.get("concentration_method") or "") != "lookthrough":
+        return None
+    if concentration_weight_pct is None:
+        return None
+    top_exposure_name = str(position.get("top_exposure_name") or "").strip() or "top holding"
+    vehicle_weight_pct = position.get("weight_pct")
+    try:
+        vehicle_weight = float(vehicle_weight_pct) if vehicle_weight_pct is not None else None
+    except (TypeError, ValueError):
+        vehicle_weight = None
+
+    if vehicle_weight is None:
+        return (
+            f"Largest look-through exposure is {top_exposure_name} at "
+            f"{concentration_weight_pct:.1f}% of invested assets."
+        )
+
+    return (
+        f"Fund weight is {vehicle_weight:.1f}% of invested assets, but largest "
+        f"look-through exposure is {top_exposure_name} at {concentration_weight_pct:.1f}%."
+    )
 
 
 def generate_held_recommendation(
@@ -37,6 +72,8 @@ def generate_held_recommendation(
         current_price=position.get("current_price"),
     )
     gain_pct = current_fact.gain_pct
+    concentration_weight_pct = _effective_concentration_weight(position)
+    lookthrough_reason = _lookthrough_reason(position, concentration_weight_pct)
 
     # Determine action based on signal and position state
     if signal == "BUY" and strength >= 7:
@@ -45,8 +82,15 @@ def generate_held_recommendation(
     elif signal == "AVOID":
         action = "CONSIDER_SELLING"
         reasoning.append("Signal turned to AVOID")
-    elif gain_pct is not None and gain_pct > GAIN_PCT_TRIM_THRESHOLD:
+    elif (
+        gain_pct is not None
+        and gain_pct > GAIN_PCT_TRIM_THRESHOLD
+        and concentration_weight_pct is not None
+        and concentration_weight_pct >= CONCENTRATION_TRIM_THRESHOLD
+    ):
         action = "CONSIDER_TRIMMING"
+        if lookthrough_reason is not None:
+            reasoning.append(lookthrough_reason)
         reasoning.append(f"Position up {gain_pct:.1f}% - consider taking profits")
     else:
         action = "HOLD_POSITION"
@@ -54,6 +98,8 @@ def generate_held_recommendation(
             reasoning.append("Live gain/loss unavailable because current price is missing")
         else:
             reasoning.append(f"Current gain: {gain_pct:.1f}%")
+            if lookthrough_reason is not None:
+                reasoning.append(lookthrough_reason)
 
     if strength < 6:
         reasoning.append(f"Signal strength only {strength}/10 - wait for stronger confirmation")

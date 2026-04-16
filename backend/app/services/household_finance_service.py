@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from threading import Lock
+from time import monotonic
 from typing import Any
 
 from app.models.household_finance import (
@@ -42,9 +44,14 @@ from app.services.household_transaction_rule_service import HouseholdTransaction
 from app.services.household_transaction_service import HouseholdTransactionService
 from app.storage import get_storage
 
+_DASHBOARD_REGISTRY_SYNC_INTERVAL_SECONDS = 30.0
+
 
 class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
     """Build household-finance views and persist intake metadata."""
+
+    _dashboard_registry_sync_lock = Lock()
+    _last_dashboard_registry_sync_monotonic = 0.0
 
     def __init__(self) -> None:
         self.storage = get_storage()
@@ -70,8 +77,22 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         self.tracked_account_service = HouseholdTrackedAccountService()
 
     def get_dashboard(self) -> HouseholdFinanceDashboard:
-        self.account_registry_service.sync_registry(self, limit=1000)
+        self._ensure_dashboard_registry_sync(limit=1000)
         return self.dashboard_composer.build_dashboard(self)
+
+    def _ensure_dashboard_registry_sync(self, *, limit: int, force: bool = False) -> None:
+        now = monotonic()
+        last_sync = type(self)._last_dashboard_registry_sync_monotonic
+        if not force and now - last_sync < _DASHBOARD_REGISTRY_SYNC_INTERVAL_SECONDS:
+            return
+
+        with type(self)._dashboard_registry_sync_lock:
+            now = monotonic()
+            last_sync = type(self)._last_dashboard_registry_sync_monotonic
+            if not force and now - last_sync < _DASHBOARD_REGISTRY_SYNC_INTERVAL_SECONDS:
+                return
+            self.account_registry_service.sync_registry(self, limit=limit)
+            type(self)._last_dashboard_registry_sync_monotonic = monotonic()
 
     def get_profile(self) -> HouseholdProfile:
         return self.profile_service.get_profile(self)

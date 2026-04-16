@@ -25,7 +25,6 @@ import {
   WatchlistLoadingSkeleton,
 } from '@/components/watchlist/WatchlistStateViews'
 import { WatchlistTable } from '@/components/watchlist/WatchlistTable'
-import { useClientReady } from '@/lib/hooks/useClientReady'
 import { useAccounts, usePortfolio } from '@/lib/hooks/usePortfolio'
 import {
   useRefreshStatus,
@@ -275,23 +274,5 @@ function PortfolioPageContent() {
 }
 
 export default function PortfolioPage() {
-  const ready = useClientReady()
-
-  if (!ready) {
-    return (
-      <PageContainer className="space-y-6 py-8">
-        <PageHeader title="Investing" />
-        <div className="grid gap-4 lg:grid-cols-2" role="status">
-          {[...Array(4)].map((_, index) => (
-            <div
-              key={`portfolio-skeleton-${index}`}
-              className="h-40 rounded-2xl skeleton"
-            />
-          ))}
-        </div>
-      </PageContainer>
-    )
-  }
-
   return <PortfolioPageContent />
 }

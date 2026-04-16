@@ -380,8 +380,73 @@ def test_portfolio_health_actions_flag_concentration(monkeypatch) -> None:
     assert actions[0]["action_label"] == "Check concentration"
     assert actions[0]["badge"] == "Concentration"
     assert actions[0]["detail"] == (
-        "Largest holding is 38.2% of invested assets. "
+        "Largest holding is 38.2% of the positioned portfolio. "
         "Open Holdings to review portfolio concentration."
+    )
+
+
+def test_portfolio_health_actions_skip_false_positive_for_broad_etf_lookthrough(monkeypatch) -> None:
+    service = object.__new__(HomeActionService)
+
+    def fake_analytics(include_paper: bool = False) -> SimpleNamespace:
+        assert include_paper is False
+        return SimpleNamespace(
+            num_positions=3,
+            concentration={
+                "top_holding_pct": 4.2,
+                "top_3_pct": 9.6,
+                "top_10_pct": 18.1,
+                "herfindahl_index": 780.0,
+                "method": "lookthrough",
+                "top_holding_name": "NVDA",
+                "vehicle_top_holding_pct": 62.6,
+                "vehicle_top_holding_name": "VTI",
+                "lookthrough_coverage_pct": 100.0,
+            },
+            diversification_score=SimpleNamespace(score=82, level="Excellent"),
+        )
+
+    monkeypatch.setattr(
+        "app.services.home_action_service.get_analytics_payload",
+        fake_analytics,
+    )
+
+    actions = service._portfolio_health_actions()
+
+    assert actions == []
+
+
+def test_portfolio_health_actions_supports_model_like_concentration_objects(monkeypatch) -> None:
+    service = object.__new__(HomeActionService)
+
+    def fake_analytics(include_paper: bool = False) -> SimpleNamespace:
+        assert include_paper is False
+        return SimpleNamespace(
+            num_positions=3,
+            concentration=SimpleNamespace(
+                top_holding_pct=39.2,
+                top_3_pct=52.0,
+                top_10_pct=78.0,
+                herfindahl_index=1500.0,
+                method="lookthrough",
+                top_holding_name="NVDA",
+                vehicle_top_holding_pct=62.6,
+                vehicle_top_holding_name="VTI",
+            ),
+            diversification_score=SimpleNamespace(score=81, level="Excellent"),
+        )
+
+    monkeypatch.setattr(
+        "app.services.home_action_service.get_analytics_payload",
+        fake_analytics,
+    )
+
+    actions = service._portfolio_health_actions()
+
+    assert actions[0]["title"] == "Portfolio needs a concentration check"
+    assert actions[0]["detail"] == (
+        "Top single-name exposure NVDA is 39.2% after ETF look-through. "
+        "Largest vehicle VTI is 62.6%. Open Holdings to review portfolio concentration."
     )
 
 

@@ -8,9 +8,9 @@ import {
   createHouseholdTrackedAccount,
   deleteHouseholdTrackedAccount,
   fetchHouseholdDashboard,
+  fetchHouseholdDocuments,
   fetchHouseholdLedger,
   fetchHouseholdSpending,
-  fetchHouseholdDocuments,
   type HouseholdDocumentUpload,
   type HouseholdPlanningUpdate,
   type HouseholdProfileUpdate,
@@ -21,7 +21,9 @@ import {
   uploadHouseholdDocument,
 } from '@/lib/api/household'
 
-async function refreshHouseholdQueries(queryClient: ReturnType<typeof useQueryClient>) {
+async function refreshHouseholdQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
   await queryClient.resetQueries({
     queryKey: ['household'],
     exact: false,
@@ -285,10 +287,10 @@ export function useCategorizeHouseholdTransaction() {
       applyToMerchant?: boolean
     }) =>
       categorizeHouseholdTransaction(transactionId, {
-      category,
-      essentiality,
-      applyToMerchant,
-    }),
+        category,
+        essentiality,
+        applyToMerchant,
+      }),
     onSuccess: async () => {
       await refreshHouseholdQueries(queryClient)
       toast.success('Household category confirmed.')

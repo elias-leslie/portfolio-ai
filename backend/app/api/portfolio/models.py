@@ -108,6 +108,25 @@ class DiversificationScoreResponse(BaseModel):
     level: str
     num_holdings: int
     num_sectors: int
+    method: str = "line_item"
+    lookthrough_coverage_pct: float = 0.0
+
+
+class ConcentrationResponse(BaseModel):
+    """Response model for concentration metrics."""
+
+    top_holding_pct: float
+    top_3_pct: float
+    top_10_pct: float
+    herfindahl_index: float
+    method: str = "line_item"
+    top_holding_name: str | None = None
+    vehicle_top_holding_pct: float = 0.0
+    vehicle_top_3_pct: float = 0.0
+    vehicle_top_10_pct: float = 0.0
+    vehicle_herfindahl_index: float = 0.0
+    vehicle_top_holding_name: str | None = None
+    lookthrough_coverage_pct: float = 0.0
 
 
 class AnalyticsResponse(BaseModel):
@@ -128,7 +147,7 @@ class AnalyticsResponse(BaseModel):
     portfolio_volatility: float | None
     sharpe_ratio: float | None
     sector_exposure: dict[str, float]
-    concentration: dict[str, float]
+    concentration: ConcentrationResponse
     risk_profile: RiskProfileResponse | None
     diversification_score: DiversificationScoreResponse | None
     top_performers: list[PositionPerformanceResponse]

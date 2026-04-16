@@ -85,17 +85,19 @@ class PortfolioAnalytics:
         self,
         positions: list[Position],
         price_data: dict[str, PriceData],
+        storage: PortfolioStorage | None = None,
     ) -> dict[str, float]:
         """Calculate percentage exposure by sector."""
-        return calculate_sector_exposure(positions, price_data)
+        return calculate_sector_exposure(positions, price_data, storage=storage)
 
     def calculate_concentration_risk(
         self,
         positions: list[Position],
         price_data: dict[str, PriceData],
+        storage: PortfolioStorage | None = None,
     ) -> ConcentrationMetrics:
         """Calculate portfolio concentration risk metrics."""
-        return calculate_concentration_risk(positions, price_data)
+        return calculate_concentration_risk(positions, price_data, storage=storage)
 
     def calculate_sharpe_ratio(
         self,
@@ -128,9 +130,15 @@ class PortfolioAnalytics:
         positions: list[Position],
         price_data: dict[str, PriceData],
         concentration_metrics: ConcentrationMetrics,
+        storage: PortfolioStorage | None = None,
     ) -> DiversificationScore:
         """Calculate diversification score."""
-        return calculate_diversification_score(positions, price_data, concentration_metrics)
+        return calculate_diversification_score(
+            positions,
+            price_data,
+            concentration_metrics,
+            storage=storage,
+        )
 
     def calculate_top_performers(
         self,
@@ -167,8 +175,12 @@ class PortfolioAnalytics:
             storage,
             account_ids=account_ids,
         )
-        sector_exposure = calculate_sector_exposure(positions, price_data)
-        concentration_metrics = calculate_concentration_risk(positions, price_data)
+        sector_exposure = calculate_sector_exposure(positions, price_data, storage=storage)
+        concentration_metrics = calculate_concentration_risk(
+            positions,
+            price_data,
+            storage=storage,
+        )
 
         # Calculate new metrics
         sharpe_ratio = calculate_sharpe_ratio(
@@ -181,7 +193,10 @@ class PortfolioAnalytics:
             portfolio_beta, portfolio_volatility, concentration_metrics
         )
         diversification_score = calculate_diversification_score(
-            positions, price_data, concentration_metrics
+            positions,
+            price_data,
+            concentration_metrics,
+            storage=storage,
         )
         top_performers, bottom_performers = calculate_top_performers(positions, price_data)
 

@@ -30,7 +30,10 @@ export function ImportCenterSidebar({
     () => (showAllDocuments ? documents : documents.slice(0, 8)),
     [documents, showAllDocuments],
   )
-  const hiddenDocumentCount = Math.max(documents.length - visibleDocuments.length, 0)
+  const hiddenDocumentCount = Math.max(
+    documents.length - visibleDocuments.length,
+    0,
+  )
 
   useEffect(() => {
     if (!focusedReview) {

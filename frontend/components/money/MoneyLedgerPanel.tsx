@@ -1,7 +1,7 @@
 'use client'
 
-import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
@@ -14,8 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useHouseholdLedger } from '@/lib/hooks/useHousehold'
 import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
+import { useHouseholdLedger } from '@/lib/hooks/useHousehold'
 import { cn } from '@/lib/utils'
 
 type LedgerWindow = 'all' | '1m' | '3m' | '6m' | '12m'
@@ -128,11 +128,17 @@ function sortIcon(active: boolean, direction: 'asc' | 'desc') {
   )
 }
 
-function compareText(left: string | null | undefined, right: string | null | undefined) {
+function compareText(
+  left: string | null | undefined,
+  right: string | null | undefined,
+) {
   return (left ?? '').localeCompare(right ?? '')
 }
 
-function compareNumber(left: number | null | undefined, right: number | null | undefined) {
+function compareNumber(
+  left: number | null | undefined,
+  right: number | null | undefined,
+) {
   return (left ?? 0) - (right ?? 0)
 }
 
@@ -253,7 +259,10 @@ export function MoneyLedgerPanel() {
           result = compareNumber(left.balanceAfter, right.balanceAfter)
           break
         case 'source':
-          result = compareText(left.sourceDocumentFilename, right.sourceDocumentFilename)
+          result = compareText(
+            left.sourceDocumentFilename,
+            right.sourceDocumentFilename,
+          )
           break
       }
       if (result === 0) {
@@ -296,7 +305,11 @@ export function MoneyLedgerPanel() {
     setSortDirection(nextKey === 'date' ? 'desc' : 'asc')
   }
 
-  function headerButton(label: string, key: LedgerSortKey, align: 'left' | 'right' = 'left') {
+  function headerButton(
+    label: string,
+    key: LedgerSortKey,
+    align: 'left' | 'right' = 'left',
+  ) {
     const active = sortKey === key
     return (
       <button
@@ -346,8 +359,14 @@ export function MoneyLedgerPanel() {
               </Button>
             ))}
           </div>
-          <Select value={kind} onValueChange={(value) => setKind(value as LedgerKind)}>
-            <SelectTrigger className="w-[160px]" aria-label="Filter ledger row type">
+          <Select
+            value={kind}
+            onValueChange={(value) => setKind(value as LedgerKind)}
+          >
+            <SelectTrigger
+              className="w-[160px]"
+              aria-label="Filter ledger row type"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -358,8 +377,14 @@ export function MoneyLedgerPanel() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={status} onValueChange={(value) => setStatus(value as LedgerStatus)}>
-            <SelectTrigger className="w-[170px]" aria-label="Filter ledger row set">
+          <Select
+            value={status}
+            onValueChange={(value) => setStatus(value as LedgerStatus)}
+          >
+            <SelectTrigger
+              className="w-[170px]"
+              aria-label="Filter ledger row set"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -371,7 +396,10 @@ export function MoneyLedgerPanel() {
             </SelectContent>
           </Select>
           <Select value={account} onValueChange={setAccount}>
-            <SelectTrigger className="w-[200px]" aria-label="Filter ledger by account">
+            <SelectTrigger
+              className="w-[200px]"
+              aria-label="Filter ledger by account"
+            >
               <SelectValue placeholder="All accounts" />
             </SelectTrigger>
             <SelectContent>
@@ -407,7 +435,9 @@ export function MoneyLedgerPanel() {
     >
       <div className="grid gap-3 xl:grid-cols-5">
         <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-text-muted">Window</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
+            Window
+          </p>
           <p className="mt-2 text-base font-semibold text-text">
             {ledger?.timeframeLabel ?? 'Loading'}
           </p>
@@ -418,21 +448,31 @@ export function MoneyLedgerPanel() {
           </p>
         </div>
         <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-text-muted">Debits</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
+            Debits
+          </p>
           <p className="mt-2 text-base font-semibold tabular-nums text-text">
             {formatCurrency(visibleDebitTotal, { decimals: 2 })}
           </p>
-          <p className="mt-1 text-xs text-text-muted">Visible debits in current view</p>
+          <p className="mt-1 text-xs text-text-muted">
+            Visible debits in current view
+          </p>
         </div>
         <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-text-muted">Credits</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
+            Credits
+          </p>
           <p className="mt-2 text-base font-semibold tabular-nums text-text">
             {formatCurrency(visibleCreditTotal, { decimals: 2 })}
           </p>
-          <p className="mt-1 text-xs text-text-muted">Visible credits in current view</p>
+          <p className="mt-1 text-xs text-text-muted">
+            Visible credits in current view
+          </p>
         </div>
         <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-text-muted">Net</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
+            Net
+          </p>
           <p className="mt-2 text-base font-semibold tabular-nums text-text">
             {formatCurrency(Math.abs(visibleNetMovement), { decimals: 2 })}
           </p>
@@ -441,8 +481,12 @@ export function MoneyLedgerPanel() {
           </p>
         </div>
         <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-text-muted">Rows</p>
-          <p className="mt-2 text-base font-semibold text-text">{visibleEntries.length}</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
+            Rows
+          </p>
+          <p className="mt-2 text-base font-semibold text-text">
+            {visibleEntries.length}
+          </p>
           <p className="mt-1 text-xs text-text-muted">
             {includedCount} counted · {excludedCount} excluded
           </p>
@@ -451,7 +495,8 @@ export function MoneyLedgerPanel() {
 
       <div className="mt-5 overflow-hidden rounded-2xl border border-border/40 bg-surface/45">
         <div className="border-b border-border/40 px-4 py-3 text-xs text-text-muted">
-          {ledger?.timeframeLabel ?? 'All dates'} · {visibleEntries.length} visible row
+          {ledger?.timeframeLabel ?? 'All dates'} · {visibleEntries.length}{' '}
+          visible row
           {visibleEntries.length === 1 ? '' : 's'}
           {status === 'canonical'
             ? ' · proven duplicate overlap hidden'
@@ -500,13 +545,19 @@ export function MoneyLedgerPanel() {
             <tbody>
               {isLoading && !ledger ? (
                 <tr>
-                  <td colSpan={10} className="px-3 py-10 text-center text-sm text-text-muted">
+                  <td
+                    colSpan={10}
+                    className="px-3 py-10 text-center text-sm text-text-muted"
+                  >
                     Loading ledger...
                   </td>
                 </tr>
               ) : visibleEntries.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-3 py-10 text-center text-sm text-text-muted">
+                  <td
+                    colSpan={10}
+                    className="px-3 py-10 text-center text-sm text-text-muted"
+                  >
                     No rows match current filters.
                   </td>
                 </tr>
@@ -514,50 +565,74 @@ export function MoneyLedgerPanel() {
                 visibleEntries.map((entry) => {
                   const effectiveDate = entryDate(entry)
                   const isFuture =
-                    effectiveDate != null && new Date(effectiveDate).getTime() > Date.now()
+                    effectiveDate != null &&
+                    new Date(effectiveDate).getTime() > Date.now()
                   return (
                     <tr
                       key={`${entry.kind}-${entry.id}`}
                       className="border-b border-border/30 align-top transition-colors hover:bg-surface-muted/20"
                     >
                       <td className="border-b border-border/20 px-3 py-2.5 align-top">
-                        <div className="font-medium text-text">{formatLedgerDate(effectiveDate)}</div>
+                        <div className="font-medium text-text">
+                          {formatLedgerDate(effectiveDate)}
+                        </div>
                         <div className="mt-1 flex flex-wrap gap-1">
                           <Badge
-                            variant={entry.kind === 'transaction' ? 'default' : 'outline'}
+                            variant={
+                              entry.kind === 'transaction'
+                                ? 'default'
+                                : 'outline'
+                            }
                             className="w-fit"
                           >
                             {entry.kind === 'transaction'
                               ? formatEnumLabel(entry.flowType ?? 'transaction')
-                              : formatEnumLabel(entry.datasetType ?? 'import_row')}
+                              : formatEnumLabel(
+                                  entry.datasetType ?? 'import_row',
+                                )}
                           </Badge>
-                          {isFuture ? <Badge variant="destructive">Future</Badge> : null}
+                          {isFuture ? (
+                            <Badge variant="destructive">Future</Badge>
+                          ) : null}
                         </div>
                       </td>
                       <td className="border-b border-border/20 px-3 py-2.5 align-top">
-                        <div className="font-medium text-text">{entry.accountLabel ?? '—'}</div>
-                        <div className="text-xs text-text-muted">{entry.currency ?? 'USD'}</div>
+                        <div className="font-medium text-text">
+                          {entry.accountLabel ?? '—'}
+                        </div>
+                        <div className="text-xs text-text-muted">
+                          {entry.currency ?? 'USD'}
+                        </div>
                       </td>
                       <td className="border-b border-border/20 px-3 py-2.5 align-top">
                         <div className="font-medium text-text">
                           {entry.merchant || entry.description}
                         </div>
-                        {entry.description && entry.description !== entry.merchant ? (
-                          <div className="text-xs text-text-muted">{entry.description}</div>
+                        {entry.description &&
+                        entry.description !== entry.merchant ? (
+                          <div className="text-xs text-text-muted">
+                            {entry.description}
+                          </div>
                         ) : null}
                       </td>
                       <td className="border-b border-border/20 px-3 py-2.5 align-top">
                         <div className="font-medium text-text">
-                          {entry.category ? formatEnumLabel(entry.category) : '—'}
+                          {entry.category
+                            ? formatEnumLabel(entry.category)
+                            : '—'}
                         </div>
                         <div className="text-xs text-text-muted">
-                          {entry.essentiality ? formatEnumLabel(entry.essentiality) : '—'}
+                          {entry.essentiality
+                            ? formatEnumLabel(entry.essentiality)
+                            : '—'}
                         </div>
                       </td>
                       <td className="border-b border-border/20 px-3 py-2.5 align-top">
                         <div className="flex flex-wrap gap-1">
                           <Badge
-                            variant={entry.includedInSpend ? 'default' : 'outline'}
+                            variant={
+                              entry.includedInSpend ? 'default' : 'outline'
+                            }
                             className="w-fit"
                           >
                             {entry.includedInSpend ? 'Counted' : 'Excluded'}
@@ -570,19 +645,31 @@ export function MoneyLedgerPanel() {
                         </div>
                       </td>
                       <td className="border-b border-border/20 px-3 py-2.5 text-right font-mono tabular-nums">
-                        {formatCurrency(debitAmount(entry.amount, entry.flowType), {
-                          decimals: 2,
-                          nullDisplay: '—',
-                        })}
+                        {formatCurrency(
+                          debitAmount(entry.amount, entry.flowType),
+                          {
+                            decimals: 2,
+                            nullDisplay: '—',
+                          },
+                        )}
                       </td>
                       <td className="border-b border-border/20 px-3 py-2.5 text-right font-mono tabular-nums">
-                        {formatCurrency(creditAmount(entry.amount, entry.flowType), {
-                          decimals: 2,
-                          nullDisplay: '—',
-                        })}
+                        {formatCurrency(
+                          creditAmount(entry.amount, entry.flowType),
+                          {
+                            decimals: 2,
+                            nullDisplay: '—',
+                          },
+                        )}
                       </td>
                       <td className="border-b border-border/20 px-3 py-2.5 text-right font-mono tabular-nums">
-                        <span className={cn(entry.balanceAfter == null ? 'text-text-muted' : 'text-text')}>
+                        <span
+                          className={cn(
+                            entry.balanceAfter == null
+                              ? 'text-text-muted'
+                              : 'text-text',
+                          )}
+                        >
                           {formatCurrency(entry.balanceAfter, {
                             decimals: 2,
                             nullDisplay: '—',
@@ -595,8 +682,12 @@ export function MoneyLedgerPanel() {
                         </div>
                         <div className="text-xs text-text-muted">
                           {[
-                            entry.sourceType ? formatEnumLabel(entry.sourceType) : null,
-                            entry.documentType ? formatEnumLabel(entry.documentType) : null,
+                            entry.sourceType
+                              ? formatEnumLabel(entry.sourceType)
+                              : null,
+                            entry.documentType
+                              ? formatEnumLabel(entry.documentType)
+                              : null,
                           ]
                             .filter(Boolean)
                             .join(' · ') || 'Stored evidence'}
@@ -612,12 +703,17 @@ export function MoneyLedgerPanel() {
             </tbody>
             <tfoot className="sticky bottom-0 z-20 bg-bg/95 backdrop-blur">
               <tr>
-                <td className="border-t border-border/40 px-3 py-2 font-semibold text-text">Total</td>
-                <td className="border-t border-border/40 px-3 py-2 text-text-muted">
-                  {visibleEntries.length} row{visibleEntries.length === 1 ? '' : 's'}
+                <td className="border-t border-border/40 px-3 py-2 font-semibold text-text">
+                  Total
                 </td>
                 <td className="border-t border-border/40 px-3 py-2 text-text-muted">
-                  {status === 'canonical' ? 'Canonical non-duplicate rows' : 'Visible ledger rows'}
+                  {visibleEntries.length} row
+                  {visibleEntries.length === 1 ? '' : 's'}
+                </td>
+                <td className="border-t border-border/40 px-3 py-2 text-text-muted">
+                  {status === 'canonical'
+                    ? 'Canonical non-duplicate rows'
+                    : 'Visible ledger rows'}
                 </td>
                 <td className="border-t border-border/40 px-3 py-2" />
                 <td className="border-t border-border/40 px-3 py-2 text-text-muted">
@@ -630,7 +726,9 @@ export function MoneyLedgerPanel() {
                   {formatCurrency(visibleCreditTotal, { decimals: 2 })}
                 </td>
                 <td className="border-t border-border/40 px-3 py-2 text-right font-mono tabular-nums text-text">
-                  {formatCurrency(Math.abs(visibleNetMovement), { decimals: 2 })}
+                  {formatCurrency(Math.abs(visibleNetMovement), {
+                    decimals: 2,
+                  })}
                 </td>
                 <td className="border-t border-border/40 px-3 py-2" />
                 <td className="border-t border-border/40 px-3 py-2" />

@@ -87,6 +87,7 @@ def update_document_and_log_review(
     review_confidence: float | None,
     account_hint: object,
     structured_data: dict[str, object],
+    review_metadata: dict[str, object],
     reviewed: dict[str, object],
     extracted_text: object,
     now: str,
@@ -105,7 +106,7 @@ def update_document_and_log_review(
             resolved_source_type, resolved_document_type,
             document_status, review_status, reviewed.get("summary"), review_confidence,
             str(account_hint) if account_hint is not None else None,
-            now, json.dumps({"structured_data": structured_data}), document.id,
+            now, json.dumps(review_metadata), document.id,
         ],
     )
     conn.execute(

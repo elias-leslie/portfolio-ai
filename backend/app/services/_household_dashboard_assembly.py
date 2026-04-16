@@ -313,36 +313,37 @@ def _net_worth_trust(
         else ""
     )
 
-    issue_parts: list[str] = []
+    estimate_issue_parts: list[str] = []
     if missing_balance_count > 0:
-        issue_parts.append(
+        estimate_issue_parts.append(
             f"{missing_balance_count} {_pluralize(missing_balance_count, 'account')} missing current balances"
         )
-    if stale_balance_count > 0:
-        issue_parts.append(
-            f"{stale_balance_count} {_pluralize(stale_balance_count, 'account')} stale"
-        )
     if candidate_count > 0:
-        issue_parts.append(
+        estimate_issue_parts.append(
             f"{candidate_count} possible {_pluralize(candidate_count, 'account')} still need confirmation"
         )
-    if issue_parts:
+    if stale_balance_count > 0:
+        estimate_issue_parts.append(
+            f"{stale_balance_count} {_pluralize(stale_balance_count, 'account')} stale"
+        )
+    if estimate_issue_parts and (missing_balance_count > 0 or candidate_count > 0):
         return (
             "estimated",
             (
                 f"Net worth estimate from {len(visible_accounts)} of {len(account_summaries)} tracked "
                 f"{_pluralize(len(account_summaries), 'account')}. "
-                f"{_format_issue_counts(issue_parts).capitalize()}."
+                f"{_format_issue_counts(estimate_issue_parts).capitalize()}."
                 f"{as_of_detail}"
             ),
         )
-    if aging_balance_count > 0:
+    refresh_count = stale_balance_count + aging_balance_count
+    if refresh_count > 0:
         return (
             "stale",
             (
                 f"Net worth subtotal from {len(visible_accounts)} tracked "
                 f"{_pluralize(len(visible_accounts), 'account')}. "
-                f"{aging_balance_count} {_pluralize(aging_balance_count, 'account')} should refresh before review."
+                f"{refresh_count} {_pluralize(refresh_count, 'account')} should refresh before review."
                 f"{as_of_detail}"
             ),
         )
@@ -743,10 +744,11 @@ def build_jenny_brief(profile: Any, reports: Any, resolved_values: list[Househol
 # ---------------------------------------------------------------------------
 
 def gather_service_data(service: Any) -> dict[str, Any]:
-    service.transaction_service.backfill_from_latest_reviews(limit=100)
-    service.evidence_service.backfill_from_latest_reviews(service, limit=100)
     registry_service = getattr(service, "account_registry_service", None)
-    if registry_service is not None:
+    sync_gate = getattr(service, "_ensure_dashboard_registry_sync", None)
+    if callable(sync_gate):
+        sync_gate(limit=1000)
+    elif registry_service is not None:
         registry_service.sync_registry(service, limit=1000)
     profile = service.get_profile()
     planning = service.get_planning_snapshot()

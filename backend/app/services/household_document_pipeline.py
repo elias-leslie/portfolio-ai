@@ -33,11 +33,13 @@ from app.services._household_document_pipeline_utils import (
     build_import_row_hash,
     classify_document,
     detect_import_dataset,
+    normalize_financial_document_classification,
     parse_decimal,
     parse_row_date,
 )
 from app.services._household_finance_utils import iso, iso_or_none, to_float
 from app.services.household_finance_rows import FIELD_LABELS, row_to_document
+from app.services.household_review_agent_service import HOUSEHOLD_REVIEW_AGENT_SLUG
 
 if TYPE_CHECKING:
     from app.services.household_finance_service import HouseholdFinanceService
@@ -109,6 +111,28 @@ def _reviewed_financial_accounts(reviewed: dict[str, object]) -> list[dict[str, 
     if not isinstance(accounts, list):
         return []
     return [cast(dict[str, object], account) for account in accounts if isinstance(account, dict)]
+
+
+def _normalized_review_payload(
+    *,
+    reviewed: dict[str, object],
+    document: HouseholdDocument,
+) -> dict[str, object]:
+    normalized = dict(reviewed)
+    source_type, document_type = normalize_financial_document_classification(
+        reviewed=normalized,
+        fallback_source_type=document.source_type,
+        fallback_document_type=document.document_type,
+        filename=document.filename,
+        extracted_text=(
+            str(normalized.get("extracted_text"))
+            if isinstance(normalized.get("extracted_text"), str)
+            else None
+        ),
+    )
+    normalized["source_type"] = source_type
+    normalized["document_type"] = document_type
+    return normalized
 
 
 def _signature_structured_data(reviewed: dict[str, object], document: HouseholdDocument) -> dict[str, object]:
@@ -362,7 +386,7 @@ class HouseholdDocumentPipeline:
             return None
         structured_data = row[3] if isinstance(row[3], dict) else {}
         extracted_text = row[2] if isinstance(row[2], str) else ""
-        return {
+        reviewed = {
             "source_type": document.source_type,
             "document_type": document.document_type,
             "summary": row[0] if row[0] is not None else None,
@@ -370,6 +394,7 @@ class HouseholdDocumentPipeline:
             "extracted_text": extracted_text,
             "structured_data": structured_data,
         }
+        return _normalized_review_payload(reviewed=reviewed, document=document)
 
     def _recover_review_from_latest_persisted_review(
         self,
@@ -419,6 +444,7 @@ class HouseholdDocumentPipeline:
         reviewed: dict[str, object],
         now: str,
     ) -> None:
+        reviewed = _normalized_review_payload(reviewed=reviewed, document=document)
         review_confidence = to_float(reviewed.get("confidence"))
         review_status = "complete" if (review_confidence or 0.0) >= 0.65 else "needs_review"
         document_status = "parsed" if review_status == "complete" else "needs_review"
@@ -429,6 +455,16 @@ class HouseholdDocumentPipeline:
         resolved_source_type = str(reviewed.get("source_type") or document.source_type)
         resolved_document_type = str(reviewed.get("document_type") or document.document_type)
         account_hint = structured_data.get("account_hint")
+        review_strategy = str(reviewed.get("_review_strategy") or "unknown")
+        review_metadata = {
+            "structured_data": structured_data,
+            "review_checks": reviewed.get("review_checks")
+            if isinstance(reviewed.get("review_checks"), dict)
+            else {},
+            "review_strategy": review_strategy,
+            "assigned_review_agent_slug": HOUSEHOLD_REVIEW_AGENT_SLUG,
+            "review_agent_applied": review_strategy == "agent",
+        }
 
         with service.storage.connection() as conn:
             dismiss_open_document_questions(conn, document_id=document.id, now=now)
@@ -442,6 +478,7 @@ class HouseholdDocumentPipeline:
                 review_confidence=review_confidence,
                 account_hint=account_hint,
                 structured_data=structured_data,
+                review_metadata=review_metadata,
                 reviewed=reviewed,
                 extracted_text=extracted_text,
                 now=now,
@@ -554,6 +591,7 @@ class HouseholdDocumentPipeline:
         document: HouseholdDocument,
         reviewed: dict[str, object],
     ) -> dict[str, object]:
+        reviewed = _normalized_review_payload(reviewed=reviewed, document=document)
         import_summary = self.import_document_rows(service, document=document, reviewed=reviewed)
         transaction_summary = service.transaction_service.import_document_transactions(
             document=document,
@@ -629,7 +667,7 @@ class HouseholdDocumentPipeline:
         if inferred_count > 0:
             impacts.append("inferences")
         duplicate_import_validation = _is_duplicate_import_validation(
-            import_summary=cast(dict[str, object], import_summary),
+            import_summary=import_summary,
             transaction_summary=cast(dict[str, object], transaction_summary),
             evidence_account_count=evidence_account_count,
             planning_count=planning_count,

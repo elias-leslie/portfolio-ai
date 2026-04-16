@@ -6,9 +6,6 @@ import { Loader2, PlusCircle, Settings2 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { HouseholdDocumentCenter } from '@/components/money/HouseholdDocumentCenter'
-import { MoneyLedgerPanel } from '@/components/money/MoneyLedgerPanel'
-import { MoneyLeversPanel } from '@/components/money/MoneyLeversPanel'
-import { MoneySpendingPanel } from '@/components/money/MoneySpendingPanel'
 import {
   HouseholdPlanningPanels,
   type PlanningFocusSection,
@@ -16,7 +13,10 @@ import {
 import { HouseholdProfileCard } from '@/components/money/HouseholdProfileCard'
 import { JennyQuestionInbox } from '@/components/money/JennyQuestionInbox'
 import { MoneyAccountsPanel } from '@/components/money/MoneyAccountsPanel'
+import { MoneyLedgerPanel } from '@/components/money/MoneyLedgerPanel'
+import { MoneyLeversPanel } from '@/components/money/MoneyLeversPanel'
 import { MoneyOverviewPanel } from '@/components/money/MoneyOverviewPanel'
+import { MoneySpendingPanel } from '@/components/money/MoneySpendingPanel'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -35,7 +35,6 @@ import {
   useHouseholdDashboard,
   useHouseholdDocuments,
 } from '@/lib/hooks/useHousehold'
-import { useClientReady } from '@/lib/hooks/useClientReady'
 
 function LoadingState() {
   return (
@@ -320,9 +319,7 @@ function MoneyPageContent() {
     {
       value: 'spending',
       label: 'Spending',
-      content: (
-        <MoneySpendingPanel />
-      ),
+      content: <MoneySpendingPanel />,
     },
     {
       value: 'levers',
@@ -471,16 +468,5 @@ function MoneyPageContent() {
 }
 
 export default function MoneyPage() {
-  const ready = useClientReady()
-
-  if (!ready) {
-    return (
-      <PageContainer className="space-y-6 py-8">
-        <PageHeader eyebrow="Household Finance" title="Money" />
-        <LoadingState />
-      </PageContainer>
-    )
-  }
-
   return <MoneyPageContent />
 }

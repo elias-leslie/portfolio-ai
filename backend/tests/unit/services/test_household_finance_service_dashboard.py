@@ -20,7 +20,9 @@ from app.models.household_finance import (
 from app.models.household_planning import empty_household_planning_snapshot
 from app.services._household_dashboard_assembly import (
     _apply_account_freshness_visibility_cap,
+    _net_worth_trust,
     build_overview,
+    gather_service_data,
 )
 from app.services.household_finance_service import HouseholdFinanceService
 
@@ -151,6 +153,84 @@ def test_get_dashboard_returns_composed_household_view() -> None:
     assert datetime.fromisoformat(dashboard.generated_at).tzinfo == UTC
 
 
+def test_get_dashboard_debounces_registry_sync() -> None:
+    service = _service()
+    service.account_registry_service = Mock()
+    service.dashboard_composer = Mock()
+    service.dashboard_composer.build_dashboard.side_effect = ["first", "second"]
+
+    original_last_sync = HouseholdFinanceService._last_dashboard_registry_sync_monotonic
+    HouseholdFinanceService._last_dashboard_registry_sync_monotonic = 0.0
+    try:
+        with patch(
+            "app.services.household_finance_service.monotonic",
+            side_effect=[100.0, 100.0, 100.1, 105.0],
+        ):
+            first = service.get_dashboard()
+            second = service.get_dashboard()
+    finally:
+        HouseholdFinanceService._last_dashboard_registry_sync_monotonic = original_last_sync
+
+    assert first == "first"
+    assert second == "second"
+    service.account_registry_service.sync_registry.assert_called_once_with(
+        service,
+        limit=1000,
+    )
+
+
+def test_force_dashboard_registry_sync_bypasses_debounce() -> None:
+    service = _service()
+    service.account_registry_service = Mock()
+
+    original_last_sync = HouseholdFinanceService._last_dashboard_registry_sync_monotonic
+    HouseholdFinanceService._last_dashboard_registry_sync_monotonic = 100.0
+    try:
+        with patch(
+            "app.services.household_finance_service.monotonic",
+            side_effect=[105.0, 105.0, 105.0],
+        ):
+            service._ensure_dashboard_registry_sync(limit=1000, force=True)
+    finally:
+        HouseholdFinanceService._last_dashboard_registry_sync_monotonic = original_last_sync
+
+    service.account_registry_service.sync_registry.assert_called_once_with(
+        service,
+        limit=1000,
+    )
+
+
+def test_gather_service_data_uses_dashboard_sync_gate_before_raw_registry_sync() -> None:
+    service = Mock()
+    service._ensure_dashboard_registry_sync = Mock()
+    service.account_registry_service = Mock()
+    service.transaction_service = Mock()
+    service.transaction_service.build_reports.return_value = Mock()
+    service.evidence_service = Mock()
+    service.get_profile.return_value = Mock()
+    service.get_planning_snapshot.return_value = Mock()
+    service.list_documents.return_value = Mock(items=[])
+    service.list_evidence_accounts.return_value = []
+    service.list_tracked_accounts.return_value = []
+    service.list_questions.return_value = Mock(items=[])
+    service.portfolio_mgr = Mock()
+    service.portfolio_mgr.get_accounts.return_value = []
+    service.portfolio_mgr.get_positions.return_value = []
+    service.price_fetcher = Mock()
+    service.price_fetcher.fetch_price_data.return_value = {}
+
+    with patch(
+        "app.services._household_dashboard_assembly.calculate_account_valuations",
+        return_value={},
+    ):
+        gather_service_data(service)
+
+    service.transaction_service.backfill_from_latest_reviews.assert_not_called()
+    service.evidence_service.backfill_from_latest_reviews.assert_not_called()
+    service._ensure_dashboard_registry_sync.assert_called_once_with(limit=1000)
+    service.account_registry_service.sync_registry.assert_not_called()
+
+
 def test_visibility_score_is_capped_when_account_freshness_is_degraded() -> None:
     accounts = [
         Mock(freshness_status="fresh"),
@@ -171,6 +251,29 @@ def test_visibility_score_is_capped_when_account_freshness_is_degraded() -> None
             Mock(freshness_status="stale"),
         ],
     ) == 99
+
+
+def test_net_worth_trust_marks_stale_when_all_balances_are_known_but_old() -> None:
+    status, detail = _net_worth_trust(
+        [
+            Mock(
+                current_value=100000.0,
+                balance_freshness_status="fresh",
+                match_status="linked",
+                last_balance_at="2026-04-14T00:00:00+00:00",
+            ),
+            Mock(
+                current_value=25000.0,
+                balance_freshness_status="stale",
+                match_status="tracked",
+                last_balance_at="2026-04-10T00:00:00+00:00",
+            ),
+        ]
+    )
+
+    assert status == "stale"
+    assert "should refresh before review" in detail
+    assert "Net worth subtotal from 2 tracked accounts." in detail
 
 
 def test_build_overview_prefers_account_summary_totals_over_legacy_portfolio_inputs() -> None:

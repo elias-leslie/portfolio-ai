@@ -59,6 +59,11 @@ def test_symbol_portfolio_context_aggregates_multi_account_position(
     storage = _FakeStorage()
     monkeypatch.setattr(
         portfolio_context,
+        "get_fund_lookthroughs",
+        lambda *_args, **_kwargs: {},
+    )
+    monkeypatch.setattr(
+        portfolio_context,
         "get_effective_portfolio_totals",
         lambda *_args, **_kwargs: SimpleNamespace(
             effective_invested_total_value=851_070.0,

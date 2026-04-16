@@ -48,6 +48,9 @@ export interface SymbolPortfolioSection {
     gain: number | null
     gainPct: number | null
     weightPct: number | null
+    concentrationWeightPct?: number | null
+    concentrationMethod?: string | null
+    topExposureName?: string | null
   } | null
   context?: {
     totalValue: number

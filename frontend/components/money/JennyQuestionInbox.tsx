@@ -52,13 +52,11 @@ export function JennyQuestionInbox({
       question.status === 'open' &&
       (question.direction == null || question.direction === 'jenny_to_user'),
   )
-  const orderedQuestions = openQuestions
-    .slice()
-    .sort((left, right) => {
-      if (selectedQuestionId && left.id === selectedQuestionId) return -1
-      if (selectedQuestionId && right.id === selectedQuestionId) return 1
-      return 0
-    })
+  const orderedQuestions = openQuestions.slice().sort((left, right) => {
+    if (selectedQuestionId && left.id === selectedQuestionId) return -1
+    if (selectedQuestionId && right.id === selectedQuestionId) return 1
+    return 0
+  })
 
   const submitAnswer = (questionId: string, answerText: string) => {
     const trimmed = answerText.trim()

@@ -6,7 +6,7 @@ from functools import lru_cache
 from importlib import import_module
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
@@ -15,6 +15,7 @@ from app.api.symbols.models import DecisionSection
 if TYPE_CHECKING:
     from app.services.automation_center_service import AutomationCenterService
     from app.services.home_action_service import HomeActionService
+    from app.services.home_today_brief_service import HomeTodayBriefService
 
 
 class HomeActionExecutionResponse(BaseModel):
@@ -43,6 +44,73 @@ class HomeActionQueueResponse(BaseModel):
     generated_at: str
     actions: list[HomeActionItemResponse] = Field(default_factory=list)
     summary: str
+
+
+class HomeTodayBriefAsOfResponse(BaseModel):
+    household: str | None = None
+    portfolio: str | None = None
+    market: str | None = None
+    news: str | None = None
+
+
+class HomeTodayBriefBlockResponse(BaseModel):
+    headline: str
+    summary: str
+    stance: str
+    confidence: str
+    why_now: str
+    bullets: list[str] = Field(default_factory=list)
+
+
+class HomeTodayBriefCatalystResponse(BaseModel):
+    id: str
+    title: str
+    direction: str
+    market_effect: str
+    portfolio_effect: str
+    money_effect: str
+    source_ids: list[str] = Field(default_factory=list)
+
+
+class HomeTodayBriefImpactResponse(BaseModel):
+    label: str
+    direction: str
+    magnitude: str
+    rationale: str
+    affected_symbols: list[str] = Field(default_factory=list)
+    source_ids: list[str] = Field(default_factory=list)
+
+
+class HomeTodayBriefMetricResponse(BaseModel):
+    key: str
+    label: str
+    value: str
+    change_pct: float | None = None
+    detail: str
+    tone: str
+
+
+class HomeTodayBriefSourceResponse(BaseModel):
+    id: str
+    kind: str
+    label: str
+    published_at: str | None = None
+    url: str | None = None
+    source_signal_tier: str | None = None
+    decision_value_score: float | None = None
+
+
+class HomeTodayBriefResponse(BaseModel):
+    generated_at: str
+    cache_ttl_seconds: int
+    as_of: HomeTodayBriefAsOfResponse
+    market_status: str
+    brief: HomeTodayBriefBlockResponse
+    catalysts: list[HomeTodayBriefCatalystResponse] = Field(default_factory=list)
+    impacts: list[HomeTodayBriefImpactResponse] = Field(default_factory=list)
+    market_metrics: list[HomeTodayBriefMetricResponse] = Field(default_factory=list)
+    sources: list[HomeTodayBriefSourceResponse] = Field(default_factory=list)
+    staleness_notes: list[str] = Field(default_factory=list)
 
 
 class AutomationGuardrailResponse(BaseModel):
@@ -84,11 +152,24 @@ def _automation_center_service() -> AutomationCenterService:
     return import_module("app.services.automation_center_service").AutomationCenterService()
 
 
+@lru_cache(maxsize=1)
+def _home_today_brief_service() -> HomeTodayBriefService:
+    return import_module("app.services.home_today_brief_service").HomeTodayBriefService()
+
+
 @router.get("/action-queue", response_model=HomeActionQueueResponse)
 async def get_home_action_queue() -> HomeActionQueueResponse:
     """Return the ranked cross-product action queue for the home page."""
     payload = await run_in_threadpool(_home_action_service().get_action_queue)
     return HomeActionQueueResponse.model_validate(payload)
+
+
+@router.get("/today-brief", response_model=HomeTodayBriefResponse)
+async def get_home_today_brief(request: Request) -> HomeTodayBriefResponse:
+    """Return catalyst, market-reaction, and personal-impact brief for Today."""
+    del request
+    payload = await run_in_threadpool(_home_today_brief_service().get_today_brief)
+    return HomeTodayBriefResponse.model_validate(payload)
 
 
 @router.get("/automation-center", response_model=AutomationCenterResponse)

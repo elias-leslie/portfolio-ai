@@ -9,6 +9,7 @@ import pytest
 
 from app.portfolio.analytics import PortfolioAnalytics
 from app.portfolio.analytics_returns import calculate_position_performances
+from app.portfolio.fund_lookthrough import FundHolding, FundLookthroughProfile
 from app.portfolio.models import Position, PriceData
 
 
@@ -361,6 +362,198 @@ def test_calculate_concentration_risk_aggregates_duplicate_symbols() -> None:
     assert concentration.top_holding_pct == pytest.approx(68.181818, rel=1e-4)
     assert concentration.top_3_pct == pytest.approx(100.0)
     assert concentration.herfindahl_index == pytest.approx(5247.933884, rel=1e-4)
+
+
+def test_calculate_concentration_risk_looks_through_broad_etfs(monkeypatch) -> None:
+    analytics = PortfolioAnalytics()
+    positions = [
+        Position(
+            id="vti",
+            account_id="taxable",
+            symbol="VTI",
+            shares=150.0,
+            cost_basis=100.0,
+            position_type="long",
+        ),
+        Position(
+            id="vxus",
+            account_id="taxable",
+            symbol="VXUS",
+            shares=50.0,
+            cost_basis=100.0,
+            position_type="long",
+        ),
+        Position(
+            id="bnd",
+            account_id="taxable",
+            symbol="BND",
+            shares=50.0,
+            cost_basis=100.0,
+            position_type="long",
+        ),
+    ]
+    price_data = {
+        "VTI": PriceData(symbol="VTI", price=100.0, sector="Broad Market Index"),
+        "VXUS": PriceData(symbol="VXUS", price=100.0, sector="International Equity"),
+        "BND": PriceData(symbol="BND", price=100.0, sector="Core Bond"),
+    }
+
+    monkeypatch.setattr(
+        "app.portfolio.fund_lookthrough.get_fund_lookthroughs",
+        lambda _symbols, _storage: {
+            "VTI": FundLookthroughProfile(
+                symbol="VTI",
+                quote_type="ETF",
+                family="Vanguard",
+                category="Large Blend",
+                legal_type="Exchange Traded Fund",
+                description="Broad U.S. market ETF",
+                top_holdings=[
+                    FundHolding(symbol="NVDA", name="NVIDIA", weight=0.0617),
+                    FundHolding(symbol="AAPL", name="Apple", weight=0.0589),
+                    FundHolding(symbol="MSFT", name="Microsoft", weight=0.0440),
+                ],
+                sector_weightings={
+                    "technology": 0.311,
+                    "financial_services": 0.124,
+                    "healthcare": 0.104,
+                },
+                as_of_date="2026-04-16",
+            ),
+            "VXUS": FundLookthroughProfile(
+                symbol="VXUS",
+                quote_type="ETF",
+                family="Vanguard",
+                category="Foreign Large Blend",
+                legal_type="Exchange Traded Fund",
+                description="International equity ETF",
+                top_holdings=[
+                    FundHolding(symbol="TSM", name="Taiwan Semiconductor", weight=0.022),
+                    FundHolding(symbol="SAP", name="SAP", weight=0.011),
+                    FundHolding(symbol="ASML", name="ASML", weight=0.010),
+                ],
+                sector_weightings={
+                    "financial_services": 0.223,
+                    "technology": 0.162,
+                    "industrials": 0.163,
+                },
+                as_of_date="2026-04-16",
+            ),
+            "BND": FundLookthroughProfile(
+                symbol="BND",
+                quote_type="ETF",
+                family="Vanguard",
+                category="Intermediate Core Bond",
+                legal_type="Exchange Traded Fund",
+                description="Bond ETF",
+                top_holdings=[
+                    FundHolding(symbol="UST10Y", name="UST 10Y", weight=0.015),
+                    FundHolding(symbol="UST5Y", name="UST 5Y", weight=0.014),
+                ],
+                sector_weightings={"fixed_income": 1.0},
+                as_of_date="2026-04-16",
+            ),
+        },
+    )
+
+    concentration = analytics.calculate_concentration_risk(
+        positions,
+        price_data,
+        storage=MagicMock(),
+    )
+
+    assert concentration.method == "lookthrough"
+    assert concentration.vehicle_top_holding_name == "VTI"
+    assert concentration.vehicle_top_holding_pct == pytest.approx(60.0)
+    assert concentration.top_holding_name == "NVDA"
+    assert concentration.top_holding_pct == pytest.approx(3.702, rel=1e-3)
+    assert concentration.top_3_pct < 10.0
+    assert concentration.lookthrough_coverage_pct == pytest.approx(100.0)
+
+
+def test_calculate_diversification_score_looks_through_broad_etfs(monkeypatch) -> None:
+    analytics = PortfolioAnalytics()
+    positions = [
+        Position(
+            id="vti",
+            account_id="taxable",
+            symbol="VTI",
+            shares=150.0,
+            cost_basis=100.0,
+            position_type="long",
+        ),
+        Position(
+            id="vxus",
+            account_id="taxable",
+            symbol="VXUS",
+            shares=50.0,
+            cost_basis=100.0,
+            position_type="long",
+        ),
+    ]
+    price_data = {
+        "VTI": PriceData(symbol="VTI", price=100.0, sector="Broad Market Index"),
+        "VXUS": PriceData(symbol="VXUS", price=100.0, sector="International Equity"),
+    }
+
+    monkeypatch.setattr(
+        "app.portfolio.fund_lookthrough.get_fund_lookthroughs",
+        lambda _symbols, _storage: {
+            "VTI": FundLookthroughProfile(
+                symbol="VTI",
+                quote_type="ETF",
+                family="Vanguard",
+                category="Large Blend",
+                legal_type="Exchange Traded Fund",
+                description="Broad U.S. market ETF",
+                top_holdings=[
+                    FundHolding(symbol="NVDA", name="NVIDIA", weight=0.0617),
+                    FundHolding(symbol="AAPL", name="Apple", weight=0.0589),
+                ],
+                sector_weightings={
+                    "technology": 0.311,
+                    "financial_services": 0.124,
+                    "healthcare": 0.104,
+                },
+                as_of_date="2026-04-16",
+            ),
+            "VXUS": FundLookthroughProfile(
+                symbol="VXUS",
+                quote_type="ETF",
+                family="Vanguard",
+                category="Foreign Large Blend",
+                legal_type="Exchange Traded Fund",
+                description="International equity ETF",
+                top_holdings=[
+                    FundHolding(symbol="TSM", name="Taiwan Semiconductor", weight=0.022),
+                    FundHolding(symbol="SAP", name="SAP", weight=0.011),
+                ],
+                sector_weightings={
+                    "financial_services": 0.223,
+                    "technology": 0.162,
+                    "industrials": 0.163,
+                },
+                as_of_date="2026-04-16",
+            ),
+        },
+    )
+
+    concentration = analytics.calculate_concentration_risk(
+        positions,
+        price_data,
+        storage=MagicMock(),
+    )
+    diversification = analytics.calculate_diversification_score(
+        positions,
+        price_data,
+        concentration,
+        storage=MagicMock(),
+    )
+
+    assert diversification.method == "lookthrough"
+    assert diversification.lookthrough_coverage_pct == pytest.approx(100.0)
+    assert diversification.num_holdings > 6
+    assert diversification.num_sectors >= 4
 
 
 def test_calculate_full_analytics() -> None:

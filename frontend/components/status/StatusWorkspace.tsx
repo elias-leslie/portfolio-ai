@@ -269,7 +269,8 @@ export function StatusWorkspace() {
     {
       value: 'automation',
       label: 'Automation',
-      badge: staleMaintenanceCount > 0 ? String(staleMaintenanceCount) : undefined,
+      badge:
+        staleMaintenanceCount > 0 ? String(staleMaintenanceCount) : undefined,
       content: (
         <div className="space-y-6">
           {healthPending ? (

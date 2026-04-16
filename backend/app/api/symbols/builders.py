@@ -230,6 +230,19 @@ def build_portfolio_section(
                 gain=current_fact.gain,
                 gain_pct=current_fact.gain_pct,
                 weight_pct=current_fact.weight_pct,
+                concentration_weight_pct=_finite_float(
+                    position.get("concentration_weight_pct")
+                ),
+                concentration_method=(
+                    str(position.get("concentration_method"))
+                    if position.get("concentration_method")
+                    else None
+                ),
+                top_exposure_name=(
+                    str(position.get("top_exposure_name"))
+                    if position.get("top_exposure_name")
+                    else None
+                ),
             ),
             context=PortfolioContext(
                 total_value=total_value,

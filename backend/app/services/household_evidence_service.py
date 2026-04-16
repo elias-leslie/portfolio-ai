@@ -12,6 +12,7 @@ from app.models.household_finance import HouseholdEvidenceAccount
 from app.services._household_document_pipeline_utils import parse_decimal, parse_row_date
 from app.services._household_finance_utils import iso_or_none, to_float
 from app.services.household_finance_rows import row_to_evidence_account
+from app.services.household_review_agent_service import HOUSEHOLD_REVIEW_AGENT_SLUG
 
 _EVIDENCE_COLS = (
     "id, document_id, household_account_id, source_type, asset_group, account_type, "
@@ -86,6 +87,73 @@ def _account_identity(account: HouseholdEvidenceAccount) -> tuple[str, ...]:
     )
 
 
+def _account_signature(
+    *,
+    source_type: object,
+    asset_group: object,
+    account_type: object,
+    institution_name: object,
+    account_name: object,
+    account_mask: object,
+    owner_name: object,
+) -> tuple[str, ...]:
+    return (
+        _identity_text(source_type),
+        _identity_text(asset_group),
+        _identity_text(account_type),
+        _identity_text(institution_name),
+        _identity_text(account_name),
+        _identity_text(account_mask),
+        _identity_text(owner_name),
+    )
+
+
+def _account_signature_from_evidence(account: HouseholdEvidenceAccount) -> tuple[str, ...]:
+    return _account_signature(
+        source_type=account.source_type,
+        asset_group=account.asset_group,
+        account_type=account.account_type,
+        institution_name=account.institution_name,
+        account_name=account.account_name,
+        account_mask=account.account_mask,
+        owner_name=account.owner_name,
+    )
+
+
+def _account_signature_from_dict(account: dict[str, object]) -> tuple[str, ...]:
+    return _account_signature(
+        source_type=account.get("source_type"),
+        asset_group=account.get("asset_group"),
+        account_type=account.get("account_type"),
+        institution_name=account.get("institution_name"),
+        account_name=account.get("account_name"),
+        account_mask=account.get("account_mask"),
+        owner_name=account.get("owner_name"),
+    )
+
+
+def _account_match_key(metadata: object) -> str:
+    if not isinstance(metadata, dict):
+        return ""
+    return _identity_text(metadata.get("match_key"))
+
+
+def _normalized_account_quality(account: dict[str, object]) -> tuple[float, ...]:
+    metadata = account.get("metadata")
+    return (
+        1.0 if account.get("household_account_id") else 0.0,
+        1.0 if _account_match_key(metadata) else 0.0,
+        1.0 if account.get("institution_name") else 0.0,
+        1.0 if account.get("account_name") else 0.0,
+        1.0 if account.get("account_mask") else 0.0,
+        1.0 if account.get("owner_name") else 0.0,
+        1.0 if account.get("balance") is not None else 0.0,
+        1.0 if account.get("holdings_value") is not None else 0.0,
+        1.0 if account.get("cash_balance") is not None else 0.0,
+        float(account.get("confidence") or 0.0),
+    )
+
+
 class HouseholdEvidenceService:
     """Persist evidence-derived account snapshots for the money system."""
 
@@ -130,6 +198,15 @@ class HouseholdEvidenceService:
             now_text = datetime.now(UTC).isoformat()
 
         with service.storage.connection() as conn:
+            existing_accounts = self._load_document_accounts(conn, document_id=document.id)
+            normalized_accounts = self._preserve_existing_household_links(
+                normalized_accounts=normalized_accounts,
+                existing_accounts=existing_accounts,
+                reviewed=reviewed,
+            )
+            normalized_accounts = self._dedupe_normalized_accounts(normalized_accounts)
+            if not normalized_accounts and existing_accounts:
+                return len(existing_accounts)
             candidate_account_ids = [
                 str(account["household_account_id"])
                 for account in normalized_accounts
@@ -155,6 +232,10 @@ class HouseholdEvidenceService:
                     account["metadata"] = metadata_dict
             conn.execute("DELETE FROM household_evidence_accounts WHERE document_id = %s", [document.id])
             for account in normalized_accounts:
+                metadata = dict(account["metadata"]) if isinstance(account.get("metadata"), dict) else {}
+                metadata.setdefault("assigned_review_agent_slug", HOUSEHOLD_REVIEW_AGENT_SLUG)
+                metadata.setdefault("review_strategy", _string_or_none(reviewed.get("_review_strategy")) or "unknown")
+                metadata["review_agent_applied"] = metadata.get("review_strategy") == "agent"
                 conn.execute(
                     """
                     INSERT INTO household_evidence_accounts (
@@ -184,13 +265,95 @@ class HouseholdEvidenceService:
                         account["cash_balance"],
                         account["as_of_date"],
                         account["confidence"],
-                        json.dumps(account["metadata"]),
+                        json.dumps(metadata),
                         now_text,
                         now_text,
                     ],
                 )
             conn.commit()
         return len(normalized_accounts)
+
+    def _load_document_accounts(
+        self,
+        conn: Any,
+        *,
+        document_id: str,
+    ) -> list[HouseholdEvidenceAccount]:
+        rows = conn.execute(
+            f"{_EVIDENCE_SQL} WHERE document_id = %s ORDER BY COALESCE(as_of_date, updated_at) DESC, updated_at DESC",
+            [document_id],
+        ).fetchall()
+        return [
+            row_to_evidence_account(
+                row,
+                to_float=to_float,
+                iso_or_none=iso_or_none,
+            )
+            for row in rows
+        ]
+
+    def _preserve_existing_household_links(
+        self,
+        *,
+        normalized_accounts: list[dict[str, object]],
+        existing_accounts: list[HouseholdEvidenceAccount],
+        reviewed: dict[str, object],
+    ) -> list[dict[str, object]]:
+        existing_by_match_key: dict[str, HouseholdEvidenceAccount] = {}
+        existing_by_signature: dict[tuple[str, ...], HouseholdEvidenceAccount] = {}
+        for account in existing_accounts:
+            if not account.household_account_id:
+                continue
+            match_key = _account_match_key(account.metadata)
+            if match_key:
+                current = existing_by_match_key.get(match_key)
+                if current is None or float(account.confidence or 0.0) >= float(current.confidence or 0.0):
+                    existing_by_match_key[match_key] = account
+            signature = _account_signature_from_evidence(account)
+            current = existing_by_signature.get(signature)
+            if current is None or float(account.confidence or 0.0) >= float(current.confidence or 0.0):
+                existing_by_signature[signature] = account
+
+        preserved_accounts: list[dict[str, object]] = []
+        review_strategy = _string_or_none(reviewed.get("_review_strategy")) or "unknown"
+        for account in normalized_accounts:
+            candidate = dict(account)
+            metadata = dict(candidate.get("metadata")) if isinstance(candidate.get("metadata"), dict) else {}
+            candidate["metadata"] = metadata
+            if not candidate.get("household_account_id"):
+                existing = None
+                match_key = _account_match_key(metadata)
+                if match_key:
+                    existing = existing_by_match_key.get(match_key)
+                if existing is None:
+                    existing = existing_by_signature.get(_account_signature_from_dict(candidate))
+                if existing is not None and existing.household_account_id:
+                    candidate["household_account_id"] = existing.household_account_id
+                    metadata.setdefault("preserved_household_account_id", existing.household_account_id)
+                    metadata.setdefault("preserved_from_existing_evidence", True)
+            metadata.setdefault("review_strategy", review_strategy)
+            preserved_accounts.append(candidate)
+        return preserved_accounts
+
+    def _dedupe_normalized_accounts(
+        self,
+        accounts: list[dict[str, object]],
+    ) -> list[dict[str, object]]:
+        deduped: dict[tuple[str, ...], dict[str, object]] = {}
+        for account in accounts:
+            metadata = account.get("metadata")
+            household_account_id = _identity_text(account.get("household_account_id"))
+            match_key = _account_match_key(metadata)
+            if household_account_id:
+                dedupe_key = ("household_account_id", household_account_id)
+            elif match_key:
+                dedupe_key = ("match_key", match_key)
+            else:
+                dedupe_key = _account_signature_from_dict(account)
+            current = deduped.get(dedupe_key)
+            if current is None or _normalized_account_quality(account) > _normalized_account_quality(current):
+                deduped[dedupe_key] = account
+        return list(deduped.values())
 
     def totals_by_group(self, accounts: list[HouseholdEvidenceAccount]) -> dict[str, float]:
         totals = dict.fromkeys(_ALLOWED_ASSET_GROUPS, 0.0)

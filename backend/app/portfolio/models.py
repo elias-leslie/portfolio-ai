@@ -94,6 +94,14 @@ class ConcentrationMetrics(BaseModel):
     top_3_pct: float
     top_10_pct: float
     herfindahl_index: float
+    method: Literal["line_item", "lookthrough"] = "line_item"
+    top_holding_name: str | None = None
+    vehicle_top_holding_pct: float = 0.0
+    vehicle_top_3_pct: float = 0.0
+    vehicle_top_10_pct: float = 0.0
+    vehicle_herfindahl_index: float = 0.0
+    vehicle_top_holding_name: str | None = None
+    lookthrough_coverage_pct: float = 0.0
 
 
 class PositionPerformance(BaseModel):
@@ -121,6 +129,8 @@ class DiversificationScore(BaseModel):
     level: Literal["Poor", "Fair", "Good", "Excellent"]
     num_holdings: int
     num_sectors: int
+    method: Literal["line_item", "lookthrough"] = "line_item"
+    lookthrough_coverage_pct: float = 0.0
 
 
 class PortfolioAnalytics(BaseModel):

@@ -979,6 +979,84 @@ def _classify_statement_csv(
     )
 
 
+def _classify_transaction_activity_csv(
+    *,
+    filename: str,
+    extracted_text: str | None,
+    structured_data: _StructuredData,
+) -> tuple[str, str, float, str] | None:
+    headers, rows = _csv_rows_from_text(extracted_text)
+    required = {"transaction_date", "post_date", "description", "category", "type", "amount"}
+    if not required.issubset(set(headers)) or not rows:
+        return None
+
+    filename_lower = filename.lower()
+    source_type: str | None = None
+    document_type: str | None = None
+    institution_name: str | None = None
+    account_hint: str | None = None
+    account_type: str | None = None
+    asset_group: str | None = None
+    summary: str | None = None
+
+    if "chase" in filename_lower:
+        source_type = "credit_card"
+        document_type = "statement"
+        institution_name = "Chase"
+        account_hint = "Chase credit card activity export"
+        account_type = "credit_card"
+        asset_group = "credit"
+        summary = "Chase credit-card activity export with machine-readable transaction history."
+    elif any(token in filename_lower for token in ("wells", "checking", "savings")):
+        source_type = "bank"
+        document_type = "statement"
+        institution_name = "Bank account"
+        account_hint = "Bank account activity export"
+        account_type = "checking"
+        asset_group = "cash"
+        summary = "Bank activity export with machine-readable transaction history."
+    if source_type is None or document_type is None or account_hint is None or account_type is None or asset_group is None or summary is None:
+        return None
+
+    observed_dates = [
+        parsed
+        for row in rows
+        for parsed in (
+            _parse_natural_date(row.get("post_date")),
+            _parse_natural_date(row.get("transaction_date")),
+        )
+        if parsed is not None
+    ]
+    as_of_date = max(observed_dates) if observed_dates else None
+    mask_match = re.search(r"^[A-Za-z]+(?P<mask>\d{4,6})_activity", filename, flags=re.IGNORECASE)
+    account_mask = mask_match.group("mask") if mask_match is not None else None
+
+    structured_data.update(
+        {
+            "merchant": institution_name,
+            "provider_name": institution_name,
+            "account_hint": account_hint,
+            "financial_accounts": [
+                {
+                    "source_type": source_type,
+                    "asset_group": asset_group,
+                    "account_type": account_type,
+                    "institution_name": institution_name,
+                    "account_name": account_hint,
+                    "account_hint": account_hint,
+                    "account_mask": account_mask,
+                    "currency": "USD",
+                    "as_of_date": as_of_date,
+                    "activity_observed_through": as_of_date,
+                }
+            ],
+        }
+    )
+    if as_of_date is not None:
+        structured_data["statement_period"] = f"As of {as_of_date}"
+    return source_type, document_type, 0.86, summary
+
+
 def _classify_by_content(
     *,
     filename: str,
@@ -1029,13 +1107,21 @@ def _classify_by_content(
                 ) = fidelity_statement_summary
                 structured_data.update(statement_structured_data)
             else:
-                statement_csv = _classify_statement_csv(
+                transaction_activity_csv = _classify_transaction_activity_csv(
                     filename=filename,
                     extracted_text=extracted_text,
                     structured_data=structured_data,
                 )
-                if statement_csv is not None:
-                    inferred_source, inferred_document, confidence, summary = statement_csv
+                if transaction_activity_csv is not None:
+                    inferred_source, inferred_document, confidence, summary = transaction_activity_csv
+                else:
+                    statement_csv = _classify_statement_csv(
+                        filename=filename,
+                        extracted_text=extracted_text,
+                        structured_data=structured_data,
+                    )
+                    if statement_csv is not None:
+                        inferred_source, inferred_document, confidence, summary = statement_csv
     elif "chase.com/amazon" in text_lower or "autopay is on" in text_lower:
         inferred_source, inferred_document, confidence, summary = _classify_chase_amazon(structured_data)
     elif (

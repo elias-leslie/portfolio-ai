@@ -897,6 +897,22 @@ def build_account_summaries(
         for account in tracked_accounts
         if account.household_account_id
     }
+    evidence_household_account_id_by_group_key: dict[str, str] = {}
+    evidence_household_account_id_by_match_key: dict[str, str] = {}
+    for account in evidence_accounts:
+        if not account.household_account_id:
+            continue
+        evidence_household_account_id_by_group_key.setdefault(
+            _evidence_group_key(account),
+            account.household_account_id,
+        )
+        if isinstance(account.metadata, dict):
+            match_key = _normalize_text(account.metadata.get("match_key"))
+            if match_key:
+                evidence_household_account_id_by_match_key.setdefault(
+                    match_key,
+                    account.household_account_id,
+                )
     for account in evidence_accounts:
         document = documents_by_id.get(account.document_id)
         matched_tracked_account = None
@@ -905,19 +921,43 @@ def build_account_summaries(
             matched_tracked_account = tracked_by_household_account_id.get(account.household_account_id)
         else:
             evidence_group_key = _evidence_group_key(account)
-            matched_tracked_account = _match_tracked_account(
-                group_key=evidence_group_key,
-                label=_account_label(account),
-                account_name=account.account_name,
-                hint_label=document.account_label if document is not None else None,
-                asset_group=account.asset_group,
-                account_type=account.account_type,
-                institution_name=account.institution_name,
-                owner_name=account.owner_name,
-                account_mask=account.account_mask,
-                tracked_accounts=tracked_accounts,
+            evidence_match_key = (
+                _normalize_text(account.metadata.get("match_key"))
+                if isinstance(account.metadata, dict)
+                else ""
             )
-            group_key = _tracked_summary_key(matched_tracked_account) if matched_tracked_account is not None else evidence_group_key
+            linked_household_account_id = (
+                evidence_household_account_id_by_match_key.get(evidence_match_key)
+                if evidence_match_key
+                else None
+            ) or evidence_household_account_id_by_group_key.get(evidence_group_key)
+            if linked_household_account_id:
+                group_key = linked_household_account_id
+                matched_tracked_account = tracked_by_household_account_id.get(linked_household_account_id)
+            else:
+                matched_tracked_account = _match_tracked_account(
+                    group_key=evidence_group_key,
+                    label=_account_label(account),
+                    account_name=account.account_name,
+                    hint_label=document.account_label if document is not None else None,
+                    asset_group=account.asset_group,
+                    account_type=account.account_type,
+                    institution_name=account.institution_name,
+                    owner_name=account.owner_name,
+                    account_mask=account.account_mask,
+                    tracked_accounts=tracked_accounts,
+                )
+                if (
+                    matched_tracked_account is not None
+                    and matched_tracked_account.household_account_id
+                ):
+                    group_key = matched_tracked_account.household_account_id
+                else:
+                    group_key = (
+                        _tracked_summary_key(matched_tracked_account)
+                        if matched_tracked_account is not None
+                        else evidence_group_key
+                    )
         grouped[group_key].append(account)
         if matched_tracked_account is not None:
             grouped_tracked_matches[group_key] = matched_tracked_account
@@ -1122,11 +1162,18 @@ def build_account_summaries(
             else _account_value(balance_account)
         )
         valuation_source = "live_quotes" if has_live_pricing else "evidence"
+        linked_group_household_account_id = next(
+            (
+                candidate.household_account_id
+                for candidate in accounts
+                if candidate.household_account_id
+            ),
+            None,
+        )
         household_account_id = (
             display_account.household_account_id
-            or tracked_account.household_account_id
-            if tracked_account is not None
-            else None
+            or linked_group_household_account_id
+            or (tracked_account.household_account_id if tracked_account is not None else None)
         )
         if household_account_id is None and portfolio_account is not None:
             household_account_id = getattr(portfolio_account, "household_account_id", None)

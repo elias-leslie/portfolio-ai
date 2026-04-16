@@ -401,6 +401,60 @@ def test_resolve_from_tracked_ignores_corrupted_asset_hints_when_label_match_is_
     assert account_id == "cash"
 
 
+def test_resolve_from_tracked_merges_shadow_linked_row_into_evidence_account_via_match_key() -> None:
+    registry = HouseholdAccountRegistryService()
+    conn = Mock()
+    canonical_accounts = {
+        "shadow": _canonical(
+            account_id="shadow",
+            label="FRS",
+            asset_group="retirement",
+            account_type="retirement",
+            source_type="retirement",
+            institution_name="Florida Retirement System (FRS)",
+            owner_name="Mariana Leslie",
+        ),
+        "evidence": _canonical(
+            account_id="evidence",
+            label="FRS Investment Plan",
+            asset_group="retirement",
+            account_type="retirement",
+            source_type="retirement",
+            institution_name="Florida Retirement System (FRS)",
+            owner_name="Mariana Leslie",
+        ),
+    }
+    identity_map = {
+        "institution-name-owner::florida retirement system (frs)|frs investment plan|mariana leslie|retirement|retirement": "evidence",
+        "match::institution-name-owner::florida retirement system (frs)|frs investment plan|mariana leslie|retirement|retirement": "evidence",
+    }
+    tracked = _tracked(
+        account_id="tracked-frs",
+        label="FRS",
+        asset_group="retirement",
+        account_type="retirement",
+        source_type="retirement",
+        institution_name="Florida Retirement System (FRS)",
+        owner_name="Mariana Leslie",
+        match_key="institution-name-owner::florida retirement system (frs)|frs investment plan|mariana leslie|retirement|retirement",
+    )
+    tracked.household_account_id = "shadow"
+    registry._merge_accounts_if_needed = Mock(return_value="evidence")  # type: ignore[method-assign]
+
+    account_id, created = registry._resolve_from_tracked(
+        conn,
+        tracked=tracked,
+        canonical_accounts=canonical_accounts,
+        identity_map=identity_map,
+    )
+
+    assert created == 0
+    assert account_id == "evidence"
+    registry._merge_accounts_if_needed.assert_called_once()  # type: ignore[attr-defined]
+    merge_args = registry._merge_accounts_if_needed.call_args.kwargs["account_ids"]  # type: ignore[attr-defined]
+    assert set(merge_args) == {"shadow", "evidence"}
+
+
 def test_resolve_from_evidence_merges_credit_card_mask_changes_for_same_lineage() -> None:
     registry = HouseholdAccountRegistryService()
     conn = Mock()
@@ -501,6 +555,89 @@ def test_resolve_from_evidence_can_link_weak_statement_rows_by_filename_mask() -
 
     assert strong_id == weak_id
     assert len(canonical_accounts) == 1
+
+
+def test_resolve_from_evidence_rejects_incompatible_existing_household_account_link() -> None:
+    registry = HouseholdAccountRegistryService()
+    conn = Mock()
+    canonical_accounts = {
+        "cash-management": _canonical(
+            account_id="cash-management",
+            label="Cash Management Account (CMA)",
+            asset_group="taxable",
+            account_type="brokerage",
+            source_type="brokerage",
+            institution_name="Fidelity",
+            account_mask="Z38367298",
+        )
+    }
+    identity_map: dict[str, str] = {}
+    evidence = _evidence(
+        evidence_id="rollover",
+        document_id="doc-rollover",
+        institution_name="Fidelity",
+        account_name="Rollover IRA",
+        owner_name=None,
+        account_mask="267328698",
+        asset_group="retirement",
+        account_type="ira",
+        source_type="retirement",
+    )
+    evidence.household_account_id = "cash-management"
+
+    account_id, created, merged = registry._resolve_from_evidence(
+        conn,
+        evidence=evidence,
+        canonical_accounts=canonical_accounts,
+        identity_map=identity_map,
+    )
+
+    assert account_id != "cash-management"
+    assert created == 1
+    assert merged == 0
+    assert canonical_accounts[account_id].account_mask == "267328698"
+    assert canonical_accounts[account_id].account_type == "ira"
+
+
+def test_resolve_from_evidence_reassigns_stale_identity_key_to_compatible_account() -> None:
+    registry = HouseholdAccountRegistryService()
+    conn = Mock()
+    canonical_accounts = {
+        "wrong": _canonical(
+            account_id="wrong",
+            label="Rollover IRA",
+            asset_group="retirement",
+            account_type="ira",
+            source_type="retirement",
+            institution_name="Fidelity",
+            account_mask="267328698",
+        )
+    }
+    identity_map = {"institution-mask::fidelity|z38367298": "wrong"}
+
+    account_id, created, merged = registry._resolve_from_evidence(
+        conn,
+        evidence=_evidence(
+            evidence_id="cma",
+            document_id="doc-cma",
+            institution_name="Fidelity",
+            account_name="Cash Management (Joint WROS)",
+            owner_name=None,
+            account_mask="Z38367298",
+            asset_group="taxable",
+            account_type="brokerage",
+            source_type="brokerage",
+        ),
+        canonical_accounts=canonical_accounts,
+        identity_map=identity_map,
+    )
+
+    assert created == 1
+    assert merged == 0
+    assert account_id != "wrong"
+    assert identity_map["institution-mask::fidelity|z38367298"] == account_id
+    assert canonical_accounts[account_id].account_type == "brokerage"
+    assert canonical_accounts[account_id].asset_group == "taxable"
 
 
 def test_prune_orphan_accounts_removes_unlinked_canonical_rows() -> None:

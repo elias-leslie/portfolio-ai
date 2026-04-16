@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.logging_config import get_logger
+from app.portfolio.fund_lookthrough import get_fund_lookthroughs
 from app.services.household_portfolio_totals import get_effective_portfolio_totals
 from app.storage.facade import PortfolioStorage
 from app.storage.helpers import row_to_dict, rows_to_dicts
@@ -14,6 +15,45 @@ logger = get_logger(__name__)
 
 def _empty_context() -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     return {}, {"total_value": 0.0, "num_holdings": 0}
+
+
+def _enrich_position_concentration(
+    storage: PortfolioStorage,
+    positions_by_symbol: dict[str, dict[str, Any]],
+    total_value: float,
+) -> None:
+    if not positions_by_symbol:
+        return
+
+    fund_profiles = get_fund_lookthroughs(list(positions_by_symbol), storage)
+    for symbol, position in positions_by_symbol.items():
+        try:
+            shares = float(position.get("shares") or 0.0)
+            current_price = float(position.get("current_price") or 0.0)
+        except (TypeError, ValueError):
+            continue
+
+        current_value = abs(shares * current_price)
+        if current_value <= 0 or total_value <= 0:
+            continue
+
+        weight_pct = (current_value / total_value) * 100
+        position["weight_pct"] = weight_pct
+        position["concentration_weight_pct"] = weight_pct
+        position["concentration_method"] = "line_item"
+        position["top_exposure_name"] = symbol
+
+        profile = fund_profiles.get(symbol)
+        if profile is None or not profile.top_holdings:
+            continue
+
+        top_holding = max(profile.top_holdings, key=lambda holding: holding.weight, default=None)
+        if top_holding is None or top_holding.weight <= 0:
+            continue
+
+        position["concentration_method"] = "lookthrough"
+        position["concentration_weight_pct"] = weight_pct * top_holding.weight
+        position["top_exposure_name"] = top_holding.name or top_holding.symbol
 
 
 def fetch_symbol_portfolio_context(
@@ -87,6 +127,8 @@ def fetch_symbol_portfolio_context(
     except Exception as exc:
         logger.warning("symbol_portfolio_total_failed", error=str(exc))
         total_value = 0.0
+
+    _enrich_position_concentration(storage, positions_by_symbol, total_value)
 
     return positions_by_symbol, {
         "total_value": total_value,

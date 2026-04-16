@@ -19,6 +19,7 @@ from app.services.household_portfolio_totals import get_effective_portfolio_tota
 
 from .models import (
     AnalyticsResponse,
+    ConcentrationResponse,
     DiversificationScoreResponse,
     PositionPerformanceResponse,
     RiskProfileResponse,
@@ -69,6 +70,14 @@ def _empty_analytics_response(cash_balance_total: float) -> AnalyticsResponse:
             "top_3_pct": 0.0,
             "top_10_pct": 0.0,
             "herfindahl_index": 0.0,
+            "method": "line_item",
+            "top_holding_name": None,
+            "vehicle_top_holding_pct": 0.0,
+            "vehicle_top_3_pct": 0.0,
+            "vehicle_top_10_pct": 0.0,
+            "vehicle_herfindahl_index": 0.0,
+            "vehicle_top_holding_name": None,
+            "lookthrough_coverage_pct": 0.0,
         },
         risk_profile=None,
         diversification_score=None,
@@ -99,6 +108,8 @@ def _to_diversification_response(analytics: Any) -> DiversificationScoreResponse
         level=analytics.diversification_score.level,
         num_holdings=analytics.diversification_score.num_holdings,
         num_sectors=analytics.diversification_score.num_sectors,
+        method=analytics.diversification_score.method,
+        lookthrough_coverage_pct=analytics.diversification_score.lookthrough_coverage_pct,
     )
 
 
@@ -151,12 +162,20 @@ def _build_full_analytics_response(
         portfolio_volatility=analytics.portfolio_volatility,
         sharpe_ratio=analytics.sharpe_ratio,
         sector_exposure=analytics.sector_exposure,
-        concentration={
-            "top_holding_pct": analytics.concentration_metrics.top_holding_pct,
-            "top_3_pct": analytics.concentration_metrics.top_3_pct,
-            "top_10_pct": analytics.concentration_metrics.top_10_pct,
-            "herfindahl_index": analytics.concentration_metrics.herfindahl_index,
-        },
+        concentration=ConcentrationResponse(
+            top_holding_pct=analytics.concentration_metrics.top_holding_pct,
+            top_3_pct=analytics.concentration_metrics.top_3_pct,
+            top_10_pct=analytics.concentration_metrics.top_10_pct,
+            herfindahl_index=analytics.concentration_metrics.herfindahl_index,
+            method=analytics.concentration_metrics.method,
+            top_holding_name=analytics.concentration_metrics.top_holding_name,
+            vehicle_top_holding_pct=analytics.concentration_metrics.vehicle_top_holding_pct,
+            vehicle_top_3_pct=analytics.concentration_metrics.vehicle_top_3_pct,
+            vehicle_top_10_pct=analytics.concentration_metrics.vehicle_top_10_pct,
+            vehicle_herfindahl_index=analytics.concentration_metrics.vehicle_herfindahl_index,
+            vehicle_top_holding_name=analytics.concentration_metrics.vehicle_top_holding_name,
+            lookthrough_coverage_pct=analytics.concentration_metrics.lookthrough_coverage_pct,
+        ),
         risk_profile=_to_risk_profile_response(analytics),
         diversification_score=_to_diversification_response(analytics),
         top_performers=_to_performer_responses(analytics.top_performers),

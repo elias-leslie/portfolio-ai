@@ -244,6 +244,65 @@ class HouseholdAccountRegistryService:
         text = str(raw).strip()
         return text or None
 
+    def _evidence_matches_canonical_account(
+        self,
+        *,
+        evidence: HouseholdEvidenceAccount,
+        canonical_account: HouseholdCanonicalAccount,
+    ) -> bool:
+        evidence_source_type = clean_text(evidence.source_type)
+        canonical_source_type = clean_text(canonical_account.source_type)
+        evidence_asset_group = clean_text(evidence.asset_group)
+        canonical_asset_group = clean_text(canonical_account.asset_group)
+        evidence_account_type = clean_text(evidence.account_type)
+        canonical_account_type = clean_text(canonical_account.account_type)
+        evidence_institution = clean_text(evidence.institution_name)
+        canonical_institution = clean_text(canonical_account.institution_name)
+        evidence_owner = clean_text(evidence.owner_name)
+        canonical_owner = clean_text(canonical_account.owner_name)
+
+        has_mismatch = any(
+            (
+                evidence_source_type
+                and canonical_source_type
+                and evidence_source_type != canonical_source_type,
+                evidence_asset_group
+                and canonical_asset_group
+                and evidence_asset_group != canonical_asset_group,
+                evidence_account_type
+                and canonical_account_type
+                and evidence_account_type != canonical_account_type,
+                evidence_institution
+                and canonical_institution
+                and evidence_institution != canonical_institution,
+                evidence_owner and canonical_owner and not _owner_matches(evidence_owner, canonical_owner),
+            )
+        )
+        if has_mismatch:
+            return False
+
+        if (
+            evidence_account_type == "credit_card"
+            and canonical_account_type == "credit_card"
+            and evidence_institution
+            and canonical_institution
+            and evidence_institution == canonical_institution
+        ):
+            evidence_name_tokens = _name_tokens(evidence.account_name)
+            canonical_name_tokens = _name_tokens(canonical_account.canonical_label)
+            if evidence_name_tokens and canonical_name_tokens and evidence_name_tokens & canonical_name_tokens:
+                return True
+
+        evidence_mask = derive_account_mask(
+            evidence.account_mask,
+            evidence.account_name,
+            self._evidence_fallback_label(evidence),
+        )
+        canonical_mask = clean_text(canonical_account.account_mask)
+        return not (
+            evidence_mask and canonical_mask and clean_text(evidence_mask) != canonical_mask
+        )
+
     def sync_registry(self, service: Any, *, limit: int = 500) -> dict[str, int]:
         with service.storage.connection() as conn:
             canonical_accounts = self._fetch_accounts(conn)
@@ -459,6 +518,7 @@ class HouseholdAccountRegistryService:
         canonical_accounts: dict[str, HouseholdCanonicalAccount],
         identity_map: dict[str, str],
     ) -> tuple[str, int, int]:
+        stale_candidate_keys: set[str] = set()
         candidates = account_identity_candidates(
             source_type=evidence.source_type,
             asset_group=evidence.asset_group,
@@ -470,12 +530,26 @@ class HouseholdAccountRegistryService:
             fallback_label=self._evidence_fallback_label(evidence),
             explicit_match_key=str(evidence.metadata.get("match_key")) if isinstance(evidence.metadata, dict) and evidence.metadata.get("match_key") else None,
         )
-        matched_ids = {
-            identity_map[key]
-            for key in candidates
-            if key in identity_map
-        }
-        if evidence.household_account_id:
+        matched_ids: set[str] = set()
+        for key in candidates:
+            mapped_account_id = identity_map.get(key)
+            if mapped_account_id is None or mapped_account_id not in canonical_accounts:
+                continue
+            if self._evidence_matches_canonical_account(
+                evidence=evidence,
+                canonical_account=canonical_accounts[mapped_account_id],
+            ):
+                matched_ids.add(mapped_account_id)
+            else:
+                stale_candidate_keys.add(key)
+        if (
+            evidence.household_account_id
+            and evidence.household_account_id in canonical_accounts
+            and self._evidence_matches_canonical_account(
+                evidence=evidence,
+                canonical_account=canonical_accounts[evidence.household_account_id],
+            )
+        ):
             matched_ids.add(evidence.household_account_id)
         matched = [account_id for account_id in matched_ids if account_id in canonical_accounts]
         merged = 0
@@ -585,6 +659,7 @@ class HouseholdAccountRegistryService:
             confidence=evidence.confidence,
             identity_map=identity_map,
             canonical_accounts=canonical_accounts,
+            force_reassign_keys=stale_candidate_keys,
         )
         return account_id, created, merged
 
@@ -596,8 +671,11 @@ class HouseholdAccountRegistryService:
         canonical_accounts: dict[str, HouseholdCanonicalAccount],
         identity_map: dict[str, str],
     ) -> tuple[str, int]:
-        if tracked.household_account_id and tracked.household_account_id in canonical_accounts:
-            return tracked.household_account_id, 0
+        linked_account_id = (
+            tracked.household_account_id
+            if tracked.household_account_id in canonical_accounts
+            else None
+        )
         fuzzy = self._fuzzy_match_account(
             canonical_accounts=canonical_accounts,
             asset_group=None,
@@ -607,29 +685,7 @@ class HouseholdAccountRegistryService:
             account_mask=None,
             labels=[tracked.label],
         )
-        if fuzzy is not None:
-            candidates = account_identity_candidates(
-                source_type=tracked.source_type,
-                asset_group=tracked.asset_group,
-                account_type=tracked.account_type,
-                institution_name=tracked.institution_name,
-                account_name=tracked.label,
-                owner_name=tracked.owner_name,
-                account_mask=tracked.account_mask,
-                fallback_label=tracked.label,
-                explicit_match_key=None,
-            )
-            self._upsert_identity_candidates(
-                conn,
-                account_id=fuzzy,
-                candidate_keys=candidates,
-                source_document_id=None,
-                confidence=None,
-                identity_map=identity_map,
-                canonical_accounts=canonical_accounts,
-            )
-            return fuzzy, 0
-        candidates = account_identity_candidates(
+        base_candidates = account_identity_candidates(
             source_type=tracked.source_type,
             asset_group=tracked.asset_group,
             account_type=tracked.account_type,
@@ -640,45 +696,68 @@ class HouseholdAccountRegistryService:
             fallback_label=tracked.label,
             explicit_match_key=None,
         )
-        matched = [identity_map[key] for key in candidates if key in identity_map and identity_map[key] in canonical_accounts]
-        if matched:
-            account_id = matched[0]
-        else:
-            account_id = str(uuid.uuid4())
-            primary_identity = candidates[0] if candidates else f"manual::{tracked.id}"
-            canonical_accounts[account_id] = HouseholdCanonicalAccount(
-                id=account_id,
-                primary_identity_key=primary_identity,
-                canonical_label=tracked.label,
+        base_matches = {
+            identity_map[key]
+            for key in base_candidates
+            if key in identity_map and identity_map[key] in canonical_accounts
+        }
+        matched_ids: set[str] = set()
+        if linked_account_id is not None:
+            matched_ids.add(linked_account_id)
+        if base_matches:
+            if linked_account_id is None and fuzzy is not None and fuzzy not in base_matches:
+                matched_ids = {fuzzy}
+            else:
+                matched_ids.update(base_matches)
+                if fuzzy is not None:
+                    matched_ids.add(fuzzy)
+        elif fuzzy is not None:
+            matched_ids.add(fuzzy)
+        if (
+            not base_matches
+            and tracked.match_key
+            and (linked_account_id is not None or fuzzy is None)
+        ):
+            explicit_candidates = account_identity_candidates(
+                source_type=tracked.source_type,
                 asset_group=tracked.asset_group,
                 account_type=tracked.account_type,
-                source_type=tracked.source_type,
                 institution_name=tracked.institution_name,
+                account_name=tracked.label,
                 owner_name=tracked.owner_name,
-                account_mask=derive_account_mask(tracked.account_mask, tracked.label),
-                metadata={},
+                account_mask=tracked.account_mask,
+                fallback_label=tracked.label,
+                explicit_match_key=tracked.match_key,
             )
-            conn.execute(
-                """
-                INSERT INTO household_accounts (
-                    id, primary_identity_key, canonical_label, asset_group, account_type, source_type,
-                    institution_name, owner_name, account_mask, metadata, created_at, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
-                """,
-                [
-                    account_id,
-                    primary_identity,
-                    tracked.label,
-                    tracked.asset_group,
-                    tracked.account_type,
-                    tracked.source_type,
-                    tracked.institution_name,
-                    tracked.owner_name,
-                    derive_account_mask(tracked.account_mask, tracked.label),
-                    "{}",
-                    _now_iso(),
-                    _now_iso(),
-                ],
+            matched_ids = {
+                identity_map[key]
+                for key in explicit_candidates
+                if key in identity_map and identity_map[key] in canonical_accounts
+            }
+            if linked_account_id is not None:
+                matched_ids.add(linked_account_id)
+        candidates = account_identity_candidates(
+            source_type=tracked.source_type,
+            asset_group=tracked.asset_group,
+            account_type=tracked.account_type,
+            institution_name=tracked.institution_name,
+            account_name=tracked.label,
+            owner_name=tracked.owner_name,
+            account_mask=tracked.account_mask,
+            fallback_label=tracked.label,
+            explicit_match_key=tracked.match_key,
+        )
+        matched = [account_id for account_id in matched_ids if account_id in canonical_accounts]
+        if matched:
+            account_id = (
+                self._merge_accounts_if_needed(
+                    conn,
+                    account_ids=matched,
+                    canonical_accounts=canonical_accounts,
+                    identity_map=identity_map,
+                )
+                if len(set(matched)) > 1
+                else matched[0]
             )
             self._upsert_identity_candidates(
                 conn,
@@ -689,7 +768,43 @@ class HouseholdAccountRegistryService:
                 identity_map=identity_map,
                 canonical_accounts=canonical_accounts,
             )
-            return account_id, 1
+            return account_id, 0
+        account_id = str(uuid.uuid4())
+        primary_identity = candidates[0] if candidates else f"manual::{tracked.id}"
+        canonical_accounts[account_id] = HouseholdCanonicalAccount(
+            id=account_id,
+            primary_identity_key=primary_identity,
+            canonical_label=tracked.label,
+            asset_group=tracked.asset_group,
+            account_type=tracked.account_type,
+            source_type=tracked.source_type,
+            institution_name=tracked.institution_name,
+            owner_name=tracked.owner_name,
+            account_mask=derive_account_mask(tracked.account_mask, tracked.label),
+            metadata={},
+        )
+        conn.execute(
+            """
+            INSERT INTO household_accounts (
+                id, primary_identity_key, canonical_label, asset_group, account_type, source_type,
+                institution_name, owner_name, account_mask, metadata, created_at, updated_at
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+            """,
+            [
+                account_id,
+                primary_identity,
+                tracked.label,
+                tracked.asset_group,
+                tracked.account_type,
+                tracked.source_type,
+                tracked.institution_name,
+                tracked.owner_name,
+                derive_account_mask(tracked.account_mask, tracked.label),
+                "{}",
+                _now_iso(),
+                _now_iso(),
+            ],
+        )
         self._upsert_identity_candidates(
             conn,
             account_id=account_id,
@@ -699,7 +814,7 @@ class HouseholdAccountRegistryService:
             identity_map=identity_map,
             canonical_accounts=canonical_accounts,
         )
-        return account_id, 0
+        return account_id, 1
 
     def _refresh_account_from_evidence(
         self,
@@ -933,7 +1048,9 @@ class HouseholdAccountRegistryService:
         confidence: float | None,
         identity_map: dict[str, str],
         canonical_accounts: dict[str, HouseholdCanonicalAccount],
+        force_reassign_keys: set[str] | None = None,
     ) -> None:
+        force_reassign_keys = force_reassign_keys or set()
         current = canonical_accounts[account_id]
         if current.primary_identity_key is None and candidate_keys:
             canonical_accounts[account_id] = HouseholdCanonicalAccount(
@@ -972,7 +1089,11 @@ class HouseholdAccountRegistryService:
                     [index == 0, source_document_id, confidence, _now_iso(), key],
                 )
                 continue
-            if existing_account_id is not None and existing_account_id != account_id:
+            if (
+                existing_account_id is not None
+                and existing_account_id != account_id
+                and key not in force_reassign_keys
+            ):
                 continue
             conn.execute(
                 """

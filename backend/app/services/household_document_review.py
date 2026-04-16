@@ -20,6 +20,10 @@ from app.services._household_document_llm import (
     _build_messages,
     _parse_review_payload,
 )
+from app.services._household_document_pipeline_utils import (
+    looks_like_transaction_activity,
+    normalize_financial_document_classification,
+)
 from app.services._household_document_text import (
     _extract_csv_text,
     _extract_text,
@@ -83,18 +87,6 @@ _CONTEXT_STOPWORDS = frozenset(
         "uploaded",
         "view",
     }
-)
-_TRANSACTION_ACTIVITY_TERMS = (
-    "activity",
-    "amount",
-    "cash balance",
-    "debit",
-    "description",
-    "merchant",
-    "posted transactions",
-    "running balance",
-    "transaction",
-    "transactions",
 )
 _MONEY_SIGNATURE_VOLATILE_FIELDS = frozenset(
     {
@@ -202,13 +194,14 @@ class HouseholdDocumentReviewService:
                         baseline=baseline,
                         extracted_text=extracted_text,
                     )
-                    merged_signature = self._reconcile_reviewed_accounts(
+                    return self._finalize_review(
                         reviewed=merged_signature,
+                        baseline=baseline,
                         household_context=household_context,
                         filename=filename,
+                        extracted_text=extracted_text,
+                        review_strategy="signature",
                     )
-                    merged_signature["_review_strategy"] = "signature"
-                    return merged_signature
                 signature_review = None
             elif signature_type in {"csv_header", "filename_pattern"}:
                 if has_strong_baseline_identity or signature_has_financial_accounts:
@@ -217,21 +210,23 @@ class HouseholdDocumentReviewService:
                         baseline=baseline,
                         extracted_text=extracted_text,
                     )
-                    merged_signature = self._reconcile_reviewed_accounts(
+                    return self._finalize_review(
                         reviewed=merged_signature,
+                        baseline=baseline,
                         household_context=household_context,
                         filename=filename,
+                        extracted_text=extracted_text,
+                        review_strategy="signature",
                     )
-                    merged_signature["_review_strategy"] = "signature"
-                    return merged_signature
             elif signature_review is not None:
-                signature_review = self._reconcile_reviewed_accounts(
+                return self._finalize_review(
                     reviewed=signature_review,
+                    baseline=baseline,
                     household_context=household_context,
                     filename=filename,
+                    extracted_text=extracted_text,
+                    review_strategy="signature",
                 )
-                signature_review["_review_strategy"] = "signature"
-                return signature_review
 
         if AGENT_HUB_ENABLED:
             reviewed = self._review_with_llm(
@@ -252,32 +247,33 @@ class HouseholdDocumentReviewService:
             )
             if reviewed is not None:
                 merged_llm = self._merge_llm_result(reviewed, baseline, extracted_text)
-                merged_llm = self._reconcile_reviewed_accounts(
+                return self._finalize_review(
                     reviewed=merged_llm,
+                    baseline=baseline,
                     household_context=household_context,
                     filename=filename,
+                    extracted_text=extracted_text,
+                    review_strategy="agent",
                 )
-                merged_llm["_review_strategy"] = "agent"
-                return merged_llm
 
         if baseline["confidence"] >= 0.88:
-            baseline["extracted_text"] = extracted_text
-            baseline = self._reconcile_reviewed_accounts(
+            return self._finalize_review(
                 reviewed=baseline,
+                baseline=baseline,
                 household_context=household_context,
                 filename=filename,
+                extracted_text=extracted_text,
+                review_strategy="baseline",
             )
-            baseline["_review_strategy"] = "baseline"
-            return baseline
 
-        baseline["extracted_text"] = extracted_text
-        baseline = self._reconcile_reviewed_accounts(
+        return self._finalize_review(
             reviewed=baseline,
+            baseline=baseline,
             household_context=household_context,
             filename=filename,
+            extracted_text=extracted_text,
+            review_strategy="baseline",
         )
-        baseline["_review_strategy"] = "baseline"
-        return baseline
 
     def _review_with_llm(
         self,
@@ -323,6 +319,45 @@ class HouseholdDocumentReviewService:
         except Exception as exc:
             logger.warning("household_document_review_llm_failed", error=str(exc))
             return None
+
+    def _finalize_review(
+        self,
+        *,
+        reviewed: dict[str, Any],
+        baseline: dict[str, Any],
+        household_context: dict[str, Any] | None,
+        filename: str,
+        extracted_text: str | None,
+        review_strategy: str,
+    ) -> dict[str, Any]:
+        reviewed["extracted_text"] = extracted_text
+        reviewed = self._reconcile_reviewed_accounts(
+            reviewed=reviewed,
+            household_context=household_context,
+            filename=filename,
+        )
+        source_type, document_type = normalize_financial_document_classification(
+            reviewed=reviewed,
+            fallback_source_type=str(baseline.get("source_type") or ""),
+            fallback_document_type=str(baseline.get("document_type") or ""),
+            filename=filename,
+            extracted_text=extracted_text,
+        )
+        reviewed["source_type"] = source_type
+        reviewed["document_type"] = document_type
+        reviewed["summary"] = self._normalize_summary(
+            reviewed=reviewed,
+            fallback_summary=str(baseline.get("summary") or ""),
+            source_type=source_type,
+            document_type=document_type,
+            extracted_text=extracted_text,
+        )
+        reviewed["review_checks"] = HouseholdDocumentReviewService._normalize_review_checks(
+            reviewed=reviewed,
+            extracted_text=extracted_text,
+        )
+        reviewed["_review_strategy"] = review_strategy
+        return reviewed
 
     def _build_household_context(
         self,
@@ -789,11 +824,10 @@ class HouseholdDocumentReviewService:
         if review_checks.get("expected_account_count") in {None, ""}:
             review_checks["expected_account_count"] = len(financial_accounts)
         if review_checks.get("expects_transaction_activity") is None:
-            review_checks["expects_transaction_activity"] = (
-                HouseholdDocumentReviewService._looks_like_transaction_activity(
-                    reviewed=reviewed,
-                    extracted_text=extracted_text,
-                )
+            review_checks["expects_transaction_activity"] = looks_like_transaction_activity(
+                source_type=str(reviewed.get("source_type") or ""),
+                document_type=str(reviewed.get("document_type") or ""),
+                extracted_text=extracted_text,
             )
         if review_checks.get("ambiguity_remaining") is None:
             review_checks["ambiguity_remaining"] = bool(reviewed.get("questions"))
@@ -806,27 +840,57 @@ class HouseholdDocumentReviewService:
         return review_checks
 
     @staticmethod
-    def _looks_like_transaction_activity(
+    def _normalize_summary(
         *,
         reviewed: dict[str, Any],
+        fallback_summary: str,
+        source_type: str,
+        document_type: str,
         extracted_text: str | None,
-    ) -> bool:
-        source_type = str(reviewed.get("source_type") or "").strip()
-        document_type = str(reviewed.get("document_type") or "").strip()
-        if source_type in {"bank", "credit_card"} and document_type == "statement":
-            return True
-        preview = (extracted_text or "")[:6000].lower()
-        if not preview:
-            return False
-        signal_count = sum(1 for term in _TRANSACTION_ACTIVITY_TERMS if term in preview)
-        if signal_count >= 2:
-            return True
-        return bool(
-            re.search(
-                r"date[^a-z0-9]{0,20}(description|merchant|amount|balance)",
-                preview,
-            )
+    ) -> str:
+        current_summary = str(reviewed.get("summary") or "").strip()
+        generic = (
+            not current_summary
+            or current_summary.lower() in {
+                "uploaded other from other.",
+                "uploaded statement from credit card.",
+                "uploaded statement from bank.",
+                "uploaded brokerage statement from brokerage.",
+                "uploaded retirement statement from retirement.",
+            }
         )
+        summary = current_summary or fallback_summary or "Reviewed household finance document."
+        if generic:
+            structured_data = reviewed.get("structured_data")
+            structured = structured_data if isinstance(structured_data, dict) else {}
+            subject = str(
+                structured.get("account_hint")
+                or structured.get("provider_name")
+                or structured.get("merchant")
+                or "Household account"
+            ).strip()
+
+            if looks_like_transaction_activity(
+                source_type=source_type,
+                document_type=document_type,
+                extracted_text=extracted_text,
+            ):
+                if source_type == "credit_card":
+                    summary = f"{subject} activity export with machine-readable card transactions."
+                elif source_type == "bank":
+                    summary = f"{subject} activity export with machine-readable cash transactions."
+                elif source_type == "brokerage":
+                    summary = f"{subject} export with machine-readable account activity."
+            elif source_type == "credit_card" and document_type == "statement":
+                summary = f"{subject} statement with household card activity."
+            elif source_type == "bank" and document_type == "statement":
+                summary = f"{subject} statement with household cash activity."
+            elif source_type == "brokerage" and document_type == "brokerage_statement":
+                summary = f"{subject} snapshot with investable assets and account activity."
+            elif source_type == "retirement" and document_type == "retirement_statement":
+                summary = f"{subject} retirement snapshot for long-term planning."
+
+        return summary
 
     @staticmethod
     def _merge_signature_pattern_with_baseline(

@@ -16,7 +16,8 @@ export function DocumentCard({ document }: { document: HouseholdDocument }) {
       : null
   const fileAvailable = metadata.file_available === true
   const showClassifierBadge =
-    document.classificationConfidence != null && document.reviewConfidence == null
+    document.classificationConfidence != null &&
+    document.reviewConfidence == null
   const showSourceAvailabilityBadge =
     !fileAvailable &&
     document.reviewStatus !== 'complete' &&

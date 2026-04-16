@@ -69,11 +69,13 @@ export function AccountAccordionItem({
   const totalValue =
     positions.length > 0
       ? positionsValue + cashBalance
-      : linkedHouseholdAccount?.currentValue ?? cashBalance
+      : (linkedHouseholdAccount?.currentValue ?? cashBalance)
   const totalCostBasis =
     positions.length > 0 ? positionsCostBasis + cashBalance : cashBalance
   const totalGain =
-    totalCostBasis > 0 ? ((totalValue - totalCostBasis) / totalCostBasis) * 100 : 0
+    totalCostBasis > 0
+      ? ((totalValue - totalCostBasis) / totalCostBasis) * 100
+      : 0
   const hasCashBalance = cashBalance > 0
   const displayName = linkedHouseholdAccount?.label ?? account.name
   const linkedDetail = linkedHouseholdAccount
@@ -107,7 +109,9 @@ export function AccountAccordionItem({
     positions.length > 0
       ? [
           `${positions.length} priced position${positions.length === 1 ? '' : 's'}`,
-          quoteUpdatedAt ? `oldest quote ${formatRelativeTime(quoteUpdatedAt)}` : null,
+          quoteUpdatedAt
+            ? `oldest quote ${formatRelativeTime(quoteUpdatedAt)}`
+            : null,
           linkedHouseholdAccount?.quoteSource
             ? `source ${linkedHouseholdAccount.quoteSource}`
             : null,

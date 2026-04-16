@@ -137,6 +137,32 @@ def test_generate_held_recommendation_does_not_fabricate_gain_without_live_price
     assert all("0.0%" not in reason for reason in reasoning)
 
 
+def test_generate_held_recommendation_uses_lookthrough_concentration_for_etfs() -> None:
+    action, reasoning = generate_held_recommendation(
+        {
+            "symbol": "VTI",
+            "shares": 10,
+            "cost_basis": 200,
+            "position_type": "long",
+            "current_price": 345,
+            "weight_pct": 62.6,
+            "concentration_weight_pct": 3.9,
+            "concentration_method": "lookthrough",
+            "top_exposure_name": "NVIDIA",
+        },
+        signal="HOLD",
+        strength=4,
+        fear_greed=50,
+    )
+
+    assert action == "HOLD_POSITION"
+    assert "Current gain: 72.5%" in reasoning
+    assert (
+        "Fund weight is 62.6% of invested assets, but largest look-through exposure is NVIDIA at 3.9%."
+        in reasoning
+    )
+
+
 def test_parse_row_skips_recommendation_when_current_price_is_stale() -> None:
     """Recommendations should be hidden when the current price snapshot is stale."""
     row = _build_row()

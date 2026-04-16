@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
 from typing import cast
+from unittest.mock import MagicMock
 
 from app.services.automation_center_service import AutomationCenterService
 

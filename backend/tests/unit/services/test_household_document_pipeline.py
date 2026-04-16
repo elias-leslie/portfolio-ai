@@ -239,6 +239,70 @@ def test_apply_review_outputs_keeps_account_ingestion_when_planning_merge_fails(
     assert summary["evidence_accounts"] == 1
 
 
+def test_apply_review_outputs_promotes_transaction_export_from_financial_accounts() -> None:
+    pipeline = _PipelineStub()
+    captured: dict[str, object] = {}
+
+    def _import_document_transactions(*, document: HouseholdDocument, reviewed: dict[str, object]) -> dict[str, int]:
+        captured.update(reviewed)
+        return {"inserted": 3, "updated": 0}
+
+    service = SimpleNamespace(
+        transaction_service=SimpleNamespace(
+            import_document_transactions=Mock(side_effect=_import_document_transactions)
+        ),
+        evidence_service=SimpleNamespace(
+            replace_document_accounts=Mock(return_value=1)
+        ),
+        merge_planning_items=Mock(),
+    )
+    document = HouseholdDocument(
+        id="doc-chase",
+        filename="Chase9728_Activity20260101_20260416_20260416.CSV",
+        source_type="other",
+        document_type="other",
+        status="parsed",
+        account_label=None,
+        content_type="text/csv",
+        file_size_bytes=10,
+        classification_confidence=0.55,
+        uploaded_at="2026-04-16T00:00:00+00:00",
+        metadata={},
+    )
+
+    summary = pipeline.apply_review_outputs(
+        service,
+        document=document,
+        reviewed={
+            "source_type": "other",
+            "document_type": "other",
+            "summary": "Uploaded other from other.",
+            "extracted_text": (
+                "Transaction Date,Post Date,Description,Category,Type,Amount,Memo\n"
+                "04/14/2026,04/15/2026,Amazon.com*B784J4QP1,Shopping,Sale,-28.86,\n"
+            ),
+            "structured_data": {
+                "provider_name": "Chase",
+                "account_hint": "Chase credit card activity export",
+                "financial_accounts": [
+                    {
+                        "asset_group": "credit",
+                        "account_type": "credit_card",
+                        "institution_name": "Chase",
+                        "account_name": "Chase Amazon card",
+                        "account_mask": "9728",
+                    }
+                ],
+            },
+        },
+    )
+
+    assert captured["source_type"] == "credit_card"
+    assert captured["document_type"] == "statement"
+    assert summary["status"] == "applied"
+    assert "transactions" in summary["impacts"]
+
+
 def test_process_document_review_skips_missing_source_file() -> None:
     pipeline = HouseholdDocumentPipeline()
     connection = MagicMock()

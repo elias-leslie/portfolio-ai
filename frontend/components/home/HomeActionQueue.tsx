@@ -149,17 +149,15 @@ export function HomeActionQueue() {
       description={
         !isLoading && !error
           ? data?.generatedAt
-            ? `Updated ${formatRelativeTime(data.generatedAt)}`
+            ? `${data.summary} Updated ${formatRelativeTime(data.generatedAt)}.`
             : 'Update time unavailable'
           : undefined
       }
+      padding="sm"
+      headerClassName="px-5 py-4"
     >
       {isLoading ? (
-        <div
-          className="grid gap-3 lg:grid-cols-2"
-          role="status"
-          aria-live="polite"
-        >
+        <div className="grid gap-3" role="status" aria-live="polite">
           {[...Array(4)].map((_, index) => (
             <div
               key={`home-action-skeleton-${index}`}
@@ -204,7 +202,7 @@ export function HomeActionQueue() {
       ) : null}
 
       {!isLoading && !error && visibleActions.length > 0 ? (
-        <div className="grid gap-3 lg:grid-cols-2 animate-stagger">
+        <div className="grid gap-3 animate-stagger xl:max-h-[22rem] xl:overflow-y-auto xl:pr-1">
           {visibleActions.map((action) => {
             const Icon =
               categoryIcons[action.category as keyof typeof categoryIcons] ??
@@ -229,7 +227,7 @@ export function HomeActionQueue() {
               <div
                 key={action.id}
                 className={cn(
-                  'group rounded-2xl border p-4 card-interactive transition-all duration-300 hover:border-primary/30',
+                  'group rounded-2xl border p-3.5 card-interactive transition-all duration-300 hover:border-primary/30',
                   tone,
                   isClearing &&
                     'pointer-events-none -translate-y-1 scale-[0.98] opacity-0',
@@ -252,17 +250,17 @@ export function HomeActionQueue() {
                         )}
                       />
                       <Icon className="h-4 w-4 shrink-0 text-text-muted" />
-                      <span className="truncate text-sm font-semibold text-text">
+                      <span className="truncate text-[13px] font-semibold text-text">
                         {action.title}
                       </span>
                     </div>
                     {decisionMeta ? (
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-text-muted">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
                         {decisionMeta}
                         {decisionTimestamp ? ` · ${decisionTimestamp}` : ''}
                       </p>
                     ) : null}
-                    <p className="text-sm leading-relaxed text-text-muted">
+                    <p className="line-clamp-3 text-[12px] leading-5 text-text-muted">
                       {action.detail}
                     </p>
                   </div>
@@ -272,7 +270,7 @@ export function HomeActionQueue() {
                     </Badge>
                   ) : null}
                 </div>
-                <div className="mt-4 flex flex-wrap items-center gap-2">
+                <div className="mt-3 flex flex-wrap items-center gap-2">
                   <Button asChild size="sm" variant="outline">
                     <Link href={action.href}>
                       {action.actionLabel}

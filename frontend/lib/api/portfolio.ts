@@ -71,6 +71,8 @@ export interface DiversificationScore {
   level: string
   numHoldings: number
   numSectors: number
+  method?: string
+  lookthroughCoveragePct?: number
 }
 
 export interface PortfolioAnalytics {
@@ -98,6 +100,14 @@ export interface PortfolioAnalytics {
     top3Pct: number
     top10Pct: number
     herfindahlIndex: number
+    method?: string
+    topHoldingName?: string | null
+    vehicleTopHoldingPct?: number
+    vehicleTop3Pct?: number
+    vehicleTop10Pct?: number
+    vehicleHerfindahlIndex?: number
+    vehicleTopHoldingName?: string | null
+    lookthroughCoveragePct?: number
   }
   sectorExposure: Record<string, number>
   riskProfile: RiskProfile | null

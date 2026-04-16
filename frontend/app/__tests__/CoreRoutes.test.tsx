@@ -22,6 +22,10 @@ vi.mock('@/components/home/TodayOverviewPanel', () => ({
   TodayOverviewPanel: () => <div>Today Overview Panel</div>,
 }))
 
+vi.mock('@/components/home/TodayMarketPulsePanel', () => ({
+  TodayMarketPulsePanel: () => <div>Today Market Pulse Panel</div>,
+}))
+
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdDashboard: () => ({
     data: {
@@ -231,6 +235,7 @@ describe('core product routes', () => {
 
     expect(screen.getByText('Today')).toBeInTheDocument()
     expect(screen.getByText('Today Overview Panel')).toBeInTheDocument()
+    expect(screen.getByText('Today Market Pulse Panel')).toBeInTheDocument()
     expect(screen.getByText('Home Action Queue')).toBeInTheDocument()
     expect(screen.queryByText('Automation Center')).not.toBeInTheDocument()
   })

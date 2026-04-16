@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+from threading import Lock
 
 from app.api.portfolio.analytics_routes import get_analytics_payload
 from app.api.recommendations.logic import DEFAULT_POSITION_PCT
@@ -27,6 +29,13 @@ from app.services.symbol_workflow_service import SymbolWorkflowService
 from app.storage import get_storage
 
 logger = get_logger(__name__)
+_ACTION_QUEUE_CACHE_SECONDS = 60
+
+
+def _field_value(container: object, key: str, default: object = None) -> object:
+    if isinstance(container, dict):
+        return container.get(key, default)
+    return getattr(container, key, default)
 
 
 def _title_with_symbol(symbol: str | None, headline: str) -> str:
@@ -124,6 +133,9 @@ class HomeActionService:
         self.household_service: HouseholdFinanceService | None = None
         self.jenny_service: JennyOperatorService | None = None
         self.workflow_service: SymbolWorkflowService | None = None
+        self._cache_lock = Lock()
+        self._queue_cache: dict[str, object] | None = None
+        self._queue_cached_at: datetime | None = None
 
     def _household_service(self) -> HouseholdFinanceService:
         service = getattr(self, "household_service", None)
@@ -146,13 +158,39 @@ class HomeActionService:
             self.workflow_service = service
         return service
 
+    def _ensure_cache_state(self) -> None:
+        if not hasattr(self, "_cache_lock"):
+            self._cache_lock = Lock()
+        if not hasattr(self, "_queue_cache"):
+            self._queue_cache = None
+        if not hasattr(self, "_queue_cached_at"):
+            self._queue_cached_at = None
+
     def get_action_queue(self) -> dict[str, object]:
+        self._ensure_cache_state()
+        with self._cache_lock:
+            if self._queue_cache is not None and self._queue_cached_at is not None:
+                age = (datetime.now(UTC) - self._queue_cached_at).total_seconds()
+                if age <= _ACTION_QUEUE_CACHE_SECONDS:
+                    return self._queue_cache
+
+        # Warm shared services before parallel read-only calls.
+        self._household_service()
+        self._jenny_service()
+        self._workflow_service()
+
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [
+                executor.submit(self._recommendation_actions),
+                executor.submit(self._portfolio_health_actions),
+                executor.submit(self._jenny_actions),
+                executor.submit(self._workflow_actions),
+                executor.submit(self._household_actions),
+            ]
+
         actions: list[dict[str, object]] = []
-        actions.extend(self._recommendation_actions())
-        actions.extend(self._portfolio_health_actions())
-        actions.extend(self._jenny_actions())
-        actions.extend(self._workflow_actions())
-        actions.extend(self._household_actions())
+        for future in futures:
+            actions.extend(future.result())
 
         if not actions:
             actions.append(
@@ -207,11 +245,15 @@ class HomeActionService:
             if not queue
             else f"{len(queue)} prioritized action{'s' if len(queue) != 1 else ''} ready."
         )
-        return {
+        response: dict[str, object] = {
             "generated_at": datetime.now(UTC).isoformat(),
             "actions": queue,
             "summary": summary,
         }
+        with self._cache_lock:
+            self._queue_cache = response
+            self._queue_cached_at = datetime.now(UTC)
+        return response
 
     def _portfolio_health_actions(self) -> list[dict[str, object]]:
         try:
@@ -224,10 +266,19 @@ class HomeActionService:
             return []
 
         concentration = analytics.concentration
-        top_holding_pct = float(concentration.get("top_holding_pct", 0.0) or 0.0)
-        top_3_pct = float(concentration.get("top_3_pct", 0.0) or 0.0)
+        top_holding_pct = float(_field_value(concentration, "top_holding_pct", 0.0) or 0.0)
+        top_3_pct = float(_field_value(concentration, "top_3_pct", 0.0) or 0.0)
+        concentration_method = str(_field_value(concentration, "method", "line_item") or "line_item")
+        top_holding_name = str(_field_value(concentration, "top_holding_name", "") or "").strip()
+        vehicle_top_holding_pct = float(
+            _field_value(concentration, "vehicle_top_holding_pct", top_holding_pct)
+            or top_holding_pct
+        )
+        vehicle_top_holding_name = str(
+            _field_value(concentration, "vehicle_top_holding_name", "") or ""
+        ).strip()
         diversification_score = (
-            analytics.diversification_score.score
+            _field_value(analytics.diversification_score, "score")
             if analytics.diversification_score is not None
             else None
         )
@@ -242,9 +293,14 @@ class HomeActionService:
                     "priority": priority,
                     "title": "Portfolio needs a concentration check",
                     "detail": (
-                        f"Largest holding is {top_holding_pct:.1f}% of invested assets. "
-                        "Open Holdings to review portfolio concentration."
-                    ),
+                        (
+                            f"Top single-name exposure {top_holding_name or 'is'} is {top_holding_pct:.1f}% after ETF look-through. "
+                            f"Largest vehicle {vehicle_top_holding_name or 'position'} is {vehicle_top_holding_pct:.1f}%. "
+                        )
+                        if concentration_method == "lookthrough"
+                        else f"Largest holding is {top_holding_pct:.1f}% of the positioned portfolio. "
+                    )
+                    + "Open Holdings to review portfolio concentration.",
                     "action_label": "Check concentration",
                     "href": "/portfolio?tab=holdings&highlight=concentration#portfolio-overview",
                     "symbol": None,
@@ -277,8 +333,12 @@ class HomeActionService:
                     "priority": "warning",
                     "title": "Portfolio spread needs a review",
                     "detail": (
-                        f"Top three holdings are {top_3_pct:.1f}% of invested assets. "
-                        f"{diversification_detail}"
+                        (
+                            f"Top three single-name exposures are {top_3_pct:.1f}% after ETF look-through. "
+                            if concentration_method == "lookthrough"
+                            else f"Top three holdings are {top_3_pct:.1f}% of invested assets. "
+                        )
+                        + diversification_detail
                     ),
                     "action_label": "Review holdings",
                     "href": "/portfolio?tab=holdings&highlight=concentration#portfolio-overview",

@@ -6,12 +6,12 @@ concentration, diversification, and exposure analysis.
 
 from __future__ import annotations
 
-from collections import defaultdict
 from typing import TYPE_CHECKING, Literal
 
 from app.analytics.calculation_engine import calculate_portfolio_sharpe
 
 from .current_facts import calculate_current_position_fact
+from .fund_lookthrough import ExposureItem, build_exposure_breakdown
 from .models import (
     ConcentrationMetrics,
     DiversificationScore,
@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 def calculate_sector_exposure(
     positions: list[Position],
     price_data: dict[str, PriceData],
+    storage: PortfolioStorage | None = None,
 ) -> dict[str, float]:
     """Calculate percentage exposure by sector.
 
@@ -38,9 +39,7 @@ def calculate_sector_exposure(
     Returns:
         Dictionary mapping sector to percentage exposure
     """
-    sector_values: dict[str, float] = defaultdict(float)
-    total_value = 0.0
-
+    items: list[ExposureItem] = []
     for position in positions:
         price = price_data.get(position.symbol)
         if not price or price.error:
@@ -56,11 +55,17 @@ def calculate_sector_exposure(
         if current_fact.current_value is None:
             continue
 
-        position_value = abs(current_fact.current_value)
-        sector = price.sector or "Unknown"
+        items.append(
+            ExposureItem(
+                symbol=position.symbol,
+                current_value=abs(current_fact.current_value),
+                sector=price.sector,
+            )
+        )
 
-        sector_values[sector] += position_value
-        total_value += position_value
+    breakdown = build_exposure_breakdown(items, storage)
+    sector_values = breakdown.sector_values
+    total_value = breakdown.total_value
 
     if total_value == 0:
         return {}
@@ -74,6 +79,7 @@ def calculate_sector_exposure(
 def calculate_concentration_risk(
     positions: list[Position],
     price_data: dict[str, PriceData],
+    storage: PortfolioStorage | None = None,
 ) -> ConcentrationMetrics:
     """Calculate portfolio concentration risk metrics.
 
@@ -84,8 +90,7 @@ def calculate_concentration_risk(
     Returns:
         ConcentrationMetrics with top holdings percentages and Herfindahl index
     """
-    holding_values: dict[str, float] = defaultdict(float)
-
+    items: list[ExposureItem] = []
     for position in positions:
         price = price_data.get(position.symbol)
         if not price or price.error:
@@ -101,11 +106,17 @@ def calculate_concentration_risk(
         if current_fact.current_value is None:
             continue
 
-        position_value = abs(current_fact.current_value)
-        holding_values[position.symbol.upper()] += position_value
+        items.append(
+            ExposureItem(
+                symbol=position.symbol,
+                current_value=abs(current_fact.current_value),
+                sector=price.sector,
+            )
+        )
 
-    position_values = list(holding_values.items())
-    total_value = sum(holding_values.values())
+    breakdown = build_exposure_breakdown(items, storage)
+    total_value = breakdown.total_value
+    vehicle_values = breakdown.vehicle_values
 
     if total_value == 0:
         return ConcentrationMetrics(
@@ -115,31 +126,72 @@ def calculate_concentration_risk(
             herfindahl_index=0.0,
         )
 
-    # Sort by value descending
-    position_values.sort(key=lambda x: x[1], reverse=True)
+    def summarize_bucket_values(
+        bucket_values: dict[str, float],
+    ) -> tuple[str | None, float, float, float, float]:
+        position_values = sorted(
+            bucket_values.items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+        if not position_values:
+            return None, 0.0, 0.0, 0.0, 0.0
 
-    # Calculate top holdings percentages
-    top_holding_pct = (position_values[0][1] / total_value * 100) if position_values else 0.0
-    top_3_pct = (
-        sum(v for _, v in position_values[:3]) / total_value * 100
-        if len(position_values) >= 3
-        else sum(v for _, v in position_values) / total_value * 100
-    )
-    top_10_pct = (
-        sum(v for _, v in position_values[:10]) / total_value * 100
-        if len(position_values) >= 10
-        else sum(v for _, v in position_values) / total_value * 100
-    )
+        top_name = position_values[0][0]
+        top_holding_pct = (position_values[0][1] / total_value) * 100
+        top_3_pct = (sum(value for _, value in position_values[:3]) / total_value) * 100
+        top_10_pct = (sum(value for _, value in position_values[:10]) / total_value) * 100
+        herfindahl_index = sum(
+            ((value / total_value) * 100) ** 2 for _, value in position_values
+        )
+        return top_name, top_holding_pct, top_3_pct, top_10_pct, herfindahl_index
 
-    # Calculate Herfindahl-Hirschman Index (HHI)
-    # Sum of squared market shares (0-10000 scale)
-    herfindahl_index = sum(((value / total_value * 100) ** 2) for _, value in position_values)
+    (
+        vehicle_top_name,
+        vehicle_top_holding_pct,
+        vehicle_top_3_pct,
+        vehicle_top_10_pct,
+        vehicle_herfindahl_index,
+    ) = summarize_bucket_values(vehicle_values)
+
+    lookthrough_available = breakdown.lookthrough_covered_value > 0 and bool(
+        breakdown.single_name_values
+    )
+    if lookthrough_available:
+        (
+            top_holding_name,
+            top_holding_pct,
+            top_3_pct,
+            top_10_pct,
+            _,
+        ) = summarize_bucket_values(breakdown.single_name_values)
+        _, _, _, _, herfindahl_index = summarize_bucket_values(
+            breakdown.risk_bucket_values
+        )
+    else:
+        top_holding_name = vehicle_top_name
+        top_holding_pct = vehicle_top_holding_pct
+        top_3_pct = vehicle_top_3_pct
+        top_10_pct = vehicle_top_10_pct
+        herfindahl_index = vehicle_herfindahl_index
 
     return ConcentrationMetrics(
         top_holding_pct=top_holding_pct,
         top_3_pct=top_3_pct,
         top_10_pct=top_10_pct,
         herfindahl_index=herfindahl_index,
+        method="lookthrough" if lookthrough_available else "line_item",
+        top_holding_name=top_holding_name,
+        vehicle_top_holding_pct=vehicle_top_holding_pct,
+        vehicle_top_3_pct=vehicle_top_3_pct,
+        vehicle_top_10_pct=vehicle_top_10_pct,
+        vehicle_herfindahl_index=vehicle_herfindahl_index,
+        vehicle_top_holding_name=vehicle_top_name,
+        lookthrough_coverage_pct=(
+            (breakdown.lookthrough_covered_value / total_value) * 100
+            if total_value > 0
+            else 0.0
+        ),
     )
 
 
@@ -237,6 +289,7 @@ def calculate_diversification_score(
     positions: list[Position],
     price_data: dict[str, PriceData],
     concentration_metrics: ConcentrationMetrics,
+    storage: PortfolioStorage | None = None,
 ) -> DiversificationScore:
     """Calculate diversification score.
 
@@ -248,17 +301,42 @@ def calculate_diversification_score(
     Returns:
         DiversificationScore assessment
     """
-    # Count unique sectors
-    sectors = set()
-    holdings = set()
+    items: list[ExposureItem] = []
     for position in positions:
         price = price_data.get(position.symbol)
-        if price and not price.error:
-            holdings.add(position.symbol.upper())
-            sectors.add(price.sector or "Unknown")
+        if not price or price.error:
+            continue
+        current_fact = calculate_current_position_fact(
+            symbol=position.symbol,
+            shares=position.shares,
+            cost_basis=position.cost_basis,
+            position_type=position.position_type,
+            current_price=price.price,
+        )
+        if current_fact.current_value is None:
+            continue
+        items.append(
+            ExposureItem(
+                symbol=position.symbol,
+                current_value=abs(current_fact.current_value),
+                sector=price.sector,
+            )
+        )
 
-    num_holdings = len(holdings)
-    num_sectors = len(sectors)
+    breakdown = build_exposure_breakdown(items, storage)
+    if concentration_metrics.method == "lookthrough" and breakdown.total_value > 0:
+        num_holdings = len(breakdown.risk_bucket_values)
+        num_sectors = len(breakdown.sector_values)
+    else:
+        holdings = set()
+        sectors = set()
+        for position in positions:
+            price = price_data.get(position.symbol)
+            if price and not price.error:
+                holdings.add(position.symbol.upper())
+                sectors.add(price.sector or "Unknown")
+        num_holdings = len(holdings)
+        num_sectors = len(sectors)
 
     # Calculate score based on:
     # 1. Number of holdings (40%)
@@ -293,4 +371,6 @@ def calculate_diversification_score(
         level=level,
         num_holdings=num_holdings,
         num_sectors=num_sectors,
+        method=concentration_metrics.method,
+        lookthrough_coverage_pct=concentration_metrics.lookthrough_coverage_pct,
     )

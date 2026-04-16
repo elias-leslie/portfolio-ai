@@ -81,6 +81,26 @@ def test_baseline_review_detects_amazon_order_history_csv() -> None:
     assert structured_data["merchant"] == "Amazon"
 
 
+def test_baseline_review_detects_chase_activity_csv() -> None:
+    payload = _baseline_review(
+        filename="Chase9728_Activity20260101_20260416_20260416.CSV",
+        source_type="other",
+        document_type="other",
+        extracted_text=(
+            "Transaction Date,Post Date,Description,Category,Type,Amount,Memo\n"
+            "04/14/2026,04/15/2026,Amazon.com*B784J4QP1,Shopping,Sale,-28.86,\n"
+        ),
+    )
+    structured_data = cast(dict[str, Any], payload["structured_data"])
+    financial_accounts = cast(list[dict[str, Any]], structured_data["financial_accounts"])
+
+    assert payload["document_type"] == "statement"
+    assert payload["source_type"] == "credit_card"
+    assert structured_data["account_hint"] == "Chase credit card activity export"
+    assert financial_accounts[0]["account_mask"] == "9728"
+    assert financial_accounts[0]["account_type"] == "credit_card"
+
+
 def test_extract_csv_text_preserves_amazon_price_columns(tmp_path: Path) -> None:
     csv_path = tmp_path / "Order History.csv"
     csv_path.write_text(
@@ -932,6 +952,69 @@ def test_baseline_review_detects_credit_card_qfx_export() -> None:
     assert payload["document_type"] == "statement"
     assert payload["source_type"] == "credit_card"
     assert "machine-readable transaction activity" in payload["summary"]
+
+
+def test_review_promotes_agent_financial_account_classification_and_review_checks(
+    tmp_path: Path,
+) -> None:
+    csv_path = tmp_path / "Chase9728_Activity20260101_20260416_20260416.CSV"
+    csv_path.write_text(
+        (
+            "Transaction Date,Post Date,Description,Category,Type,Amount,Memo\n"
+            "04/14/2026,04/15/2026,Amazon.com*B784J4QP1,Shopping,Sale,-28.86,\n"
+        ),
+        encoding="utf-8",
+    )
+    service = HouseholdDocumentReviewService(agent_service=MagicMock())
+
+    with (
+        patch(f"{_REVIEW_MODULE}.AGENT_HUB_ENABLED", True),
+        patch.object(HouseholdDocumentReviewService, "_signature_review", return_value=None),
+        patch.object(
+            HouseholdDocumentReviewService,
+            "_build_household_context",
+            return_value={"related_accounts": []},
+        ),
+        patch.object(
+            HouseholdDocumentReviewService,
+            "_review_with_llm",
+            return_value={
+                "summary": "Uploaded other from other.",
+                "source_type": "other",
+                "document_type": "other",
+                "confidence": 0.94,
+                "structured_data": {
+                    "provider_name": "Chase",
+                    "account_hint": "Chase credit card activity export",
+                    "financial_accounts": [
+                        {
+                            "asset_group": "credit",
+                            "account_type": "credit_card",
+                            "institution_name": "Chase",
+                            "account_name": "Chase Amazon card",
+                            "account_mask": "9728",
+                            "owner_name": "Elias B Leslie",
+                        }
+                    ],
+                },
+            },
+        ),
+    ):
+        payload = service.review(
+            document_id="doc-chase-activity",
+            filename=csv_path.name,
+            stored_path=csv_path,
+            content_type="text/csv",
+            source_type="other",
+            document_type="other",
+        )
+
+    review_checks = cast(dict[str, Any], payload["review_checks"])
+    assert payload["source_type"] == "credit_card"
+    assert payload["document_type"] == "statement"
+    assert review_checks["expected_account_count"] == 1
+    assert review_checks["expects_transaction_activity"] is True
+    assert "activity export" in str(payload["summary"]).lower()
 
 
 def test_build_signature_candidates_includes_filename_pattern() -> None:

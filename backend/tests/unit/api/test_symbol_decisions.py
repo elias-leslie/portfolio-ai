@@ -70,11 +70,14 @@ def test_build_symbol_decision_replaces_stored_position_facts_with_live_context(
             gain=203931.85,
             gain_pct=69.0784514142527,
             weight_pct=58.706470117146225,
+            concentration_weight_pct=21.3,
+            concentration_method="lookthrough",
+            top_exposure_name="NVIDIA",
         ),
     )
 
     assert decision.reasoning == [
-        "Current live position: VTI is up 69.1% from cost basis and now makes up 58.7% of invested assets.",
+        "Current live position: VTI is up 69.1% from cost basis. Fund weight is 58.7% of invested assets, but largest look-through exposure is NVIDIA at 21.3%.",
         "Take partial profits so one winner does not become oversized.",
     ]
 
@@ -172,3 +175,45 @@ def test_build_symbol_decision_falls_back_to_live_model() -> None:
     assert decision.source_kind == "live_signal_model"
     assert decision.source_label == "Live signal model"
     assert decision.source_timestamp == "2026-04-08T15:00:00+00:00"
+
+
+def test_build_symbol_decision_ignores_stale_trim_alert_for_broad_etf() -> None:
+    decision = build_symbol_decision(
+        symbol="VTI",
+        recommendation={
+            "action": "HOLD_POSITION",
+            "reasoning": [
+                "Current gain: 56.2%",
+                "Fund weight is 62.6% of invested assets, but largest look-through exposure is NVIDIA at 3.9%.",
+            ],
+        },
+        generated_at="2026-04-08T15:00:00+00:00",
+        notifications=[
+            JennyNotification(
+                id="note-1",
+                routine_id="routine-1",
+                symbol="VTI",
+                category="position_trim",
+                severity="warning",
+                status="open",
+                title="VTI: Trim this position",
+                detail="VTI is up 31.1% and now makes up 39.2% of the portfolio.",
+                recommendation="Take partial profits so one winner does not become oversized.",
+                created_at="2026-04-08T14:00:00+00:00",
+            )
+        ],
+        portfolio_position=PositionInfo(
+            shares=2482.409,
+            cost_basis=221.39,
+            current_value=858615.62,
+            gain=309016.06,
+            gain_pct=56.2,
+            weight_pct=62.6,
+            concentration_weight_pct=3.9,
+            concentration_method="lookthrough",
+            top_exposure_name="NVIDIA",
+        ),
+    )
+
+    assert decision.action == "HOLD_POSITION"
+    assert decision.source_kind == "live_signal_model"

@@ -135,6 +135,101 @@ def test_build_account_summaries_groups_evidence_and_surfaces_freshness() -> Non
     assert not any(gap.code == "stale_evidence" for gap in summary.gap_flags)
 
 
+def test_build_account_summaries_preserves_household_account_id_from_any_linked_evidence() -> None:
+    documents = [
+        HouseholdDocument(
+            id="doc-new",
+            filename="frs-april.pdf",
+            source_type="retirement",
+            document_type="statement",
+            status="parsed",
+            account_label="FRS Investment Plan",
+            file_size_bytes=10,
+            content_type="application/pdf",
+            classification_confidence=0.95,
+            review_status="complete",
+            review_summary="Reviewed",
+            review_confidence=0.95,
+            statement_start=None,
+            statement_end=_iso(5),
+            uploaded_at=_iso(4),
+            parsed_at=_iso(4),
+            metadata={"file_available": True, "application_summary": {"status": "applied"}},
+        ),
+        HouseholdDocument(
+            id="doc-old",
+            filename="frs-march.pdf",
+            source_type="retirement",
+            document_type="statement",
+            status="parsed",
+            account_label="FRS Investment Plan",
+            file_size_bytes=10,
+            content_type="application/pdf",
+            classification_confidence=0.92,
+            review_status="complete",
+            review_summary="Reviewed",
+            review_confidence=0.92,
+            statement_start=None,
+            statement_end=_iso(45),
+            uploaded_at=_iso(44),
+            parsed_at=_iso(44),
+            metadata={"file_available": True, "application_summary": {"status": "applied"}},
+        ),
+    ]
+    evidence_accounts = [
+        HouseholdEvidenceAccount(
+            id="acct-new",
+            document_id="doc-new",
+            household_account_id=None,
+            source_type="retirement",
+            asset_group="retirement",
+            account_type="retirement",
+            institution_name="Florida Retirement System (FRS)",
+            account_name="FRS Investment Plan",
+            account_mask=None,
+            owner_name="Mariana Leslie",
+            currency="USD",
+            balance=12100.0,
+            holdings_value=12100.0,
+            cash_balance=None,
+            as_of_date=_iso(5),
+            confidence=0.93,
+            metadata={},
+        ),
+        HouseholdEvidenceAccount(
+            id="acct-old",
+            document_id="doc-old",
+            household_account_id="household-frs-mariana",
+            source_type="retirement",
+            asset_group="retirement",
+            account_type="retirement",
+            institution_name="Florida Retirement System (FRS)",
+            account_name="FRS Investment Plan",
+            account_mask=None,
+            owner_name="Mariana Leslie",
+            currency="USD",
+            balance=11000.0,
+            holdings_value=11000.0,
+            cash_balance=None,
+            as_of_date=_iso(45),
+            confidence=0.9,
+            metadata={},
+        ),
+    ]
+
+    summaries = build_account_summaries(
+        evidence_accounts=evidence_accounts,
+        documents=documents,
+        portfolio_accounts=[],
+        tracked_accounts=[],
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 3, "gap_months": []},
+    )
+
+    assert len(summaries) == 1
+    assert summaries[0].household_account_id == "household-frs-mariana"
+
+
 def test_build_account_summaries_includes_portfolio_accounts_without_evidence() -> None:
     portfolio_account = Account(
         id="portfolio-1",
@@ -1566,6 +1661,127 @@ def test_build_account_summaries_prefers_portfolio_household_account_link_over_n
     assert summaries[0].label == "Renamed CMA"
     assert summaries[0].linked_portfolio_account_id == "portfolio-cash"
     assert summaries[0].linked_portfolio_account_name == "Renamed CMA"
+
+
+def test_build_account_summaries_merge_tracked_match_into_existing_household_account_group() -> None:
+    documents = [
+        HouseholdDocument(
+            id="doc-linked",
+            filename="linked.txt",
+            source_type="brokerage",
+            document_type="brokerage_statement",
+            status="parsed",
+            account_label="Cash Management Account (CMA)",
+            file_size_bytes=10,
+            content_type="text/plain",
+            classification_confidence=0.95,
+            review_status="complete",
+            review_summary="Reviewed",
+            review_confidence=0.95,
+            statement_start=None,
+            statement_end=_iso(2),
+            uploaded_at=_iso(2),
+            parsed_at=_iso(2),
+            metadata={"file_available": True, "application_summary": {"status": "applied"}},
+        ),
+        HouseholdDocument(
+            id="doc-alias",
+            filename="alias.txt",
+            source_type="brokerage",
+            document_type="brokerage_statement",
+            status="parsed",
+            account_label="Cash Management Account (CMA)",
+            file_size_bytes=10,
+            content_type="text/plain",
+            classification_confidence=0.95,
+            review_status="complete",
+            review_summary="Reviewed",
+            review_confidence=0.95,
+            statement_start=None,
+            statement_end=_iso(6),
+            uploaded_at=_iso(6),
+            parsed_at=_iso(6),
+            metadata={"file_available": True, "application_summary": {"status": "applied"}},
+        ),
+    ]
+
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="acct-linked",
+                document_id="doc-linked",
+                household_account_id="household-cash",
+                source_type="brokerage",
+                asset_group="taxable",
+                account_type="brokerage",
+                institution_name="Fidelity",
+                account_name="Cash Management Account (CMA)",
+                account_mask="Z38367298",
+                owner_name=None,
+                currency="USD",
+                balance=39400.59,
+                holdings_value=6000.0,
+                cash_balance=33400.59,
+                as_of_date=_iso(2),
+                confidence=0.98,
+                metadata={},
+            ),
+            HouseholdEvidenceAccount(
+                id="acct-alias",
+                document_id="doc-alias",
+                source_type="brokerage",
+                asset_group="taxable",
+                account_type="brokerage",
+                institution_name="Fidelity",
+                account_name="Cash Management Account (CMA)",
+                account_mask=None,
+                owner_name=None,
+                currency="USD",
+                balance=39400.59,
+                holdings_value=6000.0,
+                cash_balance=33400.59,
+                as_of_date=_iso(6),
+                confidence=0.91,
+                metadata={},
+            ),
+        ],
+        documents=documents,
+        portfolio_accounts=[
+            Account(
+                id="portfolio-cash",
+                name="Cash Management Account (CMA)",
+                account_type="Taxable",
+                household_account_id="household-cash",
+                cash_balance=33400.59,
+            )
+        ],
+        tracked_accounts=[
+            HouseholdTrackedAccount(
+                id="tracked-cash",
+                household_account_id="household-cash",
+                label="Cash Management Account (CMA)",
+                asset_group="taxable",
+                account_type="brokerage",
+                source_type="brokerage",
+                institution_name="Fidelity",
+                owner_name=None,
+                account_mask=None,
+                match_key=None,
+                notes=None,
+                created_at=_iso(10),
+                updated_at=_iso(1),
+            )
+        ],
+        holdings_by_account={"portfolio-cash": 6000.0},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    assert len(summaries) == 1
+    assert summaries[0].id == "household-cash"
+    assert summaries[0].tracked_account_id == "tracked-cash"
+    assert summaries[0].linked_portfolio_account_id == "portfolio-cash"
+    assert summaries[0].evidence_count == 2
+    assert summaries[0].current_value == 39400.59
 
 
 def test_build_account_summaries_does_not_flag_distinct_same_provider_plans_as_duplicates() -> None:

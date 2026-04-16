@@ -16,12 +16,22 @@ export function describePortfolioHealth(
   }
 
   const topHoldingPct = analytics.concentration?.topHoldingPct ?? 0
+  const concentrationMethod = analytics.concentration?.method ?? 'line_item'
+  const topHoldingName =
+    analytics.concentration?.topHoldingName ?? 'top exposure'
+  const vehicleTopHoldingPct =
+    analytics.concentration?.vehicleTopHoldingPct ?? topHoldingPct
+  const vehicleTopHoldingName =
+    analytics.concentration?.vehicleTopHoldingName ?? 'largest vehicle'
   const diversificationScore = analytics.diversificationScore?.score ?? null
 
   if (topHoldingPct >= 50) {
     return {
       label: 'Too concentrated',
-      detail: `Top holding ${topHoldingPct.toFixed(1)}% of invested assets.`,
+      detail:
+        concentrationMethod === 'lookthrough'
+          ? `${topHoldingName} ${topHoldingPct.toFixed(1)}% single-name exposure · ${vehicleTopHoldingName} ${vehicleTopHoldingPct.toFixed(1)}% vehicle weight.`
+          : `Top holding ${topHoldingPct.toFixed(1)}% of positioned portfolio.`,
       tone: 'loss',
     }
   }
@@ -32,9 +42,18 @@ export function describePortfolioHealth(
   ) {
     return {
       label: 'Needs review',
-      detail: `Top holding ${topHoldingPct.toFixed(1)}% · diversification ${
-        diversificationScore != null ? diversificationScore.toFixed(0) : '—'
-      }`,
+      detail:
+        concentrationMethod === 'lookthrough'
+          ? `${topHoldingName} ${topHoldingPct.toFixed(1)}% single-name exposure · diversification ${
+              diversificationScore != null
+                ? diversificationScore.toFixed(0)
+                : '—'
+            }`
+          : `Top holding ${topHoldingPct.toFixed(1)}% · diversification ${
+              diversificationScore != null
+                ? diversificationScore.toFixed(0)
+                : '—'
+            }`,
       tone: 'warning',
     }
   }
@@ -57,8 +76,12 @@ export function describePortfolioHealth(
     label: 'Balanced',
     detail:
       diversificationScore != null
-        ? `Diversification ${diversificationScore.toFixed(0)} · top holding ${topHoldingPct.toFixed(1)}%`
-        : `Top holding ${topHoldingPct.toFixed(1)}% of invested assets.`,
+        ? concentrationMethod === 'lookthrough'
+          ? `Diversification ${diversificationScore.toFixed(0)} · top single-name exposure ${topHoldingPct.toFixed(1)}%`
+          : `Diversification ${diversificationScore.toFixed(0)} · top holding ${topHoldingPct.toFixed(1)}%`
+        : concentrationMethod === 'lookthrough'
+          ? `${vehicleTopHoldingName} ${vehicleTopHoldingPct.toFixed(1)}% vehicle weight · ${topHoldingName} ${topHoldingPct.toFixed(1)}% single-name exposure`
+          : `Top holding ${topHoldingPct.toFixed(1)}% of positioned portfolio.`,
     tone: 'default',
   }
 }

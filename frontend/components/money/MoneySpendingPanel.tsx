@@ -1,7 +1,7 @@
 'use client'
 
-import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
@@ -14,8 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  formatCurrency,
+  formatEnumLabel,
+  formatPercent,
+} from '@/lib/formatters'
 import { useHouseholdSpending } from '@/lib/hooks/useHousehold'
-import { formatCurrency, formatEnumLabel, formatPercent } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 
 type SpendingWindow = '1m' | '3m' | '6m' | '12m' | 'all'
@@ -49,11 +53,17 @@ function formatSpendingDate(value: string) {
   }).format(date)
 }
 
-function compareText(left: string | null | undefined, right: string | null | undefined) {
+function compareText(
+  left: string | null | undefined,
+  right: string | null | undefined,
+) {
   return (left ?? '').localeCompare(right ?? '')
 }
 
-function compareNumber(left: number | null | undefined, right: number | null | undefined) {
+function compareNumber(
+  left: number | null | undefined,
+  right: number | null | undefined,
+) {
   return (left ?? 0) - (right ?? 0)
 }
 
@@ -73,10 +83,16 @@ export function MoneySpendingPanel() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [selectedAccount, setSelectedAccount] = useState<string>('all')
   const [search, setSearch] = useState('')
-  const [categorySortKey, setCategorySortKey] = useState<CategorySortKey>('total')
-  const [categorySortDirection, setCategorySortDirection] = useState<'asc' | 'desc'>('desc')
-  const [transactionSortKey, setTransactionSortKey] = useState<TransactionSortKey>('date')
-  const [transactionSortDirection, setTransactionSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [categorySortKey, setCategorySortKey] =
+    useState<CategorySortKey>('total')
+  const [categorySortDirection, setCategorySortDirection] = useState<
+    'asc' | 'desc'
+  >('desc')
+  const [transactionSortKey, setTransactionSortKey] =
+    useState<TransactionSortKey>('date')
+  const [transactionSortDirection, setTransactionSortDirection] = useState<
+    'asc' | 'desc'
+  >('desc')
   const deferredSearch = useDeferredValue(search.trim().toLowerCase())
   const {
     data: spending,
@@ -90,7 +106,9 @@ export function MoneySpendingPanel() {
     if (!selectedCategory) {
       return
     }
-    if (!spending?.categories.some((entry) => entry.category === selectedCategory)) {
+    if (
+      !spending?.categories.some((entry) => entry.category === selectedCategory)
+    ) {
       setSelectedCategory(null)
     }
   }, [selectedCategory, spending?.categories])
@@ -142,7 +160,12 @@ export function MoneySpendingPanel() {
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(deferredSearch))
     })
-  }, [deferredSearch, selectedAccount, selectedCategory, spending?.transactions])
+  }, [
+    deferredSearch,
+    selectedAccount,
+    selectedCategory,
+    spending?.transactions,
+  ])
 
   const sortedCategories = useMemo(() => {
     const rows = [...(spending?.categories ?? [])]
@@ -159,7 +182,10 @@ export function MoneySpendingPanel() {
           result = compareNumber(left.totalSpend, right.totalSpend)
           break
         case 'avg':
-          result = compareNumber(left.averageMonthlySpend, right.averageMonthlySpend)
+          result = compareNumber(
+            left.averageMonthlySpend,
+            right.averageMonthlySpend,
+          )
           break
         case 'share':
           result = compareNumber(left.shareOfSpend, right.shareOfSpend)
@@ -230,27 +256,43 @@ export function MoneySpendingPanel() {
       Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1,
     )
     return totalSpend / diff
-  }, [spending?.summary.endDate, spending?.summary.startDate, spending?.summary.totalSpend])
+  }, [
+    spending?.summary.endDate,
+    spending?.summary.startDate,
+    spending?.summary.totalSpend,
+  ])
 
   function toggleCategorySort(nextKey: CategorySortKey) {
     if (categorySortKey === nextKey) {
-      setCategorySortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      setCategorySortDirection((current) =>
+        current === 'asc' ? 'desc' : 'asc',
+      )
       return
     }
     setCategorySortKey(nextKey)
-    setCategorySortDirection(nextKey === 'category' || nextKey === 'type' ? 'asc' : 'desc')
+    setCategorySortDirection(
+      nextKey === 'category' || nextKey === 'type' ? 'asc' : 'desc',
+    )
   }
 
   function toggleTransactionSort(nextKey: TransactionSortKey) {
     if (transactionSortKey === nextKey) {
-      setTransactionSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      setTransactionSortDirection((current) =>
+        current === 'asc' ? 'desc' : 'asc',
+      )
       return
     }
     setTransactionSortKey(nextKey)
-    setTransactionSortDirection(nextKey === 'date' || nextKey === 'amount' ? 'desc' : 'asc')
+    setTransactionSortDirection(
+      nextKey === 'date' || nextKey === 'amount' ? 'desc' : 'asc',
+    )
   }
 
-  function categoryHeader(label: string, key: CategorySortKey, align: 'left' | 'right' = 'left') {
+  function categoryHeader(
+    label: string,
+    key: CategorySortKey,
+    align: 'left' | 'right' = 'left',
+  ) {
     const active = categorySortKey === key
     return (
       <button
@@ -336,7 +378,9 @@ export function MoneySpendingPanel() {
       >
         <div className="grid gap-3 xl:grid-cols-4">
           <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-text-muted">Window</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
+              Window
+            </p>
             <p className="mt-2 text-base font-semibold text-text">
               {spending?.summary.timeframeLabel ?? 'Past 30 days'}
             </p>
@@ -349,7 +393,9 @@ export function MoneySpendingPanel() {
             </p>
           </div>
           <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-text-muted">Spend</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
+              Spend
+            </p>
             <p className="mt-2 text-base font-semibold tabular-nums text-text">
               {formatCurrency(spending?.summary.totalSpend, { decimals: 2 })}
             </p>
@@ -359,9 +405,13 @@ export function MoneySpendingPanel() {
             </p>
           </div>
           <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-text-muted">Avg / month</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
+              Avg / month
+            </p>
             <p className="mt-2 text-base font-semibold tabular-nums text-text">
-              {formatCurrency(spending?.summary.averageMonthlySpend, { decimals: 2 })}
+              {formatCurrency(spending?.summary.averageMonthlySpend, {
+                decimals: 2,
+              })}
             </p>
             <p className="mt-1 text-xs text-text-muted">
               {spending?.summary.accountCount ?? 0} account
@@ -369,12 +419,15 @@ export function MoneySpendingPanel() {
             </p>
           </div>
           <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-text-muted">Avg / day</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
+              Avg / day
+            </p>
             <p className="mt-2 text-base font-semibold tabular-nums text-text">
               {formatCurrency(dailyAverage, { decimals: 2 })}
             </p>
             <p className="mt-1 text-xs text-text-muted">
-              Transfers, payroll, card payments, duplicate overlap, and raw import lines stay out.
+              Transfers, payroll, card payments, duplicate overlap, and raw
+              import lines stay out.
             </p>
           </div>
         </div>
@@ -413,13 +466,19 @@ export function MoneySpendingPanel() {
               <tbody>
                 {isLoading && !spending ? (
                   <tr>
-                    <td colSpan={6} className="px-3 py-10 text-center text-sm text-text-muted">
+                    <td
+                      colSpan={6}
+                      className="px-3 py-10 text-center text-sm text-text-muted"
+                    >
                       Loading spending...
                     </td>
                   </tr>
                 ) : sortedCategories.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-3 py-10 text-center text-sm text-text-muted">
+                    <td
+                      colSpan={6}
+                      className="px-3 py-10 text-center text-sm text-text-muted"
+                    >
                       No spending categories in this timeframe.
                     </td>
                   </tr>
@@ -439,7 +498,9 @@ export function MoneySpendingPanel() {
                             type="button"
                             onClick={() =>
                               setSelectedCategory((current) =>
-                                current === category.category ? null : category.category,
+                                current === category.category
+                                  ? null
+                                  : category.category,
                               )
                             }
                             className="font-medium text-text"
@@ -464,10 +525,14 @@ export function MoneySpendingPanel() {
                           {formatCurrency(category.totalSpend, { decimals: 2 })}
                         </td>
                         <td className="border-b border-border/20 px-3 py-2.5 text-right font-mono tabular-nums">
-                          {formatCurrency(category.averageMonthlySpend, { decimals: 2 })}
+                          {formatCurrency(category.averageMonthlySpend, {
+                            decimals: 2,
+                          })}
                         </td>
                         <td className="border-b border-border/20 px-3 py-2.5 text-right font-mono tabular-nums">
-                          {formatPercent(category.shareOfSpend * 100, { decimals: 0 })}
+                          {formatPercent(category.shareOfSpend * 100, {
+                            decimals: 0,
+                          })}
                         </td>
                         <td className="border-b border-border/20 px-3 py-2.5 text-right font-mono tabular-nums">
                           {category.transactionCount}
@@ -484,12 +549,17 @@ export function MoneySpendingPanel() {
 
       <SectionCard
         variant="surface"
-        title={selectedCategory ? `${selectedCategory} transactions` : 'Transactions'}
+        title={
+          selectedCategory ? `${selectedCategory} transactions` : 'Transactions'
+        }
         description={`Every matching transaction in ${spending?.summary.timeframeLabel ?? 'the selected timeframe'}. Filters live here, next to the table they affect.`}
         actions={
           <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
             <Select value={selectedAccount} onValueChange={setSelectedAccount}>
-              <SelectTrigger className="w-[200px]" aria-label="Filter spending by account">
+              <SelectTrigger
+                className="w-[200px]"
+                aria-label="Filter spending by account"
+              >
                 <SelectValue placeholder="All accounts" />
               </SelectTrigger>
               <SelectContent>
@@ -504,9 +574,14 @@ export function MoneySpendingPanel() {
             </Select>
             <Select
               value={selectedCategory ?? 'all'}
-              onValueChange={(value) => setSelectedCategory(value === 'all' ? null : value)}
+              onValueChange={(value) =>
+                setSelectedCategory(value === 'all' ? null : value)
+              }
             >
-              <SelectTrigger className="w-[180px]" aria-label="Filter spending by category">
+              <SelectTrigger
+                className="w-[180px]"
+                aria-label="Filter spending by category"
+              >
                 <SelectValue placeholder="All categories" />
               </SelectTrigger>
               <SelectContent>
@@ -548,7 +623,10 @@ export function MoneySpendingPanel() {
           {selectedCategory ? <span>· {selectedCategory}</span> : null}
           {selectedAccount !== 'all' ? (
             <span>
-              · {selectedAccount === '__unassigned__' ? 'Unassigned' : selectedAccount}
+              ·{' '}
+              {selectedAccount === '__unassigned__'
+                ? 'Unassigned'
+                : selectedAccount}
             </span>
           ) : null}
         </div>
@@ -588,13 +666,19 @@ export function MoneySpendingPanel() {
               <tbody>
                 {isLoading && !spending ? (
                   <tr>
-                    <td colSpan={8} className="px-3 py-10 text-center text-sm text-text-muted">
+                    <td
+                      colSpan={8}
+                      className="px-3 py-10 text-center text-sm text-text-muted"
+                    >
                       Loading transactions...
                     </td>
                   </tr>
                 ) : sortedTransactions.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-3 py-10 text-center text-sm text-text-muted">
+                    <td
+                      colSpan={8}
+                      className="px-3 py-10 text-center text-sm text-text-muted"
+                    >
                       No transactions match current filters.
                     </td>
                   </tr>
@@ -647,12 +731,17 @@ export function MoneySpendingPanel() {
               </tbody>
               <tfoot className="sticky bottom-0 z-20 bg-bg/95 backdrop-blur">
                 <tr>
-                  <td className="border-t border-border/40 px-3 py-2 font-semibold text-text">Total</td>
-                  <td className="border-t border-border/40 px-3 py-2 text-text-muted">
-                    {sortedTransactions.length} row{sortedTransactions.length === 1 ? '' : 's'}
+                  <td className="border-t border-border/40 px-3 py-2 font-semibold text-text">
+                    Total
                   </td>
                   <td className="border-t border-border/40 px-3 py-2 text-text-muted">
-                    {selectedCategory ? `${selectedCategory} drill-down` : 'All visible spend'}
+                    {sortedTransactions.length} row
+                    {sortedTransactions.length === 1 ? '' : 's'}
+                  </td>
+                  <td className="border-t border-border/40 px-3 py-2 text-text-muted">
+                    {selectedCategory
+                      ? `${selectedCategory} drill-down`
+                      : 'All visible spend'}
                   </td>
                   <td className="border-t border-border/40 px-3 py-2" />
                   <td className="border-t border-border/40 px-3 py-2" />

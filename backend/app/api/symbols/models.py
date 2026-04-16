@@ -98,6 +98,9 @@ class PositionInfo(BaseModel):
     gain: float | None = None
     gain_pct: float | None = None
     weight_pct: float | None = None
+    concentration_weight_pct: float | None = None
+    concentration_method: str | None = None
+    top_exposure_name: str | None = None
 
 
 class PortfolioContext(BaseModel):
