@@ -95,6 +95,8 @@ export async function apiRequest<T>(
           const errorData = await response.json()
           if (errorData.detail) {
             errorMessage = errorData.detail
+          } else if (errorData.message) {
+            errorMessage = errorData.message
           }
         } catch {
           // If JSON parsing fails, use default error message

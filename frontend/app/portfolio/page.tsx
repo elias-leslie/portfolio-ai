@@ -3,6 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { PlusCircle, RefreshCw } from 'lucide-react'
+import Link from 'next/link'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { AccountsWithPositionsContent } from '@/components/portfolio/AccountsWithPositions'
@@ -227,6 +228,9 @@ function PortfolioPageContent() {
         description="Market, news, symbols, and holdings."
         actions={
           <div className="flex flex-wrap gap-2">
+            <Button variant="outline" asChild>
+              <Link href="/strategy-lab">Strategy Lab</Link>
+            </Button>
             <Button
               variant="outline"
               onClick={handleRefresh}
