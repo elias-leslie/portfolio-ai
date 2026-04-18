@@ -28,6 +28,7 @@ from .news_health_metrics import NewsHealthMetrics
 from .news_models import NewsArticle, NewsBundle, NewsSummary
 from .news_processing import FinBertUnavailableError, NewsProcessor
 from .news_quality_scoring import NewsQualityScorer
+from .news_relevance import filter_symbol_relevant_articles
 from .news_sentiment import (
     FINBERT_INSTALL_HINT,
     FinBertSentimentAnalyzer,
@@ -242,6 +243,11 @@ class NewsService:
         previous = self.cache_manager.load_articles_in_window(
             symbol=symbol, start=now - (self.ttl * 2), end=now - self.ttl, limit=summary_limit,
         )
+
+        if symbol != MARKET_SYMBOL:
+            all_recent = filter_symbol_relevant_articles(symbol, all_recent)
+            previous = filter_symbol_relevant_articles(symbol, previous)
+
         summary = self.processor.build_summary(
             symbol=symbol, articles=all_recent, previous_articles=previous, as_of=now, ttl=self.ttl,
         )

@@ -170,6 +170,9 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdDocuments: () => ({
     data: { items: [] },
   }),
+  useHouseholdFacts: () => ({
+    data: [],
+  }),
   useHouseholdLedger: () => ({
     data: {
       generatedAt: '2026-03-10T00:00:00Z',
@@ -193,14 +196,17 @@ vi.mock('@/components/money/MoneyAccountsPanel', () => ({
 vi.mock('@/components/money/MoneyLedgerPanel', () => ({
   MoneyLedgerPanel: () => <div>Money Ledger Panel</div>,
 }))
-vi.mock('@/components/money/MoneySpendingPanel', () => ({
-  MoneySpendingPanel: () => <div>Money Spending Panel</div>,
+vi.mock('@/components/money/MoneyBudgetPanel', () => ({
+  MoneyBudgetPanel: () => <div>Money Budget Panel</div>,
+}))
+vi.mock('@/components/money/MoneyRetirementPanel', () => ({
+  MoneyRetirementPanel: () => <div>Money Retirement Panel</div>,
 }))
 vi.mock('@/components/money/HouseholdDocumentCenter', () => ({
   HouseholdDocumentCenter: () => <div>Document Center</div>,
 }))
-vi.mock('@/components/money/HouseholdProfileCard', () => ({
-  HouseholdProfileCard: () => <div>Profile Card</div>,
+vi.mock('@/components/money/MoneyAssumptionsDrawer', () => ({
+  MoneyAssumptionsDrawer: () => <div>Assumptions Drawer</div>,
 }))
 vi.mock('@/components/money/HouseholdPlanningPanels', () => ({
   HouseholdPlanningPanels: () => <div>Planning Panels</div>,

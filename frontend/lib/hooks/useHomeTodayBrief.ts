@@ -5,7 +5,7 @@ export function useHomeTodayBrief() {
   return useQuery({
     queryKey: ['home', 'today-brief'],
     queryFn: fetchHomeTodayBrief,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 60 * 60,
     refetchOnWindowFocus: false,
   })
 }

@@ -223,6 +223,19 @@ def _safe_get_notifications(jenny_dashboard_reader: JennyDashboardReader, jenny_
         return []
 
 
+def _coerce_sequence(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, tuple | set):
+        return list(value)
+    try:
+        return list(value)
+    except TypeError:
+        return []
+
+
 def detect_symbols(
     message: str,
     live_symbols: list[str],
@@ -276,6 +289,7 @@ def _build_household_context(
     household_dashboard: Any,
     open_questions: list[HouseholdQuestion],
     recent_documents: list[Any],
+    confirmed_facts: list[Any],
 ) -> dict[str, Any]:
     return {
         "overview": household_dashboard.overview.model_dump(),
@@ -289,6 +303,7 @@ def _build_household_context(
         "open_questions": [question_summary(q) for q in open_questions],
         "documents": build_document_context(recent_documents),
         "planning": household_dashboard.planning.model_dump(),
+        "confirmed_facts": [fact.model_dump() for fact in confirmed_facts],
     }
 
 
@@ -330,6 +345,7 @@ def build_full_context(
     _index_fn = index_fn if index_fn is not None else load_project_index
     household_dashboard = household_service.get_dashboard()
     recent_documents = household_service.list_documents(limit=MAX_RECENT_DOCUMENTS).items
+    confirmed_facts = _coerce_sequence(household_service.list_confirmed_facts())
     accounts = portfolio_mgr.get_accounts()
     positions = portfolio_mgr.get_positions()
     live_symbols = sorted({position.symbol.upper() for position in positions if position.symbol})
@@ -340,7 +356,12 @@ def build_full_context(
     project_index = _index_fn()
 
     return {
-        "household": _build_household_context(household_dashboard, open_questions, recent_documents),
+        "household": _build_household_context(
+            household_dashboard,
+            open_questions,
+            recent_documents,
+            confirmed_facts,
+        ),
         "portfolio": _build_portfolio_context(accounts, position_summaries, analytics),
         "portfolio_ai": build_runtime_context(
             health_service, jenny_dashboard_reader, jenny_service, project_index

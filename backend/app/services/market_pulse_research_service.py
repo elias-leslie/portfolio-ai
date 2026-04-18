@@ -18,7 +18,7 @@ from app.storage import get_storage
 logger = get_logger(__name__)
 
 _SCOUT_AGENT_SLUG = "market-pulse-scout"
-_SCOUT_CACHE_SECONDS = 60 * 20
+_SCOUT_CACHE_SECONDS = 60 * 60
 _SCOUT_COOLDOWN_MINUTES = 60 * 6
 _SCOUT_MAX_TURNS = 4
 

@@ -10,13 +10,14 @@ import {
   HouseholdPlanningPanels,
   type PlanningFocusSection,
 } from '@/components/money/HouseholdPlanningPanels'
-import { HouseholdProfileCard } from '@/components/money/HouseholdProfileCard'
 import { JennyQuestionInbox } from '@/components/money/JennyQuestionInbox'
 import { MoneyAccountsPanel } from '@/components/money/MoneyAccountsPanel'
+import { MoneyAssumptionsDrawer } from '@/components/money/MoneyAssumptionsDrawer'
+import { MoneyBudgetPanel } from '@/components/money/MoneyBudgetPanel'
 import { MoneyLedgerPanel } from '@/components/money/MoneyLedgerPanel'
 import { MoneyLeversPanel } from '@/components/money/MoneyLeversPanel'
 import { MoneyOverviewPanel } from '@/components/money/MoneyOverviewPanel'
-import { MoneySpendingPanel } from '@/components/money/MoneySpendingPanel'
+import { MoneyRetirementPanel } from '@/components/money/MoneyRetirementPanel'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -34,6 +35,7 @@ import {
 import {
   useHouseholdDashboard,
   useHouseholdDocuments,
+  useHouseholdFacts,
 } from '@/lib/hooks/useHousehold'
 
 function LoadingState() {
@@ -200,6 +202,7 @@ function MoneyPageContent() {
     refetch: refetchDocuments,
     isFetching: isFetchingDocuments,
   } = useHouseholdDocuments()
+  const { data: facts = [] } = useHouseholdFacts()
   useEffect(() => {
     const syncFromLocation = () => {
       const currentUrl = new URL(window.location.href)
@@ -318,8 +321,8 @@ function MoneyPageContent() {
     },
     {
       value: 'spending',
-      label: 'Spending',
-      content: <MoneySpendingPanel />,
+      label: 'Budget',
+      content: <MoneyBudgetPanel />,
     },
     {
       value: 'levers',
@@ -327,7 +330,19 @@ function MoneyPageContent() {
       content: (
         <MoneyLeversPanel
           priceInsights={dashboard.reports.priceInsights ?? []}
-          recurringCommitments={dashboard.recurringCommitments}
+        />
+      ),
+    },
+    {
+      value: 'retirement',
+      label: 'Retirement',
+      content: (
+        <MoneyRetirementPanel
+          dashboard={dashboard}
+          onEditTargets={() => {
+            setFocusedReview('retirement')
+            setOpenUtility('planning')
+          }}
         />
       ),
     },
@@ -441,25 +456,32 @@ function MoneyPageContent() {
         open={openUtility === 'planning'}
         onOpenChange={(open) => setOpenUtility(open ? 'planning' : null)}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Assumptions</DialogTitle>
-            <DialogDescription>
-              Review the household profile, goals, and planning assumptions
-              without adding another default page section.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <HouseholdProfileCard
-              profile={dashboard.profile}
-              resolvedValues={dashboard.resolvedValues}
-            />
-            <HouseholdPlanningPanels
-              dashboard={dashboard}
-              focusedSection={
-                isPlanningFocus(focusedReview) ? focusedReview : null
-              }
-            />
+        <DialogContent className="left-auto right-0 top-0 h-dvh max-w-[min(980px,100vw)] translate-x-0 translate-y-0 rounded-none border-l border-border/45 p-0 sm:max-w-[min(980px,100vw)]">
+          <div className="max-h-dvh overflow-y-auto p-6">
+            <DialogHeader>
+              <DialogTitle>Assumptions</DialogTitle>
+              <DialogDescription>
+                Confirm what Jenny found, override it when needed, and keep the
+                manual finance inputs in one minimal workspace.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="mt-4">
+              <MoneyAssumptionsDrawer
+                profile={dashboard.profile}
+                resolvedValues={dashboard.resolvedValues}
+                facts={facts}
+                planningContent={
+                  isPlanningFocus(focusedReview) &&
+                  focusedReview !== 'income' &&
+                  focusedReview !== 'retirement' ? (
+                    <HouseholdPlanningPanels
+                      dashboard={dashboard}
+                      focusedSection={focusedReview}
+                    />
+                  ) : undefined
+                }
+              />
+            </div>
           </div>
         </DialogContent>
       </Dialog>

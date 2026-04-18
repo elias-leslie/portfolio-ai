@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import type { NewsBundle } from '@/lib/api/news'
 import type { PositionWithValue } from '@/lib/api/portfolio'
 import type { SentimentArticle, WatchlistItem } from '@/lib/api/watchlist'
-import { useNewsIntelligence } from '@/lib/hooks/useNews'
+import { useNewsIntelligence, useWatchlistNews } from '@/lib/hooks/useNews'
 import { cn, formatRelativeTime } from '@/lib/utils'
 
 type HeadlineTone = 'positive' | 'neutral' | 'negative'
@@ -73,8 +73,6 @@ const NON_SIGNAL_PATTERNS = [
   /\bshould\s+you\s+buy\b/i,
   /\bbest\s+\w+\s+(?:stocks?|reits?|etfs?|funds?)\b/i,
   /\bretirement income\b/i,
-  /\bhigh-yield\b/i,
-  /\bdividend\b/i,
   /\bfully valued\b/i,
   /\bworth investigating\b/i,
   /\bdilution risk\b/i,
@@ -90,7 +88,6 @@ const NON_SIGNAL_PATTERNS = [
   /\bmissing the point\b/i,
   /\bunder trump\b/i,
   /\bwith \$\d[\d,]*\b/i,
-  /\b(?:travel|retirement|income)\b/i,
 ]
 const MACRO_TOPICS: MacroTopic[] = [
   {
@@ -389,21 +386,40 @@ function toneDotClasses(tone: HeadlineTone) {
 
 function buildHeadlineGroups({
   watchlistItems,
+  watchlistNewsBySymbol,
   heldSymbols,
   marketNews,
 }: {
   watchlistItems: WatchlistItem[]
+  watchlistNewsBySymbol: Map<string, NewsBundle>
   heldSymbols: Set<string>
   marketNews?: NewsBundle
 }): HeadlineGroup[] {
   const symbolHeadlines = watchlistItems
     .map((item) => {
-      const article = bestSymbolArticle(item.recentNews?.articles)
+      const symbol = item.symbol.toUpperCase()
+      const recentNews =
+        watchlistNewsBySymbol.get(symbol) ??
+        (item.recentNews
+          ? {
+              symbol,
+              summary: item.recentNews.summary ?? {
+                score: null,
+                scoreChange: null,
+                positiveCount: 0,
+                neutralCount: 0,
+                negativeCount: 0,
+                articleCount: item.recentNews.articles?.length ?? 0,
+                modelBreakdown: {},
+              },
+              articles: item.recentNews.articles ?? [],
+            }
+          : undefined)
+      const article = bestSymbolArticle(recentNews?.articles)
       if (!article || !shouldSurfaceSymbolArticle(article)) {
         return null
       }
 
-      const symbol = item.symbol.toUpperCase()
       const held = heldSymbols.has(symbol)
 
       return {
@@ -622,18 +638,30 @@ export function InvestingNewsPanel({
   positions: PositionWithValue[]
 }) {
   const { data: marketNews } = useNewsIntelligence(undefined, { limit: 24 })
+  const { data: watchlistNews } = useWatchlistNews({
+    maxResults: 8,
+    enabled: watchlistItems.length > 0,
+  })
   const heldSymbols = useMemo(
     () => new Set(positions.map((position) => position.symbol.toUpperCase())),
     [positions],
   )
+  const watchlistNewsBySymbol = useMemo(() => {
+    const next = new Map<string, NewsBundle>()
+    for (const bundle of watchlistNews?.items ?? []) {
+      next.set(bundle.symbol.toUpperCase(), bundle)
+    }
+    return next
+  }, [watchlistNews?.items])
   const groups = useMemo(
     () =>
       buildHeadlineGroups({
         watchlistItems,
+        watchlistNewsBySymbol,
         heldSymbols,
         marketNews,
       }),
-    [heldSymbols, marketNews, watchlistItems],
+    [heldSymbols, marketNews, watchlistItems, watchlistNewsBySymbol],
   )
 
   if (groups.length === 0) {

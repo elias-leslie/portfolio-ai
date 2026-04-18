@@ -17,6 +17,7 @@ from typing import Any
 
 from ..logging_config import get_logger
 from ..portfolio.models import PriceData
+from ..services.news_decision_support import assess_news_article
 from ..services.news_models import NewsArticle, NewsBundle
 from ..storage import PortfolioStorage
 from ..utils.market_hours import is_stale
@@ -100,6 +101,7 @@ def build_recent_news_payload(
     articles_payload: list[dict[str, Any]] = []
     for article in news_bundle.articles[:max_articles]:
         article_payload = article.model_dump(mode="json")
+        assessment = assess_news_article(article)
 
         vendor = _extract_article_vendor(article)
         if vendor:
@@ -112,6 +114,14 @@ def build_recent_news_payload(
             article_payload["source"] = publisher
         elif not article_payload.get("source"):
             article_payload["source"] = None
+
+        article_payload["event_category"] = assessment.event_category
+        article_payload["market_context_topic"] = assessment.market_context_topic
+        article_payload["source_signal_tier"] = assessment.source_signal_tier
+        article_payload["canonical_headline"] = assessment.canonical_headline
+        article_payload["decision_value_score"] = assessment.decision_value_score
+        article_payload["decision_value_label"] = assessment.decision_value_label
+        article_payload["decision_value_reason"] = assessment.decision_value_reason
 
         # Explicit publisher alias to simplify UI rendering logic
         article_payload.setdefault("publisher", article_payload.get("source"))

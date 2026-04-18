@@ -29,7 +29,7 @@ from app.storage import get_storage
 from app.utils.market_hours import NY_TZ, get_market_status
 
 logger = get_logger(__name__)
-_NARRATIVE_CACHE_SECONDS = 60 * 15
+_NARRATIVE_CACHE_SECONDS = 60 * 60
 _RESPONSE_CACHE_SECONDS = 60
 _MARKET_PULSE_AGENT_SLUG = "market-pulse-analyst"
 

@@ -4,12 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const useHouseholdDashboardMock = vi.fn()
 const useHouseholdDocumentsMock = vi.fn()
+const useHouseholdFactsMock = vi.fn()
 const useHouseholdLedgerMock = vi.fn()
 const useAnswerHouseholdQuestionMock = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdDashboard: () => useHouseholdDashboardMock(),
   useHouseholdDocuments: () => useHouseholdDocumentsMock(),
+  useHouseholdFacts: () => useHouseholdFactsMock(),
   useHouseholdLedger: () => useHouseholdLedgerMock(),
   useAnswerHouseholdQuestion: () => useAnswerHouseholdQuestionMock(),
 }))
@@ -46,14 +48,26 @@ vi.mock('@/components/money/HouseholdDocumentCenter', () => ({
     </div>
   ),
 }))
-vi.mock('@/components/money/HouseholdProfileCard', () => ({
-  HouseholdProfileCard: () => <div>Profile Card</div>,
+vi.mock('@/components/money/MoneyAssumptionsDrawer', () => ({
+  MoneyAssumptionsDrawer: ({
+    planningContent,
+  }: {
+    planningContent?: unknown
+  }) => (
+    <div>
+      Assumptions Drawer
+      {planningContent as any}
+    </div>
+  ),
 }))
 vi.mock('@/components/money/MoneyLedgerPanel', () => ({
   MoneyLedgerPanel: () => <div>Money Ledger Panel</div>,
 }))
-vi.mock('@/components/money/MoneySpendingPanel', () => ({
-  MoneySpendingPanel: () => <div>Money Spending Panel</div>,
+vi.mock('@/components/money/MoneyBudgetPanel', () => ({
+  MoneyBudgetPanel: () => <div>Money Budget Panel</div>,
+}))
+vi.mock('@/components/money/MoneyRetirementPanel', () => ({
+  MoneyRetirementPanel: () => <div>Money Retirement Panel</div>,
 }))
 vi.mock('@/components/money/HouseholdPlanningPanels', () => ({
   HouseholdPlanningPanels: ({
@@ -293,6 +307,12 @@ describe('MoneyPage', () => {
       error: null,
       refetch: vi.fn(),
     })
+    useHouseholdFactsMock.mockReturnValue({
+      data: [],
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    })
     useHouseholdLedgerMock.mockReturnValue({
       data: {
         generatedAt: '2026-03-10T00:00:00Z',
@@ -342,10 +362,11 @@ describe('MoneyPage', () => {
     expect(
       screen.getByRole('button', { name: /Dashboard/i }),
     ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: /Spending/i }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Budget/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Levers/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /Retirement/i }),
+    ).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /Allocation/i }),
     ).toBeInTheDocument()
@@ -436,7 +457,7 @@ describe('MoneyPage', () => {
 
     render(<MoneyPage />)
 
-    expect(screen.getByText('Money Spending Panel')).toBeInTheDocument()
+    expect(screen.getByText('Money Budget Panel')).toBeInTheDocument()
   })
 
   it('opens ledger from the ledger tab query param', async () => {

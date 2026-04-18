@@ -7,6 +7,7 @@ import {
   confirmFact,
   createHouseholdTrackedAccount,
   deleteHouseholdTrackedAccount,
+  fetchConfirmedFacts,
   fetchHouseholdDashboard,
   fetchHouseholdDocuments,
   fetchHouseholdLedger,
@@ -45,6 +46,16 @@ export function useHouseholdDocuments() {
   return useQuery({
     queryKey: ['household', 'documents'],
     queryFn: fetchHouseholdDocuments,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+  })
+}
+
+export function useHouseholdFacts() {
+  return useQuery({
+    queryKey: ['household', 'facts'],
+    queryFn: fetchConfirmedFacts,
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,

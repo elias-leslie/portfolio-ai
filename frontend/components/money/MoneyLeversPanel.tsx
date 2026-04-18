@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type {
   HouseholdPriceInsight,
-  HouseholdRecurringCommitment,
   HouseholdSpendingCategory,
 } from '@/lib/api/household'
 import {
@@ -129,13 +128,9 @@ function UnlockPanel({ title, detail }: { title: string; detail: string }) {
 
 interface MoneyLeversPanelProps {
   priceInsights: HouseholdPriceInsight[]
-  recurringCommitments: HouseholdRecurringCommitment[]
 }
 
-export function MoneyLeversPanel({
-  priceInsights,
-  recurringCommitments,
-}: MoneyLeversPanelProps) {
+export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
   const [window, setWindow] = useState<LeverWindow>('3m')
   const [search, setSearch] = useState('')
   const {
@@ -204,17 +199,6 @@ export function MoneyLeversPanel({
           : true,
       ),
     [priceInsights, search],
-  )
-
-  const dueSoonCommitments = useMemo(
-    () =>
-      recurringCommitments
-        .filter((row) => row.daysUntilDue != null && row.daysUntilDue <= 14)
-        .sort(
-          (left, right) =>
-            (left.daysUntilDue ?? 999) - (right.daysUntilDue ?? 999),
-        ),
-    [recurringCommitments],
   )
 
   const topThreeShare = useMemo(() => {
@@ -867,89 +851,6 @@ export function MoneyLeversPanel({
           <UnlockPanel
             title="No price-drift evidence yet."
             detail="Add receipt or order-history evidence and this section will flag ticket creep, unit-price jumps, and shrinkflation before they silently harden."
-          />
-        )}
-      </SectionCard>
-
-      <SectionCard
-        variant="surface"
-        title="Bills Due Soon"
-        description="Recurring commitments from canonical ledger cadence inference."
-      >
-        {dueSoonCommitments.length > 0 ? (
-          <div className="overflow-hidden rounded-2xl border border-border/40 bg-surface/45">
-            <div className="max-h-[24vh] overflow-auto [scrollbar-gutter:stable_both-edges]">
-              <table className="w-full min-w-[940px] border-separate border-spacing-0 text-sm">
-                <thead className="sticky top-0 z-20 bg-bg/95 backdrop-blur">
-                  <tr>
-                    <th className="border-b border-border/40 px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.16em] text-text-muted/80">
-                      Merchant
-                    </th>
-                    <th className="border-b border-border/40 px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.16em] text-text-muted/80">
-                      Category
-                    </th>
-                    <th className="border-b border-border/40 px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.16em] text-text-muted/80">
-                      Cadence
-                    </th>
-                    <th className="border-b border-border/40 px-3 py-2 text-right text-xs font-semibold uppercase tracking-[0.16em] text-text-muted/80">
-                      Avg amount
-                    </th>
-                    <th className="border-b border-border/40 px-3 py-2 text-right text-xs font-semibold uppercase tracking-[0.16em] text-text-muted/80">
-                      Due
-                    </th>
-                    <th className="border-b border-border/40 px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.16em] text-text-muted/80">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dueSoonCommitments.map((row) => (
-                    <tr
-                      key={`${row.merchant}-${row.lastSeen}`}
-                      className="border-b border-border/30 align-top transition-colors hover:bg-surface-muted/20"
-                    >
-                      <td className="border-b border-border/20 px-3 py-2.5 font-medium text-text">
-                        {row.merchant}
-                      </td>
-                      <td className="border-b border-border/20 px-3 py-2.5 text-text">
-                        {row.category}
-                      </td>
-                      <td className="border-b border-border/20 px-3 py-2.5 text-text">
-                        {formatEnumLabel(row.cadence)}
-                      </td>
-                      <td className="border-b border-border/20 px-3 py-2.5 text-right font-mono tabular-nums text-text">
-                        {formatCurrency(row.averageAmount, { decimals: 2 })}
-                      </td>
-                      <td className="border-b border-border/20 px-3 py-2.5 text-right font-mono tabular-nums text-text">
-                        {row.daysUntilDue == null
-                          ? '—'
-                          : row.daysUntilDue === 0
-                            ? 'Today'
-                            : `${row.daysUntilDue}d`}
-                      </td>
-                      <td className="border-b border-border/20 px-3 py-2.5">
-                        <Badge
-                          variant={
-                            row.dueStatus === 'due_soon'
-                              ? 'warning'
-                              : row.dueStatus === 'overdue'
-                                ? 'destructive'
-                                : 'outline'
-                          }
-                        >
-                          {formatEnumLabel(row.dueStatus)}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : (
-          <UnlockPanel
-            title="No due-soon bill forecast yet."
-            detail="More statement history unlocks cadence inference. Until then, use the category and merchant pressure tables as the real lever surface."
           />
         )}
       </SectionCard>

@@ -6,9 +6,11 @@ import type { SentimentArticle, WatchlistItem } from '@/lib/api/watchlist'
 import { InvestingNewsPanel } from '../InvestingNewsPanel'
 
 const useNewsIntelligenceMock = vi.fn()
+const useWatchlistNewsMock = vi.fn()
 
 vi.mock('@/lib/hooks/useNews', () => ({
   useNewsIntelligence: () => useNewsIntelligenceMock(),
+  useWatchlistNews: () => useWatchlistNewsMock(),
 }))
 
 function buildArticle(
@@ -73,6 +75,7 @@ function buildPosition(
 describe('InvestingNewsPanel', () => {
   beforeEach(() => {
     useNewsIntelligenceMock.mockReset()
+    useWatchlistNewsMock.mockReset()
     useNewsIntelligenceMock.mockReturnValue({
       data: {
         symbol: '__MARKET__',
@@ -87,6 +90,12 @@ describe('InvestingNewsPanel', () => {
         },
         articles: [],
       } satisfies NewsBundle,
+    })
+    useWatchlistNewsMock.mockReturnValue({
+      data: {
+        accountId: 'default',
+        items: [],
+      },
     })
   })
 

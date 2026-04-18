@@ -3,9 +3,11 @@ import { toast } from 'sonner'
 import {
   fetchArticleFeedback,
   fetchNewsIntelligence,
+  fetchWatchlistNews,
   type NewsBundle,
   type SubmitArticleFeedbackInput,
   submitArticleFeedback,
+  type WatchlistNewsResponse,
 } from '@/lib/api/news'
 
 export const newsKeys = {
@@ -17,6 +19,8 @@ export const newsKeys = {
       symbol ?? 'market',
       limit ?? 'default',
     ] as const,
+  watchlist: (maxResults?: number) =>
+    [...newsKeys.all, 'watchlist', maxResults ?? 'default'] as const,
   market: () => [...newsKeys.all, 'market'] as const,
   symbol: (symbol: string) => [...newsKeys.all, 'symbol', symbol] as const,
   articleFeedback: (articleHash: string) =>
@@ -30,6 +34,20 @@ export function useNewsIntelligence(
   return useQuery<NewsBundle, Error>({
     queryKey: newsKeys.intelligence(symbol, options?.limit),
     queryFn: () => fetchNewsIntelligence(symbol, options),
+    staleTime: 1000 * 60 * 5,
+    enabled: options?.enabled !== false,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useWatchlistNews(options?: {
+  maxResults?: number
+  forceRefresh?: boolean
+  enabled?: boolean
+}) {
+  return useQuery<WatchlistNewsResponse, Error>({
+    queryKey: newsKeys.watchlist(options?.maxResults),
+    queryFn: () => fetchWatchlistNews(options),
     staleTime: 1000 * 60 * 5,
     enabled: options?.enabled !== false,
     refetchOnWindowFocus: false,

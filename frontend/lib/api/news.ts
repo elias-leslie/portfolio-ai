@@ -7,6 +7,11 @@ export interface NewsBundle {
   articles: SentimentArticle[]
 }
 
+export interface WatchlistNewsResponse {
+  account_id: string
+  items: NewsBundle[]
+}
+
 export type MarketNewsResponse = NewsBundle
 
 export type NewsHealthStatus = 'healthy' | 'degraded' | 'down'
@@ -97,6 +102,17 @@ export async function fetchNewsIntelligence(
     force_refresh: options?.forceRefresh,
   })
   return apiRequest<NewsBundle>(`/api/news${query}`)
+}
+
+export async function fetchWatchlistNews(options?: {
+  maxResults?: number
+  forceRefresh?: boolean
+}): Promise<WatchlistNewsResponse> {
+  const query = buildQuery({
+    max_results: options?.maxResults,
+    force_refresh: options?.forceRefresh,
+  })
+  return apiRequest<WatchlistNewsResponse>(`/api/news/watchlist${query}`)
 }
 
 export async function fetchNewsHealth(): Promise<NewsHealthResponse> {
