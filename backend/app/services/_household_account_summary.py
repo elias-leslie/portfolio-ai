@@ -315,12 +315,8 @@ def _portfolio_asset_group(account: Any) -> str:
 
 
 def _portfolio_source_type(account: Any) -> str:
-    asset_group = _portfolio_asset_group(account)
-    if asset_group == "retirement":
-        return "retirement"
-    if asset_group == "taxable":
-        return "brokerage"
-    return "portfolio"
+    source_types = {"retirement": "retirement", "taxable": "brokerage"}
+    return source_types.get(_portfolio_asset_group(account), "portfolio")
 
 
 def _freshness_state_from_thresholds(
@@ -363,11 +359,7 @@ def _allows_unique_institution_fallback(
     hint_label: str | None,
     institution_name: str | None,
 ) -> bool:
-    combined_label = " ".join(
-        part
-        for part in (label, account_name, hint_label, institution_name)
-        if _normalize_text(part)
-    )
+    combined_label = " ".join(part for part in (label, account_name, hint_label, institution_name) if _normalize_text(part))
     return _money_role(asset_group, account_type or "", combined_label) == "spend_driver"
 
 
@@ -708,6 +700,72 @@ def _account_request_detail(account: HouseholdAccountSummary, gap_code: str) -> 
     return detail
 
 
+def _gap(code: str, severity: str, title: str, detail: str) -> HouseholdAccountGap:
+    return HouseholdAccountGap(code=code, severity=severity, title=title, detail=detail)
+
+
+def _freshness_gaps(summary: HouseholdAccountSummary) -> list[HouseholdAccountGap]:
+    gaps: list[HouseholdAccountGap] = []
+    if summary.current_value is None:
+        gaps.append(_gap("missing_balance", "high", "Missing balance", "Jenny could not extract a usable balance, holdings value, or cash balance for this account."))
+    balance_gap_map = {
+        "aging": ("refresh_balance_soon", "medium", "Refresh balance soon", "The latest balance evidence is getting old. Upload newer evidence before Jenny relies on this as current state."),
+        "stale": ("stale_balance", "high", "Stale balance", "The latest balance evidence is too old to trust this account as current state."),
+        "needs_evidence": ("missing_evidence", "high", "Needs evidence", "The account exists in the system, but Jenny does not have supporting financial evidence for it yet."),
+    }
+    balance_gap = balance_gap_map.get(summary.balance_freshness_status)
+    if balance_gap is not None:
+        gaps.append(_gap(*balance_gap))
+    if summary.money_role != "spend_driver":
+        return gaps
+    transaction_gap_map = {
+        "aging": ("refresh_transactions_soon", "medium", "Refresh transaction history soon", "This spending account has not been refreshed recently enough for a confident weekly cash-flow review."),
+        "stale": ("stale_transactions", "high", "Stale transaction history", "This spending account is too old to trust for current monthly-spend, budget, or safe-to-spend calculations."),
+    }
+    transaction_gap = transaction_gap_map.get(summary.transaction_freshness_status)
+    if transaction_gap is not None:
+        gaps.append(_gap(*transaction_gap))
+    needs_transactions = summary.transaction_freshness_status == "needs_evidence" and summary.evidence_count > 0
+    missing_linked_transactions = summary.balance_freshness_status == "fresh" and summary.transaction_freshness_status == "not_applicable"
+    if needs_transactions or missing_linked_transactions:
+        detail = (
+            "Jenny has some account evidence here but not enough linked transaction history to trust cash-flow calculations."
+            if needs_transactions
+            else "Jenny can see this account but cannot yet tie it to recent transaction history."
+        )
+        gaps.append(_gap("missing_transaction_history", "high", "Missing transaction history", detail))
+    return gaps
+
+
+def _coverage_gaps(summary: HouseholdAccountSummary, existing_gap_codes: set[str]) -> list[HouseholdAccountGap]:
+    gaps: list[HouseholdAccountGap] = []
+    if summary.freshness_status == "aging" and not ({"refresh_balance_soon", "refresh_transactions_soon"} & existing_gap_codes):
+        gaps.append(_gap("refresh_soon", "medium", "Refresh soon", "Part of this account's current state is aging and should be refreshed before weekly review."))
+    if summary.freshness_status == "stale" and not ({"stale_balance", "stale_transactions"} & existing_gap_codes):
+        gaps.append(_gap("stale_evidence", "high", "Stale evidence", "Part of this account's current state is stale enough that Jenny should not trust it as current."))
+    if summary.freshness_status == "needs_evidence" and not ({"missing_evidence", "missing_transaction_history", "missing_balance"} & existing_gap_codes):
+        gaps.append(_gap("missing_current_state", "high", "Missing current state", "Jenny cannot confirm enough current evidence to treat this account as covered."))
+    return gaps
+
+
+def _contextual_gaps(
+    summary: HouseholdAccountSummary,
+    *,
+    duplicate: bool,
+    statement_freshness: dict[str, Any],
+) -> list[HouseholdAccountGap]:
+    gaps: list[HouseholdAccountGap] = []
+    if summary.match_status == "candidate":
+        gaps.append(_gap("unconfirmed_match", "medium", "Needs confirmation", "Jenny found a possible account/entity here, but the match is not strong enough to treat it as fully confirmed."))
+    if summary.evidence_count == 1 and summary.last_evidence_at is not None:
+        gaps.append(_gap("thin_evidence", "low", "Thin evidence", "This account is backed by a single document so far. More evidence will make the state more trustworthy."))
+    if duplicate:
+        gaps.append(_gap("possible_duplicate", "medium", "Possible duplicate", "Jenny sees another similar account and is keeping them separate until the identity is clearer."))
+    if statement_freshness.get("gap_months") and summary.asset_group in {"cash", "credit", "debt"}:
+        gaps.append(_gap("statement_gap", "medium", "Statement coverage gap", "Jenny detected a gap in transaction-month coverage, so cash-flow conclusions may still be incomplete."))
+    return gaps
+
+
 def _build_account_gaps(
     *,
     summary: HouseholdAccountSummary,
@@ -715,160 +773,9 @@ def _build_account_gaps(
     statement_freshness: dict[str, Any],
     duplicate: bool,
 ) -> list[HouseholdAccountGap]:
-    gaps = list(_document_issue_flags(latest_document))
-    if summary.current_value is None:
-        gaps.append(
-            HouseholdAccountGap(
-                code="missing_balance",
-                severity="high",
-                title="Missing balance",
-                detail="Jenny could not extract a usable balance, holdings value, or cash balance for this account.",
-            )
-        )
-    if summary.balance_freshness_status == "aging":
-        gaps.append(
-            HouseholdAccountGap(
-                code="refresh_balance_soon",
-                severity="medium",
-                title="Refresh balance soon",
-                detail="The latest balance evidence is getting old. Upload newer evidence before Jenny relies on this as current state.",
-            )
-        )
-    if summary.balance_freshness_status == "stale":
-        gaps.append(
-            HouseholdAccountGap(
-                code="stale_balance",
-                severity="high",
-                title="Stale balance",
-                detail="The latest balance evidence is too old to trust this account as current state.",
-            )
-        )
-    if summary.balance_freshness_status == "needs_evidence":
-        gaps.append(
-            HouseholdAccountGap(
-                code="missing_evidence",
-                severity="high",
-                title="Needs evidence",
-                detail="The account exists in the system, but Jenny does not have supporting financial evidence for it yet.",
-            )
-        )
-    if summary.money_role == "spend_driver" and summary.transaction_freshness_status == "aging":
-        gaps.append(
-            HouseholdAccountGap(
-                code="refresh_transactions_soon",
-                severity="medium",
-                title="Refresh transaction history soon",
-                detail="This spending account has not been refreshed recently enough for a confident weekly cash-flow review.",
-            )
-        )
-    if summary.money_role == "spend_driver" and summary.transaction_freshness_status == "stale":
-        gaps.append(
-            HouseholdAccountGap(
-                code="stale_transactions",
-                severity="high",
-                title="Stale transaction history",
-                detail="This spending account is too old to trust for current monthly-spend, budget, or safe-to-spend calculations.",
-            )
-        )
-    if (
-        summary.money_role == "spend_driver"
-        and summary.evidence_count > 0
-        and summary.transaction_freshness_status == "needs_evidence"
-    ):
-        gaps.append(
-            HouseholdAccountGap(
-                code="missing_transaction_history",
-                severity="high",
-                title="Missing transaction history",
-                detail="Jenny has some account evidence here but not enough linked transaction history to trust cash-flow calculations.",
-            )
-        )
-    if (
-        summary.money_role == "spend_driver"
-        and summary.balance_freshness_status == "fresh"
-        and summary.transaction_freshness_status == "not_applicable"
-    ):
-        gaps.append(
-            HouseholdAccountGap(
-                code="missing_transaction_history",
-                severity="high",
-                title="Missing transaction history",
-                detail="Jenny can see this account but cannot yet tie it to recent transaction history.",
-            )
-        )
-    existing_gap_codes = {gap.code for gap in gaps}
-    if summary.freshness_status == "aging" and not (
-        {"refresh_balance_soon", "refresh_transactions_soon"} & existing_gap_codes
-    ):
-        gaps.append(
-            HouseholdAccountGap(
-                code="refresh_soon",
-                severity="medium",
-                title="Refresh soon",
-                detail="Part of this account's current state is aging and should be refreshed before weekly review.",
-            )
-        )
-    if summary.freshness_status == "stale" and not (
-        {"stale_balance", "stale_transactions"} & existing_gap_codes
-    ):
-        gaps.append(
-            HouseholdAccountGap(
-                code="stale_evidence",
-                severity="high",
-                title="Stale evidence",
-                detail="Part of this account's current state is stale enough that Jenny should not trust it as current.",
-            )
-        )
-    if summary.freshness_status == "needs_evidence" and not (
-        {"missing_evidence", "missing_transaction_history", "missing_balance"} & existing_gap_codes
-    ):
-        gaps.append(
-            HouseholdAccountGap(
-                code="missing_current_state",
-                severity="high",
-                title="Missing current state",
-                detail="Jenny cannot confirm enough current evidence to treat this account as covered.",
-            )
-        )
-    if summary.match_status == "candidate":
-        gaps.append(
-            HouseholdAccountGap(
-                code="unconfirmed_match",
-                severity="medium",
-                title="Needs confirmation",
-                detail="Jenny found a possible account/entity here, but the match is not strong enough to treat it as fully confirmed.",
-            )
-        )
-    if summary.evidence_count == 1 and summary.last_evidence_at is not None:
-        gaps.append(
-            HouseholdAccountGap(
-                code="thin_evidence",
-                severity="low",
-                title="Thin evidence",
-                detail="This account is backed by a single document so far. More evidence will make the state more trustworthy.",
-            )
-        )
-    if duplicate:
-        gaps.append(
-            HouseholdAccountGap(
-                code="possible_duplicate",
-                severity="medium",
-                title="Possible duplicate",
-                detail="Jenny sees another similar account and is keeping them separate until the identity is clearer.",
-            )
-        )
-    if (
-        statement_freshness.get("gap_months")
-        and summary.asset_group in {"cash", "credit", "debt"}
-    ):
-        gaps.append(
-            HouseholdAccountGap(
-                code="statement_gap",
-                severity="medium",
-                title="Statement coverage gap",
-                detail="Jenny detected a gap in transaction-month coverage, so cash-flow conclusions may still be incomplete.",
-            )
-        )
+    gaps = [*_document_issue_flags(latest_document), *_freshness_gaps(summary)]
+    gaps.extend(_coverage_gaps(summary, {gap.code for gap in gaps}))
+    gaps.extend(_contextual_gaps(summary, duplicate=duplicate, statement_freshness=statement_freshness))
     return sorted(gaps, key=lambda gap: (_PRIORITY_ORDER[_SEVERITY_PRIORITY[gap.severity]], gap.title))
 
 
