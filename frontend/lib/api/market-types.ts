@@ -183,6 +183,78 @@ export interface MarketIntelligenceResponse {
 }
 
 // ============================================================================
+// Market Prediction Committee
+// ============================================================================
+
+export type PredictionDirection = 'bullish' | 'neutral' | 'bearish'
+
+export interface PredictionSourceCluster {
+  cluster: string
+  weight?: number | null
+  freshness?: string | null
+  note?: string | null
+}
+
+export interface MarketPredictionCall {
+  id?: string | null
+  symbol: string
+  windowDays: number
+  directionLabel: PredictionDirection
+  probUp: number
+  expectedMovePct: number
+  confidenceBandLowPct?: number | null
+  confidenceBandHighPct?: number | null
+  confidenceScore?: number | null
+  committeeDisagreementScore?: number | null
+  rationaleSummary?: string | null
+  topSourceClusters: PredictionSourceCluster[]
+}
+
+export interface CommitteeSeatVote {
+  seatKey: string
+  agentSlug: string
+  modelId?: string | null
+  provider?: string | null
+  symbol: string
+  windowDays: number
+  directionLabel: PredictionDirection
+  probUp: number
+  expectedMovePct: number
+  confidenceScore?: number | null
+  rationaleSummary?: string | null
+  sourceClusters: PredictionSourceCluster[]
+}
+
+export interface MarketPredictionScorecard {
+  directionHitRate?: number | null
+  moveMaePct?: number | null
+  brierScore?: number | null
+  sampleSize: number
+}
+
+export interface MarketPredictionCommitteeResponse {
+  asOfTs: string
+  generatedAt: string
+  windowDays: number
+  baseDate: string
+  targetDate: string
+  targetUniverse: string[]
+  leadCall: MarketPredictionCall
+  calls: MarketPredictionCall[]
+  votes: CommitteeSeatVote[]
+  scorecard?: MarketPredictionScorecard | null
+  committeeSummary: Record<string, unknown>
+  sourceSnapshot: Record<string, unknown>
+  lastEvaluatedAt?: string | null
+}
+
+export interface MarketPredictionHistoryResponse {
+  symbol: string
+  windowDays: number
+  items: MarketPredictionCall[]
+}
+
+// ============================================================================
 // Historical Data
 // ============================================================================
 

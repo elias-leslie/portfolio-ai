@@ -108,3 +108,7 @@ ALL_MARKET_SYMBOLS: list[str] = MARKET_INDICATORS + list(SECTOR_ETFS.keys())
 
 # Sector ETF symbols only (for iteration)
 SECTOR_ETF_SYMBOLS: list[str] = list(SECTOR_ETFS.keys())
+
+# Canonical target universe for the market-prediction committee v1.
+# Keeps the scope explicit and aligned with the approved product contract.
+PREDICTION_TARGET_SYMBOLS: list[str] = [BENCHMARK_SPY, *SECTOR_ETF_SYMBOLS]

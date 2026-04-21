@@ -85,6 +85,10 @@ vi.mock('@/components/portfolio/InvestingMarketPanel', () => ({
   InvestingMarketPanel: () => <div>Investing Market Panel</div>,
 }))
 
+vi.mock('@/components/portfolio/InvestingPredictionPanel', () => ({
+  InvestingPredictionPanel: () => <div>Investing Prediction Panel</div>,
+}))
+
 vi.mock('@/components/portfolio/InvestingNewsPanel', () => ({
   InvestingNewsPanel: () => <div>Investing News Panel</div>,
 }))
@@ -196,6 +200,17 @@ describe('PortfolioPage', () => {
     mockUseRefreshStatus.mockReturnValue({
       data: { isRefreshing: false },
     })
+  })
+
+  it('renders a dedicated prediction tab in the investing workspace', async () => {
+    const user = userEvent.setup()
+    const { default: PortfolioPage } = await import('../portfolio/page')
+
+    render(<PortfolioPage />)
+
+    expect(screen.getByRole('button', { name: 'Prediction' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Prediction' }))
+    expect(screen.getByText('Investing Prediction Panel')).toBeInTheDocument()
   })
 
   it('submits a normalized account name from the add-account dialog', async () => {

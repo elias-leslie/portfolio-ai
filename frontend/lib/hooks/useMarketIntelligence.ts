@@ -10,6 +10,7 @@ import {
   fetchMarketEventsForChart,
   fetchMarketIntelligence,
   fetchMarketMovers,
+  fetchMarketPredictionCommittee,
   fetchMarketStatus,
   fetchNewsSentimentHistory,
   fetchSectorHistory,
@@ -17,6 +18,7 @@ import {
   type MarketEventsChartResponse,
   type MarketIntelligenceResponse,
   type MarketMoversResponse,
+  type MarketPredictionCommitteeResponse,
   type MarketStatusResponse,
   type NewsSentimentHistoryResponse,
   type SectorHistoryResponse,
@@ -33,6 +35,21 @@ export function useMarketIntelligence(): UseQueryResult<MarketIntelligenceRespon
     staleTime: 1000 * 60 * 15, // 15 minutes
     refetchInterval: 1000 * 60 * 15, // Refetch every 15 minutes
     refetchOnWindowFocus: false, // Data doesn't change that fast
+  })
+}
+
+/**
+ * Hook to fetch the latest market prediction committee snapshot for a selected trading-day window
+ */
+export function useMarketPredictionCommittee(
+  windowDays: number = 3,
+): UseQueryResult<MarketPredictionCommitteeResponse> {
+  return useQuery({
+    queryKey: ['market', 'prediction', 'committee', windowDays],
+    queryFn: () => fetchMarketPredictionCommittee(windowDays),
+    staleTime: 1000 * 60 * 10,
+    refetchInterval: 1000 * 60 * 10,
+    refetchOnWindowFocus: true,
   })
 }
 

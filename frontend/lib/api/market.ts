@@ -12,6 +12,8 @@
 export {
   fetchMarketConditions,
   fetchMarketIntelligence,
+  fetchMarketPredictionCommittee,
+  fetchMarketPredictionHistory,
   fetchMarketTrends,
   fetchPrices,
 } from './market-core'
@@ -47,6 +49,10 @@ export type {
   MarketIntelligenceResponse,
   MarketMoverItem,
   MarketMoversResponse,
+  MarketPredictionCall,
+  MarketPredictionCommitteeResponse,
+  MarketPredictionHistoryResponse,
+  MarketPredictionScorecard,
   MarketStatusResponse,
   MarketTrendsResponse,
   NewsSentimentHistoryResponse,

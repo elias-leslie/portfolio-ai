@@ -78,3 +78,32 @@ def test_agent_hub_client_keeps_timeouts_out_of_completion_payload(mock_sdk: Moc
     call_kwargs = mock_sdk.return_value.complete.call_args.kwargs
     assert init_kwargs["timeout"] == 45.0
     assert "timeout_seconds" not in call_kwargs
+
+
+@patch("app.agents.clients.agent_hub_client.SDKClient")
+def test_run_committee_roundtable_uses_investment_committee_json_contract(mock_sdk: Mock) -> None:
+    """Market prediction committee runs should use the dedicated committee endpoint first."""
+    mock_http = Mock()
+    mock_http.post.return_value = SimpleNamespace(
+        is_success=True,
+        json=lambda: {
+            "committee_summary": {"headline": "Constructive risk appetite"},
+            "calls": [],
+            "votes": [],
+        },
+    )
+    mock_sdk.return_value._get_client.return_value = mock_http
+
+    with patch("app.agents.clients.agent_hub_client.AGENT_HUB_ENABLED", True):
+        client = AgentHubAPIClient(agent_slug="chat")
+        result = client.run_committee_roundtable(
+            prompt="Forecast SPY and sectors.",
+            window_days=3,
+            source_snapshot_json='{"clusters":{}}',
+        )
+
+    call_kwargs = mock_http.post.call_args.kwargs
+    assert mock_http.post.call_args.args[0] == "/api/orchestration/committee"
+    assert call_kwargs["json"]["agent_slug"] == "investment-committee"
+    assert call_kwargs["json"]["window_days"] == 3
+    assert result["committee_summary"]["headline"] == "Constructive risk appetite"

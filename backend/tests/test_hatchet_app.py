@@ -13,6 +13,7 @@ from app.hatchet_app import (
     _LazyHatchet,
     get_hatchet,
 )
+from app.worker import main as worker_main
 
 
 def test_task_wrapper_injects_nonrestrictive_defaults(monkeypatch) -> None:
@@ -91,3 +92,19 @@ def test_get_hatchet_primes_sdk_env_from_settings(monkeypatch) -> None:
         "host_port": "127.0.0.1:57070",
         "tls": "none",
     }
+
+
+def test_worker_registers_market_prediction_workflows(monkeypatch) -> None:
+    worker = MagicMock()
+    hatchet = MagicMock()
+    hatchet.worker.return_value = worker
+    monkeypatch.setattr("app.worker.hatchet", hatchet)
+
+    worker_main()
+
+    workflows = hatchet.worker.call_args.kwargs["workflows"]
+    workflow_names = {workflow.name for workflow in workflows}
+    assert "portfolio-market-prediction-morning-prep" in workflow_names
+    assert "portfolio-market-prediction-after-close" in workflow_names
+    assert "portfolio-market-prediction-sunday-prep" in workflow_names
+    worker.start.assert_called_once_with()
