@@ -215,6 +215,52 @@ describe('PortfolioPage', () => {
     expect(screen.getByText('Investing Prediction Panel')).toBeInTheDocument()
   })
 
+  it('defaults to the market tab when the tab query param is missing or invalid', async () => {
+    window.history.replaceState({}, '', '/portfolio?tab=unknown')
+    const { default: PortfolioPage } = await import('../portfolio/page')
+
+    render(<PortfolioPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Investing Market Panel')).toBeInTheDocument()
+    })
+    expect(
+      screen.queryByText('Investing Prediction Panel'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('opens the prediction tab directly from a valid query param', async () => {
+    window.history.replaceState({}, '', '/portfolio?tab=prediction')
+    const { default: PortfolioPage } = await import('../portfolio/page')
+
+    render(<PortfolioPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Investing Prediction Panel')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Investing Market Panel')).not.toBeInTheDocument()
+  })
+
+  it('preserves unrelated query params when tab clicks update the url', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState({}, '', '/portfolio?foo=bar')
+    const { default: PortfolioPage } = await import('../portfolio/page')
+
+    render(<PortfolioPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Prediction' }))
+    await waitFor(() => {
+      expect(window.location.search).toContain('foo=bar')
+      expect(window.location.search).toContain('tab=prediction')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Market' }))
+    await waitFor(() => {
+      expect(window.location.search).toContain('foo=bar')
+      expect(window.location.search).not.toContain('tab=prediction')
+    })
+  })
+
   it('submits a normalized account name from the add-account dialog', async () => {
     const user = userEvent.setup()
     createAccountMutate.mockImplementation(
