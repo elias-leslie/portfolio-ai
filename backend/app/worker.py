@@ -6,6 +6,8 @@ Run with: python -m app.worker
 
 from __future__ import annotations
 
+import os
+
 from app.hatchet_app import hatchet
 from app.workflows.agents import schedule_new_symbol_wf
 from app.workflows.data_refresh import (
@@ -172,7 +174,9 @@ def main() -> None:
             cross_validate_insight_wf,
         ],
     )
+    worker.handle_kill = False
     worker.start()
+    os._exit(0)
 
 
 if __name__ == "__main__":

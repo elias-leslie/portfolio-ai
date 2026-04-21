@@ -15,7 +15,7 @@ Environment="HATCHET_CLIENT_TLS_STRATEGY=none"
 ExecStart=__PROJECT_ROOT__/backend/.venv/bin/python -m app.worker
 Restart=always
 RestartSec=10
-KillMode=control-group
+KillMode=process
 KillSignal=SIGTERM
 TimeoutStopSec=30
 StandardOutput=journal
