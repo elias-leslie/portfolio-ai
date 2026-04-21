@@ -52,13 +52,18 @@ class MarketPredictionCommitteeService:
     ) -> MarketPredictionCommitteeResponse | None:
         self._validate_window_days(window_days)
         cached = self.repository.get_latest_committee_snapshot(window_days)
-        if cached is not None or not generate_if_missing:
-            return cached
+        if cached is not None:
+            return self._normalize_response(cached)
+        if not generate_if_missing:
+            return None
         return self.generate_snapshot(window_days=window_days)
 
     def get_history(self, symbol: str, window_days: int, limit: int = 30) -> list[MarketPredictionCall]:
         self._validate_window_days(window_days)
-        return self.repository.list_history(symbol=symbol, window_days=window_days, limit=limit)
+        return [
+            self._normalize_call_model(call)
+            for call in self.repository.list_history(symbol=symbol, window_days=window_days, limit=limit)
+        ]
 
     def generate_snapshot(
         self,
@@ -271,7 +276,10 @@ class MarketPredictionCommitteeService:
                         direction_label=self._direction_from_raw(raw),
                         prob_up=self._clamp(raw.get("prob_up"), 0.5),
                         expected_move_pct=self._float(raw.get("expected_move_pct"), 0.0),
-                        confidence_score=self._clamp(raw.get("confidence_score"), 50.0, low=0.0, high=100.0),
+                        confidence_score=self._normalize_confidence_score(
+                            raw.get("confidence_score"),
+                            fallback=50.0,
+                        ),
                         rationale_summary=self._optional_str(raw.get("rationale_summary")),
                         source_clusters=self._normalize_clusters(raw.get("source_clusters")),
                         metadata=raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {},
@@ -305,7 +313,10 @@ class MarketPredictionCommitteeService:
                         expected_move_pct=self._float(raw.get("expected_move_pct"), 0.0),
                         confidence_band_low_pct=self._optional_float(raw.get("confidence_band_low_pct")),
                         confidence_band_high_pct=self._optional_float(raw.get("confidence_band_high_pct")),
-                        confidence_score=self._clamp(raw.get("confidence_score"), 50.0, low=0.0, high=100.0),
+                        confidence_score=self._normalize_confidence_score(
+                            raw.get("confidence_score"),
+                            fallback=50.0,
+                        ),
                         committee_disagreement_score=self._clamp(
                             raw.get("committee_disagreement_score"),
                             self._estimate_disagreement(symbol, votes),
@@ -386,6 +397,62 @@ class MarketPredictionCommitteeService:
             "seat_count": len({vote.seat_key for vote in votes}),
             "disagreement_label": "high" if disagreement >= 0.67 else "moderate" if disagreement >= 0.34 else "low",
         }
+
+    def _normalize_response(
+        self,
+        response: MarketPredictionCommitteeResponse,
+    ) -> MarketPredictionCommitteeResponse:
+        calls = [self._normalize_call_model(call) for call in response.calls]
+        votes = [self._normalize_vote_model(vote) for vote in response.votes]
+        lead_call = next(
+            (call for call in calls if call.symbol == response.lead_call.symbol),
+            self._normalize_call_model(response.lead_call),
+        )
+        return response.model_copy(
+            update={
+                "lead_call": lead_call,
+                "calls": calls,
+                "votes": votes,
+            }
+        )
+
+    def _normalize_call_model(self, call: MarketPredictionCall) -> MarketPredictionCall:
+        return call.model_copy(
+            update={
+                "confidence_score": self._normalize_confidence_score(
+                    call.confidence_score,
+                    fallback=None,
+                )
+            }
+        )
+
+    def _normalize_vote_model(self, vote: CommitteeSeatVote) -> CommitteeSeatVote:
+        return vote.model_copy(
+            update={
+                "confidence_score": self._normalize_confidence_score(
+                    vote.confidence_score,
+                    fallback=None,
+                )
+            }
+        )
+
+    def _normalize_confidence_score(
+        self,
+        value: Any,
+        *,
+        fallback: float | None,
+    ) -> float | None:
+        if value is None and fallback is None:
+            return None
+        normalized = self._clamp(
+            value,
+            0.0 if fallback is None else fallback,
+            low=0.0,
+            high=100.0,
+        )
+        if 0.0 < normalized <= 1.0:
+            normalized *= 100.0
+        return round(normalized, 4)
 
     def _estimate_disagreement(self, symbol: str, votes: list[CommitteeSeatVote]) -> float:
         symbol_votes = [vote for vote in votes if vote.symbol == symbol]

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
-from typing import Any
+from typing import Any, cast
 from unittest.mock import Mock
 
 from app.constants import PREDICTION_TARGET_SYMBOLS
@@ -93,6 +93,46 @@ def test_get_committee_snapshot_returns_cached_snapshot_without_regenerating() -
     assert repo.runs == []
 
 
+def test_get_committee_snapshot_normalizes_fractional_confidence_scores_from_cached_data() -> None:
+    cached_call = MarketPredictionCall(
+        symbol="SPY",
+        window_days=3,
+        direction_label="neutral",
+        prob_up=0.52,
+        expected_move_pct=0.2,
+        confidence_score=0.3567,
+    )
+    cached_vote = CommitteeSeatVote(
+        seat_key="macro",
+        agent_slug="investment-committee",
+        symbol="SPY",
+        window_days=3,
+        direction_label="neutral",
+        prob_up=0.52,
+        expected_move_pct=0.2,
+        confidence_score=0.31,
+    )
+    repo = _FakeRepo()
+    repo.snapshot = MarketPredictionCommitteeResponse(
+        as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+        generated_at=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+        window_days=3,
+        base_date=date(2026, 4, 21),
+        target_date=date(2026, 4, 24),
+        target_universe=PREDICTION_TARGET_SYMBOLS,
+        lead_call=cached_call,
+        calls=[cached_call],
+        votes=[cached_vote],
+    )
+
+    result = MarketPredictionCommitteeService(repository=repo).get_committee_snapshot(window_days=3)
+
+    assert result is not None
+    assert result.lead_call.confidence_score == 35.67
+    assert result.calls[0].confidence_score == 35.67
+    assert result.votes[0].confidence_score == 31.0
+
+
 def test_generate_snapshot_persists_full_v1_universe_and_fills_missing_symbols() -> None:
     repo = _FakeRepo()
     raw_payload = {
@@ -165,14 +205,15 @@ def test_generate_snapshot_persists_full_v1_universe_and_fills_missing_symbols()
         repository=repo,
         roundtable_client_factory=lambda **_: fake_client,
     )
-    service._build_source_snapshot = Mock(
-        return_value={
+    def _fake_source_snapshot(_: datetime) -> dict[str, Any]:
+        return {
             "clusters": {
                 "market_regime": {"freshness": "fresh"},
                 "options_positioning": {"freshness": "fresh"},
             }
         }
-    )
+
+    cast(Any, service)._build_source_snapshot = _fake_source_snapshot
 
     result = service.generate_snapshot(
         window_days=3,
@@ -200,3 +241,50 @@ def test_generate_snapshot_persists_full_v1_universe_and_fills_missing_symbols()
 
     lead_clusters = [cluster.cluster for cluster in result.lead_call.top_source_clusters]
     assert lead_clusters == ["market_regime", "options_positioning"]
+
+
+def test_generate_snapshot_normalizes_fractional_confidence_scores_from_roundtable_payload() -> None:
+    repo = _FakeRepo()
+    raw_payload = {
+        "calls": [
+            {
+                "symbol": "SPY",
+                "direction_label": "neutral",
+                "prob_up": 0.5167,
+                "expected_move_pct": 0.2333,
+                "confidence_score": 0.3567,
+                "rationale_summary": "Short-horizon edge is modest.",
+            }
+        ],
+        "votes": [
+            {
+                "seat_key": "macro",
+                "agent_slug": "market-pulse-analyst",
+                "symbol": "SPY",
+                "window_days": 3,
+                "direction_label": "neutral",
+                "prob_up": 0.52,
+                "expected_move_pct": 0.2,
+                "confidence_score": 0.31,
+                "rationale_summary": "Macro backdrop is balanced.",
+            }
+        ],
+    }
+    fake_client = _FakeRoundtableClient(raw_payload)
+    service = MarketPredictionCommitteeService(
+        repository=repo,
+        roundtable_client_factory=lambda **_: fake_client,
+    )
+    def _fake_source_snapshot(_: datetime) -> dict[str, Any]:
+        return {"clusters": {}}
+
+    cast(Any, service)._build_source_snapshot = _fake_source_snapshot
+
+    result = service.generate_snapshot(
+        window_days=3,
+        as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+    )
+
+    assert result.lead_call.confidence_score == 35.67
+    assert repo.calls[0].confidence_score == 35.67
+    assert result.votes[0].confidence_score == 31.0

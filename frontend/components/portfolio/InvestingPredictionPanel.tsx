@@ -28,6 +28,28 @@ function formatProbability(value?: number | null) {
   return `${Math.round(value * 100)}%`
 }
 
+function normalizeConfidenceScore(value?: number | null) {
+  if (value == null || Number.isNaN(value)) return null
+  return value > 0 && value <= 1 ? value * 100 : value
+}
+
+function formatConfidenceScore(value?: number | null) {
+  const normalized = normalizeConfidenceScore(value)
+  if (normalized == null) return '—'
+  return `${Math.round(normalized)}/100`
+}
+
+function formatScorecardDate(value?: string | null) {
+  if (!value) return null
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(parsed)
+}
+
 function directionIcon(direction: 'bullish' | 'neutral' | 'bearish') {
   if (direction === 'bullish') return ArrowUpRight
   if (direction === 'bearish') return ArrowDownRight
@@ -78,6 +100,14 @@ export function InvestingPredictionPanel() {
     typeof data?.committeeSummary?.disagreementLabel === 'string'
       ? data.committeeSummary.disagreementLabel
       : 'moderate'
+  const scorecardSampleSize = data?.scorecard?.sampleSize ?? 0
+  const scorecardPending = scorecardSampleSize === 0
+  const scorecardTargetDate = formatScorecardDate(data?.targetDate)
+  const scorecardStatus = scorecardPending
+    ? scorecardTargetDate
+      ? `No matured ${windowDays}D committee calls yet. Current cohort targets ${scorecardTargetDate}. Scorecard populates after the first post-close evaluation.`
+      : `No matured ${windowDays}D committee calls yet. Scorecard populates after the first post-close evaluation.`
+    : `Scored on ${scorecardSampleSize} matured committee calls.`
 
   const LeadIcon = directionIcon(leadCall?.directionLabel ?? 'neutral')
 
@@ -157,9 +187,7 @@ export function InvestingPredictionPanel() {
                   Confidence
                 </p>
                 <p className="mt-2 text-2xl font-semibold text-text">
-                  {leadCall?.confidenceScore != null
-                    ? `${Math.round(leadCall.confidenceScore)}/100`
-                    : '—'}
+                  {formatConfidenceScore(leadCall?.confidenceScore)}
                 </p>
               </div>
             </div>
@@ -195,9 +223,9 @@ export function InvestingPredictionPanel() {
                     </span>
                   </div>
                   <p className="mt-2 text-2xl font-semibold text-text">
-                    {data?.scorecard?.directionHitRate != null
-                      ? `${Math.round(data.scorecard.directionHitRate * 100)}%`
-                      : '—'}
+                    {scorecardPending
+                      ? 'Pending'
+                      : `${Math.round((data?.scorecard?.directionHitRate ?? 0) * 100)}%`}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-border/30 bg-surface-muted/20 px-4 py-4">
@@ -208,7 +236,9 @@ export function InvestingPredictionPanel() {
                     </span>
                   </div>
                   <p className="mt-2 text-2xl font-semibold text-text">
-                    {formatPercent(data?.scorecard?.moveMaePct)}
+                    {scorecardPending
+                      ? 'Pending'
+                      : formatPercent(data?.scorecard?.moveMaePct)}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-border/30 bg-surface-muted/20 px-4 py-4">
@@ -219,17 +249,13 @@ export function InvestingPredictionPanel() {
                     </span>
                   </div>
                   <p className="mt-2 text-2xl font-semibold text-text">
-                    {data?.scorecard?.brierScore != null
-                      ? data.scorecard.brierScore.toFixed(2)
-                      : '—'}
+                    {scorecardPending
+                      ? 'Pending'
+                      : data?.scorecard?.brierScore?.toFixed(2)}
                   </p>
                 </div>
               </div>
-              <p className="mt-4 text-xs text-text-muted">
-                {data?.scorecard?.sampleSize != null
-                  ? `Scored on ${data.scorecard.sampleSize} matured committee calls.`
-                  : 'Waiting for enough matured predictions to calibrate the scorecard.'}
-              </p>
+              <p className="mt-4 text-xs text-text-muted">{scorecardStatus}</p>
             </SectionCard>
           </div>
         </div>
