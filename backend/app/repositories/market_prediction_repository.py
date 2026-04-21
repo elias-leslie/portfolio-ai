@@ -391,7 +391,15 @@ class MarketPredictionRepository:
                 """,
                 [as_of_date, limit],
             ).fetchall()
-        return [(str(row[0]), str(row[1]), row[2], int(row[3])) for row in rows]
+        return [
+            (
+                str(row[0]),
+                str(row[1]),
+                self._coerce_date(row[2]),
+                int(row[3]),
+            )
+            for row in rows
+        ]
 
     def list_due_evaluation_candidates(
         self,
@@ -471,7 +479,22 @@ class MarketPredictionRepository:
                 """,
                 [window_days],
             ).fetchone()
-        return row[0] if row and row[0] is not None else None
+        return self._coerce_datetime(row[0]) if row and row[0] is not None else None
+
+    @staticmethod
+    def _coerce_date(value: Any) -> date:
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        return date.fromisoformat(str(value))
+
+    @staticmethod
+    def _coerce_datetime(value: Any) -> datetime:
+        if isinstance(value, datetime):
+            return value
+        parsed = datetime.fromisoformat(str(value))
+        return parsed
 
     def _row_to_call(self, row: tuple[Any, ...]) -> MarketPredictionCall:
         clusters = [PredictionSourceCluster.model_validate(item) for item in self._load(row[11], [])]

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any, Callable
+from typing import Any, cast
 
 from app.agents.clients.agent_hub_client import AgentHubAPIClient
 from app.constants import PREDICTION_TARGET_SYMBOLS
@@ -429,7 +430,7 @@ class MarketPredictionCommitteeService:
     def _direction_from_raw(self, raw: dict[str, Any]) -> PredictionDirection:
         explicit = self._optional_str(raw.get("direction_label"))
         if explicit in {"bullish", "neutral", "bearish"}:
-            return explicit
+            return cast(PredictionDirection, explicit)
         return self._derive_direction(
             self._clamp(raw.get("prob_up"), 0.5),
             self._float(raw.get("expected_move_pct"), 0.0),

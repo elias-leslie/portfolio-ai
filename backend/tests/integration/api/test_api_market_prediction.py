@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from datetime import UTC, date, datetime
-from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -80,10 +79,14 @@ class _FakePredictionService:
         ][:limit]
 
 
+def _fake_prediction_service() -> _FakePredictionService:
+    return _FakePredictionService()
+
+
 def test_get_prediction_committee_snapshot(client: TestClient, monkeypatch) -> None:
     monkeypatch.setattr(
         "app.api.market.prediction_router._get_prediction_service",
-        lambda: _FakePredictionService(),
+        _fake_prediction_service,
     )
 
     response = client.get("/api/market/prediction/committee?window_days=3")
@@ -99,7 +102,7 @@ def test_get_prediction_committee_snapshot(client: TestClient, monkeypatch) -> N
 def test_get_prediction_committee_history(client: TestClient, monkeypatch) -> None:
     monkeypatch.setattr(
         "app.api.market.prediction_router._get_prediction_service",
-        lambda: _FakePredictionService(),
+        _fake_prediction_service,
     )
 
     response = client.get("/api/market/prediction/committee/history?symbol=SPY&window_days=3&limit=5")
@@ -115,7 +118,7 @@ def test_get_prediction_committee_history(client: TestClient, monkeypatch) -> No
 def test_get_prediction_committee_rejects_unsupported_window(client: TestClient, monkeypatch) -> None:
     monkeypatch.setattr(
         "app.api.market.prediction_router._get_prediction_service",
-        lambda: _FakePredictionService(),
+        _fake_prediction_service,
     )
 
     response = client.get("/api/market/prediction/committee?window_days=2")

@@ -29,11 +29,13 @@ from app.services._household_dashboard_builders import (
     build_retirement_scenarios,
     build_sinking_funds,
 )
+from app.services._household_dashboard_profile_inference import (
+    infer_profile_from_transactions,
+)
 from app.services._household_dashboard_queries import (
     fetch_current_month_spend,
     fetch_inferred_value_rows,
     fetch_monthly_retirement_contributions,
-    infer_profile_from_transactions,
 )
 from app.services._household_dashboard_sections import (
     VISIBILITY_STRONG_THRESHOLD,

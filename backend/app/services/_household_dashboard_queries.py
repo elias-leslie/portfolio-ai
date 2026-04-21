@@ -39,6 +39,34 @@ _RETIREMENT_CONTRIBUTION_SQL = RETIREMENT_CONTRIBUTION_SQL
 _MONTH_SPEND_SQL = MONTH_SPEND_SQL
 _STATEMENT_FRESHNESS_SQL = STATEMENT_FRESHNESS_SQL
 _INCOME_MONTHLY_AVG_SQL = INCOME_MONTHLY_AVG_SQL
+_UNKNOWN_ACCOUNT_SQL = """
+    SELECT
+        t.description,
+        t.flow_type,
+        COUNT(*) AS occurrence_count
+    FROM household_transactions t
+    WHERE t.flow_type IN ('transfer_out', 'payment')
+      AND t.transaction_date <= CURRENT_DATE
+    GROUP BY t.description, t.flow_type
+    ORDER BY COUNT(*) DESC, t.description
+    LIMIT 500
+"""
+
+
+def fetch_transaction_date_issues(storage: Any, limit: int = 12):
+    from app.services._household_dashboard_date_issues import (
+        fetch_transaction_date_issues as _impl,
+    )
+
+    return _impl(storage, limit=limit)
+
+
+def detect_unknown_accounts(storage: Any, documents: list[Any]):
+    from app.services._household_dashboard_unknown_accounts import (
+        detect_unknown_accounts as _impl,
+    )
+
+    return _impl(storage, documents)
 
 
 def _empty_future_transaction_quality() -> dict[str, Any]:

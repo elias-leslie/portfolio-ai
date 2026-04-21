@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import importlib
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import date, timedelta
 from types import SimpleNamespace
 from typing import Any
 
-from app.services import _household_dashboard_queries as queries
+queries = importlib.import_module("app.services._household_dashboard_queries")
 
 
 class _FakeResult:

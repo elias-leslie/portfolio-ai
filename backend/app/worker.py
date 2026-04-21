@@ -24,11 +24,6 @@ from app.workflows.data_refresh import (
 )
 from app.workflows.events import cross_validate_insight_wf
 from app.workflows.jenny import jenny_daily_operator_wf, jenny_weekly_learning_wf
-from app.workflows.market_prediction import (
-    market_prediction_after_close_wf,
-    market_prediction_morning_prep_wf,
-    market_prediction_sunday_prep_wf,
-)
 from app.workflows.maintenance import (
     check_all_data_freshness_wf,
     check_data_source_health_wf,
@@ -49,6 +44,11 @@ from app.workflows.maintenance import (
     reset_source_metrics_wf,
     rotate_logs_wf,
     vacuum_db_wf,
+)
+from app.workflows.market_prediction import (
+    market_prediction_after_close_wf,
+    market_prediction_morning_prep_wf,
+    market_prediction_sunday_prep_wf,
 )
 from app.workflows.monitoring import monitor_theses_wf
 from app.workflows.reference import (

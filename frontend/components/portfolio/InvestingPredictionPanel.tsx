@@ -1,6 +1,13 @@
 'use client'
 
-import { ArrowDownRight, ArrowUpRight, BrainCircuit, Gauge, Minus, Radar } from 'lucide-react'
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  BrainCircuit,
+  Gauge,
+  Minus,
+  Radar,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
@@ -28,13 +35,16 @@ function directionIcon(direction: 'bullish' | 'neutral' | 'bearish') {
 }
 
 function directionTone(direction: 'bullish' | 'neutral' | 'bearish') {
-  if (direction === 'bullish') return 'text-emerald-300 border-emerald-400/20 bg-emerald-500/10'
-  if (direction === 'bearish') return 'text-rose-300 border-rose-400/20 bg-rose-500/10'
+  if (direction === 'bullish')
+    return 'text-emerald-300 border-emerald-400/20 bg-emerald-500/10'
+  if (direction === 'bearish')
+    return 'text-rose-300 border-rose-400/20 bg-rose-500/10'
   return 'text-amber-200 border-amber-400/20 bg-amber-500/10'
 }
 
 export function InvestingPredictionPanel() {
-  const [windowDays, setWindowDays] = useState<(typeof WINDOW_OPTIONS)[number]>(3)
+  const [windowDays, setWindowDays] =
+    useState<(typeof WINDOW_OPTIONS)[number]>(3)
   const { data, isLoading, error } = useMarketPredictionCommittee(windowDays)
 
   const leadCall = data?.leadCall
@@ -103,7 +113,12 @@ export function InvestingPredictionPanel() {
                   Lead Market Call
                 </p>
                 <div className="mt-3 flex items-center gap-3">
-                  <div className={cn('rounded-2xl border px-3 py-2', directionTone(leadCall?.directionLabel ?? 'neutral'))}>
+                  <div
+                    className={cn(
+                      'rounded-2xl border px-3 py-2',
+                      directionTone(leadCall?.directionLabel ?? 'neutral'),
+                    )}
+                  >
                     <LeadIcon className="h-5 w-5" />
                   </div>
                   <div>
@@ -111,7 +126,8 @@ export function InvestingPredictionPanel() {
                       {leadCall?.symbol ?? 'SPY'}
                     </p>
                     <p className="text-sm uppercase tracking-[0.18em] text-text-muted">
-                      {(leadCall?.directionLabel ?? 'neutral').toUpperCase()} · {windowDays} trading days
+                      {(leadCall?.directionLabel ?? 'neutral').toUpperCase()} ·{' '}
+                      {windowDays} trading days
                     </p>
                   </div>
                 </div>
@@ -121,31 +137,44 @@ export function InvestingPredictionPanel() {
 
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
               <div className="rounded-2xl border border-border/30 bg-black/20 px-4 py-4">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">Expected move</p>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
+                  Expected move
+                </p>
                 <p className="mt-2 text-2xl font-semibold text-text">
                   {formatPercent(leadCall?.expectedMovePct)}
                 </p>
               </div>
               <div className="rounded-2xl border border-border/30 bg-black/20 px-4 py-4">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">Probability up</p>
-                <p className="mt-2 text-2xl font-semibold text-text">{formatProbability(leadCall?.probUp)}</p>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
+                  Probability up
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-text">
+                  {formatProbability(leadCall?.probUp)}
+                </p>
               </div>
               <div className="rounded-2xl border border-border/30 bg-black/20 px-4 py-4">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">Confidence</p>
+                <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
+                  Confidence
+                </p>
                 <p className="mt-2 text-2xl font-semibold text-text">
-                  {leadCall?.confidenceScore != null ? `${Math.round(leadCall.confidenceScore)}/100` : '—'}
+                  {leadCall?.confidenceScore != null
+                    ? `${Math.round(leadCall.confidenceScore)}/100`
+                    : '—'}
                 </p>
               </div>
             </div>
 
             <div className="mt-6 rounded-2xl border border-border/30 bg-black/20 px-4 py-4">
-              <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">Why this call</p>
+              <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
+                Why this call
+              </p>
               <p className="mt-2 text-sm leading-relaxed text-text">
                 {error instanceof Error
                   ? error.message
                   : isLoading
                     ? 'Building the latest roundtable snapshot…'
-                    : leadCall?.rationaleSummary ?? 'Committee rationale is still loading.'}
+                    : (leadCall?.rationaleSummary ??
+                      'Committee rationale is still loading.')}
               </p>
             </div>
           </div>
@@ -161,7 +190,9 @@ export function InvestingPredictionPanel() {
                 <div className="rounded-2xl border border-border/30 bg-surface-muted/20 px-4 py-4">
                   <div className="flex items-center gap-2 text-text-muted">
                     <Radar className="h-4 w-4" />
-                    <span className="text-[10px] uppercase tracking-[0.16em]">Direction hit rate</span>
+                    <span className="text-[10px] uppercase tracking-[0.16em]">
+                      Direction hit rate
+                    </span>
                   </div>
                   <p className="mt-2 text-2xl font-semibold text-text">
                     {data?.scorecard?.directionHitRate != null
@@ -172,7 +203,9 @@ export function InvestingPredictionPanel() {
                 <div className="rounded-2xl border border-border/30 bg-surface-muted/20 px-4 py-4">
                   <div className="flex items-center gap-2 text-text-muted">
                     <Gauge className="h-4 w-4" />
-                    <span className="text-[10px] uppercase tracking-[0.16em]">Move MAE</span>
+                    <span className="text-[10px] uppercase tracking-[0.16em]">
+                      Move MAE
+                    </span>
                   </div>
                   <p className="mt-2 text-2xl font-semibold text-text">
                     {formatPercent(data?.scorecard?.moveMaePct)}
@@ -181,10 +214,14 @@ export function InvestingPredictionPanel() {
                 <div className="rounded-2xl border border-border/30 bg-surface-muted/20 px-4 py-4">
                   <div className="flex items-center gap-2 text-text-muted">
                     <BrainCircuit className="h-4 w-4" />
-                    <span className="text-[10px] uppercase tracking-[0.16em]">Brier score</span>
+                    <span className="text-[10px] uppercase tracking-[0.16em]">
+                      Brier score
+                    </span>
                   </div>
                   <p className="mt-2 text-2xl font-semibold text-text">
-                    {data?.scorecard?.brierScore != null ? data.scorecard.brierScore.toFixed(2) : '—'}
+                    {data?.scorecard?.brierScore != null
+                      ? data.scorecard.brierScore.toFixed(2)
+                      : '—'}
                   </p>
                 </div>
               </div>
@@ -214,23 +251,38 @@ export function InvestingPredictionPanel() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-lg font-semibold text-text">{call.symbol}</p>
+                      <p className="text-lg font-semibold text-text">
+                        {call.symbol}
+                      </p>
                       <p className="text-[11px] uppercase tracking-[0.18em] text-text-muted">
                         {call.directionLabel}
                       </p>
                     </div>
-                    <div className={cn('rounded-xl border p-2', directionTone(call.directionLabel))}>
+                    <div
+                      className={cn(
+                        'rounded-xl border p-2',
+                        directionTone(call.directionLabel),
+                      )}
+                    >
                       <Icon className="h-4 w-4" />
                     </div>
                   </div>
                   <div className="mt-4 flex items-end justify-between gap-4 text-sm">
                     <div>
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted">Move</p>
-                      <p className="mt-1 text-base font-medium text-text">{formatPercent(call.expectedMovePct)}</p>
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted">
+                        Move
+                      </p>
+                      <p className="mt-1 text-base font-medium text-text">
+                        {formatPercent(call.expectedMovePct)}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted">Prob up</p>
-                      <p className="mt-1 text-base font-medium text-text">{formatProbability(call.probUp)}</p>
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted">
+                        Prob up
+                      </p>
+                      <p className="mt-1 text-base font-medium text-text">
+                        {formatProbability(call.probUp)}
+                      </p>
                     </div>
                   </div>
                   <p className="mt-4 text-xs leading-relaxed text-text-muted">
@@ -259,10 +311,14 @@ export function InvestingPredictionPanel() {
                       {cluster.cluster.replace(/_/g, ' ')}
                     </p>
                     {'weight' in cluster && cluster.weight != null ? (
-                      <p className="text-xs text-text-muted">Weight {Math.round((cluster.weight ?? 0) * 100)}%</p>
+                      <p className="text-xs text-text-muted">
+                        Weight {Math.round((cluster.weight ?? 0) * 100)}%
+                      </p>
                     ) : null}
                   </div>
-                  <Badge variant="outline">{cluster.freshness ?? 'tracked'}</Badge>
+                  <Badge variant="outline">
+                    {cluster.freshness ?? 'tracked'}
+                  </Badge>
                 </div>
               ))}
             </div>
@@ -275,7 +331,10 @@ export function InvestingPredictionPanel() {
           >
             <div className="space-y-3">
               {leadVotes.length === 0 ? (
-                <p className="text-sm text-text-muted">Seat-level votes will appear after the next roundtable response.</p>
+                <p className="text-sm text-text-muted">
+                  Seat-level votes will appear after the next roundtable
+                  response.
+                </p>
               ) : (
                 leadVotes.map((vote) => (
                   <div
@@ -284,14 +343,18 @@ export function InvestingPredictionPanel() {
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-medium text-text">{vote.seatKey}</p>
+                        <p className="text-sm font-medium text-text">
+                          {vote.seatKey}
+                        </p>
                         <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
                           {vote.modelId ?? vote.agentSlug}
                         </p>
                       </div>
                       <Badge variant="outline">{vote.directionLabel}</Badge>
                     </div>
-                    <p className="mt-2 text-sm text-text">{vote.rationaleSummary ?? 'No seat commentary.'}</p>
+                    <p className="mt-2 text-sm text-text">
+                      {vote.rationaleSummary ?? 'No seat commentary.'}
+                    </p>
                   </div>
                 ))
               )}

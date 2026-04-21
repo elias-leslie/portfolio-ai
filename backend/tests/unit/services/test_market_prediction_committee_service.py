@@ -11,7 +11,6 @@ from app.models.market_prediction import (
     CommitteeSeatVote,
     MarketPredictionCall,
     MarketPredictionCommitteeResponse,
-    PredictionSourceCluster,
 )
 from app.services.market_prediction_committee_service import MarketPredictionCommitteeService
 

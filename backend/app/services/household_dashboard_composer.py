@@ -32,9 +32,11 @@ from app.services._household_dashboard_builders import (
     build_retirement_scenarios,
     build_sinking_funds,
 )
+from app.services._household_dashboard_date_issues import (
+    fetch_transaction_date_issues,
+)
 from app.services._household_dashboard_queries import (
     check_statement_freshness,
-    detect_unknown_accounts,
     fetch_categorization_queue,
     fetch_confirmed_facts,
     fetch_current_month_spend,
@@ -43,7 +45,9 @@ from app.services._household_dashboard_queries import (
     fetch_latest_transaction_dates_by_household_account,
     fetch_monthly_retirement_contributions,
     fetch_recurring_commitments,
-    fetch_transaction_date_issues,
+)
+from app.services._household_dashboard_unknown_accounts import (
+    detect_unknown_accounts,
 )
 
 

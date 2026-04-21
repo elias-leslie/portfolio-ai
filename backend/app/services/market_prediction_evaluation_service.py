@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, date, datetime
-from typing import Callable
 
 from app.models.market_prediction import MarketPredictionEvaluation
 from app.repositories.market_prediction_repository import MarketPredictionRepository

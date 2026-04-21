@@ -208,7 +208,9 @@ describe('PortfolioPage', () => {
 
     render(<PortfolioPage />)
 
-    expect(screen.getByRole('button', { name: 'Prediction' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Prediction' }),
+    ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Prediction' }))
     expect(screen.getByText('Investing Prediction Panel')).toBeInTheDocument()
   })
