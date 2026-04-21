@@ -11,6 +11,7 @@ import {
   fetchMarketIntelligence,
   fetchMarketMovers,
   fetchMarketPredictionCommittee,
+  fetchMarketPredictionHistory,
   fetchMarketStatus,
   fetchNewsSentimentHistory,
   fetchSectorHistory,
@@ -19,6 +20,7 @@ import {
   type MarketIntelligenceResponse,
   type MarketMoversResponse,
   type MarketPredictionCommitteeResponse,
+  type MarketPredictionHistoryResponse,
   type MarketStatusResponse,
   type NewsSentimentHistoryResponse,
   type SectorHistoryResponse,
@@ -50,6 +52,31 @@ export function useMarketPredictionCommittee(
     staleTime: 1000 * 60 * 10,
     refetchInterval: 1000 * 60 * 10,
     refetchOnWindowFocus: true,
+  })
+}
+
+/**
+ * Hook to fetch market prediction history for a symbol/window pair
+ */
+export function useMarketPredictionHistory(
+  symbol: string,
+  windowDays: number = 3,
+  limit: number = 30,
+): UseQueryResult<MarketPredictionHistoryResponse> {
+  return useQuery({
+    queryKey: [
+      'market',
+      'prediction',
+      'committee-history',
+      symbol,
+      windowDays,
+      limit,
+    ],
+    queryFn: () => fetchMarketPredictionHistory(symbol, windowDays, limit),
+    staleTime: 1000 * 60 * 10,
+    refetchInterval: 1000 * 60 * 10,
+    refetchOnWindowFocus: true,
+    enabled: Boolean(symbol),
   })
 }
 
