@@ -12,7 +12,7 @@ Environment="HOSTNAME=0.0.0.0"
 Environment="API_URL=http://localhost:8000"
 ExecStart=/bin/bash -lc "pnpm start"
 TimeoutStopSec=10
-KillMode=mixed
+KillMode=control-group
 Restart=always
 RestartSec=3
 StandardOutput=journal
