@@ -83,6 +83,28 @@ class _FakeRoundtableClient:
         self.closed = True
 
 
+class _FakeRows:
+    def __init__(self, rows: list[dict[str, Any]]) -> None:
+        self._rows = rows
+
+    def iter_rows(self, *, named: bool = False):
+        assert named is True
+        return iter(self._rows)
+
+
+class _FakeStorage:
+    def __init__(self, *, latest_closes: list[dict[str, Any]] | None = None) -> None:
+        self.latest_closes = latest_closes or []
+
+    def get_fear_greed_latest(self):
+        return None
+
+    def query(self, query: str, params: Any | None = None) -> _FakeRows:
+        if "FROM day_bars" in query and "SELECT DISTINCT ON (symbol)" in query:
+            return _FakeRows(self.latest_closes)
+        return _FakeRows([])
+
+
 def _call(
     *,
     symbol: str = "SPY",
@@ -199,6 +221,197 @@ def test_get_committee_snapshot_defaults_additive_review_fields_for_legacy_rows(
     assert result.committee_summary["review_state"] is None
     assert result.committee_summary["review_as_of_ts"] is None
     assert result.committee_summary["review_row_id"] is None
+
+
+
+def test_build_source_snapshot_adds_additive_indicator_sleeves(monkeypatch) -> None:
+    service = MarketPredictionCommitteeService(
+        repository=_FakeRepo(),
+        storage=_FakeStorage(
+            latest_closes=[
+                {"symbol": "SPY", "date": date(2026, 4, 21), "close": 500.0},
+                {"symbol": "XLK", "date": date(2026, 4, 21), "close": 210.0},
+                {"symbol": "XLC", "date": date(2026, 4, 21), "close": 95.0},
+                {"symbol": "XLY", "date": date(2026, 4, 21), "close": 180.0},
+            ]
+        ),
+    )
+    as_of_ts = datetime(2026, 4, 21, 22, 15, tzinfo=UTC)
+
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_expected_data_date",
+        lambda _now: date(2026, 4, 21),
+    )
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_latest_options_flow",
+        lambda _storage: None,
+    )
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_macro_calendar_cluster",
+        lambda **_: {
+            "freshness": "fresh",
+            "reason": "ok",
+            "upcoming_event_count": 1,
+            "next_event_date": "2026-04-22",
+            "event_type_counts": {"cpi_release": 1},
+            "high_impact_event_count": 1,
+            "next_high_impact_event": {
+                "event_type": "cpi_release",
+                "event_date": "2026-04-22",
+                "event_time": "08:30:00",
+                "title": "CPI",
+                "impact_score": 5,
+            },
+        },
+    )
+    monkeypatch.setattr(
+        service,
+        "_build_mag7_sector_leadership_cluster",
+        lambda **_: {
+            "freshness": "fresh",
+            "mag7_tickers": ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA"],
+            "available_tickers": ["AAPL", "MSFT", "NVDA", "AMZN"],
+            "missing_tickers": ["META", "GOOGL", "TSLA"],
+            "latest_common_date": "2026-04-21",
+            "average_change_pct": 1.25,
+            "leader_symbol": "NVDA",
+            "leader_change_pct": 2.2,
+            "laggard_symbol": "AAPL",
+            "laggard_change_pct": 0.4,
+            "sector_proxy_changes": {"XLK": 1.0, "XLC": 0.5, "XLY": 0.25},
+            "note": None,
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(
+        service,
+        "_build_overnight_premarket_afterhours_futures_news_cluster",
+        lambda **_: {
+            "freshness": "fresh",
+            "market_status": "closed",
+            "latest_market_news_at": "2026-04-21T21:00:00+00:00",
+            "recent_market_news_count_24h": 3,
+            "spy_latest_close_date": "2026-04-21",
+            "spy_gap_proxy_pct": 0.8,
+            "note": None,
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(
+        service,
+        "_build_oil_shock_overlay_cluster",
+        lambda **_: {
+            "freshness": "missing",
+            "gate_state": "missing",
+            "canonical_series": "DCOILWTICO",
+            "latest_observation_date": None,
+            "latest_value": None,
+            "prior_value": None,
+            "daily_change_pct": None,
+            "event_tags": [],
+            "note": None,
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(
+        service,
+        "_build_holiday_turn_of_month_cluster",
+        lambda **_: {
+            "freshness": "fresh",
+            "gate_state": "off",
+            "market_date": "2026-04-21",
+            "is_first_three_trading_days": False,
+            "is_last_two_trading_days": False,
+            "is_pre_holiday_trading_day": False,
+            "next_full_holiday_name": None,
+            "note": None,
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(
+        service,
+        "_build_day_of_week_cluster",
+        lambda **_: {
+            "freshness": "fresh",
+            "gate_state": "tracked_only",
+            "calendar_weekday": "tuesday",
+            "trading_weekday": "tuesday",
+            "is_trading_day": True,
+            "note": None,
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(
+        service,
+        "_build_freight_transport_event_cluster",
+        lambda **_: {
+            "freshness": "fresh",
+            "gate_state": "tracked_only",
+            "event_tags": [],
+            "note": None,
+        },
+        raising=False,
+    )
+
+    result = service.build_source_snapshot(as_of_ts)
+
+    assert result["clusters"]["mag7_sector_leadership"]["leader_symbol"] == "NVDA"
+    assert result["clusters"]["overnight_premarket_afterhours_futures_news"]["recent_market_news_count_24h"] == 3
+    assert result["clusters"]["oil_shock_overlay"]["canonical_series"] == "DCOILWTICO"
+    assert result["clusters"]["holiday_turn_of_month"]["gate_state"] == "off"
+    assert result["clusters"]["day_of_week"]["gate_state"] == "tracked_only"
+    assert result["clusters"]["freight_transport_event"]["gate_state"] == "tracked_only"
+    assert result["clusters"]["macro_calendar"]["event_type_counts"] == {"cpi_release": 1}
+
+
+
+def test_build_day_of_week_cluster_marks_non_trading_days_missing(monkeypatch) -> None:
+    service = MarketPredictionCommitteeService(repository=_FakeRepo())
+    as_of_ts = datetime(2026, 7, 4, 14, 0, tzinfo=UTC)
+
+    monkeypatch.setattr("app.services.market_prediction_committee_service.is_trading_day", lambda *_args, **_kwargs: False)
+
+    cluster = service._build_day_of_week_cluster(as_of_ts=as_of_ts)
+
+    assert cluster == {
+        "freshness": "missing",
+        "gate_state": "tracked_only",
+        "calendar_weekday": "saturday",
+        "trading_weekday": None,
+        "is_trading_day": False,
+        "note": None,
+    }
+
+
+
+def test_build_oil_shock_overlay_cluster_returns_missing_when_wti_unavailable(monkeypatch) -> None:
+    service = MarketPredictionCommitteeService(repository=_FakeRepo())
+    as_of_ts = datetime(2026, 4, 21, 22, 15, tzinfo=UTC)
+
+    monkeypatch.setattr(
+        service,
+        "_load_oil_observations",
+        lambda **_: [],
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_expected_data_date",
+        lambda _now: date(2026, 4, 21),
+    )
+
+    cluster = service._build_oil_shock_overlay_cluster(as_of_ts=as_of_ts)
+
+    assert cluster == {
+        "freshness": "missing",
+        "gate_state": "missing",
+        "canonical_series": "DCOILWTICO",
+        "latest_observation_date": None,
+        "latest_value": None,
+        "prior_value": None,
+        "daily_change_pct": None,
+        "event_tags": [],
+        "note": None,
+    }
 
 
 

@@ -26,6 +26,9 @@ MACRO_CALENDAR_DEFAULT = {
     "reason": "no_future_rows",
     "upcoming_event_count": 0,
     "next_event_date": None,
+    "event_type_counts": {},
+    "high_impact_event_count": 0,
+    "next_high_impact_event": None,
 }
 
 
@@ -123,12 +126,53 @@ def build_macro_calendar_cluster(
         freshness = "fresh"
         reason = "ok"
 
+    event_type_counts: dict[str, int] = {}
+    high_impact_candidates: list[tuple[dt.date, str | None, str, int, int, MarketEvent]] = []
+    for event in upcoming_events:
+        event_type = str(event.event_type).strip().lower() if getattr(event, "event_type", None) is not None else ""
+        title = str(event.title).strip() if getattr(event, "title", None) is not None else ""
+        event_date = _coerce_event_date(getattr(event, "event_date", None))
+        if not event_type or not title or event_date is None:
+            continue
+        event_type_counts[event_type] = event_type_counts.get(event_type, 0) + 1
+        impact_score = getattr(event, "impact_score", None)
+        if isinstance(impact_score, (int, float)):
+            impact_int = int(impact_score)
+            if impact_int >= 4:
+                raw_time = getattr(event, "event_time", None)
+                event_time = str(raw_time).strip() if raw_time else None
+                row_id = int(getattr(event, "id", 0)) if isinstance(getattr(event, "id", None), int) else 10**12
+                high_impact_candidates.append((event_date, event_time, title, impact_int, row_id, event))
+
+    high_impact_candidates.sort(
+        key=lambda item: (
+            item[0],
+            item[1] is None,
+            item[1] or "",
+            item[2],
+            item[4],
+        )
+    )
+    next_high_impact_event = None
+    if high_impact_candidates:
+        _, _, _, impact_score, _, event = high_impact_candidates[0]
+        next_high_impact_event = {
+            "event_type": str(event.event_type).strip().lower(),
+            "event_date": event.event_date,
+            "event_time": event.event_time,
+            "title": event.title,
+            "impact_score": impact_score,
+        }
+
     result = {
         **base,
         "freshness": freshness,
         "reason": reason,
         "upcoming_event_count": len(upcoming_events),
         "next_event_date": upcoming_events[0].event_date if upcoming_events else None,
+        "event_type_counts": event_type_counts,
+        "high_impact_event_count": len(high_impact_candidates),
+        "next_high_impact_event": next_high_impact_event,
     }
     if upcoming_events or "upcoming_events" in base:
         result["upcoming_events"] = [event.model_dump() for event in upcoming_events]

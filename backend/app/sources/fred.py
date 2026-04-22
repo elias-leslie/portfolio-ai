@@ -131,6 +131,8 @@ class FREDSource:
         # GDP & Growth
         "GDP": "GDP",  # Gross Domestic Product
         "REAL_GDP": "GDPC1",  # Real GDP
+        # Commodity overlays
+        "DCOILWTICO": "DCOILWTICO",  # WTI spot price
     }
 
     def __init__(self, api_key: str | None = None) -> None:

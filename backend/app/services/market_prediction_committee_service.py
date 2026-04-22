@@ -7,11 +7,11 @@ import json
 import math
 import uuid
 from collections.abc import Callable
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, cast
 
 from app.agents.clients.agent_hub_client import AgentHubAPIClient
-from app.constants import PREDICTION_TARGET_SYMBOLS
+from app.constants import MARKET_SYMBOL, PREDICTION_TARGET_SYMBOLS
 from app.logging_config import get_logger
 from app.models.market_prediction import (
     SUPPORTED_ADAPTIVE_CLUSTER_KEYS,
@@ -35,8 +35,16 @@ from app.services.market_events_service import (
     get_macro_calendar_cluster,
 )
 from app.services.options_flow_service import get_latest_options_flow
+from app.sources.fred import FREDSource
 from app.storage import PortfolioStorage, get_storage
-from app.utils.market_hours import NY_TZ, get_expected_data_date, get_next_trading_day
+from app.utils.market_hours import (
+    NY_TZ,
+    get_expected_data_date,
+    get_market_status,
+    get_next_trading_day,
+    is_market_holiday,
+    is_trading_day,
+)
 
 logger = get_logger(__name__)
 
@@ -55,6 +63,9 @@ DEFAULT_ROSTER = [
     {"seat_key": "macro", "agent_slug": "market-pulse-analyst", "model_id": "gpt-5.4"},
     {"seat_key": "risk", "agent_slug": "risk-manager", "model_id": "claude-opus-4-7"},
 ]
+MAG7_TICKERS = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA"]
+MAG7_SECTOR_PROXIES = ["XLK", "XLC", "XLY"]
+WTI_SERIES_ID = "DCOILWTICO"
 SEAT_CLUSTER_PREFERENCES = {
     "macro": ["macro_calendar", "sentiment", "market_regime"],
     "macro_risk": ["macro_calendar", "options_positioning", "market_regime"],
@@ -298,21 +309,294 @@ class MarketPredictionCommitteeService:
             logger.warning("market_prediction_macro_calendar_helper_failed", exc_info=True)
             macro_calendar = build_default_macro_calendar_cluster({"upcoming_events": []})
 
+        clusters = {
+            "market_regime": {
+                "freshness": "fresh" if latest_closes else "missing",
+                "latest_closes": latest_closes,
+            },
+            "sentiment": {
+                "freshness": "fresh" if fear_greed else "missing",
+                "fear_greed": fear_greed,
+            },
+            "options_positioning": options_summary,
+            "macro_calendar": macro_calendar,
+            "mag7_sector_leadership": self._build_mag7_sector_leadership_cluster(as_of_ts=as_of_ts),
+            "overnight_premarket_afterhours_futures_news": self._build_overnight_premarket_afterhours_futures_news_cluster(as_of_ts=as_of_ts),
+            "oil_shock_overlay": self._build_oil_shock_overlay_cluster(as_of_ts=as_of_ts),
+            "holiday_turn_of_month": self._build_holiday_turn_of_month_cluster(as_of_ts=as_of_ts),
+            "day_of_week": self._build_day_of_week_cluster(as_of_ts=as_of_ts),
+            "freight_transport_event": self._build_freight_transport_event_cluster(as_of_ts=as_of_ts),
+        }
+
         return {
             "as_of_ts": as_of_ts.isoformat(),
             "target_universe": PREDICTION_TARGET_SYMBOLS,
-            "clusters": {
-                "market_regime": {
-                    "freshness": "fresh" if latest_closes else "missing",
-                    "latest_closes": latest_closes,
-                },
-                "sentiment": {
-                    "freshness": "fresh" if fear_greed else "missing",
-                    "fear_greed": fear_greed,
-                },
-                "options_positioning": options_summary,
-                "macro_calendar": macro_calendar,
-            },
+            "clusters": clusters,
+        }
+
+    def _query_recent_closes(self, symbols: list[str], *, limit_per_symbol: int = 2) -> dict[str, list[tuple[date, float]]]:
+        rows = self.storage.query(
+            """
+            SELECT symbol, date, close
+            FROM (
+                SELECT symbol, date, close,
+                       ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) AS rn
+                FROM day_bars
+                WHERE symbol = ANY(?::text[])
+            ) ranked
+            WHERE rn <= ?
+            ORDER BY symbol ASC, date DESC
+            """,
+            [symbols, limit_per_symbol],
+        )
+        grouped: dict[str, list[tuple[date, float]]] = {symbol: [] for symbol in symbols}
+        for row in rows.iter_rows(named=True):
+            symbol = str(row.get("symbol") or "").upper()
+            row_date = row.get("date")
+            close = row.get("close")
+            if symbol not in grouped or not isinstance(row_date, date) or close is None:
+                continue
+            try:
+                close_value = float(close)
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(close_value):
+                continue
+            grouped[symbol].append((row_date, close_value))
+        return grouped
+
+    def _build_mag7_sector_leadership_cluster(self, *, as_of_ts: datetime) -> dict[str, Any]:
+        effective_market_date = get_expected_data_date(as_of_ts.astimezone(NY_TZ))
+        history = self._query_recent_closes(MAG7_TICKERS + MAG7_SECTOR_PROXIES, limit_per_symbol=2)
+        available_tickers: list[str] = []
+        latest_dates: list[date] = []
+        symbol_changes: dict[str, float] = {}
+        for symbol in MAG7_TICKERS:
+            rows = history.get(symbol, [])
+            if len(rows) < 2:
+                continue
+            latest_date, latest_close = rows[0]
+            _, prior_close = rows[1]
+            if prior_close == 0:
+                continue
+            available_tickers.append(symbol)
+            latest_dates.append(latest_date)
+            symbol_changes[symbol] = ((latest_close / prior_close) - 1.0) * 100.0
+        sector_proxy_changes = dict.fromkeys(MAG7_SECTOR_PROXIES)
+        proxy_ok = True
+        for symbol in MAG7_SECTOR_PROXIES:
+            rows = history.get(symbol, [])
+            if len(rows) < 2:
+                proxy_ok = False
+                continue
+            latest_date, latest_close = rows[0]
+            _, prior_close = rows[1]
+            if prior_close == 0:
+                proxy_ok = False
+                continue
+            latest_dates.append(latest_date)
+            sector_proxy_changes[symbol] = ((latest_close / prior_close) - 1.0) * 100.0
+        latest_common_date = min(latest_dates).isoformat() if latest_dates else None
+        missing_tickers = [symbol for symbol in MAG7_TICKERS if symbol not in available_tickers]
+        freshness = "missing"
+        if len(available_tickers) >= 4 and proxy_ok and latest_common_date is not None:
+            freshness = "fresh" if latest_common_date == effective_market_date.isoformat() else "stale"
+        leader_symbol = laggard_symbol = None
+        leader_change_pct = laggard_change_pct = average_change_pct = None
+        if symbol_changes:
+            ordered = sorted(symbol_changes.items(), key=lambda item: item[1], reverse=True)
+            leader_symbol, leader_change_pct = ordered[0]
+            laggard_symbol, laggard_change_pct = ordered[-1]
+            average_change_pct = sum(symbol_changes.values()) / len(symbol_changes)
+        return {
+            "freshness": freshness,
+            "mag7_tickers": MAG7_TICKERS,
+            "available_tickers": available_tickers,
+            "missing_tickers": missing_tickers,
+            "latest_common_date": latest_common_date,
+            "average_change_pct": average_change_pct,
+            "leader_symbol": leader_symbol,
+            "leader_change_pct": leader_change_pct,
+            "laggard_symbol": laggard_symbol,
+            "laggard_change_pct": laggard_change_pct,
+            "sector_proxy_changes": sector_proxy_changes,
+            "note": None,
+        }
+
+    def _load_market_news_stats(self, *, as_of_ts: datetime) -> dict[str, Any]:
+        window_start = as_of_ts - timedelta(hours=24)
+        rows = self.storage.query(
+            """
+            SELECT
+                MAX(published_at) AS latest_published_at,
+                SUM(CASE WHEN published_at >= ? AND published_at <= ? THEN 1 ELSE 0 END) AS recent_count
+            FROM news_cache
+            WHERE symbol = ?
+              AND published_at IS NOT NULL
+              AND published_at <= ?
+            """,
+            [window_start, as_of_ts, MARKET_SYMBOL, as_of_ts],
+        )
+        row = next(rows.iter_rows(named=True), {})
+        latest_published_at = row.get("latest_published_at")
+        recent_count = int(row.get("recent_count") or 0)
+        return {
+            "latest_published_at": latest_published_at.isoformat() if isinstance(latest_published_at, datetime) else None,
+            "recent_count": recent_count,
+        }
+
+    def _build_overnight_premarket_afterhours_futures_news_cluster(self, *, as_of_ts: datetime) -> dict[str, Any]:
+        effective_market_date = get_expected_data_date(as_of_ts.astimezone(NY_TZ))
+        news_stats = self._load_market_news_stats(as_of_ts=as_of_ts)
+        spy_history = self._query_recent_closes(["SPY"], limit_per_symbol=2).get("SPY", [])
+        news_state = "news_missing"
+        latest_news_iso = news_stats["latest_published_at"]
+        if latest_news_iso is not None:
+            latest_news_dt = datetime.fromisoformat(latest_news_iso.replace("Z", "+00:00"))
+            news_state = "news_fresh" if latest_news_dt >= as_of_ts - timedelta(hours=24) else "news_stale"
+        price_state = "price_missing"
+        spy_latest_close_date = None
+        spy_gap_proxy_pct = None
+        if len(spy_history) >= 2:
+            latest_date, latest_close = spy_history[0]
+            _, prior_close = spy_history[1]
+            spy_latest_close_date = latest_date.isoformat()
+            if prior_close != 0:
+                spy_gap_proxy_pct = ((latest_close / prior_close) - 1.0) * 100.0
+            price_state = "price_fresh" if latest_date == effective_market_date else "price_stale"
+        if news_state == "news_fresh" and price_state == "price_fresh":
+            freshness = "fresh"
+        elif news_state == "news_missing" and price_state == "price_missing":
+            freshness = "missing"
+        else:
+            freshness = "stale"
+        return {
+            "freshness": freshness,
+            "market_status": str(get_market_status(as_of_ts.astimezone(NY_TZ))),
+            "latest_market_news_at": latest_news_iso,
+            "recent_market_news_count_24h": news_stats["recent_count"],
+            "spy_latest_close_date": spy_latest_close_date,
+            "spy_gap_proxy_pct": spy_gap_proxy_pct,
+            "note": None,
+        }
+
+    def _load_oil_observations(self, *, market_date: date) -> list[tuple[date, float]]:
+        rows = self.storage.query(
+            """
+            SELECT observation_date, value
+            FROM macro_indicators
+            WHERE (indicator_name = ? OR series_id = ?)
+              AND observation_date <= ?
+            ORDER BY observation_date DESC
+            LIMIT 5
+            """,
+            [WTI_SERIES_ID, WTI_SERIES_ID, market_date],
+        )
+        observations: list[tuple[date, float]] = []
+        for row in rows.iter_rows(named=True):
+            observation_date = row.get("observation_date")
+            value = row.get("value")
+            if not isinstance(observation_date, date) or value is None:
+                continue
+            try:
+                numeric_value = float(value)
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(numeric_value):
+                continue
+            observations.append((observation_date, numeric_value))
+        if len(observations) >= 2:
+            return observations[:2]
+        fred = FREDSource()
+        series = fred.fetch_series(WTI_SERIES_ID, start_date=market_date - timedelta(days=10), end_date=market_date)
+        cleaned = [(obs_date, obs_value) for obs_date, obs_value in series if obs_date <= market_date and math.isfinite(float(obs_value))]
+        cleaned.sort(key=lambda item: item[0], reverse=True)
+        return cleaned[:2]
+
+    def _build_oil_shock_overlay_cluster(self, *, as_of_ts: datetime) -> dict[str, Any]:
+        market_date = get_expected_data_date(as_of_ts.astimezone(NY_TZ))
+        observations = self._load_oil_observations(market_date=market_date)
+        if len(observations) < 2:
+            return {
+                "freshness": "missing",
+                "gate_state": "missing",
+                "canonical_series": WTI_SERIES_ID,
+                "latest_observation_date": None,
+                "latest_value": None,
+                "prior_value": None,
+                "daily_change_pct": None,
+                "event_tags": [],
+                "note": None,
+            }
+        (latest_date, latest_value), (_, prior_value) = observations[:2]
+        daily_change_pct = None if prior_value == 0 else ((latest_value / prior_value) - 1.0) * 100.0
+        freshness = "fresh" if latest_date == market_date else "stale"
+        gate_state = "active" if daily_change_pct is not None and abs(daily_change_pct) >= 2.0 else "off"
+        return {
+            "freshness": freshness,
+            "gate_state": gate_state,
+            "canonical_series": WTI_SERIES_ID,
+            "latest_observation_date": latest_date.isoformat(),
+            "latest_value": latest_value,
+            "prior_value": prior_value,
+            "daily_change_pct": daily_change_pct,
+            "event_tags": [],
+            "note": None,
+        }
+
+    def _build_holiday_turn_of_month_cluster(self, *, as_of_ts: datetime) -> dict[str, Any]:
+        market_date = get_expected_data_date(as_of_ts.astimezone(NY_TZ))
+        first_three: list[date] = []
+        cursor = market_date.replace(day=1)
+        while len(first_three) < 3 and cursor.month == market_date.month:
+            if is_trading_day(cursor):
+                first_three.append(cursor)
+            cursor += timedelta(days=1)
+        next_trading = get_next_trading_day(market_date)
+        after_next = get_next_trading_day(next_trading)
+        is_last_two = next_trading.month != market_date.month or after_next.month != market_date.month
+        holiday_name = None
+        probe = market_date + timedelta(days=1)
+        while probe < next_trading:
+            is_holiday, maybe_name = is_market_holiday(probe)
+            if is_holiday:
+                holiday_name = maybe_name
+                break
+            probe += timedelta(days=1)
+        is_pre_holiday = holiday_name is not None
+        is_first_three = market_date in first_three
+        gate_state = "active" if is_first_three or is_last_two or is_pre_holiday else "off"
+        return {
+            "freshness": "fresh",
+            "gate_state": gate_state,
+            "market_date": market_date.isoformat(),
+            "is_first_three_trading_days": is_first_three,
+            "is_last_two_trading_days": is_last_two,
+            "is_pre_holiday_trading_day": is_pre_holiday,
+            "next_full_holiday_name": holiday_name,
+            "note": None,
+        }
+
+    def _build_day_of_week_cluster(self, *, as_of_ts: datetime) -> dict[str, Any]:
+        local_dt = as_of_ts.astimezone(NY_TZ)
+        weekday = local_dt.strftime("%A").lower()
+        trading = is_trading_day(local_dt.date())
+        return {
+            "freshness": "fresh" if trading else "missing",
+            "gate_state": "tracked_only",
+            "calendar_weekday": weekday,
+            "trading_weekday": weekday if trading else None,
+            "is_trading_day": trading,
+            "note": None,
+        }
+
+    def _build_freight_transport_event_cluster(self, *, as_of_ts: datetime) -> dict[str, Any]:
+        del as_of_ts
+        return {
+            "freshness": "fresh",
+            "gate_state": "tracked_only",
+            "event_tags": [],
+            "note": None,
         }
 
     def _run_roundtable(

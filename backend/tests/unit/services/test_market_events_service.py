@@ -116,6 +116,9 @@ def test_get_macro_calendar_cluster_marks_stale_table_from_latest_valid_row_even
         "reason": "stale_table",
         "upcoming_event_count": 0,
         "next_event_date": None,
+        "event_type_counts": {},
+        "high_impact_event_count": 0,
+        "next_high_impact_event": None,
     }
 
 
@@ -132,6 +135,9 @@ def test_build_macro_calendar_cluster_marks_no_future_rows_when_table_is_empty()
         "reason": "no_future_rows",
         "upcoming_event_count": 0,
         "next_event_date": None,
+        "event_type_counts": {},
+        "high_impact_event_count": 0,
+        "next_high_impact_event": None,
     }
 
 
@@ -154,6 +160,92 @@ def test_build_macro_calendar_cluster_marks_ok_and_reports_next_event_date() -> 
     assert result["next_event_date"] == "2026-04-22"
     assert result["legacy_flag"] is True
     assert result["upcoming_events"] == [event.model_dump() for event in upcoming_events]
+
+
+def test_build_macro_calendar_cluster_adds_event_type_counts_and_next_high_impact_event() -> None:
+    upcoming_events = [
+        MarketEvent(
+            id=3,
+            event_type="gdp_release",
+            event_date="2026-04-23",
+            event_time="10:00:00",
+            title="GDP",
+            description=None,
+            expected_value=None,
+            actual_value=None,
+            prior_value=None,
+            surprise_pct=None,
+            impact_score=4,
+            spy_change_1h=None,
+            spy_change_1d=None,
+            source="test",
+            created_at=None,
+        ),
+        MarketEvent(
+            id=2,
+            event_type="cpi_release",
+            event_date="2026-04-22",
+            event_time=None,
+            title="CPI",
+            description=None,
+            expected_value=None,
+            actual_value=None,
+            prior_value=None,
+            surprise_pct=None,
+            impact_score=5,
+            spy_change_1h=None,
+            spy_change_1d=None,
+            source="test",
+            created_at=None,
+        ),
+        MarketEvent(
+            id=1,
+            event_type="cpi_release",
+            event_date="2026-04-22",
+            event_time="08:30:00",
+            title="CPI Early",
+            description=None,
+            expected_value=None,
+            actual_value=None,
+            prior_value=None,
+            surprise_pct=None,
+            impact_score=5,
+            spy_change_1h=None,
+            spy_change_1d=None,
+            source="test",
+            created_at=None,
+        ),
+    ]
+
+    result = build_macro_calendar_cluster(
+        market_date=date(2026, 4, 21),
+        latest_event_date=date(2026, 4, 23),
+        upcoming_events=upcoming_events,
+        existing=None,
+    )
+
+    assert result["event_type_counts"] == {"cpi_release": 2, "gdp_release": 1}
+    assert result["high_impact_event_count"] == 3
+    assert result["next_high_impact_event"] == {
+        "event_type": "cpi_release",
+        "event_date": "2026-04-22",
+        "event_time": "08:30:00",
+        "title": "CPI Early",
+        "impact_score": 5,
+    }
+
+
+def test_build_macro_calendar_cluster_defaults_additive_fields_when_no_usable_high_impact_rows() -> None:
+    result = build_macro_calendar_cluster(
+        market_date=date(2026, 4, 21),
+        latest_event_date=None,
+        upcoming_events=[],
+        existing=None,
+    )
+
+    assert result["event_type_counts"] == {}
+    assert result["high_impact_event_count"] == 0
+    assert result["next_high_impact_event"] is None
 
 
 def test_get_upcoming_events_uses_explicit_start_date(monkeypatch) -> None:
