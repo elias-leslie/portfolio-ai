@@ -599,7 +599,13 @@ class MarketPredictionCommitteeService:
                 )
 
         if not call_map and votes:
-            call_map = self._aggregate_calls_from_votes(raw_votes=raw_votes, votes=votes, window_days=window_days)
+            return self._aggregate_calls_from_votes(
+                raw_votes=raw_votes,
+                votes=votes,
+                window_days=window_days,
+                review=self._coerce_review(review=None, window_days=window_days, as_of_ts=datetime.now(UTC)),
+                source_snapshot=source_snapshot,
+            )
 
         ordered_calls: list[MarketPredictionCall] = []
         for symbol in PREDICTION_TARGET_SYMBOLS:
