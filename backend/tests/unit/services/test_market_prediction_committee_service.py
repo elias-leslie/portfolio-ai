@@ -460,7 +460,7 @@ def test_generate_snapshot_filters_zero_weight_supported_clusters_from_new_weigh
 
     assert result.calls[0].metadata["active_cluster_keys"] == ["macro_calendar", "market_regime"]
     assert [cluster.cluster for cluster in result.calls[0].top_source_clusters] == ["macro_calendar", "market_regime"]
-    assert result.source_snapshot["clusters"]["sentiment"]["effective_weight"] == pytest.approx(0.0)
+    assert result.source_snapshot["clusters"]["sentiment"]["effective_weight"] is None
     assert result.source_snapshot["clusters"]["macro_calendar"]["effective_weight"] == pytest.approx(0.4)
 
 

@@ -428,9 +428,8 @@ class MarketPredictionCommitteeService:
             )
         except Exception:
             logger.warning("market_prediction_macro_calendar_normalization_failed", exc_info=True)
-            macro_calendar = build_default_macro_calendar_cluster(
-                existing_macro if isinstance(existing_macro, dict) else None
-            )
+            macro_calendar = dict(existing_macro) if isinstance(existing_macro, dict) else {}
+            macro_calendar["freshness"] = self._normalize_source_freshness(macro_calendar.get("freshness"))
         if isinstance(existing_macro, dict):
             for key in ("prior_weight", "effective_weight", "sample_size", "skill_score"):
                 if key in existing_macro and key not in macro_calendar:
@@ -635,7 +634,12 @@ class MarketPredictionCommitteeService:
                 votes=votes,
                 window_days=window_days,
                 review=self._coerce_review(review=None, window_days=window_days, as_of_ts=datetime.now(UTC)),
-                cluster_review=self._coerce_cluster_review(review=None, window_days=window_days, as_of_ts=datetime.now(UTC)),
+                cluster_review=self._coerce_cluster_review(
+                    review=None,
+                    window_days=window_days,
+                    as_of_ts=datetime.now(UTC),
+                    source_snapshot=source_snapshot,
+                ),
                 source_snapshot=source_snapshot,
             )
 
