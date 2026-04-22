@@ -124,6 +124,44 @@ def _response(
     return response
 
 
+def test_get_committee_snapshot_freezes_truth_contract_baseline(monkeypatch) -> None:
+    repo = _FakeRepo()
+    repo.snapshot = _response(
+        lead_call=_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}]),
+        calls=[_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}])],
+        source_snapshot={"clusters": {" Macro_Calendar ": {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 2, "next_event_date": "2026-04-22"}}},
+        committee_summary={"headline": "Constructive risk appetite"},
+    )
+    service = MarketPredictionCommitteeService(repository=repo)
+
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_expected_data_date",
+        lambda _now: date(2026, 4, 21),
+    )
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_macro_calendar_cluster",
+        lambda **_: {
+            "freshness": "fresh",
+            "reason": "ok",
+            "upcoming_event_count": 2,
+            "next_event_date": "2026-04-22",
+        },
+    )
+
+    result = service.get_committee_snapshot(window_days=3)
+
+    assert result is not None
+    assert result.source_snapshot["clusters"]["Macro_Calendar"] == {
+        "freshness": "fresh",
+        "reason": "ok",
+        "upcoming_event_count": 2,
+        "next_event_date": "2026-04-22",
+    }
+    assert result.committee_summary["truth_state"] == "pending_target"
+    assert [cluster.cluster for cluster in result.lead_call.top_source_clusters] == ["market_regime"]
+
+
+
 def test_generate_snapshot_persists_root_provenance_and_generation_time_fallbacks(monkeypatch) -> None:
     repo = _FakeRepo()
     raw_payload = {
