@@ -36,15 +36,19 @@ def run_market_prediction_cycle(
     *,
     committee_service: MarketPredictionCommitteeService | None = None,
     evaluation_service: MarketPredictionEvaluationService | None = None,
+    seat_weighting_service: MarketPredictionSeatWeightingService | None = None,
     as_of_ts: datetime | None = None,
 ) -> dict[str, Any]:
     effective_ts = as_of_ts or datetime.now(UTC)
     committee = committee_service or MarketPredictionCommitteeService()
     evaluation = evaluation_service or MarketPredictionEvaluationService()
+    seat_weighting = seat_weighting_service or MarketPredictionSeatWeightingService()
     evaluations = evaluation.evaluate_due_predictions(as_of_date=effective_ts.date())
     generated_windows: list[int] = []
     for window_days in SUPPORTED_PREDICTION_WINDOWS:
-        committee.generate_snapshot(window_days=window_days, as_of_ts=effective_ts)
+        evaluation.backfill_vote_evaluations(window_days=window_days, as_of_ts=effective_ts)
+        review = seat_weighting.resolve_and_persist_review(window_days=window_days, as_of_ts=effective_ts)
+        committee.generate_snapshot(window_days=window_days, as_of_ts=effective_ts, review=review)
         generated_windows.append(window_days)
     return {
         "status": "completed",
