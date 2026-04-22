@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from datetime import UTC, date, datetime
+from pathlib import Path
+import os
+import subprocess
+import sys
 
 import pytest
 
@@ -13,6 +17,20 @@ from app.models.market_prediction import (
 )
 from app.repositories.market_prediction_repository import MarketPredictionRepository
 from app.storage.facade import PortfolioStorage
+from tests.fixtures.conftest import TEST_DB_URL
+
+
+@pytest.fixture(scope="session", autouse=True)
+def ensure_test_schema_up_to_date() -> None:
+    backend_root = Path(__file__).resolve().parents[3]
+    env = os.environ.copy()
+    env["PORTFOLIO_DB_URL"] = TEST_DB_URL
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "-c", str(backend_root / "alembic.ini"), "upgrade", "head"],
+        cwd=backend_root,
+        env=env,
+        check=True,
+    )
 
 
 @pytest.fixture

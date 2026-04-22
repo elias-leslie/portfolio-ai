@@ -13,6 +13,9 @@ from app.services.market_prediction_committee_service import (
     MarketPredictionCommitteeService,
 )
 from app.services.market_prediction_evaluation_service import MarketPredictionEvaluationService
+from app.services.market_prediction_seat_weighting_service import (
+    MarketPredictionSeatWeightingService,
+)
 from app.utils.market_hours import is_trading_day
 
 from ..hatchet_app import hatchet

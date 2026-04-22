@@ -15,6 +15,9 @@ from app.models.market_prediction import (
     MarketPredictionEvaluationCandidate,
     MarketPredictionRun,
     MarketPredictionScorecard,
+    MarketPredictionSeatReview,
+    MarketPredictionVoteEvaluation,
+    MarketPredictionVoteEvaluationCandidate,
 )
 
 if TYPE_CHECKING:
