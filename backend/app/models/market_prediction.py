@@ -13,6 +13,16 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, PrivateAttr
 
 PredictionDirection = Literal["bullish", "neutral", "bearish"]
+ReviewState = Literal["live", "warmup", "degraded"]
+SeatRecommendedAction = Literal["upweight", "downweight", "hold"]
+SUPPORTED_ADAPTIVE_SEAT_KEYS = ("cross_asset", "macro", "risk")
+
+
+def normalize_market_prediction_seat_key(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    return text or None
 
 
 class PredictionSourceCluster(BaseModel):
@@ -66,10 +76,78 @@ class MarketPredictionEvaluation(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class MarketPredictionVoteEvaluation(BaseModel):
+    vote_id: int = Field(..., ge=1)
+    evaluated_at: datetime
+    seat_key: str
+    symbol: str
+    window_days: int = Field(..., ge=1)
+    base_close: float
+    target_close: float
+    realized_move_pct: float
+    direction_hit: bool
+    move_abs_error_pct: float = Field(..., ge=0.0)
+    brier_score: float = Field(..., ge=0.0)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class MarketPredictionEvaluationCandidate(BaseModel):
     call: MarketPredictionCall
     base_date: date
     target_date: date
+
+
+class MarketPredictionVoteEvaluationCandidate(BaseModel):
+    vote_id: int = Field(..., ge=1)
+    run_id: str
+    symbol: str
+    window_days: int = Field(..., ge=1)
+    seat_key: str | None = None
+    direction_label: PredictionDirection
+    prob_up: float
+    expected_move_pct: float
+    base_date: date
+    target_date: date
+    confidence_score: float | None = Field(None, ge=0.0, le=100.0)
+
+
+class MarketPredictionSeatScorecardRow(BaseModel):
+    seat_key: str
+    prior_weight: float = Field(..., ge=0.0, le=1.0)
+    effective_weight: float = Field(..., ge=0.0, le=1.0)
+    sample_size: int = Field(default=0, ge=0)
+    direction_hit_rate: float | None = Field(None, ge=0.0, le=1.0)
+    move_mae_pct: float | None = Field(None, ge=0.0)
+    brier_score: float | None = Field(None, ge=0.0)
+    skill_score: float | None = Field(None, ge=0.0, le=1.0)
+    recommended_action: SeatRecommendedAction = "hold"
+
+
+class MarketPredictionResolvedSeatWeight(BaseModel):
+    seat_key: str
+    prior_weight: float = Field(..., ge=0.0, le=1.0)
+    effective_weight: float = Field(..., ge=0.0, le=1.0)
+    sample_size: int = Field(default=0, ge=0)
+    skill_score: float | None = Field(None, ge=0.0, le=1.0)
+
+
+class MarketPredictionSeatReview(BaseModel):
+    id: str
+    generated_at: datetime
+    as_of_ts: datetime
+    window_days: int = Field(..., ge=1)
+    review_state: ReviewState
+    seat_scorecards: list[MarketPredictionSeatScorecardRow] = Field(default_factory=list)
+    review_summary: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class MarketPredictionSeatReviewResponse(BaseModel):
+    as_of_ts: datetime
+    window_days: int = Field(..., ge=1)
+    review_state: ReviewState
+    seat_scorecards: list[MarketPredictionSeatScorecardRow] = Field(default_factory=list)
+    review_summary: dict[str, Any] = Field(default_factory=dict)
 
 
 class MarketPredictionRun(BaseModel):
