@@ -12,10 +12,13 @@ from tests.fixtures.conftest import TEST_DB_URL
 
 from app.models.market_prediction import (
     CommitteeSeatVote,
+    MarketPredictionCall,
     MarketPredictionClusterReview,
+    MarketPredictionEvaluation,
     MarketPredictionRun,
     MarketPredictionSeatReview,
     MarketPredictionVoteEvaluation,
+    PredictionSourceCluster,
 )
 from app.repositories.market_prediction_repository import MarketPredictionRepository
 from app.storage.facade import PortfolioStorage
@@ -501,3 +504,68 @@ def test_cluster_review_migration_creates_expected_constraints(storage: Portfoli
     assert "ck_market_prediction_cluster_reviews_window_days" in names
     assert "uq_market_prediction_cluster_reviews_window_asof" in names
     assert "idx_market_prediction_cluster_reviews_window_generated" in index_names
+
+
+
+def test_list_cluster_evaluation_samples_prefers_active_cluster_keys_then_top_source_clusters(storage: PortfolioStorage) -> None:
+    repo = MarketPredictionRepository(storage)
+    run = _run(run_id="run-clusters", as_of_ts=datetime(2026, 4, 23, 22, 15, tzinfo=UTC))
+    repo.create_run(run)
+    call_with_metadata = MarketPredictionCall.model_construct(
+        id="call-metadata",
+        symbol="SPY",
+        window_days=3,
+        direction_label="neutral",
+        prob_up=0.5,
+        expected_move_pct=0.0,
+        top_source_clusters=[PredictionSourceCluster(cluster="sentiment")],
+        metadata={"active_cluster_keys": [" Macro_Calendar ", "market_regime", "macro_calendar", "unsupported"]},
+    )
+    call_with_fallback = MarketPredictionCall.model_construct(
+        id="call-fallback",
+        symbol="XLF",
+        window_days=3,
+        direction_label="neutral",
+        prob_up=0.5,
+        expected_move_pct=0.0,
+        top_source_clusters=[
+            PredictionSourceCluster(cluster=" sentiment "),
+            PredictionSourceCluster(cluster=""),
+            PredictionSourceCluster(cluster="macro_calendar"),
+        ],
+        metadata={},
+    )
+    repo.upsert_call(run.id, call_with_metadata)
+    repo.upsert_call(run.id, call_with_fallback)
+    repo.upsert_evaluation(
+        MarketPredictionEvaluation(
+            call_id="call-metadata",
+            evaluated_at=datetime(2026, 4, 24, 22, 5, tzinfo=UTC),
+            base_close=500.0,
+            target_close=505.0,
+            realized_move_pct=1.0,
+            direction_hit=True,
+            move_abs_error_pct=0.5,
+            brier_score=0.12,
+            metadata={},
+        )
+    )
+    repo.upsert_evaluation(
+        MarketPredictionEvaluation(
+            call_id="call-fallback",
+            evaluated_at=datetime(2026, 4, 24, 22, 6, tzinfo=UTC),
+            base_close=500.0,
+            target_close=495.0,
+            realized_move_pct=-1.0,
+            direction_hit=False,
+            move_abs_error_pct=1.5,
+            brier_score=0.22,
+            metadata={},
+        )
+    )
+
+    samples = repo.list_cluster_evaluation_samples(window_days=3, effective_market_date=date(2026, 4, 24))
+    by_call = {sample.call_id: sample for sample in samples}
+
+    assert by_call["call-metadata"].active_cluster_keys == ["macro_calendar", "market_regime"]
+    assert by_call["call-fallback"].active_cluster_keys == ["sentiment", "macro_calendar"]

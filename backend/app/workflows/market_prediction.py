@@ -8,12 +8,12 @@ from typing import Any
 
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
+from app.services.market_prediction_cluster_weighting_service import (
+    MarketPredictionClusterWeightingService,
+)
 from app.services.market_prediction_committee_service import (
     SUPPORTED_PREDICTION_WINDOWS,
     MarketPredictionCommitteeService,
-)
-from app.services.market_prediction_cluster_weighting_service import (
-    MarketPredictionClusterWeightingService,
 )
 from app.services.market_prediction_evaluation_service import MarketPredictionEvaluationService
 from app.services.market_prediction_seat_weighting_service import (

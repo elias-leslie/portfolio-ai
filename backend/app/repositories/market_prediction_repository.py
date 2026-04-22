@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from app.models.market_prediction import (
+    SUPPORTED_ADAPTIVE_CLUSTER_KEYS,
     CommitteeSeatVote,
     MarketPredictionCall,
     MarketPredictionClusterEvaluationSample,
@@ -1018,7 +1019,7 @@ class MarketPredictionRepository:
         seen: set[str] = set()
         for raw_key in raw_keys:
             cluster = normalize_market_prediction_cluster_key(raw_key)
-            if cluster is None or cluster in seen:
+            if cluster is None or cluster not in SUPPORTED_ADAPTIVE_CLUSTER_KEYS or cluster in seen:
                 continue
             seen.add(cluster)
             normalized.append(cluster)

@@ -175,7 +175,10 @@ class MarketPredictionCommitteeService:
                 review=review_artifact,
                 cluster_review=cluster_review_artifact,
             )
-            source_snapshot = self._apply_cluster_review_to_source_snapshot(source_snapshot, cluster_review_artifact)
+            source_snapshot = self._apply_cluster_review_to_source_snapshot(
+                source_snapshot=source_snapshot,
+                cluster_review=cluster_review_artifact,
+            )
             scorecard = self.repository.get_scorecard(window_days)
             last_evaluated_at = self.repository.get_last_evaluated_at(window_days)
 
@@ -1397,12 +1400,12 @@ class MarketPredictionCommitteeService:
     def _apply_cluster_review_to_source_snapshot(
         self,
         source_snapshot: dict[str, Any],
-        review: MarketPredictionClusterReview,
+        cluster_review: MarketPredictionClusterReview,
     ) -> dict[str, Any]:
         snapshot = dict(source_snapshot) if isinstance(source_snapshot, dict) else {}
         raw_clusters = snapshot.get("clusters") if isinstance(snapshot.get("clusters"), dict) else {}
         normalized_clusters = dict(raw_clusters)
-        for row in self._resolved_cluster_weight_rows(review):
+        for row in self._resolved_cluster_weight_rows(cluster_review):
             cluster = row["cluster"]
             payload = normalized_clusters.get(cluster)
             if not isinstance(payload, dict):
