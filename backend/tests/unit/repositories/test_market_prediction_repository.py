@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from collections.abc import Generator
-from datetime import UTC, date, datetime
-from pathlib import Path
 import os
 import subprocess
 import sys
+from collections.abc import Generator
+from datetime import UTC, date, datetime
+from pathlib import Path
 
 import pytest
+from tests.fixtures.conftest import TEST_DB_URL
 
 from app.models.market_prediction import (
     CommitteeSeatVote,
@@ -17,7 +18,6 @@ from app.models.market_prediction import (
 )
 from app.repositories.market_prediction_repository import MarketPredictionRepository
 from app.storage.facade import PortfolioStorage
-from tests.fixtures.conftest import TEST_DB_URL
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -44,11 +44,13 @@ def clean_prediction_tables(storage: PortfolioStorage) -> Generator[None]:
         conn.execute(
             "TRUNCATE market_prediction_vote_evaluations, market_prediction_seat_reviews, market_prediction_evaluations, market_prediction_votes, market_prediction_calls, market_prediction_runs CASCADE"
         )
+        conn.commit()
     yield
     with storage.connection() as conn:
         conn.execute(
             "TRUNCATE market_prediction_vote_evaluations, market_prediction_seat_reviews, market_prediction_evaluations, market_prediction_votes, market_prediction_calls, market_prediction_runs CASCADE"
         )
+        conn.commit()
 
 
 

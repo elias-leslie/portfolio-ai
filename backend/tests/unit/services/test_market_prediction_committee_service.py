@@ -165,6 +165,42 @@ def test_get_committee_snapshot_freezes_truth_contract_baseline(monkeypatch) -> 
 
 
 
+def test_get_committee_snapshot_defaults_additive_review_fields_for_legacy_rows(monkeypatch) -> None:
+    repo = _FakeRepo()
+    snapshot = _response(
+        lead_call=_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}]),
+        calls=[_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}])],
+        source_snapshot={"clusters": {"macro_calendar": {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 1, "next_event_date": "2026-04-22"}}},
+        committee_summary={"headline": "Legacy snapshot"},
+    )
+    snapshot._storage_metadata = {"committee_execution_path": "committee_endpoint", "executed_seats": []}
+    repo.snapshot = snapshot
+    service = MarketPredictionCommitteeService(repository=repo)
+
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_expected_data_date",
+        lambda _now: date(2026, 4, 21),
+    )
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_macro_calendar_cluster",
+        lambda **_: {
+            "freshness": "fresh",
+            "reason": "ok",
+            "upcoming_event_count": 1,
+            "next_event_date": "2026-04-22",
+        },
+    )
+
+    result = service.get_committee_snapshot(window_days=3)
+
+    assert result is not None
+    assert result.committee_summary["resolved_seat_weights"] == []
+    assert result.committee_summary["review_state"] is None
+    assert result.committee_summary["review_as_of_ts"] is None
+    assert result.committee_summary["review_row_id"] is None
+
+
+
 def test_generate_snapshot_uses_weighted_committee_synthesis_and_additive_review_metadata(monkeypatch) -> None:
     repo = _FakeRepo()
     raw_payload = {
