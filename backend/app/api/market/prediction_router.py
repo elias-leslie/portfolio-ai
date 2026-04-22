@@ -9,21 +9,31 @@ from app.middleware.cache import cache_response
 from app.models.market_prediction import (
     MarketPredictionCommitteeResponse,
     MarketPredictionHistoryResponse,
+    MarketPredictionSeatReviewResponse,
 )
 from app.services.market_prediction_committee_service import (
     SUPPORTED_PREDICTION_WINDOWS,
     MarketPredictionCommitteeService,
 )
+from app.services.market_prediction_seat_weighting_service import (
+    MarketPredictionSeatWeightingService,
+)
 
 router = APIRouter()
 
-_state: dict[str, MarketPredictionCommitteeService] = {}
+_state: dict[str, object] = {}
 
 
 def _get_prediction_service() -> MarketPredictionCommitteeService:
     if "service" not in _state:
         _state["service"] = MarketPredictionCommitteeService()
-    return _state["service"]
+    return _state["service"]  # type: ignore[return-value]
+
+
+def _get_review_service() -> MarketPredictionSeatWeightingService:
+    if "review_service" not in _state:
+        _state["review_service"] = MarketPredictionSeatWeightingService()
+    return _state["review_service"]  # type: ignore[return-value]
 
 
 def _validate_window_days(window_days: int) -> int:
@@ -46,6 +56,16 @@ async def get_prediction_committee(
     if snapshot is None:
         raise HTTPException(status_code=404, detail="No committee snapshot available")
     return snapshot
+
+
+@router.get("/prediction/review", response_model=MarketPredictionSeatReviewResponse)
+@cache_response(ttl=CACHE_TTL_SHORT)
+async def get_prediction_review(
+    request: Request,
+    window_days: int = Query(3, description="Trading-day forecast window"),
+) -> MarketPredictionSeatReviewResponse:
+    service = _get_review_service()
+    return service.get_review(window_days=_validate_window_days(window_days))
 
 
 @router.get("/prediction/committee/history", response_model=MarketPredictionHistoryResponse)

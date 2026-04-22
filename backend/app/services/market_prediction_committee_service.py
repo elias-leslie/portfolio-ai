@@ -14,13 +14,17 @@ from app.agents.clients.agent_hub_client import AgentHubAPIClient
 from app.constants import PREDICTION_TARGET_SYMBOLS
 from app.logging_config import get_logger
 from app.models.market_prediction import (
+    SUPPORTED_ADAPTIVE_SEAT_KEYS,
     CommitteeSeatVote,
     MarketPredictionCall,
     MarketPredictionCommitteeResponse,
+    MarketPredictionResolvedSeatWeight,
     MarketPredictionRun,
     MarketPredictionScorecard,
+    MarketPredictionSeatReview,
     PredictionDirection,
     PredictionSourceCluster,
+    normalize_market_prediction_seat_key,
 )
 from app.repositories.market_prediction_repository import MarketPredictionRepository
 from app.services.market_events_service import (
@@ -105,6 +109,7 @@ class MarketPredictionCommitteeService:
         *,
         window_days: int,
         as_of_ts: datetime | None = None,
+        review: MarketPredictionSeatReview | dict[str, Any] | None = None,
     ) -> MarketPredictionCommitteeResponse:
         self._validate_window_days(window_days)
         generated_at = self._coerce_datetime(as_of_ts or datetime.now(UTC))
@@ -130,12 +135,13 @@ class MarketPredictionCommitteeService:
                 window_days=window_days,
                 source_snapshot=source_snapshot,
             )
-            calls = self._normalize_calls_for_generation(
-                raw_calls=raw_payload.get("calls") if isinstance(raw_payload, dict) else None,
+            review_artifact = self._coerce_review(review=review, window_days=window_days, as_of_ts=generated_at)
+            calls = self._aggregate_calls_from_votes(
                 raw_votes=raw_votes,
                 votes=votes,
-                source_snapshot=source_snapshot,
                 window_days=window_days,
+                review=review_artifact,
+                source_snapshot=source_snapshot,
             )
             lead_call = next((call for call in calls if call.symbol == "SPY"), calls[0])
 
@@ -153,6 +159,7 @@ class MarketPredictionCommitteeService:
                 committee_execution_path=self._normalize_execution_path(
                     raw_payload.get("_portfolio_execution_path") if isinstance(raw_payload, dict) else None
                 ),
+                review=review_artifact,
             )
             scorecard = self.repository.get_scorecard(window_days)
             last_evaluated_at = self.repository.get_last_evaluated_at(window_days)
@@ -361,6 +368,7 @@ class MarketPredictionCommitteeService:
             metadata=metadata,
             truth_state=truth_state,
             scorecard_status_note=scorecard_status_note,
+            as_of_ts=response.as_of_ts,
         )
         normalized = response.model_copy(
             update={
@@ -431,10 +439,13 @@ class MarketPredictionCommitteeService:
         metadata: dict[str, Any],
         truth_state: str,
         scorecard_status_note: str | None,
+        as_of_ts: datetime,
     ) -> dict[str, Any]:
         summary = dict(raw_summary) if isinstance(raw_summary, dict) else {}
         summary.pop("_portfolio_execution_path", None)
         executed_seats = self._normalize_executed_seats(metadata.get("executed_seats"))
+        resolved_seat_weights = self._normalize_resolved_seat_weights(metadata.get("resolved_seat_weights"))
+        review_state = self._optional_str(metadata.get("review_state"))
         summary.update(
             {
                 "committee_roster_mode": self._normalize_roster_mode(metadata.get("committee_roster_mode")),
@@ -442,6 +453,10 @@ class MarketPredictionCommitteeService:
                 "executed_seat_keys": [seat["seat_key"] for seat in executed_seats],
                 "truth_state": truth_state,
                 "scorecard_status_note": scorecard_status_note,
+                "resolved_seat_weights": resolved_seat_weights,
+                "review_state": review_state,
+                "review_as_of_ts": as_of_ts.isoformat() if review_state is not None or resolved_seat_weights else None,
+                "review_row_id": self._optional_str(metadata.get("review_row_id")),
             }
         )
         return summary
@@ -616,34 +631,107 @@ class MarketPredictionCommitteeService:
         raw_votes: Any,
         votes: list[CommitteeSeatVote],
         window_days: int,
-    ) -> dict[str, MarketPredictionCall]:
+        review: MarketPredictionSeatReview,
+        source_snapshot: dict[str, Any],
+    ) -> list[MarketPredictionCall]:
         by_symbol: dict[str, list[CommitteeSeatVote]] = {}
         for vote in votes:
             by_symbol.setdefault(vote.symbol, []).append(vote)
 
-        calls: dict[str, MarketPredictionCall] = {}
-        for symbol, symbol_votes in by_symbol.items():
-            avg_prob = sum(vote.prob_up for vote in symbol_votes) / len(symbol_votes)
-            avg_move = sum(vote.expected_move_pct for vote in symbol_votes) / len(symbol_votes)
-            avg_conf = sum(float(vote.confidence_score or 50.0) for vote in symbol_votes) / len(symbol_votes)
-            low_band = min(vote.expected_move_pct for vote in symbol_votes)
-            high_band = max(vote.expected_move_pct for vote in symbol_votes)
-            calls[symbol] = MarketPredictionCall(
-                symbol=symbol,
-                window_days=window_days,
-                direction_label=self._derive_direction(avg_prob, avg_move),
-                prob_up=avg_prob,
-                expected_move_pct=avg_move,
-                confidence_band_low_pct=low_band,
-                confidence_band_high_pct=high_band,
-                confidence_score=avg_conf,
-                committee_disagreement_score=self._estimate_disagreement(symbol, symbol_votes),
-                rationale_summary="Consensus synthesized from seat-level committee votes.",
-                top_source_clusters=self._fallback_call_clusters(
-                    raw_votes=raw_votes,
-                    votes=symbol_votes,
-                    source_snapshot={},
-                ),
+        resolved_weight_map = self._review_weight_map(review)
+        calls: list[MarketPredictionCall] = []
+        for symbol in PREDICTION_TARGET_SYMBOLS:
+            symbol_votes = by_symbol.get(symbol, [])
+            deduped_votes = self._dedupe_supported_votes(symbol_votes)
+            active_votes = [
+                vote
+                for vote in deduped_votes
+                if vote.seat_key in resolved_weight_map
+                and math.isfinite(float(vote.prob_up))
+                and 0.0 <= float(vote.prob_up) <= 1.0
+                and math.isfinite(float(vote.expected_move_pct))
+            ]
+            if not active_votes:
+                calls.append(
+                    MarketPredictionCall(
+                        symbol=symbol,
+                        window_days=window_days,
+                        direction_label="neutral",
+                        prob_up=0.5,
+                        expected_move_pct=0.0,
+                        confidence_band_low_pct=0.0,
+                        confidence_band_high_pct=0.0,
+                        confidence_score=0.0,
+                        committee_disagreement_score=0.0,
+                        rationale_summary="Committee call unavailable; neutral fallback applied.",
+                        top_source_clusters=self._fallback_call_clusters(
+                            raw_votes=raw_votes,
+                            votes=symbol_votes,
+                            source_snapshot=source_snapshot,
+                        ),
+                        metadata={"aggregation_mode": "neutral_fallback", "active_seat_keys": []},
+                    )
+                )
+                continue
+            if len(active_votes) == 1:
+                vote = active_votes[0]
+                calls.append(
+                    MarketPredictionCall(
+                        symbol=symbol,
+                        window_days=window_days,
+                        direction_label=vote.direction_label,
+                        prob_up=vote.prob_up,
+                        expected_move_pct=vote.expected_move_pct,
+                        confidence_band_low_pct=vote.expected_move_pct,
+                        confidence_band_high_pct=vote.expected_move_pct,
+                        confidence_score=self._normalize_confidence_score(vote.confidence_score, fallback=50.0),
+                        committee_disagreement_score=0.0,
+                        rationale_summary="Consensus synthesized from a single supported seat vote.",
+                        top_source_clusters=self._fallback_call_clusters(
+                            raw_votes=raw_votes,
+                            votes=active_votes,
+                            source_snapshot=source_snapshot,
+                        ),
+                        metadata={"aggregation_mode": "single_seat", "active_seat_keys": [vote.seat_key]},
+                    )
+                )
+                continue
+            active_weight_map = self._normalize_active_weight_map(
+                {vote.seat_key: resolved_weight_map[vote.seat_key] for vote in active_votes}
+            )
+            weighted_prob = self._weighted_logit_probability(active_votes=active_votes, active_weight_map=active_weight_map)
+            weighted_move = self._weighted_vote_mean(
+                active_votes=active_votes,
+                active_weight_map=active_weight_map,
+                accessor=lambda vote: vote.expected_move_pct,
+            )
+            weighted_conf = self._weighted_vote_mean(
+                active_votes=active_votes,
+                active_weight_map=active_weight_map,
+                accessor=lambda vote: self._normalize_confidence_score(vote.confidence_score, fallback=50.0),
+            )
+            calls.append(
+                MarketPredictionCall(
+                    symbol=symbol,
+                    window_days=window_days,
+                    direction_label=self._derive_direction(weighted_prob, weighted_move),
+                    prob_up=weighted_prob,
+                    expected_move_pct=weighted_move,
+                    confidence_band_low_pct=min(vote.expected_move_pct for vote in active_votes),
+                    confidence_band_high_pct=max(vote.expected_move_pct for vote in active_votes),
+                    confidence_score=weighted_conf,
+                    committee_disagreement_score=self._estimate_disagreement(symbol, active_votes),
+                    rationale_summary="Consensus synthesized from weighted seat-level committee votes.",
+                    top_source_clusters=self._fallback_call_clusters(
+                        raw_votes=raw_votes,
+                        votes=active_votes,
+                        source_snapshot=source_snapshot,
+                    ),
+                    metadata={
+                        "aggregation_mode": "weighted_committee",
+                        "active_seat_keys": sorted(active_weight_map),
+                    },
+                )
             )
         return calls
 
@@ -699,20 +787,224 @@ class MarketPredictionCommitteeService:
         existing: Any,
         executed_seats: list[dict[str, Any]],
         committee_execution_path: str,
+        review: MarketPredictionSeatReview,
     ) -> dict[str, Any]:
         metadata = self._normalize_metadata(existing)
+        review_persisted = bool(review.metadata.get("_persisted", True)) if isinstance(review.metadata, dict) else True
         metadata.update(
             {
                 "committee_roster_mode": self._classify_roster_mode(executed_seats),
                 "committee_fingerprint": self._compute_committee_fingerprint(executed_seats),
                 "committee_execution_path": committee_execution_path,
                 "executed_seats": executed_seats,
+                "adaptive_weighting_version": "seat-v1",
+                "review_row_id": review.id if review_persisted else None,
+                "review_generated_at": review.generated_at.isoformat(),
+                "review_state": review.review_state,
+                "resolved_seat_weights": [
+                    row.model_dump()
+                    for row in self._resolved_seat_weight_rows(
+                        self._build_degraded_committee_review(review)
+                        if not review_persisted and review.review_state == "degraded"
+                        else review
+                    )
+                ],
             }
         )
         return metadata
 
     def _normalize_metadata(self, raw_metadata: Any) -> dict[str, Any]:
         return dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
+
+    def _coerce_review(
+        self,
+        *,
+        review: MarketPredictionSeatReview | dict[str, Any] | None,
+        window_days: int,
+        as_of_ts: datetime,
+    ) -> MarketPredictionSeatReview:
+        if isinstance(review, MarketPredictionSeatReview):
+            return review
+        if isinstance(review, dict):
+            try:
+                return MarketPredictionSeatReview(
+                    id=str(review.get("id") or f"seat-review:{window_days}:{as_of_ts.isoformat()}"),
+                    generated_at=self._coerce_datetime(review.get("generated_at") or as_of_ts),
+                    as_of_ts=self._coerce_datetime(review.get("as_of_ts") or as_of_ts),
+                    window_days=self._int(review.get("window_days"), window_days),
+                    review_state=str(review.get("review_state") or "warmup"),
+                    seat_scorecards=review.get("seat_scorecards") or [],
+                    review_summary=review.get("review_summary") or {},
+                    metadata=review.get("metadata") or {},
+                )
+            except Exception:
+                logger.warning("market_prediction_review_coercion_failed", exc_info=True)
+        prior = 1.0 / len(SUPPORTED_ADAPTIVE_SEAT_KEYS)
+        return MarketPredictionSeatReview(
+            id=f"seat-review:{window_days}:{as_of_ts.isoformat()}",
+            generated_at=as_of_ts,
+            as_of_ts=as_of_ts,
+            window_days=window_days,
+            review_state="warmup",
+            seat_scorecards=[
+                {
+                    "seat_key": seat_key,
+                    "prior_weight": prior,
+                    "effective_weight": prior,
+                    "sample_size": 0,
+                    "direction_hit_rate": None,
+                    "move_mae_pct": None,
+                    "brier_score": None,
+                    "skill_score": None,
+                    "recommended_action": "hold",
+                }
+                for seat_key in SUPPORTED_ADAPTIVE_SEAT_KEYS
+            ],
+            review_summary={
+                "generated_at": as_of_ts.isoformat(),
+                "review_state": "warmup",
+                "drift_callouts": [],
+                "top_upweighted": [],
+                "top_downweighted": [],
+            },
+            metadata={},
+        )
+
+    def _build_degraded_committee_review(self, review: MarketPredictionSeatReview) -> MarketPredictionSeatReview:
+        prior = 1.0 / len(SUPPORTED_ADAPTIVE_SEAT_KEYS)
+        return MarketPredictionSeatReview(
+            id=review.id,
+            generated_at=review.generated_at,
+            as_of_ts=review.as_of_ts,
+            window_days=review.window_days,
+            review_state="degraded",
+            seat_scorecards=[
+                {
+                    "seat_key": seat_key,
+                    "prior_weight": prior,
+                    "effective_weight": prior,
+                    "sample_size": 0,
+                    "direction_hit_rate": None,
+                    "move_mae_pct": None,
+                    "brier_score": None,
+                    "skill_score": None,
+                    "recommended_action": "hold",
+                }
+                for seat_key in SUPPORTED_ADAPTIVE_SEAT_KEYS
+            ],
+            review_summary={
+                "generated_at": review.generated_at.isoformat(),
+                "review_state": "degraded",
+                "drift_callouts": [],
+                "top_upweighted": [],
+                "top_downweighted": [],
+            },
+            metadata={
+                **(dict(review.metadata) if isinstance(review.metadata, dict) else {}),
+                "_persisted": False,
+            },
+        )
+
+    def _resolved_seat_weight_rows(
+        self,
+        review: MarketPredictionSeatReview,
+    ) -> list[MarketPredictionResolvedSeatWeight]:
+        rows: list[MarketPredictionResolvedSeatWeight] = []
+        for seat_key in SUPPORTED_ADAPTIVE_SEAT_KEYS:
+            raw_row = next(
+                (
+                    row
+                    for row in review.seat_scorecards
+                    if self._normalize_seat_key(self._value(row, "seat_key")) == seat_key
+                ),
+                None,
+            )
+            prior = self._clamp(self._value(raw_row, "prior_weight"), 1.0 / len(SUPPORTED_ADAPTIVE_SEAT_KEYS), low=0.0, high=1.0)
+            effective = self._clamp(self._value(raw_row, "effective_weight"), prior, low=0.0, high=1.0)
+            sample_size = self._int(self._value(raw_row, "sample_size"), 0)
+            skill_score = self._optional_float(self._value(raw_row, "skill_score"))
+            rows.append(
+                MarketPredictionResolvedSeatWeight(
+                    seat_key=seat_key,
+                    prior_weight=prior,
+                    effective_weight=effective,
+                    sample_size=sample_size,
+                    skill_score=skill_score,
+                )
+            )
+        return rows
+
+    def _normalize_resolved_seat_weights(self, raw_rows: Any) -> list[dict[str, Any]]:
+        if not isinstance(raw_rows, list):
+            return []
+        normalized: list[dict[str, Any]] = []
+        for seat_key in SUPPORTED_ADAPTIVE_SEAT_KEYS:
+            raw_row = next(
+                (
+                    row
+                    for row in raw_rows
+                    if self._normalize_seat_key(self._value(row, "seat_key")) == seat_key
+                ),
+                None,
+            )
+            if raw_row is None:
+                continue
+            normalized.append(
+                {
+                    "seat_key": seat_key,
+                    "prior_weight": self._clamp(self._value(raw_row, "prior_weight"), 1.0 / len(SUPPORTED_ADAPTIVE_SEAT_KEYS), low=0.0, high=1.0),
+                    "effective_weight": self._clamp(self._value(raw_row, "effective_weight"), 1.0 / len(SUPPORTED_ADAPTIVE_SEAT_KEYS), low=0.0, high=1.0),
+                    "sample_size": self._int(self._value(raw_row, "sample_size"), 0),
+                    "skill_score": self._optional_float(self._value(raw_row, "skill_score")),
+                }
+            )
+        return normalized
+
+    def _review_weight_map(self, review: MarketPredictionSeatReview) -> dict[str, float]:
+        return {
+            row.seat_key: row.effective_weight
+            for row in self._resolved_seat_weight_rows(review)
+            if row.seat_key in SUPPORTED_ADAPTIVE_SEAT_KEYS
+        }
+
+    def _dedupe_supported_votes(self, votes: list[CommitteeSeatVote]) -> list[CommitteeSeatVote]:
+        deduped: list[CommitteeSeatVote] = []
+        seen: set[str] = set()
+        for vote in votes:
+            if vote.seat_key in seen or vote.seat_key not in SUPPORTED_ADAPTIVE_SEAT_KEYS:
+                continue
+            seen.add(vote.seat_key)
+            deduped.append(vote)
+        return deduped
+
+    def _normalize_active_weight_map(self, weight_map: dict[str, float]) -> dict[str, float]:
+        total = sum(weight_map.values())
+        if total <= 0:
+            equal_weight = 1.0 / len(weight_map)
+            return dict.fromkeys(sorted(weight_map), equal_weight)
+        return {seat_key: weight_map[seat_key] / total for seat_key in sorted(weight_map)}
+
+    def _weighted_logit_probability(
+        self,
+        *,
+        active_votes: list[CommitteeSeatVote],
+        active_weight_map: dict[str, float],
+    ) -> float:
+        logit_sum = 0.0
+        for vote in active_votes:
+            weight = active_weight_map[vote.seat_key]
+            clamped_prob = self._clamp(vote.prob_up, 0.5, low=0.05, high=0.95)
+            logit_sum += weight * math.log(clamped_prob / (1.0 - clamped_prob))
+        return 1.0 / (1.0 + math.exp(-logit_sum))
+
+    def _weighted_vote_mean(
+        self,
+        *,
+        active_votes: list[CommitteeSeatVote],
+        active_weight_map: dict[str, float],
+        accessor: Callable[[CommitteeSeatVote], float],
+    ) -> float:
+        return sum(active_weight_map[vote.seat_key] * accessor(vote) for vote in active_votes)
 
     def _normalize_executed_seats(self, raw_executed_seats: Any) -> list[dict[str, Any]]:
         if not isinstance(raw_executed_seats, list):
@@ -1101,10 +1393,7 @@ class MarketPredictionCommitteeService:
         return usable or PREDICTION_TARGET_SYMBOLS
 
     def _normalize_seat_key(self, value: Any) -> str | None:
-        if value is None:
-            return None
-        text = str(value).strip().lower()
-        return text or None
+        return normalize_market_prediction_seat_key(value)
 
     def _normalize_symbol(self, value: Any) -> str:
         return str(value or "").strip().upper()
