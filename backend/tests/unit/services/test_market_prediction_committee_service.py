@@ -5,11 +5,14 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from typing import Any
 
+import pytest
+
 from app.constants import PREDICTION_TARGET_SYMBOLS
 from app.models.market_prediction import (
     CommitteeSeatVote,
     MarketPredictionCall,
     MarketPredictionCommitteeResponse,
+    MarketPredictionSeatReview,
 )
 from app.services.market_prediction_committee_service import MarketPredictionCommitteeService
 
@@ -122,6 +125,336 @@ def _response(
     )
     response._storage_metadata = {}
     return response
+
+
+def test_get_committee_snapshot_freezes_truth_contract_baseline(monkeypatch) -> None:
+    repo = _FakeRepo()
+    repo.snapshot = _response(
+        lead_call=_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}]),
+        calls=[_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}])],
+        source_snapshot={"clusters": {" Macro_Calendar ": {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 2, "next_event_date": "2026-04-22"}}},
+        committee_summary={"headline": "Constructive risk appetite"},
+    )
+    service = MarketPredictionCommitteeService(repository=repo)
+
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_expected_data_date",
+        lambda _now: date(2026, 4, 21),
+    )
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_macro_calendar_cluster",
+        lambda **_: {
+            "freshness": "fresh",
+            "reason": "ok",
+            "upcoming_event_count": 2,
+            "next_event_date": "2026-04-22",
+        },
+    )
+
+    result = service.get_committee_snapshot(window_days=3)
+
+    assert result is not None
+    assert result.source_snapshot["clusters"]["Macro_Calendar"] == {
+        "freshness": "fresh",
+        "reason": "ok",
+        "upcoming_event_count": 2,
+        "next_event_date": "2026-04-22",
+    }
+    assert result.committee_summary["truth_state"] == "pending_target"
+    assert [cluster.cluster for cluster in result.lead_call.top_source_clusters] == ["market_regime"]
+
+
+
+def test_get_committee_snapshot_defaults_additive_review_fields_for_legacy_rows(monkeypatch) -> None:
+    repo = _FakeRepo()
+    snapshot = _response(
+        lead_call=_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}]),
+        calls=[_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}])],
+        source_snapshot={"clusters": {"macro_calendar": {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 1, "next_event_date": "2026-04-22"}}},
+        committee_summary={"headline": "Legacy snapshot"},
+    )
+    snapshot._storage_metadata = {"committee_execution_path": "committee_endpoint", "executed_seats": []}
+    repo.snapshot = snapshot
+    service = MarketPredictionCommitteeService(repository=repo)
+
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_expected_data_date",
+        lambda _now: date(2026, 4, 21),
+    )
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_macro_calendar_cluster",
+        lambda **_: {
+            "freshness": "fresh",
+            "reason": "ok",
+            "upcoming_event_count": 1,
+            "next_event_date": "2026-04-22",
+        },
+    )
+
+    result = service.get_committee_snapshot(window_days=3)
+
+    assert result is not None
+    assert result.committee_summary["resolved_seat_weights"] == []
+    assert result.committee_summary["review_state"] is None
+    assert result.committee_summary["review_as_of_ts"] is None
+    assert result.committee_summary["review_row_id"] is None
+
+
+
+def test_generate_snapshot_uses_weighted_committee_synthesis_and_additive_review_metadata(monkeypatch) -> None:
+    repo = _FakeRepo()
+    raw_payload = {
+        "_portfolio_execution_path": "committee_endpoint",
+        "calls": [],
+        "votes": [
+            {
+                "seat_key": "macro",
+                "agent_slug": "macro-analyst",
+                "symbol": "SPY",
+                "prob_up": 0.8,
+                "expected_move_pct": 2.0,
+                "confidence_score": 80,
+                "source_clusters": [{"cluster": "macro_calendar", "weight": 0.6}],
+            },
+            {
+                "seat_key": "risk",
+                "agent_slug": "risk-manager",
+                "symbol": "SPY",
+                "prob_up": 0.4,
+                "expected_move_pct": -1.0,
+                "confidence_score": None,
+                "source_clusters": [{"cluster": "market_regime", "weight": 0.4}],
+            },
+            {
+                "seat_key": "new-seat",
+                "agent_slug": "ignored-seat",
+                "symbol": "SPY",
+                "prob_up": 0.95,
+                "expected_move_pct": 4.0,
+                "confidence_score": 99,
+                "source_clusters": [{"cluster": "market_regime", "weight": 0.9}],
+            },
+        ],
+    }
+    fake_client = _FakeRoundtableClient(raw_payload)
+    review = MarketPredictionSeatReview(
+        id="seat-review:3:2026-04-21T22:15:00+00:00",
+        generated_at=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+        as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+        window_days=3,
+        review_state="live",
+        seat_scorecards=[
+            {
+                "seat_key": "cross_asset",
+                "prior_weight": 1 / 3,
+                "effective_weight": 0.2,
+                "sample_size": 6,
+                "direction_hit_rate": 0.5,
+                "move_mae_pct": 1.0,
+                "brier_score": 0.2,
+                "skill_score": 0.6,
+                "recommended_action": "downweight",
+            },
+            {
+                "seat_key": "macro",
+                "prior_weight": 1 / 3,
+                "effective_weight": 0.5,
+                "sample_size": 12,
+                "direction_hit_rate": 0.7,
+                "move_mae_pct": 0.6,
+                "brier_score": 0.12,
+                "skill_score": 0.82,
+                "recommended_action": "upweight",
+            },
+            {
+                "seat_key": "risk",
+                "prior_weight": 1 / 3,
+                "effective_weight": 0.3,
+                "sample_size": 10,
+                "direction_hit_rate": 0.4,
+                "move_mae_pct": 2.1,
+                "brier_score": 0.35,
+                "skill_score": 0.41,
+                "recommended_action": "hold",
+            },
+        ],
+        review_summary={
+            "generated_at": "2026-04-21T22:15:00+00:00",
+            "review_state": "live",
+            "drift_callouts": ["macro gained weight versus prior"],
+            "top_upweighted": [{"kind": "seat", "key": "macro", "prior_weight": 1 / 3, "effective_weight": 0.5}],
+            "top_downweighted": [{"kind": "seat", "key": "cross_asset", "prior_weight": 1 / 3, "effective_weight": 0.2}],
+        },
+        metadata={
+            "weighting_half_life_days": 20,
+            "trailing_window_trading_days": 60,
+            "backfill_run_limit": 120,
+            "supported_windows": [1, 3, 7, 14],
+        },
+    )
+    service = MarketPredictionCommitteeService(
+        repository=repo,
+        roundtable_client_factory=lambda **_: fake_client,
+    )
+
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_expected_data_date",
+        lambda _now: date(2026, 4, 21),
+    )
+    monkeypatch.setattr(
+        service,
+        "_build_source_snapshot",
+        lambda _: {
+            "clusters": {
+                "market_regime": {"freshness": "fresh"},
+                "macro_calendar": {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 1, "next_event_date": "2026-04-22"},
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_macro_calendar_cluster",
+        lambda **_: {
+            "freshness": "fresh",
+            "reason": "ok",
+            "upcoming_event_count": 1,
+            "next_event_date": "2026-04-22",
+        },
+    )
+
+    result = service.generate_snapshot(
+        window_days=3,
+        as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+        review=review,
+    )
+
+    assert repo.calls[0].prob_up == pytest.approx(0.6713692625)
+    assert repo.calls[0].expected_move_pct == pytest.approx(0.875)
+    assert repo.calls[0].confidence_score == pytest.approx(68.75)
+    assert repo.calls[0].confidence_band_low_pct == pytest.approx(-1.0)
+    assert repo.calls[0].confidence_band_high_pct == pytest.approx(2.0)
+    assert repo.calls[0].committee_disagreement_score == pytest.approx(0.4)
+    assert repo.calls[0].metadata["aggregation_mode"] == "weighted_committee"
+    assert repo.calls[0].metadata["active_seat_keys"] == ["macro", "risk"]
+    assert result.committee_summary["resolved_seat_weights"] == [
+        {"seat_key": "cross_asset", "prior_weight": pytest.approx(1 / 3), "effective_weight": 0.2, "sample_size": 6, "skill_score": 0.6},
+        {"seat_key": "macro", "prior_weight": pytest.approx(1 / 3), "effective_weight": 0.5, "sample_size": 12, "skill_score": 0.82},
+        {"seat_key": "risk", "prior_weight": pytest.approx(1 / 3), "effective_weight": 0.3, "sample_size": 10, "skill_score": 0.41},
+    ]
+    assert result.committee_summary["review_state"] == "live"
+    assert result.committee_summary["review_as_of_ts"] == "2026-04-21T22:15:00+00:00"
+    assert result.committee_summary["review_row_id"] == "seat-review:3:2026-04-21T22:15:00+00:00"
+    assert repo.runs[0].metadata["adaptive_weighting_version"] == "seat-v1"
+    assert repo.runs[0].metadata["review_state"] == "live"
+    assert repo.runs[0].metadata["review_row_id"] == "seat-review:3:2026-04-21T22:15:00+00:00"
+
+
+
+def test_generate_snapshot_uses_single_seat_verbatim_consensus(monkeypatch) -> None:
+    repo = _FakeRepo()
+    raw_payload = {
+        "_portfolio_execution_path": "committee_endpoint",
+        "calls": [],
+        "votes": [
+            {
+                "seat_key": "macro",
+                "agent_slug": "macro-analyst",
+                "symbol": "SPY",
+                "prob_up": 0.8,
+                "expected_move_pct": 2.0,
+                "confidence_score": 80,
+                "source_clusters": [{"cluster": "macro_calendar", "weight": 0.6}],
+            },
+            {
+                "seat_key": "new-seat",
+                "agent_slug": "ignored-seat",
+                "symbol": "SPY",
+                "prob_up": 0.1,
+                "expected_move_pct": -3.0,
+                "confidence_score": 20,
+                "source_clusters": [{"cluster": "market_regime", "weight": 0.4}],
+            },
+        ],
+    }
+    review = MarketPredictionSeatReview(
+        id="seat-review:3:2026-04-21T22:15:00+00:00",
+        generated_at=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+        as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+        window_days=3,
+        review_state="live",
+        seat_scorecards=[
+            {"seat_key": "cross_asset", "prior_weight": 1 / 3, "effective_weight": 0.2, "sample_size": 6, "direction_hit_rate": 0.5, "move_mae_pct": 1.0, "brier_score": 0.2, "skill_score": 0.6, "recommended_action": "downweight"},
+            {"seat_key": "macro", "prior_weight": 1 / 3, "effective_weight": 0.5, "sample_size": 12, "direction_hit_rate": 0.7, "move_mae_pct": 0.6, "brier_score": 0.12, "skill_score": 0.82, "recommended_action": "upweight"},
+            {"seat_key": "risk", "prior_weight": 1 / 3, "effective_weight": 0.3, "sample_size": 10, "direction_hit_rate": 0.4, "move_mae_pct": 2.1, "brier_score": 0.35, "skill_score": 0.41, "recommended_action": "hold"},
+        ],
+        review_summary={"generated_at": "2026-04-21T22:15:00+00:00", "review_state": "live", "drift_callouts": [], "top_upweighted": [], "top_downweighted": []},
+        metadata={"weighting_half_life_days": 20, "trailing_window_trading_days": 60, "backfill_run_limit": 120, "supported_windows": [1, 3, 7, 14]},
+    )
+    fake_client = _FakeRoundtableClient(raw_payload)
+    service = MarketPredictionCommitteeService(repository=repo, roundtable_client_factory=lambda **_: fake_client)
+
+    monkeypatch.setattr("app.services.market_prediction_committee_service.get_expected_data_date", lambda _now: date(2026, 4, 21))
+    monkeypatch.setattr(service, "_build_source_snapshot", lambda _: {"clusters": {"macro_calendar": {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 1, "next_event_date": "2026-04-22"}}})
+    monkeypatch.setattr("app.services.market_prediction_committee_service.get_macro_calendar_cluster", lambda **_: {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 1, "next_event_date": "2026-04-22"})
+
+    result = service.generate_snapshot(window_days=3, as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC), review=review)
+
+    assert result.calls[0].prob_up == pytest.approx(0.8)
+    assert result.calls[0].expected_move_pct == pytest.approx(2.0)
+    assert result.calls[0].confidence_band_low_pct == pytest.approx(2.0)
+    assert result.calls[0].confidence_band_high_pct == pytest.approx(2.0)
+    assert result.calls[0].committee_disagreement_score == pytest.approx(0.0)
+    assert result.calls[0].metadata["aggregation_mode"] == "single_seat"
+    assert result.calls[0].metadata["active_seat_keys"] == ["macro"]
+
+
+
+def test_generate_snapshot_falls_back_neutral_when_all_votes_use_unknown_seats(monkeypatch) -> None:
+    repo = _FakeRepo()
+    raw_payload = {
+        "_portfolio_execution_path": "committee_endpoint",
+        "calls": [],
+        "votes": [
+            {
+                "seat_key": "new-seat",
+                "agent_slug": "ignored-seat",
+                "symbol": "SPY",
+                "prob_up": 0.1,
+                "expected_move_pct": -3.0,
+                "confidence_score": 20,
+                "source_clusters": [{"cluster": "market_regime", "weight": 0.4}],
+            }
+        ],
+    }
+    review = MarketPredictionSeatReview(
+        id="seat-review:3:2026-04-21T22:15:00+00:00",
+        generated_at=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+        as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+        window_days=3,
+        review_state="warmup",
+        seat_scorecards=[
+            {"seat_key": "cross_asset", "prior_weight": 1 / 3, "effective_weight": 1 / 3, "sample_size": 0, "direction_hit_rate": None, "move_mae_pct": None, "brier_score": None, "skill_score": None, "recommended_action": "hold"},
+            {"seat_key": "macro", "prior_weight": 1 / 3, "effective_weight": 1 / 3, "sample_size": 0, "direction_hit_rate": None, "move_mae_pct": None, "brier_score": None, "skill_score": None, "recommended_action": "hold"},
+            {"seat_key": "risk", "prior_weight": 1 / 3, "effective_weight": 1 / 3, "sample_size": 0, "direction_hit_rate": None, "move_mae_pct": None, "brier_score": None, "skill_score": None, "recommended_action": "hold"},
+        ],
+        review_summary={"generated_at": "2026-04-21T22:15:00+00:00", "review_state": "warmup", "drift_callouts": [], "top_upweighted": [], "top_downweighted": []},
+        metadata={"weighting_half_life_days": 20, "trailing_window_trading_days": 60, "backfill_run_limit": 120, "supported_windows": [1, 3, 7, 14]},
+    )
+    fake_client = _FakeRoundtableClient(raw_payload)
+    service = MarketPredictionCommitteeService(repository=repo, roundtable_client_factory=lambda **_: fake_client)
+
+    monkeypatch.setattr("app.services.market_prediction_committee_service.get_expected_data_date", lambda _now: date(2026, 4, 21))
+    monkeypatch.setattr(service, "_build_source_snapshot", lambda _: {"clusters": {"macro_calendar": {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 1, "next_event_date": "2026-04-22"}}})
+    monkeypatch.setattr("app.services.market_prediction_committee_service.get_macro_calendar_cluster", lambda **_: {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 1, "next_event_date": "2026-04-22"})
+
+    result = service.generate_snapshot(window_days=3, as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC), review=review)
+
+    assert result.calls[0].prob_up == pytest.approx(0.5)
+    assert result.calls[0].expected_move_pct == pytest.approx(0.0)
+    assert result.calls[0].confidence_score == pytest.approx(0.0)
+    assert result.calls[0].committee_disagreement_score == pytest.approx(0.0)
+    assert result.calls[0].metadata["aggregation_mode"] == "neutral_fallback"
+    assert result.calls[0].metadata["active_seat_keys"] == []
+
 
 
 def test_generate_snapshot_persists_root_provenance_and_generation_time_fallbacks(monkeypatch) -> None:

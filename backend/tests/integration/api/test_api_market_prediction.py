@@ -162,6 +162,7 @@ def test_get_prediction_committee_snapshot_serializes_additive_summary_and_macro
     data = response.json()
     assert data["window_days"] == 3
     assert data["lead_call"]["symbol"] == "SPY"
+    assert data["lead_call"]["top_source_clusters"] == [{"cluster": "market_regime", "weight": 0.3, "freshness": None, "note": None}]
     assert len(data["calls"]) == len(PREDICTION_TARGET_SYMBOLS)
     assert data["committee_summary"]["headline"] == "Constructive risk appetite"
     assert data["committee_summary"]["committee_roster_mode"] == "default_roster"

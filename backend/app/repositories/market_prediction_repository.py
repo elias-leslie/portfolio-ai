@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from app.models.market_prediction import (
@@ -15,6 +15,9 @@ from app.models.market_prediction import (
     MarketPredictionEvaluationCandidate,
     MarketPredictionRun,
     MarketPredictionScorecard,
+    MarketPredictionSeatReview,
+    MarketPredictionVoteEvaluation,
+    MarketPredictionVoteEvaluationCandidate,
 )
 
 if TYPE_CHECKING:
@@ -255,6 +258,247 @@ class MarketPredictionRepository:
                 ],
             )
             conn.commit()
+
+    def upsert_vote_evaluation(self, evaluation: MarketPredictionVoteEvaluation) -> None:
+        with self.storage.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO market_prediction_vote_evaluations (
+                    vote_id,
+                    evaluated_at,
+                    seat_key,
+                    symbol,
+                    window_days,
+                    base_close,
+                    target_close,
+                    realized_move_pct,
+                    direction_hit,
+                    move_abs_error_pct,
+                    brier_score,
+                    metadata
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb
+                )
+                ON CONFLICT (vote_id)
+                DO UPDATE SET
+                    evaluated_at = EXCLUDED.evaluated_at,
+                    seat_key = EXCLUDED.seat_key,
+                    symbol = EXCLUDED.symbol,
+                    window_days = EXCLUDED.window_days,
+                    base_close = EXCLUDED.base_close,
+                    target_close = EXCLUDED.target_close,
+                    realized_move_pct = EXCLUDED.realized_move_pct,
+                    direction_hit = EXCLUDED.direction_hit,
+                    move_abs_error_pct = EXCLUDED.move_abs_error_pct,
+                    brier_score = EXCLUDED.brier_score,
+                    metadata = EXCLUDED.metadata
+                """,
+                [
+                    evaluation.vote_id,
+                    evaluation.evaluated_at,
+                    evaluation.seat_key,
+                    evaluation.symbol,
+                    evaluation.window_days,
+                    evaluation.base_close,
+                    evaluation.target_close,
+                    evaluation.realized_move_pct,
+                    evaluation.direction_hit,
+                    evaluation.move_abs_error_pct,
+                    evaluation.brier_score,
+                    self._dump(evaluation.metadata),
+                ],
+            )
+            conn.commit()
+
+    def list_vote_evaluation_backfill_candidates(
+        self,
+        *,
+        window_days: int,
+        effective_market_date: date,
+        run_limit: int = 120,
+        max_age_days: int = 180,
+    ) -> list[MarketPredictionVoteEvaluationCandidate]:
+        min_base_date = effective_market_date - timedelta(days=max_age_days)
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                """
+                WITH eligible_runs AS (
+                    SELECT id, base_date, target_date, as_of_ts
+                    FROM market_prediction_runs
+                    WHERE window_days = %s
+                      AND target_date <= %s
+                      AND base_date >= %s
+                    ORDER BY as_of_ts DESC
+                    LIMIT %s
+                )
+                SELECT
+                    v.id,
+                    v.run_id,
+                    v.symbol,
+                    v.window_days,
+                    v.seat_key,
+                    v.direction_label,
+                    v.prob_up,
+                    v.expected_move_pct,
+                    r.base_date,
+                    r.target_date,
+                    v.confidence_score
+                FROM eligible_runs r
+                JOIN market_prediction_votes v ON v.run_id = r.id
+                WHERE v.window_days = %s
+                ORDER BY r.as_of_ts DESC, v.symbol ASC, v.id ASC
+                """,
+                [window_days, effective_market_date, min_base_date, run_limit, window_days],
+            ).fetchall()
+        return [
+            MarketPredictionVoteEvaluationCandidate(
+                vote_id=int(row[0]),
+                run_id=str(row[1]),
+                symbol=str(row[2]),
+                window_days=int(row[3]),
+                seat_key=str(row[4]) if row[4] is not None else None,
+                direction_label=str(row[5]),
+                prob_up=float(row[6]),
+                expected_move_pct=float(row[7]),
+                base_date=self._coerce_date(row[8]),
+                target_date=self._coerce_date(row[9]),
+                confidence_score=float(row[10]) if row[10] is not None else None,
+            )
+            for row in rows
+        ]
+
+    def list_vote_evaluations_for_weighting(
+        self,
+        *,
+        window_days: int,
+        effective_market_date: date,
+    ) -> list[MarketPredictionVoteEvaluation]:
+        del effective_market_date
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    vote_id,
+                    evaluated_at,
+                    seat_key,
+                    symbol,
+                    window_days,
+                    base_close,
+                    target_close,
+                    realized_move_pct,
+                    direction_hit,
+                    move_abs_error_pct,
+                    brier_score,
+                    metadata
+                FROM market_prediction_vote_evaluations
+                WHERE window_days = %s
+                ORDER BY evaluated_at DESC, vote_id DESC
+                """,
+                [window_days],
+            ).fetchall()
+        return [self._row_to_vote_evaluation(row) for row in rows]
+
+    def upsert_seat_review(self, review: MarketPredictionSeatReview) -> MarketPredictionSeatReview:
+        with self.storage.connection() as conn:
+            existing = conn.execute(
+                """
+                SELECT
+                    id,
+                    generated_at,
+                    as_of_ts,
+                    window_days,
+                    review_state,
+                    seat_scorecards,
+                    review_summary,
+                    metadata
+                FROM market_prediction_seat_reviews
+                WHERE window_days = %s AND as_of_ts = %s
+                LIMIT 1
+                """,
+                [review.window_days, review.as_of_ts],
+            ).fetchone()
+            if existing is not None:
+                existing_review = self._row_to_seat_review(existing)
+                incoming_rank = self._review_state_rank(review.review_state)
+                existing_rank = self._review_state_rank(existing_review.review_state)
+                if incoming_rank < existing_rank:
+                    return existing_review
+                if incoming_rank == existing_rank:
+                    if review.generated_at < existing_review.generated_at:
+                        return existing_review
+                    if review.generated_at == existing_review.generated_at:
+                        return existing_review
+                conn.execute(
+                    """
+                    UPDATE market_prediction_seat_reviews
+                    SET generated_at = %s,
+                        review_state = %s,
+                        seat_scorecards = %s::jsonb,
+                        review_summary = %s::jsonb,
+                        metadata = %s::jsonb
+                    WHERE id = %s
+                    """,
+                    [
+                        review.generated_at,
+                        review.review_state,
+                        self._dump([row.model_dump() if hasattr(row, "model_dump") else row for row in review.seat_scorecards]),
+                        self._dump(review.review_summary),
+                        self._dump(review.metadata),
+                        existing_review.id,
+                    ],
+                )
+                conn.commit()
+                return review.model_copy(update={"id": existing_review.id})
+            conn.execute(
+                """
+                INSERT INTO market_prediction_seat_reviews (
+                    id,
+                    generated_at,
+                    as_of_ts,
+                    window_days,
+                    review_state,
+                    seat_scorecards,
+                    review_summary,
+                    metadata
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb
+                )
+                """,
+                [
+                    review.id,
+                    review.generated_at,
+                    review.as_of_ts,
+                    review.window_days,
+                    review.review_state,
+                    self._dump([row.model_dump() if hasattr(row, "model_dump") else row for row in review.seat_scorecards]),
+                    self._dump(review.review_summary),
+                    self._dump(review.metadata),
+                ],
+            )
+            conn.commit()
+        return review
+
+    def list_latest_seat_reviews(self, *, window_days: int, limit: int = 5) -> list[MarketPredictionSeatReview]:
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    id,
+                    generated_at,
+                    as_of_ts,
+                    window_days,
+                    review_state,
+                    seat_scorecards,
+                    review_summary,
+                    metadata
+                FROM market_prediction_seat_reviews
+                WHERE window_days = %s
+                ORDER BY as_of_ts DESC, generated_at DESC, id ASC
+                LIMIT %s
+                """,
+                [window_days, limit],
+            ).fetchall()
+        return [self._row_to_seat_review(row) for row in rows]
 
     def get_latest_committee_snapshot(
         self,
@@ -560,3 +804,39 @@ class MarketPredictionRepository:
             source_clusters=self._load(row[11], []),
             metadata=self._load(row[12], {}),
         )
+
+    def _row_to_vote_evaluation(self, row: tuple[Any, ...]) -> MarketPredictionVoteEvaluation:
+        return MarketPredictionVoteEvaluation.model_construct(
+            vote_id=int(row[0]),
+            evaluated_at=self._coerce_datetime(row[1]),
+            seat_key=str(row[2]),
+            symbol=str(row[3]),
+            window_days=int(row[4]),
+            base_close=float(row[5]),
+            target_close=float(row[6]),
+            realized_move_pct=float(row[7]),
+            direction_hit=bool(row[8]),
+            move_abs_error_pct=float(row[9]),
+            brier_score=float(row[10]),
+            metadata=self._load(row[11], {}),
+        )
+
+    def _row_to_seat_review(self, row: tuple[Any, ...]) -> MarketPredictionSeatReview:
+        return MarketPredictionSeatReview.model_construct(
+            id=str(row[0]),
+            generated_at=self._coerce_datetime(row[1]),
+            as_of_ts=self._coerce_datetime(row[2]),
+            window_days=int(row[3]),
+            review_state=str(row[4]),
+            seat_scorecards=self._load(row[5], []),
+            review_summary=self._load(row[6], {}),
+            metadata=self._load(row[7], {}),
+        )
+
+    @staticmethod
+    def _review_state_rank(review_state: str) -> int:
+        if review_state == "live":
+            return 3
+        if review_state == "warmup":
+            return 2
+        return 1
