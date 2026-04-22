@@ -15,10 +15,25 @@ from pydantic import BaseModel, Field, PrivateAttr
 PredictionDirection = Literal["bullish", "neutral", "bearish"]
 ReviewState = Literal["live", "warmup", "degraded"]
 SeatRecommendedAction = Literal["upweight", "downweight", "hold"]
+ClusterRecommendedAction = Literal["upweight", "downweight", "hold"]
+ClusterFreshness = Literal["fresh", "stale", "missing", "unknown"]
 SUPPORTED_ADAPTIVE_SEAT_KEYS = ("cross_asset", "macro", "risk")
+SUPPORTED_ADAPTIVE_CLUSTER_KEYS = (
+    "market_regime",
+    "sentiment",
+    "options_positioning",
+    "macro_calendar",
+)
 
 
 def normalize_market_prediction_seat_key(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    return text or None
+
+
+def normalize_market_prediction_cluster_key(value: Any) -> str | None:
     if value is None:
         return None
     text = str(value).strip().lower()
@@ -109,6 +124,49 @@ class MarketPredictionVoteEvaluationCandidate(BaseModel):
     base_date: date
     target_date: date
     confidence_score: float | None = Field(None, ge=0.0, le=100.0)
+
+
+class MarketPredictionClusterEvaluationSample(BaseModel):
+    call_id: str
+    window_days: int = Field(..., ge=1)
+    target_date: date
+    active_cluster_keys: list[str] = Field(default_factory=list)
+    direction_hit: bool
+    move_abs_error_pct: float = Field(..., ge=0.0)
+    brier_score: float = Field(..., ge=0.0)
+
+
+class MarketPredictionClusterScorecardRow(BaseModel):
+    cluster: str
+    prior_weight: float = Field(..., ge=0.0, le=1.0)
+    effective_weight: float = Field(..., ge=0.0, le=1.0)
+    sample_size: int = Field(default=0, ge=0)
+    direction_hit_rate: float | None = Field(None, ge=0.0, le=1.0)
+    move_mae_pct: float | None = Field(None, ge=0.0)
+    brier_score: float | None = Field(None, ge=0.0)
+    skill_score: float | None = Field(None, ge=0.0, le=1.0)
+    freshness: ClusterFreshness = "unknown"
+    recommended_action: ClusterRecommendedAction = "hold"
+
+
+class MarketPredictionResolvedClusterWeight(BaseModel):
+    cluster: str
+    prior_weight: float = Field(..., ge=0.0, le=1.0)
+    effective_weight: float = Field(..., ge=0.0, le=1.0)
+    sample_size: int = Field(default=0, ge=0)
+    skill_score: float | None = Field(None, ge=0.0, le=1.0)
+    freshness: ClusterFreshness = "unknown"
+
+
+class MarketPredictionClusterReview(BaseModel):
+    id: str
+    generated_at: datetime
+    as_of_ts: datetime
+    window_days: int = Field(..., ge=1)
+    review_state: ReviewState
+    cluster_scorecards: list[MarketPredictionClusterScorecardRow] = Field(default_factory=list)
+    review_summary: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class MarketPredictionSeatScorecardRow(BaseModel):

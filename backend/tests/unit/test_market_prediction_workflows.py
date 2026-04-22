@@ -7,11 +7,37 @@ from app.workflows.market_prediction import run_market_prediction_cycle
 
 class _FakeCommitteeService:
     def __init__(self) -> None:
-        self.generated: list[tuple[int, str]] = []
+        self.generated: list[tuple[int, str, str, str]] = []
+        self.built_snapshots: list[str] = []
 
-    def generate_snapshot(self, *, window_days: int, as_of_ts: datetime | None = None, review=None):
-        self.generated.append((window_days, review["id"]))
-        return {"window_days": window_days, "as_of_ts": as_of_ts, "review": review}
+    def build_source_snapshot(self, as_of_ts: datetime) -> dict[str, object]:
+        self.built_snapshots.append(as_of_ts.isoformat())
+        return {
+            "clusters": {
+                "market_regime": {"freshness": "fresh"},
+                "sentiment": {"freshness": "fresh"},
+                "options_positioning": {"freshness": "fresh"},
+                "macro_calendar": {"freshness": "fresh"},
+            }
+        }
+
+    def generate_snapshot(
+        self,
+        *,
+        window_days: int,
+        as_of_ts: datetime | None = None,
+        review=None,
+        cluster_review=None,
+        source_snapshot=None,
+    ):
+        self.generated.append((window_days, review["id"], cluster_review["id"], source_snapshot["clusters"]["macro_calendar"]["freshness"]))
+        return {
+            "window_days": window_days,
+            "as_of_ts": as_of_ts,
+            "review": review,
+            "cluster_review": cluster_review,
+            "source_snapshot": source_snapshot,
+        }
 
 
 class _FakeEvaluationService:
@@ -41,27 +67,48 @@ class _FakeSeatWeightingService:
         }
 
 
+class _FakeClusterWeightingService:
+    def __init__(self) -> None:
+        self.resolved: list[tuple[int, str]] = []
+
+    def resolve_and_persist_review(self, *, window_days: int, as_of_ts: datetime, source_snapshot):
+        self.resolved.append((window_days, source_snapshot["clusters"]["macro_calendar"]["freshness"]))
+        return {
+            "id": f"cluster-review:{window_days}:{as_of_ts.isoformat()}",
+            "window_days": window_days,
+            "review_state": "warmup",
+        }
+
+
 
 def test_run_market_prediction_cycle_evaluates_then_backfills_reviews_and_generates_all_supported_windows() -> None:
     committee = _FakeCommitteeService()
     evaluation = _FakeEvaluationService()
     seat_weighting = _FakeSeatWeightingService()
+    cluster_weighting = _FakeClusterWeightingService()
 
     result = run_market_prediction_cycle(
         committee_service=committee,
         evaluation_service=evaluation,
         seat_weighting_service=seat_weighting,
+        cluster_weighting_service=cluster_weighting,
         as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
     )
 
     assert evaluation.calls == 1
     assert evaluation.backfilled == [1, 3, 7, 14]
     assert seat_weighting.resolved == [1, 3, 7, 14]
+    assert cluster_weighting.resolved == [
+        (1, "fresh"),
+        (3, "fresh"),
+        (7, "fresh"),
+        (14, "fresh"),
+    ]
     assert committee.generated == [
-        (1, "seat-review:1:2026-04-21T22:15:00+00:00"),
-        (3, "seat-review:3:2026-04-21T22:15:00+00:00"),
-        (7, "seat-review:7:2026-04-21T22:15:00+00:00"),
-        (14, "seat-review:14:2026-04-21T22:15:00+00:00"),
+        (1, "seat-review:1:2026-04-21T22:15:00+00:00", "cluster-review:1:2026-04-21T22:15:00+00:00", "fresh"),
+        (3, "seat-review:3:2026-04-21T22:15:00+00:00", "cluster-review:3:2026-04-21T22:15:00+00:00", "fresh"),
+        (7, "seat-review:7:2026-04-21T22:15:00+00:00", "cluster-review:7:2026-04-21T22:15:00+00:00", "fresh"),
+        (14, "seat-review:14:2026-04-21T22:15:00+00:00", "cluster-review:14:2026-04-21T22:15:00+00:00", "fresh"),
     ]
     assert result["generated_windows"] == [1, 3, 7, 14]
     assert result["evaluations_completed"] == 1

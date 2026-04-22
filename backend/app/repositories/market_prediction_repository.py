@@ -8,8 +8,11 @@ from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from app.models.market_prediction import (
+    SUPPORTED_ADAPTIVE_CLUSTER_KEYS,
     CommitteeSeatVote,
     MarketPredictionCall,
+    MarketPredictionClusterEvaluationSample,
+    MarketPredictionClusterReview,
     MarketPredictionCommitteeResponse,
     MarketPredictionEvaluation,
     MarketPredictionEvaluationCandidate,
@@ -18,6 +21,7 @@ from app.models.market_prediction import (
     MarketPredictionSeatReview,
     MarketPredictionVoteEvaluation,
     MarketPredictionVoteEvaluationCandidate,
+    normalize_market_prediction_cluster_key,
 )
 
 if TYPE_CHECKING:
@@ -500,6 +504,134 @@ class MarketPredictionRepository:
             ).fetchall()
         return [self._row_to_seat_review(row) for row in rows]
 
+    def upsert_cluster_review(self, review: MarketPredictionClusterReview) -> MarketPredictionClusterReview:
+        with self.storage.connection() as conn:
+            existing = conn.execute(
+                """
+                SELECT
+                    id,
+                    generated_at,
+                    as_of_ts,
+                    window_days,
+                    review_state,
+                    cluster_scorecards,
+                    review_summary,
+                    metadata
+                FROM market_prediction_cluster_reviews
+                WHERE window_days = %s AND as_of_ts = %s
+                LIMIT 1
+                """,
+                [review.window_days, review.as_of_ts],
+            ).fetchone()
+            if existing is not None:
+                existing_review = self._row_to_cluster_review(existing)
+                incoming_rank = self._review_state_rank(review.review_state)
+                existing_rank = self._review_state_rank(existing_review.review_state)
+                if incoming_rank < existing_rank:
+                    return existing_review
+                if incoming_rank == existing_rank and review.generated_at <= existing_review.generated_at:
+                    return existing_review
+                conn.execute(
+                    """
+                    UPDATE market_prediction_cluster_reviews
+                    SET generated_at = %s,
+                        review_state = %s,
+                        cluster_scorecards = %s::jsonb,
+                        review_summary = %s::jsonb,
+                        metadata = %s::jsonb
+                    WHERE id = %s
+                    """,
+                    [
+                        review.generated_at,
+                        review.review_state,
+                        self._dump([row.model_dump() if hasattr(row, "model_dump") else row for row in review.cluster_scorecards]),
+                        self._dump(review.review_summary),
+                        self._dump(review.metadata),
+                        existing_review.id,
+                    ],
+                )
+                conn.commit()
+                return review.model_copy(update={"id": existing_review.id})
+            conn.execute(
+                """
+                INSERT INTO market_prediction_cluster_reviews (
+                    id,
+                    generated_at,
+                    as_of_ts,
+                    window_days,
+                    review_state,
+                    cluster_scorecards,
+                    review_summary,
+                    metadata
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb
+                )
+                """,
+                [
+                    review.id,
+                    review.generated_at,
+                    review.as_of_ts,
+                    review.window_days,
+                    review.review_state,
+                    self._dump([row.model_dump() if hasattr(row, "model_dump") else row for row in review.cluster_scorecards]),
+                    self._dump(review.review_summary),
+                    self._dump(review.metadata),
+                ],
+            )
+            conn.commit()
+        return review
+
+    def list_latest_cluster_reviews(self, *, window_days: int, limit: int = 5) -> list[MarketPredictionClusterReview]:
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    id,
+                    generated_at,
+                    as_of_ts,
+                    window_days,
+                    review_state,
+                    cluster_scorecards,
+                    review_summary,
+                    metadata
+                FROM market_prediction_cluster_reviews
+                WHERE window_days = %s
+                ORDER BY as_of_ts DESC, generated_at DESC, id ASC
+                LIMIT %s
+                """,
+                [window_days, limit],
+            ).fetchall()
+        return [self._row_to_cluster_review(row) for row in rows]
+
+    def list_cluster_evaluation_samples(
+        self,
+        *,
+        window_days: int,
+        effective_market_date: date,
+    ) -> list[MarketPredictionClusterEvaluationSample]:
+        del effective_market_date
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    c.id,
+                    c.window_days,
+                    r.target_date,
+                    e.direction_hit,
+                    e.move_abs_error_pct,
+                    e.brier_score,
+                    c.metadata,
+                    c.top_source_clusters
+                FROM market_prediction_evaluations e
+                JOIN market_prediction_calls c ON c.id = e.call_id
+                JOIN market_prediction_runs r ON r.id = c.run_id
+                WHERE c.window_days = %s
+                ORDER BY e.evaluated_at DESC, c.id ASC
+                """,
+                [window_days],
+            ).fetchall()
+        return [self._row_to_cluster_evaluation_sample(row) for row in rows]
+
     def get_latest_committee_snapshot(
         self,
         window_days: int,
@@ -832,6 +964,66 @@ class MarketPredictionRepository:
             review_summary=self._load(row[6], {}),
             metadata=self._load(row[7], {}),
         )
+
+    def _row_to_cluster_review(self, row: tuple[Any, ...]) -> MarketPredictionClusterReview:
+        return MarketPredictionClusterReview.model_construct(
+            id=str(row[0]),
+            generated_at=self._coerce_datetime(row[1]),
+            as_of_ts=self._coerce_datetime(row[2]),
+            window_days=int(row[3]),
+            review_state=str(row[4]),
+            cluster_scorecards=self._load(row[5], []),
+            review_summary=self._load(row[6], {}),
+            metadata=self._load(row[7], {}),
+        )
+
+    def _row_to_cluster_evaluation_sample(
+        self,
+        row: tuple[Any, ...],
+    ) -> MarketPredictionClusterEvaluationSample:
+        metadata = self._load(row[6], {})
+        top_source_clusters = self._load(row[7], [])
+        active_cluster_keys = self._active_cluster_keys_from_fields(metadata, top_source_clusters)
+        return MarketPredictionClusterEvaluationSample(
+            call_id=str(row[0]),
+            window_days=int(row[1]),
+            target_date=self._coerce_date(row[2]),
+            active_cluster_keys=active_cluster_keys,
+            direction_hit=bool(row[3]),
+            move_abs_error_pct=float(row[4]),
+            brier_score=float(row[5]),
+        )
+
+    def _active_cluster_keys_from_fields(self, metadata: Any, top_source_clusters: Any) -> list[str]:
+        if isinstance(metadata, dict):
+            raw_keys = metadata.get("active_cluster_keys")
+            if isinstance(raw_keys, list):
+                normalized = self._normalize_cluster_keys(raw_keys)
+                if normalized:
+                    return normalized
+        if not isinstance(top_source_clusters, list):
+            return []
+        candidates = []
+        for raw in top_source_clusters:
+            if not isinstance(raw, dict):
+                continue
+            cluster = normalize_market_prediction_cluster_key(raw.get("cluster"))
+            if cluster is None:
+                continue
+            candidates.append(cluster)
+        return self._normalize_cluster_keys(candidates)
+
+    @staticmethod
+    def _normalize_cluster_keys(raw_keys: list[Any]) -> list[str]:
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for raw_key in raw_keys:
+            cluster = normalize_market_prediction_cluster_key(raw_key)
+            if cluster is None or cluster not in SUPPORTED_ADAPTIVE_CLUSTER_KEYS or cluster in seen:
+                continue
+            seen.add(cluster)
+            normalized.append(cluster)
+        return normalized
 
     @staticmethod
     def _review_state_rank(review_state: str) -> int:
