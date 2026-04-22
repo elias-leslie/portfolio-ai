@@ -1,215 +1,289 @@
-"""Unit tests for market prediction repository raw read behavior."""
-
 from __future__ import annotations
 
-from contextlib import contextmanager
+from collections.abc import Generator
 from datetime import UTC, date, datetime
-from typing import Any
 
 import pytest
 
 from app.models.market_prediction import (
     CommitteeSeatVote,
-    MarketPredictionCall,
     MarketPredictionRun,
+    MarketPredictionSeatReview,
+    MarketPredictionVoteEvaluation,
 )
 from app.repositories.market_prediction_repository import MarketPredictionRepository
+from app.storage.facade import PortfolioStorage
 
 
-class _Result:
-    def __init__(self, *, one: Any = None, many: list[Any] | None = None) -> None:
-        self._one = one
-        self._many = many or []
-
-    def fetchone(self) -> Any:
-        return self._one
-
-    def fetchall(self) -> list[Any]:
-        return list(self._many)
+@pytest.fixture
+def storage() -> PortfolioStorage:
+    return PortfolioStorage()
 
 
-class _Conn:
-    def __init__(self, responses: list[_Result]) -> None:
-        self._responses = responses
-
-    def execute(self, query: str, params: Any) -> _Result:
-        return self._responses.pop(0)
-
-
-class _Storage:
-    def __init__(self, responses: list[_Result]) -> None:
-        self._responses = responses
-
-    @contextmanager
-    def connection(self):
-        yield _Conn(self._responses)
-
-
-class _WriteConn:
-    def __init__(self, *, fail_on_execute: int | None = None) -> None:
-        self.fail_on_execute = fail_on_execute
-        self.execute_calls = 0
-        self.commit_calls = 0
-
-    def execute(self, query: str, params: Any) -> _Result:
-        self.execute_calls += 1
-        if self.fail_on_execute is not None and self.execute_calls == self.fail_on_execute:
-            raise RuntimeError("write failed")
-        return _Result()
-
-    def commit(self) -> None:
-        self.commit_calls += 1
-
-
-class _WriteStorage:
-    def __init__(self, conn: _WriteConn) -> None:
-        self.conn = conn
-
-    @contextmanager
-    def connection(self):
-        yield self.conn
-
-
-def test_row_to_call_and_vote_keep_raw_attribution_payloads() -> None:
-    repo = MarketPredictionRepository(storage=object())
-
-    call = repo._row_to_call(
-        (
-            "call-1",
-            "SPY",
-            3,
-            "neutral",
-            0.5,
-            0.0,
-            None,
-            None,
-            40.0,
-            0.0,
-            None,
-            ["bad-row", {"cluster": "macro_calendar", "weight": 0.4}],
-            {"meta": True},
+@pytest.fixture(autouse=True)
+def clean_prediction_tables(storage: PortfolioStorage) -> Generator[None]:
+    with storage.connection() as conn:
+        conn.execute(
+            "TRUNCATE market_prediction_vote_evaluations, market_prediction_seat_reviews, market_prediction_evaluations, market_prediction_votes, market_prediction_calls, market_prediction_runs CASCADE"
         )
-    )
-    vote = repo._row_to_vote(
-        (
-            "macro",
-            "market-pulse-analyst",
-            "gpt-5.4",
-            "codex",
-            "SPY",
-            3,
-            "neutral",
-            0.5,
-            0.0,
-            40.0,
-            None,
-            [42, {"cluster": "market_regime"}],
-            {"meta": True},
+    yield
+    with storage.connection() as conn:
+        conn.execute(
+            "TRUNCATE market_prediction_vote_evaluations, market_prediction_seat_reviews, market_prediction_evaluations, market_prediction_votes, market_prediction_calls, market_prediction_runs CASCADE"
         )
-    )
-
-    assert call.top_source_clusters == ["bad-row", {"cluster": "macro_calendar", "weight": 0.4}]
-    assert vote.source_clusters == [42, {"cluster": "market_regime"}]
 
 
-def test_get_latest_committee_snapshot_preserves_raw_metadata_for_service_normalization() -> None:
-    responses = [
-        _Result(
-            one=(
-                "run-1",
-                datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
-                datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
-                3,
-                date(2026, 4, 21),
-                date(2026, 4, 24),
-                ["SPY"],
-                "SPY",
-                "neutral",
-                0.5,
-                0.0,
-                {"clusters": {"macro_calendar": []}},
-                {},
-                "[1, 2, 3]",
-            )
-        ),
-        _Result(many=[]),
-        _Result(many=[]),
-        _Result(one=(None, None, None, 0)),
-        _Result(one=(None,)),
-    ]
-    repo = MarketPredictionRepository(storage=_Storage(responses))
 
-    result = repo.get_latest_committee_snapshot(3)
-
-    assert result is not None
-    assert result._storage_metadata == [1, 2, 3]
-    assert result.source_snapshot == {"clusters": {"macro_calendar": []}}
-
-
-def _run() -> MarketPredictionRun:
+def _run(*, run_id: str, as_of_ts: datetime, window_days: int = 3) -> MarketPredictionRun:
     return MarketPredictionRun(
-        id="run-1",
-        generated_at=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
-        as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
-        window_days=3,
-        base_date=date(2026, 4, 21),
-        target_date=date(2026, 4, 24),
+        id=run_id,
+        generated_at=as_of_ts,
+        as_of_ts=as_of_ts,
+        window_days=window_days,
+        base_date=date(2026, 4, 20),
+        target_date=date(2026, 4, 23),
         target_universe=["SPY"],
         lead_symbol="SPY",
         lead_direction="neutral",
         lead_prob_up=0.5,
         lead_expected_move_pct=0.0,
-        source_snapshot={"clusters": {}},
+        source_snapshot={},
         committee_summary={},
-        metadata={"committee_execution_path": "committee_endpoint"},
-    )
-
-
-def _call_model() -> MarketPredictionCall:
-    return MarketPredictionCall(
-        symbol="SPY",
-        window_days=3,
-        direction_label="neutral",
-        prob_up=0.5,
-        expected_move_pct=0.0,
-        confidence_score=40.0,
-        top_source_clusters=[],
         metadata={},
     )
 
 
-def _vote_model() -> CommitteeSeatVote:
+
+def _vote(*, seat_key: str = "macro", window_days: int = 3) -> CommitteeSeatVote:
     return CommitteeSeatVote(
-        seat_key="macro",
-        agent_slug="market-pulse-analyst",
-        model_id="gpt-5.4",
-        provider="codex",
+        seat_key=seat_key,
+        agent_slug=f"{seat_key}-agent",
         symbol="SPY",
-        window_days=3,
-        direction_label="neutral",
-        prob_up=0.5,
-        expected_move_pct=0.0,
-        confidence_score=40.0,
+        window_days=window_days,
+        direction_label="bullish",
+        prob_up=0.65,
+        expected_move_pct=1.0,
+        confidence_score=70.0,
         source_clusters=[],
         metadata={},
     )
 
 
-def test_persist_snapshot_commits_once_after_all_writes() -> None:
-    conn = _WriteConn()
-    repo = MarketPredictionRepository(storage=_WriteStorage(conn))
 
-    repo.persist_snapshot(run=_run(), calls=[_call_model()], votes=[_vote_model()])
+def _seat_review(*, review_id: str, generated_at: datetime, as_of_ts: datetime, review_state: str, macro_weight: float) -> MarketPredictionSeatReview:
+    return MarketPredictionSeatReview(
+        id=review_id,
+        generated_at=generated_at,
+        as_of_ts=as_of_ts,
+        window_days=3,
+        review_state=review_state,
+        seat_scorecards=[
+            {
+                "seat_key": "cross_asset",
+                "prior_weight": 1 / 3,
+                "effective_weight": round((1.0 - macro_weight - 0.25), 12),
+                "sample_size": 6,
+                "direction_hit_rate": 0.5,
+                "move_mae_pct": 1.0,
+                "brier_score": 0.2,
+                "skill_score": 0.6,
+                "recommended_action": "hold",
+            },
+            {
+                "seat_key": "macro",
+                "prior_weight": 1 / 3,
+                "effective_weight": macro_weight,
+                "sample_size": 6,
+                "direction_hit_rate": 0.8,
+                "move_mae_pct": 0.4,
+                "brier_score": 0.08,
+                "skill_score": 0.86,
+                "recommended_action": "upweight",
+            },
+            {
+                "seat_key": "risk",
+                "prior_weight": 1 / 3,
+                "effective_weight": 0.25,
+                "sample_size": 6,
+                "direction_hit_rate": 0.2,
+                "move_mae_pct": 3.0,
+                "brier_score": 0.6,
+                "skill_score": 0.2,
+                "recommended_action": "downweight",
+            },
+        ],
+        review_summary={
+            "generated_at": generated_at.isoformat(),
+            "review_state": review_state,
+            "drift_callouts": [],
+            "top_upweighted": [],
+            "top_downweighted": [],
+        },
+        metadata={
+            "weighting_half_life_days": 20,
+            "trailing_window_trading_days": 60,
+            "backfill_run_limit": 120,
+            "supported_windows": [1, 3, 7, 14],
+        },
+    )
 
-    assert conn.execute_calls == 4
-    assert conn.commit_calls == 1
 
 
-def test_persist_snapshot_does_not_commit_when_a_write_fails_midway() -> None:
-    conn = _WriteConn(fail_on_execute=3)
-    repo = MarketPredictionRepository(storage=_WriteStorage(conn))
+def test_upsert_vote_evaluation_replaces_same_vote_id(storage: PortfolioStorage) -> None:
+    repo = MarketPredictionRepository(storage)
+    run = _run(run_id="run-1", as_of_ts=datetime(2026, 4, 20, 22, 15, tzinfo=UTC))
+    repo.create_run(run)
+    repo.replace_votes_for_run(run.id, [_vote(seat_key="macro")])
 
-    with pytest.raises(RuntimeError, match="write failed"):
-        repo.persist_snapshot(run=_run(), calls=[_call_model()], votes=[_vote_model()])
+    with storage.connection() as conn:
+        vote_id = conn.execute("SELECT id FROM market_prediction_votes WHERE run_id = %s LIMIT 1", [run.id]).fetchone()[0]
 
-    assert conn.commit_calls == 0
+    repo.upsert_vote_evaluation(
+        MarketPredictionVoteEvaluation(
+            vote_id=vote_id,
+            evaluated_at=datetime(2026, 4, 23, 22, 5, tzinfo=UTC),
+            seat_key="macro",
+            symbol="SPY",
+            window_days=3,
+            base_close=500.0,
+            target_close=510.0,
+            realized_move_pct=2.0,
+            direction_hit=True,
+            move_abs_error_pct=1.0,
+            brier_score=0.1225,
+            metadata={"run_id": run.id, "base_date": "2026-04-20", "target_date": "2026-04-23"},
+        )
+    )
+    repo.upsert_vote_evaluation(
+        MarketPredictionVoteEvaluation(
+            vote_id=vote_id,
+            evaluated_at=datetime(2026, 4, 24, 22, 5, tzinfo=UTC),
+            seat_key="macro",
+            symbol="SPY",
+            window_days=3,
+            base_close=500.0,
+            target_close=515.0,
+            realized_move_pct=3.0,
+            direction_hit=True,
+            move_abs_error_pct=2.0,
+            brier_score=0.05,
+            metadata={"run_id": run.id, "base_date": "2026-04-20", "target_date": "2026-04-24"},
+        )
+    )
+
+    rows = storage.query(
+        "SELECT vote_id, target_close, realized_move_pct, brier_score, metadata FROM market_prediction_vote_evaluations WHERE vote_id = ?",
+        [vote_id],
+    )
+    assert rows.height == 1
+    row = rows.row(0, named=True)
+    assert row["vote_id"] == vote_id
+    assert row["target_close"] == pytest.approx(515.0)
+    assert row["realized_move_pct"] == pytest.approx(3.0)
+    assert row["brier_score"] == pytest.approx(0.05)
+    assert row["metadata"] == {"run_id": run.id, "base_date": "2026-04-20", "target_date": "2026-04-24"}
+
+
+
+def test_upsert_seat_review_preserves_stable_id_and_precedence(storage: PortfolioStorage) -> None:
+    repo = MarketPredictionRepository(storage)
+    as_of_ts = datetime(2026, 4, 23, 22, 15, tzinfo=UTC)
+
+    first = _seat_review(
+        review_id="seat-review:3:2026-04-23T22:15:00+00:00",
+        generated_at=datetime(2026, 4, 23, 22, 15, tzinfo=UTC),
+        as_of_ts=as_of_ts,
+        review_state="warmup",
+        macro_weight=1 / 3,
+    )
+    lower_precedence_retry = _seat_review(
+        review_id="ignored-id",
+        generated_at=datetime(2026, 4, 23, 22, 20, tzinfo=UTC),
+        as_of_ts=as_of_ts,
+        review_state="degraded",
+        macro_weight=0.2,
+    )
+    higher_precedence_retry = _seat_review(
+        review_id="replacement-id",
+        generated_at=datetime(2026, 4, 23, 22, 25, tzinfo=UTC),
+        as_of_ts=as_of_ts,
+        review_state="live",
+        macro_weight=0.45,
+    )
+
+    persisted_first = repo.upsert_seat_review(first)
+    persisted_lower = repo.upsert_seat_review(lower_precedence_retry)
+    persisted_higher = repo.upsert_seat_review(higher_precedence_retry)
+
+    assert persisted_first.id == "seat-review:3:2026-04-23T22:15:00+00:00"
+    assert persisted_lower.id == persisted_first.id
+    assert persisted_lower.review_state == "warmup"
+    assert persisted_higher.id == persisted_first.id
+    assert persisted_higher.review_state == "live"
+
+    rows = storage.query(
+        "SELECT id, review_state, seat_scorecards FROM market_prediction_seat_reviews WHERE window_days = ? AND as_of_ts = ?",
+        [3, as_of_ts],
+    )
+    assert rows.height == 1
+    row = rows.row(0, named=True)
+    assert row["id"] == persisted_first.id
+    assert row["review_state"] == "live"
+    assert row["seat_scorecards"][1]["seat_key"] == "macro"
+    assert row["seat_scorecards"][1]["effective_weight"] == pytest.approx(0.45)
+
+
+
+def test_list_latest_seat_reviews_prefers_newest_asof_even_if_degraded(storage: PortfolioStorage) -> None:
+    repo = MarketPredictionRepository(storage)
+    older = _seat_review(
+        review_id="seat-review:3:2026-04-23T22:15:00+00:00",
+        generated_at=datetime(2026, 4, 23, 22, 15, tzinfo=UTC),
+        as_of_ts=datetime(2026, 4, 23, 22, 15, tzinfo=UTC),
+        review_state="live",
+        macro_weight=0.45,
+    )
+    newer = _seat_review(
+        review_id="seat-review:3:2026-04-24T22:15:00+00:00",
+        generated_at=datetime(2026, 4, 24, 22, 15, tzinfo=UTC),
+        as_of_ts=datetime(2026, 4, 24, 22, 15, tzinfo=UTC),
+        review_state="degraded",
+        macro_weight=1 / 3,
+    )
+
+    repo.upsert_seat_review(older)
+    repo.upsert_seat_review(newer)
+
+    reviews = repo.list_latest_seat_reviews(window_days=3, limit=5)
+
+    assert [review.id for review in reviews] == [newer.id, older.id]
+    assert reviews[0].review_state == "degraded"
+
+
+
+def test_list_vote_evaluation_backfill_candidates_returns_recent_mature_runs_only(storage: PortfolioStorage) -> None:
+    repo = MarketPredictionRepository(storage)
+    mature_run = _run(run_id="run-mature", as_of_ts=datetime(2026, 4, 20, 22, 15, tzinfo=UTC))
+    too_old_run = _run(run_id="run-old", as_of_ts=datetime(2025, 9, 1, 22, 15, tzinfo=UTC))
+    too_old_run.base_date = date(2025, 9, 1)
+    too_old_run.target_date = date(2025, 9, 4)
+    future_run = _run(run_id="run-future", as_of_ts=datetime(2026, 4, 25, 22, 15, tzinfo=UTC))
+    future_run.base_date = date(2026, 4, 25)
+    future_run.target_date = date(2026, 4, 28)
+
+    for run in (mature_run, too_old_run, future_run):
+        repo.create_run(run)
+    repo.replace_votes_for_run(mature_run.id, [_vote(seat_key="macro")])
+    repo.replace_votes_for_run(too_old_run.id, [_vote(seat_key="risk")])
+    repo.replace_votes_for_run(future_run.id, [_vote(seat_key="cross_asset")])
+
+    candidates = repo.list_vote_evaluation_backfill_candidates(
+        window_days=3,
+        effective_market_date=date(2026, 4, 23),
+        run_limit=120,
+        max_age_days=180,
+    )
+
+    assert len(candidates) == 1
+    assert candidates[0].run_id == mature_run.id
+    assert candidates[0].seat_key == "macro"
