@@ -12,6 +12,7 @@ from tests.fixtures.conftest import TEST_DB_URL
 
 from app.models.market_prediction import (
     CommitteeSeatVote,
+    MarketPredictionClusterReview,
     MarketPredictionRun,
     MarketPredictionSeatReview,
     MarketPredictionVoteEvaluation,
@@ -42,13 +43,13 @@ def storage() -> PortfolioStorage:
 def clean_prediction_tables(storage: PortfolioStorage) -> Generator[None]:
     with storage.connection() as conn:
         conn.execute(
-            "TRUNCATE market_prediction_vote_evaluations, market_prediction_seat_reviews, market_prediction_evaluations, market_prediction_votes, market_prediction_calls, market_prediction_runs CASCADE"
+            "TRUNCATE market_prediction_cluster_reviews, market_prediction_vote_evaluations, market_prediction_seat_reviews, market_prediction_evaluations, market_prediction_votes, market_prediction_calls, market_prediction_runs CASCADE"
         )
         conn.commit()
     yield
     with storage.connection() as conn:
         conn.execute(
-            "TRUNCATE market_prediction_vote_evaluations, market_prediction_seat_reviews, market_prediction_evaluations, market_prediction_votes, market_prediction_calls, market_prediction_runs CASCADE"
+            "TRUNCATE market_prediction_cluster_reviews, market_prediction_vote_evaluations, market_prediction_seat_reviews, market_prediction_evaluations, market_prediction_votes, market_prediction_calls, market_prediction_runs CASCADE"
         )
         conn.commit()
 
@@ -143,6 +144,85 @@ def _seat_review(*, review_id: str, generated_at: datetime, as_of_ts: datetime, 
             "weighting_half_life_days": 20,
             "trailing_window_trading_days": 60,
             "backfill_run_limit": 120,
+            "supported_windows": [1, 3, 7, 14],
+        },
+    )
+
+
+
+def _cluster_review(*, review_id: str, generated_at: datetime, as_of_ts: datetime, review_state: str, macro_weight: float) -> MarketPredictionClusterReview:
+    return MarketPredictionClusterReview(
+        id=review_id,
+        generated_at=generated_at,
+        as_of_ts=as_of_ts,
+        window_days=3,
+        review_state=review_state,
+        cluster_scorecards=[
+            {
+                "cluster": "market_regime",
+                "prior_weight": 0.25,
+                "effective_weight": round((1.0 - macro_weight - 0.25 - 0.12), 12),
+                "sample_size": 24,
+                "direction_hit_rate": 0.5,
+                "move_mae_pct": 1.0,
+                "brier_score": 0.25,
+                "skill_score": 0.625,
+                "freshness": "fresh",
+                "recommended_action": "hold",
+            },
+            {
+                "cluster": "sentiment",
+                "prior_weight": 0.25,
+                "effective_weight": 0.12,
+                "sample_size": 24,
+                "direction_hit_rate": 0.0,
+                "move_mae_pct": 4.0,
+                "brier_score": 1.0,
+                "skill_score": 0.04,
+                "freshness": "fresh",
+                "recommended_action": "downweight",
+            },
+            {
+                "cluster": "options_positioning",
+                "prior_weight": 0.25,
+                "effective_weight": 0.25,
+                "sample_size": 24,
+                "direction_hit_rate": 0.8,
+                "move_mae_pct": 0.5,
+                "brier_score": 0.12,
+                "skill_score": 0.88,
+                "freshness": "fresh",
+                "recommended_action": "hold",
+            },
+            {
+                "cluster": "macro_calendar",
+                "prior_weight": 0.25,
+                "effective_weight": macro_weight,
+                "sample_size": 24,
+                "direction_hit_rate": 1.0,
+                "move_mae_pct": 0.1,
+                "brier_score": 0.01,
+                "skill_score": 0.9768,
+                "freshness": "fresh",
+                "recommended_action": "upweight",
+            },
+        ],
+        review_summary={
+            "generated_at": generated_at.isoformat(),
+            "review_state": review_state,
+            "drift_callouts": [],
+            "top_upweighted": [],
+            "top_downweighted": [],
+        },
+        metadata={
+            "weighting_half_life_days": 20,
+            "trailing_window_trading_days": 60,
+            "freshness_factors": {
+                "fresh": 1.0,
+                "stale": 0.5,
+                "missing": 0.0,
+                "unknown": 0.25,
+            },
             "supported_windows": [1, 3, 7, 14],
         },
     )
@@ -307,3 +387,117 @@ def test_list_vote_evaluation_backfill_candidates_returns_recent_mature_runs_onl
     assert len(candidates) == 1
     assert candidates[0].run_id == mature_run.id
     assert candidates[0].seat_key == "macro"
+
+
+
+def test_upsert_cluster_review_preserves_stable_id_and_precedence(storage: PortfolioStorage) -> None:
+    repo = MarketPredictionRepository(storage)
+    as_of_ts = datetime(2026, 4, 23, 22, 15, tzinfo=UTC)
+
+    first = _cluster_review(
+        review_id="cluster-review:3:2026-04-23T22:15:00+00:00",
+        generated_at=datetime(2026, 4, 23, 22, 15, tzinfo=UTC),
+        as_of_ts=as_of_ts,
+        review_state="warmup",
+        macro_weight=0.25,
+    )
+    lower_precedence_retry = _cluster_review(
+        review_id="ignored-id",
+        generated_at=datetime(2026, 4, 23, 22, 20, tzinfo=UTC),
+        as_of_ts=as_of_ts,
+        review_state="degraded",
+        macro_weight=0.2,
+    )
+    same_precedence_same_ts = _cluster_review(
+        review_id="different-but-ignored",
+        generated_at=datetime(2026, 4, 23, 22, 15, tzinfo=UTC),
+        as_of_ts=as_of_ts,
+        review_state="warmup",
+        macro_weight=0.4,
+    )
+    higher_precedence_retry = _cluster_review(
+        review_id="replacement-id",
+        generated_at=datetime(2026, 4, 23, 22, 25, tzinfo=UTC),
+        as_of_ts=as_of_ts,
+        review_state="live",
+        macro_weight=0.41,
+    )
+
+    persisted_first = repo.upsert_cluster_review(first)
+    persisted_lower = repo.upsert_cluster_review(lower_precedence_retry)
+    persisted_same = repo.upsert_cluster_review(same_precedence_same_ts)
+    persisted_higher = repo.upsert_cluster_review(higher_precedence_retry)
+
+    assert persisted_first.id == "cluster-review:3:2026-04-23T22:15:00+00:00"
+    assert persisted_lower.id == persisted_first.id
+    assert persisted_lower.review_state == "warmup"
+    assert persisted_same.id == persisted_first.id
+    assert persisted_same.review_state == "warmup"
+    assert persisted_higher.id == persisted_first.id
+    assert persisted_higher.review_state == "live"
+
+    rows = storage.query(
+        "SELECT id, review_state, cluster_scorecards FROM market_prediction_cluster_reviews WHERE window_days = ? AND as_of_ts = ?",
+        [3, as_of_ts],
+    )
+    assert rows.height == 1
+    row = rows.row(0, named=True)
+    assert row["id"] == persisted_first.id
+    assert row["review_state"] == "live"
+    assert row["cluster_scorecards"][3]["cluster"] == "macro_calendar"
+    assert row["cluster_scorecards"][3]["effective_weight"] == pytest.approx(0.41)
+
+
+
+def test_list_latest_cluster_reviews_prefers_newest_asof_even_if_degraded(storage: PortfolioStorage) -> None:
+    repo = MarketPredictionRepository(storage)
+    older = _cluster_review(
+        review_id="cluster-review:3:2026-04-23T22:15:00+00:00",
+        generated_at=datetime(2026, 4, 23, 22, 15, tzinfo=UTC),
+        as_of_ts=datetime(2026, 4, 23, 22, 15, tzinfo=UTC),
+        review_state="live",
+        macro_weight=0.41,
+    )
+    newer = _cluster_review(
+        review_id="cluster-review:3:2026-04-24T22:15:00+00:00",
+        generated_at=datetime(2026, 4, 24, 22, 15, tzinfo=UTC),
+        as_of_ts=datetime(2026, 4, 24, 22, 15, tzinfo=UTC),
+        review_state="degraded",
+        macro_weight=0.25,
+    )
+
+    repo.upsert_cluster_review(older)
+    repo.upsert_cluster_review(newer)
+
+    reviews = repo.list_latest_cluster_reviews(window_days=3, limit=5)
+
+    assert [review.id for review in reviews] == [newer.id, older.id]
+    assert reviews[0].review_state == "degraded"
+
+
+
+def test_cluster_review_migration_creates_expected_constraints(storage: PortfolioStorage) -> None:
+    constraint_rows = storage.query(
+        """
+        SELECT conname
+        FROM pg_constraint
+        WHERE conrelid = 'market_prediction_cluster_reviews'::regclass
+        ORDER BY conname ASC
+        """,
+    )
+    names = [row[0] for row in constraint_rows.iter_rows()]
+
+    index_rows = storage.query(
+        """
+        SELECT indexname
+        FROM pg_indexes
+        WHERE tablename = 'market_prediction_cluster_reviews'
+        ORDER BY indexname ASC
+        """,
+    )
+    index_names = [row[0] for row in index_rows.iter_rows()]
+
+    assert "ck_market_prediction_cluster_reviews_review_state" in names
+    assert "ck_market_prediction_cluster_reviews_window_days" in names
+    assert "uq_market_prediction_cluster_reviews_window_asof" in names
+    assert "idx_market_prediction_cluster_reviews_window_generated" in index_names
