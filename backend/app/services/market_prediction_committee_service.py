@@ -14,9 +14,11 @@ from app.agents.clients.agent_hub_client import AgentHubAPIClient
 from app.constants import PREDICTION_TARGET_SYMBOLS
 from app.logging_config import get_logger
 from app.models.market_prediction import (
+    SUPPORTED_ADAPTIVE_CLUSTER_KEYS,
     SUPPORTED_ADAPTIVE_SEAT_KEYS,
     CommitteeSeatVote,
     MarketPredictionCall,
+    MarketPredictionClusterReview,
     MarketPredictionCommitteeResponse,
     MarketPredictionResolvedSeatWeight,
     MarketPredictionRun,
@@ -24,6 +26,7 @@ from app.models.market_prediction import (
     MarketPredictionSeatReview,
     PredictionDirection,
     PredictionSourceCluster,
+    normalize_market_prediction_cluster_key,
     normalize_market_prediction_seat_key,
 )
 from app.repositories.market_prediction_repository import MarketPredictionRepository
@@ -110,13 +113,15 @@ class MarketPredictionCommitteeService:
         window_days: int,
         as_of_ts: datetime | None = None,
         review: MarketPredictionSeatReview | dict[str, Any] | None = None,
+        cluster_review: MarketPredictionClusterReview | dict[str, Any] | None = None,
+        source_snapshot: dict[str, Any] | None = None,
     ) -> MarketPredictionCommitteeResponse:
         self._validate_window_days(window_days)
         generated_at = self._coerce_datetime(as_of_ts or datetime.now(UTC))
         base_date, target_date = self._compute_dates(window_days=window_days, as_of_ts=generated_at)
 
         try:
-            source_snapshot = self._build_source_snapshot(generated_at)
+            source_snapshot = source_snapshot or self.build_source_snapshot(generated_at)
             source_snapshot = {
                 **(source_snapshot if isinstance(source_snapshot, dict) else {}),
                 "as_of_ts": generated_at.isoformat(),
@@ -136,11 +141,19 @@ class MarketPredictionCommitteeService:
                 source_snapshot=source_snapshot,
             )
             review_artifact = self._coerce_review(review=review, window_days=window_days, as_of_ts=generated_at)
+            cluster_review_artifact = self._coerce_cluster_review(
+                review=cluster_review,
+                window_days=window_days,
+                as_of_ts=generated_at,
+                source_snapshot=source_snapshot,
+            )
+
             calls = self._aggregate_calls_from_votes(
                 raw_votes=raw_votes,
                 votes=votes,
                 window_days=window_days,
                 review=review_artifact,
+                cluster_review=cluster_review_artifact,
                 source_snapshot=source_snapshot,
             )
             lead_call = next((call for call in calls if call.symbol == "SPY"), calls[0])
@@ -160,7 +173,9 @@ class MarketPredictionCommitteeService:
                     raw_payload.get("_portfolio_execution_path") if isinstance(raw_payload, dict) else None
                 ),
                 review=review_artifact,
+                cluster_review=cluster_review_artifact,
             )
+            source_snapshot = self._apply_cluster_review_to_source_snapshot(source_snapshot, cluster_review_artifact)
             scorecard = self.repository.get_scorecard(window_days)
             last_evaluated_at = self.repository.get_last_evaluated_at(window_days)
 
@@ -221,6 +236,15 @@ class MarketPredictionCommitteeService:
         for _ in range(window_days):
             target_date = get_next_trading_day(target_date)
         return base_date, target_date
+
+    def build_source_snapshot(self, as_of_ts: datetime) -> dict[str, Any]:
+        effective_ts = self._coerce_datetime(as_of_ts)
+        source_snapshot = self._build_source_snapshot(effective_ts)
+        return {
+            **(source_snapshot if isinstance(source_snapshot, dict) else {}),
+            "as_of_ts": effective_ts.isoformat(),
+            "target_universe": PREDICTION_TARGET_SYMBOLS,
+        }
 
     def _build_source_snapshot(self, as_of_ts: datetime) -> dict[str, Any]:
         fear_greed = self.storage.get_fear_greed_latest()
@@ -404,6 +428,10 @@ class MarketPredictionCommitteeService:
             macro_calendar = build_default_macro_calendar_cluster(
                 existing_macro if isinstance(existing_macro, dict) else None
             )
+        if isinstance(existing_macro, dict):
+            for key in ("prior_weight", "effective_weight", "sample_size", "skill_score"):
+                if key in existing_macro and key not in macro_calendar:
+                    macro_calendar[key] = existing_macro[key]
         normalized_clusters["macro_calendar"] = macro_calendar
         snapshot["clusters"] = normalized_clusters
         if "target_universe" not in snapshot or not isinstance(snapshot.get("target_universe"), list):
@@ -604,6 +632,7 @@ class MarketPredictionCommitteeService:
                 votes=votes,
                 window_days=window_days,
                 review=self._coerce_review(review=None, window_days=window_days, as_of_ts=datetime.now(UTC)),
+                cluster_review=self._coerce_cluster_review(review=None, window_days=window_days, as_of_ts=datetime.now(UTC)),
                 source_snapshot=source_snapshot,
             )
 
@@ -638,6 +667,7 @@ class MarketPredictionCommitteeService:
         votes: list[CommitteeSeatVote],
         window_days: int,
         review: MarketPredictionSeatReview,
+        cluster_review: MarketPredictionClusterReview,
         source_snapshot: dict[str, Any],
     ) -> list[MarketPredictionCall]:
         by_symbol: dict[str, list[CommitteeSeatVote]] = {}
@@ -645,6 +675,7 @@ class MarketPredictionCommitteeService:
             by_symbol.setdefault(vote.symbol, []).append(vote)
 
         resolved_weight_map = self._review_weight_map(review)
+        cluster_weight_rows = self._resolved_cluster_weight_rows(cluster_review)
         calls: list[MarketPredictionCall] = []
         for symbol in PREDICTION_TARGET_SYMBOLS:
             symbol_votes = by_symbol.get(symbol, [])
@@ -657,6 +688,13 @@ class MarketPredictionCommitteeService:
                 and 0.0 <= float(vote.prob_up) <= 1.0
                 and math.isfinite(float(vote.expected_move_pct))
             ]
+            call_clusters = self._weighted_call_clusters(
+                raw_votes=raw_votes,
+                votes=active_votes if active_votes else symbol_votes,
+                source_snapshot=source_snapshot,
+                cluster_weight_rows=cluster_weight_rows,
+            )
+            active_cluster_keys = [cluster.cluster for cluster in call_clusters if cluster.weight is not None]
             if not active_votes:
                 calls.append(
                     MarketPredictionCall(
@@ -670,12 +708,8 @@ class MarketPredictionCommitteeService:
                         confidence_score=0.0,
                         committee_disagreement_score=0.0,
                         rationale_summary="Committee call unavailable; neutral fallback applied.",
-                        top_source_clusters=self._fallback_call_clusters(
-                            raw_votes=raw_votes,
-                            votes=symbol_votes,
-                            source_snapshot=source_snapshot,
-                        ),
-                        metadata={"aggregation_mode": "neutral_fallback", "active_seat_keys": []},
+                        top_source_clusters=call_clusters,
+                        metadata={"aggregation_mode": "neutral_fallback", "active_seat_keys": [], "active_cluster_keys": active_cluster_keys},
                     )
                 )
                 continue
@@ -693,12 +727,8 @@ class MarketPredictionCommitteeService:
                         confidence_score=self._normalize_confidence_score(vote.confidence_score, fallback=50.0),
                         committee_disagreement_score=0.0,
                         rationale_summary="Consensus synthesized from a single supported seat vote.",
-                        top_source_clusters=self._fallback_call_clusters(
-                            raw_votes=raw_votes,
-                            votes=active_votes,
-                            source_snapshot=source_snapshot,
-                        ),
-                        metadata={"aggregation_mode": "single_seat", "active_seat_keys": [vote.seat_key]},
+                        top_source_clusters=call_clusters,
+                        metadata={"aggregation_mode": "single_seat", "active_seat_keys": [vote.seat_key], "active_cluster_keys": active_cluster_keys},
                     )
                 )
                 continue
@@ -728,14 +758,11 @@ class MarketPredictionCommitteeService:
                     confidence_score=weighted_conf,
                     committee_disagreement_score=self._estimate_disagreement(symbol, active_votes),
                     rationale_summary="Consensus synthesized from weighted seat-level committee votes.",
-                    top_source_clusters=self._fallback_call_clusters(
-                        raw_votes=raw_votes,
-                        votes=active_votes,
-                        source_snapshot=source_snapshot,
-                    ),
+                    top_source_clusters=call_clusters,
                     metadata={
                         "aggregation_mode": "weighted_committee",
                         "active_seat_keys": sorted(active_weight_map),
+                        "active_cluster_keys": active_cluster_keys,
                     },
                 )
             )
@@ -794,9 +821,11 @@ class MarketPredictionCommitteeService:
         executed_seats: list[dict[str, Any]],
         committee_execution_path: str,
         review: MarketPredictionSeatReview,
+        cluster_review: MarketPredictionClusterReview,
     ) -> dict[str, Any]:
         metadata = self._normalize_metadata(existing)
         review_persisted = bool(review.metadata.get("_persisted", True)) if isinstance(review.metadata, dict) else True
+        cluster_review_persisted = bool(cluster_review.metadata.get("_persisted", True)) if isinstance(cluster_review.metadata, dict) else True
         metadata.update(
             {
                 "committee_roster_mode": self._classify_roster_mode(executed_seats),
@@ -815,6 +844,11 @@ class MarketPredictionCommitteeService:
                         else review
                     )
                 ],
+                "adaptive_cluster_weighting_version": "cluster-v1",
+                "cluster_review_row_id": cluster_review.id if cluster_review_persisted else None,
+                "cluster_review_generated_at": cluster_review.generated_at.isoformat(),
+                "cluster_review_state": cluster_review.review_state,
+                "resolved_cluster_weights": self._resolved_cluster_weight_rows(cluster_review),
             }
         )
         return metadata
@@ -874,6 +908,66 @@ class MarketPredictionCommitteeService:
                 "top_downweighted": [],
             },
             metadata={},
+        )
+
+    def _coerce_cluster_review(
+        self,
+        *,
+        review: MarketPredictionClusterReview | dict[str, Any] | None,
+        window_days: int,
+        as_of_ts: datetime,
+    ) -> MarketPredictionClusterReview:
+        if isinstance(review, MarketPredictionClusterReview):
+            return review
+        if isinstance(review, dict):
+            try:
+                return MarketPredictionClusterReview(
+                    id=str(review.get("id") or f"cluster-review:{window_days}:{as_of_ts.isoformat()}"),
+                    generated_at=self._coerce_datetime(review.get("generated_at") or as_of_ts),
+                    as_of_ts=self._coerce_datetime(review.get("as_of_ts") or as_of_ts),
+                    window_days=self._int(review.get("window_days"), window_days),
+                    review_state=str(review.get("review_state") or "warmup"),
+                    cluster_scorecards=review.get("cluster_scorecards") or [],
+                    review_summary=review.get("review_summary") or {},
+                    metadata=review.get("metadata") or {},
+                )
+            except Exception:
+                logger.warning("market_prediction_cluster_review_coercion_failed", exc_info=True)
+        prior = 1.0 / len(SUPPORTED_ADAPTIVE_CLUSTER_KEYS)
+        return MarketPredictionClusterReview(
+            id=f"cluster-review:{window_days}:{as_of_ts.isoformat()}",
+            generated_at=as_of_ts,
+            as_of_ts=as_of_ts,
+            window_days=window_days,
+            review_state="warmup",
+            cluster_scorecards=[
+                {
+                    "cluster": cluster,
+                    "prior_weight": prior,
+                    "effective_weight": prior,
+                    "sample_size": 0,
+                    "direction_hit_rate": None,
+                    "move_mae_pct": None,
+                    "brier_score": None,
+                    "skill_score": None,
+                    "freshness": "unknown",
+                    "recommended_action": "hold",
+                }
+                for cluster in SUPPORTED_ADAPTIVE_CLUSTER_KEYS
+            ],
+            review_summary={
+                "generated_at": as_of_ts.isoformat(),
+                "review_state": "warmup",
+                "drift_callouts": [],
+                "top_upweighted": [],
+                "top_downweighted": [],
+            },
+            metadata={
+                "weighting_half_life_days": 20,
+                "trailing_window_trading_days": 60,
+                "freshness_factors": {"fresh": 1.0, "stale": 0.5, "missing": 0.0, "unknown": 0.25},
+                "supported_windows": list(SUPPORTED_PREDICTION_WINDOWS),
+            },
         )
 
     def _build_degraded_committee_review(self, review: MarketPredictionSeatReview) -> MarketPredictionSeatReview:
@@ -939,6 +1033,227 @@ class MarketPredictionCommitteeService:
                 )
             )
         return rows
+
+    def _coerce_cluster_review(
+        self,
+        *,
+        review: MarketPredictionClusterReview | dict[str, Any] | None,
+        window_days: int,
+        as_of_ts: datetime,
+        source_snapshot: dict[str, Any],
+    ) -> MarketPredictionClusterReview:
+        if isinstance(review, MarketPredictionClusterReview):
+            return review
+        if isinstance(review, dict):
+            try:
+                return MarketPredictionClusterReview(
+                    id=str(review.get("id") or f"cluster-review:{window_days}:{as_of_ts.isoformat()}"),
+                    generated_at=self._coerce_datetime(review.get("generated_at") or as_of_ts),
+                    as_of_ts=self._coerce_datetime(review.get("as_of_ts") or as_of_ts),
+                    window_days=self._int(review.get("window_days"), window_days),
+                    review_state=str(review.get("review_state") or "warmup"),
+                    cluster_scorecards=review.get("cluster_scorecards") or [],
+                    review_summary=review.get("review_summary") or {},
+                    metadata=review.get("metadata") or {},
+                )
+            except Exception:
+                logger.warning("market_prediction_cluster_review_coercion_failed", exc_info=True)
+        return self._build_prior_cluster_review(
+            window_days=window_days,
+            as_of_ts=as_of_ts,
+            review_state="warmup",
+            source_snapshot=source_snapshot,
+        )
+
+    def _build_prior_cluster_review(
+        self,
+        *,
+        window_days: int,
+        as_of_ts: datetime,
+        review_state: str,
+        source_snapshot: dict[str, Any],
+    ) -> MarketPredictionClusterReview:
+        prior = 1.0 / len(SUPPORTED_ADAPTIVE_CLUSTER_KEYS)
+        return MarketPredictionClusterReview(
+            id=f"cluster-review:{window_days}:{as_of_ts.isoformat()}",
+            generated_at=as_of_ts,
+            as_of_ts=as_of_ts,
+            window_days=window_days,
+            review_state=review_state,
+            cluster_scorecards=[
+                {
+                    "cluster": cluster,
+                    "prior_weight": prior,
+                    "effective_weight": prior,
+                    "sample_size": 0,
+                    "direction_hit_rate": None,
+                    "move_mae_pct": None,
+                    "brier_score": None,
+                    "skill_score": None,
+                    "freshness": self._source_cluster_freshness(cluster, source_snapshot),
+                    "recommended_action": "hold",
+                }
+                for cluster in SUPPORTED_ADAPTIVE_CLUSTER_KEYS
+            ],
+            review_summary={
+                "generated_at": as_of_ts.isoformat(),
+                "review_state": review_state,
+                "drift_callouts": [],
+                "top_upweighted": [],
+                "top_downweighted": [],
+            },
+            metadata={},
+        )
+
+    def _build_degraded_cluster_review(self, review: MarketPredictionClusterReview) -> MarketPredictionClusterReview:
+        prior = 1.0 / len(SUPPORTED_ADAPTIVE_CLUSTER_KEYS)
+        return MarketPredictionClusterReview(
+            id=review.id,
+            generated_at=review.generated_at,
+            as_of_ts=review.as_of_ts,
+            window_days=review.window_days,
+            review_state="degraded",
+            cluster_scorecards=[
+                {
+                    "cluster": cluster,
+                    "prior_weight": prior,
+                    "effective_weight": prior,
+                    "sample_size": 0,
+                    "direction_hit_rate": None,
+                    "move_mae_pct": None,
+                    "brier_score": None,
+                    "skill_score": None,
+                    "freshness": self._cluster_row_freshness(review, cluster),
+                    "recommended_action": "hold",
+                }
+                for cluster in SUPPORTED_ADAPTIVE_CLUSTER_KEYS
+            ],
+            review_summary={
+                "generated_at": review.generated_at.isoformat(),
+                "review_state": "degraded",
+                "drift_callouts": [],
+                "top_upweighted": [],
+                "top_downweighted": [],
+            },
+            metadata={
+                **(dict(review.metadata) if isinstance(review.metadata, dict) else {}),
+                "_persisted": False,
+            },
+        )
+
+    def _resolved_cluster_weight_rows(self, review: MarketPredictionClusterReview) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        prior = 1.0 / len(SUPPORTED_ADAPTIVE_CLUSTER_KEYS)
+        for cluster in SUPPORTED_ADAPTIVE_CLUSTER_KEYS:
+            raw_row = next(
+                (
+                    row
+                    for row in review.cluster_scorecards
+                    if normalize_market_prediction_cluster_key(self._value(row, "cluster")) == cluster
+                ),
+                None,
+            )
+            rows.append(
+                {
+                    "cluster": cluster,
+                    "prior_weight": self._clamp(self._value(raw_row, "prior_weight"), prior, low=0.0, high=1.0),
+                    "effective_weight": self._clamp(self._value(raw_row, "effective_weight"), prior, low=0.0, high=1.0),
+                    "sample_size": self._int(self._value(raw_row, "sample_size"), 0),
+                    "skill_score": self._optional_float(self._value(raw_row, "skill_score")),
+                    "freshness": self._normalize_source_freshness(self._value(raw_row, "freshness")),
+                }
+            )
+        return rows
+
+    def _apply_cluster_review_to_source_snapshot(
+        self,
+        *,
+        source_snapshot: dict[str, Any],
+        cluster_review: MarketPredictionClusterReview,
+    ) -> dict[str, Any]:
+        snapshot = dict(source_snapshot) if isinstance(source_snapshot, dict) else {}
+        clusters = self._normalize_source_snapshot_clusters(snapshot.get("clusters"))
+        for row in self._resolved_cluster_weight_rows(cluster_review):
+            cluster_payload = dict(clusters.get(row["cluster"], {}))
+            cluster_payload.update(row)
+            clusters[row["cluster"]] = cluster_payload
+        snapshot["clusters"] = clusters
+        return snapshot
+
+    def _weighted_call_clusters(
+        self,
+        *,
+        raw_votes: Any,
+        votes: list[CommitteeSeatVote],
+        source_snapshot: dict[str, Any],
+        cluster_review: MarketPredictionClusterReview | None,
+    ) -> list[PredictionSourceCluster]:
+        active_keys = self._active_cluster_keys_for_call(
+            raw_votes=raw_votes,
+            votes=votes,
+            source_snapshot=source_snapshot,
+            cluster_review=cluster_review,
+        )
+        if not active_keys:
+            return []
+        weight_map = {
+            row["cluster"]: row["effective_weight"]
+            for row in self._resolved_cluster_weight_rows(cluster_review)
+        } if cluster_review is not None else {}
+        return [
+            PredictionSourceCluster(
+                cluster=cluster,
+                weight=self._optional_float(weight_map.get(cluster)),
+                freshness=self._source_cluster_freshness(cluster, source_snapshot),
+                note=DEFAULT_ATTRIBUTION_NOTE,
+            )
+            for cluster in sorted(active_keys, key=lambda key: (-float(weight_map.get(key) or 0.0), key))
+        ]
+
+    def _active_cluster_keys_for_call(
+        self,
+        *,
+        raw_votes: Any,
+        votes: list[CommitteeSeatVote],
+        source_snapshot: dict[str, Any],
+        cluster_review: MarketPredictionClusterReview | None,
+    ) -> list[str]:
+        candidates: list[str] = []
+        seen: set[str] = set()
+        for vote in self._votes_in_raw_order(raw_votes=raw_votes, votes=votes):
+            for cluster in vote.source_clusters:
+                key = normalize_market_prediction_cluster_key(cluster.cluster)
+                if key is None or key in seen:
+                    continue
+                seen.add(key)
+                candidates.append(key)
+        if not candidates:
+            fallback = self._fallback_call_clusters(raw_votes=raw_votes, votes=votes, source_snapshot=source_snapshot)
+            for cluster in fallback:
+                key = normalize_market_prediction_cluster_key(cluster.cluster)
+                if key is None or key in seen:
+                    continue
+                seen.add(key)
+                candidates.append(key)
+        if cluster_review is None:
+            return sorted(candidates)
+        weight_map = {row["cluster"]: row["effective_weight"] for row in self._resolved_cluster_weight_rows(cluster_review)}
+        return sorted([key for key in candidates if float(weight_map.get(key) or 0.0) > 1e-9])
+
+    def _cluster_row_freshness(self, review: MarketPredictionClusterReview, cluster: str) -> str:
+        raw_row = next(
+            (
+                row
+                for row in review.cluster_scorecards
+                if normalize_market_prediction_cluster_key(self._value(row, "cluster")) == cluster
+            ),
+            None,
+        )
+        return self._normalize_source_freshness(self._value(raw_row, "freshness"))
+
+    def _source_cluster_freshness(self, cluster: str, source_snapshot: dict[str, Any]) -> str:
+        clusters = self._normalize_source_snapshot_clusters(source_snapshot.get("clusters") if isinstance(source_snapshot, dict) else {})
+        return self._normalize_source_freshness(clusters.get(cluster, {}).get("freshness"))
 
     def _normalize_resolved_seat_weights(self, raw_rows: Any) -> list[dict[str, Any]]:
         if not isinstance(raw_rows, list):
@@ -1011,6 +1326,96 @@ class MarketPredictionCommitteeService:
         accessor: Callable[[CommitteeSeatVote], float],
     ) -> float:
         return sum(active_weight_map[vote.seat_key] * accessor(vote) for vote in active_votes)
+
+    def _resolved_cluster_weight_rows(
+        self,
+        review: MarketPredictionClusterReview,
+    ) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for cluster in SUPPORTED_ADAPTIVE_CLUSTER_KEYS:
+            raw_row = next(
+                (
+                    row
+                    for row in review.cluster_scorecards
+                    if normalize_market_prediction_cluster_key(self._value(row, "cluster")) == cluster
+                ),
+                None,
+            )
+            rows.append(
+                {
+                    "cluster": cluster,
+                    "prior_weight": self._clamp(self._value(raw_row, "prior_weight"), 1.0 / len(SUPPORTED_ADAPTIVE_CLUSTER_KEYS), low=0.0, high=1.0),
+                    "effective_weight": self._clamp(self._value(raw_row, "effective_weight"), 1.0 / len(SUPPORTED_ADAPTIVE_CLUSTER_KEYS), low=0.0, high=1.0),
+                    "sample_size": self._int(self._value(raw_row, "sample_size"), 0),
+                    "skill_score": self._optional_float(self._value(raw_row, "skill_score")),
+                    "freshness": self._normalize_source_freshness(self._value(raw_row, "freshness")),
+                }
+            )
+        return rows
+
+    def _cluster_weight_map(self, review: MarketPredictionClusterReview) -> dict[str, dict[str, Any]]:
+        return {row["cluster"]: row for row in self._resolved_cluster_weight_rows(review)}
+
+    def _weighted_call_clusters(
+        self,
+        *,
+        raw_votes: Any,
+        votes: list[CommitteeSeatVote],
+        source_snapshot: dict[str, Any],
+        cluster_weight_rows: list[dict[str, Any]],
+    ) -> list[PredictionSourceCluster]:
+        fallback_clusters = self._fallback_call_clusters(
+            raw_votes=raw_votes,
+            votes=votes,
+            source_snapshot=source_snapshot,
+        )
+        indexed = {row["cluster"]: row for row in cluster_weight_rows}
+        weighted: list[PredictionSourceCluster] = []
+        seen: set[str] = set()
+        for cluster in fallback_clusters:
+            normalized = normalize_market_prediction_cluster_key(cluster.cluster)
+            if normalized not in indexed or normalized in seen:
+                continue
+            seen.add(normalized)
+            row = indexed[normalized]
+            effective = row.get("effective_weight")
+            if effective is None or float(effective) <= 1e-9:
+                continue
+            weighted.append(
+                PredictionSourceCluster(
+                    cluster=normalized,
+                    weight=float(effective),
+                    freshness=row.get("freshness"),
+                    note=cluster.note,
+                )
+            )
+        if weighted:
+            weighted.sort(key=lambda item: (-float(item.weight or 0.0), item.cluster))
+            return weighted[:3]
+        return fallback_clusters
+
+    def _apply_cluster_review_to_source_snapshot(
+        self,
+        source_snapshot: dict[str, Any],
+        review: MarketPredictionClusterReview,
+    ) -> dict[str, Any]:
+        snapshot = dict(source_snapshot) if isinstance(source_snapshot, dict) else {}
+        raw_clusters = snapshot.get("clusters") if isinstance(snapshot.get("clusters"), dict) else {}
+        normalized_clusters = dict(raw_clusters)
+        for row in self._resolved_cluster_weight_rows(review):
+            cluster = row["cluster"]
+            payload = normalized_clusters.get(cluster)
+            if not isinstance(payload, dict):
+                continue
+            normalized_clusters[cluster] = {
+                **payload,
+                "prior_weight": row["prior_weight"],
+                "effective_weight": row["effective_weight"] if row["effective_weight"] > 1e-9 else None,
+                "sample_size": row["sample_size"] if row["sample_size"] > 0 else None,
+                "skill_score": row["skill_score"],
+            }
+        snapshot["clusters"] = normalized_clusters
+        return snapshot
 
     def _normalize_executed_seats(self, raw_executed_seats: Any) -> list[dict[str, Any]]:
         if not isinstance(raw_executed_seats, list):
