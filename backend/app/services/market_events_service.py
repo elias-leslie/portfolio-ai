@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
-from typing import Any
+from typing import Any, cast
 
 from ..logging_config import get_logger
 from ..models.market_events import (
@@ -16,8 +16,17 @@ from ..models.market_events import (
     MarketEventUpdate,
 )
 from ..storage import get_storage
+from ..utils.market_hours import NY_TZ
 
 logger = get_logger(__name__)
+
+MACRO_LOOKAHEAD_DAYS = 14
+MACRO_CALENDAR_DEFAULT = {
+    "freshness": "missing",
+    "reason": "no_future_rows",
+    "upcoming_event_count": 0,
+    "next_event_date": None,
+}
 
 
 def _flt(v: Any) -> float | None:
@@ -63,6 +72,127 @@ def _chart_event_dict(row: dict[str, Any]) -> dict[str, Any]:
         "expected_value": _flt(row["expected_value"]),
         "surprise_pct": _flt(row["surprise_pct"]),
     }
+
+
+def _coerce_event_date(value: Any) -> dt.date | None:  # noqa: PLR0911
+    if isinstance(value, dt.datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=NY_TZ).date()
+        return value.astimezone(NY_TZ).date()
+    if isinstance(value, dt.date):
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            return dt.date.fromisoformat(text)
+        except ValueError:
+            pass
+        normalized = f"{text[:-1]}+00:00" if text.endswith("Z") else text
+        try:
+            parsed = dt.datetime.fromisoformat(normalized)
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=NY_TZ).date()
+        return parsed.astimezone(NY_TZ).date()
+    return None
+
+
+def build_default_macro_calendar_cluster(existing: dict[str, Any] | None = None) -> dict[str, Any]:
+    base = dict(existing) if isinstance(existing, dict) else {}
+    return {**base, **MACRO_CALENDAR_DEFAULT}
+
+
+def build_macro_calendar_cluster(
+    *,
+    market_date: dt.date,
+    latest_event_date: dt.date | None,
+    upcoming_events: list[MarketEvent],
+    existing: dict[str, Any] | None,
+) -> dict[str, Any]:
+    base = dict(existing) if isinstance(existing, dict) else {}
+    if latest_event_date is not None and latest_event_date < market_date:
+        freshness = "stale"
+        reason = "stale_table"
+    elif not upcoming_events:
+        freshness = "missing"
+        reason = "no_future_rows"
+    else:
+        freshness = "fresh"
+        reason = "ok"
+
+    result = {
+        **base,
+        "freshness": freshness,
+        "reason": reason,
+        "upcoming_event_count": len(upcoming_events),
+        "next_event_date": upcoming_events[0].event_date if upcoming_events else None,
+    }
+    if upcoming_events or "upcoming_events" in base:
+        result["upcoming_events"] = [event.model_dump() for event in upcoming_events]
+    return result
+
+
+def get_macro_calendar_cluster(
+    *,
+    market_date: dt.date,
+    existing: dict[str, Any] | None = None,
+    lookahead_days: int = MACRO_LOOKAHEAD_DAYS,
+    storage: Any | None = None,
+) -> dict[str, Any]:
+    effective_storage = storage or get_storage()
+    rows = effective_storage.query(
+        """
+        SELECT
+            id,
+            event_type::text,
+            event_date,
+            event_time::text,
+            title,
+            description,
+            expected_value,
+            actual_value,
+            prior_value,
+            surprise_pct,
+            impact_score,
+            spy_change_1h,
+            spy_change_1d,
+            source,
+            created_at
+        FROM market_events
+        ORDER BY event_date ASC NULLS LAST, event_time ASC NULLS LAST, id ASC
+        """
+    )
+    window_end = market_date + dt.timedelta(days=lookahead_days)
+    latest_event_date: dt.date | None = None
+    upcoming: list[tuple[dt.date, str | None, MarketEvent]] = []
+
+    for row in rows.iter_rows(named=True):
+        normalized_date = _coerce_event_date(row.get("event_date"))
+        if normalized_date is None:
+            continue
+        if latest_event_date is None or normalized_date > latest_event_date:
+            latest_event_date = normalized_date
+        if not (market_date <= normalized_date <= window_end):
+            continue
+        event_row = dict(row)
+        event_row["event_date"] = normalized_date.isoformat()
+        try:
+            event = _row_to_market_event(event_row)
+        except Exception:
+            logger.debug("market_event_row_skipped_for_macro_calendar", row=event_row, exc_info=True)
+            continue
+        upcoming.append((normalized_date, event.event_time, event))
+
+    upcoming.sort(key=lambda item: (item[0], item[1] or "", item[2].title))
+    return build_macro_calendar_cluster(
+        market_date=market_date,
+        latest_event_date=latest_event_date,
+        upcoming_events=[event for _, _, event in upcoming],
+        existing=existing,
+    )
 
 
 def get_market_events(
@@ -115,7 +245,7 @@ def get_events_for_chart(start_date: dt.date, end_date: dt.date) -> list[dict[st
         ORDER BY event_date ASC, event_time ASC NULLS LAST
     """
     df = storage.query(query, {"start_date": start_date, "end_date": end_date})
-    return [_chart_event_dict(row) for row in df.iter_rows(named=True)]
+    return [_chart_event_dict(cast(dict[str, Any], row)) for row in df.iter_rows(named=True)]
 
 
 def create_market_event(event: MarketEventCreate) -> MarketEvent:
@@ -184,9 +314,9 @@ def get_event_type_info() -> list[EventTypeInfo]:
     return list(EVENT_TYPE_INFO.values())
 
 
-def get_upcoming_events(days: int = 30) -> list[MarketEvent]:
+def get_upcoming_events(days: int = 30, *, start_date: dt.date | None = None) -> list[MarketEvent]:
     """Get upcoming events in the next N days."""
-    today = dt.date.today()
+    today = start_date or dt.date.today()
     r = get_market_events(start_date=today, end_date=today + dt.timedelta(days=days), limit=50)
     return sorted(r.events, key=lambda e: e.event_date)
 

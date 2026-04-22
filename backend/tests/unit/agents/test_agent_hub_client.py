@@ -5,10 +5,12 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+import pytest
+
 from app.agents.clients.agent_hub_client import AgentHubAPIClient
 
 
-def _mock_response() -> SimpleNamespace:
+def _mock_response(content: str = '{"verdict":"buy"}') -> SimpleNamespace:
     usage = SimpleNamespace(
         input_tokens=120,
         output_tokens=40,
@@ -16,7 +18,7 @@ def _mock_response() -> SimpleNamespace:
         cache=None,
     )
     return SimpleNamespace(
-        content='{"verdict":"buy"}',
+        content=content,
         provider="anthropic",
         model="claude-sonnet-4-5",
         usage=usage,
@@ -29,7 +31,6 @@ def _mock_response() -> SimpleNamespace:
 
 @patch("app.agents.clients.agent_hub_client.SDKClient")
 def test_agent_hub_client_uses_agent_slug_when_present(mock_sdk: Mock) -> None:
-    """Jenny should be able to route through real Agent Hub agents."""
     mock_sdk.return_value.complete.return_value = _mock_response()
 
     with patch("app.agents.clients.agent_hub_client.AGENT_HUB_ENABLED", True):
@@ -50,7 +51,6 @@ def test_agent_hub_client_uses_agent_slug_when_present(mock_sdk: Mock) -> None:
 
 @patch("app.agents.clients.agent_hub_client.SDKClient")
 def test_agent_hub_client_defaults_to_chat_agent_for_generic_calls(mock_sdk: Mock) -> None:
-    """Model-only callers should still route through a valid Agent Hub agent."""
     mock_sdk.return_value.complete.return_value = _mock_response()
 
     with patch("app.agents.clients.agent_hub_client.AGENT_HUB_ENABLED", True):
@@ -67,7 +67,6 @@ def test_agent_hub_client_defaults_to_chat_agent_for_generic_calls(mock_sdk: Moc
 
 @patch("app.agents.clients.agent_hub_client.SDKClient")
 def test_agent_hub_client_keeps_timeouts_out_of_completion_payload(mock_sdk: Mock) -> None:
-    """Jenny agent calls should not inject hidden server-side timeout hints."""
     mock_sdk.return_value.complete.return_value = _mock_response()
 
     with patch("app.agents.clients.agent_hub_client.AGENT_HUB_ENABLED", True):
@@ -81,8 +80,7 @@ def test_agent_hub_client_keeps_timeouts_out_of_completion_payload(mock_sdk: Moc
 
 
 @patch("app.agents.clients.agent_hub_client.SDKClient")
-def test_run_committee_roundtable_uses_investment_committee_json_contract(mock_sdk: Mock) -> None:
-    """Market prediction committee runs should use the dedicated committee endpoint first."""
+def test_run_committee_roundtable_marks_committee_endpoint_only_for_structurally_valid_endpoint_payload(mock_sdk: Mock) -> None:
     mock_http = Mock()
     mock_http.post.return_value = SimpleNamespace(
         is_success=True,
@@ -107,3 +105,36 @@ def test_run_committee_roundtable_uses_investment_committee_json_contract(mock_s
     assert call_kwargs["json"]["agent_slug"] == "investment-committee"
     assert call_kwargs["json"]["window_days"] == 3
     assert result["committee_summary"]["headline"] == "Constructive risk appetite"
+    assert result["_portfolio_execution_path"] == "committee_endpoint"
+
+
+@pytest.mark.parametrize(
+    "endpoint_payload",
+    [
+        ["not", "a", "dict"],
+        {"votes": []},
+        {"calls": []},
+        {"calls": "bad", "votes": []},
+        {"calls": [], "votes": "bad"},
+    ],
+)
+@patch("app.agents.clients.agent_hub_client.SDKClient")
+def test_run_committee_roundtable_falls_back_to_completion_when_endpoint_shape_is_not_usable(
+    mock_sdk: Mock,
+    endpoint_payload: object,
+) -> None:
+    mock_http = Mock()
+    mock_http.post.return_value = SimpleNamespace(is_success=True, json=lambda: endpoint_payload)
+    mock_sdk.return_value._get_client.return_value = mock_http
+    mock_sdk.return_value.complete.return_value = _mock_response('{"committee_summary":{},"calls":[],"votes":[]}')
+
+    with patch("app.agents.clients.agent_hub_client.AGENT_HUB_ENABLED", True):
+        client = AgentHubAPIClient(agent_slug="chat")
+        result = client.run_committee_roundtable(
+            prompt="Forecast SPY and sectors.",
+            window_days=3,
+            source_snapshot_json='{"clusters":{}}',
+        )
+
+    assert result["_portfolio_execution_path"] == "fallback_completion"
+    assert mock_sdk.return_value.complete.called is True

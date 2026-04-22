@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import math
 import uuid
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any, cast
 
 from app.agents.clients.agent_hub_client import AgentHubAPIClient
@@ -16,11 +18,15 @@ from app.models.market_prediction import (
     MarketPredictionCall,
     MarketPredictionCommitteeResponse,
     MarketPredictionRun,
+    MarketPredictionScorecard,
     PredictionDirection,
     PredictionSourceCluster,
 )
 from app.repositories.market_prediction_repository import MarketPredictionRepository
-from app.services.market_events_service import get_upcoming_events
+from app.services.market_events_service import (
+    build_default_macro_calendar_cluster,
+    get_macro_calendar_cluster,
+)
 from app.services.options_flow_service import get_latest_options_flow
 from app.storage import PortfolioStorage, get_storage
 from app.utils.market_hours import NY_TZ, get_expected_data_date, get_next_trading_day
@@ -28,6 +34,28 @@ from app.utils.market_hours import NY_TZ, get_expected_data_date, get_next_tradi
 logger = get_logger(__name__)
 
 SUPPORTED_PREDICTION_WINDOWS = (1, 3, 7, 14)
+ALLOWED_CLUSTER_FRESHNESS = {"fresh", "stale", "missing", "unknown"}
+FRESHNESS_RANK = {"fresh": 0, "stale": 1, "missing": 2, "unknown": 3}
+DEFAULT_FETCH_ERROR_NOTE = "Committee snapshot unavailable; serving degraded fallback."
+DEFAULT_PENDING_TARGET_NOTE = "Target date has not been reached yet."
+DEFAULT_WAITING_AFTER_CLOSE_NOTE = "Target date passed; awaiting evaluation data."
+DEFAULT_SPARSE_HISTORY_NOTE = "Not enough comparable history for a stable trend."
+DEFAULT_LEGACY_SPARSE_NOTE = "Legacy sparse data: selected lead attribution unavailable."
+DEFAULT_ATTRIBUTION_NOTE = "Derived fallback; tracked not ranked."
+DEFAULT_UNATTRIBUTED_NOTE = "Derived fallback; no usable source snapshot."
+DEFAULT_ROSTER = [
+    {"seat_key": "cross_asset", "agent_slug": "equity-analyst", "model_id": "grok-4.20-reasoning"},
+    {"seat_key": "macro", "agent_slug": "market-pulse-analyst", "model_id": "gpt-5.4"},
+    {"seat_key": "risk", "agent_slug": "risk-manager", "model_id": "claude-opus-4-7"},
+]
+SEAT_CLUSTER_PREFERENCES = {
+    "macro": ["macro_calendar", "sentiment", "market_regime"],
+    "macro_risk": ["macro_calendar", "options_positioning", "market_regime"],
+    "cross_asset": ["market_regime", "sentiment", "macro_calendar"],
+    "technical_regime": ["market_regime", "sentiment", "options_positioning"],
+    "positioning": ["options_positioning", "market_regime", "macro_calendar"],
+    "risk": ["options_positioning", "macro_calendar", "market_regime"],
+}
 
 
 class MarketPredictionCommitteeService:
@@ -51,19 +79,26 @@ class MarketPredictionCommitteeService:
         generate_if_missing: bool = True,
     ) -> MarketPredictionCommitteeResponse | None:
         self._validate_window_days(window_days)
-        cached = self.repository.get_latest_committee_snapshot(window_days)
-        if cached is not None:
-            return self._normalize_response(cached)
-        if not generate_if_missing:
-            return None
-        return self.generate_snapshot(window_days=window_days)
+        request_now = datetime.now(UTC)
+        try:
+            cached = self.repository.get_latest_committee_snapshot(window_days)
+            if cached is not None:
+                return self._normalize_response(cached, market_now=request_now)
+            if not generate_if_missing:
+                return None
+            return self.generate_snapshot(window_days=window_days, as_of_ts=request_now)
+        except Exception as exc:
+            logger.warning("market_prediction_snapshot_read_failed", error=str(exc), exc_info=True)
+            return self._build_degraded_response(window_days=window_days, as_of_ts=request_now)
 
     def get_history(self, symbol: str, window_days: int, limit: int = 30) -> list[MarketPredictionCall]:
         self._validate_window_days(window_days)
-        return [
-            self._normalize_call_model(call)
-            for call in self.repository.list_history(symbol=symbol, window_days=window_days, limit=limit)
-        ]
+        calls: list[MarketPredictionCall] = []
+        for raw_call in self.repository.list_history(symbol=symbol, window_days=window_days, limit=limit):
+            normalized = self._normalize_call_model(raw_call)
+            if normalized is not None:
+                calls.append(normalized)
+        return calls
 
     def generate_snapshot(
         self,
@@ -72,78 +107,100 @@ class MarketPredictionCommitteeService:
         as_of_ts: datetime | None = None,
     ) -> MarketPredictionCommitteeResponse:
         self._validate_window_days(window_days)
-        generated_at = as_of_ts or datetime.now(UTC)
-        if generated_at.tzinfo is None:
-            generated_at = generated_at.replace(tzinfo=UTC)
+        generated_at = self._coerce_datetime(as_of_ts or datetime.now(UTC))
+        base_date, target_date = self._compute_dates(window_days=window_days, as_of_ts=generated_at)
 
-        base_date = get_expected_data_date(generated_at.astimezone(NY_TZ))
-        target_date = base_date
-        for _ in range(window_days):
-            target_date = get_next_trading_day(target_date)
+        try:
+            source_snapshot = self._build_source_snapshot(generated_at)
+            source_snapshot = {
+                **(source_snapshot if isinstance(source_snapshot, dict) else {}),
+                "as_of_ts": generated_at.isoformat(),
+                "target_universe": PREDICTION_TARGET_SYMBOLS,
+            }
+            raw_payload = self._run_roundtable(
+                window_days=window_days,
+                base_date=base_date.isoformat(),
+                target_date=target_date.isoformat(),
+                source_snapshot=source_snapshot,
+            )
 
-        source_snapshot = self._build_source_snapshot(generated_at)
-        if not isinstance(source_snapshot, dict):
-            source_snapshot = {}
-        source_snapshot = {
-            "as_of_ts": generated_at.isoformat(),
-            "target_universe": PREDICTION_TARGET_SYMBOLS,
-            **source_snapshot,
-        }
-        if "target_universe" not in source_snapshot:
-            source_snapshot["target_universe"] = PREDICTION_TARGET_SYMBOLS
-        raw_payload = self._run_roundtable(
-            window_days=window_days,
-            base_date=base_date.isoformat(),
-            target_date=target_date.isoformat(),
-            source_snapshot=source_snapshot,
-        )
+            raw_votes = raw_payload.get("votes") if isinstance(raw_payload, dict) else None
+            votes = self._normalize_votes_for_generation(
+                raw_votes,
+                window_days=window_days,
+                source_snapshot=source_snapshot,
+            )
+            calls = self._normalize_calls_for_generation(
+                raw_calls=raw_payload.get("calls") if isinstance(raw_payload, dict) else None,
+                raw_votes=raw_votes,
+                votes=votes,
+                source_snapshot=source_snapshot,
+                window_days=window_days,
+            )
+            lead_call = next((call for call in calls if call.symbol == "SPY"), calls[0])
 
-        votes = self._normalize_votes(raw_payload.get("votes"), window_days=window_days)
-        calls = self._normalize_calls(
-            raw_payload.get("calls"),
-            votes=votes,
-            window_days=window_days,
-        )
-        lead_call = next((call for call in calls if call.symbol == "SPY"), calls[0])
-        committee_summary = raw_payload.get("committee_summary")
-        if not isinstance(committee_summary, dict):
-            committee_summary = self._default_committee_summary(votes=votes, calls=calls)
+            committee_summary_raw = raw_payload.get("committee_summary") if isinstance(raw_payload, dict) else None
+            if not isinstance(committee_summary_raw, dict):
+                committee_summary_raw = self._default_committee_summary(votes=votes, calls=calls)
 
-        run = MarketPredictionRun(
-            id=str(uuid.uuid4()),
-            generated_at=generated_at,
-            as_of_ts=generated_at,
-            window_days=window_days,
-            base_date=base_date,
-            target_date=target_date,
-            target_universe=PREDICTION_TARGET_SYMBOLS,
-            lead_symbol=lead_call.symbol,
-            lead_direction=lead_call.direction_label,
-            lead_prob_up=lead_call.prob_up,
-            lead_expected_move_pct=lead_call.expected_move_pct,
-            source_snapshot=source_snapshot,
-            committee_summary=committee_summary,
-        )
-        self.repository.create_run(run)
-        for call in calls:
-            self.repository.upsert_call(run.id, call)
-        self.repository.replace_votes_for_run(run.id, votes)
+            executed_seats = self._extract_executed_seats(
+                raw_votes=raw_votes,
+                committee_config=raw_payload.get("committee_config") if isinstance(raw_payload, dict) else None,
+            )
+            metadata = self._build_run_metadata(
+                existing=None,
+                executed_seats=executed_seats,
+                committee_execution_path=self._normalize_execution_path(
+                    raw_payload.get("_portfolio_execution_path") if isinstance(raw_payload, dict) else None
+                ),
+            )
+            scorecard = self.repository.get_scorecard(window_days)
+            last_evaluated_at = self.repository.get_last_evaluated_at(window_days)
 
-        return MarketPredictionCommitteeResponse(
-            as_of_ts=run.as_of_ts,
-            generated_at=run.generated_at,
-            window_days=window_days,
-            base_date=base_date,
-            target_date=target_date,
-            target_universe=PREDICTION_TARGET_SYMBOLS,
-            lead_call=lead_call,
-            calls=calls,
-            votes=votes,
-            scorecard=self.repository.get_scorecard(window_days),
-            committee_summary=committee_summary,
-            source_snapshot=source_snapshot,
-            last_evaluated_at=self.repository.get_last_evaluated_at(window_days),
-        )
+            run = MarketPredictionRun(
+                id=str(uuid.uuid4()),
+                generated_at=generated_at,
+                as_of_ts=generated_at,
+                window_days=window_days,
+                base_date=base_date,
+                target_date=target_date,
+                target_universe=PREDICTION_TARGET_SYMBOLS,
+                lead_symbol=lead_call.symbol,
+                lead_direction=lead_call.direction_label,
+                lead_prob_up=lead_call.prob_up,
+                lead_expected_move_pct=lead_call.expected_move_pct,
+                source_snapshot=source_snapshot,
+                committee_summary=committee_summary_raw,
+                metadata=metadata,
+            )
+            if hasattr(self.repository, "persist_snapshot"):
+                self.repository.persist_snapshot(run=run, calls=calls, votes=votes)
+            else:
+                self.repository.create_run(run)
+                for call in calls:
+                    self.repository.upsert_call(run.id, call)
+                self.repository.replace_votes_for_run(run.id, votes)
+
+            response = MarketPredictionCommitteeResponse(
+                as_of_ts=run.as_of_ts,
+                generated_at=run.generated_at,
+                window_days=window_days,
+                base_date=base_date,
+                target_date=target_date,
+                target_universe=PREDICTION_TARGET_SYMBOLS,
+                lead_call=lead_call,
+                calls=calls,
+                votes=votes,
+                scorecard=scorecard,
+                committee_summary=committee_summary_raw,
+                source_snapshot=source_snapshot,
+                last_evaluated_at=last_evaluated_at,
+            )
+            response._storage_metadata = metadata
+            return self._normalize_response(response, market_now=generated_at)
+        except Exception as exc:
+            logger.warning("market_prediction_snapshot_generation_failed", error=str(exc), exc_info=True)
+            return self._build_degraded_response(window_days=window_days, as_of_ts=generated_at)
 
     def _validate_window_days(self, window_days: int) -> None:
         if window_days not in SUPPORTED_PREDICTION_WINDOWS:
@@ -151,10 +208,17 @@ class MarketPredictionCommitteeService:
                 f"Unsupported window_days={window_days}. Supported values: {', '.join(str(v) for v in SUPPORTED_PREDICTION_WINDOWS)}"
             )
 
+    def _compute_dates(self, *, window_days: int, as_of_ts: datetime) -> tuple[date, date]:
+        base_date = get_expected_data_date(as_of_ts.astimezone(NY_TZ))
+        target_date = base_date
+        for _ in range(window_days):
+            target_date = get_next_trading_day(target_date)
+        return base_date, target_date
+
     def _build_source_snapshot(self, as_of_ts: datetime) -> dict[str, Any]:
         fear_greed = self.storage.get_fear_greed_latest()
         options_flow = get_latest_options_flow(self.storage)
-        events = get_upcoming_events(days=14)
+        market_date = get_expected_data_date(as_of_ts.astimezone(NY_TZ))
         price_rows = self.storage.query(
             """
             SELECT DISTINCT ON (symbol) symbol, date, close
@@ -190,6 +254,16 @@ class MarketPredictionCommitteeService:
                 "sector_weights": options_flow.sector_weights,
             }
 
+        try:
+            macro_calendar = get_macro_calendar_cluster(
+                market_date=market_date,
+                existing={"upcoming_events": []},
+                storage=self.storage,
+            )
+        except Exception:
+            logger.warning("market_prediction_macro_calendar_helper_failed", exc_info=True)
+            macro_calendar = build_default_macro_calendar_cluster({"upcoming_events": []})
+
         return {
             "as_of_ts": as_of_ts.isoformat(),
             "target_universe": PREDICTION_TARGET_SYMBOLS,
@@ -203,10 +277,7 @@ class MarketPredictionCommitteeService:
                     "fear_greed": fear_greed,
                 },
                 "options_positioning": options_summary,
-                "macro_calendar": {
-                    "freshness": "fresh" if events else "missing",
-                    "upcoming_events": [event.model_dump() for event in events[:8]],
-                },
+                "macro_calendar": macro_calendar,
             },
         }
 
@@ -245,6 +316,7 @@ class MarketPredictionCommitteeService:
                 },
                 "calls": [],
                 "votes": [],
+                "_portfolio_execution_path": "fallback_completion",
             }
         finally:
             try:
@@ -254,46 +326,225 @@ class MarketPredictionCommitteeService:
 
         return payload if isinstance(payload, dict) else {}
 
-    def _normalize_votes(self, raw_votes: Any, *, window_days: int) -> list[CommitteeSeatVote]:
+    def _normalize_response(
+        self,
+        response: MarketPredictionCommitteeResponse,
+        *,
+        market_now: datetime | None = None,
+    ) -> MarketPredictionCommitteeResponse:
+        effective_now = self._coerce_datetime(market_now or datetime.now(UTC))
+        market_date = get_expected_data_date(effective_now.astimezone(NY_TZ))
+        calls = [call for raw_call in response.calls if (call := self._normalize_call_model(raw_call)) is not None]
+        votes = [vote for raw_vote in response.votes if (vote := self._normalize_vote_model(raw_vote)) is not None]
+        lead_call, legacy_sparse = self._select_public_lead_call(
+            raw_lead_call=response.lead_call,
+            calls=calls,
+            window_days=response.window_days,
+        )
+        normalized_scorecard = self._normalize_scorecard(response.scorecard)
+        normalized_source_snapshot = self._normalize_public_snapshot_contract(
+            raw_snapshot=response.source_snapshot,
+            market_date=market_date,
+        )
+        metadata = self._normalize_metadata(getattr(response, "_storage_metadata", {}))
+        truth_state = self._determine_truth_state(
+            lead_call=lead_call,
+            window_days=response.window_days,
+            target_date=response.target_date,
+            market_date=market_date,
+            scorecard=normalized_scorecard,
+            legacy_sparse=legacy_sparse,
+        )
+        scorecard_status_note = self._scorecard_status_note(truth_state)
+        committee_summary = self._normalize_committee_summary(
+            raw_summary=response.committee_summary,
+            metadata=metadata,
+            truth_state=truth_state,
+            scorecard_status_note=scorecard_status_note,
+        )
+        normalized = response.model_copy(
+            update={
+                "lead_call": lead_call,
+                "calls": calls,
+                "votes": votes,
+                "scorecard": normalized_scorecard,
+                "committee_summary": committee_summary,
+                "source_snapshot": normalized_source_snapshot,
+                "target_universe": self._normalize_target_universe(response.target_universe),
+            }
+        )
+        normalized._storage_metadata = metadata
+        return normalized
+
+    def _normalize_public_snapshot_contract(
+        self,
+        *,
+        raw_snapshot: Any,
+        market_date: date,
+    ) -> dict[str, Any]:
+        snapshot = dict(raw_snapshot) if isinstance(raw_snapshot, dict) else {}
+        normalized_clusters = self._normalize_source_snapshot_clusters(snapshot.get("clusters"))
+        existing_macro = normalized_clusters.get("macro_calendar")
+        try:
+            macro_calendar = get_macro_calendar_cluster(
+                market_date=market_date,
+                existing=existing_macro if isinstance(existing_macro, dict) else None,
+                storage=self.storage,
+            )
+        except Exception:
+            logger.warning("market_prediction_macro_calendar_normalization_failed", exc_info=True)
+            macro_calendar = build_default_macro_calendar_cluster(
+                existing_macro if isinstance(existing_macro, dict) else None
+            )
+        normalized_clusters["macro_calendar"] = macro_calendar
+        snapshot["clusters"] = normalized_clusters
+        if "target_universe" not in snapshot or not isinstance(snapshot.get("target_universe"), list):
+            snapshot["target_universe"] = PREDICTION_TARGET_SYMBOLS
+        return snapshot
+
+    def _normalize_source_snapshot_clusters(self, raw_clusters: Any) -> dict[str, dict[str, Any]]:
+        if not isinstance(raw_clusters, dict):
+            return {}
+        grouped: dict[str, list[tuple[str, dict[str, Any]]]] = {}
+        for raw_key, raw_value in raw_clusters.items():
+            trimmed_key = str(raw_key).strip()
+            if not trimmed_key or not isinstance(raw_value, dict):
+                continue
+            grouped.setdefault(trimmed_key, []).append((str(raw_key), dict(raw_value)))
+
+        normalized: dict[str, dict[str, Any]] = {}
+        for trimmed_key in sorted(grouped, key=lambda value: (value.lower(), value)):
+            raw_key, value = min(
+                grouped[trimmed_key],
+                key=lambda item: (trimmed_key.lower(), trimmed_key, item[0]),
+            )
+            del raw_key
+            if "freshness" in value:
+                value["freshness"] = self._normalize_source_freshness(value.get("freshness"))
+            normalized[trimmed_key] = value
+        return normalized
+
+    def _normalize_committee_summary(
+        self,
+        *,
+        raw_summary: Any,
+        metadata: dict[str, Any],
+        truth_state: str,
+        scorecard_status_note: str | None,
+    ) -> dict[str, Any]:
+        summary = dict(raw_summary) if isinstance(raw_summary, dict) else {}
+        summary.pop("_portfolio_execution_path", None)
+        executed_seats = self._normalize_executed_seats(metadata.get("executed_seats"))
+        summary.update(
+            {
+                "committee_roster_mode": self._normalize_roster_mode(metadata.get("committee_roster_mode")),
+                "committee_execution_path": self._normalize_execution_path(metadata.get("committee_execution_path")),
+                "executed_seat_keys": [seat["seat_key"] for seat in executed_seats],
+                "truth_state": truth_state,
+                "scorecard_status_note": scorecard_status_note,
+            }
+        )
+        return summary
+
+    def _normalize_call_model(self, raw_call: Any) -> MarketPredictionCall | None:
+        symbol = self._normalize_symbol(self._value(raw_call, "symbol"))
+        if symbol not in PREDICTION_TARGET_SYMBOLS:
+            return None
+        top_source_clusters = self._normalize_clusters(self._value(raw_call, "top_source_clusters"))
+        return MarketPredictionCall(
+            id=self._optional_str(self._value(raw_call, "id")),
+            symbol=symbol,
+            window_days=self._int(self._value(raw_call, "window_days"), 1),
+            direction_label=self._direction_from_raw(raw_call),
+            prob_up=self._clamp(self._value(raw_call, "prob_up"), 0.5),
+            expected_move_pct=self._float(self._value(raw_call, "expected_move_pct"), 0.0),
+            confidence_band_low_pct=self._optional_float(self._value(raw_call, "confidence_band_low_pct")),
+            confidence_band_high_pct=self._optional_float(self._value(raw_call, "confidence_band_high_pct")),
+            confidence_score=self._normalize_confidence_score(
+                self._value(raw_call, "confidence_score"),
+                fallback=None,
+            ),
+            committee_disagreement_score=self._clamp(
+                self._value(raw_call, "committee_disagreement_score"),
+                0.0,
+                low=0.0,
+                high=1.0,
+            ),
+            rationale_summary=self._optional_str(self._value(raw_call, "rationale_summary")),
+            top_source_clusters=top_source_clusters,
+            metadata=self._dict_or_empty(self._value(raw_call, "metadata")),
+        )
+
+    def _normalize_vote_model(self, raw_vote: Any) -> CommitteeSeatVote | None:
+        symbol = self._normalize_symbol(self._value(raw_vote, "symbol"))
+        seat_key = self._normalize_seat_key(self._value(raw_vote, "seat_key"))
+        if symbol not in PREDICTION_TARGET_SYMBOLS or seat_key is None:
+            return None
+        return CommitteeSeatVote(
+            seat_key=seat_key,
+            agent_slug=self._optional_str(self._value(raw_vote, "agent_slug")) or "investment-committee",
+            model_id=self._optional_str(self._value(raw_vote, "model_id")),
+            provider=self._optional_str(self._value(raw_vote, "provider")),
+            symbol=symbol,
+            window_days=self._int(self._value(raw_vote, "window_days"), 1),
+            direction_label=self._direction_from_raw(raw_vote),
+            prob_up=self._clamp(self._value(raw_vote, "prob_up"), 0.5),
+            expected_move_pct=self._float(self._value(raw_vote, "expected_move_pct"), 0.0),
+            confidence_score=self._normalize_confidence_score(
+                self._value(raw_vote, "confidence_score"),
+                fallback=None,
+            ),
+            rationale_summary=self._optional_str(self._value(raw_vote, "rationale_summary")),
+            source_clusters=self._normalize_clusters(self._value(raw_vote, "source_clusters")),
+            metadata=self._dict_or_empty(self._value(raw_vote, "metadata")),
+        )
+
+    def _normalize_votes_for_generation(
+        self,
+        raw_votes: Any,
+        *,
+        window_days: int,
+        source_snapshot: dict[str, Any],
+    ) -> list[CommitteeSeatVote]:
         if not isinstance(raw_votes, list):
             return []
         votes: list[CommitteeSeatVote] = []
         for raw in raw_votes:
             if not isinstance(raw, dict):
                 continue
-            symbol = str(raw.get("symbol") or "").upper()
-            if symbol not in PREDICTION_TARGET_SYMBOLS:
+            seat_key = self._normalize_seat_key(raw.get("seat_key"))
+            symbol = self._normalize_symbol(raw.get("symbol"))
+            if seat_key is None or symbol not in PREDICTION_TARGET_SYMBOLS:
                 continue
-            try:
-                votes.append(
-                    CommitteeSeatVote(
-                        seat_key=str(raw.get("seat_key") or "committee-seat"),
-                        agent_slug=str(raw.get("agent_slug") or "investment-committee"),
-                        model_id=self._optional_str(raw.get("model_id")),
-                        provider=self._optional_str(raw.get("provider")),
-                        symbol=symbol,
-                        window_days=int(raw.get("window_days") or window_days),
-                        direction_label=self._direction_from_raw(raw),
-                        prob_up=self._clamp(raw.get("prob_up"), 0.5),
-                        expected_move_pct=self._float(raw.get("expected_move_pct"), 0.0),
-                        confidence_score=self._normalize_confidence_score(
-                            raw.get("confidence_score"),
-                            fallback=50.0,
-                        ),
-                        rationale_summary=self._optional_str(raw.get("rationale_summary")),
-                        source_clusters=self._normalize_clusters(raw.get("source_clusters")),
-                        metadata=raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {},
-                    )
+            clusters = self._normalize_clusters(raw.get("source_clusters"))
+            if not clusters:
+                clusters = self._fallback_vote_clusters(seat_key=seat_key, source_snapshot=source_snapshot)
+            votes.append(
+                CommitteeSeatVote(
+                    seat_key=seat_key,
+                    agent_slug=self._optional_str(raw.get("agent_slug")) or "investment-committee",
+                    model_id=self._optional_str(raw.get("model_id")),
+                    provider=self._optional_str(raw.get("provider")),
+                    symbol=symbol,
+                    window_days=self._int(raw.get("window_days"), window_days),
+                    direction_label=self._direction_from_raw(raw),
+                    prob_up=self._clamp(raw.get("prob_up"), 0.5),
+                    expected_move_pct=self._float(raw.get("expected_move_pct"), 0.0),
+                    confidence_score=self._normalize_confidence_score(raw.get("confidence_score"), fallback=50.0),
+                    rationale_summary=self._optional_str(raw.get("rationale_summary")),
+                    source_clusters=clusters,
+                    metadata=self._dict_or_empty(raw.get("metadata")),
                 )
-            except Exception:
-                logger.debug("market_prediction_vote_dropped", raw_vote=raw, exc_info=True)
+            )
         return votes
 
-    def _normalize_calls(
+    def _normalize_calls_for_generation(
         self,
-        raw_calls: Any,
         *,
+        raw_calls: Any,
+        raw_votes: Any,
         votes: list[CommitteeSeatVote],
+        source_snapshot: dict[str, Any],
         window_days: int,
     ) -> list[MarketPredictionCall]:
         call_map: dict[str, MarketPredictionCall] = {}
@@ -301,37 +552,39 @@ class MarketPredictionCommitteeService:
             for raw in raw_calls:
                 if not isinstance(raw, dict):
                     continue
-                symbol = str(raw.get("symbol") or "").upper()
+                symbol = self._normalize_symbol(raw.get("symbol"))
                 if symbol not in PREDICTION_TARGET_SYMBOLS:
                     continue
-                try:
-                    call_map[symbol] = MarketPredictionCall(
-                        symbol=symbol,
-                        window_days=window_days,
-                        direction_label=self._direction_from_raw(raw),
-                        prob_up=self._clamp(raw.get("prob_up"), 0.5),
-                        expected_move_pct=self._float(raw.get("expected_move_pct"), 0.0),
-                        confidence_band_low_pct=self._optional_float(raw.get("confidence_band_low_pct")),
-                        confidence_band_high_pct=self._optional_float(raw.get("confidence_band_high_pct")),
-                        confidence_score=self._normalize_confidence_score(
-                            raw.get("confidence_score"),
-                            fallback=50.0,
-                        ),
-                        committee_disagreement_score=self._clamp(
-                            raw.get("committee_disagreement_score"),
-                            self._estimate_disagreement(symbol, votes),
-                            low=0.0,
-                            high=1.0,
-                        ),
-                        rationale_summary=self._optional_str(raw.get("rationale_summary")),
-                        top_source_clusters=self._normalize_clusters(raw.get("top_source_clusters")),
-                        metadata=raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {},
+                symbol_votes = [vote for vote in votes if vote.symbol == symbol]
+                clusters = self._normalize_clusters(raw.get("top_source_clusters"))
+                if not clusters:
+                    clusters = self._fallback_call_clusters(
+                        raw_votes=raw_votes,
+                        votes=symbol_votes,
+                        source_snapshot=source_snapshot,
                     )
-                except Exception:
-                    logger.debug("market_prediction_call_dropped", raw_call=raw, exc_info=True)
+                call_map[symbol] = MarketPredictionCall(
+                    symbol=symbol,
+                    window_days=window_days,
+                    direction_label=self._direction_from_raw(raw),
+                    prob_up=self._clamp(raw.get("prob_up"), 0.5),
+                    expected_move_pct=self._float(raw.get("expected_move_pct"), 0.0),
+                    confidence_band_low_pct=self._optional_float(raw.get("confidence_band_low_pct")),
+                    confidence_band_high_pct=self._optional_float(raw.get("confidence_band_high_pct")),
+                    confidence_score=self._normalize_confidence_score(raw.get("confidence_score"), fallback=50.0),
+                    committee_disagreement_score=self._clamp(
+                        raw.get("committee_disagreement_score"),
+                        self._estimate_disagreement(symbol, votes),
+                        low=0.0,
+                        high=1.0,
+                    ),
+                    rationale_summary=self._optional_str(raw.get("rationale_summary")),
+                    top_source_clusters=clusters,
+                    metadata=self._dict_or_empty(raw.get("metadata")),
+                )
 
         if not call_map and votes:
-            call_map = self._aggregate_calls_from_votes(votes=votes, window_days=window_days)
+            call_map = self._aggregate_calls_from_votes(raw_votes=raw_votes, votes=votes, window_days=window_days)
 
         ordered_calls: list[MarketPredictionCall] = []
         for symbol in PREDICTION_TARGET_SYMBOLS:
@@ -348,7 +601,11 @@ class MarketPredictionCommitteeService:
                     confidence_score=0.0,
                     committee_disagreement_score=1.0 if votes else 0.0,
                     rationale_summary="Committee call unavailable; neutral fallback applied.",
-                    top_source_clusters=[],
+                    top_source_clusters=self._fallback_call_clusters(
+                        raw_votes=raw_votes,
+                        votes=[vote for vote in votes if vote.symbol == symbol],
+                        source_snapshot=source_snapshot,
+                    ),
                 )
             )
         return ordered_calls
@@ -356,6 +613,7 @@ class MarketPredictionCommitteeService:
     def _aggregate_calls_from_votes(
         self,
         *,
+        raw_votes: Any,
         votes: list[CommitteeSeatVote],
         window_days: int,
     ) -> dict[str, MarketPredictionCall]:
@@ -381,7 +639,11 @@ class MarketPredictionCommitteeService:
                 confidence_score=avg_conf,
                 committee_disagreement_score=self._estimate_disagreement(symbol, symbol_votes),
                 rationale_summary="Consensus synthesized from seat-level committee votes.",
-                top_source_clusters=self._top_clusters_from_votes(symbol_votes),
+                top_source_clusters=self._fallback_call_clusters(
+                    raw_votes=raw_votes,
+                    votes=symbol_votes,
+                    source_snapshot={},
+                ),
             )
         return calls
 
@@ -398,43 +660,404 @@ class MarketPredictionCommitteeService:
             "disagreement_label": "high" if disagreement >= 0.67 else "moderate" if disagreement >= 0.34 else "low",
         }
 
-    def _normalize_response(
+    def _extract_executed_seats(self, *, raw_votes: Any, committee_config: Any) -> list[dict[str, Any]]:
+        vote_seats = self._extract_executed_seat_rows(raw_votes)
+        if vote_seats:
+            return vote_seats
+        config_seats = committee_config.get("seats") if isinstance(committee_config, dict) else None
+        return self._extract_executed_seat_rows(config_seats)
+
+    def _extract_executed_seat_rows(self, raw_rows: Any) -> list[dict[str, Any]]:
+        if not isinstance(raw_rows, list):
+            return []
+        seats: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for raw in raw_rows:
+            seat = self._normalize_executed_seat_row(raw)
+            if seat is None or seat["seat_key"] in seen:
+                continue
+            seen.add(seat["seat_key"])
+            seats.append(seat)
+        return sorted(seats, key=lambda seat: seat["seat_key"])
+
+    def _normalize_executed_seat_row(self, raw: Any) -> dict[str, Any] | None:
+        if not isinstance(raw, dict):
+            return None
+        seat_key = self._normalize_seat_key(raw.get("seat_key"))
+        if seat_key is None:
+            return None
+        return {
+            "seat_key": seat_key,
+            "agent_slug": self._seat_optional_str(raw.get("agent_slug")),
+            "model_id": self._seat_optional_str(raw.get("model_id")),
+            "provider": self._seat_optional_str(raw.get("provider")),
+        }
+
+    def _build_run_metadata(
         self,
-        response: MarketPredictionCommitteeResponse,
+        *,
+        existing: Any,
+        executed_seats: list[dict[str, Any]],
+        committee_execution_path: str,
+    ) -> dict[str, Any]:
+        metadata = self._normalize_metadata(existing)
+        metadata.update(
+            {
+                "committee_roster_mode": self._classify_roster_mode(executed_seats),
+                "committee_fingerprint": self._compute_committee_fingerprint(executed_seats),
+                "committee_execution_path": committee_execution_path,
+                "executed_seats": executed_seats,
+            }
+        )
+        return metadata
+
+    def _normalize_metadata(self, raw_metadata: Any) -> dict[str, Any]:
+        return dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
+
+    def _normalize_executed_seats(self, raw_executed_seats: Any) -> list[dict[str, Any]]:
+        if not isinstance(raw_executed_seats, list):
+            return []
+        seats: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for raw in raw_executed_seats:
+            seat = self._normalize_executed_seat_row(raw)
+            if seat is None or seat["seat_key"] in seen:
+                continue
+            seen.add(seat["seat_key"])
+            seats.append(seat)
+        return sorted(seats, key=lambda seat: seat["seat_key"])
+
+    def _classify_roster_mode(self, executed_seats: list[dict[str, Any]]) -> str:
+        canonical = [
+            {
+                "seat_key": seat["seat_key"],
+                "agent_slug": seat.get("agent_slug"),
+                "model_id": seat.get("model_id"),
+            }
+            for seat in sorted(executed_seats, key=lambda item: item["seat_key"])
+        ]
+        return "default_roster" if canonical == DEFAULT_ROSTER else "custom_roster"
+
+    def _compute_committee_fingerprint(self, executed_seats: list[dict[str, Any]]) -> str:
+        payload = json.dumps(
+            sorted(executed_seats, key=lambda seat: seat["seat_key"]),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def _normalize_roster_mode(self, value: Any) -> str | None:
+        normalized = self._optional_str(value)
+        if normalized in {"default_roster", "custom_roster"}:
+            return normalized
+        return None
+
+    def _normalize_execution_path(self, value: Any) -> str:
+        return "committee_endpoint" if value == "committee_endpoint" else "fallback_completion"
+
+    def _normalize_clusters(self, raw_clusters: Any) -> list[PredictionSourceCluster]:
+        if not isinstance(raw_clusters, list):
+            return []
+        clusters: list[PredictionSourceCluster] = []
+        for raw in raw_clusters:
+            cluster = self._optional_str(self._value(raw, "cluster"))
+            if not cluster:
+                continue
+            clusters.append(
+                PredictionSourceCluster(
+                    cluster=cluster,
+                    weight=self._optional_float(self._value(raw, "weight")),
+                    freshness=self._normalize_attribution_freshness(self._value(raw, "freshness")),
+                    note=self._optional_str(self._value(raw, "note")),
+                )
+            )
+        return clusters
+
+    def _fallback_vote_clusters(
+        self,
+        *,
+        seat_key: str,
+        source_snapshot: dict[str, Any],
+    ) -> list[PredictionSourceCluster]:
+        snapshot_clusters = self._ordered_snapshot_clusters(source_snapshot)
+        for preferred in SEAT_CLUSTER_PREFERENCES.get(seat_key, []):
+            match = next((cluster for cluster in snapshot_clusters if cluster["cluster"] == preferred), None)
+            if match is not None:
+                return [self._build_fallback_cluster(match)]
+        if snapshot_clusters:
+            return [self._build_fallback_cluster(snapshot_clusters[0])]
+        return [
+            PredictionSourceCluster(
+                cluster="unattributed",
+                weight=None,
+                freshness="unknown",
+                note=DEFAULT_UNATTRIBUTED_NOTE,
+            )
+        ]
+
+    def _fallback_call_clusters(
+        self,
+        *,
+        raw_votes: Any,
+        votes: list[CommitteeSeatVote],
+        source_snapshot: dict[str, Any],
+    ) -> list[PredictionSourceCluster]:
+        vote_clusters: list[PredictionSourceCluster] = []
+        seen: set[str] = set()
+        for vote in self._votes_in_raw_order(raw_votes=raw_votes, votes=votes):
+            for cluster in vote.source_clusters:
+                if cluster.cluster in seen:
+                    continue
+                seen.add(cluster.cluster)
+                vote_clusters.append(
+                    PredictionSourceCluster(
+                        cluster=cluster.cluster,
+                        weight=None,
+                        freshness=cluster.freshness or "unknown",
+                        note=DEFAULT_ATTRIBUTION_NOTE,
+                    )
+                )
+                if len(vote_clusters) == 3:
+                    return vote_clusters
+        snapshot_clusters = self._ordered_snapshot_clusters(source_snapshot)
+        if snapshot_clusters:
+            return [self._build_fallback_cluster(cluster) for cluster in snapshot_clusters[:3]]
+        return [
+            PredictionSourceCluster(
+                cluster="unattributed",
+                weight=None,
+                freshness="unknown",
+                note=DEFAULT_UNATTRIBUTED_NOTE,
+            )
+        ]
+
+    def _ordered_snapshot_clusters(self, source_snapshot: dict[str, Any]) -> list[dict[str, str]]:
+        raw_clusters = self._normalize_source_snapshot_clusters(
+            source_snapshot.get("clusters") if isinstance(source_snapshot, dict) else {}
+        )
+        usable = []
+        for cluster_name, cluster_payload in raw_clusters.items():
+            usable.append(
+                {
+                    "cluster": cluster_name,
+                    "freshness": self._normalize_source_freshness(cluster_payload.get("freshness")),
+                }
+            )
+        usable.sort(
+            key=lambda item: (
+                FRESHNESS_RANK[item["freshness"]],
+                item["cluster"].lower(),
+                item["cluster"],
+            )
+        )
+        return usable
+
+    def _build_fallback_cluster(self, cluster: dict[str, str]) -> PredictionSourceCluster:
+        return PredictionSourceCluster(
+            cluster=cluster["cluster"],
+            weight=None,
+            freshness=cluster["freshness"],
+            note=DEFAULT_ATTRIBUTION_NOTE,
+        )
+
+    def _votes_in_raw_order(self, *, raw_votes: Any, votes: list[CommitteeSeatVote]) -> list[CommitteeSeatVote]:
+        if not isinstance(raw_votes, list):
+            return votes
+        indexed_votes: dict[tuple[str, str], CommitteeSeatVote] = {
+            (vote.seat_key, vote.symbol): vote for vote in votes
+        }
+        ordered: list[CommitteeSeatVote] = []
+        seen: set[tuple[str, str]] = set()
+        for raw in raw_votes:
+            if not isinstance(raw, dict):
+                continue
+            key = (
+                self._normalize_seat_key(raw.get("seat_key")) or "",
+                self._normalize_symbol(raw.get("symbol")),
+            )
+            if key in seen:
+                continue
+            vote = indexed_votes.get(key)
+            if vote is None:
+                continue
+            seen.add(key)
+            ordered.append(vote)
+        for vote in votes:
+            key = (vote.seat_key, vote.symbol)
+            if key not in seen:
+                ordered.append(vote)
+        return ordered
+
+    def _select_public_lead_call(
+        self,
+        *,
+        raw_lead_call: Any,
+        calls: list[MarketPredictionCall],
+        window_days: int,
+    ) -> tuple[MarketPredictionCall, bool]:
+        normalized_lead = self._normalize_call_model(raw_lead_call)
+        spy_call = next(
+            (
+                call
+                for call in calls
+                if self._normalize_symbol(call.symbol) == "SPY"
+                and call.top_source_clusters
+            ),
+            None,
+        )
+        first_with_clusters = next(
+            (call for call in calls if call.top_source_clusters),
+            None,
+        )
+
+        candidate = normalized_lead if normalized_lead and normalized_lead.top_source_clusters else None
+        if candidate is None:
+            candidate = spy_call or first_with_clusters
+        if candidate is not None:
+            return candidate, False
+
+        fallback = normalized_lead
+        if fallback is None:
+            fallback = next(
+                (call for call in calls if self._normalize_symbol(call.symbol) == "SPY"),
+                None,
+            )
+        if fallback is None and calls:
+            fallback = calls[0]
+        if fallback is None:
+            fallback = self._neutral_call(window_days=window_days)
+        return fallback, True
+
+    def _normalize_scorecard(self, raw_scorecard: Any) -> MarketPredictionScorecard | None:
+        payload = raw_scorecard.model_dump() if isinstance(raw_scorecard, MarketPredictionScorecard) else raw_scorecard
+        if not isinstance(payload, dict):
+            return None
+        sample_size = payload.get("sample_size")
+        if isinstance(sample_size, bool) or not isinstance(sample_size, int) or sample_size < 0:
+            return None
+        metrics: dict[str, float | None] = {}
+        for key in ("direction_hit_rate", "move_mae_pct", "brier_score"):
+            value = payload.get(key)
+            if value is None:
+                metrics[key] = None
+                continue
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return None
+            numeric = float(value)
+            if not math.isfinite(numeric):
+                return None
+            metrics[key] = numeric
+        return MarketPredictionScorecard(sample_size=sample_size, **metrics)
+
+    def _determine_truth_state(
+        self,
+        *,
+        lead_call: MarketPredictionCall,
+        window_days: int,
+        target_date: date,
+        market_date: date,
+        scorecard: MarketPredictionScorecard | None,
+        legacy_sparse: bool,
+    ) -> str:
+        if legacy_sparse:
+            return "legacy_sparse"
+        if scorecard is None or scorecard.sample_size == 0:
+            return "waiting_after_close" if target_date <= market_date else "pending_target"
+        if self._history_is_sparse(symbol=lead_call.symbol, window_days=window_days):
+            return "sparse_history"
+        return "live"
+
+    def _history_is_sparse(self, *, symbol: str, window_days: int) -> bool:
+        try:
+            history = self.repository.list_history(symbol=symbol, window_days=window_days, limit=30)
+        except Exception:
+            logger.warning("market_prediction_history_lookup_failed", symbol=symbol, window_days=window_days, exc_info=True)
+            return False
+        usable_points = 0
+        for call in history:
+            value = self._value(call, "expected_move_pct")
+            if isinstance(value, bool):
+                continue
+            if not isinstance(value, (int, float)):
+                continue
+            if not math.isfinite(float(value)):
+                continue
+            usable_points += 1
+            if usable_points >= 2:
+                return False
+        return True
+
+    def _scorecard_status_note(self, truth_state: str) -> str | None:
+        if truth_state == "live":
+            return None
+        if truth_state == "pending_target":
+            return DEFAULT_PENDING_TARGET_NOTE
+        if truth_state == "waiting_after_close":
+            return DEFAULT_WAITING_AFTER_CLOSE_NOTE
+        if truth_state == "sparse_history":
+            return DEFAULT_SPARSE_HISTORY_NOTE
+        if truth_state == "legacy_sparse":
+            return DEFAULT_LEGACY_SPARSE_NOTE
+        return DEFAULT_FETCH_ERROR_NOTE
+
+    def _build_degraded_response(
+        self,
+        *,
+        window_days: int,
+        as_of_ts: datetime,
     ) -> MarketPredictionCommitteeResponse:
-        calls = [self._normalize_call_model(call) for call in response.calls]
-        votes = [self._normalize_vote_model(vote) for vote in response.votes]
-        lead_call = next(
-            (call for call in calls if call.symbol == response.lead_call.symbol),
-            self._normalize_call_model(response.lead_call),
-        )
-        return response.model_copy(
-            update={
-                "lead_call": lead_call,
-                "calls": calls,
-                "votes": votes,
-            }
+        base_date, target_date = self._compute_dates(window_days=window_days, as_of_ts=as_of_ts)
+        market_date = get_expected_data_date(as_of_ts.astimezone(NY_TZ))
+        try:
+            macro_calendar = get_macro_calendar_cluster(market_date=market_date, storage=self.storage)
+        except Exception:
+            logger.warning("market_prediction_degraded_macro_calendar_failed", exc_info=True)
+            macro_calendar = build_default_macro_calendar_cluster()
+        lead_call = self._neutral_call(window_days=window_days)
+        return MarketPredictionCommitteeResponse(
+            as_of_ts=as_of_ts,
+            generated_at=as_of_ts,
+            window_days=window_days,
+            base_date=base_date,
+            target_date=target_date,
+            target_universe=PREDICTION_TARGET_SYMBOLS,
+            lead_call=lead_call,
+            calls=[lead_call],
+            votes=[],
+            scorecard=None,
+            committee_summary={
+                "committee_roster_mode": None,
+                "committee_execution_path": "fallback_completion",
+                "executed_seat_keys": [],
+                "truth_state": "fetch_error",
+                "scorecard_status_note": DEFAULT_FETCH_ERROR_NOTE,
+            },
+            source_snapshot={
+                "as_of_ts": as_of_ts.isoformat(),
+                "target_universe": PREDICTION_TARGET_SYMBOLS,
+                "clusters": {"macro_calendar": macro_calendar},
+            },
+            last_evaluated_at=None,
         )
 
-    def _normalize_call_model(self, call: MarketPredictionCall) -> MarketPredictionCall:
-        return call.model_copy(
-            update={
-                "confidence_score": self._normalize_confidence_score(
-                    call.confidence_score,
-                    fallback=None,
-                )
-            }
+    def _neutral_call(self, *, window_days: int) -> MarketPredictionCall:
+        return MarketPredictionCall(
+            symbol="SPY",
+            window_days=window_days,
+            direction_label="neutral",
+            prob_up=0.5,
+            expected_move_pct=0.0,
+            confidence_score=0.0,
+            top_source_clusters=[],
         )
 
-    def _normalize_vote_model(self, vote: CommitteeSeatVote) -> CommitteeSeatVote:
-        return vote.model_copy(
-            update={
-                "confidence_score": self._normalize_confidence_score(
-                    vote.confidence_score,
-                    fallback=None,
-                )
-            }
-        )
+    def _estimate_disagreement(self, symbol: str, votes: list[CommitteeSeatVote]) -> float:
+        symbol_votes = [vote for vote in votes if vote.symbol == symbol]
+        if len(symbol_votes) < 2:
+            return 0.0
+        probs = [vote.prob_up for vote in symbol_votes]
+        return min(1.0, max(probs) - min(probs))
 
     def _normalize_confidence_score(
         self,
@@ -454,53 +1077,13 @@ class MarketPredictionCommitteeService:
             normalized *= 100.0
         return round(normalized, 4)
 
-    def _estimate_disagreement(self, symbol: str, votes: list[CommitteeSeatVote]) -> float:
-        symbol_votes = [vote for vote in votes if vote.symbol == symbol]
-        if len(symbol_votes) < 2:
-            return 0.0
-        probs = [vote.prob_up for vote in symbol_votes]
-        return min(1.0, max(probs) - min(probs))
-
-    def _top_clusters_from_votes(self, votes: list[CommitteeSeatVote]) -> list[PredictionSourceCluster]:
-        totals: dict[str, float] = {}
-        notes: dict[str, str | None] = {}
-        for vote in votes:
-            for cluster in vote.source_clusters:
-                totals[cluster.cluster] = totals.get(cluster.cluster, 0.0) + float(cluster.weight or 0.0)
-                notes.setdefault(cluster.cluster, cluster.note)
-        ordered = sorted(totals.items(), key=lambda item: item[1], reverse=True)[:3]
-        return [
-            PredictionSourceCluster(cluster=cluster, weight=weight, note=notes.get(cluster))
-            for cluster, weight in ordered
-        ]
-
-    def _normalize_clusters(self, raw_clusters: Any) -> list[PredictionSourceCluster]:
-        if not isinstance(raw_clusters, list):
-            return []
-        clusters: list[PredictionSourceCluster] = []
-        for raw in raw_clusters[:5]:
-            if not isinstance(raw, dict):
-                continue
-            cluster = self._optional_str(raw.get("cluster"))
-            if not cluster:
-                continue
-            clusters.append(
-                PredictionSourceCluster(
-                    cluster=cluster,
-                    weight=self._optional_float(raw.get("weight")),
-                    freshness=self._optional_str(raw.get("freshness")),
-                    note=self._optional_str(raw.get("note")),
-                )
-            )
-        return clusters
-
-    def _direction_from_raw(self, raw: dict[str, Any]) -> PredictionDirection:
-        explicit = self._optional_str(raw.get("direction_label"))
+    def _direction_from_raw(self, raw: Any) -> PredictionDirection:
+        explicit = self._optional_str(self._value(raw, "direction_label"))
         if explicit in {"bullish", "neutral", "bearish"}:
             return cast(PredictionDirection, explicit)
         return self._derive_direction(
-            self._clamp(raw.get("prob_up"), 0.5),
-            self._float(raw.get("expected_move_pct"), 0.0),
+            self._clamp(self._value(raw, "prob_up"), 0.5),
+            self._float(self._value(raw, "expected_move_pct"), 0.0),
         )
 
     def _derive_direction(self, prob_up: float, expected_move_pct: float) -> PredictionDirection:
@@ -510,31 +1093,100 @@ class MarketPredictionCommitteeService:
             return "bearish"
         return "neutral"
 
+    def _normalize_target_universe(self, raw_universe: Any) -> list[str]:
+        if not isinstance(raw_universe, list):
+            return PREDICTION_TARGET_SYMBOLS
+        normalized = [self._normalize_symbol(item) for item in raw_universe]
+        usable = [symbol for symbol in normalized if symbol in PREDICTION_TARGET_SYMBOLS]
+        return usable or PREDICTION_TARGET_SYMBOLS
+
+    def _normalize_seat_key(self, value: Any) -> str | None:
+        if value is None:
+            return None
+        text = str(value).strip().lower()
+        return text or None
+
+    def _normalize_symbol(self, value: Any) -> str:
+        return str(value or "").strip().upper()
+
+    def _normalize_attribution_freshness(self, value: Any) -> str | None:
+        if value is None:
+            return None
+        normalized = str(value).strip().lower()
+        if not normalized:
+            return None
+        return normalized if normalized in ALLOWED_CLUSTER_FRESHNESS else "unknown"
+
+    def _normalize_source_freshness(self, value: Any) -> str:
+        if value is None:
+            return "unknown"
+        normalized = str(value).strip().lower()
+        if not normalized:
+            return "unknown"
+        return normalized if normalized in ALLOWED_CLUSTER_FRESHNESS else "unknown"
+
+    @staticmethod
+    def _value(source: Any, key: str) -> Any:
+        if isinstance(source, dict):
+            return source.get(key)
+        return getattr(source, key, None)
+
+    @staticmethod
+    def _dict_or_empty(value: Any) -> dict[str, Any]:
+        return dict(value) if isinstance(value, dict) else {}
+
+    @staticmethod
+    def _coerce_datetime(value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value
+
     @staticmethod
     def _clamp(value: Any, fallback: float, *, low: float = 0.0, high: float = 1.0) -> float:
         try:
             numeric = float(value)
         except (TypeError, ValueError):
             numeric = fallback
+        if not math.isfinite(numeric):
+            numeric = fallback
         return max(low, min(high, numeric))
 
     @staticmethod
     def _float(value: Any, fallback: float) -> float:
         try:
-            return float(value)
+            numeric = float(value)
         except (TypeError, ValueError):
             return fallback
+        return numeric if math.isfinite(numeric) else fallback
+
+    @staticmethod
+    def _int(value: Any, fallback: int) -> int:
+        try:
+            numeric = int(value)
+        except (TypeError, ValueError):
+            return fallback
+        return numeric
 
     @staticmethod
     def _optional_float(value: Any) -> float | None:
         try:
-            return None if value is None else float(value)
+            numeric = None if value is None else float(value)
         except (TypeError, ValueError):
             return None
+        if numeric is None or not math.isfinite(numeric):
+            return None
+        return numeric
 
     @staticmethod
     def _optional_str(value: Any) -> str | None:
         if value is None:
             return None
         text = str(value).strip()
+        return text or None
+
+    @staticmethod
+    def _seat_optional_str(value: Any) -> str | None:
+        if not isinstance(value, str):
+            return None
+        text = value.strip()
         return text or None

@@ -14,9 +14,15 @@ import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type {
+  CommitteeExecutionPath,
+  CommitteeRosterMode,
+  MacroCalendarSourceCluster,
   MarketPredictionCommitteeResponse,
   MarketPredictionHistoryResponse,
-} from '@/lib/api/market'
+  PredictionSourceCluster,
+  PredictionSourceFreshness,
+  PredictionTruthState,
+} from '@/lib/api/market-types'
 import {
   useMarketPredictionCommittee,
   useMarketPredictionHistory,
@@ -57,16 +63,27 @@ const WORKFLOW_RHYTHM = [
 ] as const
 
 const CANONICAL_SYMBOL_SET = new Set<string>(CANONICAL_SYMBOLS)
-const FRESHNESS_ORDER: Record<string, number> = {
+const FRESHNESS_ORDER: Record<PredictionSourceFreshness, number> = {
   fresh: 0,
   stale: 1,
   missing: 2,
+  unknown: 3,
 }
 
 type PredictionCall = MarketPredictionCommitteeResponse['calls'][number]
 type PredictionVote = MarketPredictionCommitteeResponse['votes'][number]
+type SourceRow = PredictionSourceCluster
+
+type NormalizedPredictionCall = Omit<
+  PredictionCall,
+  'symbol' | 'topSourceClusters'
+> & {
+  symbol: string
+  topSourceClusters: SourceRow[]
+}
 
 type NormalizedCommitteeSummary = {
+  isObject: boolean
   heroHeadline: string | null
   overallBias: string | null
   headline: string | null
@@ -77,14 +94,23 @@ type NormalizedCommitteeSummary = {
   disagreementLabel: string | null
   gapCallouts: string[]
   scorecardStatusNote: string | null
+  truthState: PredictionTruthState | null
+  committeeRosterMode: CommitteeRosterMode | null
+  committeeExecutionPath: CommitteeExecutionPath | null
+  executedSeatKeys: string[]
 }
 
 type NormalizedSourceRow = {
   cluster: string
   weight: number | null
-  freshness: string | null
+  freshness: PredictionSourceFreshness | null
   note: string | null
   trackedNotRanked: boolean
+}
+
+type TruthStateDescriptor = {
+  label: string
+  tone: 'neutral' | 'success' | 'warning' | 'danger'
 }
 
 type ScenarioCard = {
@@ -194,6 +220,7 @@ function directionTone(direction: 'bullish' | 'neutral' | 'bearish') {
 
 function humanizeLabel(value: string) {
   return value
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
     .replace(/[_-]+/g, ' ')
     .trim()
     .replace(/\b\w/g, (character) => character.toUpperCase())
@@ -230,11 +257,74 @@ function normalizeDirection(value: unknown): 'bullish' | 'neutral' | 'bearish' {
   return 'neutral'
 }
 
+function normalizeFreshness(value: unknown): PredictionSourceFreshness | null {
+  if (value == null) return null
+  if (value === 'fresh' || value === 'stale' || value === 'missing') {
+    return value
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return 'unknown'
+  }
+  return null
+}
+
+function normalizeTruthState(value: unknown): PredictionTruthState | null {
+  switch (value) {
+    case 'live':
+      return 'live'
+    case 'pendingTarget':
+    case 'pending_target':
+      return 'pendingTarget'
+    case 'waitingAfterClose':
+    case 'waiting_after_close':
+      return 'waitingAfterClose'
+    case 'sparseHistory':
+    case 'sparse_history':
+      return 'sparseHistory'
+    case 'fetchError':
+    case 'fetch_error':
+      return 'fetchError'
+    case 'legacySparse':
+    case 'legacy_sparse':
+      return 'legacySparse'
+    default:
+      return null
+  }
+}
+
+function normalizeSourceClusters(value: unknown): SourceRow[] {
+  if (!Array.isArray(value)) return []
+
+  const rows: SourceRow[] = []
+  for (const entry of value) {
+    const record = readRecord(entry)
+    const cluster = readString(record.cluster)
+    if (!cluster) continue
+    rows.push({
+      cluster,
+      weight: isFiniteNumber(record.weight) ? record.weight : null,
+      freshness: normalizeFreshness(record.freshness),
+      note: readString(record.note),
+    })
+  }
+  return rows
+}
+
+function hasSurvivingAttribution(
+  call: NormalizedPredictionCall | null | undefined,
+): call is NormalizedPredictionCall {
+  return Boolean(call?.symbol && call.topSourceClusters.length > 0)
+}
+
 function normalizeCommitteeSummary(
   summary: MarketPredictionCommitteeResponse['committeeSummary'] | undefined,
 ): NormalizedCommitteeSummary {
+  const isObject = Boolean(
+    summary && typeof summary === 'object' && !Array.isArray(summary),
+  )
   const record = readRecord(summary)
   return {
+    isObject,
     heroHeadline: readString(record.heroHeadline, record.hero_headline),
     overallBias: readString(record.overallBias, record.overall_bias),
     headline: readString(
@@ -277,46 +367,108 @@ function normalizeCommitteeSummary(
       record.scorecardStatusNote,
       record.scorecard_status_note,
     ),
+    truthState: normalizeTruthState(record.truthState ?? record.truth_state),
+    committeeRosterMode:
+      record.committeeRosterMode === 'defaultRoster' ||
+      record.committeeRosterMode === 'default_roster'
+        ? 'defaultRoster'
+        : record.committeeRosterMode === 'customRoster' ||
+            record.committeeRosterMode === 'custom_roster'
+          ? 'customRoster'
+          : record.committee_roster_mode === 'defaultRoster' ||
+              record.committee_roster_mode === 'default_roster'
+            ? 'defaultRoster'
+            : record.committee_roster_mode === 'customRoster' ||
+                record.committee_roster_mode === 'custom_roster'
+              ? 'customRoster'
+              : null,
+    committeeExecutionPath:
+      record.committeeExecutionPath === 'committeeEndpoint' ||
+      record.committeeExecutionPath === 'committee_endpoint'
+        ? 'committeeEndpoint'
+        : record.committeeExecutionPath === 'fallbackCompletion' ||
+            record.committeeExecutionPath === 'fallback_completion'
+          ? 'fallbackCompletion'
+          : record.committee_execution_path === 'committeeEndpoint' ||
+              record.committee_execution_path === 'committee_endpoint'
+            ? 'committeeEndpoint'
+            : record.committee_execution_path === 'fallbackCompletion' ||
+                record.committee_execution_path === 'fallback_completion'
+              ? 'fallbackCompletion'
+              : null,
+    executedSeatKeys: [
+      ...readStringArray(record.executedSeatKeys),
+      ...readStringArray(record.executed_seat_keys),
+    ].filter((value, index, array) => array.indexOf(value) === index),
   }
 }
 
-function normalizePredictionCall(call: PredictionCall | null | undefined) {
+function normalizePredictionCall(
+  call: PredictionCall | null | undefined,
+): NormalizedPredictionCall | null {
   if (!call) return null
   return {
     ...call,
-    symbol: call.symbol.toUpperCase(),
+    symbol:
+      typeof call.symbol === 'string' ? call.symbol.trim().toUpperCase() : '',
     directionLabel: normalizeDirection(call.directionLabel),
     confidenceScore: normalizeConfidenceScore(call.confidenceScore),
     committeeDisagreementScore: isFiniteNumber(call.committeeDisagreementScore)
       ? clamp(call.committeeDisagreementScore, 0, 1)
       : null,
+    topSourceClusters: normalizeSourceClusters(call.topSourceClusters),
   }
 }
 
-function normalizeCalls(calls: PredictionCall[] | undefined) {
-  const bySymbol = new Map<string, ReturnType<typeof normalizePredictionCall>>()
+function normalizeCalls(
+  calls: PredictionCall[] | undefined,
+  canonicalOnly: boolean = false,
+) {
+  const bySymbol = new Map<string, NormalizedPredictionCall>()
   for (const call of calls ?? []) {
     const normalized = normalizePredictionCall(call)
-    if (!normalized) continue
-    if (!CANONICAL_SYMBOL_SET.has(normalized.symbol)) continue
+    if (!normalized?.symbol) continue
+    if (canonicalOnly && !CANONICAL_SYMBOL_SET.has(normalized.symbol)) continue
     if (!bySymbol.has(normalized.symbol)) {
       bySymbol.set(normalized.symbol, normalized)
     }
   }
-  return CANONICAL_SYMBOLS.map((symbol) => bySymbol.get(symbol)).filter(
-    (value): value is NonNullable<typeof value> => Boolean(value),
-  )
+
+  if (canonicalOnly) {
+    return CANONICAL_SYMBOLS.map((symbol) => bySymbol.get(symbol)).filter(
+      (value): value is NormalizedPredictionCall => Boolean(value),
+    )
+  }
+
+  return [...bySymbol.values()]
 }
 
-function selectLeadCall(
+function selectDisplayLeadCall(
   leadCall: MarketPredictionCommitteeResponse['leadCall'] | undefined,
   calls: ReturnType<typeof normalizeCalls>,
 ) {
   const normalizedLead = normalizePredictionCall(leadCall)
-  if (normalizedLead?.symbol === 'SPY') {
+  if (normalizedLead?.symbol) {
     return normalizedLead
   }
-  return calls.find((call) => call.symbol === 'SPY') ?? null
+  return calls.find((call) => call.symbol === 'SPY') ?? calls[0] ?? null
+}
+
+function selectAttributedLeadCall(
+  leadCall: MarketPredictionCommitteeResponse['leadCall'] | undefined,
+  calls: ReturnType<typeof normalizeCalls>,
+) {
+  const normalizedLead = normalizePredictionCall(leadCall)
+  if (hasSurvivingAttribution(normalizedLead)) {
+    return normalizedLead
+  }
+  return (
+    calls.find(
+      (call) => call.symbol === 'SPY' && hasSurvivingAttribution(call),
+    ) ??
+    calls.find((call) => hasSurvivingAttribution(call)) ??
+    null
+  )
 }
 
 function normalizeVotes(
@@ -326,7 +478,9 @@ function normalizeVotes(
   const seen = new Set<string>()
   const filtered: PredictionVote[] = []
   for (const vote of votes ?? []) {
-    if (vote.symbol.toUpperCase() !== symbol) continue
+    const voteSymbol =
+      typeof vote.symbol === 'string' ? vote.symbol.trim().toUpperCase() : ''
+    if (voteSymbol !== symbol) continue
     const seatKey = vote.seatKey?.trim()
     if (!seatKey) continue
     if (seen.has(seatKey)) continue
@@ -337,13 +491,14 @@ function normalizeVotes(
       symbol,
       directionLabel: normalizeDirection(vote.directionLabel),
       confidenceScore: normalizeConfidenceScore(vote.confidenceScore),
+      sourceClusters: normalizeSourceClusters(vote.sourceClusters),
     })
   }
   return filtered
 }
 
 function deriveDisagreementLabel(
-  leadCall: ReturnType<typeof selectLeadCall>,
+  leadCall: ReturnType<typeof selectDisplayLeadCall>,
   summary: NormalizedCommitteeSummary,
   votes: PredictionVote[],
 ) {
@@ -367,63 +522,94 @@ function deriveDisagreementLabel(
 }
 
 function normalizeSourceRows(
-  leadCall: ReturnType<typeof selectLeadCall>,
-  sourceSnapshot:
-    | MarketPredictionCommitteeResponse['sourceSnapshot']
-    | undefined,
+  leadCall: ReturnType<typeof selectAttributedLeadCall>,
 ) {
   const rankedRows = (leadCall?.topSourceClusters ?? [])
     .map((row) => ({
       cluster: row.cluster,
       weight: isFiniteNumber(row.weight) ? row.weight : null,
-      freshness: typeof row.freshness === 'string' ? row.freshness : null,
+      freshness: normalizeFreshness(row.freshness),
       note: typeof row.note === 'string' ? row.note : null,
       trackedNotRanked: !isFiniteNumber(row.weight),
     }))
     .filter((row) => row.cluster)
 
-  if (rankedRows.some((row) => row.weight != null)) {
-    return rankedRows.sort((left, right) => {
-      if (
-        left.weight != null &&
-        right.weight != null &&
-        left.weight !== right.weight
-      ) {
-        return right.weight - left.weight
-      }
-      if (left.weight != null && right.weight == null) return -1
-      if (left.weight == null && right.weight != null) return 1
-      return humanizeLabel(left.cluster).localeCompare(
-        humanizeLabel(right.cluster),
-      )
-    })
-  }
+  return rankedRows.sort((left, right) => {
+    if (
+      left.weight != null &&
+      right.weight != null &&
+      left.weight !== right.weight
+    ) {
+      return right.weight - left.weight
+    }
+    if (left.weight != null && right.weight == null) return -1
+    if (left.weight == null && right.weight != null) return 1
+    const leftRank = FRESHNESS_ORDER[left.freshness ?? 'unknown'] ?? 99
+    const rightRank = FRESHNESS_ORDER[right.freshness ?? 'unknown'] ?? 99
+    if (leftRank !== rightRank) return leftRank - rightRank
+    return humanizeLabel(left.cluster).localeCompare(
+      humanizeLabel(right.cluster),
+    )
+  })
+}
 
-  const snapshotClusters = readRecord(sourceSnapshot).clusters
-  const clusterMap = readRecord(snapshotClusters)
-  return Object.entries(clusterMap)
-    .map(([cluster, payload]) => {
-      const details = readRecord(payload)
-      return {
-        cluster,
-        weight: null,
-        freshness: readString(details.freshness) ?? 'unknown',
-        note: null,
-        trackedNotRanked: true,
-      }
-    })
-    .sort((left, right) => {
-      const leftRank = FRESHNESS_ORDER[left.freshness ?? 'unknown'] ?? 99
-      const rightRank = FRESHNESS_ORDER[right.freshness ?? 'unknown'] ?? 99
-      if (leftRank !== rightRank) return leftRank - rightRank
-      return humanizeLabel(left.cluster).localeCompare(
-        humanizeLabel(right.cluster),
-      )
-    })
+function normalizeMacroCalendar(
+  sourceSnapshot:
+    | MarketPredictionCommitteeResponse['sourceSnapshot']
+    | undefined,
+): MacroCalendarSourceCluster {
+  const clusters = readRecord(sourceSnapshot?.clusters)
+  return readRecord(clusters.macroCalendar) as MacroCalendarSourceCluster
+}
+
+function truthStateDescriptor(
+  truthState: PredictionTruthState,
+): TruthStateDescriptor {
+  switch (truthState) {
+    case 'live':
+      return { label: 'Live', tone: 'success' }
+    case 'pendingTarget':
+      return { label: 'Pending target', tone: 'warning' }
+    case 'waitingAfterClose':
+      return { label: 'Waiting after close', tone: 'warning' }
+    case 'sparseHistory':
+      return { label: 'Sparse history', tone: 'warning' }
+    case 'fetchError':
+      return { label: 'Fetch error', tone: 'danger' }
+    case 'legacySparse':
+      return { label: 'Legacy sparse data', tone: 'danger' }
+    default:
+      return { label: humanizeLabel(truthState), tone: 'neutral' }
+  }
+}
+
+function formatMacroStatusNote(
+  macroCalendar: MacroCalendarSourceCluster,
+  fallback: string,
+) {
+  const freshness = normalizeFreshness(macroCalendar.freshness)
+  if (freshness === 'fresh') return fallback
+
+  const upcomingEventCount = isFiniteNumber(macroCalendar.upcomingEventCount)
+    ? Math.max(0, Math.trunc(macroCalendar.upcomingEventCount))
+    : 0
+  const nextEventDate = formatScorecardDate(
+    readString(macroCalendar.nextEventDate),
+  )
+  const reason =
+    macroCalendar.reason === 'staleTable' ||
+    macroCalendar.reason === 'stale_table'
+      ? 'stale table coverage'
+      : macroCalendar.reason === 'noFutureRows' ||
+          macroCalendar.reason === 'no_future_rows'
+        ? 'no future rows'
+        : 'incomplete calendar coverage'
+  const nextEventCopy = nextEventDate ? ` Next event ${nextEventDate}.` : ''
+  return `Macro calendar is ${freshness ?? 'unknown'} (${reason}); ${upcomingEventCount} upcoming events tracked in the next 14 days.${nextEventCopy}`
 }
 
 function deriveScenarioCards(
-  leadCall: ReturnType<typeof selectLeadCall>,
+  leadCall: ReturnType<typeof selectDisplayLeadCall>,
   summary: NormalizedCommitteeSummary,
 ): ScenarioCard[] {
   const expectedMove = leadCall?.expectedMovePct ?? null
@@ -471,7 +657,7 @@ function deriveScenarioCards(
 }
 
 function buildRangeState(
-  leadCall: ReturnType<typeof selectLeadCall>,
+  leadCall: ReturnType<typeof selectDisplayLeadCall>,
 ): RangeState {
   const low = leadCall?.confidenceBandLowPct
   const high = leadCall?.confidenceBandHighPct
@@ -591,18 +777,22 @@ function buildHistoryState(
 
 function buildGapCallouts({
   macroMissing,
+  macroStatusNote,
   sourceRows,
   seatCount,
   historyState,
   scorecardPending,
   summary,
+  truthState,
 }: {
   macroMissing: boolean
+  macroStatusNote: string
   sourceRows: NormalizedSourceRow[]
   seatCount: number
   historyState: HistoryState
   scorecardPending: boolean
   summary: NormalizedCommitteeSummary
+  truthState: PredictionTruthState
 }) {
   const callouts: GapCallout[] = []
 
@@ -610,8 +800,7 @@ function buildGapCallouts({
     callouts.push({
       label: 'Missing macro context',
       status: 'Missing macro context',
-      detail:
-        'Macro calendar freshness is missing or stale, so event risk is still under-specified.',
+      detail: macroStatusNote,
     })
   }
 
@@ -640,10 +829,20 @@ function buildGapCallouts({
     })
   }
 
-  if (historyState.kind !== 'ready' || scorecardPending) {
+  if (
+    truthState !== 'live' ||
+    historyState.kind !== 'ready' ||
+    scorecardPending
+  ) {
     callouts.push({
-      label: 'Insufficient history',
-      status: historyState.label,
+      label:
+        truthState === 'legacySparse'
+          ? 'Legacy sparse data'
+          : 'Insufficient history',
+      status:
+        truthState === 'legacySparse'
+          ? truthStateDescriptor(truthState).label
+          : historyState.label,
       detail:
         summary.scorecardStatusNote ??
         'Calibration and trend depth will improve after more committee calls mature.',
@@ -798,14 +997,21 @@ export function InvestingPredictionPanel() {
   const selectedQuery = committeeQueries[windowDays]
   const { data, isLoading, error } = selectedQuery
 
-  const normalizedCalls = useMemo(
-    () => normalizeCalls(data?.calls),
+  const allCalls = useMemo(() => normalizeCalls(data?.calls), [data?.calls])
+  const sectorCalls = useMemo(
+    () =>
+      normalizeCalls(data?.calls, true).filter((call) => call.symbol !== 'SPY'),
     [data?.calls],
   )
-  const leadCall = useMemo(
-    () => selectLeadCall(data?.leadCall, normalizedCalls),
-    [data?.leadCall, normalizedCalls],
+  const displayLeadCall = useMemo(
+    () => selectDisplayLeadCall(data?.leadCall, allCalls),
+    [allCalls, data?.leadCall],
   )
+  const attributedLeadCall = useMemo(
+    () => selectAttributedLeadCall(data?.leadCall, allCalls),
+    [allCalls, data?.leadCall],
+  )
+  const leadCall = attributedLeadCall ?? displayLeadCall
   const leadSymbol = leadCall?.symbol ?? 'SPY'
   const historyQuery = useMarketPredictionHistory(leadSymbol, windowDays, 30)
 
@@ -813,17 +1019,17 @@ export function InvestingPredictionPanel() {
     () => normalizeVotes(data?.votes, leadSymbol),
     [data?.votes, leadSymbol],
   )
-  const sectorCalls = useMemo(
-    () => normalizedCalls.filter((call) => call.symbol !== 'SPY'),
-    [normalizedCalls],
-  )
   const committeeSummary = useMemo(
     () => normalizeCommitteeSummary(data?.committeeSummary),
     [data?.committeeSummary],
   )
+  const macroCalendar = useMemo(
+    () => normalizeMacroCalendar(data?.sourceSnapshot),
+    [data?.sourceSnapshot],
+  )
   const sourceRows = useMemo(
-    () => normalizeSourceRows(leadCall, data?.sourceSnapshot),
-    [data?.sourceSnapshot, leadCall],
+    () => normalizeSourceRows(attributedLeadCall),
+    [attributedLeadCall],
   )
   const scenarioCards = useMemo(
     () => deriveScenarioCards(leadCall, committeeSummary),
@@ -843,6 +1049,15 @@ export function InvestingPredictionPanel() {
       ),
     [historyQuery.data, historyQuery.error, historyQuery.isLoading],
   )
+
+  const truthState =
+    committeeSummary.truthState ??
+    (attributedLeadCall && committeeSummary.isObject
+      ? 'live'
+      : attributedLeadCall
+        ? 'live'
+        : 'legacySparse')
+  const truthStateBadge = truthStateDescriptor(truthState)
 
   const heroHeadline =
     committeeSummary.heroHeadline ??
@@ -892,38 +1107,64 @@ export function InvestingPredictionPanel() {
       scorecard.brierScore,
     ].every((value) => value == null)
   const scorecardTargetDate = formatScorecardDate(data?.targetDate)
-  const scorecardStatus = scorecardPending
-    ? (committeeSummary.scorecardStatusNote ??
-      (scorecardTargetDate
-        ? `No matured ${windowDays}D committee calls yet. Current cohort targets ${scorecardTargetDate}. Scorecard populates after the first post-close evaluation.`
-        : `No matured ${windowDays}D committee calls yet. Scorecard populates after the first post-close evaluation.`))
-    : `Scored on ${scorecard.sampleSize} matured committee calls.`
+  const defaultStateNote = (() => {
+    switch (truthState) {
+      case 'pendingTarget':
+        return scorecardTargetDate
+          ? `Current ${windowDays}D cohort targets ${scorecardTargetDate}. Scorecard populates after the first post-close evaluation.`
+          : `Current ${windowDays}D cohort has not hit target yet.`
+      case 'waitingAfterClose':
+        return 'The target date has landed, but the post-close evaluation has not published yet.'
+      case 'sparseHistory':
+        return 'Live scorecard truth is available, but the selected lead history still needs more usable committee snapshots.'
+      case 'fetchError':
+        return 'Prediction snapshot degraded on fetch. Showing the latest safe fallback contract until a healthy refresh returns.'
+      case 'legacySparse':
+        return 'Legacy sparse data lacks surviving lead-call attribution, so the panel stays explicit instead of inventing detail.'
+      default:
+        return scorecardTargetDate
+          ? `No matured ${windowDays}D committee calls yet. Current cohort targets ${scorecardTargetDate}. Scorecard populates after the first post-close evaluation.`
+          : `No matured ${windowDays}D committee calls yet. Scorecard populates after the first post-close evaluation.`
+    }
+  })()
+  const truthStateNote =
+    truthState === 'live'
+      ? null
+      : (committeeSummary.scorecardStatusNote ?? defaultStateNote)
+  const scorecardStatus =
+    truthStateNote ??
+    (scorecardPending
+      ? (committeeSummary.scorecardStatusNote ?? defaultStateNote)
+      : `Scored on ${scorecard.sampleSize} matured committee calls.`)
 
   const sourceFallbackInUse = sourceRows.some((row) => row.trackedNotRanked)
-  const macroFreshness = readString(
-    readRecord(readRecord(data?.sourceSnapshot).clusters).macro_calendar &&
-      readRecord(
-        readRecord(readRecord(data?.sourceSnapshot).clusters).macro_calendar,
-      ).freshness,
-  )
+  const macroFreshness = normalizeFreshness(macroCalendar.freshness)
   const macroMissing = macroFreshness !== 'fresh'
+  const macroStatusNote = formatMacroStatusNote(
+    macroCalendar,
+    'Macro calendar is fresh enough for this committee snapshot.',
+  )
   const gapCallouts = useMemo(
     () =>
       buildGapCallouts({
         macroMissing,
+        macroStatusNote,
         sourceRows,
         seatCount: normalizedVotes.length,
         historyState,
         scorecardPending,
         summary: committeeSummary,
+        truthState,
       }),
     [
       committeeSummary,
       historyState,
       macroMissing,
+      macroStatusNote,
       normalizedVotes.length,
       scorecardPending,
       sourceRows,
+      truthState,
     ],
   )
   const displayVotes = useMemo(
@@ -933,17 +1174,49 @@ export function InvestingPredictionPanel() {
   const horizonCards = WINDOW_OPTIONS.map((option) => {
     const snapshotQuery = committeeQueries[option]
     const snapshotCalls = normalizeCalls(snapshotQuery.data?.calls)
-    const snapshotLead = selectLeadCall(
+    const snapshotAttributedLead = selectAttributedLeadCall(
       snapshotQuery.data?.leadCall,
       snapshotCalls,
     )
+    const snapshotLead =
+      snapshotAttributedLead ??
+      selectDisplayLeadCall(snapshotQuery.data?.leadCall, snapshotCalls)
+    const snapshotSummary = normalizeCommitteeSummary(
+      snapshotQuery.data?.committeeSummary,
+    )
+    const snapshotTruthState =
+      snapshotSummary.truthState ??
+      (selectAttributedLeadCall(snapshotQuery.data?.leadCall, snapshotCalls)
+        ? 'live'
+        : 'legacySparse')
+    const snapshotTruthBadge = truthStateDescriptor(snapshotTruthState)
     return {
       option,
       expectedMove: formatPercent(snapshotLead?.expectedMovePct),
       probability: formatProbability(snapshotLead?.probUp),
-      status: snapshotLead ? 'Live' : 'Pending',
+      status: snapshotTruthBadge.label,
+      tone: snapshotTruthBadge.tone,
     }
   })
+
+  const executedSeatKeys = committeeSummary.executedSeatKeys
+  const provenanceSummary = [
+    committeeSummary.committeeRosterMode
+      ? humanizeLabel(committeeSummary.committeeRosterMode)
+      : null,
+    committeeSummary.committeeExecutionPath
+      ? humanizeLabel(committeeSummary.committeeExecutionPath)
+      : null,
+    executedSeatKeys.length ? `Seats ${executedSeatKeys.join(', ')}` : null,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(' · ')
+  const sourceEmptyStateCopy =
+    truthState === 'legacySparse'
+      ? 'Legacy sparse data lacks surviving lead-call attribution.'
+      : truthState === 'fetchError'
+        ? 'Source attribution is unavailable on the degraded fetch fallback.'
+        : 'Source attribution will appear when the selected lead call carries surviving cluster evidence.'
 
   const LeadIcon = directionIcon(leadCall?.directionLabel ?? 'neutral')
 
@@ -965,12 +1238,24 @@ export function InvestingPredictionPanel() {
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="space-y-4">
                   <div className="flex flex-wrap items-center gap-2">
-                    <StatusBadge label="Live" tone="success" />
+                    <div data-testid="prediction-truth-state">
+                      <StatusBadge
+                        label={truthStateBadge.label}
+                        tone={truthStateBadge.tone}
+                      />
+                    </div>
                     <StatusBadge label={`${windowDays}D horizon`} />
                     <StatusBadge
                       label={disagreementLabel}
                       tone={disagreementTone(disagreementLabel)}
                     />
+                    {committeeSummary.committeeExecutionPath ? (
+                      <StatusBadge
+                        label={humanizeLabel(
+                          committeeSummary.committeeExecutionPath,
+                        )}
+                      />
+                    ) : null}
                   </div>
                   <div className="flex items-start gap-4">
                     <div
@@ -1044,6 +1329,22 @@ export function InvestingPredictionPanel() {
                         ? 'Building the latest committee snapshot…'
                         : supportCopy}
                   </p>
+                  {truthStateNote ? (
+                    <p
+                      data-testid="prediction-truth-note"
+                      className="mt-3 max-w-2xl text-sm leading-relaxed text-amber-100/85"
+                    >
+                      {truthStateNote}
+                    </p>
+                  ) : null}
+                  {provenanceSummary ? (
+                    <p
+                      data-testid="prediction-provenance"
+                      className="mt-3 max-w-2xl text-xs uppercase tracking-[0.18em] text-text-muted"
+                    >
+                      {provenanceSummary}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
@@ -1114,10 +1415,7 @@ export function InvestingPredictionPanel() {
                         <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
                           {card.option}D
                         </p>
-                        <StatusBadge
-                          label={card.status}
-                          tone={card.status === 'Live' ? 'success' : 'warning'}
-                        />
+                        <StatusBadge label={card.status} tone={card.tone} />
                       </div>
                       <p className="mt-3 text-xl font-semibold text-text">
                         {card.expectedMove}
@@ -1261,23 +1559,44 @@ export function InvestingPredictionPanel() {
                         : 'Live committee coverage'}
                   </p>
                 </div>
-                <StatusBadge
-                  label={
-                    normalizedVotes.length === 0
-                      ? 'Pending'
-                      : normalizedVotes.length < 3
-                        ? 'Partial committee coverage'
-                        : 'Live'
-                  }
-                  tone={
-                    normalizedVotes.length === 0
-                      ? 'warning'
-                      : normalizedVotes.length < 3
+                <div className="flex flex-wrap gap-2">
+                  <StatusBadge
+                    label={
+                      normalizedVotes.length === 0
+                        ? 'Pending'
+                        : normalizedVotes.length < 3
+                          ? 'Partial committee coverage'
+                          : 'Live'
+                    }
+                    tone={
+                      normalizedVotes.length === 0
                         ? 'warning'
-                        : 'success'
-                  }
-                />
+                        : normalizedVotes.length < 3
+                          ? 'warning'
+                          : 'success'
+                    }
+                  />
+                  {committeeSummary.committeeRosterMode ? (
+                    <StatusBadge
+                      label={humanizeLabel(
+                        committeeSummary.committeeRosterMode,
+                      )}
+                    />
+                  ) : null}
+                  {committeeSummary.committeeExecutionPath ? (
+                    <StatusBadge
+                      label={humanizeLabel(
+                        committeeSummary.committeeExecutionPath,
+                      )}
+                    />
+                  ) : null}
+                </div>
               </div>
+              {executedSeatKeys.length ? (
+                <p className="mt-4 text-xs uppercase tracking-[0.18em] text-text-muted">
+                  Executed seats: {executedSeatKeys.join(', ')}
+                </p>
+              ) : null}
               {normalizedVotes.length === 0 ? (
                 <p className="mt-4 text-sm text-text-muted">
                   Seat-level commentary will appear after the next roundtable
@@ -1394,6 +1713,11 @@ export function InvestingPredictionPanel() {
                 {sourceFallbackInUse ? (
                   <div className="flex justify-end">
                     <StatusBadge label="Tracked not ranked" tone="warning" />
+                  </div>
+                ) : null}
+                {sourceRows.length === 0 ? (
+                  <div className="rounded-[20px] border border-border/30 bg-black/20 px-4 py-3 text-sm text-text-muted">
+                    {sourceEmptyStateCopy}
                   </div>
                 ) : null}
                 {sourceRows.map((row) => (

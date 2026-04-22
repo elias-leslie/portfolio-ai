@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 PredictionDirection = Literal["bullish", "neutral", "bearish"]
 
@@ -97,6 +97,8 @@ class MarketPredictionScorecard(BaseModel):
 
 
 class MarketPredictionCommitteeResponse(BaseModel):
+    _storage_metadata: Any = PrivateAttr(default_factory=dict)
+
     as_of_ts: datetime
     generated_at: datetime
     window_days: int = Field(..., ge=1)

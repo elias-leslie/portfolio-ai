@@ -187,12 +187,82 @@ export interface MarketIntelligenceResponse {
 // ============================================================================
 
 export type PredictionDirection = 'bullish' | 'neutral' | 'bearish'
+export type PredictionTruthState =
+  | 'live'
+  | 'pendingTarget'
+  | 'waitingAfterClose'
+  | 'sparseHistory'
+  | 'fetchError'
+  | 'legacySparse'
+  | 'pending_target'
+  | 'waiting_after_close'
+  | 'sparse_history'
+  | 'fetch_error'
+  | 'legacy_sparse'
+export type PredictionSourceFreshness =
+  | 'fresh'
+  | 'stale'
+  | 'missing'
+  | 'unknown'
+export type CommitteeRosterMode =
+  | 'defaultRoster'
+  | 'customRoster'
+  | 'default_roster'
+  | 'custom_roster'
+export type CommitteeExecutionPath =
+  | 'committeeEndpoint'
+  | 'fallbackCompletion'
+  | 'committee_endpoint'
+  | 'fallback_completion'
 
 export interface PredictionSourceCluster {
   cluster: string
   weight?: number | null
-  freshness?: string | null
+  freshness?: PredictionSourceFreshness | null
   note?: string | null
+}
+
+export interface MarketPredictionCommitteeSummary {
+  heroHeadline?: string | null
+  overallBias?: string | null
+  headline?: string | null
+  marketRegimeSummary?: string | null
+  confidenceNote?: string | null
+  highestConvictionViews?: string[]
+  highestConvictionCalls?: string[]
+  heroDisagreementLabel?: string | null
+  disagreementLabel?: string | null
+  gapCallouts?: string[]
+  scorecardStatusNote?: string | null
+  committeeRosterMode?: CommitteeRosterMode | null
+  committeeExecutionPath?: CommitteeExecutionPath | null
+  executedSeatKeys?: string[]
+  truthState?: PredictionTruthState | null
+  [key: string]: unknown
+}
+
+export interface MacroCalendarSourceCluster {
+  freshness?: PredictionSourceFreshness | null
+  reason?:
+    | 'ok'
+    | 'staleTable'
+    | 'noFutureRows'
+    | 'stale_table'
+    | 'no_future_rows'
+    | null
+  upcomingEventCount?: number | null
+  nextEventDate?: string | null
+  [key: string]: unknown
+}
+
+export interface MarketPredictionSourceSnapshotClusters {
+  macroCalendar?: MacroCalendarSourceCluster | null
+  [clusterName: string]: unknown
+}
+
+export interface MarketPredictionSourceSnapshot {
+  clusters?: MarketPredictionSourceSnapshotClusters | null
+  [key: string]: unknown
 }
 
 export interface MarketPredictionCall {
@@ -243,8 +313,8 @@ export interface MarketPredictionCommitteeResponse {
   calls: MarketPredictionCall[]
   votes: CommitteeSeatVote[]
   scorecard?: MarketPredictionScorecard | null
-  committeeSummary: Record<string, unknown>
-  sourceSnapshot: Record<string, unknown>
+  committeeSummary: MarketPredictionCommitteeSummary
+  sourceSnapshot: MarketPredictionSourceSnapshot
   lastEvaluatedAt?: string | null
 }
 

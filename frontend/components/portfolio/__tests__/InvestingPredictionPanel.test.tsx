@@ -1,12 +1,14 @@
 'use client'
 
-import { render, screen, within } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { fetchMarketPredictionCommittee } from '@/lib/api/market-core'
 import { InvestingPredictionPanel } from '../InvestingPredictionPanel'
 
 const useMarketPredictionCommitteeMock = vi.fn()
 const useMarketPredictionHistoryMock = vi.fn()
+const originalFetch = global.fetch
 
 vi.mock('@/lib/hooks/useMarketIntelligence', () => ({
   useMarketPredictionCommittee: (windowDays: number) =>
@@ -18,80 +20,61 @@ vi.mock('@/lib/hooks/useMarketIntelligence', () => ({
   ) => useMarketPredictionHistoryMock(symbol, windowDays, limit),
 }))
 
+type JsonRecord = Record<string, unknown>
+
+function buildCall(windowDays: number, overrides: JsonRecord = {}): JsonRecord {
+  return {
+    symbol: 'SPY',
+    windowDays,
+    directionLabel: 'neutral',
+    probUp: 0.52,
+    expectedMovePct: 0.23,
+    confidenceScore: 36,
+    confidenceBandLowPct: -0.2,
+    confidenceBandHighPct: 0.5,
+    committeeDisagreementScore: 0.09,
+    rationaleSummary:
+      'Balanced tape keeps the base case near flat-to-up drift.',
+    topSourceClusters: [
+      { cluster: 'market_regime', weight: 0.42, freshness: 'fresh' },
+      { cluster: 'options_positioning', weight: 0.33, freshness: 'fresh' },
+      {
+        cluster: 'macro_calendar',
+        weight: null,
+        freshness: 'missing',
+        note: 'Derived fallback; tracked not ranked.',
+      },
+    ],
+    ...overrides,
+  }
+}
+
+function buildVote(
+  seatKey: string,
+  windowDays: number,
+  overrides: JsonRecord = {},
+): JsonRecord {
+  return {
+    seatKey,
+    agentSlug: `${seatKey.toLowerCase()}-analyst`,
+    modelId: 'openai/gpt-5.4',
+    provider: 'openai',
+    symbol: 'SPY',
+    windowDays,
+    directionLabel: 'neutral',
+    probUp: 0.52,
+    expectedMovePct: 0.23,
+    confidenceScore: 48,
+    rationaleSummary: `${seatKey} keeps the room balanced.`,
+    sourceClusters: [{ cluster: 'market_regime', freshness: 'fresh' }],
+    ...overrides,
+  }
+}
+
 function buildCommitteeResponse(
   windowDays: number,
-  overrides: Record<string, unknown> = {},
-) {
-  const horizonCopy = {
-    1: {
-      heroHeadline: 'Neutral intraday handoff with only a slight upside lean.',
-      supportCopy:
-        'Sentiment and regime stay balanced, but missing macro context blocks conviction.',
-      bullSummary:
-        'Bull case leans on a modest upside drift without broad confirmation.',
-      bearSummary:
-        'Confidence remains low because the macro event map is still missing.',
-      rationaleSummary:
-        'Balanced tape keeps the base case near flat-to-up drift.',
-      expectedMovePct: 0.14,
-      probUp: 0.53,
-      confidenceScore: 37,
-      confidenceBandLowPct: -0.15,
-      confidenceBandHighPct: 0.28,
-      disagreement: 0.08,
-    },
-    3: {
-      heroHeadline: 'Slight upside drift for SPY, but edge remains weak.',
-      supportCopy:
-        'Calm tape with neutral sentiment and missing macro calendar risk.',
-      bullSummary: 'SPY mild upside drift, low conviction',
-      bearSummary:
-        'Confidence remains low because macro calendar coverage is missing.',
-      rationaleSummary:
-        'Balanced tape keeps the base case near flat-to-up drift.',
-      expectedMovePct: 0.23,
-      probUp: 0.52,
-      confidenceScore: 36,
-      confidenceBandLowPct: -0.2,
-      confidenceBandHighPct: 0.5,
-      disagreement: 0.09,
-    },
-    7: {
-      heroHeadline: 'Constructive regime, but the committee still caps upside.',
-      supportCopy:
-        'The tape is calm, but macro gaps and thin sector detail keep conviction modest.',
-      bullSummary:
-        'Bull case leans on constructive regime without a broad breakout.',
-      bearSummary:
-        'Confidence remains capped because macro catalysts and sector detail are incomplete.',
-      rationaleSummary:
-        'Constructive regime keeps the base case slightly positive.',
-      expectedMovePct: 0.53,
-      probUp: 0.53,
-      confidenceScore: 46,
-      confidenceBandLowPct: -0.4,
-      confidenceBandHighPct: 1.1,
-      disagreement: 0.1,
-    },
-    14: {
-      heroHeadline: 'Range-bound to slight upside drift over two weeks.',
-      supportCopy:
-        'Risk stays balanced, but the missing macro calendar leaves event-gap risk live.',
-      bullSummary:
-        'Bull case needs the constructive regime to hold without a macro shock.',
-      bearSummary:
-        'Macro-event uncertainty keeps the downside gap case live over two weeks.',
-      rationaleSummary:
-        'Base case is flat to slight upside drift with headline risk still present.',
-      expectedMovePct: 0.5,
-      probUp: 0.53,
-      confidenceScore: 46,
-      confidenceBandLowPct: -1.1,
-      confidenceBandHighPct: 1.4,
-      disagreement: 0.1,
-    },
-  }[windowDays as 1 | 3 | 7 | 14]
-
+  overrides: JsonRecord = {},
+): JsonRecord {
   return {
     asOfTs: '2026-04-21T14:05:00Z',
     generatedAt: '2026-04-21T14:05:00Z',
@@ -99,100 +82,43 @@ function buildCommitteeResponse(
     baseDate: '2026-04-20',
     targetDate: windowDays === 14 ? '2026-05-08' : '2026-04-23',
     targetUniverse: ['SPY', 'XLK', 'XLF', 'XLV'],
-    leadCall: {
-      symbol: 'SPY',
-      windowDays,
-      directionLabel: 'neutral',
-      probUp: horizonCopy.probUp,
-      expectedMovePct: horizonCopy.expectedMovePct,
-      confidenceScore: horizonCopy.confidenceScore,
-      confidenceBandLowPct: horizonCopy.confidenceBandLowPct,
-      confidenceBandHighPct: horizonCopy.confidenceBandHighPct,
-      committeeDisagreementScore: horizonCopy.disagreement,
-      rationaleSummary: horizonCopy.rationaleSummary,
-      topSourceClusters: [
-        { cluster: 'market_regime', weight: 0.4, freshness: 'fresh' },
-        { cluster: 'options_positioning', weight: 0.4, freshness: 'fresh' },
-        { cluster: 'macro_calendar', freshness: 'missing' },
-      ],
-    },
+    leadCall: buildCall(windowDays),
     calls: [
-      {
-        symbol: 'SPY',
-        windowDays,
-        directionLabel: 'neutral',
-        probUp: horizonCopy.probUp,
-        expectedMovePct: horizonCopy.expectedMovePct,
-        confidenceScore: horizonCopy.confidenceScore,
-        confidenceBandLowPct: horizonCopy.confidenceBandLowPct,
-        confidenceBandHighPct: horizonCopy.confidenceBandHighPct,
-        committeeDisagreementScore: horizonCopy.disagreement,
-        rationaleSummary: horizonCopy.rationaleSummary,
-        topSourceClusters: [{ cluster: 'market_regime', weight: 0.4 }],
-      },
-      {
+      buildCall(windowDays),
+      buildCall(windowDays, {
         symbol: 'XLK',
-        windowDays,
         directionLabel: 'bullish',
-        probUp: 0.62,
-        expectedMovePct: 0.9,
-        confidenceScore: 58,
-        rationaleSummary: 'Tech keeps the strongest relative upside bias.',
-        topSourceClusters: [{ cluster: 'sector_rotation', weight: 0.33 }],
-      },
-      {
+        probUp: 0.63,
+        expectedMovePct: 0.91,
+        confidenceScore: 59,
+        rationaleSummary: 'Tech still carries the strongest upside tilt.',
+        topSourceClusters: [
+          { cluster: 'sector_rotation', weight: 0.35, freshness: 'fresh' },
+        ],
+      }),
+      buildCall(windowDays, {
         symbol: 'XLF',
-        windowDays,
         directionLabel: 'neutral',
         probUp: 0.51,
-        expectedMovePct: 0.22,
-        confidenceScore: 48,
-        rationaleSummary:
-          'Financials stay balanced while rates remain uncertain.',
-        topSourceClusters: [{ cluster: 'macro', weight: 0.22 }],
-      },
-      {
-        symbol: 'XLV',
-        windowDays,
-        directionLabel: 'neutral',
-        probUp: 0.54,
         expectedMovePct: 0.18,
-        confidenceScore: 51,
-        rationaleSummary:
-          'Defensives stay resilient while broad risk stays muted.',
-        topSourceClusters: [{ cluster: 'defensive_flows', weight: 0.19 }],
-      },
+        confidenceScore: 45,
+        rationaleSummary: 'Financials stay balanced while rates stay sticky.',
+        topSourceClusters: [
+          { cluster: 'macro_calendar', weight: 0.24, freshness: 'fresh' },
+        ],
+      }),
     ],
     votes: [
-      {
-        seatKey: 'Macro Seat',
-        agentSlug: 'macro-analyst',
-        modelId: 'openai/gpt-5.4',
-        provider: 'openai',
-        symbol: 'SPY',
-        windowDays,
-        directionLabel: 'neutral',
-        probUp: 0.54,
-        expectedMovePct: 0.2,
-        confidenceScore: 50,
-        rationaleSummary: 'Rates and macro uncertainty keep the room cautious.',
-        sourceClusters: [{ cluster: 'macro_calendar', freshness: 'missing' }],
-      },
-      {
-        seatKey: 'Risk Seat',
-        agentSlug: 'risk-analyst',
-        modelId: 'anthropic/claude-sonnet-4',
+      buildVote('Macro', windowDays),
+      buildVote('Cross Asset', windowDays, {
+        agentSlug: 'cross-asset-analyst',
+        modelId: 'xai/grok-4.20-reasoning',
+      }),
+      buildVote('Risk', windowDays, {
+        agentSlug: 'risk-manager',
+        modelId: 'claude-opus-4-7',
         provider: 'anthropic',
-        symbol: 'SPY',
-        windowDays,
-        directionLabel: 'neutral',
-        probUp: 0.5,
-        expectedMovePct: 0.18,
-        confidenceScore: 47,
-        rationaleSummary:
-          'Positioning is balanced, so the room is not pressing size.',
-        sourceClusters: [{ cluster: 'options_positioning', weight: 0.3 }],
-      },
+      }),
     ],
     scorecard: {
       directionHitRate: 0.61,
@@ -201,16 +127,26 @@ function buildCommitteeResponse(
       sampleSize: 24,
     },
     committeeSummary: {
-      overallBias: horizonCopy.heroHeadline,
-      marketRegimeSummary: horizonCopy.supportCopy,
-      confidenceNote: horizonCopy.bearSummary,
-      highestConvictionViews: [horizonCopy.bullSummary],
+      heroHeadline: 'Slight upside drift for SPY, but edge remains weak.',
+      marketRegimeSummary:
+        'Calm tape with balanced breadth and still-sensitive macro catalysts.',
+      confidenceNote:
+        'The room stays constructive but does not want to press size.',
+      highestConvictionViews: ['SPY mild upside drift, low conviction'],
+      truthState: 'live',
+      scorecardStatusNote: null,
+      committeeRosterMode: 'defaultRoster',
+      committeeExecutionPath: 'committeeEndpoint',
+      executedSeatKeys: ['cross_asset', 'macro', 'risk'],
     },
     sourceSnapshot: {
       clusters: {
-        market_regime: { freshness: 'fresh' },
-        options_positioning: { freshness: 'fresh' },
-        macro_calendar: { freshness: 'missing' },
+        macroCalendar: {
+          freshness: 'fresh',
+          reason: 'ok',
+          upcomingEventCount: 3,
+          nextEventDate: '2026-04-24',
+        },
       },
     },
     ...overrides,
@@ -219,55 +155,23 @@ function buildCommitteeResponse(
 
 function buildHistoryResponse(
   windowDays: number,
-  overrides: Record<string, unknown> = {},
-) {
-  const items =
-    windowDays === 3
-      ? [
-          {
-            symbol: 'SPY',
-            windowDays,
-            directionLabel: 'neutral',
-            probUp: 0.56,
-            expectedMovePct: 0.5,
-            confidenceScore: 42,
-            confidenceBandLowPct: -1.8,
-            confidenceBandHighPct: 2.1,
-            rationaleSummary: 'Older committee snapshot.',
-            topSourceClusters: [],
-          },
-          {
-            symbol: 'SPY',
-            windowDays,
-            directionLabel: 'neutral',
-            probUp: 0.52,
-            expectedMovePct: 0.23,
-            confidenceScore: 36,
-            confidenceBandLowPct: -0.2,
-            confidenceBandHighPct: 0.5,
-            rationaleSummary: 'Latest committee snapshot.',
-            topSourceClusters: [],
-          },
-        ]
-      : [
-          {
-            symbol: 'SPY',
-            windowDays,
-            directionLabel: 'neutral',
-            probUp: 0.52,
-            expectedMovePct: 0.23,
-            confidenceScore: 36,
-            confidenceBandLowPct: -0.2,
-            confidenceBandHighPct: 0.5,
-            rationaleSummary: 'Latest committee snapshot.',
-            topSourceClusters: [],
-          },
-        ]
-
+  overrides: JsonRecord = {},
+): JsonRecord {
   return {
     symbol: 'SPY',
     windowDays,
-    items,
+    items: [
+      buildCall(windowDays, {
+        expectedMovePct: 0.5,
+        confidenceScore: 42,
+        rationaleSummary: 'Older committee snapshot.',
+      }),
+      buildCall(windowDays, {
+        expectedMovePct: 0.23,
+        confidenceScore: 36,
+        rationaleSummary: 'Latest committee snapshot.',
+      }),
+    ],
     ...overrides,
   }
 }
@@ -286,7 +190,7 @@ describe('InvestingPredictionPanel', () => {
     )
     useMarketPredictionHistoryMock.mockImplementation(
       (symbol: string, windowDays: number, limit?: number) => ({
-        data: buildHistoryResponse(windowDays),
+        data: buildHistoryResponse(windowDays, { symbol }),
         isLoading: false,
         error: null,
         symbol,
@@ -295,63 +199,90 @@ describe('InvestingPredictionPanel', () => {
     )
   })
 
-  it('renders the committee-command-deck hero, derived scenarios, workflow rhythm, and honest gap states', () => {
-    render(<InvestingPredictionPanel />)
-
-    expect(
-      screen.getByText('Slight upside drift for SPY, but edge remains weak.'),
-    ).toBeInTheDocument()
-    expect(
-      within(screen.getByTestId('prediction-hero')).getByText(
-        'Calm tape with neutral sentiment and missing macro calendar risk.',
-      ),
-    ).toBeInTheDocument()
-    expect(screen.getAllByText('Low disagreement').length).toBeGreaterThan(0)
-    expect(screen.getByTestId('prediction-range-summary')).toHaveTextContent(
-      'Range -0.20% to +0.50%',
-    )
-
-    expect(screen.getByRole('heading', { name: 'Bull' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Base' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Bear' })).toBeInTheDocument()
-    expect(
-      screen.getByText('SPY mild upside drift, low conviction'),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(
-        'Balanced tape keeps the base case near flat-to-up drift.',
-      ),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(/No explicit bear narrative from committee\./i),
-    ).toBeInTheDocument()
-    expect(screen.getAllByText('Derived')).toHaveLength(3)
-
-    expect(
-      screen.getAllByText('Partial committee coverage').length,
-    ).toBeGreaterThan(0)
-    expect(screen.getAllByText('Missing macro context').length).toBeGreaterThan(
-      0,
-    )
-    expect(
-      screen.getByText(
-        'Read the lead call, overnight handoff, and top sector tilts before the open.',
-      ),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(
-        'Review what changed, whether the scorecard matured, and the next-session risk.',
-      ),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(
-        'Use the scenario framing, weekly prep, and macro-event disclosure before the week starts.',
-      ),
-    ).toBeInTheDocument()
+  afterEach(() => {
+    global.fetch = originalFetch
   })
 
-  it('switches all four horizons and refetches the hero plus history coherently', async () => {
+  it('renders live truth, provenance, and macro calendar detail without inventing attribution from sourceSnapshot', () => {
+    useMarketPredictionCommitteeMock.mockReturnValue({
+      data: buildCommitteeResponse(3, {
+        leadCall: buildCall(3, {
+          topSourceClusters: [
+            { cluster: 'options_positioning', weight: 0.5, freshness: 'fresh' },
+          ],
+        }),
+        committeeSummary: {
+          heroHeadline: 'Committee stays balanced while macro risk lingers.',
+          marketRegimeSummary:
+            'Live regime stays calm, but event density is still thin.',
+          truthState: 'live',
+          scorecardStatusNote: null,
+          committeeRosterMode: 'customRoster',
+          committeeExecutionPath: 'committeeEndpoint',
+          executedSeatKeys: ['macro', 'risk'],
+        },
+        sourceSnapshot: {
+          clusters: {
+            macroCalendar: {
+              freshness: 'missing',
+              reason: 'noFutureRows',
+              upcomingEventCount: 0,
+              nextEventDate: null,
+            },
+          },
+        },
+      }),
+      isLoading: false,
+      error: null,
+    })
+
+    render(<InvestingPredictionPanel />)
+
+    expect(screen.getByTestId('prediction-truth-state')).toHaveTextContent(
+      'Live',
+    )
+    expect(screen.getByTestId('prediction-provenance')).toHaveTextContent(
+      'Custom Roster',
+    )
+    expect(screen.getByTestId('prediction-provenance')).toHaveTextContent(
+      'Committee Endpoint',
+    )
+    expect(screen.getByTestId('prediction-provenance')).toHaveTextContent(
+      'Seats macro, risk',
+    )
+    expect(
+      screen.getByText('Committee stays balanced while macro risk lingers.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/0 upcoming events tracked in the next 14 days/i),
+    ).toBeInTheDocument()
+
+    const sourceSection = screen.getByTestId('prediction-source-attribution')
+    expect(sourceSection).toHaveTextContent('Options Positioning')
+    expect(sourceSection).not.toHaveTextContent('Macro Calendar')
+  })
+
+  it('switches horizons and keeps the selected-truth badge wired to each window payload', async () => {
     const user = userEvent.setup()
+    useMarketPredictionCommitteeMock.mockImplementation(
+      (windowDays: number) => ({
+        data: buildCommitteeResponse(windowDays, {
+          committeeSummary: {
+            truthState: windowDays === 14 ? 'pendingTarget' : 'live',
+            scorecardStatusNote:
+              windowDays === 14
+                ? 'Two-week cohort has not reached target yet.'
+                : null,
+            committeeRosterMode: 'defaultRoster',
+            committeeExecutionPath: 'committeeEndpoint',
+            executedSeatKeys: ['cross_asset', 'macro', 'risk'],
+          },
+        }),
+        isLoading: false,
+        error: null,
+      }),
+    )
+
     render(<InvestingPredictionPanel />)
 
     await user.click(screen.getByRole('button', { name: '14D' }))
@@ -362,225 +293,401 @@ describe('InvestingPredictionPanel', () => {
       14,
       30,
     )
-    expect(
-      screen.getByText('Range-bound to slight upside drift over two weeks.'),
-    ).toBeInTheDocument()
-    expect(screen.getByTestId('prediction-range-summary')).toHaveTextContent(
-      'Range -1.10% to +1.40%',
+    expect(screen.getByTestId('prediction-truth-state')).toHaveTextContent(
+      'Pending target',
+    )
+    expect(screen.getByTestId('prediction-truth-note')).toHaveTextContent(
+      'Two-week cohort has not reached target yet.',
     )
   })
 
-  it('falls back to the canonical SPY hero, filters non-canonical symbols, and deduplicates seat rows', () => {
-    useMarketPredictionCommitteeMock.mockReturnValue({
-      data: buildCommitteeResponse(3, {
-        leadCall: {
-          symbol: 'XLK',
-          windowDays: 3,
-          directionLabel: 'bullish',
-          probUp: 0.68,
-          expectedMovePct: 0.9,
-          confidenceScore: 59,
-          confidenceBandLowPct: 0.2,
-          confidenceBandHighPct: 1.2,
-          committeeDisagreementScore: 0.18,
-          rationaleSummary: 'Tech still leads the pack.',
-          topSourceClusters: [],
-        },
-        calls: [
-          {
-            symbol: 'XLK',
-            windowDays: 3,
-            directionLabel: 'bullish',
-            probUp: 0.68,
-            expectedMovePct: 0.9,
-            confidenceScore: 59,
-            rationaleSummary: 'Tech still leads the pack.',
-            topSourceClusters: [],
-          },
-          {
-            symbol: 'spy',
-            windowDays: 3,
-            directionLabel: 'neutral',
-            probUp: 0.52,
-            expectedMovePct: 0.23,
-            confidenceScore: 36,
-            confidenceBandLowPct: -0.2,
-            confidenceBandHighPct: 0.5,
-            committeeDisagreementScore: 0.09,
-            rationaleSummary:
-              'Balanced tape keeps the base case near flat-to-up drift.',
-            topSourceClusters: [],
-          },
-          {
-            symbol: 'NVDA',
-            windowDays: 3,
-            directionLabel: 'bullish',
-            probUp: 0.7,
-            expectedMovePct: 2.8,
-            confidenceScore: 67,
-            rationaleSummary: 'Non-canonical noise should be filtered.',
-            topSourceClusters: [],
-          },
-          {
-            symbol: 'XLF',
-            windowDays: 3,
-            directionLabel: 'neutral',
-            probUp: 0.51,
-            expectedMovePct: 0.22,
-            confidenceScore: 48,
-            rationaleSummary: 'Financials stay balanced.',
-            topSourceClusters: [],
-          },
-        ],
-        votes: [
-          {
-            seatKey: 'Macro Seat',
-            agentSlug: 'macro-analyst',
-            modelId: 'openai/gpt-5.4',
-            provider: 'openai',
-            symbol: 'SPY',
-            windowDays: 3,
-            directionLabel: 'neutral',
-            probUp: 0.54,
-            expectedMovePct: 0.2,
-            confidenceScore: 50,
-            rationaleSummary: 'Macro stays balanced.',
-            sourceClusters: [],
-          },
-          {
-            seatKey: 'Macro Seat',
-            agentSlug: 'macro-analyst-duplicate',
-            modelId: 'openai/gpt-5.4',
-            provider: 'openai',
-            symbol: 'SPY',
-            windowDays: 3,
-            directionLabel: 'neutral',
-            probUp: 0.55,
-            expectedMovePct: 0.19,
-            confidenceScore: 49,
-            rationaleSummary: 'Duplicate seat should be dropped.',
-            sourceClusters: [],
-          },
-          {
-            seatKey: '',
-            agentSlug: 'blank-seat',
-            modelId: 'openai/gpt-5.4',
-            provider: 'openai',
-            symbol: 'SPY',
-            windowDays: 3,
-            directionLabel: 'neutral',
-            probUp: 0.5,
-            expectedMovePct: 0.1,
-            confidenceScore: 35,
-            rationaleSummary: 'Blank seat should be dropped.',
-            sourceClusters: [],
-          },
-        ],
-      }),
-      isLoading: false,
-      error: null,
+  it('renders pendingTarget and waitingAfterClose truth states from backend notes', () => {
+    let selectedSnapshot = buildCommitteeResponse(3, {
+      committeeSummary: {
+        truthState: 'pendingTarget',
+        scorecardStatusNote:
+          'Current 3D cohort targets Apr 23, 2026. Scorecard populates after the first post-close evaluation.',
+        committeeRosterMode: 'defaultRoster',
+        committeeExecutionPath: 'committeeEndpoint',
+        executedSeatKeys: ['cross_asset', 'macro', 'risk'],
+      },
+      scorecard: null,
     })
 
-    render(<InvestingPredictionPanel />)
-
-    expect(screen.getByTestId('prediction-hero')).toHaveTextContent('SPY')
-    expect(screen.queryByText(/^NVDA$/)).not.toBeInTheDocument()
-    expect(
-      within(screen.getByTestId('prediction-seat-roster')).getAllByText(
-        'Macro Seat',
-      ),
-    ).toHaveLength(1)
-  })
-
-  it('falls back to tracked-not-ranked source snapshots in deterministic freshness order', () => {
-    useMarketPredictionCommitteeMock.mockReturnValue({
-      data: buildCommitteeResponse(3, {
-        leadCall: {
-          symbol: 'SPY',
-          windowDays: 3,
-          directionLabel: 'neutral',
-          probUp: 0.52,
-          expectedMovePct: 0.23,
-          confidenceScore: 36,
-          confidenceBandLowPct: -0.2,
-          confidenceBandHighPct: 0.5,
-          committeeDisagreementScore: 0.09,
-          rationaleSummary:
-            'Balanced tape keeps the base case near flat-to-up drift.',
-          topSourceClusters: [],
-        },
-        sourceSnapshot: {
-          clusters: {
-            options_positioning: { freshness: 'stale' },
-            macro_calendar: { freshness: 'missing' },
-            market_regime: { freshness: 'fresh' },
-          },
-        },
+    useMarketPredictionCommitteeMock.mockImplementation(
+      (windowDays: number) => ({
+        data:
+          windowDays === 3
+            ? selectedSnapshot
+            : buildCommitteeResponse(windowDays),
+        isLoading: false,
+        error: null,
       }),
-      isLoading: false,
-      error: null,
+    )
+
+    const { rerender } = render(<InvestingPredictionPanel />)
+
+    expect(screen.getByTestId('prediction-truth-state')).toHaveTextContent(
+      'Pending target',
+    )
+    expect(screen.getByTestId('prediction-truth-note')).toHaveTextContent(
+      'Current 3D cohort targets Apr 23, 2026.',
+    )
+
+    selectedSnapshot = buildCommitteeResponse(3, {
+      committeeSummary: {
+        truthState: 'waitingAfterClose',
+        scorecardStatusNote:
+          'Target date passed, but the post-close evaluation has not published yet.',
+        committeeRosterMode: 'defaultRoster',
+        committeeExecutionPath: 'committeeEndpoint',
+        executedSeatKeys: ['cross_asset', 'macro', 'risk'],
+      },
+      scorecard: null,
     })
 
-    render(<InvestingPredictionPanel />)
+    rerender(<InvestingPredictionPanel />)
 
-    const sourceSection = screen.getByTestId('prediction-source-attribution')
-    const sourceText = sourceSection.textContent ?? ''
-    expect(sourceSection).toHaveTextContent('Tracked not ranked')
-    expect(sourceText.indexOf('Market Regime')).toBeLessThan(
-      sourceText.indexOf('Options Positioning'),
+    expect(screen.getByTestId('prediction-truth-state')).toHaveTextContent(
+      'Waiting after close',
     )
-    expect(sourceText.indexOf('Options Positioning')).toBeLessThan(
-      sourceText.indexOf('Macro Calendar'),
+    expect(screen.getByTestId('prediction-truth-note')).toHaveTextContent(
+      'Target date passed, but the post-close evaluation has not published yet.',
     )
   })
 
-  it('distinguishes insufficient history, scorecard pending, and history fetch errors', () => {
+  it('renders sparseHistory from backend truth and keeps the trend panel local to sparse history', () => {
     useMarketPredictionCommitteeMock.mockReturnValue({
       data: buildCommitteeResponse(3, {
-        scorecard: null,
+        committeeSummary: {
+          truthState: 'sparseHistory',
+          scorecardStatusNote:
+            'Live scorecard exists, but the selected lead history still needs more usable committee snapshots.',
+          committeeRosterMode: 'defaultRoster',
+          committeeExecutionPath: 'committeeEndpoint',
+          executedSeatKeys: ['cross_asset', 'macro', 'risk'],
+        },
       }),
       isLoading: false,
       error: null,
     })
     useMarketPredictionHistoryMock.mockReturnValue({
       data: buildHistoryResponse(3, {
-        items: [
-          {
-            symbol: 'SPY',
-            windowDays: 3,
-            directionLabel: 'neutral',
-            probUp: 0.52,
-            expectedMovePct: 0.23,
-            confidenceScore: 36,
-            confidenceBandLowPct: -0.2,
-            confidenceBandHighPct: 0.5,
-            rationaleSummary: 'Only one snapshot exists.',
-            topSourceClusters: [],
-          },
-        ],
+        items: [buildCall(3, { expectedMovePct: 0.23 })],
       }),
       isLoading: false,
       error: null,
     })
 
-    const { rerender } = render(<InvestingPredictionPanel />)
+    render(<InvestingPredictionPanel />)
 
+    expect(screen.getByTestId('prediction-truth-state')).toHaveTextContent(
+      'Sparse history',
+    )
     expect(screen.getByTestId('prediction-history-state')).toHaveTextContent(
       'Insufficient history',
     )
-    expect(screen.getAllByText('Pending').length).toBeGreaterThan(0)
+    expect(screen.getByTestId('prediction-truth-note')).toHaveTextContent(
+      'selected lead history still needs more usable committee snapshots',
+    )
+  })
 
+  it('renders fetchError from backend truth without promoting it to legacy sparse', () => {
+    useMarketPredictionCommitteeMock.mockReturnValue({
+      data: buildCommitteeResponse(3, {
+        leadCall: buildCall(3, { topSourceClusters: [] }),
+        calls: [buildCall(3, { topSourceClusters: [] })],
+        votes: [],
+        scorecard: null,
+        committeeSummary: {
+          truthState: 'fetchError',
+          scorecardStatusNote:
+            'Prediction snapshot degraded on fetch. Showing the latest safe fallback contract until a healthy refresh returns.',
+          committeeRosterMode: null,
+          committeeExecutionPath: 'fallbackCompletion',
+          executedSeatKeys: [],
+        },
+      }),
+      isLoading: false,
+      error: null,
+    })
+
+    render(<InvestingPredictionPanel />)
+
+    expect(screen.getByTestId('prediction-truth-state')).toHaveTextContent(
+      'Fetch error',
+    )
+    expect(screen.getByTestId('prediction-truth-note')).toHaveTextContent(
+      'Prediction snapshot degraded on fetch.',
+    )
+    expect(screen.getByTestId('prediction-provenance')).toHaveTextContent(
+      'Fallback Completion',
+    )
+    expect(
+      screen.getByTestId('prediction-source-attribution'),
+    ).toHaveTextContent(
+      'Source attribution is unavailable on the degraded fetch fallback.',
+    )
+  })
+
+  it('keeps a history-only trend failure local when backend truthState remains live even with malformed sibling provenance', () => {
+    useMarketPredictionCommitteeMock.mockReturnValue({
+      data: buildCommitteeResponse(3, {
+        committeeSummary: {
+          truthState: 'live',
+          scorecardStatusNote: null,
+          committeeRosterMode: 'defaultRoster',
+          committeeExecutionPath: [],
+          executedSeatKeys: ['cross_asset', 'macro', 'risk'],
+        },
+        sourceSnapshot: {
+          clusters: {
+            macroCalendar: 'bad sibling provenance',
+          },
+        },
+      }),
+      isLoading: false,
+      error: null,
+    })
     useMarketPredictionHistoryMock.mockReturnValue({
       data: undefined,
       isLoading: false,
       error: new Error('history offline'),
     })
 
-    rerender(<InvestingPredictionPanel />)
+    render(<InvestingPredictionPanel />)
 
+    expect(screen.getByTestId('prediction-truth-state')).toHaveTextContent(
+      'Live',
+    )
+    expect(
+      screen.queryByTestId('prediction-truth-note'),
+    ).not.toBeInTheDocument()
     expect(screen.getByTestId('prediction-history-state')).toHaveTextContent(
       'Trend unavailable',
     )
     expect(screen.getAllByText(/history offline/i).length).toBeGreaterThan(0)
+    expect(screen.getByTestId('prediction-truth-state')).not.toHaveTextContent(
+      'Fetch error',
+    )
+  })
+
+  it('falls back from an unattributed top-level lead to SPY, then to the first normalized call with surviving attribution', () => {
+    let selectedSnapshot = buildCommitteeResponse(3, {
+      leadCall: buildCall(3, {
+        symbol: 'XLK',
+        topSourceClusters: [],
+      }),
+      calls: [
+        buildCall(3, {
+          symbol: ' spy ',
+          topSourceClusters: [
+            { cluster: 'market_regime', weight: 0.4, freshness: 'fresh' },
+          ],
+        }),
+        buildCall(3, {
+          symbol: 'XLF',
+          topSourceClusters: [
+            { cluster: 'macro_calendar', weight: 0.2, freshness: 'fresh' },
+          ],
+        }),
+      ],
+    })
+
+    useMarketPredictionCommitteeMock.mockImplementation(
+      (windowDays: number) => ({
+        data:
+          windowDays === 3
+            ? selectedSnapshot
+            : buildCommitteeResponse(windowDays),
+        isLoading: false,
+        error: null,
+      }),
+    )
+
+    const { rerender } = render(<InvestingPredictionPanel />)
+
+    expect(screen.getByTestId('prediction-hero')).toHaveTextContent('SPY')
+    expect(useMarketPredictionHistoryMock).toHaveBeenLastCalledWith(
+      'SPY',
+      3,
+      30,
+    )
+
+    selectedSnapshot = buildCommitteeResponse(3, {
+      leadCall: buildCall(3, {
+        symbol: 'XLK',
+        topSourceClusters: [],
+      }),
+      calls: [
+        buildCall(3, {
+          symbol: 'SPY',
+          topSourceClusters: [],
+        }),
+        buildCall(3, {
+          symbol: 'XLF',
+          topSourceClusters: [
+            { cluster: 'macro_calendar', weight: 0.2, freshness: 'fresh' },
+          ],
+        }),
+        buildCall(3, {
+          symbol: 'NVDA',
+          topSourceClusters: [
+            { cluster: 'sentiment', weight: 0.1, freshness: 'fresh' },
+          ],
+        }),
+      ],
+    })
+
+    rerender(<InvestingPredictionPanel />)
+
+    expect(screen.getByTestId('prediction-hero')).toHaveTextContent('XLF')
+    expect(useMarketPredictionHistoryMock).toHaveBeenLastCalledWith(
+      'XLF',
+      3,
+      30,
+    )
+  })
+
+  it('stays in legacySparse precedence when truthState is invalid and no surviving attribution exists, even if history fetch fails', () => {
+    useMarketPredictionCommitteeMock.mockReturnValue({
+      data: buildCommitteeResponse(3, {
+        leadCall: buildCall(3, { topSourceClusters: [] }),
+        calls: [
+          buildCall(3, { topSourceClusters: [] }),
+          buildCall(3, {
+            symbol: 'XLF',
+            topSourceClusters: [{ cluster: '' }, 'bad row'] as unknown as [],
+          }),
+        ],
+        committeeSummary: 'malformed legacy payload',
+      }),
+      isLoading: false,
+      error: null,
+    })
+    useMarketPredictionHistoryMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error('history offline'),
+    })
+
+    render(<InvestingPredictionPanel />)
+
+    expect(screen.getByTestId('prediction-truth-state')).toHaveTextContent(
+      'Legacy sparse data',
+    )
+    expect(
+      screen.getByTestId('prediction-source-attribution'),
+    ).toHaveTextContent(
+      'Legacy sparse data lacks surviving lead-call attribution.',
+    )
+    expect(screen.getByTestId('prediction-history-state')).toHaveTextContent(
+      'Trend unavailable',
+    )
+    expect(screen.getByTestId('prediction-truth-state')).not.toHaveTextContent(
+      'Fetch error',
+    )
+  })
+
+  it('handles snake_case backend additive fields end-to-end after client key camel-casing', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({
+        as_of_ts: '2026-04-21T14:05:00Z',
+        generated_at: '2026-04-21T14:05:00Z',
+        window_days: 3,
+        base_date: '2026-04-20',
+        target_date: '2026-04-23',
+        target_universe: ['SPY'],
+        lead_call: {
+          symbol: 'SPY',
+          window_days: 3,
+          direction_label: 'neutral',
+          prob_up: 0.5,
+          expected_move_pct: 0.0,
+          top_source_clusters: [
+            { cluster: 'macro_calendar', freshness: 'missing', weight: null },
+          ],
+        },
+        calls: [
+          {
+            symbol: 'SPY',
+            window_days: 3,
+            direction_label: 'neutral',
+            prob_up: 0.5,
+            expected_move_pct: 0.0,
+            top_source_clusters: [
+              { cluster: 'macro_calendar', freshness: 'missing', weight: null },
+            ],
+          },
+        ],
+        votes: [],
+        scorecard: null,
+        committee_summary: {
+          truth_state: 'pending_target',
+          scorecard_status_note: 'backend note',
+          committee_roster_mode: 'default_roster',
+          committee_execution_path: 'committee_endpoint',
+          executed_seat_keys: ['macro', 'risk'],
+        },
+        source_snapshot: {
+          clusters: {
+            macro_calendar: {
+              freshness: 'missing',
+              reason: 'no_future_rows',
+              upcoming_event_count: 0,
+              next_event_date: null,
+            },
+          },
+        },
+      }),
+    })
+
+    const response = await fetchMarketPredictionCommittee(3)
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/market/prediction/committee?window_days=3',
+      expect.objectContaining({ cache: 'no-store' }),
+    )
+    expect(response.committeeSummary).toEqual(
+      expect.objectContaining({
+        truthState: 'pending_target',
+        scorecardStatusNote: 'backend note',
+        committeeRosterMode: 'default_roster',
+        committeeExecutionPath: 'committee_endpoint',
+        executedSeatKeys: ['macro', 'risk'],
+      }),
+    )
+    expect(response.sourceSnapshot.clusters?.macroCalendar).toEqual(
+      expect.objectContaining({
+        freshness: 'missing',
+        reason: 'no_future_rows',
+        upcomingEventCount: 0,
+        nextEventDate: null,
+      }),
+    )
+
+    useMarketPredictionCommitteeMock.mockReturnValue({
+      data: response,
+      isLoading: false,
+      error: null,
+    })
+
+    render(<InvestingPredictionPanel />)
+
+    expect(screen.getByTestId('prediction-truth-state')).toHaveTextContent(
+      'Pending target',
+    )
+    expect(screen.getByTestId('prediction-truth-note')).toHaveTextContent(
+      'backend note',
+    )
+    expect(screen.getByTestId('prediction-provenance')).toHaveTextContent(
+      'Default Roster',
+    )
+    expect(
+      screen.getByText(/0 upcoming events tracked in the next 14 days/i),
+    ).toBeInTheDocument()
   })
 })

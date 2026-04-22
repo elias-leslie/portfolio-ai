@@ -15,7 +15,6 @@ from app.models.market_prediction import (
     MarketPredictionEvaluationCandidate,
     MarketPredictionRun,
     MarketPredictionScorecard,
-    PredictionSourceCluster,
 )
 
 if TYPE_CHECKING:
@@ -45,147 +44,175 @@ class MarketPredictionRepository:
                 return fallback
         return fallback
 
-    def create_run(self, run: MarketPredictionRun) -> None:
+    def persist_snapshot(
+        self,
+        *,
+        run: MarketPredictionRun,
+        calls: list[MarketPredictionCall],
+        votes: list[CommitteeSeatVote],
+    ) -> None:
         with self.storage.connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO market_prediction_runs (
-                    id,
-                    generated_at,
-                    as_of_ts,
-                    window_days,
-                    base_date,
-                    target_date,
-                    target_universe,
-                    lead_symbol,
-                    lead_direction,
-                    lead_prob_up,
-                    lead_expected_move_pct,
-                    source_snapshot,
-                    committee_summary,
-                    metadata
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb
-                )
-                """,
-                [
-                    run.id,
-                    run.generated_at,
-                    run.as_of_ts,
-                    run.window_days,
-                    run.base_date,
-                    run.target_date,
-                    self._dump(run.target_universe),
-                    run.lead_symbol,
-                    run.lead_direction,
-                    run.lead_prob_up,
-                    run.lead_expected_move_pct,
-                    self._dump(run.source_snapshot),
-                    self._dump(run.committee_summary),
-                    self._dump(run.metadata),
-                ],
-            )
+            self._create_run_with_connection(conn, run)
+            for call in calls:
+                self._upsert_call_with_connection(conn, run.id, call)
+            self._replace_votes_for_run_with_connection(conn, run.id, votes)
             conn.commit()
 
-    def upsert_call(self, run_id: str, call: MarketPredictionCall) -> None:
-        call_id = call.id or str(uuid.uuid4())
+    def create_run(self, run: MarketPredictionRun) -> None:
         with self.storage.connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO market_prediction_calls (
-                    id,
-                    run_id,
-                    symbol,
-                    window_days,
-                    direction_label,
-                    prob_up,
-                    expected_move_pct,
-                    confidence_band_low_pct,
-                    confidence_band_high_pct,
-                    confidence_score,
-                    committee_disagreement_score,
-                    rationale_summary,
-                    top_source_clusters,
-                    metadata
-                ) VALUES (
-                    %s,
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb
-                )
-                ON CONFLICT (run_id, symbol)
-                DO UPDATE SET
-                    direction_label = EXCLUDED.direction_label,
-                    prob_up = EXCLUDED.prob_up,
-                    expected_move_pct = EXCLUDED.expected_move_pct,
-                    confidence_band_low_pct = EXCLUDED.confidence_band_low_pct,
-                    confidence_band_high_pct = EXCLUDED.confidence_band_high_pct,
-                    confidence_score = EXCLUDED.confidence_score,
-                    committee_disagreement_score = EXCLUDED.committee_disagreement_score,
-                    rationale_summary = EXCLUDED.rationale_summary,
-                    top_source_clusters = EXCLUDED.top_source_clusters,
-                    metadata = EXCLUDED.metadata
-                """,
-                [
-                    call_id,
-                    run_id,
-                    call.symbol,
-                    call.window_days,
-                    call.direction_label,
-                    call.prob_up,
-                    call.expected_move_pct,
-                    call.confidence_band_low_pct,
-                    call.confidence_band_high_pct,
-                    call.confidence_score,
-                    call.committee_disagreement_score,
-                    call.rationale_summary,
-                    self._dump([cluster.model_dump() for cluster in call.top_source_clusters]),
-                    self._dump(call.metadata),
-                ],
-            )
+            self._create_run_with_connection(conn, run)
             conn.commit()
+
+    def _create_run_with_connection(self, conn: Any, run: MarketPredictionRun) -> None:
+        conn.execute(
+            """
+            INSERT INTO market_prediction_runs (
+                id,
+                generated_at,
+                as_of_ts,
+                window_days,
+                base_date,
+                target_date,
+                target_universe,
+                lead_symbol,
+                lead_direction,
+                lead_prob_up,
+                lead_expected_move_pct,
+                source_snapshot,
+                committee_summary,
+                metadata
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb
+            )
+            """,
+            [
+                run.id,
+                run.generated_at,
+                run.as_of_ts,
+                run.window_days,
+                run.base_date,
+                run.target_date,
+                self._dump(run.target_universe),
+                run.lead_symbol,
+                run.lead_direction,
+                run.lead_prob_up,
+                run.lead_expected_move_pct,
+                self._dump(run.source_snapshot),
+                self._dump(run.committee_summary),
+                self._dump(run.metadata),
+            ],
+        )
+
+    def upsert_call(self, run_id: str, call: MarketPredictionCall) -> None:
+        with self.storage.connection() as conn:
+            self._upsert_call_with_connection(conn, run_id, call)
+            conn.commit()
+
+    def _upsert_call_with_connection(self, conn: Any, run_id: str, call: MarketPredictionCall) -> None:
+        call_id = call.id or str(uuid.uuid4())
+        conn.execute(
+            """
+            INSERT INTO market_prediction_calls (
+                id,
+                run_id,
+                symbol,
+                window_days,
+                direction_label,
+                prob_up,
+                expected_move_pct,
+                confidence_band_low_pct,
+                confidence_band_high_pct,
+                confidence_score,
+                committee_disagreement_score,
+                rationale_summary,
+                top_source_clusters,
+                metadata
+            ) VALUES (
+                %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb
+            )
+            ON CONFLICT (run_id, symbol)
+            DO UPDATE SET
+                direction_label = EXCLUDED.direction_label,
+                prob_up = EXCLUDED.prob_up,
+                expected_move_pct = EXCLUDED.expected_move_pct,
+                confidence_band_low_pct = EXCLUDED.confidence_band_low_pct,
+                confidence_band_high_pct = EXCLUDED.confidence_band_high_pct,
+                confidence_score = EXCLUDED.confidence_score,
+                committee_disagreement_score = EXCLUDED.committee_disagreement_score,
+                rationale_summary = EXCLUDED.rationale_summary,
+                top_source_clusters = EXCLUDED.top_source_clusters,
+                metadata = EXCLUDED.metadata
+            """,
+            [
+                call_id,
+                run_id,
+                call.symbol,
+                call.window_days,
+                call.direction_label,
+                call.prob_up,
+                call.expected_move_pct,
+                call.confidence_band_low_pct,
+                call.confidence_band_high_pct,
+                call.confidence_score,
+                call.committee_disagreement_score,
+                call.rationale_summary,
+                self._dump([cluster.model_dump() for cluster in call.top_source_clusters]),
+                self._dump(call.metadata),
+            ],
+        )
 
     def replace_votes_for_run(self, run_id: str, votes: list[CommitteeSeatVote]) -> None:
         with self.storage.connection() as conn:
-            conn.execute("DELETE FROM market_prediction_votes WHERE run_id = %s", [run_id])
-            for vote in votes:
-                conn.execute(
-                    """
-                    INSERT INTO market_prediction_votes (
-                        run_id,
-                        symbol,
-                        window_days,
-                        seat_key,
-                        agent_slug,
-                        model_id,
-                        provider,
-                        direction_label,
-                        prob_up,
-                        expected_move_pct,
-                        confidence_score,
-                        rationale_summary,
-                        source_clusters,
-                        metadata
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb
-                    )
-                    """,
-                    [
-                        run_id,
-                        vote.symbol,
-                        vote.window_days,
-                        vote.seat_key,
-                        vote.agent_slug,
-                        vote.model_id,
-                        vote.provider,
-                        vote.direction_label,
-                        vote.prob_up,
-                        vote.expected_move_pct,
-                        vote.confidence_score,
-                        vote.rationale_summary,
-                        self._dump([cluster.model_dump() for cluster in vote.source_clusters]),
-                        self._dump(vote.metadata),
-                    ],
-                )
+            self._replace_votes_for_run_with_connection(conn, run_id, votes)
             conn.commit()
+
+    def _replace_votes_for_run_with_connection(
+        self,
+        conn: Any,
+        run_id: str,
+        votes: list[CommitteeSeatVote],
+    ) -> None:
+        conn.execute("DELETE FROM market_prediction_votes WHERE run_id = %s", [run_id])
+        for vote in votes:
+            conn.execute(
+                """
+                INSERT INTO market_prediction_votes (
+                    run_id,
+                    symbol,
+                    window_days,
+                    seat_key,
+                    agent_slug,
+                    model_id,
+                    provider,
+                    direction_label,
+                    prob_up,
+                    expected_move_pct,
+                    confidence_score,
+                    rationale_summary,
+                    source_clusters,
+                    metadata
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb
+                )
+                """,
+                [
+                    run_id,
+                    vote.symbol,
+                    vote.window_days,
+                    vote.seat_key,
+                    vote.agent_slug,
+                    vote.model_id,
+                    vote.provider,
+                    vote.direction_label,
+                    vote.prob_up,
+                    vote.expected_move_pct,
+                    vote.confidence_score,
+                    vote.rationale_summary,
+                    self._dump([cluster.model_dump() for cluster in vote.source_clusters]),
+                    self._dump(vote.metadata),
+                ],
+            )
 
     def upsert_evaluation(self, evaluation: MarketPredictionEvaluation) -> None:
         with self.storage.connection() as conn:
@@ -249,7 +276,8 @@ class MarketPredictionRepository:
                     lead_prob_up,
                     lead_expected_move_pct,
                     source_snapshot,
-                    committee_summary
+                    committee_summary,
+                    metadata
                 FROM market_prediction_runs
                 WHERE window_days = %s
                 ORDER BY as_of_ts DESC, generated_at DESC
@@ -260,7 +288,7 @@ class MarketPredictionRepository:
             if not run_row:
                 return None
 
-            run = MarketPredictionRun(
+            run = MarketPredictionRun.model_construct(
                 id=str(run_row[0]),
                 generated_at=run_row[1],
                 as_of_ts=run_row[2],
@@ -274,6 +302,7 @@ class MarketPredictionRepository:
                 lead_expected_move_pct=float(run_row[10]) if run_row[10] is not None else None,
                 source_snapshot=self._load(run_row[11], {}),
                 committee_summary=self._load(run_row[12], {}),
+                metadata=self._load(run_row[13], {}),
             )
 
             call_rows = conn.execute(
@@ -332,7 +361,7 @@ class MarketPredictionRepository:
             expected_move_pct=run.lead_expected_move_pct or 0.0,
         )
 
-        return MarketPredictionCommitteeResponse(
+        response = MarketPredictionCommitteeResponse.model_construct(
             as_of_ts=run.as_of_ts,
             generated_at=run.generated_at,
             window_days=run.window_days,
@@ -347,6 +376,8 @@ class MarketPredictionRepository:
             source_snapshot=run.source_snapshot,
             last_evaluated_at=self.get_last_evaluated_at(window_days),
         )
+        response._storage_metadata = run.metadata
+        return response
 
     def list_history(self, symbol: str, window_days: int, limit: int = 30) -> list[MarketPredictionCall]:
         with self.storage.connection() as conn:
@@ -497,8 +528,7 @@ class MarketPredictionRepository:
         return parsed
 
     def _row_to_call(self, row: tuple[Any, ...]) -> MarketPredictionCall:
-        clusters = [PredictionSourceCluster.model_validate(item) for item in self._load(row[11], [])]
-        return MarketPredictionCall(
+        return MarketPredictionCall.model_construct(
             id=str(row[0]),
             symbol=str(row[1]),
             window_days=int(row[2]),
@@ -510,13 +540,12 @@ class MarketPredictionRepository:
             confidence_score=float(row[8]) if row[8] is not None else None,
             committee_disagreement_score=float(row[9]) if row[9] is not None else None,
             rationale_summary=str(row[10]) if row[10] is not None else None,
-            top_source_clusters=clusters,
+            top_source_clusters=self._load(row[11], []),
             metadata=self._load(row[12], {}),
         )
 
     def _row_to_vote(self, row: tuple[Any, ...]) -> CommitteeSeatVote:
-        clusters = [PredictionSourceCluster.model_validate(item) for item in self._load(row[11], [])]
-        return CommitteeSeatVote(
+        return CommitteeSeatVote.model_construct(
             seat_key=str(row[0]),
             agent_slug=str(row[1]),
             model_id=str(row[2]) if row[2] is not None else None,
@@ -528,6 +557,6 @@ class MarketPredictionRepository:
             expected_move_pct=float(row[8]),
             confidence_score=float(row[9]) if row[9] is not None else None,
             rationale_summary=str(row[10]) if row[10] is not None else None,
-            source_clusters=clusters,
+            source_clusters=self._load(row[11], []),
             metadata=self._load(row[12], {}),
         )

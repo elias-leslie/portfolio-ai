@@ -293,8 +293,12 @@ class AgentHubAPIClient(LLMClient):
             )
             if getattr(response, "is_success", False):
                 payload = response.json()
-                if isinstance(payload, dict):
-                    return payload
+                if (
+                    isinstance(payload, dict)
+                    and isinstance(payload.get("calls"), list)
+                    and isinstance(payload.get("votes"), list)
+                ):
+                    return {**payload, "_portfolio_execution_path": "committee_endpoint"}
         except Exception:
             logger.warning("committee_endpoint_request_failed", exc_info=True)
 
@@ -319,7 +323,7 @@ class AgentHubAPIClient(LLMClient):
             raise RuntimeError(f"Committee roundtable returned invalid JSON: {exc}") from exc
         if not isinstance(payload, dict):
             raise RuntimeError("Committee roundtable returned non-object payload")
-        return payload
+        return {**payload, "_portfolio_execution_path": "fallback_completion"}
 
     def close(self) -> None:
         """Close the underlying HTTP client."""

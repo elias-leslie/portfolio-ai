@@ -60,8 +60,26 @@ class _FakePredictionService:
             lead_call=calls[0],
             calls=calls,
             votes=[],
-            committee_summary={"headline": "Constructive risk appetite", "disagreement_label": "moderate"},
-            source_snapshot={"clusters": {"market_regime": {"freshness": "fresh"}}},
+            committee_summary={
+                "headline": "Constructive risk appetite",
+                "disagreement_label": "moderate",
+                "committee_roster_mode": "default_roster",
+                "committee_execution_path": "committee_endpoint",
+                "executed_seat_keys": ["cross_asset", "macro", "risk"],
+                "truth_state": "live",
+                "scorecard_status_note": None,
+            },
+            source_snapshot={
+                "clusters": {
+                    "market_regime": {"freshness": "fresh"},
+                    "macro_calendar": {
+                        "freshness": "fresh",
+                        "reason": "ok",
+                        "upcoming_event_count": 2,
+                        "next_event_date": "2026-04-22",
+                    },
+                }
+            },
         )
 
     def get_history(self, symbol: str, window_days: int, limit: int = 30) -> list[MarketPredictionCall]:
@@ -79,11 +97,60 @@ class _FakePredictionService:
         ][:limit]
 
 
+class _DegradedPredictionService:
+    def get_committee_snapshot(self, window_days: int) -> MarketPredictionCommitteeResponse:
+        lead_call = MarketPredictionCall(
+            symbol="SPY",
+            window_days=window_days,
+            direction_label="neutral",
+            prob_up=0.5,
+            expected_move_pct=0.0,
+            confidence_score=0.0,
+            top_source_clusters=[],
+        )
+        return MarketPredictionCommitteeResponse(
+            as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+            generated_at=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+            window_days=window_days,
+            base_date=date(2026, 4, 21),
+            target_date=date(2026, 4, 24),
+            target_universe=PREDICTION_TARGET_SYMBOLS,
+            lead_call=lead_call,
+            calls=[lead_call],
+            votes=[],
+            committee_summary={
+                "committee_roster_mode": None,
+                "committee_execution_path": "fallback_completion",
+                "executed_seat_keys": [],
+                "truth_state": "fetch_error",
+                "scorecard_status_note": "Committee snapshot unavailable; serving degraded fallback.",
+            },
+            source_snapshot={
+                "clusters": {
+                    "macro_calendar": {
+                        "freshness": "missing",
+                        "reason": "no_future_rows",
+                        "upcoming_event_count": 0,
+                        "next_event_date": None,
+                    }
+                }
+            },
+            scorecard=None,
+        )
+
+    def get_history(self, symbol: str, window_days: int, limit: int = 30) -> list[MarketPredictionCall]:
+        return []
+
+
 def _fake_prediction_service() -> _FakePredictionService:
     return _FakePredictionService()
 
 
-def test_get_prediction_committee_snapshot(client: TestClient, monkeypatch) -> None:
+def _degraded_prediction_service() -> _DegradedPredictionService:
+    return _DegradedPredictionService()
+
+
+def test_get_prediction_committee_snapshot_serializes_additive_summary_and_macro_contract(client: TestClient, monkeypatch) -> None:
     monkeypatch.setattr(
         "app.api.market.prediction_router._get_prediction_service",
         _fake_prediction_service,
@@ -97,6 +164,35 @@ def test_get_prediction_committee_snapshot(client: TestClient, monkeypatch) -> N
     assert data["lead_call"]["symbol"] == "SPY"
     assert len(data["calls"]) == len(PREDICTION_TARGET_SYMBOLS)
     assert data["committee_summary"]["headline"] == "Constructive risk appetite"
+    assert data["committee_summary"]["committee_roster_mode"] == "default_roster"
+    assert data["committee_summary"]["committee_execution_path"] == "committee_endpoint"
+    assert data["committee_summary"]["executed_seat_keys"] == ["cross_asset", "macro", "risk"]
+    assert data["committee_summary"]["truth_state"] == "live"
+    assert data["committee_summary"]["scorecard_status_note"] is None
+    assert data["source_snapshot"]["clusters"]["macro_calendar"] == {
+        "freshness": "fresh",
+        "reason": "ok",
+        "upcoming_event_count": 2,
+        "next_event_date": "2026-04-22",
+    }
+
+
+def test_get_prediction_committee_allows_degraded_fetch_error_200_shape(client: TestClient, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.api.market.prediction_router._get_prediction_service",
+        _degraded_prediction_service,
+    )
+
+    response = client.get("/api/market/prediction/committee?window_days=3")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["lead_call"]["symbol"] == "SPY"
+    assert data["votes"] == []
+    assert data["scorecard"] is None
+    assert data["committee_summary"]["committee_execution_path"] == "fallback_completion"
+    assert data["committee_summary"]["truth_state"] == "fetch_error"
+    assert data["source_snapshot"]["clusters"]["macro_calendar"]["reason"] == "no_future_rows"
 
 
 def test_get_prediction_committee_history(client: TestClient, monkeypatch) -> None:
