@@ -130,13 +130,17 @@ def _response(
     source_snapshot: Any = None,
     scorecard: Any = None,
     committee_summary: Any = None,
+    generated_at: datetime | None = None,
+    as_of_ts: datetime | None = None,
+    target_date: date | None = None,
+    last_evaluated_at: datetime | None = None,
 ) -> MarketPredictionCommitteeResponse:
     response = MarketPredictionCommitteeResponse.model_construct(
-        as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
-        generated_at=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+        as_of_ts=as_of_ts or datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+        generated_at=generated_at or datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
         window_days=3,
         base_date=date(2026, 4, 21),
-        target_date=date(2026, 4, 24),
+        target_date=target_date or date(2026, 4, 24),
         target_universe=PREDICTION_TARGET_SYMBOLS,
         lead_call=lead_call,
         calls=calls,
@@ -144,7 +148,7 @@ def _response(
         scorecard=scorecard,
         committee_summary={} if committee_summary is None else committee_summary,
         source_snapshot={} if source_snapshot is None else source_snapshot,
-        last_evaluated_at=None,
+        last_evaluated_at=last_evaluated_at,
     )
     response._storage_metadata = {}
     return response
@@ -222,6 +226,98 @@ def test_get_committee_snapshot_defaults_additive_review_fields_for_legacy_rows(
     assert result.committee_summary["review_as_of_ts"] is None
     assert result.committee_summary["review_row_id"] is None
 
+
+
+def test_normalize_response_marks_previous_session_snapshot_invalidated(monkeypatch) -> None:
+    service = MarketPredictionCommitteeService(repository=_FakeRepo(), storage=_FakeStorage())
+    snapshot = _response(
+        lead_call=_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}]),
+        calls=[_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}])],
+        generated_at=datetime(2026, 4, 21, 20, 15, tzinfo=UTC),
+        as_of_ts=datetime(2026, 4, 21, 20, 15, tzinfo=UTC),
+        source_snapshot={
+            "clusters": {
+                "market_regime": {
+                    "latest_closes": {
+                        "SPY": {"date": "2026-04-21", "close": 500.0},
+                        "XLK": {"date": "2026-04-21", "close": 210.0},
+                    }
+                },
+                "options_positioning": {
+                    "freshness": "fresh",
+                    "as_of_date": "2026-04-21",
+                },
+                "macro_calendar": {
+                    "freshness": "fresh",
+                    "reason": "ok",
+                    "upcoming_event_count": 2,
+                    "next_event_date": "2026-04-23",
+                },
+            }
+        },
+        committee_summary={"headline": "Old snapshot"},
+    )
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_macro_calendar_cluster",
+        lambda **kwargs: kwargs.get("existing") or {},
+    )
+
+    result = service._normalize_response(
+        snapshot,
+        market_now=datetime(2026, 4, 22, 15, 0, tzinfo=UTC),
+    )
+
+    assert result.freshness_summary is not None
+    assert result.freshness_summary.state == "invalid"
+    assert result.freshness_summary.invalidated is True
+    assert "previous_market_session" in result.freshness_summary.reason_codes
+    assert result.freshness_summary.critical_clusters[0].cluster == "market_regime"
+    assert result.freshness_summary.critical_clusters[0].freshness == "fresh"
+
+
+def test_normalize_response_marks_waiting_after_close_invalidated_even_same_session(monkeypatch) -> None:
+    service = MarketPredictionCommitteeService(repository=_FakeRepo(), storage=_FakeStorage())
+    snapshot = _response(
+        lead_call=_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}]),
+        calls=[_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}])],
+        target_date=date(2026, 4, 21),
+        source_snapshot={
+            "clusters": {
+                "market_regime": {
+                    "latest_closes": {
+                        "SPY": {"date": "2026-04-21", "close": 500.0},
+                    }
+                },
+                "options_positioning": {
+                    "freshness": "fresh",
+                    "as_of_date": "2026-04-21",
+                },
+                "macro_calendar": {
+                    "freshness": "fresh",
+                    "reason": "ok",
+                    "upcoming_event_count": 1,
+                    "next_event_date": "2026-04-22",
+                },
+            }
+        },
+        committee_summary={"headline": "Target passed"},
+    )
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_macro_calendar_cluster",
+        lambda **kwargs: kwargs.get("existing") or {},
+    )
+
+    result = service._normalize_response(
+        snapshot,
+        market_now=datetime(2026, 4, 21, 22, 45, tzinfo=UTC),
+    )
+
+    assert result.committee_summary["truth_state"] == "waiting_after_close"
+    assert result.freshness_summary is not None
+    assert result.freshness_summary.state == "invalid"
+    assert result.freshness_summary.invalidated is True
+    assert "target_reached_pending_evaluation" in result.freshness_summary.reason_codes
+    assert result.freshness_summary.refresh_after_seconds == 60
 
 
 def test_build_source_snapshot_adds_additive_indicator_sleeves(monkeypatch) -> None:

@@ -28,6 +28,23 @@ import {
   type SectorHistoryResponse,
 } from '../api/market'
 
+const DEFAULT_PREDICTION_REFRESH_MS = 1000 * 60 * 10
+const MIN_PREDICTION_REFRESH_MS = 1000 * 60
+
+function getPredictionCommitteeRefreshMs(
+  data: MarketPredictionCommitteeResponse | undefined,
+) {
+  const seconds = data?.freshnessSummary?.refreshAfterSeconds
+  if (
+    typeof seconds !== 'number' ||
+    !Number.isFinite(seconds) ||
+    seconds <= 0
+  ) {
+    return DEFAULT_PREDICTION_REFRESH_MS
+  }
+  return Math.max(MIN_PREDICTION_REFRESH_MS, Math.round(seconds * 1000))
+}
+
 /**
  * Hook to fetch unified market intelligence
  * (narrative + dual scoring + sector rotation)
@@ -51,8 +68,12 @@ export function useMarketPredictionCommittee(
   return useQuery({
     queryKey: ['market', 'prediction', 'committee', windowDays],
     queryFn: () => fetchMarketPredictionCommittee(windowDays),
-    staleTime: 1000 * 60 * 10,
-    refetchInterval: 1000 * 60 * 10,
+    staleTime: 1000 * 60,
+    refetchInterval: (query) =>
+      getPredictionCommitteeRefreshMs(
+        query.state.data as MarketPredictionCommitteeResponse | undefined,
+      ),
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   })
 }

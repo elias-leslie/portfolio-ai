@@ -204,6 +204,12 @@ export type PredictionSourceFreshness =
   | 'stale'
   | 'missing'
   | 'unknown'
+export type PredictionFreshnessState =
+  | 'fresh'
+  | 'aging'
+  | 'stale'
+  | 'invalid'
+  | 'degraded'
 export type CommitteeRosterMode =
   | 'defaultRoster'
   | 'customRoster'
@@ -302,6 +308,27 @@ export interface MarketPredictionScorecard {
   sampleSize: number
 }
 
+export interface PredictionFreshnessCluster {
+  cluster: string
+  freshness: PredictionSourceFreshness
+  asOfDate?: string | null
+  detail?: string | null
+}
+
+export interface PredictionFreshnessSummary {
+  state: PredictionFreshnessState
+  summary: string
+  invalidated: boolean
+  generatedAgeSeconds: number
+  evaluatedAgeSeconds?: number | null
+  marketStatus: 'open' | 'pre_market' | 'after_hours' | 'closed' | string
+  marketDate: string
+  refreshAfterSeconds: number
+  checkedAt: string
+  reasonCodes: string[]
+  criticalClusters: PredictionFreshnessCluster[]
+}
+
 export interface MarketPredictionCommitteeResponse {
   asOfTs: string
   generatedAt: string
@@ -316,6 +343,7 @@ export interface MarketPredictionCommitteeResponse {
   committeeSummary: MarketPredictionCommitteeSummary
   sourceSnapshot: MarketPredictionSourceSnapshot
   lastEvaluatedAt?: string | null
+  freshnessSummary?: PredictionFreshnessSummary | null
 }
 
 export interface MarketPredictionReviewChangeItem {
