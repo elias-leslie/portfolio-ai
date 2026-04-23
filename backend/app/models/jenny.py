@@ -115,12 +115,39 @@ class JennyAgentScorecard(BaseModel):
     updated_at: str
 
 
+class JennyPredictionReviewChange(BaseModel):
+    kind: str = "seat"
+    key: str
+    prior_weight: float
+    effective_weight: float
+
+
+class JennyPredictionReviewSeatWeight(BaseModel):
+    seat_key: str
+    prior_weight: float
+    effective_weight: float
+    sample_size: int = 0
+    recommended_action: str = "hold"
+
+
+class JennyPredictionReviewSummary(BaseModel):
+    window_days: int
+    review_state: str
+    generated_at: str
+    as_of_ts: str
+    seat_weights: list[JennyPredictionReviewSeatWeight] = Field(default_factory=list)
+    drift_callouts: list[str] = Field(default_factory=list)
+    top_upweighted: list[JennyPredictionReviewChange] = Field(default_factory=list)
+    top_downweighted: list[JennyPredictionReviewChange] = Field(default_factory=list)
+
+
 class JennyDashboard(BaseModel):
     routines: list[JennyRoutine] = Field(default_factory=list)
     notifications: list[JennyNotification] = Field(default_factory=list)
     symbol_reviews: list[JennySymbolReview] = Field(default_factory=list)
     trade_reviews: list[JennyTradeReview] = Field(default_factory=list)
     scorecards: list[JennyAgentScorecard] = Field(default_factory=list)
+    prediction_review_summary: JennyPredictionReviewSummary | None = None
 
 
 class JennyRunResponse(BaseModel):

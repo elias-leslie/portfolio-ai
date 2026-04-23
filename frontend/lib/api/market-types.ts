@@ -318,6 +318,41 @@ export interface MarketPredictionCommitteeResponse {
   lastEvaluatedAt?: string | null
 }
 
+export interface MarketPredictionReviewChangeItem {
+  kind: 'seat'
+  key: string
+  priorWeight: number
+  effectiveWeight: number
+}
+
+export interface MarketPredictionSeatScorecard {
+  seatKey: string
+  priorWeight: number
+  effectiveWeight: number
+  sampleSize: number
+  directionHitRate?: number | null
+  moveMaePct?: number | null
+  brierScore?: number | null
+  skillScore?: number | null
+  recommendedAction: 'upweight' | 'downweight' | 'hold'
+}
+
+export interface MarketPredictionReviewSummary {
+  generatedAt: string
+  reviewState: 'live' | 'warmup' | 'degraded'
+  driftCallouts: string[]
+  topUpweighted: MarketPredictionReviewChangeItem[]
+  topDownweighted: MarketPredictionReviewChangeItem[]
+}
+
+export interface MarketPredictionSeatReviewResponse {
+  asOfTs: string
+  windowDays: number
+  reviewState: 'live' | 'warmup' | 'degraded'
+  seatScorecards: MarketPredictionSeatScorecard[]
+  reviewSummary: MarketPredictionReviewSummary
+}
+
 export interface MarketPredictionHistoryResponse {
   symbol: string
   windowDays: number

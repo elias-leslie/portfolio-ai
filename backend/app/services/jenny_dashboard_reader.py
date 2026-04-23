@@ -3,16 +3,26 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime
 from typing import Any
 
 from app.models.jenny import (
     JennyAgentEvaluation,
     JennyAgentScorecard,
     JennyNotification,
+    JennyPredictionReviewChange,
+    JennyPredictionReviewSeatWeight,
+    JennyPredictionReviewSummary,
     JennyRoutine,
     JennySymbolReview,
     JennyTradeReview,
 )
+from app.models.market_prediction import (
+    SUPPORTED_ADAPTIVE_SEAT_KEYS,
+    MarketPredictionSeatReview,
+    normalize_market_prediction_seat_key,
+)
+from app.repositories.market_prediction_repository import MarketPredictionRepository
 from app.services.jenny_row_parsers import (
     row_to_evaluation,
     row_to_notification,
@@ -20,6 +30,7 @@ from app.services.jenny_row_parsers import (
     row_to_scorecard,
     row_to_trade_review,
 )
+from app.services.market_prediction_committee_service import SUPPORTED_PREDICTION_WINDOWS
 
 
 class JennyDashboardReader:
@@ -272,6 +283,51 @@ class JennyDashboardReader:
             ).fetchall()
         return [row_to_scorecard(row) for row in rows]
 
+    def get_latest_prediction_review_summary(
+        self,
+        service: Any,
+    ) -> JennyPredictionReviewSummary | None:
+        repository = MarketPredictionRepository(service.storage)
+        latest_review: MarketPredictionSeatReview | None = None
+        for window_days in SUPPORTED_PREDICTION_WINDOWS:
+            persisted = repository.list_latest_seat_reviews(window_days=window_days, limit=1)
+            if not persisted:
+                continue
+            candidate = persisted[0]
+            if latest_review is None or self._review_sort_key(candidate) > self._review_sort_key(latest_review):
+                latest_review = candidate
+
+        if latest_review is None:
+            return None
+
+        raw_summary = latest_review.review_summary if isinstance(latest_review.review_summary, dict) else {}
+        return JennyPredictionReviewSummary(
+            window_days=latest_review.window_days,
+            review_state=latest_review.review_state,
+            generated_at=str(raw_summary.get("generated_at") or latest_review.generated_at.isoformat()),
+            as_of_ts=latest_review.as_of_ts.isoformat(),
+            seat_weights=[
+                normalized
+                for row in latest_review.seat_scorecards
+                if (normalized := self._normalize_prediction_review_seat_weight(row)) is not None
+            ],
+            drift_callouts=[
+                str(item)
+                for item in raw_summary.get("drift_callouts", [])
+                if str(item).strip()
+            ],
+            top_upweighted=[
+                change
+                for item in raw_summary.get("top_upweighted", [])
+                if (change := self._normalize_prediction_review_change(item)) is not None
+            ],
+            top_downweighted=[
+                change
+                for item in raw_summary.get("top_downweighted", [])
+                if (change := self._normalize_prediction_review_change(item)) is not None
+            ],
+        )
+
     def fetch_all_evaluations(self, service: Any) -> list[JennyAgentEvaluation]:
         with service.storage.connection() as conn:
             rows = conn.execute(
@@ -284,3 +340,56 @@ class JennyDashboardReader:
                 """
             ).fetchall()
         return [row_to_evaluation(row) for row in rows]
+
+    def _normalize_prediction_review_change(
+        self,
+        raw_item: Any,
+    ) -> JennyPredictionReviewChange | None:
+        if not isinstance(raw_item, dict):
+            return None
+        key = normalize_market_prediction_seat_key(raw_item.get("key"))
+        if raw_item.get("kind") != "seat" or key not in SUPPORTED_ADAPTIVE_SEAT_KEYS:
+            return None
+        try:
+            return JennyPredictionReviewChange(
+                kind="seat",
+                key=key,
+                prior_weight=float(raw_item.get("prior_weight") or 0.0),
+                effective_weight=float(raw_item.get("effective_weight") or 0.0),
+            )
+        except (TypeError, ValueError):
+            return None
+
+    def _normalize_prediction_review_seat_weight(
+        self,
+        raw_row: Any,
+    ) -> JennyPredictionReviewSeatWeight | None:
+        if isinstance(raw_row, dict):
+            seat_key = raw_row.get("seat_key")
+            prior_weight = raw_row.get("prior_weight")
+            effective_weight = raw_row.get("effective_weight")
+            sample_size = raw_row.get("sample_size")
+            recommended_action = raw_row.get("recommended_action")
+        else:
+            seat_key = getattr(raw_row, "seat_key", None)
+            prior_weight = getattr(raw_row, "prior_weight", None)
+            effective_weight = getattr(raw_row, "effective_weight", None)
+            sample_size = getattr(raw_row, "sample_size", None)
+            recommended_action = getattr(raw_row, "recommended_action", None)
+
+        normalized_key = normalize_market_prediction_seat_key(seat_key)
+        if normalized_key not in SUPPORTED_ADAPTIVE_SEAT_KEYS:
+            return None
+        try:
+            return JennyPredictionReviewSeatWeight(
+                seat_key=normalized_key,
+                prior_weight=float(prior_weight),
+                effective_weight=float(effective_weight),
+                sample_size=int(sample_size or 0),
+                recommended_action=str(recommended_action or "hold"),
+            )
+        except (TypeError, ValueError):
+            return None
+
+    def _review_sort_key(self, review: MarketPredictionSeatReview) -> tuple[datetime, datetime, str]:
+        return (review.as_of_ts, review.generated_at, review.id)
