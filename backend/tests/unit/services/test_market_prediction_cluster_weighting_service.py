@@ -125,6 +125,29 @@ def test_get_review_returns_synthetic_warmup_before_first_persisted_row() -> Non
 
 
 
+def test_get_review_zeroes_stale_macro_calendar_even_in_warmup() -> None:
+    service = MarketPredictionClusterWeightingService(repository=_FakeRepo())
+
+    review = service.get_review(
+        window_days=3,
+        as_of_ts=datetime(2026, 4, 23, 22, 15, tzinfo=UTC),
+        source_snapshot={
+            "clusters": {
+                "market_regime": {"freshness": "fresh"},
+                "sentiment": {"freshness": "fresh"},
+                "options_positioning": {"freshness": "fresh"},
+                "macro_calendar": {"freshness": "stale", "reason": "stale_table"},
+            }
+        },
+    )
+
+    scorecards = {row.cluster: row for row in review.cluster_scorecards}
+    assert review.review_state == "warmup"
+    assert scorecards["macro_calendar"].effective_weight == pytest.approx(0.0)
+    assert scorecards["macro_calendar"].recommended_action == "downweight"
+
+
+
 def test_resolve_and_persist_review_computes_live_weights_and_summary() -> None:
     repo = _FakeRepo(
         samples=[
@@ -214,6 +237,52 @@ def test_resolve_and_persist_review_computes_live_weights_and_summary() -> None:
         }
     ]
     assert repo.persisted[0] == review
+
+
+
+def test_resolve_and_persist_review_zeroes_stale_macro_calendar_weight() -> None:
+    repo = _FakeRepo(
+        samples=[
+            *[
+                _sample(
+                    call_id=f"macro-{idx}",
+                    cluster_keys=["macro_calendar"],
+                    direction_hit=True,
+                    move_abs_error_pct=0.1,
+                    brier_score=0.01,
+                )
+                for idx in range(24)
+            ],
+            *[
+                _sample(
+                    call_id=f"options-{idx}",
+                    cluster_keys=["options_positioning"],
+                    direction_hit=True,
+                    move_abs_error_pct=0.5,
+                    brier_score=0.10,
+                )
+                for idx in range(24)
+            ],
+        ]
+    )
+    service = MarketPredictionClusterWeightingService(repository=repo)
+
+    review = service.resolve_and_persist_review(
+        window_days=3,
+        as_of_ts=datetime(2026, 4, 23, 22, 15, tzinfo=UTC),
+        source_snapshot={
+            "clusters": {
+                "market_regime": {"freshness": "fresh"},
+                "sentiment": {"freshness": "fresh"},
+                "options_positioning": {"freshness": "fresh"},
+                "macro_calendar": {"freshness": "stale", "reason": "stale_table"},
+            }
+        },
+    )
+
+    scorecards = {row.cluster: row for row in review.cluster_scorecards}
+    assert scorecards["macro_calendar"].effective_weight == pytest.approx(0.0)
+    assert scorecards["macro_calendar"].recommended_action == "downweight"
 
 
 

@@ -678,6 +678,102 @@ def test_generate_snapshot_filters_zero_weight_supported_clusters_from_new_weigh
 
 
 
+def test_generate_snapshot_keeps_fallback_clusters_visible_but_out_of_active_weighted_attribution(monkeypatch) -> None:
+    repo = _FakeRepo()
+    raw_payload = {
+        "_portfolio_execution_path": "committee_endpoint",
+        "calls": [],
+        "votes": [
+            {
+                "seat_key": "macro",
+                "agent_slug": "macro-analyst",
+                "symbol": "SPY",
+                "prob_up": 0.7,
+                "expected_move_pct": 1.2,
+                "confidence_score": 70,
+                "source_clusters": [
+                    {
+                        "cluster": "market_regime",
+                        "weight": 0.9,
+                        "freshness": "fresh",
+                        "note": "Derived fallback; tracked not ranked.",
+                    },
+                    {
+                        "cluster": "macro_calendar",
+                        "weight": 0.6,
+                        "freshness": "stale",
+                        "note": "Derived fallback; tracked not ranked.",
+                    },
+                ],
+            },
+            {
+                "seat_key": "risk",
+                "agent_slug": "risk-manager",
+                "symbol": "SPY",
+                "prob_up": 0.45,
+                "expected_move_pct": -0.5,
+                "confidence_score": 55,
+                "source_clusters": [
+                    {
+                        "cluster": "market_regime",
+                        "weight": 0.5,
+                        "freshness": "fresh",
+                        "note": "Derived fallback; tracked not ranked.",
+                    }
+                ],
+            },
+        ],
+    }
+    review = MarketPredictionSeatReview(
+        id="seat-review:3:2026-04-21T22:15:00+00:00",
+        generated_at=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+        as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+        window_days=3,
+        review_state="live",
+        seat_scorecards=[
+            {"seat_key": "cross_asset", "prior_weight": 1 / 3, "effective_weight": 0.2, "sample_size": 6, "direction_hit_rate": 0.5, "move_mae_pct": 1.0, "brier_score": 0.2, "skill_score": 0.6, "recommended_action": "downweight"},
+            {"seat_key": "macro", "prior_weight": 1 / 3, "effective_weight": 0.5, "sample_size": 12, "direction_hit_rate": 0.7, "move_mae_pct": 0.6, "brier_score": 0.12, "skill_score": 0.82, "recommended_action": "upweight"},
+            {"seat_key": "risk", "prior_weight": 1 / 3, "effective_weight": 0.3, "sample_size": 10, "direction_hit_rate": 0.4, "move_mae_pct": 2.1, "brier_score": 0.35, "skill_score": 0.41, "recommended_action": "hold"},
+        ],
+        review_summary={"generated_at": "2026-04-21T22:15:00+00:00", "review_state": "live", "drift_callouts": [], "top_upweighted": [], "top_downweighted": []},
+        metadata={"weighting_half_life_days": 20, "trailing_window_trading_days": 60, "backfill_run_limit": 120, "supported_windows": [1, 3, 7, 14]},
+    )
+    cluster_review = MarketPredictionClusterReview(
+        id="cluster-review:3:2026-04-21T22:15:00+00:00",
+        generated_at=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+        as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+        window_days=3,
+        review_state="live",
+        cluster_scorecards=[
+            {"cluster": "market_regime", "prior_weight": 0.25, "effective_weight": 0.6, "sample_size": 24, "direction_hit_rate": 0.6, "move_mae_pct": 0.9, "brier_score": 0.2, "skill_score": 0.7, "freshness": "fresh", "recommended_action": "upweight"},
+            {"cluster": "sentiment", "prior_weight": 0.25, "effective_weight": 0.1, "sample_size": 4, "direction_hit_rate": None, "move_mae_pct": None, "brier_score": None, "skill_score": None, "freshness": "fresh", "recommended_action": "hold"},
+            {"cluster": "options_positioning", "prior_weight": 0.25, "effective_weight": 0.1, "sample_size": 0, "direction_hit_rate": None, "move_mae_pct": None, "brier_score": None, "skill_score": None, "freshness": "fresh", "recommended_action": "hold"},
+            {"cluster": "macro_calendar", "prior_weight": 0.25, "effective_weight": 0.2, "sample_size": 24, "direction_hit_rate": 1.0, "move_mae_pct": 0.1, "brier_score": 0.01, "skill_score": 0.98, "freshness": "stale", "recommended_action": "downweight"},
+        ],
+        review_summary={"generated_at": "2026-04-21T22:15:00+00:00", "review_state": "live", "drift_callouts": [], "top_upweighted": [], "top_downweighted": []},
+        metadata={"weighting_half_life_days": 20, "trailing_window_trading_days": 60, "freshness_factors": {"fresh": 1.0, "stale": 0.5, "missing": 0.0, "unknown": 0.25}, "supported_windows": [1, 3, 7, 14]},
+    )
+    fake_client = _FakeRoundtableClient(raw_payload)
+    service = MarketPredictionCommitteeService(repository=repo, roundtable_client_factory=lambda **_: fake_client)
+
+    monkeypatch.setattr("app.services.market_prediction_committee_service.get_expected_data_date", lambda _now: date(2026, 4, 21))
+    monkeypatch.setattr(service, "_build_source_snapshot", lambda _: {"clusters": {"market_regime": {"freshness": "fresh"}, "sentiment": {"freshness": "fresh"}, "options_positioning": {"freshness": "fresh"}, "macro_calendar": {"freshness": "stale", "reason": "stale_table"}}})
+    monkeypatch.setattr("app.services.market_prediction_committee_service.get_macro_calendar_cluster", lambda **_: {"freshness": "stale", "reason": "stale_table", "upcoming_event_count": 0, "next_event_date": None})
+
+    result = service.generate_snapshot(
+        window_days=3,
+        as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+        review=review,
+        cluster_review=cluster_review,
+    )
+
+    assert result.calls[0].metadata["active_cluster_keys"] == []
+    assert [cluster.cluster for cluster in result.calls[0].top_source_clusters] == ["market_regime", "macro_calendar"]
+    assert [cluster.weight for cluster in result.calls[0].top_source_clusters] == [None, None]
+    assert {cluster.note for cluster in result.calls[0].top_source_clusters} == {"Derived fallback; tracked not ranked."}
+
+
+
 def test_generate_snapshot_uses_single_seat_verbatim_consensus(monkeypatch) -> None:
     repo = _FakeRepo()
     raw_payload = {

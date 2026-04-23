@@ -1668,6 +1668,8 @@ class MarketPredictionCommitteeService:
             if normalized not in indexed or normalized in seen:
                 continue
             seen.add(normalized)
+            if not self._cluster_is_weightable_for_attribution(cluster):
+                continue
             row = indexed[normalized]
             effective = row.get("effective_weight")
             if effective is None or float(effective) <= 1e-9:
@@ -1809,11 +1811,13 @@ class MarketPredictionCommitteeService:
                         cluster=cluster.cluster,
                         weight=None,
                         freshness=cluster.freshness or "unknown",
-                        note=DEFAULT_ATTRIBUTION_NOTE,
+                        note=cluster.note,
                     )
                 )
                 if len(vote_clusters) == 3:
                     return vote_clusters
+        if vote_clusters:
+            return vote_clusters
         snapshot_clusters = self._ordered_snapshot_clusters(source_snapshot)
         if snapshot_clusters:
             return [self._build_fallback_cluster(cluster) for cluster in snapshot_clusters[:3]]
@@ -1854,6 +1858,15 @@ class MarketPredictionCommitteeService:
             freshness=cluster["freshness"],
             note=DEFAULT_ATTRIBUTION_NOTE,
         )
+
+    def _cluster_is_weightable_for_attribution(self, cluster: PredictionSourceCluster) -> bool:
+        normalized = normalize_market_prediction_cluster_key(cluster.cluster)
+        if normalized is None:
+            return False
+        if cluster.note in {DEFAULT_ATTRIBUTION_NOTE, DEFAULT_UNATTRIBUTED_NOTE}:
+            return False
+        freshness = self._normalize_source_freshness(cluster.freshness)
+        return not (normalized == "macro_calendar" and freshness in {"stale", "missing"})
 
     def _votes_in_raw_order(self, *, raw_votes: Any, votes: list[CommitteeSeatVote]) -> list[CommitteeSeatVote]:
         if not isinstance(raw_votes, list):
