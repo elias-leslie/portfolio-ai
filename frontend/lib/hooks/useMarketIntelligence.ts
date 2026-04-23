@@ -12,6 +12,7 @@ import {
   fetchMarketMovers,
   fetchMarketPredictionCommittee,
   fetchMarketPredictionHistory,
+  fetchMarketPredictionReview,
   fetchMarketStatus,
   fetchNewsSentimentHistory,
   fetchSectorHistory,
@@ -21,6 +22,7 @@ import {
   type MarketMoversResponse,
   type MarketPredictionCommitteeResponse,
   type MarketPredictionHistoryResponse,
+  type MarketPredictionSeatReviewResponse,
   type MarketStatusResponse,
   type NewsSentimentHistoryResponse,
   type SectorHistoryResponse,
@@ -49,6 +51,18 @@ export function useMarketPredictionCommittee(
   return useQuery({
     queryKey: ['market', 'prediction', 'committee', windowDays],
     queryFn: () => fetchMarketPredictionCommittee(windowDays),
+    staleTime: 1000 * 60 * 10,
+    refetchInterval: 1000 * 60 * 10,
+    refetchOnWindowFocus: true,
+  })
+}
+
+export function useMarketPredictionReview(
+  windowDays: number = 3,
+): UseQueryResult<MarketPredictionSeatReviewResponse> {
+  return useQuery({
+    queryKey: ['market', 'prediction', 'review', windowDays],
+    queryFn: () => fetchMarketPredictionReview(windowDays),
     staleTime: 1000 * 60 * 10,
     refetchInterval: 1000 * 60 * 10,
     refetchOnWindowFocus: true,

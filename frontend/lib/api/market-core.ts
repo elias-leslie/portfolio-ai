@@ -8,6 +8,7 @@ import type {
   MarketIntelligenceResponse,
   MarketPredictionCommitteeResponse,
   MarketPredictionHistoryResponse,
+  MarketPredictionSeatReviewResponse,
   MarketTrendsResponse,
   PricesResponse,
 } from './market-types'
@@ -53,6 +54,17 @@ export async function fetchMarketPredictionCommittee(
 ): Promise<MarketPredictionCommitteeResponse> {
   return apiRequest<MarketPredictionCommitteeResponse>(
     `/api/market/prediction/committee?window_days=${windowDays}`,
+  )
+}
+
+/**
+ * Get the latest market prediction review artifact for a trading-day window
+ */
+export async function fetchMarketPredictionReview(
+  windowDays: number = 3,
+): Promise<MarketPredictionSeatReviewResponse> {
+  return apiRequest<MarketPredictionSeatReviewResponse>(
+    `/api/market/prediction/review?window_days=${windowDays}`,
   )
 }
 

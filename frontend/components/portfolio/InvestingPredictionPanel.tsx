@@ -19,6 +19,7 @@ import type {
   MacroCalendarSourceCluster,
   MarketPredictionCommitteeResponse,
   MarketPredictionHistoryResponse,
+  MarketPredictionSeatReviewResponse,
   PredictionSourceCluster,
   PredictionSourceFreshness,
   PredictionTruthState,
@@ -26,6 +27,7 @@ import type {
 import {
   useMarketPredictionCommittee,
   useMarketPredictionHistory,
+  useMarketPredictionReview,
 } from '@/lib/hooks/useMarketIntelligence'
 import { cn } from '@/lib/utils'
 
@@ -72,6 +74,8 @@ const FRESHNESS_ORDER: Record<PredictionSourceFreshness, number> = {
 
 type PredictionCall = MarketPredictionCommitteeResponse['calls'][number]
 type PredictionVote = MarketPredictionCommitteeResponse['votes'][number]
+type PredictionReviewSeat =
+  MarketPredictionSeatReviewResponse['seatScorecards'][number]
 type SourceRow = PredictionSourceCluster
 
 type NormalizedPredictionCall = Omit<
@@ -163,6 +167,28 @@ type GapCallout = {
   detail: string
 }
 
+type ReviewStateDescriptor = {
+  label: string
+  tone: 'neutral' | 'success' | 'warning' | 'danger'
+}
+
+type ReviewChangeRow = {
+  kind: 'seat'
+  key: string
+  priorWeight: number
+  effectiveWeight: number
+}
+
+type NormalizedReviewState = {
+  reviewState: 'live' | 'warmup' | 'degraded' | null
+  generatedAt: string | null
+  asOfTs: string | null
+  seatScorecards: PredictionReviewSeat[]
+  driftCallouts: string[]
+  topUpweighted: ReviewChangeRow[]
+  topDownweighted: ReviewChangeRow[]
+}
+
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
@@ -202,6 +228,24 @@ function formatScorecardDate(value?: string | null) {
     day: 'numeric',
     year: 'numeric',
   }).format(parsed)
+}
+
+function formatTimestampLabel(value?: string | null) {
+  if (!value) return null
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(parsed)
+}
+
+function formatWeightShare(value?: number | null) {
+  if (value == null || Number.isNaN(value)) return '—'
+  return `${Math.round(value * 100)}%`
 }
 
 function directionIcon(direction: 'bullish' | 'neutral' | 'bearish') {
@@ -289,6 +333,67 @@ function normalizeTruthState(value: unknown): PredictionTruthState | null {
       return 'legacySparse'
     default:
       return null
+  }
+}
+
+function normalizeReviewState(
+  value: unknown,
+): 'live' | 'warmup' | 'degraded' | null {
+  if (value === 'live' || value === 'warmup' || value === 'degraded') {
+    return value
+  }
+  return null
+}
+
+function normalizeReviewChangeRows(value: unknown): ReviewChangeRow[] {
+  if (!Array.isArray(value)) return []
+  const rows: ReviewChangeRow[] = []
+  for (const item of value) {
+    const record = readRecord(item)
+    const key = readString(record.key)
+    const priorWeight = record.priorWeight ?? record.prior_weight
+    const effectiveWeight = record.effectiveWeight ?? record.effective_weight
+    if (
+      record.kind !== 'seat' ||
+      !key ||
+      !isFiniteNumber(priorWeight) ||
+      !isFiniteNumber(effectiveWeight)
+    ) {
+      continue
+    }
+    rows.push({
+      kind: 'seat',
+      key,
+      priorWeight,
+      effectiveWeight,
+    })
+  }
+  return rows
+}
+
+function normalizeReviewPanel(
+  review: MarketPredictionSeatReviewResponse | undefined,
+): NormalizedReviewState {
+  const reviewSummary = readRecord(review?.reviewSummary)
+  return {
+    reviewState: normalizeReviewState(review?.reviewState),
+    generatedAt: readString(
+      reviewSummary.generatedAt,
+      reviewSummary.generated_at,
+      review?.asOfTs,
+    ),
+    asOfTs: readString(review?.asOfTs),
+    seatScorecards: review?.seatScorecards ?? [],
+    driftCallouts: [
+      ...readStringArray(reviewSummary.driftCallouts),
+      ...readStringArray(reviewSummary.drift_callouts),
+    ].filter((value, index, array) => array.indexOf(value) === index),
+    topUpweighted: normalizeReviewChangeRows(
+      reviewSummary.topUpweighted ?? reviewSummary.top_upweighted,
+    ),
+    topDownweighted: normalizeReviewChangeRows(
+      reviewSummary.topDownweighted ?? reviewSummary.top_downweighted,
+    ),
   }
 }
 
@@ -580,6 +685,21 @@ function truthStateDescriptor(
       return { label: 'Legacy sparse data', tone: 'danger' }
     default:
       return { label: humanizeLabel(truthState), tone: 'neutral' }
+  }
+}
+
+function reviewStateDescriptor(
+  reviewState: 'live' | 'warmup' | 'degraded',
+): ReviewStateDescriptor {
+  switch (reviewState) {
+    case 'live':
+      return { label: 'Live review', tone: 'success' }
+    case 'warmup':
+      return { label: 'Warmup review', tone: 'warning' }
+    case 'degraded':
+      return { label: 'Degraded review', tone: 'danger' }
+    default:
+      return { label: humanizeLabel(reviewState), tone: 'neutral' }
   }
 }
 
@@ -936,6 +1056,15 @@ function disagreementTone(
   return 'neutral'
 }
 
+function recommendedActionTone(
+  action: string,
+): 'success' | 'warning' | 'danger' | 'neutral' {
+  if (action === 'upweight') return 'success'
+  if (action === 'downweight') return 'danger'
+  if (action === 'hold') return 'warning'
+  return 'neutral'
+}
+
 function StatusBadge({
   label,
   tone = 'neutral',
@@ -996,6 +1125,7 @@ export function InvestingPredictionPanel() {
   } as const
   const selectedQuery = committeeQueries[windowDays]
   const { data, isLoading, error } = selectedQuery
+  const reviewQuery = useMarketPredictionReview(windowDays)
 
   const allCalls = useMemo(() => normalizeCalls(data?.calls), [data?.calls])
   const sectorCalls = useMemo(
@@ -1014,6 +1144,10 @@ export function InvestingPredictionPanel() {
   const leadCall = attributedLeadCall ?? displayLeadCall
   const leadSymbol = leadCall?.symbol ?? 'SPY'
   const historyQuery = useMarketPredictionHistory(leadSymbol, windowDays, 30)
+  const reviewState = useMemo(
+    () => normalizeReviewPanel(reviewQuery.data),
+    [reviewQuery.data],
+  )
 
   const normalizedVotes = useMemo(
     () => normalizeVotes(data?.votes, leadSymbol),
@@ -1049,6 +1183,14 @@ export function InvestingPredictionPanel() {
       ),
     [historyQuery.data, historyQuery.error, historyQuery.isLoading],
   )
+  const reviewStatusBadge =
+    reviewQuery.error instanceof Error
+      ? { label: 'Review unavailable', tone: 'danger' as const }
+      : reviewState.reviewState
+        ? reviewStateDescriptor(reviewState.reviewState)
+        : reviewQuery.isLoading
+          ? { label: 'Loading review', tone: 'warning' as const }
+          : { label: 'Pending review', tone: 'warning' as const }
 
   const truthState =
     committeeSummary.truthState ??
@@ -1136,6 +1278,32 @@ export function InvestingPredictionPanel() {
     (scorecardPending
       ? (committeeSummary.scorecardStatusNote ?? defaultStateNote)
       : `Scored on ${scorecard.sampleSize} matured committee calls.`)
+  const reviewGeneratedLabel =
+    formatTimestampLabel(reviewState.generatedAt) ?? 'Unavailable'
+  const reviewAsOfLabel =
+    formatTimestampLabel(reviewState.asOfTs) ?? reviewGeneratedLabel
+  const committeeGeneratedLabel =
+    formatTimestampLabel(data?.generatedAt) ??
+    formatTimestampLabel(data?.asOfTs) ??
+    'Unavailable'
+  const reviewTimestampDiverged =
+    Boolean(reviewState.generatedAt) &&
+    Boolean(data?.generatedAt) &&
+    reviewState.generatedAt !== data?.generatedAt
+  const reviewStateNote =
+    reviewQuery.error instanceof Error
+      ? reviewQuery.error.message
+      : reviewState.reviewState === 'live'
+        ? 'Resolved seat weights are coming from matured vote cohorts.'
+        : reviewState.reviewState === 'degraded'
+          ? 'Review artifact degraded. Keep weights visible, but do not over-trust drift.'
+          : reviewState.reviewState === 'warmup'
+            ? 'Warmup artifact is holding prior weights until enough matured votes arrive.'
+            : 'Review artifact will appear after the next persisted seat-weighting pass.'
+  const reviewDriftSummary =
+    reviewState.topUpweighted.length || reviewState.topDownweighted.length
+      ? `${reviewState.topUpweighted.length} upweighted · ${reviewState.topDownweighted.length} downweighted`
+      : 'No resolved drift yet'
 
   const sourceFallbackInUse = sourceRows.some((row) => row.trackedNotRanked)
   const macroFreshness = normalizeFreshness(macroCalendar.freshness)
@@ -1785,6 +1953,127 @@ export function InvestingPredictionPanel() {
           </div>
 
           <div className="grid gap-4">
+            <SectionCard
+              title="Review artifact"
+              description="Seat-weight review stays read-only and keeps its own timestamp apart from the committee snapshot."
+              variant="surface"
+              contentClassName="space-y-4"
+            >
+              <div
+                data-testid="prediction-review-panel"
+                className="rounded-[20px] border border-border/30 bg-black/20 p-4"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
+                      Review state
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-text">
+                      {reviewStatusBadge.label}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <StatusBadge
+                      label={reviewStatusBadge.label}
+                      tone={reviewStatusBadge.tone}
+                    />
+                    <StatusBadge label={`${windowDays}D horizon`} />
+                    <StatusBadge
+                      label={
+                        reviewTimestampDiverged
+                          ? 'Separate timestamps'
+                          : 'Synced timestamps'
+                      }
+                      tone={reviewTimestampDiverged ? 'warning' : 'success'}
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-[18px] border border-border/30 bg-white/[0.03] p-3">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
+                      Review artifact
+                    </p>
+                    <p
+                      data-testid="prediction-review-generated-at"
+                      className="mt-2 text-sm font-medium text-text"
+                    >
+                      {reviewGeneratedLabel}
+                    </p>
+                    <p className="mt-1 text-xs text-text-muted">
+                      As of {reviewAsOfLabel}
+                    </p>
+                  </div>
+                  <div className="rounded-[18px] border border-border/30 bg-white/[0.03] p-3">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
+                      Committee snapshot
+                    </p>
+                    <p
+                      data-testid="prediction-committee-generated-at"
+                      className="mt-2 text-sm font-medium text-text"
+                    >
+                      {committeeGeneratedLabel}
+                    </p>
+                    <p className="mt-1 text-xs text-text-muted">
+                      {reviewDriftSummary}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="mt-4 text-sm leading-relaxed text-text-muted">
+                  {reviewStateNote}
+                </p>
+
+                <div
+                  data-testid="prediction-review-seat-weights"
+                  className="mt-4 grid gap-3 md:grid-cols-3"
+                >
+                  {reviewState.seatScorecards.map((seat) => (
+                    <div
+                      key={seat.seatKey}
+                      className="rounded-[18px] border border-border/30 bg-white/[0.03] p-3"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-text">
+                            {humanizeLabel(seat.seatKey)}
+                          </p>
+                          <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-text-muted">
+                            Prior {formatWeightShare(seat.priorWeight)} ·{' '}
+                            {seat.sampleSize} matured vote
+                            {seat.sampleSize === 1 ? '' : 's'}
+                          </p>
+                        </div>
+                        <StatusBadge
+                          label={humanizeLabel(seat.recommendedAction)}
+                          tone={recommendedActionTone(seat.recommendedAction)}
+                        />
+                      </div>
+                      <p className="mt-3 text-2xl font-semibold text-text">
+                        {formatWeightShare(seat.effectiveWeight)}
+                      </p>
+                      <p className="mt-1 text-xs text-text-muted">
+                        Effective weight
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {reviewState.driftCallouts.length > 0 ? (
+                  <div className="mt-4 space-y-2">
+                    {reviewState.driftCallouts.map((callout) => (
+                      <div
+                        key={callout}
+                        className="rounded-[16px] border border-border/30 bg-white/[0.03] px-3 py-2 text-xs text-text-muted"
+                      >
+                        {callout}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </SectionCard>
+
             <SectionCard
               title="Calibration + self-improvement"
               description="Real scorecard truth first, then history only when it is usable."

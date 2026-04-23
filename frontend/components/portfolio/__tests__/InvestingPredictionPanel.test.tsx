@@ -8,6 +8,7 @@ import { InvestingPredictionPanel } from '../InvestingPredictionPanel'
 
 const useMarketPredictionCommitteeMock = vi.fn()
 const useMarketPredictionHistoryMock = vi.fn()
+const useMarketPredictionReviewMock = vi.fn()
 const originalFetch = global.fetch
 
 vi.mock('@/lib/hooks/useMarketIntelligence', () => ({
@@ -18,6 +19,8 @@ vi.mock('@/lib/hooks/useMarketIntelligence', () => ({
     windowDays: number,
     limit?: number,
   ) => useMarketPredictionHistoryMock(symbol, windowDays, limit),
+  useMarketPredictionReview: (windowDays: number) =>
+    useMarketPredictionReviewMock(windowDays),
 }))
 
 type JsonRecord = Record<string, unknown>
@@ -176,10 +179,65 @@ function buildHistoryResponse(
   }
 }
 
+function buildReviewResponse(
+  windowDays: number,
+  overrides: JsonRecord = {},
+): JsonRecord {
+  return {
+    asOfTs: '2026-04-21T20:15:00Z',
+    windowDays,
+    reviewState: 'warmup',
+    seatScorecards: [
+      {
+        seatKey: 'cross_asset',
+        priorWeight: 1 / 3,
+        effectiveWeight: 1 / 3,
+        sampleSize: 0,
+        directionHitRate: null,
+        moveMaePct: null,
+        brierScore: null,
+        skillScore: null,
+        recommendedAction: 'hold',
+      },
+      {
+        seatKey: 'macro',
+        priorWeight: 1 / 3,
+        effectiveWeight: 1 / 3,
+        sampleSize: 0,
+        directionHitRate: null,
+        moveMaePct: null,
+        brierScore: null,
+        skillScore: null,
+        recommendedAction: 'hold',
+      },
+      {
+        seatKey: 'risk',
+        priorWeight: 1 / 3,
+        effectiveWeight: 1 / 3,
+        sampleSize: 0,
+        directionHitRate: null,
+        moveMaePct: null,
+        brierScore: null,
+        skillScore: null,
+        recommendedAction: 'hold',
+      },
+    ],
+    reviewSummary: {
+      generatedAt: '2026-04-21T20:15:00Z',
+      reviewState: 'warmup',
+      driftCallouts: [],
+      topUpweighted: [],
+      topDownweighted: [],
+    },
+    ...overrides,
+  }
+}
+
 describe('InvestingPredictionPanel', () => {
   beforeEach(() => {
     useMarketPredictionCommitteeMock.mockReset()
     useMarketPredictionHistoryMock.mockReset()
+    useMarketPredictionReviewMock.mockReset()
 
     useMarketPredictionCommitteeMock.mockImplementation(
       (windowDays: number) => ({
@@ -197,6 +255,11 @@ describe('InvestingPredictionPanel', () => {
         limit,
       }),
     )
+    useMarketPredictionReviewMock.mockImplementation((windowDays: number) => ({
+      data: buildReviewResponse(windowDays),
+      isLoading: false,
+      error: null,
+    }))
   })
 
   afterEach(() => {
@@ -260,6 +323,89 @@ describe('InvestingPredictionPanel', () => {
     const sourceSection = screen.getByTestId('prediction-source-attribution')
     expect(sourceSection).toHaveTextContent('Options Positioning')
     expect(sourceSection).not.toHaveTextContent('Macro Calendar')
+  })
+
+  it('renders the review artifact panel with separate committee and review timestamps', () => {
+    useMarketPredictionReviewMock.mockReturnValue({
+      data: buildReviewResponse(3, {
+        asOfTs: '2026-04-21T20:20:00Z',
+        reviewState: 'live',
+        seatScorecards: [
+          {
+            seatKey: 'cross_asset',
+            priorWeight: 1 / 3,
+            effectiveWeight: 0.29,
+            sampleSize: 9,
+            directionHitRate: 0.57,
+            moveMaePct: 0.8,
+            brierScore: 0.19,
+            skillScore: 0.62,
+            recommendedAction: 'hold',
+          },
+          {
+            seatKey: 'macro',
+            priorWeight: 1 / 3,
+            effectiveWeight: 0.39,
+            sampleSize: 12,
+            directionHitRate: 0.66,
+            moveMaePct: 0.61,
+            brierScore: 0.16,
+            skillScore: 0.74,
+            recommendedAction: 'upweight',
+          },
+          {
+            seatKey: 'risk',
+            priorWeight: 1 / 3,
+            effectiveWeight: 0.32,
+            sampleSize: 7,
+            directionHitRate: 0.51,
+            moveMaePct: 0.92,
+            brierScore: 0.22,
+            skillScore: 0.58,
+            recommendedAction: 'downweight',
+          },
+        ],
+        reviewSummary: {
+          generatedAt: '2026-04-21T20:20:00Z',
+          reviewState: 'live',
+          driftCallouts: ['macro upweighted from 0.3333 to 0.3900'],
+          topUpweighted: [
+            {
+              kind: 'seat',
+              key: 'macro',
+              priorWeight: 1 / 3,
+              effectiveWeight: 0.39,
+            },
+          ],
+          topDownweighted: [],
+        },
+      }),
+      isLoading: false,
+      error: null,
+    })
+
+    render(<InvestingPredictionPanel />)
+
+    expect(screen.getByTestId('prediction-review-panel')).toHaveTextContent(
+      'Live review',
+    )
+    expect(
+      screen.getByTestId('prediction-review-generated-at').textContent,
+    ).not.toEqual(
+      screen.getByTestId('prediction-committee-generated-at').textContent,
+    )
+    expect(
+      screen.getByTestId('prediction-review-seat-weights'),
+    ).toHaveTextContent('Macro')
+    expect(
+      screen.getByTestId('prediction-review-seat-weights'),
+    ).toHaveTextContent('39%')
+    expect(
+      screen.getByTestId('prediction-review-seat-weights'),
+    ).toHaveTextContent('Upweight')
+    expect(
+      screen.getByText(/macro upweighted from 0.3333 to 0.3900/i),
+    ).toBeInTheDocument()
   })
 
   it('switches horizons and keeps the selected-truth badge wired to each window payload', async () => {
