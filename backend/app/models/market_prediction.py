@@ -17,6 +17,7 @@ ReviewState = Literal["live", "warmup", "degraded"]
 SeatRecommendedAction = Literal["upweight", "downweight", "hold"]
 ClusterRecommendedAction = Literal["upweight", "downweight", "hold"]
 ClusterFreshness = Literal["fresh", "stale", "missing", "unknown"]
+PredictionFreshnessState = Literal["fresh", "aging", "stale", "invalid", "degraded"]
 SUPPORTED_ADAPTIVE_SEAT_KEYS = ("cross_asset", "macro", "risk")
 SUPPORTED_ADAPTIVE_CLUSTER_KEYS = (
     "market_regime",
@@ -232,6 +233,27 @@ class MarketPredictionScorecard(BaseModel):
     sample_size: int = Field(default=0, ge=0)
 
 
+class PredictionFreshnessCluster(BaseModel):
+    cluster: str
+    freshness: ClusterFreshness = "unknown"
+    as_of_date: str | None = None
+    detail: str | None = None
+
+
+class PredictionFreshnessSummary(BaseModel):
+    state: PredictionFreshnessState
+    summary: str
+    invalidated: bool = False
+    generated_age_seconds: int = Field(..., ge=0)
+    evaluated_age_seconds: int | None = Field(None, ge=0)
+    market_status: str
+    market_date: date
+    refresh_after_seconds: int = Field(..., ge=30)
+    checked_at: datetime
+    reason_codes: list[str] = Field(default_factory=list)
+    critical_clusters: list[PredictionFreshnessCluster] = Field(default_factory=list)
+
+
 class MarketPredictionCommitteeResponse(BaseModel):
     _storage_metadata: Any = PrivateAttr(default_factory=dict)
 
@@ -248,6 +270,7 @@ class MarketPredictionCommitteeResponse(BaseModel):
     committee_summary: dict[str, Any] = Field(default_factory=dict)
     source_snapshot: dict[str, Any] = Field(default_factory=dict)
     last_evaluated_at: datetime | None = None
+    freshness_summary: PredictionFreshnessSummary | None = None
 
 
 class MarketPredictionHistoryResponse(BaseModel):

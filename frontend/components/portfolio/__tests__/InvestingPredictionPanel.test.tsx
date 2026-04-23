@@ -152,6 +152,38 @@ function buildCommitteeResponse(
         },
       },
     },
+    freshnessSummary: {
+      state: 'fresh',
+      summary: 'Snapshot aligned with current market session.',
+      invalidated: false,
+      generatedAgeSeconds: 120,
+      evaluatedAgeSeconds: 240,
+      marketStatus: 'open',
+      marketDate: '2026-04-21',
+      refreshAfterSeconds: 900,
+      checkedAt: '2026-04-21T14:07:00Z',
+      reasonCodes: [],
+      criticalClusters: [
+        {
+          cluster: 'market_regime',
+          freshness: 'fresh',
+          asOfDate: '2026-04-21',
+          detail: 'Latest closes through 2026-04-21.',
+        },
+        {
+          cluster: 'options_positioning',
+          freshness: 'fresh',
+          asOfDate: '2026-04-21',
+          detail: 'Options positioning through 2026-04-21.',
+        },
+        {
+          cluster: 'macro_calendar',
+          freshness: 'fresh',
+          asOfDate: null,
+          detail: null,
+        },
+      ],
+    },
     ...overrides,
   }
 }
@@ -294,6 +326,38 @@ describe('InvestingPredictionPanel', () => {
             },
           },
         },
+        freshnessSummary: {
+          state: 'stale',
+          summary: 'Snapshot is running with missing evidence coverage.',
+          invalidated: false,
+          generatedAgeSeconds: 5400,
+          evaluatedAgeSeconds: null,
+          marketStatus: 'open',
+          marketDate: '2026-04-21',
+          refreshAfterSeconds: 300,
+          checkedAt: '2026-04-21T15:35:00Z',
+          reasonCodes: ['macro_calendar_missing'],
+          criticalClusters: [
+            {
+              cluster: 'market_regime',
+              freshness: 'fresh',
+              asOfDate: '2026-04-21',
+              detail: 'Latest closes through 2026-04-21.',
+            },
+            {
+              cluster: 'options_positioning',
+              freshness: 'fresh',
+              asOfDate: '2026-04-21',
+              detail: 'Options positioning through 2026-04-21.',
+            },
+            {
+              cluster: 'macro_calendar',
+              freshness: 'missing',
+              asOfDate: null,
+              detail: 'No future macro rows tracked.',
+            },
+          ],
+        },
       }),
       isLoading: false,
       error: null,
@@ -317,12 +381,80 @@ describe('InvestingPredictionPanel', () => {
       screen.getByText('Committee stays balanced while macro risk lingers.'),
     ).toBeInTheDocument()
     expect(
-      screen.getByText(/0 upcoming events tracked in the next 14 days/i),
-    ).toBeInTheDocument()
+      screen.getAllByText(/0 upcoming events tracked in the next 14 days/i),
+    ).toHaveLength(2)
 
     const sourceSection = screen.getByTestId('prediction-source-attribution')
     expect(sourceSection).toHaveTextContent('Options Positioning')
     expect(sourceSection).not.toHaveTextContent('Macro Calendar')
+    expect(screen.getByTestId('prediction-freshness-state')).toHaveTextContent(
+      'Stale',
+    )
+    expect(screen.getByTestId('prediction-freshness-rail')).toHaveTextContent(
+      'Missing macro context',
+    )
+    expect(screen.getByTestId('prediction-freshness-rail')).toHaveTextContent(
+      'No future macro rows tracked.',
+    )
+  })
+
+  it('surfaces invalidated snapshots above fold with last-made timing and refresh requirement', () => {
+    useMarketPredictionCommitteeMock.mockReturnValue({
+      data: buildCommitteeResponse(3, {
+        generatedAt: '2026-04-20T20:15:00Z',
+        asOfTs: '2026-04-20T20:15:00Z',
+        lastEvaluatedAt: null,
+        committeeSummary: {
+          truthState: 'waitingAfterClose',
+          scorecardStatusNote:
+            'Target date passed, but the post-close evaluation has not published yet.',
+          committeeRosterMode: 'defaultRoster',
+          committeeExecutionPath: 'committeeEndpoint',
+          executedSeatKeys: ['cross_asset', 'macro', 'risk'],
+        },
+        freshnessSummary: {
+          state: 'invalid',
+          summary: 'Target date passed. Refresh after evaluation publishes.',
+          invalidated: true,
+          generatedAgeSeconds: 54_000,
+          evaluatedAgeSeconds: null,
+          marketStatus: 'open',
+          marketDate: '2026-04-21',
+          refreshAfterSeconds: 60,
+          checkedAt: '2026-04-21T11:15:00Z',
+          reasonCodes: ['target_reached_pending_evaluation'],
+          criticalClusters: [
+            {
+              cluster: 'market_regime',
+              freshness: 'stale',
+              asOfDate: '2026-04-20',
+              detail: 'Latest closes through 2026-04-20.',
+            },
+          ],
+        },
+      }),
+      isLoading: false,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    })
+
+    render(<InvestingPredictionPanel />)
+
+    expect(screen.getByTestId('prediction-freshness-state')).toHaveTextContent(
+      'Invalidated',
+    )
+    expect(
+      screen.getByTestId('prediction-freshness-summary'),
+    ).toHaveTextContent(
+      'Target date passed. Refresh after evaluation publishes.',
+    )
+    expect(
+      screen.getByTestId('prediction-last-generated-at'),
+    ).toHaveTextContent('Apr')
+    expect(screen.getByTestId('prediction-freshness-rail')).toHaveTextContent(
+      'Refresh required',
+    )
   })
 
   it('renders the review artifact panel with separate committee and review timestamps', () => {
@@ -788,6 +920,26 @@ describe('InvestingPredictionPanel', () => {
             },
           },
         },
+        freshness_summary: {
+          state: 'stale',
+          summary: 'Snapshot is running with missing evidence coverage.',
+          invalidated: false,
+          generated_age_seconds: 5400,
+          evaluated_age_seconds: null,
+          market_status: 'open',
+          market_date: '2026-04-21',
+          refresh_after_seconds: 300,
+          checked_at: '2026-04-21T15:35:00Z',
+          reason_codes: ['macro_calendar_missing'],
+          critical_clusters: [
+            {
+              cluster: 'macro_calendar',
+              freshness: 'missing',
+              as_of_date: null,
+              detail: 'No future macro rows tracked.',
+            },
+          ],
+        },
       }),
     })
 
@@ -833,7 +985,10 @@ describe('InvestingPredictionPanel', () => {
       'Default Roster',
     )
     expect(
-      screen.getByText(/0 upcoming events tracked in the next 14 days/i),
-    ).toBeInTheDocument()
+      screen.getAllByText(/0 upcoming events tracked in the next 14 days/i),
+    ).toHaveLength(2)
+    expect(screen.getByTestId('prediction-freshness-state')).toHaveTextContent(
+      'Stale',
+    )
   })
 })

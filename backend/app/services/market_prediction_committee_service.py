@@ -25,6 +25,8 @@ from app.models.market_prediction import (
     MarketPredictionScorecard,
     MarketPredictionSeatReview,
     PredictionDirection,
+    PredictionFreshnessCluster,
+    PredictionFreshnessSummary,
     PredictionSourceCluster,
     normalize_market_prediction_cluster_key,
     normalize_market_prediction_seat_key,
@@ -51,6 +53,7 @@ logger = get_logger(__name__)
 SUPPORTED_PREDICTION_WINDOWS = (1, 3, 7, 14)
 ALLOWED_CLUSTER_FRESHNESS = {"fresh", "stale", "missing", "unknown"}
 FRESHNESS_RANK = {"fresh": 0, "stale": 1, "missing": 2, "unknown": 3}
+PREDICTION_FRESHNESS_RANK = {"fresh": 0, "aging": 1, "stale": 2, "invalid": 3, "degraded": 4}
 DEFAULT_FETCH_ERROR_NOTE = "Committee snapshot unavailable; serving degraded fallback."
 DEFAULT_PENDING_TARGET_NOTE = "Target date has not been reached yet."
 DEFAULT_WAITING_AFTER_CLOSE_NOTE = "Target date passed; awaiting evaluation data."
@@ -58,6 +61,13 @@ DEFAULT_SPARSE_HISTORY_NOTE = "Not enough comparable history for a stable trend.
 DEFAULT_LEGACY_SPARSE_NOTE = "Legacy sparse data: selected lead attribution unavailable."
 DEFAULT_ATTRIBUTION_NOTE = "Derived fallback; tracked not ranked."
 DEFAULT_UNATTRIBUTED_NOTE = "Derived fallback; no usable source snapshot."
+CRITICAL_FRESHNESS_CLUSTERS = ("market_regime", "options_positioning", "macro_calendar")
+SESSION_FRESHNESS_THRESHOLDS_SECONDS = {
+    "open": (20 * 60, 60 * 60, 2 * 60 * 60),
+    "pre_market": (60 * 60, 3 * 60 * 60, 6 * 60 * 60),
+    "after_hours": (60 * 60, 3 * 60 * 60, 8 * 60 * 60),
+    "closed": (3 * 60 * 60, 12 * 60 * 60, 24 * 60 * 60),
+}
 DEFAULT_ROSTER = [
     {"seat_key": "cross_asset", "agent_slug": "equity-analyst", "model_id": "grok-4.20-reasoning"},
     {"seat_key": "macro", "agent_slug": "market-pulse-analyst", "model_id": "gpt-5.4"},
@@ -690,6 +700,13 @@ class MarketPredictionCommitteeService:
                 "committee_summary": committee_summary,
                 "source_snapshot": normalized_source_snapshot,
                 "target_universe": self._normalize_target_universe(response.target_universe),
+                "freshness_summary": self._build_freshness_summary(
+                    response=response,
+                    truth_state=truth_state,
+                    source_snapshot=normalized_source_snapshot,
+                    market_now=effective_now,
+                    market_date=market_date,
+                ),
             }
         )
         normalized._storage_metadata = metadata
@@ -703,6 +720,14 @@ class MarketPredictionCommitteeService:
     ) -> dict[str, Any]:
         snapshot = dict(raw_snapshot) if isinstance(raw_snapshot, dict) else {}
         normalized_clusters = self._normalize_source_snapshot_clusters(snapshot.get("clusters"))
+        normalized_clusters["market_regime"] = self._normalize_market_regime_cluster(
+            normalized_clusters.get("market_regime"),
+            market_date=market_date,
+        )
+        normalized_clusters["options_positioning"] = self._normalize_options_positioning_cluster(
+            normalized_clusters.get("options_positioning"),
+            market_date=market_date,
+        )
         existing_macro = normalized_clusters.get("macro_calendar")
         try:
             macro_calendar = get_macro_calendar_cluster(
@@ -723,6 +748,47 @@ class MarketPredictionCommitteeService:
         if "target_universe" not in snapshot or not isinstance(snapshot.get("target_universe"), list):
             snapshot["target_universe"] = PREDICTION_TARGET_SYMBOLS
         return snapshot
+
+    def _normalize_market_regime_cluster(
+        self,
+        raw_cluster: Any,
+        *,
+        market_date: date,
+    ) -> dict[str, Any]:
+        cluster = dict(raw_cluster) if isinstance(raw_cluster, dict) else {}
+        latest_closes = cluster.get("latest_closes") if isinstance(cluster.get("latest_closes"), dict) else {}
+        latest_dates = [
+            normalized_date
+            for payload in latest_closes.values()
+            if isinstance(payload, dict)
+            and (normalized_date := self._normalize_iso_date(payload.get("date"))) is not None
+        ]
+        if latest_dates:
+            latest_common_date = min(latest_dates)
+            cluster["latest_common_date"] = latest_common_date
+            cluster["freshness"] = "fresh" if latest_common_date == market_date.isoformat() else "stale"
+            return cluster
+        cluster["freshness"] = "missing"
+        cluster["latest_common_date"] = None
+        return cluster
+
+    def _normalize_options_positioning_cluster(
+        self,
+        raw_cluster: Any,
+        *,
+        market_date: date,
+    ) -> dict[str, Any]:
+        cluster = dict(raw_cluster) if isinstance(raw_cluster, dict) else {}
+        as_of_date = self._normalize_iso_date(cluster.get("as_of_date"))
+        if as_of_date is not None:
+            cluster["as_of_date"] = as_of_date
+            cluster["freshness"] = "fresh" if as_of_date == market_date.isoformat() else "stale"
+            return cluster
+        if any(cluster.get(key) is not None for key in ("call_pct", "near_term_pct", "concentration_pct")):
+            cluster["freshness"] = self._normalize_source_freshness(cluster.get("freshness"))
+            return cluster
+        cluster["freshness"] = "missing"
+        return cluster
 
     def _normalize_source_snapshot_clusters(self, raw_clusters: Any) -> dict[str, dict[str, Any]]:
         if not isinstance(raw_clusters, dict):
@@ -774,6 +840,238 @@ class MarketPredictionCommitteeService:
             }
         )
         return summary
+
+    def _build_freshness_summary(
+        self,
+        *,
+        response: MarketPredictionCommitteeResponse,
+        truth_state: str,
+        source_snapshot: dict[str, Any],
+        market_now: datetime,
+        market_date: date,
+    ) -> PredictionFreshnessSummary:
+        market_status = str(get_market_status(market_now.astimezone(NY_TZ)))
+        generated_at = self._coerce_datetime(response.generated_at)
+        generated_age_seconds = max(0, int((market_now - generated_at).total_seconds()))
+        evaluated_at = self._coerce_datetime(response.last_evaluated_at) if response.last_evaluated_at else None
+        evaluated_age_seconds = (
+            max(0, int((market_now - evaluated_at).total_seconds()))
+            if evaluated_at is not None
+            else None
+        )
+        current_local_date = market_now.astimezone(NY_TZ).date()
+        generated_local_date = generated_at.astimezone(NY_TZ).date()
+        generated_market_date = get_expected_data_date(generated_at.astimezone(NY_TZ))
+        critical_clusters = self._build_freshness_clusters(source_snapshot)
+        reason_codes: list[str] = []
+
+        state = "fresh"
+        invalidated = False
+        if truth_state == "fetch_error":
+            state = "degraded"
+            invalidated = True
+            reason_codes.append("fetch_error")
+        elif truth_state == "waiting_after_close":
+            state = "invalid"
+            invalidated = True
+            reason_codes.append("target_reached_pending_evaluation")
+        elif (
+            generated_local_date < current_local_date
+            and market_status in {"pre_market", "open", "after_hours"}
+        ) or generated_market_date < market_date:
+            state = "invalid"
+            invalidated = True
+            reason_codes.append("previous_market_session")
+        else:
+            aging_after, stale_after, invalid_after = self._freshness_thresholds_for_market_status(market_status)
+            if generated_age_seconds >= invalid_after:
+                state = "invalid"
+                invalidated = True
+                reason_codes.append("snapshot_age")
+            elif generated_age_seconds >= stale_after:
+                state = "stale"
+                reason_codes.append("snapshot_age")
+            elif generated_age_seconds >= aging_after:
+                state = "aging"
+                reason_codes.append("snapshot_age")
+
+        cluster_issue_rank = "fresh"
+        for cluster in critical_clusters:
+            if cluster.freshness == "missing":
+                cluster_issue_rank = self._escalate_prediction_freshness(cluster_issue_rank, "stale")
+                reason_codes.append(f"{cluster.cluster}_missing")
+            elif cluster.freshness == "stale":
+                cluster_issue_rank = self._escalate_prediction_freshness(cluster_issue_rank, "aging")
+                reason_codes.append(f"{cluster.cluster}_stale")
+
+        if not invalidated:
+            state = self._escalate_prediction_freshness(state, cluster_issue_rank)
+
+        if truth_state == "sparse_history":
+            reason_codes.append("insufficient_history")
+        elif truth_state == "legacy_sparse":
+            reason_codes.append("legacy_sparse_attribution")
+
+        return PredictionFreshnessSummary(
+            state=state,
+            summary=self._freshness_summary_copy(
+                state=state,
+                truth_state=truth_state,
+                market_status=market_status,
+                previous_market_session="previous_market_session" in reason_codes,
+                generated_market_date=generated_market_date,
+                market_date=market_date,
+                critical_clusters=critical_clusters,
+            ),
+            invalidated=invalidated,
+            generated_age_seconds=generated_age_seconds,
+            evaluated_age_seconds=evaluated_age_seconds,
+            market_status=market_status,
+            market_date=market_date,
+            refresh_after_seconds=self._freshness_refresh_after_seconds(
+                state=state,
+                invalidated=invalidated,
+                market_status=market_status,
+                generated_age_seconds=generated_age_seconds,
+            ),
+            checked_at=market_now,
+            reason_codes=list(dict.fromkeys(reason_codes)),
+            critical_clusters=critical_clusters,
+        )
+
+    def _build_freshness_clusters(
+        self,
+        source_snapshot: dict[str, Any],
+    ) -> list[PredictionFreshnessCluster]:
+        clusters = self._normalize_source_snapshot_clusters(
+            source_snapshot.get("clusters") if isinstance(source_snapshot, dict) else {}
+        )
+        rows: list[PredictionFreshnessCluster] = []
+        for cluster_name in CRITICAL_FRESHNESS_CLUSTERS:
+            payload = clusters.get(cluster_name, {})
+            rows.append(
+                PredictionFreshnessCluster(
+                    cluster=cluster_name,
+                    freshness=self._normalize_source_freshness(payload.get("freshness")),
+                    as_of_date=self._freshness_cluster_as_of_date(
+                        cluster_name=cluster_name,
+                        payload=payload,
+                    ),
+                    detail=self._freshness_cluster_detail(
+                        cluster_name=cluster_name,
+                        payload=payload,
+                    ),
+                )
+            )
+        return rows
+
+    def _freshness_cluster_as_of_date(
+        self,
+        *,
+        cluster_name: str,
+        payload: dict[str, Any],
+    ) -> str | None:
+        if cluster_name == "market_regime":
+            return self._normalize_iso_date(payload.get("latest_common_date"))
+        if cluster_name == "options_positioning":
+            return self._normalize_iso_date(payload.get("as_of_date"))
+        return None
+
+    def _freshness_cluster_detail(
+        self,
+        *,
+        cluster_name: str,
+        payload: dict[str, Any],
+    ) -> str | None:
+        if cluster_name == "macro_calendar":
+            reason = self._optional_str(payload.get("reason"))
+            if reason in {"stale_table", "staleTable"}:
+                return "Macro calendar table stale."
+            if reason in {"no_future_rows", "noFutureRows"}:
+                return "No future macro rows tracked."
+            return None
+        if cluster_name == "market_regime":
+            latest_common_date = self._normalize_iso_date(payload.get("latest_common_date"))
+            return f"Latest closes through {latest_common_date}." if latest_common_date else None
+        if cluster_name == "options_positioning":
+            as_of_date = self._normalize_iso_date(payload.get("as_of_date"))
+            return f"Options positioning through {as_of_date}." if as_of_date else None
+        return None
+
+    def _freshness_thresholds_for_market_status(self, market_status: str) -> tuple[int, int, int]:
+        return SESSION_FRESHNESS_THRESHOLDS_SECONDS.get(
+            market_status,
+            SESSION_FRESHNESS_THRESHOLDS_SECONDS["closed"],
+        )
+
+    def _freshness_summary_copy(
+        self,
+        *,
+        state: str,
+        truth_state: str,
+        market_status: str,
+        previous_market_session: bool,
+        generated_market_date: date,
+        market_date: date,
+        critical_clusters: list[PredictionFreshnessCluster],
+    ) -> str:
+        summary = "Snapshot aligned with current market session."
+        if state == "degraded":
+            summary = "Committee snapshot degraded. Auto-refreshing until a healthy run returns."
+        elif truth_state == "waiting_after_close":
+            summary = "Target date passed. Refresh after evaluation publishes."
+        elif previous_market_session or generated_market_date < market_date:
+            summary = "Snapshot predates current market session. Refresh required."
+        elif any(cluster.freshness == "missing" for cluster in critical_clusters):
+            summary = "Snapshot is running with missing evidence coverage."
+        elif state == "invalid":
+            summary = "Snapshot is outside its valid refresh window."
+        elif state == "stale":
+            summary = "Snapshot is stale for the current market session."
+        elif state == "aging":
+            summary = f"Snapshot still usable, but refresh due soon while market is {market_status.replace('_', ' ')}."
+        return summary
+
+    def _freshness_refresh_after_seconds(
+        self,
+        *,
+        state: str,
+        invalidated: bool,
+        market_status: str,
+        generated_age_seconds: int,
+    ) -> int:
+        if invalidated or state == "degraded":
+            return 60 if market_status != "closed" else 300
+        aging_after, stale_after, _invalid_after = self._freshness_thresholds_for_market_status(market_status)
+        if state == "stale":
+            return 300 if market_status != "closed" else 900
+        if state == "aging":
+            remaining = stale_after - generated_age_seconds
+            return max(60, min(900, remaining if remaining > 0 else 300))
+        remaining = aging_after - generated_age_seconds
+        return max(300, min(3600, remaining if remaining > 0 else 900))
+
+    def _escalate_prediction_freshness(self, current: str, incoming: str) -> str:
+        return (
+            incoming
+            if PREDICTION_FRESHNESS_RANK[incoming] > PREDICTION_FRESHNESS_RANK[current]
+            else current
+        )
+
+    def _normalize_iso_date(self, value: Any) -> str | None:
+        if isinstance(value, date):
+            return value.isoformat()
+        if isinstance(value, datetime):
+            return value.date().isoformat()
+        if not isinstance(value, str) or not value.strip():
+            return None
+        raw = value.strip()
+        if len(raw) < 10:
+            return None
+        try:
+            return date.fromisoformat(raw[:10]).isoformat()
+        except ValueError:
+            return None
 
     def _normalize_call_model(self, raw_call: Any) -> MarketPredictionCall | None:
         symbol = self._normalize_symbol(self._value(raw_call, "symbol"))

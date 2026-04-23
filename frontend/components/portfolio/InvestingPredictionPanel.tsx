@@ -7,9 +7,10 @@ import {
   Gauge,
   Minus,
   Radar,
+  RefreshCw,
   Sparkles,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,6 +21,7 @@ import type {
   MarketPredictionCommitteeResponse,
   MarketPredictionHistoryResponse,
   MarketPredictionSeatReviewResponse,
+  PredictionFreshnessState,
   PredictionSourceCluster,
   PredictionSourceFreshness,
   PredictionTruthState,
@@ -117,6 +119,11 @@ type TruthStateDescriptor = {
   tone: 'neutral' | 'success' | 'warning' | 'danger'
 }
 
+type FreshnessStateDescriptor = {
+  label: string
+  tone: 'neutral' | 'success' | 'warning' | 'danger'
+}
+
 type ScenarioCard = {
   title: 'Bull' | 'Base' | 'Bear'
   moveText: string
@@ -165,6 +172,27 @@ type GapCallout = {
   label: string
   status: string
   detail: string
+}
+
+type FreshnessClusterRow = {
+  cluster: string
+  freshness: PredictionSourceFreshness
+  asOfDate: string | null
+  detail: string | null
+}
+
+type NormalizedPredictionFreshness = {
+  state: PredictionFreshnessState
+  summary: string
+  invalidated: boolean
+  generatedAgeSeconds: number | null
+  evaluatedAgeSeconds: number | null
+  marketStatus: string | null
+  marketDate: string | null
+  refreshAfterSeconds: number | null
+  checkedAt: string | null
+  reasonCodes: string[]
+  criticalClusters: FreshnessClusterRow[]
 }
 
 type ReviewStateDescriptor = {
@@ -243,6 +271,36 @@ function formatTimestampLabel(value?: string | null) {
   }).format(parsed)
 }
 
+function formatAgeLabel(value?: number | null) {
+  if (value == null || Number.isNaN(value)) return 'Age unavailable'
+  if (value < 60) return 'Just now'
+  const days = Math.floor(value / 86_400)
+  const hours = Math.floor((value % 86_400) / 3_600)
+  const minutes = Math.floor((value % 3_600) / 60)
+  if (days > 0) return `${days}d ${hours}h old`
+  if (hours > 0) return `${hours}h ${minutes}m old`
+  return `${minutes}m old`
+}
+
+function formatRefreshCountdown(value?: number | null) {
+  if (value == null || Number.isNaN(value)) return 'Auto-refresh scheduled'
+  if (value < 60) return '<1m'
+  const hours = Math.floor(value / 3_600)
+  const minutes = Math.ceil((value % 3_600) / 60)
+  if (hours > 0) return `${hours}h ${minutes}m`
+  return `${minutes}m`
+}
+
+function ageSecondsFromTimestamp(
+  value: string | null | undefined,
+  nowMs: number,
+) {
+  if (!value) return null
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+  return Math.max(0, Math.floor((nowMs - parsed.getTime()) / 1000))
+}
+
 function formatWeightShare(value?: number | null) {
   if (value == null || Number.isNaN(value)) return '—'
   return `${Math.round(value * 100)}%`
@@ -308,6 +366,21 @@ function normalizeFreshness(value: unknown): PredictionSourceFreshness | null {
   }
   if (typeof value === 'string' && value.trim()) {
     return 'unknown'
+  }
+  return null
+}
+
+function normalizeFreshnessState(
+  value: unknown,
+): PredictionFreshnessState | null {
+  if (
+    value === 'fresh' ||
+    value === 'aging' ||
+    value === 'stale' ||
+    value === 'invalid' ||
+    value === 'degraded'
+  ) {
+    return value
   }
   return null
 }
@@ -667,6 +740,88 @@ function normalizeMacroCalendar(
   return readRecord(clusters.macroCalendar) as MacroCalendarSourceCluster
 }
 
+function normalizeFreshnessClusters(value: unknown): FreshnessClusterRow[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((entry) => {
+      const record = readRecord(entry)
+      const cluster = readString(record.cluster)
+      const freshness = normalizeFreshness(record.freshness) ?? 'unknown'
+      if (!cluster) return null
+      return {
+        cluster,
+        freshness,
+        asOfDate: readString(record.asOfDate, record.as_of_date),
+        detail: readString(record.detail),
+      }
+    })
+    .filter((value): value is FreshnessClusterRow => Boolean(value))
+}
+
+function normalizePredictionFreshness(
+  summary: MarketPredictionCommitteeResponse['freshnessSummary'] | undefined,
+  truthState: PredictionTruthState,
+): NormalizedPredictionFreshness {
+  const record = readRecord(summary)
+  const state = normalizeFreshnessState(record.state)
+  if (state) {
+    return {
+      state,
+      summary:
+        readString(record.summary) ??
+        'Snapshot freshness checked, but no summary arrived.',
+      invalidated: Boolean(record.invalidated),
+      generatedAgeSeconds: isFiniteNumber(record.generatedAgeSeconds)
+        ? Math.max(0, Math.trunc(record.generatedAgeSeconds))
+        : null,
+      evaluatedAgeSeconds: isFiniteNumber(record.evaluatedAgeSeconds)
+        ? Math.max(0, Math.trunc(record.evaluatedAgeSeconds))
+        : null,
+      marketStatus: readString(record.marketStatus, record.market_status),
+      marketDate: readString(record.marketDate, record.market_date),
+      refreshAfterSeconds: isFiniteNumber(record.refreshAfterSeconds)
+        ? Math.max(0, Math.trunc(record.refreshAfterSeconds))
+        : null,
+      checkedAt: readString(record.checkedAt, record.checked_at),
+      reasonCodes: [
+        ...readStringArray(record.reasonCodes),
+        ...readStringArray(record.reason_codes),
+      ].filter((value, index, array) => array.indexOf(value) === index),
+      criticalClusters: normalizeFreshnessClusters(
+        record.criticalClusters ?? record.critical_clusters,
+      ),
+    }
+  }
+
+  return {
+    state:
+      truthState === 'fetchError'
+        ? 'degraded'
+        : truthState === 'waitingAfterClose'
+          ? 'invalid'
+          : 'fresh',
+    summary:
+      truthState === 'fetchError'
+        ? 'Committee snapshot degraded. Auto-refreshing until a healthy run returns.'
+        : truthState === 'waitingAfterClose'
+          ? 'Target date passed. Refresh after evaluation publishes.'
+          : 'Snapshot freshness contract unavailable.',
+    invalidated:
+      truthState === 'fetchError' || truthState === 'waitingAfterClose',
+    generatedAgeSeconds: null,
+    evaluatedAgeSeconds: null,
+    marketStatus: null,
+    marketDate: null,
+    refreshAfterSeconds:
+      truthState === 'fetchError' || truthState === 'waitingAfterClose'
+        ? 60
+        : 600,
+    checkedAt: null,
+    reasonCodes: [],
+    criticalClusters: [],
+  }
+}
+
 function truthStateDescriptor(
   truthState: PredictionTruthState,
 ): TruthStateDescriptor {
@@ -685,6 +840,25 @@ function truthStateDescriptor(
       return { label: 'Legacy sparse data', tone: 'danger' }
     default:
       return { label: humanizeLabel(truthState), tone: 'neutral' }
+  }
+}
+
+function freshnessStateDescriptor(
+  state: PredictionFreshnessState,
+): FreshnessStateDescriptor {
+  switch (state) {
+    case 'fresh':
+      return { label: 'Fresh', tone: 'success' }
+    case 'aging':
+      return { label: 'Aging', tone: 'warning' }
+    case 'stale':
+      return { label: 'Stale', tone: 'warning' }
+    case 'invalid':
+      return { label: 'Invalidated', tone: 'danger' }
+    case 'degraded':
+      return { label: 'Degraded', tone: 'danger' }
+    default:
+      return { label: humanizeLabel(state), tone: 'neutral' }
   }
 }
 
@@ -1110,9 +1284,221 @@ function MetricTile({
   )
 }
 
+function useRelativeNow(stepMs: number = 30_000) {
+  const [nowMs, setNowMs] = useState(() => Date.now())
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now())
+    }, stepMs)
+    return () => window.clearInterval(timer)
+  }, [stepMs])
+
+  return nowMs
+}
+
+function FreshnessRail({
+  freshness,
+  generatedLabel,
+  generatedAgeLabel,
+  evaluatedLabel,
+  evaluatedAgeLabel,
+  onRefresh,
+  isRefreshing,
+  gapCallouts,
+}: {
+  freshness: NormalizedPredictionFreshness
+  generatedLabel: string
+  generatedAgeLabel: string
+  evaluatedLabel: string
+  evaluatedAgeLabel: string | null
+  onRefresh: () => void
+  isRefreshing: boolean
+  gapCallouts: GapCallout[]
+}) {
+  const freshnessBadge = freshnessStateDescriptor(freshness.state)
+  const coverageRows = freshness.criticalClusters.length
+    ? freshness.criticalClusters
+    : [
+        {
+          cluster: 'freshness contract',
+          freshness: 'unknown' as const,
+          asOfDate: null,
+          detail: 'Backend has not published cluster freshness yet.',
+        },
+      ]
+
+  return (
+    <div
+      data-testid="prediction-freshness-rail"
+      className={cn(
+        'rounded-[22px] border p-4 backdrop-blur',
+        freshness.invalidated
+          ? 'border-rose-400/25 bg-rose-500/10 shadow-[0_0_28px_-16px_rgba(251,113,133,0.75)]'
+          : 'border-cyan-400/20 bg-white/[0.04] shadow-[0_0_24px_-18px_rgba(103,232,249,0.7)]',
+      )}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div data-testid="prediction-freshness-state">
+              <StatusBadge
+                label={freshnessBadge.label}
+                tone={freshnessBadge.tone}
+              />
+            </div>
+            {freshness.marketStatus ? (
+              <StatusBadge
+                label={humanizeLabel(freshness.marketStatus)}
+                tone={
+                  freshness.marketStatus === 'open'
+                    ? 'success'
+                    : freshness.invalidated
+                      ? 'danger'
+                      : 'warning'
+                }
+              />
+            ) : null}
+            {freshness.invalidated ? (
+              <StatusBadge label="Refresh required" tone="danger" />
+            ) : null}
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-text-muted">
+              Freshness + evidence
+            </p>
+            <p
+              data-testid="prediction-freshness-summary"
+              className="mt-2 max-w-3xl text-sm leading-relaxed text-text"
+            >
+              {freshness.summary}
+            </p>
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant={freshness.invalidated ? 'default' : 'outline'}
+          size="sm"
+          className="rounded-full px-4"
+          onClick={onRefresh}
+        >
+          <RefreshCw
+            className={cn('mr-2 h-4 w-4', isRefreshing && 'animate-spin')}
+          />
+          {isRefreshing ? 'Refreshing…' : 'Refresh now'}
+        </Button>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="rounded-[18px] border border-border/30 bg-black/20 p-3">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
+            Last committee snapshot
+          </p>
+          <p
+            data-testid="prediction-last-generated-at"
+            className="mt-2 text-sm font-medium text-text"
+          >
+            {generatedLabel}
+          </p>
+          <p className="mt-1 text-xs text-text-muted">{generatedAgeLabel}</p>
+        </div>
+        <div className="rounded-[18px] border border-border/30 bg-black/20 p-3">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
+            Last evaluation
+          </p>
+          <p className="mt-2 text-sm font-medium text-text">{evaluatedLabel}</p>
+          <p className="mt-1 text-xs text-text-muted">
+            {evaluatedAgeLabel ?? 'Evaluation pending'}
+          </p>
+        </div>
+        <div className="rounded-[18px] border border-border/30 bg-black/20 p-3">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
+            Auto refresh
+          </p>
+          <p className="mt-2 text-sm font-medium text-text">
+            In {formatRefreshCountdown(freshness.refreshAfterSeconds)}
+          </p>
+          <p className="mt-1 text-xs text-text-muted">
+            {freshness.marketDate
+              ? `Watching ${freshness.marketDate} market date.`
+              : 'Watching next freshness checkpoint.'}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        <div className="rounded-[18px] border border-border/30 bg-black/20 p-3">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
+            Key evidence
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            {coverageRows.map((cluster) => (
+              <div
+                key={cluster.cluster}
+                className="rounded-2xl border border-border/30 bg-white/[0.03] px-3 py-2"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text">
+                    {humanizeLabel(cluster.cluster)}
+                  </p>
+                  <StatusBadge
+                    label={humanizeLabel(cluster.freshness)}
+                    tone={
+                      cluster.freshness === 'fresh'
+                        ? 'success'
+                        : cluster.freshness === 'missing'
+                          ? 'danger'
+                          : 'warning'
+                    }
+                  />
+                </div>
+                <p className="mt-2 text-xs text-text-muted">
+                  {cluster.asOfDate
+                    ? `As of ${cluster.asOfDate}`
+                    : (cluster.detail ?? 'No as-of date published.')}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-[18px] border border-border/30 bg-black/20 p-3">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
+            Coverage watch
+          </p>
+          <div className="mt-3 space-y-2">
+            {gapCallouts.length ? (
+              gapCallouts.slice(0, 3).map((callout) => (
+                <div
+                  key={callout.label}
+                  className="rounded-2xl border border-border/30 bg-white/[0.03] px-3 py-2"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text">
+                      {callout.label}
+                    </p>
+                    <StatusBadge label={callout.status} tone="warning" />
+                  </div>
+                  <p className="mt-2 text-xs text-text-muted">
+                    {callout.detail}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
+                No live evidence gaps flagged for this window.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function InvestingPredictionPanel() {
   const [windowDays, setWindowDays] =
     useState<(typeof WINDOW_OPTIONS)[number]>(3)
+  const nowMs = useRelativeNow()
   const oneDayQuery = useMarketPredictionCommittee(1)
   const threeDayQuery = useMarketPredictionCommittee(3)
   const sevenDayQuery = useMarketPredictionCommittee(7)
@@ -1124,7 +1510,7 @@ export function InvestingPredictionPanel() {
     14: fourteenDayQuery,
   } as const
   const selectedQuery = committeeQueries[windowDays]
-  const { data, isLoading, error } = selectedQuery
+  const { data, isLoading, error, isFetching } = selectedQuery
   const reviewQuery = useMarketPredictionReview(windowDays)
 
   const allCalls = useMemo(() => normalizeCalls(data?.calls), [data?.calls])
@@ -1200,6 +1586,10 @@ export function InvestingPredictionPanel() {
         ? 'live'
         : 'legacySparse')
   const truthStateBadge = truthStateDescriptor(truthState)
+  const freshness = useMemo(
+    () => normalizePredictionFreshness(data?.freshnessSummary, truthState),
+    [data?.freshnessSummary, truthState],
+  )
 
   const heroHeadline =
     committeeSummary.heroHeadline ??
@@ -1286,6 +1676,20 @@ export function InvestingPredictionPanel() {
     formatTimestampLabel(data?.generatedAt) ??
     formatTimestampLabel(data?.asOfTs) ??
     'Unavailable'
+  const lastEvaluatedLabel =
+    formatTimestampLabel(data?.lastEvaluatedAt) ?? 'Pending'
+  const generatedAgeLabel = formatAgeLabel(
+    ageSecondsFromTimestamp(
+      data?.generatedAt ?? data?.asOfTs ?? freshness.checkedAt,
+      nowMs,
+    ) ?? freshness.generatedAgeSeconds,
+  )
+  const evaluatedAgeLabel = data?.lastEvaluatedAt
+    ? formatAgeLabel(
+        ageSecondsFromTimestamp(data.lastEvaluatedAt, nowMs) ??
+          freshness.evaluatedAgeSeconds,
+      )
+    : null
   const reviewTimestampDiverged =
     Boolean(reviewState.generatedAt) &&
     Boolean(data?.generatedAt) &&
@@ -1533,6 +1937,19 @@ export function InvestingPredictionPanel() {
                   />
                 </div>
               </div>
+
+              <FreshnessRail
+                freshness={freshness}
+                generatedLabel={committeeGeneratedLabel}
+                generatedAgeLabel={generatedAgeLabel}
+                evaluatedLabel={lastEvaluatedLabel}
+                evaluatedAgeLabel={evaluatedAgeLabel}
+                isRefreshing={Boolean(isFetching && !isLoading)}
+                onRefresh={() => {
+                  void selectedQuery.refetch()
+                }}
+                gapCallouts={gapCallouts}
+              />
 
               <div className="rounded-[22px] border border-border/30 bg-black/20 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">

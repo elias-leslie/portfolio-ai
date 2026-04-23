@@ -80,6 +80,26 @@ class _FakePredictionService:
                     },
                 }
             },
+            freshness_summary={
+                "state": "fresh",
+                "summary": "Snapshot aligned with current market session.",
+                "invalidated": False,
+                "generated_age_seconds": 120,
+                "evaluated_age_seconds": 240,
+                "market_status": "open",
+                "market_date": date(2026, 4, 21),
+                "refresh_after_seconds": 900,
+                "checked_at": datetime(2026, 4, 21, 22, 17, tzinfo=UTC),
+                "reason_codes": [],
+                "critical_clusters": [
+                    {
+                        "cluster": "market_regime",
+                        "freshness": "fresh",
+                        "as_of_date": "2026-04-21",
+                        "detail": "Latest closes through 2026-04-21.",
+                    }
+                ],
+            },
         )
 
     def get_history(self, symbol: str, window_days: int, limit: int = 30) -> list[MarketPredictionCall]:
@@ -136,6 +156,26 @@ class _DegradedPredictionService:
                 }
             },
             scorecard=None,
+            freshness_summary={
+                "state": "degraded",
+                "summary": "Committee snapshot degraded. Auto-refreshing until a healthy run returns.",
+                "invalidated": True,
+                "generated_age_seconds": 60,
+                "evaluated_age_seconds": None,
+                "market_status": "open",
+                "market_date": date(2026, 4, 21),
+                "refresh_after_seconds": 60,
+                "checked_at": datetime(2026, 4, 21, 22, 16, tzinfo=UTC),
+                "reason_codes": ["fetch_error", "macro_calendar_missing"],
+                "critical_clusters": [
+                    {
+                        "cluster": "macro_calendar",
+                        "freshness": "missing",
+                        "as_of_date": None,
+                        "detail": "No future macro rows tracked.",
+                    }
+                ],
+            },
         )
 
     def get_history(self, symbol: str, window_days: int, limit: int = 30) -> list[MarketPredictionCall]:
@@ -176,6 +216,10 @@ def test_get_prediction_committee_snapshot_serializes_additive_summary_and_macro
         "upcoming_event_count": 2,
         "next_event_date": "2026-04-22",
     }
+    assert data["freshness_summary"]["state"] == "fresh"
+    assert data["freshness_summary"]["invalidated"] is False
+    assert data["freshness_summary"]["refresh_after_seconds"] == 900
+    assert data["freshness_summary"]["critical_clusters"][0]["cluster"] == "market_regime"
 
 
 def test_get_prediction_committee_allows_degraded_fetch_error_200_shape(client: TestClient, monkeypatch) -> None:
@@ -194,6 +238,8 @@ def test_get_prediction_committee_allows_degraded_fetch_error_200_shape(client: 
     assert data["committee_summary"]["committee_execution_path"] == "fallback_completion"
     assert data["committee_summary"]["truth_state"] == "fetch_error"
     assert data["source_snapshot"]["clusters"]["macro_calendar"]["reason"] == "no_future_rows"
+    assert data["freshness_summary"]["state"] == "degraded"
+    assert data["freshness_summary"]["invalidated"] is True
 
 
 def test_get_prediction_committee_history(client: TestClient, monkeypatch) -> None:
