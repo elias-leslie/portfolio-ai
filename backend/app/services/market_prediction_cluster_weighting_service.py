@@ -136,7 +136,10 @@ class MarketPredictionClusterWeightingService:
             for cluster in SUPPORTED_ADAPTIVE_CLUSTER_KEYS
         ]
         has_live_signal = any(row.sample_size >= 6 for row in scorecards)
-        has_active_freshness = any(_FRESHNESS_FACTORS[row.freshness] > _WEIGHT_EPSILON for row in scorecards)
+        has_active_freshness = any(
+            self._freshness_factor(cluster=row.cluster, freshness=row.freshness) > _WEIGHT_EPSILON
+            for row in scorecards
+        )
         review_state = "live" if has_live_signal and has_active_freshness else "warmup"
         if review_state == "live":
             scorecards = self._apply_effective_weights(scorecards)
@@ -209,8 +212,26 @@ class MarketPredictionClusterWeightingService:
         self,
         scorecards: list[MarketPredictionClusterScorecardRow],
     ) -> list[MarketPredictionClusterScorecardRow]:
+        raw_weights = {
+            row.cluster: row.prior_weight * self._freshness_factor(cluster=row.cluster, freshness=row.freshness)
+            for row in scorecards
+        }
+        total = sum(weight for weight in raw_weights.values() if weight > _WEIGHT_EPSILON)
+        if total <= _WEIGHT_EPSILON:
+            return [
+                row.model_copy(update={"effective_weight": row.prior_weight, "recommended_action": "hold"})
+                for row in scorecards
+            ]
         return [
-            row.model_copy(update={"effective_weight": row.prior_weight, "recommended_action": "hold"})
+            row.model_copy(
+                update={
+                    "effective_weight": raw_weights[row.cluster] / total,
+                    "recommended_action": self._recommended_action(
+                        prior_weight=row.prior_weight,
+                        effective_weight=raw_weights[row.cluster] / total,
+                    ),
+                }
+            )
             for row in scorecards
         ]
 
@@ -221,7 +242,7 @@ class MarketPredictionClusterWeightingService:
         raw_weights: dict[str, float] = {}
         indexed = {row.cluster: row for row in scorecards}
         for row in scorecards:
-            freshness_factor = _FRESHNESS_FACTORS[row.freshness]
+            freshness_factor = self._freshness_factor(cluster=row.cluster, freshness=row.freshness)
             if row.sample_size < 6 or row.skill_score is None:
                 learned_multiplier = 1.0
             else:
@@ -275,7 +296,7 @@ class MarketPredictionClusterWeightingService:
     def _prior_scorecards(self, source_snapshot: dict[str, Any]) -> list[MarketPredictionClusterScorecardRow]:
         prior = 1.0 / len(SUPPORTED_ADAPTIVE_CLUSTER_KEYS)
         freshness_map = self._freshness_map(source_snapshot)
-        return [
+        base_rows = [
             MarketPredictionClusterScorecardRow(
                 cluster=cluster,
                 prior_weight=prior,
@@ -290,6 +311,7 @@ class MarketPredictionClusterWeightingService:
             )
             for cluster in SUPPORTED_ADAPTIVE_CLUSTER_KEYS
         ]
+        return self._apply_prior_only_weights(base_rows)
 
     def _freshness_map(self, source_snapshot: dict[str, Any]) -> dict[str, str]:
         clusters = source_snapshot.get("clusters") if isinstance(source_snapshot, dict) else {}
@@ -582,6 +604,17 @@ class MarketPredictionClusterWeightingService:
         if normalized in _FRESHNESS_FACTORS:
             return normalized
         return fallback if fallback in _FRESHNESS_FACTORS else "unknown"
+
+    @staticmethod
+    def _freshness_factor(*, cluster: str, freshness: str) -> float:
+        normalized_cluster = normalize_market_prediction_cluster_key(cluster)
+        normalized_freshness = MarketPredictionClusterWeightingService._normalize_freshness(
+            freshness,
+            fallback="unknown",
+        )
+        if normalized_cluster == "macro_calendar" and normalized_freshness in {"stale", "missing"}:
+            return 0.0
+        return _FRESHNESS_FACTORS[normalized_freshness]
 
     @staticmethod
     def _recommended_action(*, prior_weight: float, effective_weight: float) -> str:

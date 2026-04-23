@@ -168,3 +168,43 @@ def test_backfill_vote_evaluations_treats_exact_zero_move_as_neutral_hit() -> No
     assert evaluation.realized_move_pct == pytest.approx(0.0)
     assert evaluation.direction_hit is True
     assert evaluation.brier_score == pytest.approx(0.16)
+
+
+
+def test_backfill_vote_evaluations_treats_small_realized_move_as_neutral_hit() -> None:
+    repo = _FakeRepo(
+        [
+            MarketPredictionVoteEvaluationCandidate(
+                vote_id=22,
+                run_id="run-3",
+                symbol="XLF",
+                window_days=1,
+                seat_key="risk",
+                direction_label="neutral",
+                prob_up=0.4,
+                expected_move_pct=0.0,
+                base_date=date(2026, 4, 24),
+                target_date=date(2026, 4, 25),
+            )
+        ]
+    )
+    closes = {
+        ("XLF", date(2026, 4, 24)): 100.0,
+        ("XLF", date(2026, 4, 25)): 100.3,
+    }
+    service = MarketPredictionEvaluationService(
+        repository=repo,
+        price_lookup=lambda symbol, as_of_date: closes.get((symbol, as_of_date)),
+        evaluated_at_fn=lambda: datetime(2026, 4, 25, 22, 5, tzinfo=UTC),
+    )
+
+    results = service.backfill_vote_evaluations(
+        window_days=1,
+        as_of_ts=datetime(2026, 4, 25, 22, 5, tzinfo=UTC),
+    )
+
+    assert len(results) == 1
+    evaluation = results[0]
+    assert evaluation.vote_id == 22
+    assert evaluation.realized_move_pct == pytest.approx(0.3)
+    assert evaluation.direction_hit is True

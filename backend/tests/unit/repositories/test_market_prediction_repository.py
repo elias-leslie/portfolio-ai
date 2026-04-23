@@ -94,6 +94,27 @@ def _vote(*, seat_key: str = "macro", window_days: int = 3) -> CommitteeSeatVote
 
 
 
+def _call(
+    *,
+    call_id: str,
+    symbol: str = "SPY",
+    window_days: int = 3,
+    top_source_clusters: list[PredictionSourceCluster] | None = None,
+    metadata: dict[str, object] | None = None,
+) -> MarketPredictionCall:
+    return MarketPredictionCall.model_construct(
+        id=call_id,
+        symbol=symbol,
+        window_days=window_days,
+        direction_label="neutral",
+        prob_up=0.5,
+        expected_move_pct=0.0,
+        top_source_clusters=top_source_clusters or [],
+        metadata=metadata or {},
+    )
+
+
+
 def _seat_review(*, review_id: str, generated_at: datetime, as_of_ts: datetime, review_state: str, macro_weight: float) -> MarketPredictionSeatReview:
     return MarketPredictionSeatReview(
         id=review_id,
@@ -239,7 +260,9 @@ def test_upsert_vote_evaluation_replaces_same_vote_id(storage: PortfolioStorage)
     repo.replace_votes_for_run(run.id, [_vote(seat_key="macro")])
 
     with storage.connection() as conn:
-        vote_id = conn.execute("SELECT id FROM market_prediction_votes WHERE run_id = %s LIMIT 1", [run.id]).fetchone()[0]
+        vote_row = conn.execute("SELECT id FROM market_prediction_votes WHERE run_id = %s LIMIT 1", [run.id]).fetchone()
+    assert vote_row is not None
+    vote_id = vote_row[0]
 
     repo.upsert_vote_evaluation(
         MarketPredictionVoteEvaluation(
@@ -390,6 +413,142 @@ def test_list_vote_evaluation_backfill_candidates_returns_recent_mature_runs_onl
     assert len(candidates) == 1
     assert candidates[0].run_id == mature_run.id
     assert candidates[0].seat_key == "macro"
+
+
+
+def test_list_due_evaluation_candidates_keeps_latest_symbol_cohort(storage: PortfolioStorage) -> None:
+    repo = MarketPredictionRepository(storage)
+    older_run = _run(run_id="run-older", as_of_ts=datetime(2026, 4, 20, 22, 15, tzinfo=UTC))
+    newer_run = _run(run_id="run-newer", as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC))
+
+    repo.create_run(older_run)
+    repo.create_run(newer_run)
+    repo.upsert_call(older_run.id, _call(call_id="call-older", symbol="SPY"))
+    repo.upsert_call(newer_run.id, _call(call_id="call-newer", symbol="SPY"))
+
+    candidates = repo.list_due_evaluation_candidates(as_of_date=date(2026, 4, 23), limit=10)
+
+    assert [candidate.call.id for candidate in candidates] == ["call-newer"]
+    assert candidates[0].base_date == date(2026, 4, 20)
+    assert candidates[0].target_date == date(2026, 4, 23)
+
+
+
+def test_get_scorecard_uses_latest_distinct_symbol_cohorts(storage: PortfolioStorage) -> None:
+    repo = MarketPredictionRepository(storage)
+    older_run = _run(run_id="run-score-older", as_of_ts=datetime(2026, 4, 20, 22, 15, tzinfo=UTC))
+    newer_run = _run(run_id="run-score-newer", as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC))
+
+    repo.create_run(older_run)
+    repo.create_run(newer_run)
+    repo.upsert_call(older_run.id, _call(call_id="call-spy-older", symbol="SPY"))
+    repo.upsert_call(newer_run.id, _call(call_id="call-spy-newer", symbol="SPY"))
+    repo.upsert_call(newer_run.id, _call(call_id="call-xlf", symbol="XLF"))
+    repo.upsert_evaluation(
+        MarketPredictionEvaluation(
+            call_id="call-spy-older",
+            evaluated_at=datetime(2026, 4, 23, 22, 5, tzinfo=UTC),
+            base_close=500.0,
+            target_close=505.0,
+            realized_move_pct=1.0,
+            direction_hit=True,
+            move_abs_error_pct=0.1,
+            brier_score=0.01,
+            metadata={},
+        )
+    )
+    repo.upsert_evaluation(
+        MarketPredictionEvaluation(
+            call_id="call-spy-newer",
+            evaluated_at=datetime(2026, 4, 23, 22, 6, tzinfo=UTC),
+            base_close=500.0,
+            target_close=490.0,
+            realized_move_pct=-2.0,
+            direction_hit=False,
+            move_abs_error_pct=2.0,
+            brier_score=0.5,
+            metadata={},
+        )
+    )
+    repo.upsert_evaluation(
+        MarketPredictionEvaluation(
+            call_id="call-xlf",
+            evaluated_at=datetime(2026, 4, 23, 22, 7, tzinfo=UTC),
+            base_close=40.0,
+            target_close=41.0,
+            realized_move_pct=2.5,
+            direction_hit=True,
+            move_abs_error_pct=1.0,
+            brier_score=0.2,
+            metadata={},
+        )
+    )
+
+    scorecard = repo.get_scorecard(3)
+
+    assert scorecard is not None
+    assert scorecard.sample_size == 2
+    assert scorecard.direction_hit_rate == pytest.approx(0.5)
+    assert scorecard.move_mae_pct == pytest.approx(1.5)
+    assert scorecard.brier_score == pytest.approx(0.35)
+
+
+
+def test_list_vote_evaluations_for_weighting_keeps_latest_seat_symbol_cohort(storage: PortfolioStorage) -> None:
+    repo = MarketPredictionRepository(storage)
+    older_run = _run(run_id="run-weight-older", as_of_ts=datetime(2026, 4, 20, 22, 15, tzinfo=UTC))
+    newer_run = _run(run_id="run-weight-newer", as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC))
+
+    repo.create_run(older_run)
+    repo.create_run(newer_run)
+    repo.replace_votes_for_run(older_run.id, [_vote(seat_key="macro")])
+    repo.replace_votes_for_run(newer_run.id, [_vote(seat_key="macro")])
+
+    with storage.connection() as conn:
+        older_vote_row = conn.execute("SELECT id FROM market_prediction_votes WHERE run_id = %s LIMIT 1", [older_run.id]).fetchone()
+        newer_vote_row = conn.execute("SELECT id FROM market_prediction_votes WHERE run_id = %s LIMIT 1", [newer_run.id]).fetchone()
+    assert older_vote_row is not None
+    assert newer_vote_row is not None
+    older_vote_id = older_vote_row[0]
+    newer_vote_id = newer_vote_row[0]
+
+    repo.upsert_vote_evaluation(
+        MarketPredictionVoteEvaluation(
+            vote_id=older_vote_id,
+            evaluated_at=datetime(2026, 4, 23, 22, 5, tzinfo=UTC),
+            seat_key="macro",
+            symbol="SPY",
+            window_days=3,
+            base_close=500.0,
+            target_close=505.0,
+            realized_move_pct=1.0,
+            direction_hit=True,
+            move_abs_error_pct=0.5,
+            brier_score=0.1,
+            metadata={"run_id": older_run.id, "base_date": "2026-04-20", "target_date": "2026-04-23"},
+        )
+    )
+    repo.upsert_vote_evaluation(
+        MarketPredictionVoteEvaluation(
+            vote_id=newer_vote_id,
+            evaluated_at=datetime(2026, 4, 23, 22, 6, tzinfo=UTC),
+            seat_key="macro",
+            symbol="SPY",
+            window_days=3,
+            base_close=500.0,
+            target_close=495.0,
+            realized_move_pct=-1.0,
+            direction_hit=False,
+            move_abs_error_pct=1.5,
+            brier_score=0.4,
+            metadata={"run_id": newer_run.id, "base_date": "2026-04-20", "target_date": "2026-04-23"},
+        )
+    )
+
+    evaluations = repo.list_vote_evaluations_for_weighting(window_days=3, effective_market_date=date(2026, 4, 23))
+
+    assert [evaluation.vote_id for evaluation in evaluations] == [newer_vote_id]
+    assert evaluations[0].direction_hit is False
 
 
 
@@ -569,3 +728,74 @@ def test_list_cluster_evaluation_samples_prefers_active_cluster_keys_then_top_so
 
     assert by_call["call-metadata"].active_cluster_keys == ["macro_calendar", "market_regime"]
     assert by_call["call-fallback"].active_cluster_keys == ["sentiment", "macro_calendar"]
+
+
+
+def test_list_cluster_evaluation_samples_keeps_latest_symbol_cohort_and_filters_untrusted_fallback_clusters(storage: PortfolioStorage) -> None:
+    repo = MarketPredictionRepository(storage)
+    older_run = _run(run_id="run-clusters-older", as_of_ts=datetime(2026, 4, 20, 22, 15, tzinfo=UTC))
+    newer_run = _run(run_id="run-clusters-newer", as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC))
+
+    repo.create_run(older_run)
+    repo.create_run(newer_run)
+    repo.upsert_call(
+        older_run.id,
+        _call(
+            call_id="call-trusted",
+            symbol="SPY",
+            top_source_clusters=[PredictionSourceCluster(cluster="market_regime", freshness="fresh")],
+            metadata={"active_cluster_keys": ["market_regime"]},
+        ),
+    )
+    repo.upsert_call(
+        newer_run.id,
+        _call(
+            call_id="call-untrusted",
+            symbol="SPY",
+            top_source_clusters=[
+                PredictionSourceCluster(
+                    cluster="macro_calendar",
+                    freshness="stale",
+                    note="Derived fallback; tracked not ranked.",
+                ),
+                PredictionSourceCluster(
+                    cluster="market_regime",
+                    freshness="fresh",
+                    note="Derived fallback; tracked not ranked.",
+                ),
+            ],
+            metadata={"active_cluster_keys": ["macro_calendar", "market_regime"]},
+        ),
+    )
+    repo.upsert_evaluation(
+        MarketPredictionEvaluation(
+            call_id="call-trusted",
+            evaluated_at=datetime(2026, 4, 23, 22, 5, tzinfo=UTC),
+            base_close=500.0,
+            target_close=505.0,
+            realized_move_pct=1.0,
+            direction_hit=True,
+            move_abs_error_pct=0.5,
+            brier_score=0.12,
+            metadata={},
+        )
+    )
+    repo.upsert_evaluation(
+        MarketPredictionEvaluation(
+            call_id="call-untrusted",
+            evaluated_at=datetime(2026, 4, 23, 22, 6, tzinfo=UTC),
+            base_close=500.0,
+            target_close=495.0,
+            realized_move_pct=-1.0,
+            direction_hit=False,
+            move_abs_error_pct=1.5,
+            brier_score=0.22,
+            metadata={},
+        )
+    )
+
+    samples = repo.list_cluster_evaluation_samples(window_days=3, effective_market_date=date(2026, 4, 24))
+
+    assert len(samples) == 1
+    assert samples[0].call_id == "call-untrusted"
+    assert samples[0].active_cluster_keys == []

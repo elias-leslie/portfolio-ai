@@ -334,23 +334,43 @@ class MarketPredictionRepository:
                       AND base_date >= %s
                     ORDER BY as_of_ts DESC
                     LIMIT %s
+                ),
+                ranked_votes AS (
+                    SELECT
+                        v.id,
+                        v.run_id,
+                        v.symbol,
+                        v.window_days,
+                        v.seat_key,
+                        v.direction_label,
+                        v.prob_up,
+                        v.expected_move_pct,
+                        r.base_date,
+                        r.target_date,
+                        v.confidence_score,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY LOWER(BTRIM(COALESCE(v.seat_key, ''))), UPPER(COALESCE(v.symbol, '')), r.base_date, r.target_date
+                            ORDER BY r.as_of_ts DESC, v.id ASC
+                        ) AS cohort_rank
+                    FROM eligible_runs r
+                    JOIN market_prediction_votes v ON v.run_id = r.id
+                    WHERE v.window_days = %s
                 )
                 SELECT
-                    v.id,
-                    v.run_id,
-                    v.symbol,
-                    v.window_days,
-                    v.seat_key,
-                    v.direction_label,
-                    v.prob_up,
-                    v.expected_move_pct,
-                    r.base_date,
-                    r.target_date,
-                    v.confidence_score
-                FROM eligible_runs r
-                JOIN market_prediction_votes v ON v.run_id = r.id
-                WHERE v.window_days = %s
-                ORDER BY r.as_of_ts DESC, v.symbol ASC, v.id ASC
+                    id,
+                    run_id,
+                    symbol,
+                    window_days,
+                    seat_key,
+                    direction_label,
+                    prob_up,
+                    expected_move_pct,
+                    base_date,
+                    target_date,
+                    confidence_score
+                FROM ranked_votes
+                WHERE cohort_rank = 1
+                ORDER BY base_date DESC, symbol ASC, id ASC
                 """,
                 [window_days, effective_market_date, min_base_date, run_limit, window_days],
             ).fetchall()
@@ -381,6 +401,29 @@ class MarketPredictionRepository:
         with self.storage.connection() as conn:
             rows = conn.execute(
                 """
+                WITH ranked_evaluations AS (
+                    SELECT
+                        e.vote_id,
+                        e.evaluated_at,
+                        e.seat_key,
+                        e.symbol,
+                        e.window_days,
+                        e.base_close,
+                        e.target_close,
+                        e.realized_move_pct,
+                        e.direction_hit,
+                        e.move_abs_error_pct,
+                        e.brier_score,
+                        e.metadata,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY LOWER(BTRIM(COALESCE(v.seat_key, e.seat_key, ''))), UPPER(COALESCE(v.symbol, e.symbol, '')), r.base_date, r.target_date
+                            ORDER BY r.as_of_ts DESC, e.evaluated_at DESC, e.vote_id DESC
+                        ) AS cohort_rank
+                    FROM market_prediction_vote_evaluations e
+                    JOIN market_prediction_votes v ON v.id = e.vote_id
+                    JOIN market_prediction_runs r ON r.id = v.run_id
+                    WHERE e.window_days = %s
+                )
                 SELECT
                     vote_id,
                     evaluated_at,
@@ -394,8 +437,8 @@ class MarketPredictionRepository:
                     move_abs_error_pct,
                     brier_score,
                     metadata
-                FROM market_prediction_vote_evaluations
-                WHERE window_days = %s
+                FROM ranked_evaluations
+                WHERE cohort_rank = 1
                 ORDER BY evaluated_at DESC, vote_id DESC
                 """,
                 [window_days],
@@ -613,20 +656,37 @@ class MarketPredictionRepository:
         with self.storage.connection() as conn:
             rows = conn.execute(
                 """
+                WITH ranked_calls AS (
+                    SELECT
+                        c.id,
+                        c.window_days,
+                        r.target_date,
+                        e.direction_hit,
+                        e.move_abs_error_pct,
+                        e.brier_score,
+                        c.metadata,
+                        c.top_source_clusters,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY UPPER(COALESCE(c.symbol, '')), r.base_date, r.target_date
+                            ORDER BY r.as_of_ts DESC, e.evaluated_at DESC, c.id DESC
+                        ) AS cohort_rank
+                    FROM market_prediction_evaluations e
+                    JOIN market_prediction_calls c ON c.id = e.call_id
+                    JOIN market_prediction_runs r ON r.id = c.run_id
+                    WHERE c.window_days = %s
+                )
                 SELECT
-                    c.id,
-                    c.window_days,
-                    r.target_date,
-                    e.direction_hit,
-                    e.move_abs_error_pct,
-                    e.brier_score,
-                    c.metadata,
-                    c.top_source_clusters
-                FROM market_prediction_evaluations e
-                JOIN market_prediction_calls c ON c.id = e.call_id
-                JOIN market_prediction_runs r ON r.id = c.run_id
-                WHERE c.window_days = %s
-                ORDER BY e.evaluated_at DESC, c.id ASC
+                    id,
+                    window_days,
+                    target_date,
+                    direction_hit,
+                    move_abs_error_pct,
+                    brier_score,
+                    metadata,
+                    top_source_clusters
+                FROM ranked_calls
+                WHERE cohort_rank = 1
+                ORDER BY target_date DESC, id ASC
                 """,
                 [window_days],
             ).fetchall()
@@ -816,28 +876,53 @@ class MarketPredictionRepository:
         with self.storage.connection() as conn:
             rows = conn.execute(
                 """
+                WITH ranked_calls AS (
+                    SELECT
+                        c.id,
+                        c.symbol,
+                        c.window_days,
+                        c.direction_label,
+                        c.prob_up,
+                        c.expected_move_pct,
+                        c.confidence_band_low_pct,
+                        c.confidence_band_high_pct,
+                        c.confidence_score,
+                        c.committee_disagreement_score,
+                        c.rationale_summary,
+                        c.top_source_clusters,
+                        c.metadata,
+                        r.base_date,
+                        r.target_date,
+                        e.call_id AS evaluation_call_id,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY UPPER(COALESCE(c.symbol, '')), r.base_date, r.target_date
+                            ORDER BY r.as_of_ts DESC, c.id DESC
+                        ) AS cohort_rank
+                    FROM market_prediction_calls c
+                    JOIN market_prediction_runs r ON r.id = c.run_id
+                    LEFT JOIN market_prediction_evaluations e ON e.call_id = c.id
+                    WHERE r.target_date <= %s
+                )
                 SELECT
-                    c.id,
-                    c.symbol,
-                    c.window_days,
-                    c.direction_label,
-                    c.prob_up,
-                    c.expected_move_pct,
-                    c.confidence_band_low_pct,
-                    c.confidence_band_high_pct,
-                    c.confidence_score,
-                    c.committee_disagreement_score,
-                    c.rationale_summary,
-                    c.top_source_clusters,
-                    c.metadata,
-                    r.base_date,
-                    r.target_date
-                FROM market_prediction_calls c
-                JOIN market_prediction_runs r ON r.id = c.run_id
-                LEFT JOIN market_prediction_evaluations e ON e.call_id = c.id
-                WHERE e.call_id IS NULL
-                  AND r.target_date <= %s
-                ORDER BY r.target_date ASC, c.symbol ASC
+                    id,
+                    symbol,
+                    window_days,
+                    direction_label,
+                    prob_up,
+                    expected_move_pct,
+                    confidence_band_low_pct,
+                    confidence_band_high_pct,
+                    confidence_score,
+                    committee_disagreement_score,
+                    rationale_summary,
+                    top_source_clusters,
+                    metadata,
+                    base_date,
+                    target_date
+                FROM ranked_calls
+                WHERE cohort_rank = 1
+                  AND evaluation_call_id IS NULL
+                ORDER BY target_date ASC, symbol ASC
                 LIMIT %s
                 """,
                 [as_of_date, limit],
@@ -852,17 +937,31 @@ class MarketPredictionRepository:
         ]
 
     def get_scorecard(self, window_days: int, sample_limit: int = 500) -> MarketPredictionScorecard | None:
+        del sample_limit
         with self.storage.connection() as conn:
             row = conn.execute(
                 """
+                WITH ranked_evaluations AS (
+                    SELECT
+                        e.direction_hit,
+                        e.move_abs_error_pct,
+                        e.brier_score,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY UPPER(COALESCE(c.symbol, '')), r.base_date, r.target_date
+                            ORDER BY r.as_of_ts DESC, e.evaluated_at DESC, c.id DESC
+                        ) AS cohort_rank
+                    FROM market_prediction_evaluations e
+                    JOIN market_prediction_calls c ON c.id = e.call_id
+                    JOIN market_prediction_runs r ON r.id = c.run_id
+                    WHERE c.window_days = %s
+                )
                 SELECT
-                    AVG(CASE WHEN e.direction_hit THEN 1.0 ELSE 0.0 END),
-                    AVG(e.move_abs_error_pct),
-                    AVG(e.brier_score),
+                    AVG(CASE WHEN direction_hit THEN 1.0 ELSE 0.0 END),
+                    AVG(move_abs_error_pct),
+                    AVG(brier_score),
                     COUNT(*)
-                FROM market_prediction_evaluations e
-                JOIN market_prediction_calls c ON c.id = e.call_id
-                WHERE c.window_days = %s
+                FROM ranked_evaluations
+                WHERE cohort_rank = 1
                 """,
                 [window_days],
             ).fetchone()
@@ -995,23 +1094,58 @@ class MarketPredictionRepository:
         )
 
     def _active_cluster_keys_from_fields(self, metadata: Any, top_source_clusters: Any) -> list[str]:
+        normalized_metadata: list[str] = []
         if isinstance(metadata, dict):
             raw_keys = metadata.get("active_cluster_keys")
             if isinstance(raw_keys, list):
-                normalized = self._normalize_cluster_keys(raw_keys)
-                if normalized:
-                    return normalized
+                normalized_metadata = self._normalize_cluster_keys(raw_keys)
+
+        trusted_from_clusters, explicitly_untrusted = self._source_cluster_learning_keys(top_source_clusters)
+        if normalized_metadata:
+            if explicitly_untrusted:
+                filtered = [key for key in normalized_metadata if key not in explicitly_untrusted]
+                if filtered:
+                    return filtered
+                if isinstance(top_source_clusters, list):
+                    return []
+            return normalized_metadata
+        return trusted_from_clusters
+
+    def _source_cluster_learning_keys(self, top_source_clusters: Any) -> tuple[list[str], set[str]]:
         if not isinstance(top_source_clusters, list):
-            return []
-        candidates = []
+            return [], set()
+        trusted_candidates = []
+        explicitly_untrusted: set[str] = set()
         for raw in top_source_clusters:
             if not isinstance(raw, dict):
                 continue
             cluster = normalize_market_prediction_cluster_key(raw.get("cluster"))
             if cluster is None:
                 continue
-            candidates.append(cluster)
-        return self._normalize_cluster_keys(candidates)
+            if self._cluster_is_trusted_for_learning(raw):
+                trusted_candidates.append(cluster)
+            elif self._cluster_is_explicitly_untrusted_for_learning(raw):
+                explicitly_untrusted.add(cluster)
+        return self._normalize_cluster_keys(trusted_candidates), explicitly_untrusted
+
+    def _cluster_is_trusted_for_learning(self, raw_cluster: dict[str, Any]) -> bool:
+        cluster = normalize_market_prediction_cluster_key(raw_cluster.get("cluster"))
+        if cluster is None:
+            return False
+        return not self._cluster_is_explicitly_untrusted_for_learning(raw_cluster)
+
+    def _cluster_is_explicitly_untrusted_for_learning(self, raw_cluster: dict[str, Any]) -> bool:
+        cluster = normalize_market_prediction_cluster_key(raw_cluster.get("cluster"))
+        if cluster is None:
+            return False
+        note = str(raw_cluster.get("note") or "").strip()
+        if note in {
+            "Derived fallback; tracked not ranked.",
+            "Derived fallback; no usable source snapshot.",
+        }:
+            return True
+        freshness = str(raw_cluster.get("freshness") or "").strip().lower()
+        return cluster == "macro_calendar" and freshness in {"stale", "missing"}
 
     @staticmethod
     def _normalize_cluster_keys(raw_keys: list[Any]) -> list[str]:

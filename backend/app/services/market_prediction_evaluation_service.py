@@ -20,6 +20,7 @@ from app.utils.market_hours import NY_TZ, get_expected_data_date
 
 _BACKFILL_RUN_LIMIT = 120
 _MAX_BACKFILL_AGE_DAYS = 180
+_NEUTRAL_MOVE_BAND_PCT = 0.5
 
 
 class MarketPredictionEvaluationService:
@@ -212,4 +213,4 @@ class MarketPredictionEvaluationService:
             return realized_move_pct > 0
         if predicted_direction == "bearish":
             return realized_move_pct < 0
-        return realized_move_pct == 0
+        return abs(realized_move_pct) <= _NEUTRAL_MOVE_BAND_PCT

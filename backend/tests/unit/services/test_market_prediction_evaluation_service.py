@@ -64,3 +64,37 @@ def test_evaluate_due_predictions_scores_direction_move_and_brier() -> None:
     assert evaluation.move_abs_error_pct == pytest.approx(0.5)
     assert evaluation.brier_score == pytest.approx((1.0 - 0.7) ** 2)
     assert repo.upserted[0] == evaluation
+
+
+
+def test_evaluate_due_predictions_treats_small_realized_move_as_neutral_hit() -> None:
+    candidate = MarketPredictionEvaluationCandidate(
+        call=MarketPredictionCall(
+            id="call-neutral",
+            symbol="XLF",
+            window_days=1,
+            direction_label="neutral",
+            prob_up=0.5,
+            expected_move_pct=0.0,
+        ),
+        base_date=date(2026, 4, 24),
+        target_date=date(2026, 4, 25),
+    )
+    repo = _FakeRepo([candidate])
+    closes = {
+        ("XLF", date(2026, 4, 24)): 100.0,
+        ("XLF", date(2026, 4, 25)): 100.3,
+    }
+    service = MarketPredictionEvaluationService(
+        repository=repo,
+        price_lookup=lambda symbol, as_of_date: closes.get((symbol, as_of_date)),
+        evaluated_at_fn=lambda: datetime(2026, 4, 25, 22, 5, tzinfo=UTC),
+    )
+
+    results = service.evaluate_due_predictions(as_of_date=date(2026, 4, 25))
+
+    assert len(results) == 1
+    evaluation = results[0]
+    assert evaluation.realized_move_pct == pytest.approx(0.3)
+    assert evaluation.direction_hit is True
+    assert repo.upserted[0] == evaluation
