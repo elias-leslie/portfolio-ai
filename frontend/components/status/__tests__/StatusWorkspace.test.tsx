@@ -633,9 +633,10 @@ describe('StatusWorkspace', () => {
     expect(
       screen.getByText('Loading core connection checks...'),
     ).toBeInTheDocument()
+    expect(screen.getByText('Loading service uptime...')).toBeInTheDocument()
     expect(
-      screen.getByText('Loading runtime and data-recency checks...'),
-    ).toBeInTheDocument()
+      screen.getAllByText('Loading decision-data health...').length,
+    ).toBeGreaterThan(0)
     await user.click(screen.getByRole('button', { name: /sources/i }))
     expect(
       screen.getByText('Loading provider health signals...'),

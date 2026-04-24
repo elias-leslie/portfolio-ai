@@ -20,6 +20,7 @@ import { useMarketStatus } from '@/lib/hooks/useMarketIntelligence'
 import { useNewsHealth } from '@/lib/hooks/useNewsHealth'
 import { cn, formatRelativeTime } from '@/lib/utils'
 import {
+  DecisionDataHealthPanel,
   MarketTimingPanel,
   NewsVendorsPanel,
   QuotaCoveragePanel,
@@ -31,6 +32,21 @@ import {
   SystemChecksPanel,
 } from './StatusPanels'
 import { marketLabel, marketTone, newsTone, systemTone } from './statusUtils'
+
+function decisionDataTone(
+  status: string | undefined,
+): 'default' | 'positive' | 'warning' | 'negative' {
+  switch (status) {
+    case 'healthy':
+      return 'positive'
+    case 'degraded':
+      return 'warning'
+    case 'critical':
+      return 'negative'
+    default:
+      return 'default'
+  }
+}
 
 function LoadingSectionPanel({
   title,
@@ -169,6 +185,11 @@ export function StatusWorkspace() {
         : 'No refresh timestamp yet'
 
   const cacheStats = healthQuery.data?.cacheStats
+  const decisionDataHealth = healthQuery.data?.decisionDataHealth
+  const decisionDataIssueCount =
+    decisionDataHealth?.domains.filter(
+      (domain) => domain.severity !== 'healthy',
+    ).length ?? 0
   const cacheAge = formatHours(
     cacheStats?.cacheAgeMinutes != null
       ? cacheStats.cacheAgeMinutes / 60
@@ -211,13 +232,22 @@ export function StatusWorkspace() {
           )}
           {healthPending ? (
             <LoadingSectionPanel
-              title="App Health"
-              description="What is running, whether the data is current, and whether background jobs are keeping up."
-              message="Loading runtime and data-recency checks..."
+              title="Service Uptime"
+              description="Backend, frontend, and worker processes only."
+              message="Loading service uptime..."
             />
           ) : (
-            <ServicePulsePanel
-              serviceRows={serviceRows}
+            <ServicePulsePanel serviceRows={serviceRows} />
+          )}
+          {healthPending ? (
+            <LoadingSectionPanel
+              title="Decision Data Health"
+              description="Freshness and coverage for the data behind decisions."
+              message="Loading decision-data health..."
+            />
+          ) : (
+            <DecisionDataHealthPanel
+              decisionDataHealth={decisionDataHealth}
               dataFreshnessStatus={healthQuery.data?.dataFreshnessStatus}
               workflowHealth={healthQuery.data?.workflowHealth}
             />
@@ -466,6 +496,24 @@ export function StatusWorkspace() {
                     ? `Version ${healthQuery.data.version}`
                     : 'Version unavailable'
               }
+            />
+            <SummaryStat
+              label="Decision Data"
+              value={
+                healthPending
+                  ? 'Loading...'
+                  : formatEnumLabel(decisionDataHealth?.status, 'Unknown')
+              }
+              detail={
+                healthPending
+                  ? 'Loading decision-data health...'
+                  : decisionDataHealth
+                    ? decisionDataIssueCount > 0
+                      ? `${formatInteger(decisionDataIssueCount)} evidence domain${decisionDataIssueCount === 1 ? '' : 's'} need review`
+                      : decisionDataHealth.message
+                    : 'Decision-data health unavailable'
+              }
+              tone={decisionDataTone(decisionDataHealth?.status)}
             />
             <SummaryStat
               label="Cache"
