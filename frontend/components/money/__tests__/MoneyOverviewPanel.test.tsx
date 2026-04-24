@@ -78,6 +78,8 @@ const dashboard = {
     summary: 'Discretionary spending is above plan.',
     monthlyIncomeTarget: 9000,
     monthlyPlanTotal: 8000,
+    monthlyPlanSource: 'household_profile_targets',
+    monthlyPlanSourceLabel: 'Household profile targets',
     essentialTarget: 5000,
     discretionaryTarget: 1500,
     savingsTarget: 1500,
@@ -318,6 +320,9 @@ describe('MoneyOverviewPanel', () => {
     expect(
       screen.getAllByText(/month-to-date spend is ahead of plan/i),
     ).toHaveLength(2)
+    expect(screen.getAllByText(/household profile targets/i)).not.toHaveLength(
+      0,
+    )
     expect(screen.getByText('Where Money Went')).toBeInTheDocument()
     expect(screen.getByText('Recurring Bills')).toBeInTheDocument()
     expect(screen.getByText('Duke Energy')).toBeInTheDocument()

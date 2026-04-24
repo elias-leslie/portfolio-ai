@@ -188,6 +188,12 @@ class HouseholdSpendingCategory(BaseModel):
     average_monthly_spend: float
     share_of_spend: float
     transaction_count: int
+    found_monthly_budget: float | None = None
+    confirmed_monthly_budget: float | None = None
+    budget_source: str = "no_budget"
+    budget_status: str = "no_budget"
+    budget_note: str | None = None
+    budget_disabled: bool = False
 
 
 class HouseholdSpendingTransaction(BaseModel):
@@ -214,6 +220,14 @@ class HouseholdSpendingSummary(BaseModel):
     transaction_count: int = 0
     coverage_months: int = 0
     account_count: int = 0
+    found_budget_total: float = 0.0
+    confirmed_budget_total: float = 0.0
+    budgeted_category_count: int = 0
+    found_budget_category_count: int = 0
+    confirmed_budget_category_count: int = 0
+    over_budget_count: int = 0
+    found_over_budget_count: int = 0
+    confirmed_over_budget_count: int = 0
 
 
 class HouseholdSpendingView(BaseModel):
@@ -238,6 +252,8 @@ class HouseholdBudgetSnapshot(BaseModel):
     summary: str
     monthly_income_target: float | None = None
     monthly_plan_total: float | None = None
+    monthly_plan_source: str = "none"
+    monthly_plan_source_label: str = "No monthly plan"
     essential_target: float | None = None
     discretionary_target: float | None = None
     savings_target: float | None = None

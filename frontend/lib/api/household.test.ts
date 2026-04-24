@@ -60,6 +60,8 @@ describe('household api', () => {
           summary: 'Set the core monthly plan.',
           monthly_income_target: null,
           monthly_plan_total: null,
+          monthly_plan_source: 'none',
+          monthly_plan_source_label: 'No monthly plan',
           essential_target: null,
           discretionary_target: null,
           savings_target: null,

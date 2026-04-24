@@ -597,6 +597,10 @@ export function MoneyOverviewPanel({
                     { nullDisplay: 'Not set' },
                   )}
                 </p>
+                <p>
+                  Monthly plan source:{' '}
+                  {dashboard.budgetSnapshot.monthlyPlanSourceLabel}
+                </p>
               </div>
               {spendTrustDegraded && safeSpendRepairItems.length > 0 ? (
                 <div className="mt-3 space-y-2 border-t border-border/30 pt-3">
@@ -954,7 +958,7 @@ export function MoneyOverviewPanel({
                 {`Plan: ${formatCurrencyWhole(
                   dashboard.budgetSnapshot.monthToDatePlan,
                   { nullDisplay: 'Not set' },
-                )}`}
+                )} · ${dashboard.budgetSnapshot.monthlyPlanSourceLabel}`}
               </p>
               <p className="mt-3 text-sm leading-relaxed text-text-muted">
                 {dashboard.budgetSnapshot.paceDetail}
@@ -992,7 +996,7 @@ export function MoneyOverviewPanel({
                 {`Monthly plan: ${formatCurrencyWhole(
                   dashboard.budgetSnapshot.monthlyPlanTotal,
                   { nullDisplay: 'Not set' },
-                )}`}
+                )} · ${dashboard.budgetSnapshot.monthlyPlanSourceLabel}`}
               </p>
               <p className="mt-3 text-sm leading-relaxed text-text-muted">
                 {`Remaining after plan: ${formatCurrencyWhole(
