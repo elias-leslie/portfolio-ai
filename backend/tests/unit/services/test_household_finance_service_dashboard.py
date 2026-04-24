@@ -20,6 +20,7 @@ from app.models.household_finance import (
 from app.models.household_planning import empty_household_planning_snapshot
 from app.services._household_dashboard_assembly import (
     _apply_account_freshness_visibility_cap,
+    _monthly_spend_trust,
     _net_worth_trust,
     build_overview,
     gather_service_data,
@@ -274,6 +275,129 @@ def test_net_worth_trust_marks_stale_when_all_balances_are_known_but_old() -> No
     assert status == "stale"
     assert "should refresh before review" in detail
     assert "Net worth subtotal from 2 tracked accounts." in detail
+
+
+def test_net_worth_trust_marks_estimated_when_balance_is_missing() -> None:
+    status, detail = _net_worth_trust(
+        [
+            Mock(
+                current_value=100000.0,
+                balance_freshness_status="fresh",
+                match_status="linked",
+                last_balance_at="2026-04-23T00:00:00+00:00",
+            ),
+            Mock(
+                current_value=None,
+                balance_freshness_status="needs_evidence",
+                match_status="tracked",
+                last_balance_at=None,
+            ),
+        ]
+    )
+
+    assert status == "estimated"
+    assert "1 account missing current balances" in detail
+
+
+def test_monthly_spend_trust_marks_current_when_spending_accounts_are_fresh() -> None:
+    status, detail = _monthly_spend_trust(
+        [
+            Mock(
+                money_role="spend_driver",
+                transaction_freshness_status="fresh",
+                last_transaction_at="2026-04-23T00:00:00+00:00",
+            )
+        ],
+        {
+            "coverage_months": 3,
+            "gap_months": [],
+            "most_recent_date": "2026-04-23",
+            "days_since_latest": 1,
+        },
+    )
+
+    assert status == "current"
+    assert "through 2026-04-23" in detail
+
+
+def test_monthly_spend_trust_marks_estimated_when_one_spending_account_is_stale() -> None:
+    status, detail = _monthly_spend_trust(
+        [
+            Mock(
+                money_role="spend_driver",
+                transaction_freshness_status="fresh",
+                last_transaction_at="2026-04-23T00:00:00+00:00",
+            ),
+            Mock(
+                money_role="spend_driver",
+                transaction_freshness_status="stale",
+                last_transaction_at="2026-04-14T00:00:00+00:00",
+            ),
+        ],
+        {
+            "coverage_months": 3,
+            "gap_months": [],
+            "most_recent_date": "2026-04-23",
+            "days_since_latest": 1,
+        },
+    )
+
+    assert status == "estimated"
+    assert "1 spending account stale" in detail
+
+
+def test_monthly_spend_trust_marks_stale_when_all_spending_accounts_are_stale() -> None:
+    status, detail = _monthly_spend_trust(
+        [
+            Mock(
+                money_role="spend_driver",
+                transaction_freshness_status="stale",
+                last_transaction_at="2026-04-14T00:00:00+00:00",
+            ),
+            Mock(
+                money_role="spend_driver",
+                transaction_freshness_status="stale",
+                last_transaction_at="2026-04-08T00:00:00+00:00",
+            ),
+        ],
+        {
+            "coverage_months": 3,
+            "gap_months": [],
+            "most_recent_date": "2026-04-14",
+            "days_since_latest": 10,
+        },
+    )
+
+    assert status == "stale"
+    assert "older history from 2 of 2 spending accounts" in detail
+    assert "Refresh before using it for a weekly review" in detail
+
+
+def test_monthly_spend_trust_marks_estimated_when_latest_transaction_date_is_missing() -> None:
+    status, detail = _monthly_spend_trust(
+        [
+            Mock(
+                money_role="spend_driver",
+                transaction_freshness_status="fresh",
+                last_transaction_at="2026-04-23T00:00:00+00:00",
+            ),
+            Mock(
+                money_role="spend_driver",
+                transaction_freshness_status="needs_evidence",
+                last_transaction_at=None,
+            ),
+        ],
+        {
+            "coverage_months": 3,
+            "gap_months": [],
+            "most_recent_date": None,
+            "days_since_latest": None,
+        },
+    )
+
+    assert status == "estimated"
+    assert "1 spending account missing transactions" in detail
+    assert "latest covered transaction date unknown" in detail
 
 
 def test_build_overview_prefers_account_summary_totals_over_legacy_portfolio_inputs() -> None:

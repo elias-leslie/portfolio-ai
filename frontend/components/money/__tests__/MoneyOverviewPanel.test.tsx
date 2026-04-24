@@ -361,11 +361,64 @@ describe('MoneyOverviewPanel', () => {
     expect(
       screen.getAllByRole('button', { name: /estimate: more detail/i }),
     ).not.toHaveLength(0)
+    expect(screen.queryByText('Safe')).not.toBeInTheDocument()
+    expect(screen.getByText('Review')).toBeInTheDocument()
     expect(screen.getByText('$0')).toBeInTheDocument()
     expect(screen.getByText('$4,700 / $1,800')).toBeInTheDocument()
     expect(
       screen.queryByText(/estimate from current coverage/i),
     ).not.toBeInTheDocument()
     expect(screen.getByText('+$900')).toBeInTheDocument()
+  })
+
+  it('shows exact refresh blockers when stale accounts block safe-to-spend trust', () => {
+    render(
+      <MoneyOverviewPanel
+        dashboard={{
+          ...dashboard,
+          overview: {
+            ...dashboard.overview,
+            monthlySpendStatus: 'stale',
+            monthlySpendDetail:
+              'Monthly spend subtotal is based on older history from 2 of 2 spending accounts. Latest covered transaction date 2026-04-14.',
+          },
+          budgetSnapshot: {
+            ...dashboard.budgetSnapshot,
+            remainingCashAfterPlan: 1200,
+            discretionaryHeadroom: null,
+          },
+          inbox: [
+            {
+              id: 'account-cma-stale-transactions',
+              category: 'account',
+              priority: 'high',
+              title: 'Refresh transactions for Cash Management Account',
+              detail:
+                'Need a bank or card statement/export covering 2026-04-09 through 2026-04-24. Blocks monthly spend, budget status, and safe to spend.',
+              actionLabel: 'Add statements',
+              actionHref: '/money?tab=accounts&account=cma&intent=evidence',
+              relatedAccountId: 'cma',
+              relatedQuestionId: null,
+              relatedDocumentIds: ['doc-1'],
+            },
+          ],
+        }}
+      />,
+    )
+
+    expect(screen.queryByText('Safe')).not.toBeInTheDocument()
+    expect(screen.getByText('Review')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Calculated from visible cash and plan, but stale account evidence blocks current safe-to-spend guidance.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Refresh blockers')).toBeInTheDocument()
+    expect(
+      screen.getByText('Refresh transactions for Cash Management Account'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/covering 2026-04-09 through 2026-04-24/i),
+    ).toBeInTheDocument()
   })
 })

@@ -39,7 +39,7 @@ import {
   useDeleteHouseholdTrackedAccount,
   useUpdateHouseholdTrackedAccount,
 } from '@/lib/hooks/useHousehold'
-import { formatRelativeTime } from '@/lib/utils'
+import { formatDate, formatRelativeTime } from '@/lib/utils'
 import { EvidenceUploadComposer } from './EvidenceUploadComposer'
 
 type MoneyAccountsFocus = 'coverage' | 'discovered' | null
@@ -444,6 +444,17 @@ function moneyRoleLabel(role: string) {
   return role === 'spend_driver' ? 'Spending account' : 'Net worth only'
 }
 
+function accountEvidenceDate(
+  value: string | null | undefined,
+  daysSince: number | null | undefined,
+) {
+  if (!value) {
+    return 'missing'
+  }
+  const ageLabel = daysSince == null ? null : `${daysSince}d old`
+  return `${formatDate(value)}${ageLabel ? ` (${ageLabel})` : ''}`
+}
+
 export function MoneyAccountsPanel({
   accounts,
   documents,
@@ -779,10 +790,19 @@ export function MoneyAccountsPanel({
                               Status
                             </p>
                             <div className="mt-2 space-y-1 text-sm text-text">
-                              <p>Balance {account.balanceFreshnessLabel}</p>
+                              <p>
+                                Balance {account.balanceFreshnessLabel} ·{' '}
+                                {accountEvidenceDate(
+                                  account.lastBalanceAt,
+                                  account.daysSinceBalance,
+                                )}
+                              </p>
                               <p>
                                 {account.moneyRole === 'spend_driver'
-                                  ? `Transactions ${account.transactionFreshnessLabel}`
+                                  ? `Transactions ${account.transactionFreshnessLabel} · ${accountEvidenceDate(
+                                      account.lastTransactionAt,
+                                      account.daysSinceTransaction,
+                                    )}`
                                   : 'Transactions not required'}
                               </p>
                               {pricedPositionCount > 0 ? (
