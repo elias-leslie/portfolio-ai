@@ -1,10 +1,12 @@
-import { PlusCircle, Trash2 } from 'lucide-react'
+import { ArrowRight, PlusCircle, Trash2 } from 'lucide-react'
+import Link from 'next/link'
 import { InfoBadge } from '@/components/shared/InfoBadge'
 import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -43,6 +45,45 @@ function linkedFreshnessVariant(status: string | null | undefined) {
     default:
       return 'outline' as const
   }
+}
+
+function linkageVariant(state: string | null | undefined) {
+  switch (state) {
+    case 'linked':
+      return 'success' as const
+    case 'stale_evidence':
+    case 'duplicate_candidate':
+      return 'warning' as const
+    case 'unmapped':
+      return 'secondary' as const
+    default:
+      return 'outline' as const
+  }
+}
+
+function fallbackLinkageLabel(
+  account: Account,
+  linkedHouseholdAccount?: HouseholdAccountSummary | null,
+) {
+  if (account.accountType === 'paper') {
+    return 'Standalone by design'
+  }
+  return linkedHouseholdAccount
+    ? 'Linked household account'
+    : 'Unmapped investment account'
+}
+
+function fallbackLinkageDetail(
+  account: Account,
+  linkedHouseholdAccount?: HouseholdAccountSummary | null,
+) {
+  if (account.accountType === 'paper') {
+    return 'Paper account excluded from household evidence reconciliation.'
+  }
+  if (linkedHouseholdAccount) {
+    return `Money Accounts links this to ${linkedHouseholdAccount.label}. Evidence is ${linkedHouseholdAccount.freshnessLabel.toLowerCase()}.`
+  }
+  return 'Included in holdings totals, but Money Accounts has no linked household evidence.'
 }
 
 export function AccountAccordionItem({
@@ -128,6 +169,24 @@ export function AccountAccordionItem({
           linkedHouseholdAccount.balanceFreshnessLabel,
         ].join(' · ')
       : null
+  const householdLinkageState =
+    account.householdLinkageState ??
+    (linkedHouseholdAccount ? 'linked' : undefined)
+  const householdLinkageLabel =
+    account.householdLinkageLabel ??
+    fallbackLinkageLabel(account, linkedHouseholdAccount)
+  const householdLinkageDetail =
+    account.householdLinkageDetail ??
+    fallbackLinkageDetail(account, linkedHouseholdAccount)
+  const showLinkageAction =
+    Boolean(account.householdLinkageActionHref) &&
+    (householdLinkageState === 'unmapped' ||
+      householdLinkageState === 'duplicate_candidate' ||
+      householdLinkageState === 'stale_evidence')
+  const linkageActionLabel =
+    householdLinkageState === 'stale_evidence'
+      ? 'Refresh evidence'
+      : 'Review in Money'
 
   return (
     <AccordionItem
@@ -136,9 +195,9 @@ export function AccountAccordionItem({
     >
       <div className="flex items-center px-4">
         <AccordionTrigger className="flex-1 hover:no-underline py-4">
-          <div className="flex items-center justify-between w-full pr-4">
+          <div className="flex min-w-0 items-center justify-between w-full pr-4">
             <div className="flex flex-col items-start gap-1">
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span className="font-display italic text-lg tracking-tight">
                   {displayName}
                 </span>
@@ -155,7 +214,7 @@ export function AccountAccordionItem({
                   />
                 ) : null}
               </div>
-              <div className="flex items-center gap-4 text-sm">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                 <span className="text-text-muted">
                   {positions.length} position
                   {positions.length !== 1 ? 's' : ''}
@@ -181,11 +240,9 @@ export function AccountAccordionItem({
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
-                <span className="rounded border border-border/40 bg-surface-muted/40 px-2 py-0.5 font-medium text-text-muted">
-                  {linkedHouseholdAccount
-                    ? 'Linked household account'
-                    : 'Standalone position account'}
-                </span>
+                <Badge variant={linkageVariant(householdLinkageState)}>
+                  {householdLinkageLabel}
+                </Badge>
                 {quoteLabel ? (
                   <InfoBadge
                     label={quoteLabel}
@@ -204,9 +261,7 @@ export function AccountAccordionItem({
                       linkedHouseholdAccount?.balanceFreshnessStatus,
                     )}
                   />
-                ) : (
-                  <span>No linked household evidence</span>
-                )}
+                ) : null}
                 {linkedHouseholdAccount?.institutionName ? (
                   <span>{linkedHouseholdAccount.institutionName}</span>
                 ) : null}
@@ -228,6 +283,17 @@ export function AccountAccordionItem({
         </Button>
       </div>
       <AccordionContent className="px-4 pb-4">
+        {showLinkageAction ? (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/40 bg-surface-muted/30 px-3 py-2 text-sm text-text-muted">
+            <span>{householdLinkageDetail}</span>
+            <Button asChild variant="outline" size="sm">
+              <Link href={account.householdLinkageActionHref ?? '/money'}>
+                {linkageActionLabel}
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        ) : null}
         {onAddPosition && (
           <div className="mb-3 flex justify-end">
             <Button

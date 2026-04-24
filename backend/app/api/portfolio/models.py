@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.portfolio.account_linkage import HouseholdLinkageState
+
 
 # Request models
 class AccountCreate(BaseModel):
@@ -38,6 +40,12 @@ class AccountResponse(BaseModel):
     name: str
     account_type: str
     household_account_id: str | None = None
+    household_linkage_state: HouseholdLinkageState = "unmapped"
+    household_linkage_label: str = "Unmapped investment account"
+    household_linkage_detail: str | None = None
+    household_linkage_action_href: str | None = None
+    household_linkage_candidate_count: int = 0
+    household_linkage_candidate_ids: list[str] = Field(default_factory=list)
     cash_balance: float
     created_at: str
     updated_at: str

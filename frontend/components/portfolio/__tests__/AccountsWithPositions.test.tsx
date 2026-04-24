@@ -118,6 +118,11 @@ describe('AccountsWithPositions', () => {
           id: 'acct-1',
           name: 'Roth IRA',
           accountType: 'Roth',
+          householdAccountId: null,
+          householdLinkageState: 'unmapped',
+          householdLinkageLabel: 'Unmapped investment account',
+          householdLinkageDetail:
+            'Included in holdings totals, but Money Accounts has no linked household evidence.',
           cashBalance: 47880.13,
           createdAt: '2026-03-07T00:00:00Z',
           updatedAt: '2026-03-07T00:00:00Z',
@@ -129,7 +134,7 @@ describe('AccountsWithPositions', () => {
     render(<AccountsWithPositions />)
 
     expect(screen.getByText('Roth IRA')).toBeVisible()
-    expect(screen.getByText('Standalone position account')).toBeVisible()
+    expect(screen.getByText('Unmapped investment account')).toBeVisible()
     expect(screen.getByText('$47,880.13')).toBeVisible()
     expect(screen.getByText(/Cash \$47,880\.13/)).toBeVisible()
     expect(
@@ -145,6 +150,10 @@ describe('AccountsWithPositions', () => {
           name: 'Brokerage',
           accountType: 'Taxable',
           householdAccountId: 'household-1',
+          householdLinkageState: 'linked',
+          householdLinkageLabel: 'Linked household account',
+          householdLinkageDetail:
+            'Money Accounts links this to Individual - TOD. Evidence is fresh.',
           cashBalance: 0,
           createdAt: '2026-03-07T00:00:00Z',
           updatedAt: '2026-03-07T00:00:00Z',
@@ -220,6 +229,44 @@ describe('AccountsWithPositions', () => {
     expect(screen.getByText(/Cash \$1,248\.61/)).toBeVisible()
   })
 
+  it('explains that unmapped accounts remain included in holdings totals', () => {
+    mockUseAccounts.mockReturnValue({
+      data: [
+        {
+          id: 'acct-1',
+          name: 'Brokerage',
+          accountType: 'Taxable',
+          householdAccountId: null,
+          householdLinkageState: 'unmapped',
+          householdLinkageLabel: 'Unmapped investment account',
+          householdLinkageDetail:
+            'Included in holdings totals, but Money Accounts has no linked household evidence.',
+          cashBalance: 0,
+          createdAt: '2026-03-07T00:00:00Z',
+          updatedAt: '2026-03-07T00:00:00Z',
+        },
+      ],
+      isLoading: false,
+    })
+    mockUsePortfolio.mockReturnValue({
+      data: {
+        positions: [],
+        cashBalanceTotal: 0,
+        totalValue: 0,
+        totalCostBasis: 0,
+        totalGain: 0,
+        totalGainPct: 0,
+        householdInvestmentAccountsCount: 2,
+      },
+      isLoading: false,
+    })
+
+    render(<AccountsWithPositions />)
+
+    expect(screen.getByText('2 Money investments')).toBeVisible()
+    expect(screen.getByText('1 unmapped')).toBeVisible()
+  })
+
   it('shows a top-level add-position action and preselects the only account', async () => {
     const user = userEvent.setup()
     const handleAddPosition = vi.fn()
@@ -229,6 +276,7 @@ describe('AccountsWithPositions', () => {
           id: 'acct-1',
           name: 'Brokerage',
           accountType: 'Taxable',
+          householdAccountId: null,
           cashBalance: 0,
           createdAt: '2026-03-07T00:00:00Z',
           updatedAt: '2026-03-07T00:00:00Z',

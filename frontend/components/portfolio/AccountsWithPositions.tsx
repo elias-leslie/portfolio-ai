@@ -62,15 +62,35 @@ export function AccountsWithPositionsContent({
       .filter((account) => account.linkedPortfolioAccountId)
       .map((account) => [account.linkedPortfolioAccountId as string, account]),
   )
+  const householdAccountsByHouseholdAccountId = Object.fromEntries(
+    (household?.accounts ?? [])
+      .filter((account) => account.householdAccountId)
+      .map((account) => [account.householdAccountId as string, account]),
+  )
   const householdInvestmentAccountsCount =
     evidenceInvestmentAccountsCount ??
     portfolio?.householdInvestmentAccountsCount ??
     null
   const accountCount = accounts?.length ?? 0
+  const linkageCounts = (accounts ?? []).reduce(
+    (counts, account) => {
+      const state = account.householdLinkageState
+      if (state === 'linked') counts.linked += 1
+      if (state === 'stale_evidence') counts.stale += 1
+      if (state === 'unmapped' || state === 'duplicate_candidate') {
+        counts.unmapped += 1
+      }
+      return counts
+    },
+    { linked: 0, stale: 0, unmapped: 0 },
+  )
   const householdCoverageDetail =
-    householdInvestmentAccountsCount != null &&
-    householdInvestmentAccountsCount > accountCount
-      ? `Linked household truth covers ${householdInvestmentAccountsCount} investment account${householdInvestmentAccountsCount === 1 ? '' : 's'}, while live position tracking here currently covers ${accountCount} position account${accountCount === 1 ? '' : 's'}.`
+    householdInvestmentAccountsCount != null
+      ? `Money Accounts tracks ${householdInvestmentAccountsCount} investment account${householdInvestmentAccountsCount === 1 ? '' : 's'}. Holdings totals include every live position account${linkageCounts.unmapped > 0 ? `, including ${linkageCounts.unmapped} unmapped account${linkageCounts.unmapped === 1 ? '' : 's'}` : ''}. ${linkageCounts.linked + linkageCounts.stale} of ${accountCount} position account${accountCount === 1 ? '' : 's'} currently link back to Money evidence.`
+      : null
+  const unmappedDetail =
+    linkageCounts.unmapped > 0
+      ? `These accounts remain included in holdings totals. Link or confirm evidence in Money Accounts to reconcile household coverage.`
       : null
 
   if (accountsLoading || portfolioLoading) {
@@ -153,7 +173,7 @@ export function AccountsWithPositionsContent({
     <>
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Accounts & Positions</CardTitle>
               <CardDescription>
@@ -165,9 +185,16 @@ export function AccountsWithPositionsContent({
             <div className="flex flex-wrap items-center gap-2">
               {householdCoverageDetail ? (
                 <InfoBadge
-                  label={`${householdInvestmentAccountsCount} linked investment${householdInvestmentAccountsCount === 1 ? '' : 's'}`}
+                  label={`${householdInvestmentAccountsCount} Money investment${householdInvestmentAccountsCount === 1 ? '' : 's'}`}
                   detail={householdCoverageDetail}
                   variant="outline"
+                />
+              ) : null}
+              {unmappedDetail ? (
+                <InfoBadge
+                  label={`${linkageCounts.unmapped} unmapped`}
+                  detail={unmappedDetail}
+                  variant="warning"
                 />
               ) : null}
               {onAddPosition && (
@@ -206,6 +233,11 @@ export function AccountsWithPositionsContent({
                 account={account}
                 linkedHouseholdAccount={
                   linkedHouseholdAccountsByPortfolioAccountId[account.id] ??
+                  (account.householdAccountId
+                    ? householdAccountsByHouseholdAccountId[
+                        account.householdAccountId
+                      ]
+                    : null) ??
                   null
                 }
                 positions={portfolio?.positions}
