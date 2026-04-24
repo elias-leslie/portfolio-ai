@@ -52,7 +52,17 @@ describe('ThesisSection', () => {
 
   it('marks the generate action busy while a thesis is being created', () => {
     useQueryMock.mockReturnValue({
-      data: { thesis: null, versions: [] },
+      data: {
+        thesis: null,
+        versions: [],
+        decisionEligibility: {
+          eligible: false,
+          status: 'unavailable',
+          reasons: ['No thesis is available for this symbol.'],
+          ageHours: null,
+          evaluatedAt: null,
+        },
+      },
       isLoading: false,
       error: null,
     })
@@ -92,6 +102,13 @@ describe('ThesisSection', () => {
           updatedAt: '2026-03-11T00:00:00Z',
         },
         versions: [],
+        decisionEligibility: {
+          eligible: true,
+          status: 'eligible',
+          reasons: [],
+          ageHours: 2,
+          evaluatedAt: '2026-03-11T02:00:00Z',
+        },
       },
       isLoading: false,
       error: null,
@@ -112,5 +129,53 @@ describe('ThesisSection', () => {
     expect(
       screen.getByRole('button', { name: /invalidating/i }),
     ).toHaveAttribute('aria-busy', 'true')
+  })
+
+  it('warns when thesis is not eligible as current decision evidence', () => {
+    useQueryMock.mockReturnValue({
+      data: {
+        thesis: {
+          action: 'HOLD',
+          crossValidationScore: 0.81,
+          status: 'active',
+          coreReasons: [],
+          keyCatalysts: [],
+          risks: [],
+          valueDrivers: null,
+          expectedReturnPct: null,
+          expectedTimeframeDays: null,
+          claudeValidation: null,
+          version: 1,
+          updatedAt: '2026-03-09T00:00:00Z',
+        },
+        versions: [],
+        decisionEligibility: {
+          eligible: false,
+          status: 'review_required',
+          reasons: [
+            'Thesis is 46d old; refresh required before using it as current decision evidence.',
+            'Price assumption drifted from $213.49 in thesis to $263.15 live.',
+          ],
+          ageHours: 1100,
+          evaluatedAt: '2026-04-24T18:00:00Z',
+        },
+      },
+      isLoading: false,
+      error: null,
+    })
+    useMutationMock.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+    })
+
+    render(<ThesisSection symbol="AMZN" userTimezone="America/New_York" />)
+
+    expect(screen.getByText('Review required')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Do not treat this thesis as current decision evidence.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Price assumption drifted/)).toBeInTheDocument()
   })
 })

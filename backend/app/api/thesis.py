@@ -15,6 +15,7 @@ from fastapi.concurrency import run_in_threadpool
 
 from app.logging_config import get_logger
 from app.models.thesis import (
+    ThesisDecisionEligibility,
     ThesisGenerateRequest,
     ThesisResponse,
     ThesisVersion,
@@ -26,6 +27,16 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/thesis", tags=["thesis"])
+
+
+def _default_eligibility(thesis_present: bool) -> ThesisDecisionEligibility:
+    if thesis_present:
+        return ThesisDecisionEligibility(eligible=True, status="eligible", reasons=[])
+    return ThesisDecisionEligibility(
+        eligible=False,
+        status="unavailable",
+        reasons=["No thesis is available for this symbol."],
+    )
 
 
 @lru_cache(maxsize=1)
@@ -55,6 +66,13 @@ async def get_thesis(symbol: str) -> ThesisResponse:
                 thesis=None,
                 versions=[],
                 version_count=0,
+                decision_eligibility=await run_in_threadpool(
+                    service.evaluate_decision_eligibility,
+                    symbol.upper(),
+                    None,
+                )
+                if hasattr(service, "evaluate_decision_eligibility")
+                else _default_eligibility(False),
             )
 
         # Get versions for the response
@@ -68,6 +86,13 @@ async def get_thesis(symbol: str) -> ThesisResponse:
             thesis=thesis,
             versions=versions,
             version_count=len(versions),
+            decision_eligibility=await run_in_threadpool(
+                service.evaluate_decision_eligibility,
+                symbol.upper(),
+                thesis,
+            )
+            if hasattr(service, "evaluate_decision_eligibility")
+            else _default_eligibility(True),
         )
 
     except Exception as e:
@@ -108,6 +133,13 @@ async def generate_thesis(
             thesis=thesis,
             versions=versions,
             version_count=len(versions),
+            decision_eligibility=await run_in_threadpool(
+                service.evaluate_decision_eligibility,
+                symbol.upper(),
+                thesis,
+            )
+            if hasattr(service, "evaluate_decision_eligibility")
+            else _default_eligibility(True),
         )
 
     except HTTPException:
@@ -160,6 +192,13 @@ async def invalidate_thesis(
             thesis=thesis,
             versions=versions,
             version_count=len(versions),
+            decision_eligibility=await run_in_threadpool(
+                service.evaluate_decision_eligibility,
+                symbol.upper(),
+                thesis,
+            )
+            if hasattr(service, "evaluate_decision_eligibility")
+            else _default_eligibility(True),
         )
 
     except HTTPException:

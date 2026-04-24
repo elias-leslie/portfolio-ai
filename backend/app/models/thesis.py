@@ -130,6 +130,20 @@ class ThesisVersion(BaseModel):
     created_at: str = Field(..., description="Version creation timestamp (ISO 8601)")
 
 
+class ThesisDecisionEligibility(BaseModel):
+    """Whether a thesis can be used as current decision evidence."""
+
+    eligible: bool = Field(..., description="True when thesis can be shown as current evidence")
+    status: Literal["eligible", "review_required", "invalidated", "unavailable"] = Field(
+        ..., description="Decision eligibility state"
+    )
+    reasons: list[str] = Field(
+        default_factory=list, description="Human-readable reasons blocking clean use"
+    )
+    age_hours: float | None = Field(None, description="Age of the thesis in hours")
+    evaluated_at: str | None = Field(None, description="Eligibility evaluation timestamp")
+
+
 class ThesisGenerateRequest(BaseModel):
     """API request model for thesis generation."""
 
@@ -146,3 +160,11 @@ class ThesisResponse(BaseModel):
         default_factory=list, description="Version history (newest first)"
     )
     version_count: int = Field(..., ge=0, description="Total number of versions")
+    decision_eligibility: ThesisDecisionEligibility = Field(
+        default_factory=lambda: ThesisDecisionEligibility(
+            eligible=True,
+            status="eligible",
+            reasons=[],
+        ),
+        description="Computed current-decision eligibility for the thesis",
+    )
