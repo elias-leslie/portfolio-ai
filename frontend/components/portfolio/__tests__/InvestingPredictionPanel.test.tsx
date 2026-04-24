@@ -3,12 +3,16 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchMarketPredictionCommittee } from '@/lib/api/market-core'
+import {
+  fetchMarketPredictionCommittee,
+  refreshMarketPredictionCommittee,
+} from '@/lib/api/market-core'
 import { InvestingPredictionPanel } from '../InvestingPredictionPanel'
 
 const useMarketPredictionCommitteeMock = vi.fn()
 const useMarketPredictionHistoryMock = vi.fn()
 const useMarketPredictionReviewMock = vi.fn()
+const useRefreshMarketPredictionCommitteeMock = vi.fn()
 const originalFetch = global.fetch
 
 vi.mock('@/lib/hooks/useMarketIntelligence', () => ({
@@ -21,6 +25,8 @@ vi.mock('@/lib/hooks/useMarketIntelligence', () => ({
   ) => useMarketPredictionHistoryMock(symbol, windowDays, limit),
   useMarketPredictionReview: (windowDays: number) =>
     useMarketPredictionReviewMock(windowDays),
+  useRefreshMarketPredictionCommittee: () =>
+    useRefreshMarketPredictionCommitteeMock(),
 }))
 
 type JsonRecord = Record<string, unknown>
@@ -270,6 +276,7 @@ describe('InvestingPredictionPanel', () => {
     useMarketPredictionCommitteeMock.mockReset()
     useMarketPredictionHistoryMock.mockReset()
     useMarketPredictionReviewMock.mockReset()
+    useRefreshMarketPredictionCommitteeMock.mockReset()
 
     useMarketPredictionCommitteeMock.mockImplementation(
       (windowDays: number) => ({
@@ -292,6 +299,10 @@ describe('InvestingPredictionPanel', () => {
       isLoading: false,
       error: null,
     }))
+    useRefreshMarketPredictionCommitteeMock.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+    })
   })
 
   afterEach(() => {
@@ -398,7 +409,13 @@ describe('InvestingPredictionPanel', () => {
     )
   })
 
-  it('surfaces invalidated snapshots above fold with last-made timing and refresh requirement', () => {
+  it('surfaces invalidated snapshots above fold with last-made timing and refresh requirement', async () => {
+    const user = userEvent.setup()
+    const refreshMutate = vi.fn()
+    useRefreshMarketPredictionCommitteeMock.mockReturnValue({
+      mutate: refreshMutate,
+      isPending: false,
+    })
     useMarketPredictionCommitteeMock.mockReturnValue({
       data: buildCommitteeResponse(3, {
         generatedAt: '2026-04-20T20:15:00Z',
@@ -454,6 +471,22 @@ describe('InvestingPredictionPanel', () => {
     ).toHaveTextContent('Apr')
     expect(screen.getByTestId('prediction-freshness-rail')).toHaveTextContent(
       'Refresh required',
+    )
+    await user.click(screen.getByRole('button', { name: /refresh now/i }))
+    expect(refreshMutate).toHaveBeenCalledWith(3)
+  })
+
+  it('shows refresh failures next to freshness evidence', () => {
+    useRefreshMarketPredictionCommitteeMock.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      error: new Error('Committee refresh failed'),
+    })
+
+    render(<InvestingPredictionPanel />)
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Refresh failed: Committee refresh failed',
     )
   })
 
@@ -990,5 +1023,18 @@ describe('InvestingPredictionPanel', () => {
     expect(screen.getByTestId('prediction-freshness-state')).toHaveTextContent(
       'Stale',
     )
+
+    const refreshed = await refreshMarketPredictionCommittee(3)
+
+    expect(global.fetch).toHaveBeenLastCalledWith(
+      '/api/market/prediction/committee/refresh?window_days=3',
+      expect.objectContaining({
+        cache: 'no-store',
+        method: 'POST',
+      }),
+    )
+    expect(refreshed.freshnessSummary?.reasonCodes).toEqual([
+      'macro_calendar_missing',
+    ])
   })
 })
