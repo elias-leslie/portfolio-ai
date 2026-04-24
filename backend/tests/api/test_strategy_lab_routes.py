@@ -13,6 +13,7 @@ from app.api.strategy_lab.models import (
     StrategyLabListResponse,
     StrategyLabReviewCapability,
     StrategyLabReviewSuccess,
+    StrategyLabUnavailableItem,
 )
 from app.main import app
 
@@ -60,6 +61,18 @@ def test_strategy_lab_list_route_returns_wrapper(monkeypatch) -> None:
                     helper_text=None,
                 )
             ],
+            unavailable_items=[
+                StrategyLabUnavailableItem(
+                    symbol="AMZN",
+                    reason="insufficient_history",
+                    message="Not enough daily history to judge this strategy yet.",
+                    requested_start_date="2021-04-23",
+                    requested_end_date="2026-04-23",
+                    available_start_date="2024-01-02",
+                    available_end_date="2026-04-23",
+                    lookback_days=180,
+                )
+            ],
             total_count=1,
         ),
     )
@@ -67,9 +80,11 @@ def test_strategy_lab_list_route_returns_wrapper(monkeypatch) -> None:
     response = client.get("/api/strategy-lab")
     assert response.status_code == 200
     body = response.json()
-    assert set(body.keys()) == {"items", "total_count"}
+    assert set(body.keys()) == {"items", "total_count", "unavailable_items"}
     assert body["total_count"] == 1
     assert body["items"][0]["symbol"] == "VTI"
+    assert body["unavailable_items"][0]["symbol"] == "AMZN"
+    assert body["unavailable_items"][0]["reason"] == "insufficient_history"
 
 
 def test_strategy_lab_detail_route_preserves_http_404(monkeypatch) -> None:

@@ -13,7 +13,7 @@ from fastapi import HTTPException
 from app.api.portfolio.__init__ import (
     _get_filtered_accounts_and_positions,
 )
-from app.backtest.replay import replay_backtest
+from app.backtest.replay import InsufficientDataError, replay_backtest
 from app.logging_config import get_logger
 from app.utils.market_hours import NY_TZ, get_last_trading_day, is_market_hours
 from app.watchlist.watchlist_repository import WatchlistRepository
@@ -27,6 +27,7 @@ from .models import (
     StrategyLabPrimaryAccountTarget,
     StrategyLabReviewCapability,
     StrategyLabTicket,
+    StrategyLabUnavailableItem,
 )
 from .presets import (
     FIXED_INITIAL_CAPITAL,
@@ -416,6 +417,56 @@ def _backtest_quote_unavailable() -> StrategyLabBacktestSnapshot:
     )
 
 
+def _backtest_insufficient_history(
+    *,
+    lookback_days: int | None,
+    error: InsufficientDataError | None = None,
+) -> StrategyLabBacktestSnapshot:
+    return StrategyLabBacktestSnapshot(
+        status="insufficient_history",
+        lookback_days=lookback_days,
+        requested_start_date=error.requested_start.isoformat() if error else None,
+        requested_end_date=error.requested_end.isoformat() if error else None,
+        available_start_date=error.available_start.isoformat() if error and error.available_start else None,
+        available_end_date=error.available_end.isoformat() if error and error.available_end else None,
+        trade_count=0,
+        equity_curve=[],
+        helper_text=INSUFFICIENT_HISTORY_TEXT,
+    )
+
+
+def _unavailable_from_snapshot(symbol: str, snapshot: StrategyLabBacktestSnapshot) -> StrategyLabUnavailableItem:
+    return StrategyLabUnavailableItem(
+        symbol=symbol,
+        reason="insufficient_history",
+        message=snapshot.helper_text or INSUFFICIENT_HISTORY_TEXT,
+        requested_start_date=snapshot.requested_start_date,
+        requested_end_date=snapshot.requested_end_date,
+        available_start_date=snapshot.available_start_date,
+        available_end_date=snapshot.available_end_date,
+        lookback_days=snapshot.lookback_days,
+    )
+
+
+def _unavailable_from_error(symbol: str, error: Exception) -> StrategyLabUnavailableItem:
+    if isinstance(error, InsufficientDataError):
+        return StrategyLabUnavailableItem(
+            symbol=symbol,
+            reason="insufficient_history",
+            message=INSUFFICIENT_HISTORY_TEXT,
+            requested_start_date=error.requested_start.isoformat(),
+            requested_end_date=error.requested_end.isoformat(),
+            available_start_date=error.available_start.isoformat() if error.available_start else None,
+            available_end_date=error.available_end.isoformat() if error.available_end else None,
+            lookback_days=None,
+        )
+    return StrategyLabUnavailableItem(
+        symbol=symbol,
+        reason="evaluation_error",
+        message="Strategy Lab could not evaluate this symbol right now.",
+    )
+
+
 def _sample_equity_curve(points: list[Any]) -> list[StrategyLabBacktestPoint]:
     if len(points) <= 200:
         selected = points
@@ -475,13 +526,7 @@ def _build_backtest_snapshot(symbol: str, template: str, *, now_utc: datetime) -
     end_date = _completed_day(now_utc)
     signal_dates, lookback_days = _build_signal_dates(symbol, template, end_date)
     if lookback_days < 252:
-        return StrategyLabBacktestSnapshot(
-            status="insufficient_history",
-            lookback_days=lookback_days,
-            trade_count=0,
-            equity_curve=[],
-            helper_text=INSUFFICIENT_HISTORY_TEXT,
-        )
+        return _backtest_insufficient_history(lookback_days=lookback_days)
     if not signal_dates:
         return StrategyLabBacktestSnapshot(
             status="no_trades",
@@ -496,17 +541,28 @@ def _build_backtest_snapshot(symbol: str, template: str, *, now_utc: datetime) -
         if template == "pullback_accumulator"
         else BreakoutConfirmationBacktestStrategy(signal_dates)
     )
-    state = replay_backtest(
-        storage=_storage(),
-        run_id=f"strategy-lab-{uuid4()}",
-        symbol=symbol,
-        start_date=start_date,
-        end_date=end_date,
-        initial_capital=FIXED_INITIAL_CAPITAL,
-        strategy=strategy,
-        sizing_method="fixed_dollars",
-        size_value=FIXED_INITIAL_CAPITAL,
-    )
+    try:
+        state = replay_backtest(
+            storage=_storage(),
+            run_id=f"strategy-lab-{uuid4()}",
+            symbol=symbol,
+            start_date=start_date,
+            end_date=end_date,
+            initial_capital=FIXED_INITIAL_CAPITAL,
+            strategy=strategy,
+            sizing_method="fixed_dollars",
+            size_value=FIXED_INITIAL_CAPITAL,
+        )
+    except InsufficientDataError as exc:
+        logger.info(
+            "strategy_lab_insufficient_history",
+            symbol=symbol,
+            requested_start=str(exc.requested_start),
+            requested_end=str(exc.requested_end),
+            available_start=str(exc.available_start) if exc.available_start else None,
+            available_end=str(exc.available_end) if exc.available_end else None,
+        )
+        return _backtest_insufficient_history(lookback_days=lookback_days, error=exc)
     if not state.trades:
         return StrategyLabBacktestSnapshot(
             status="no_trades",
@@ -587,17 +643,22 @@ def _evaluate_symbol(symbol: str, *, allow_stale_detail: bool, now_utc: datetime
         if action in {"hold", "wait"} and primary is None and not held:
             helper_text = NO_CASH_MESSAGE
 
+    backtest_snapshot = _build_backtest_snapshot(symbol, strategy_template, now_utc=now_utc)
+    detail_helper_text = helper_text
+    if backtest_snapshot.status == "insufficient_history" and detail_helper_text is None:
+        detail_helper_text = backtest_snapshot.helper_text
+
     detail = StrategyLabDetailResponse(
         symbol=symbol,
-        action=action,  # type: ignore[arg-type]
-        strategy_template=strategy_template,  # type: ignore[arg-type]
+        action=action,
+        strategy_template=strategy_template,
         primary_account_target=primary,
         updated_at=updated_at,
-        helper_text=helper_text,
+        helper_text=detail_helper_text,
         why_bullets=_healthy_why_bullets(action, held, primary, pullback, breakout, sma_200),
         watch_item=_watch_item(action, held, pullback, breakout),
         ticket=ticket,
-        backtest_snapshot=_build_backtest_snapshot(symbol, strategy_template, now_utc=now_utc),
+        backtest_snapshot=backtest_snapshot,
         review=StrategyLabReviewCapability(available=False, message=REVIEW_UNAVAILABLE_MESSAGE),
     )
     detail.review = get_review_capability(detail)
@@ -611,10 +672,18 @@ def list_strategy_lab() -> StrategyLabListResponse:
     held_symbols = set(_held_positions_by_symbol(positions).keys())
     tracked_symbols = sorted(set(_watchlist_membership().keys()) | held_symbols)
     items: list[StrategyLabListItem] = []
+    unavailable_items: list[StrategyLabUnavailableItem] = []
     for symbol in tracked_symbols:
-        detail = _evaluate_symbol(symbol, allow_stale_detail=False, now_utc=now_utc)
+        try:
+            detail = _evaluate_symbol(symbol, allow_stale_detail=False, now_utc=now_utc)
+        except Exception as exc:
+            logger.warning("strategy_lab_symbol_unavailable", symbol=symbol, error=str(exc))
+            unavailable_items.append(_unavailable_from_error(symbol, exc))
+            continue
         if detail is None:
             continue
+        if detail.backtest_snapshot.status == "insufficient_history":
+            unavailable_items.append(_unavailable_from_snapshot(detail.symbol, detail.backtest_snapshot))
         items.append(
             StrategyLabListItem(
                 symbol=detail.symbol,
@@ -623,10 +692,14 @@ def list_strategy_lab() -> StrategyLabListResponse:
                 primary_account_target=detail.primary_account_target,
                 updated_at=detail.updated_at,
                 helper_text=detail.helper_text,
+                backtest_status=detail.backtest_snapshot.status,
+                backtest_helper_text=detail.backtest_snapshot.helper_text,
+                backtest_lookback_days=detail.backtest_snapshot.lookback_days,
             )
         )
     items.sort(key=lambda item: (0 if item.symbol in held_symbols else 1, item.symbol))
-    return StrategyLabListResponse(items=items, total_count=len(items))
+    unavailable_items.sort(key=lambda item: item.symbol)
+    return StrategyLabListResponse(items=items, unavailable_items=unavailable_items, total_count=len(items))
 
 
 def get_strategy_lab_detail(symbol: str) -> StrategyLabDetailResponse:

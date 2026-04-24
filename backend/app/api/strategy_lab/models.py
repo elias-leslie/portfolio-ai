@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 ActionLiteral = Literal["buy_now", "buy_in_stages", "hold", "wait"]
 StrategyTemplateLiteral = Literal["pullback_accumulator", "breakout_confirmation"]
 BacktestStatusLiteral = Literal["ready", "insufficient_history", "no_trades", "quote_unavailable"]
+StrategyLabUnavailableReason = Literal["insufficient_history", "evaluation_error"]
 
 
 class StrategyLabPrimaryAccountTarget(BaseModel):
@@ -36,6 +37,10 @@ class StrategyLabBacktestPoint(BaseModel):
 class StrategyLabBacktestSnapshot(BaseModel):
     status: BacktestStatusLiteral
     lookback_days: int | None = None
+    requested_start_date: str | None = None
+    requested_end_date: str | None = None
+    available_start_date: str | None = None
+    available_end_date: str | None = None
     total_return_pct: float | None = None
     buy_hold_return_pct: float | None = None
     excess_return_pct: float | None = None
@@ -60,11 +65,25 @@ class StrategyLabBaseEvaluation(BaseModel):
 
 
 class StrategyLabListItem(StrategyLabBaseEvaluation):
-    pass
+    backtest_status: BacktestStatusLiteral | None = None
+    backtest_helper_text: str | None = None
+    backtest_lookback_days: int | None = None
+
+
+class StrategyLabUnavailableItem(BaseModel):
+    symbol: str
+    reason: StrategyLabUnavailableReason
+    message: str
+    requested_start_date: str | None = None
+    requested_end_date: str | None = None
+    available_start_date: str | None = None
+    available_end_date: str | None = None
+    lookback_days: int | None = None
 
 
 class StrategyLabListResponse(BaseModel):
     items: list[StrategyLabListItem] = Field(default_factory=list)
+    unavailable_items: list[StrategyLabUnavailableItem] = Field(default_factory=list)
     total_count: int = 0
 
 

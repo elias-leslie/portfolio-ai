@@ -18,6 +18,8 @@ REVIEW_CHECK_TIMEOUT_SECONDS = 2
 def get_review_capability(detail: StrategyLabDetailResponse) -> StrategyLabReviewCapability:
     if detail.helper_text == "Quote is stale. Refresh market data before acting.":
         return StrategyLabReviewCapability(available=False, message=STALE_QUOTE_MESSAGE)
+    if detail.backtest_snapshot.status == "insufficient_history":
+        return StrategyLabReviewCapability(available=False, message=detail.backtest_snapshot.helper_text)
 
     try:
         AgentHubAPIClient(agent_slug="equity-analyst", timeout=REVIEW_CHECK_TIMEOUT_SECONDS)
