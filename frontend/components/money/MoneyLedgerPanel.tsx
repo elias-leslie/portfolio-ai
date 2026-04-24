@@ -1,7 +1,7 @@
 'use client'
 
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
-import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { Fragment, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
@@ -27,10 +27,9 @@ type LedgerSortKey =
   | 'detail'
   | 'category'
   | 'status'
-  | 'debit'
-  | 'credit'
-  | 'balance'
-  | 'source'
+  | 'amount'
+
+const LEDGER_PAGE_SIZE = 50
 
 const ledgerWindows: Array<{ value: LedgerWindow; label: string }> = [
   { value: 'all', label: 'All' },
@@ -113,10 +112,6 @@ function creditAmount(amount?: number | null, flowType?: string | null) {
   return null
 }
 
-function shortHash(value: string) {
-  return value.slice(0, 10)
-}
-
 function sortIcon(active: boolean, direction: 'asc' | 'desc') {
   if (!active) {
     return <ArrowUpDown className="h-3.5 w-3.5 text-text-muted" />
@@ -142,6 +137,37 @@ function compareNumber(
   return (left ?? 0) - (right ?? 0)
 }
 
+function ledgerRowKey(entry: { kind: string; id: string }) {
+  return `${entry.kind}-${entry.id}`
+}
+
+function ledgerAmount(entry: {
+  amount?: number | null
+  flowType?: string | null
+}) {
+  return (
+    debitAmount(entry.amount, entry.flowType) ??
+    creditAmount(entry.amount, entry.flowType) ??
+    entry.amount ??
+    null
+  )
+}
+
+function ledgerAmountLabel(entry: {
+  amount?: number | null
+  flowType?: string | null
+}) {
+  const debit = debitAmount(entry.amount, entry.flowType)
+  if (debit != null) {
+    return `-${formatCurrency(debit, { decimals: 2 })}`
+  }
+  const credit = creditAmount(entry.amount, entry.flowType)
+  if (credit != null) {
+    return `+${formatCurrency(credit, { decimals: 2 })}`
+  }
+  return formatCurrency(entry.amount, { decimals: 2 })
+}
+
 export function MoneyLedgerPanel() {
   const [window, setWindow] = useState<LedgerWindow>('all')
   const [kind, setKind] = useState<LedgerKind>('transactions')
@@ -150,6 +176,8 @@ export function MoneyLedgerPanel() {
   const [query, setQuery] = useState('')
   const [sortKey, setSortKey] = useState<LedgerSortKey>('date')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [expandedAuditRow, setExpandedAuditRow] = useState<string | null>(null)
   const deferredQuery = useDeferredValue(query.trim().toLowerCase())
   const {
     data: ledger,
@@ -209,6 +237,8 @@ export function MoneyLedgerPanel() {
         entry.category,
         entry.essentiality,
         entry.sourceDocumentFilename,
+        entry.sourceDocumentId,
+        entry.externalRowId,
         entry.sourceType,
         entry.documentType,
         entry.flowType,
@@ -243,26 +273,8 @@ export function MoneyLedgerPanel() {
         case 'status':
           result = compareText(left.exclusionReason, right.exclusionReason)
           break
-        case 'debit':
-          result = compareNumber(
-            debitAmount(left.amount, left.flowType),
-            debitAmount(right.amount, right.flowType),
-          )
-          break
-        case 'credit':
-          result = compareNumber(
-            creditAmount(left.amount, left.flowType),
-            creditAmount(right.amount, right.flowType),
-          )
-          break
-        case 'balance':
-          result = compareNumber(left.balanceAfter, right.balanceAfter)
-          break
-        case 'source':
-          result = compareText(
-            left.sourceDocumentFilename,
-            right.sourceDocumentFilename,
-          )
+        case 'amount':
+          result = compareNumber(ledgerAmount(left), ledgerAmount(right))
           break
       }
       if (result === 0) {
@@ -295,6 +307,30 @@ export function MoneyLedgerPanel() {
     [visibleEntries],
   )
   const visibleNetMovement = visibleDebitTotal - visibleCreditTotal
+  const totalPages = Math.max(
+    1,
+    Math.ceil(visibleEntries.length / LEDGER_PAGE_SIZE),
+  )
+  const boundedPage = Math.min(currentPage, totalPages)
+  const pageStartIndex = (boundedPage - 1) * LEDGER_PAGE_SIZE
+  const pageEntries = visibleEntries.slice(
+    pageStartIndex,
+    pageStartIndex + LEDGER_PAGE_SIZE,
+  )
+  const pageStart = visibleEntries.length === 0 ? 0 : pageStartIndex + 1
+  const pageEnd = pageStartIndex + pageEntries.length
+
+  useEffect(() => {
+    setCurrentPage(1)
+    setExpandedAuditRow(null)
+  }, [account, deferredQuery, kind, sortDirection, sortKey, status, window])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+      setExpandedAuditRow(null)
+    }
+  }, [currentPage, totalPages])
 
   function toggleSort(nextKey: LedgerSortKey) {
     if (sortKey === nextKey) {
@@ -343,7 +379,7 @@ export function MoneyLedgerPanel() {
     <SectionCard
       variant="surface"
       title="General Ledger"
-      description="Debit, credit, balance, source, and duplicate status from one accounting surface. Canonical view hides only proven duplicate overlap."
+      description="Paged household transactions with evidence and duplicate status. Source files and debug identifiers stay behind row audit details."
       actions={
         <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -415,7 +451,7 @@ export function MoneyLedgerPanel() {
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search row, merchant, account, source, or hash"
+            placeholder="Search merchant, account, category, or evidence"
             aria-label="Search ledger rows"
             className="w-[280px]"
           />
@@ -494,18 +530,23 @@ export function MoneyLedgerPanel() {
       </div>
 
       <div className="mt-5 overflow-hidden rounded-2xl border border-border/40 bg-surface/45">
-        <div className="border-b border-border/40 px-4 py-3 text-xs text-text-muted">
-          {ledger?.timeframeLabel ?? 'All dates'} · {visibleEntries.length}{' '}
-          visible row
-          {visibleEntries.length === 1 ? '' : 's'}
-          {status === 'canonical'
-            ? ' · proven duplicate overlap hidden'
-            : ledger && visibleEntries.length !== ledger.totalEntryCount
-              ? ` of ${ledger.totalEntryCount}`
-              : ''}
+        <div className="flex flex-col gap-2 border-b border-border/40 px-4 py-3 text-xs text-text-muted md:flex-row md:items-center md:justify-between">
+          <span>
+            {ledger?.timeframeLabel ?? 'All dates'} · {visibleEntries.length}{' '}
+            visible row
+            {visibleEntries.length === 1 ? '' : 's'}
+            {status === 'canonical'
+              ? ' · proven duplicate overlap hidden'
+              : ledger && visibleEntries.length !== ledger.totalEntryCount
+                ? ` of ${ledger.totalEntryCount}`
+                : ''}
+          </span>
+          <span>
+            Showing {pageStart}-{pageEnd} of {visibleEntries.length}
+          </span>
         </div>
         <div className="max-h-[72vh] overflow-scroll [scrollbar-gutter:stable_both-edges]">
-          <table className="min-w-[1500px] w-full border-separate border-spacing-0 text-sm">
+          <table className="min-w-[1120px] w-full border-separate border-spacing-0 text-sm">
             <thead className="sticky top-0 z-20 bg-bg/95 backdrop-blur">
               <tr className="border-b border-border/40">
                 <th className="border-b border-border/40 px-3 py-2 text-left align-middle">
@@ -515,29 +556,20 @@ export function MoneyLedgerPanel() {
                   {headerButton('Account', 'account')}
                 </th>
                 <th className="border-b border-border/40 px-3 py-2 text-left align-middle">
-                  {headerButton('Detail', 'detail')}
+                  {headerButton('Merchant', 'detail')}
                 </th>
                 <th className="border-b border-border/40 px-3 py-2 text-left align-middle">
                   {headerButton('Category', 'category')}
                 </th>
+                <th className="border-b border-border/40 px-3 py-2 text-right align-middle">
+                  {headerButton('Amount', 'amount', 'right')}
+                </th>
                 <th className="border-b border-border/40 px-3 py-2 text-left align-middle">
                   {headerButton('Status', 'status')}
                 </th>
-                <th className="border-b border-border/40 px-3 py-2 text-right align-middle">
-                  {headerButton('Debit', 'debit', 'right')}
-                </th>
-                <th className="border-b border-border/40 px-3 py-2 text-right align-middle">
-                  {headerButton('Credit', 'credit', 'right')}
-                </th>
-                <th className="border-b border-border/40 px-3 py-2 text-right align-middle">
-                  {headerButton('Balance', 'balance', 'right')}
-                </th>
-                <th className="border-b border-border/40 px-3 py-2 text-left align-middle">
-                  {headerButton('Source', 'source')}
-                </th>
                 <th className="border-b border-border/40 px-3 py-2 text-left align-middle">
                   <span className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted/80">
-                    Hash
+                    Evidence
                   </span>
                 </th>
               </tr>
@@ -546,7 +578,7 @@ export function MoneyLedgerPanel() {
               {isLoading && !ledger ? (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={7}
                     className="px-3 py-10 text-center text-sm text-text-muted"
                   >
                     Loading ledger...
@@ -555,148 +587,264 @@ export function MoneyLedgerPanel() {
               ) : visibleEntries.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={7}
                     className="px-3 py-10 text-center text-sm text-text-muted"
                   >
                     No rows match current filters.
                   </td>
                 </tr>
               ) : (
-                visibleEntries.map((entry) => {
+                pageEntries.map((entry) => {
                   const effectiveDate = entryDate(entry)
                   const isFuture =
                     effectiveDate != null &&
                     new Date(effectiveDate).getTime() > Date.now()
+                  const rowKey = ledgerRowKey(entry)
+                  const auditOpen = expandedAuditRow === rowKey
+                  const evidenceLabel = entry.sourceDocumentId
+                    ? 'Evidence linked'
+                    : 'No evidence'
+                  const evidenceDetail =
+                    [
+                      entry.sourceType
+                        ? formatEnumLabel(entry.sourceType)
+                        : null,
+                      entry.documentType
+                        ? formatEnumLabel(entry.documentType)
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || 'Stored row'
+                  const isCredit =
+                    creditAmount(entry.amount, entry.flowType) != null
                   return (
-                    <tr
-                      key={`${entry.kind}-${entry.id}`}
-                      className="border-b border-border/30 align-top transition-colors hover:bg-surface-muted/20"
-                    >
-                      <td className="border-b border-border/20 px-3 py-2.5 align-top">
-                        <div className="font-medium text-text">
-                          {formatLedgerDate(effectiveDate)}
-                        </div>
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          <Badge
-                            variant={
-                              entry.kind === 'transaction'
-                                ? 'default'
-                                : 'outline'
-                            }
-                            className="w-fit"
-                          >
-                            {entry.kind === 'transaction'
-                              ? formatEnumLabel(entry.flowType ?? 'transaction')
-                              : formatEnumLabel(
-                                  entry.datasetType ?? 'import_row',
-                                )}
-                          </Badge>
-                          {isFuture ? (
-                            <Badge variant="destructive">Future</Badge>
-                          ) : null}
-                        </div>
-                      </td>
-                      <td className="border-b border-border/20 px-3 py-2.5 align-top">
-                        <div className="font-medium text-text">
-                          {entry.accountLabel ?? '—'}
-                        </div>
-                        <div className="text-xs text-text-muted">
-                          {entry.currency ?? 'USD'}
-                        </div>
-                      </td>
-                      <td className="border-b border-border/20 px-3 py-2.5 align-top">
-                        <div className="font-medium text-text">
-                          {entry.merchant || entry.description}
-                        </div>
-                        {entry.description &&
-                        entry.description !== entry.merchant ? (
-                          <div className="text-xs text-text-muted">
-                            {entry.description}
+                    <Fragment key={rowKey}>
+                      <tr
+                        data-ledger-row="entry"
+                        className="border-b border-border/30 align-top transition-colors hover:bg-surface-muted/20"
+                      >
+                        <td className="border-b border-border/20 px-3 py-2.5 align-top">
+                          <div className="font-medium text-text">
+                            {formatLedgerDate(effectiveDate)}
                           </div>
-                        ) : null}
-                      </td>
-                      <td className="border-b border-border/20 px-3 py-2.5 align-top">
-                        <div className="font-medium text-text">
-                          {entry.category
-                            ? formatEnumLabel(entry.category)
-                            : '—'}
-                        </div>
-                        <div className="text-xs text-text-muted">
-                          {entry.essentiality
-                            ? formatEnumLabel(entry.essentiality)
-                            : '—'}
-                        </div>
-                      </td>
-                      <td className="border-b border-border/20 px-3 py-2.5 align-top">
-                        <div className="flex flex-wrap gap-1">
-                          <Badge
-                            variant={
-                              entry.includedInSpend ? 'default' : 'outline'
-                            }
-                            className="w-fit"
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            <Badge
+                              variant={
+                                entry.kind === 'transaction'
+                                  ? 'default'
+                                  : 'outline'
+                              }
+                              className="w-fit"
+                            >
+                              {entry.kind === 'transaction'
+                                ? formatEnumLabel(
+                                    entry.flowType ?? 'transaction',
+                                  )
+                                : formatEnumLabel(
+                                    entry.datasetType ?? 'import_row',
+                                  )}
+                            </Badge>
+                            {isFuture ? (
+                              <Badge variant="destructive">Future</Badge>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="border-b border-border/20 px-3 py-2.5 align-top">
+                          <div className="font-medium text-text">
+                            {entry.accountLabel ?? '—'}
+                          </div>
+                          <div className="text-xs text-text-muted">
+                            {entry.currency ?? 'USD'}
+                          </div>
+                        </td>
+                        <td className="border-b border-border/20 px-3 py-2.5 align-top">
+                          <div className="font-medium text-text">
+                            {entry.merchant || entry.description}
+                          </div>
+                          {entry.description &&
+                          entry.description !== entry.merchant ? (
+                            <div className="text-xs text-text-muted">
+                              {entry.description}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="border-b border-border/20 px-3 py-2.5 align-top">
+                          <div className="font-medium text-text">
+                            {entry.category
+                              ? formatEnumLabel(entry.category)
+                              : '—'}
+                          </div>
+                          <div className="text-xs text-text-muted">
+                            {entry.essentiality
+                              ? formatEnumLabel(entry.essentiality)
+                              : '—'}
+                          </div>
+                        </td>
+                        <td className="border-b border-border/20 px-3 py-2.5 text-right align-top">
+                          <div
+                            className={cn(
+                              'font-mono font-medium tabular-nums',
+                              isCredit ? 'text-gain' : 'text-text',
+                            )}
                           >
-                            {entry.includedInSpend ? 'Counted' : 'Excluded'}
-                          </Badge>
-                        </div>
-                        <div className="mt-1 text-xs text-text-muted">
-                          {entry.exclusionReason
-                            ? formatEnumLabel(entry.exclusionReason)
-                            : 'Included in canonical spend'}
-                        </div>
-                      </td>
-                      <td className="border-b border-border/20 px-3 py-2.5 text-right font-mono tabular-nums">
-                        {formatCurrency(
-                          debitAmount(entry.amount, entry.flowType),
-                          {
-                            decimals: 2,
-                            nullDisplay: '—',
-                          },
-                        )}
-                      </td>
-                      <td className="border-b border-border/20 px-3 py-2.5 text-right font-mono tabular-nums">
-                        {formatCurrency(
-                          creditAmount(entry.amount, entry.flowType),
-                          {
-                            decimals: 2,
-                            nullDisplay: '—',
-                          },
-                        )}
-                      </td>
-                      <td className="border-b border-border/20 px-3 py-2.5 text-right font-mono tabular-nums">
-                        <span
-                          className={cn(
-                            entry.balanceAfter == null
-                              ? 'text-text-muted'
-                              : 'text-text',
-                          )}
+                            {ledgerAmountLabel(entry)}
+                          </div>
+                          <div className="mt-1 text-xs text-text-muted">
+                            {isCredit ? 'Credit' : 'Debit'}
+                          </div>
+                        </td>
+                        <td className="border-b border-border/20 px-3 py-2.5 align-top">
+                          <div className="flex flex-wrap gap-1">
+                            <Badge
+                              variant={
+                                entry.includedInSpend ? 'default' : 'outline'
+                              }
+                              className="w-fit"
+                            >
+                              {entry.includedInSpend ? 'Counted' : 'Excluded'}
+                            </Badge>
+                          </div>
+                          <div className="mt-1 text-xs text-text-muted">
+                            {entry.exclusionReason
+                              ? formatEnumLabel(entry.exclusionReason)
+                              : 'Included in canonical spend'}
+                          </div>
+                        </td>
+                        <td className="border-b border-border/20 px-3 py-2.5 align-top">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge
+                              variant={
+                                entry.sourceDocumentId ? 'outline' : 'secondary'
+                              }
+                            >
+                              {evidenceLabel}
+                            </Badge>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs"
+                              aria-expanded={auditOpen}
+                              aria-controls={`ledger-audit-${rowKey}`}
+                              onClick={() =>
+                                setExpandedAuditRow(auditOpen ? null : rowKey)
+                              }
+                            >
+                              Audit
+                            </Button>
+                          </div>
+                          <div className="mt-1 text-xs text-text-muted">
+                            {evidenceDetail}
+                          </div>
+                        </td>
+                      </tr>
+                      {auditOpen ? (
+                        <tr
+                          id={`ledger-audit-${rowKey}`}
+                          data-ledger-row="audit"
+                          className="bg-surface-muted/10"
                         >
-                          {formatCurrency(entry.balanceAfter, {
-                            decimals: 2,
-                            nullDisplay: '—',
-                          })}
-                        </span>
-                      </td>
-                      <td className="border-b border-border/20 px-3 py-2.5 align-top">
-                        <div className="font-medium text-text">
-                          {entry.sourceDocumentFilename ?? 'Unknown source'}
-                        </div>
-                        <div className="text-xs text-text-muted">
-                          {[
-                            entry.sourceType
-                              ? formatEnumLabel(entry.sourceType)
-                              : null,
-                            entry.documentType
-                              ? formatEnumLabel(entry.documentType)
-                              : null,
-                          ]
-                            .filter(Boolean)
-                            .join(' · ') || 'Stored evidence'}
-                        </div>
-                      </td>
-                      <td className="border-b border-border/20 px-3 py-2.5 font-mono text-xs text-text-muted">
-                        {shortHash(entry.rowHash)}
-                      </td>
-                    </tr>
+                          <td
+                            colSpan={7}
+                            className="border-b border-border/20 px-3 py-3"
+                          >
+                            <div className="rounded-xl border border-border/35 bg-surface/70 p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-text">
+                                    Audit detail
+                                  </p>
+                                  <p className="mt-1 text-xs text-text-muted">
+                                    Provenance and debug identifiers for this
+                                    ledger row.
+                                  </p>
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setExpandedAuditRow(null)}
+                                >
+                                  Hide audit
+                                </Button>
+                              </div>
+                              <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+                                <div>
+                                  <dt className="font-semibold uppercase tracking-[0.14em] text-text-muted">
+                                    Source file
+                                  </dt>
+                                  <dd className="mt-1 break-all text-text">
+                                    {entry.sourceDocumentFilename ??
+                                      'Unknown source'}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt className="font-semibold uppercase tracking-[0.14em] text-text-muted">
+                                    Source type
+                                  </dt>
+                                  <dd className="mt-1 text-text">
+                                    {evidenceDetail}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt className="font-semibold uppercase tracking-[0.14em] text-text-muted">
+                                    Document id
+                                  </dt>
+                                  <dd className="mt-1 break-all text-text">
+                                    {entry.sourceDocumentId ?? '—'}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt className="font-semibold uppercase tracking-[0.14em] text-text-muted">
+                                    Row hash
+                                  </dt>
+                                  <dd className="mt-1 break-all font-mono text-text">
+                                    {entry.rowHash}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt className="font-semibold uppercase tracking-[0.14em] text-text-muted">
+                                    External row id
+                                  </dt>
+                                  <dd className="mt-1 break-all text-text">
+                                    {entry.externalRowId ?? '—'}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt className="font-semibold uppercase tracking-[0.14em] text-text-muted">
+                                    Balance after
+                                  </dt>
+                                  <dd className="mt-1 font-mono tabular-nums text-text">
+                                    {formatCurrency(entry.balanceAfter, {
+                                      decimals: 2,
+                                      nullDisplay: '—',
+                                    })}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt className="font-semibold uppercase tracking-[0.14em] text-text-muted">
+                                    Uploaded
+                                  </dt>
+                                  <dd className="mt-1 text-text">
+                                    {formatLedgerDate(entry.uploadedAt)}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt className="font-semibold uppercase tracking-[0.14em] text-text-muted">
+                                    Exclusion reason
+                                  </dt>
+                                  <dd className="mt-1 text-text">
+                                    {entry.exclusionReason
+                                      ? formatEnumLabel(entry.exclusionReason)
+                                      : 'Included in canonical spend'}
+                                  </dd>
+                                </div>
+                              </dl>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
                   )
                 })
               )}
@@ -716,25 +864,49 @@ export function MoneyLedgerPanel() {
                     : 'Visible ledger rows'}
                 </td>
                 <td className="border-t border-border/40 px-3 py-2" />
-                <td className="border-t border-border/40 px-3 py-2 text-text-muted">
+                <td className="border-t border-border/40 px-3 py-2 text-right text-text-muted">
                   {visibleNetMovement >= 0 ? 'Net debit' : 'Net credit'}
-                </td>
-                <td className="border-t border-border/40 px-3 py-2 text-right font-mono tabular-nums text-text">
-                  {formatCurrency(visibleDebitTotal, { decimals: 2 })}
-                </td>
-                <td className="border-t border-border/40 px-3 py-2 text-right font-mono tabular-nums text-text">
-                  {formatCurrency(visibleCreditTotal, { decimals: 2 })}
                 </td>
                 <td className="border-t border-border/40 px-3 py-2 text-right font-mono tabular-nums text-text">
                   {formatCurrency(Math.abs(visibleNetMovement), {
                     decimals: 2,
                   })}
                 </td>
-                <td className="border-t border-border/40 px-3 py-2" />
-                <td className="border-t border-border/40 px-3 py-2" />
+                <td className="border-t border-border/40 px-3 py-2 text-xs text-text-muted">
+                  Debits {formatCurrency(visibleDebitTotal, { decimals: 2 })} ·
+                  Credits {formatCurrency(visibleCreditTotal, { decimals: 2 })}
+                </td>
               </tr>
             </tfoot>
           </table>
+        </div>
+        <div className="flex flex-col gap-3 border-t border-border/40 px-4 py-3 text-xs text-text-muted md:flex-row md:items-center md:justify-between">
+          <span>
+            Page {boundedPage} of {totalPages} · {LEDGER_PAGE_SIZE} rows max per
+            page
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={boundedPage <= 1}
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={boundedPage >= totalPages}
+              onClick={() =>
+                setCurrentPage((page) => Math.min(totalPages, page + 1))
+              }
+            >
+              Next
+            </Button>
+          </div>
         </div>
       </div>
     </SectionCard>
