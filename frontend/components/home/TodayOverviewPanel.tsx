@@ -107,6 +107,13 @@ function renderMoneyValue(value: number | null | undefined, loading: boolean) {
   return formatCurrencyWhole(value)
 }
 
+function formatMarketAsOf(value?: string | null) {
+  if (!value) {
+    return 'As of time unavailable'
+  }
+  return `As of ${formatRelativeTime(value)}`
+}
+
 function TileLabel({ label, detail }: { label: string; detail?: ReactNode }) {
   if (!detail) {
     return (
@@ -241,6 +248,10 @@ function MarketStripItem({ metric }: { metric: HomeTodayBriefMetric }) {
       </p>
       <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-text-muted">
         {metric.detail}
+      </p>
+      <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-text-muted/80">
+        {metric.horizon ?? 'Horizon unavailable'} ·{' '}
+        {formatMarketAsOf(metric.asOf)}
       </p>
     </div>
   )
@@ -383,7 +394,7 @@ export function TodayOverviewPanel() {
             </div>
             <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">
               {todayBrief?.generatedAt
-                ? `Updated ${formatRelativeTime(todayBrief.generatedAt)}`
+                ? `Generated ${formatRelativeTime(todayBrief.generatedAt)}`
                 : briefLoading
                   ? 'Loading tape'
                   : 'Update time unavailable'}

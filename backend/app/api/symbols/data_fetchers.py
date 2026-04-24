@@ -153,7 +153,7 @@ def _fetch_fear_greed(storage: PortfolioStorage) -> dict[str, Any] | None:
         with storage.connection() as conn:
             fg_result = conn.execute(
                 """
-                SELECT score, label, score_change
+                SELECT score, label, score_change, as_of_date
                 FROM fear_greed_daily
                 ORDER BY as_of_date DESC
                 LIMIT 1
@@ -176,7 +176,8 @@ def _fetch_market_indicators(storage: PortfolioStorage) -> dict[str, Any]:
                 """
                 SELECT symbol, close as price,
                        (close - LAG(close) OVER (PARTITION BY symbol ORDER BY date)) /
-                       NULLIF(LAG(close) OVER (PARTITION BY symbol ORDER BY date), 0) * 100 as daily_change
+                       NULLIF(LAG(close) OVER (PARTITION BY symbol ORDER BY date), 0) * 100 as daily_change,
+                       date
                 FROM day_bars
                 WHERE symbol IN ('^VIX', '^GSPC')
                 AND date >= (SELECT MAX(date) - INTERVAL '2 days' FROM day_bars WHERE symbol = '^VIX')
@@ -200,7 +201,10 @@ def get_market_data(storage: PortfolioStorage) -> dict[str, Any]:
     return {
         "fear_greed": fear_greed,
         "vix": indicators.get("^VIX", {}).get("price"),
+        "vix_as_of_date": indicators.get("^VIX", {}).get("date"),
         "sp500_change": indicators.get("^GSPC", {}).get("daily_change"),
+        "sp500_as_of_date": indicators.get("^GSPC", {}).get("date"),
+        "fear_greed_as_of_date": (fear_greed or {}).get("as_of_date"),
     }
 
 

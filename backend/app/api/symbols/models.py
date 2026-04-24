@@ -5,7 +5,7 @@ Pydantic models for the symbol intelligence API response.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -174,9 +174,12 @@ class MarketSection(BaseModel):
 
     fear_greed_score: int | None = None
     fear_greed_label: str | None = None
+    fear_greed_as_of_date: date | None = None
     health_score: int | None = None
     vix: float | None = None
+    vix_as_of_date: date | None = None
     sp500_change: float | None = None
+    sp500_as_of_date: date | None = None
     sector: SectorInfo | None = None
 
 

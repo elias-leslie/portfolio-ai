@@ -249,6 +249,7 @@ class HomeTodayBriefService:
         fear_greed = market["fear_greed"]
         leading = market["sector_rotation"].get("leading", [])[:3]
         leadership = ", ".join(str(row.get("name") or "") for row in leading if row.get("name"))
+        market_as_of = market.get("last_updated")
         return [
             {
                 "key": "sp500",
@@ -256,6 +257,8 @@ class HomeTodayBriefService:
                 "value": f"{_safe_float(indicators['sp500'].get('value')):,.2f}",
                 "change_pct": indicators["sp500"].get("change_pct"),
                 "detail": "Broad market benchmark",
+                "horizon": "Latest close · 1D change",
+                "as_of": market_as_of,
                 "tone": "positive"
                 if _safe_float(indicators["sp500"].get("change_pct")) > 0
                 else "negative",
@@ -266,6 +269,8 @@ class HomeTodayBriefService:
                 "value": f"{_safe_float(indicators['vix'].get('value')):.2f}",
                 "change_pct": indicators["vix"].get("change_pct"),
                 "detail": "Risk pricing",
+                "horizon": "Latest close · 1D change",
+                "as_of": market_as_of,
                 "tone": "positive"
                 if _safe_float(indicators["vix"].get("value")) < 20
                 else "warning",
@@ -276,6 +281,8 @@ class HomeTodayBriefService:
                 "value": f"{_safe_float(indicators['tnx'].get('value')):.3f}%",
                 "change_pct": indicators["tnx"].get("change_pct"),
                 "detail": "Rate pressure",
+                "horizon": "Latest close · 1D change",
+                "as_of": market_as_of,
                 "tone": "warning"
                 if _safe_float(indicators["tnx"].get("value")) >= 4.5
                 else "neutral",
@@ -286,6 +293,8 @@ class HomeTodayBriefService:
                 "value": str(round(_safe_float(fear_greed.get("score")))),
                 "change_pct": fear_greed.get("score_change"),
                 "detail": str(fear_greed.get("label") or "Sentiment"),
+                "horizon": "Daily sentiment",
+                "as_of": market_as_of,
                 "tone": "positive"
                 if _safe_float(fear_greed.get("score")) >= 60
                 else "neutral",
@@ -296,6 +305,8 @@ class HomeTodayBriefService:
                 "value": leadership or "Mixed",
                 "change_pct": leading[0].get("change_pct") if leading else None,
                 "detail": "Sectors leading today",
+                "horizon": "Latest close · 1D sectors",
+                "as_of": market_as_of,
                 "tone": "positive" if leading else "neutral",
             },
         ]

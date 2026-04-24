@@ -102,9 +102,12 @@ export interface SymbolNewsSection {
 export interface SymbolMarketSection {
   fearGreedScore?: number | null
   fearGreedLabel?: string | null
+  fearGreedAsOfDate?: string | null
   healthScore?: number | null
   vix?: number | null
+  vixAsOfDate?: string | null
   sp500Change?: number | null
+  sp500AsOfDate?: string | null
   sector?: {
     name?: string | null
     signal?: string | null

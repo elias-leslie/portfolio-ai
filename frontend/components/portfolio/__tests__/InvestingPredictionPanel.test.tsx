@@ -388,6 +388,12 @@ describe('InvestingPredictionPanel', () => {
     expect(screen.getByTestId('prediction-provenance')).toHaveTextContent(
       'Seats macro, risk',
     )
+    expect(screen.getByTestId('prediction-provenance')).toHaveTextContent(
+      'Prediction window 2026-04-20 to 2026-04-23',
+    )
+    expect(screen.getByTestId('prediction-hero')).toHaveTextContent(
+      /Prediction window 2026-04-20 to 2026-04-23 · as of Apr 21/i,
+    )
     expect(
       screen.getByText('Committee stays balanced while macro risk lingers.'),
     ).toBeInTheDocument()

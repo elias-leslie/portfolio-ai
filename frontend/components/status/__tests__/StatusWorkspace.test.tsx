@@ -325,7 +325,9 @@ describe('StatusWorkspace', () => {
     ).not.toBeInTheDocument()
     expect(screen.getByText('Daily Data Through')).toBeInTheDocument()
     expect(
-      screen.getByText('Current trading day 2026-04-10'),
+      screen.getByText(
+        'Latest close through 2026-04-10 · expected daily data date',
+      ),
     ).toBeInTheDocument()
     expect(screen.queryByText('Expected Market Date')).not.toBeInTheDocument()
   })

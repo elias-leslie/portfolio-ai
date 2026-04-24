@@ -1691,6 +1691,10 @@ export function InvestingPredictionPanel() {
     formatTimestampLabel(data?.generatedAt) ??
     formatTimestampLabel(data?.asOfTs) ??
     'Unavailable'
+  const predictionWindowLabel =
+    data?.baseDate && data?.targetDate
+      ? `${data.baseDate} to ${data.targetDate}`
+      : `${windowDays} trading days`
   const lastEvaluatedLabel =
     formatTimestampLabel(data?.lastEvaluatedAt) ?? 'Pending'
   const generatedAgeLabel = formatAgeLabel(
@@ -1788,6 +1792,10 @@ export function InvestingPredictionPanel() {
 
   const executedSeatKeys = committeeSummary.executedSeatKeys
   const provenanceSummary = [
+    `Prediction window ${predictionWindowLabel}`,
+    committeeGeneratedLabel !== 'Unavailable'
+      ? `As of ${committeeGeneratedLabel}`
+      : null,
     committeeSummary.committeeRosterMode
       ? humanizeLabel(committeeSummary.committeeRosterMode)
       : null,
@@ -1869,6 +1877,10 @@ export function InvestingPredictionPanel() {
                           </p>
                           <p className="text-xs text-text-muted">
                             {windowDays} trading days · {disagreementLabel}
+                          </p>
+                          <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-text-muted">
+                            Prediction window {predictionWindowLabel} · as of{' '}
+                            {committeeGeneratedLabel}
                           </p>
                         </div>
                       </div>
