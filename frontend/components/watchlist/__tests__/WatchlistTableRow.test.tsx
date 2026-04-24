@@ -67,7 +67,7 @@ function buildItem() {
 }
 
 describe('WatchlistTableRow', () => {
-  it('uses a concise row aria-label instead of the full cell contents', () => {
+  it('uses a concise expand aria-label instead of the full row contents', () => {
     render(
       <table>
         <tbody>
@@ -132,6 +132,36 @@ describe('WatchlistTableRow', () => {
     expect(onToggle).not.toHaveBeenCalled()
   })
 
+  it('does not toggle the row when the symbol link is clicked', async () => {
+    const user = userEvent.setup()
+    const onToggle = vi.fn()
+
+    render(
+      <table>
+        <tbody>
+          <WatchlistTableRow
+            item={buildItem()}
+            isExpanded={false}
+            highlightedSymbol={null}
+            recentlyUpdatedRows={new Set()}
+            changedCells={{}}
+            portfolioSymbols={new Set()}
+            refreshStatus={undefined}
+            isDeleting={false}
+            userTimezone="America/New_York"
+            rowRef={() => {}}
+            onToggle={onToggle}
+            onDelete={vi.fn()}
+          />
+        </tbody>
+      </table>,
+    )
+
+    await user.click(screen.getByRole('link', { name: 'MSFT' }))
+
+    expect(onToggle).not.toHaveBeenCalled()
+  })
+
   it('toggles exactly once when the chevron action is clicked', async () => {
     const user = userEvent.setup()
     const onToggle = vi.fn()
@@ -157,8 +187,42 @@ describe('WatchlistTableRow', () => {
       </table>,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Expand row' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Expand MSFT details' }),
+    )
 
     expect(onToggle).toHaveBeenCalledTimes(1)
+  })
+
+  it('toggles from the expand action with Enter and Space', async () => {
+    const user = userEvent.setup()
+    const onToggle = vi.fn()
+
+    render(
+      <table>
+        <tbody>
+          <WatchlistTableRow
+            item={buildItem()}
+            isExpanded={false}
+            highlightedSymbol={null}
+            recentlyUpdatedRows={new Set()}
+            changedCells={{}}
+            portfolioSymbols={new Set()}
+            refreshStatus={undefined}
+            isDeleting={false}
+            userTimezone="America/New_York"
+            rowRef={() => {}}
+            onToggle={onToggle}
+            onDelete={vi.fn()}
+          />
+        </tbody>
+      </table>,
+    )
+
+    screen.getByRole('button', { name: 'Expand MSFT details' }).focus()
+    await user.keyboard('{Enter}')
+    await user.keyboard(' ')
+
+    expect(onToggle).toHaveBeenCalledTimes(2)
   })
 })

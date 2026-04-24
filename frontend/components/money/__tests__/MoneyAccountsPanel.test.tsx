@@ -204,6 +204,25 @@ describe('MoneyAccountsPanel', () => {
     })
   })
 
+  it('keeps account triggers free of nested tooltip buttons and keyboard-operable', async () => {
+    const user = userEvent.setup()
+    render(<MoneyAccountsPanel accounts={accounts} documents={documents} />)
+
+    const accountTrigger = screen.getByRole('button', {
+      name: /main checking/i,
+    })
+
+    expect(accountTrigger.querySelector('button')).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: /coverage: more detail/i }),
+    ).not.toBeInTheDocument()
+
+    accountTrigger.focus()
+    await user.keyboard('{Enter}')
+
+    expect(screen.getByText('Supporting documents')).toBeInTheDocument()
+  })
+
   it('creates a tracked account from the add account dialog', async () => {
     const user = userEvent.setup()
     render(<MoneyAccountsPanel accounts={accounts} documents={documents} />)
