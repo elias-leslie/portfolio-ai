@@ -93,6 +93,22 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
       : 'Jenny does not see a live portfolio position.'
   const decisionUsesLiveModel =
     currentDecision?.sourceKind === 'live_signal_model'
+  const entrySignalAction =
+    data?.recommendation?.ifNotHeld?.action ?? data?.signal?.type
+  const entrySignalParts = [
+    entrySignalAction ? formatEnumLabel(entrySignalAction, 'Review') : null,
+    data?.scores?.overall != null
+      ? `Score ${data.scores.overall.toFixed(0)}`
+      : null,
+    data?.signal?.type ? `${formatEnumLabel(data.signal.type)} signal` : null,
+    data?.signal?.strength != null
+      ? `Strength ${data.signal.strength}/10`
+      : null,
+  ].filter((part): part is string => Boolean(part))
+  const entrySignalSummary =
+    decisionUsesLiveModel && entrySignalParts.length > 0
+      ? `${data?.portfolio?.held ? 'Entry signal if not held' : 'Live entry signal'}: ${entrySignalParts.join(' · ')}`
+      : null
   const predictionReviewLabel = predictionReviewSummary
     ? `${formatEnumLabel(predictionReviewSummary.reviewState, 'Unknown')} · ${predictionReviewSummary.windowDays}D horizon`
     : null
@@ -209,12 +225,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
               ? ` · ${formatRelativeTime(currentDecision.sourceTimestamp)}`
               : ''}
           </p>
-          {decisionUsesLiveModel ? (
-            <p className="mt-3 text-sm text-text">
-              Score {data?.scores?.overall?.toFixed(0) ?? '—'} ·{' '}
-              {formatEnumLabel(data?.signal?.type, 'Unavailable')} · Strength{' '}
-              {data?.signal?.strength ?? '—'}/10
-            </p>
+          {entrySignalSummary ? (
+            <p className="mt-3 text-sm text-text">{entrySignalSummary}</p>
           ) : (
             <p className="mt-3 text-sm text-text">
               Live signal {formatEnumLabel(data?.signal?.type, 'Unavailable')} ·
