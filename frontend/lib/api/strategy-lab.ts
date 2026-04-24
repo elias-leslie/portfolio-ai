@@ -9,6 +9,9 @@ export type StrategyLabBacktestStatus =
   | 'insufficient_history'
   | 'no_trades'
   | 'quote_unavailable'
+export type StrategyLabUnavailableReason =
+  | 'insufficient_history'
+  | 'evaluation_error'
 
 export interface StrategyLabPrimaryAccountTarget {
   accountId: string
@@ -36,6 +39,10 @@ export interface StrategyLabBacktestPoint {
 export interface StrategyLabBacktestSnapshot {
   status: StrategyLabBacktestStatus
   lookbackDays: number | null
+  requestedStartDate: string | null
+  requestedEndDate: string | null
+  availableStartDate: string | null
+  availableEndDate: string | null
   totalReturnPct: number | null
   buyHoldReturnPct: number | null
   excessReturnPct: number | null
@@ -59,10 +66,26 @@ export interface StrategyLabBaseEvaluation {
   helperText: string | null
 }
 
-export interface StrategyLabListItem extends StrategyLabBaseEvaluation {}
+export interface StrategyLabListItem extends StrategyLabBaseEvaluation {
+  backtestStatus: StrategyLabBacktestStatus | null
+  backtestHelperText: string | null
+  backtestLookbackDays: number | null
+}
+
+export interface StrategyLabUnavailableItem {
+  symbol: string
+  reason: StrategyLabUnavailableReason
+  message: string
+  requestedStartDate: string | null
+  requestedEndDate: string | null
+  availableStartDate: string | null
+  availableEndDate: string | null
+  lookbackDays: number | null
+}
 
 export interface StrategyLabListResponse {
   items: StrategyLabListItem[]
+  unavailableItems: StrategyLabUnavailableItem[]
   totalCount: number
 }
 

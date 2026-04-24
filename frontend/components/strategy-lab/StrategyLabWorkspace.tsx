@@ -38,6 +38,26 @@ function strategyLabel(template: string) {
     : 'Breakout Confirmation'
 }
 
+function unavailableDetail(item: {
+  requestedStartDate: string | null
+  requestedEndDate: string | null
+  availableStartDate: string | null
+  availableEndDate: string | null
+  lookbackDays: number | null
+}) {
+  const requested =
+    item.requestedStartDate && item.requestedEndDate
+      ? `Requested ${item.requestedStartDate} to ${item.requestedEndDate}.`
+      : null
+  const available =
+    item.availableStartDate && item.availableEndDate
+      ? `Available ${item.availableStartDate} to ${item.availableEndDate}.`
+      : null
+  const lookback =
+    item.lookbackDays != null ? `${item.lookbackDays} daily bars found.` : null
+  return [requested, available, lookback].filter(Boolean).join(' ')
+}
+
 function isReviewError(
   value: StrategyLabReviewSuccess | StrategyLabReviewError,
 ): value is StrategyLabReviewError {
@@ -62,6 +82,7 @@ export function StrategyLabWorkspace({
 
   const listQuery = useStrategyLabList()
   const listItems = listQuery.data?.items ?? []
+  const unavailableItems = listQuery.data?.unavailableItems ?? []
   const detailQuery = useStrategyLabDetail(selectedSymbol)
   const reviewMutation = useStrategyLabReview(selectedSymbol)
 
@@ -156,6 +177,7 @@ export function StrategyLabWorkspace({
       {!listQuery.isLoading &&
       !listErrorMessage &&
       listItems.length === 0 &&
+      unavailableItems.length === 0 &&
       !selectedDetail ? (
         <SectionCard variant="surface" title="Strategy Lab">
           <div className="space-y-3 text-sm text-text-muted">
@@ -163,6 +185,48 @@ export function StrategyLabWorkspace({
             <Button asChild>
               <Link href="/portfolio?tab=symbols">Add Symbol</Link>
             </Button>
+          </div>
+        </SectionCard>
+      ) : null}
+
+      {!listQuery.isLoading &&
+      !listErrorMessage &&
+      unavailableItems.length > 0 ? (
+        <SectionCard variant="surface" title="Partial Data">
+          <div className="space-y-3">
+            <div className="flex items-start gap-3 text-sm text-text-muted">
+              <AlertCircle className="mt-0.5 h-4 w-4 text-warning" />
+              <div>
+                <p className="text-text">
+                  {listItems.length > 0
+                    ? `${unavailableItems.length} symbol${unavailableItems.length === 1 ? '' : 's'} ${unavailableItems.length === 1 ? 'needs' : 'need'} more data before Strategy Lab can score the backtest cleanly.`
+                    : 'No symbols have enough clean data for Strategy Lab yet.'}
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {unavailableItems.map((item) => (
+                <div
+                  key={`${item.symbol}-${item.reason}`}
+                  className="rounded-2xl border border-warning/20 bg-warning/10 p-3"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-medium text-text">{item.symbol}</p>
+                    <p className="text-xs uppercase tracking-[0.16em] text-warning">
+                      {item.reason === 'insufficient_history'
+                        ? 'History'
+                        : 'Unavailable'}
+                    </p>
+                  </div>
+                  <p className="mt-1 text-sm text-text-muted">{item.message}</p>
+                  {unavailableDetail(item) ? (
+                    <p className="mt-1 text-xs text-text-muted">
+                      {unavailableDetail(item)}
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
           </div>
         </SectionCard>
       ) : null}

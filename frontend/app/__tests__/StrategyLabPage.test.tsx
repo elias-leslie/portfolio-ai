@@ -12,8 +12,12 @@ const listState: any = vi.hoisted(() => ({
       primaryAccountTarget: null,
       updatedAt: '2026-04-18T12:00:00Z',
       helperText: null,
+      backtestStatus: 'ready',
+      backtestHelperText: null,
+      backtestLookbackDays: 260,
     },
   ],
+  unavailableItems: [],
   totalCount: 1,
   isLoading: false,
   error: null,
@@ -39,6 +43,10 @@ const detailState: any = vi.hoisted(() => ({
       backtestSnapshot: {
         status: 'ready',
         lookbackDays: 260,
+        requestedStartDate: null,
+        requestedEndDate: null,
+        availableStartDate: null,
+        availableEndDate: null,
         totalReturnPct: 1.23,
         buyHoldReturnPct: 0.45,
         excessReturnPct: 0.78,
@@ -72,6 +80,10 @@ function makeDetail(symbol: string, overrides: Record<string, any> = {}) {
     backtestSnapshot: {
       status: 'ready',
       lookbackDays: 260,
+      requestedStartDate: null,
+      requestedEndDate: null,
+      availableStartDate: null,
+      availableEndDate: null,
       totalReturnPct: 1.23,
       buyHoldReturnPct: 0.45,
       excessReturnPct: 0.78,
@@ -89,6 +101,7 @@ vi.mock('@/lib/hooks/useStrategyLab', () => ({
   useStrategyLabList: () => ({
     data: {
       items: listState.items,
+      unavailableItems: listState.unavailableItems,
       totalCount: listState.totalCount,
     },
     isLoading: listState.isLoading,
@@ -113,8 +126,12 @@ describe('StrategyLabWorkspace', () => {
         primaryAccountTarget: null,
         updatedAt: '2026-04-18T12:00:00Z',
         helperText: null,
+        backtestStatus: 'ready',
+        backtestHelperText: null,
+        backtestLookbackDays: 260,
       },
     ]
+    listState.unavailableItems = []
     listState.totalCount = 1
     listState.isLoading = false
     listState.error = null
@@ -177,6 +194,79 @@ describe('StrategyLabWorkspace', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('shows partial data issues without hiding available symbols', async () => {
+    listState.items = [
+      {
+        symbol: 'VTI',
+        action: 'wait',
+        strategyTemplate: 'breakout_confirmation',
+        primaryAccountTarget: null,
+        updatedAt: '2026-04-18T12:00:00Z',
+        helperText: null,
+        backtestStatus: 'ready',
+        backtestHelperText: null,
+        backtestLookbackDays: 260,
+      },
+    ]
+    listState.unavailableItems = [
+      {
+        symbol: 'AMZN',
+        reason: 'insufficient_history',
+        message: 'Not enough daily history to judge this strategy yet.',
+        requestedStartDate: '2021-04-23',
+        requestedEndDate: '2026-04-23',
+        availableStartDate: '2024-01-02',
+        availableEndDate: '2026-04-23',
+        lookbackDays: 180,
+      },
+    ]
+
+    renderWorkspace('VTI')
+
+    await waitFor(() => {
+      expect(screen.getByText('Partial Data')).toBeInTheDocument()
+    })
+    expect(
+      screen.getByText(
+        '1 symbol needs more data before Strategy Lab can score the backtest cleanly.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText('AMZN')).toBeInTheDocument()
+    expect(screen.getByText('History')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /VTI/i })).toBeInTheDocument()
+  })
+
+  it('shows an all-unavailable state with issue details', async () => {
+    listState.items = []
+    listState.totalCount = 0
+    listState.unavailableItems = [
+      {
+        symbol: 'AMZN',
+        reason: 'insufficient_history',
+        message: 'Not enough daily history to judge this strategy yet.',
+        requestedStartDate: '2021-04-23',
+        requestedEndDate: '2026-04-23',
+        availableStartDate: '2024-01-02',
+        availableEndDate: '2026-04-23',
+        lookbackDays: 180,
+      },
+    ]
+
+    renderWorkspace(null)
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'No symbols have enough clean data for Strategy Lab yet.',
+        ),
+      ).toBeInTheDocument()
+    })
+    expect(screen.getByText('AMZN')).toBeInTheDocument()
+    expect(
+      screen.queryByText('No symbols are ready for Strategy Lab yet.'),
+    ).not.toBeInTheDocument()
+  })
+
   it('renders the five visible sections and fixed why/watch copy', async () => {
     renderWorkspace('VTI')
     await waitFor(() => {
@@ -217,6 +307,9 @@ describe('StrategyLabWorkspace', () => {
         primaryAccountTarget: null,
         updatedAt: '2026-04-18T12:00:00Z',
         helperText: null,
+        backtestStatus: 'ready',
+        backtestHelperText: null,
+        backtestLookbackDays: 260,
       },
       {
         symbol: 'NVDA',
@@ -225,6 +318,9 @@ describe('StrategyLabWorkspace', () => {
         primaryAccountTarget: null,
         updatedAt: '2026-04-18T12:00:00Z',
         helperText: null,
+        backtestStatus: 'ready',
+        backtestHelperText: null,
+        backtestLookbackDays: 260,
       },
     ]
     listState.totalCount = 2
