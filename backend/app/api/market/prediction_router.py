@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
 
 from app.constants import CACHE_TTL_SHORT
-from app.middleware.cache import cache_response
+from app.middleware.cache import cache_response, invalidate_endpoint_cache
 from app.models.market_prediction import (
     MarketPredictionCommitteeResponse,
     MarketPredictionHistoryResponse,
@@ -45,6 +46,12 @@ def _validate_window_days(window_days: int) -> int:
     return window_days
 
 
+def _invalidate_prediction_caches() -> None:
+    invalidate_endpoint_cache("/api/market/prediction/committee", method="GET")
+    invalidate_endpoint_cache("/api/market/prediction/committee/history", method="GET")
+    invalidate_endpoint_cache("/api/market/prediction/review", method="GET")
+
+
 @router.get("/prediction/committee", response_model=MarketPredictionCommitteeResponse)
 @cache_response(ttl=CACHE_TTL_SHORT)
 async def get_prediction_committee(
@@ -55,6 +62,19 @@ async def get_prediction_committee(
     snapshot = service.get_committee_snapshot(window_days=_validate_window_days(window_days))
     if snapshot is None:
         raise HTTPException(status_code=404, detail="No committee snapshot available")
+    return snapshot
+
+
+@router.post("/prediction/committee/refresh", response_model=MarketPredictionCommitteeResponse)
+async def refresh_prediction_committee(
+    request: Request,
+    window_days: int = Query(3, description="Trading-day forecast window"),
+) -> MarketPredictionCommitteeResponse:
+    service = _get_prediction_service()
+    validated_window = _validate_window_days(window_days)
+    _invalidate_prediction_caches()
+    snapshot = await run_in_threadpool(service.generate_snapshot, window_days=validated_window)
+    _invalidate_prediction_caches()
     return snapshot
 
 

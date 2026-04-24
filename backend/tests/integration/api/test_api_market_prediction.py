@@ -36,7 +36,12 @@ def client() -> Generator[TestClient]:
 
 
 class _FakePredictionService:
-    def get_committee_snapshot(self, window_days: int) -> MarketPredictionCommitteeResponse:
+    def _build_response(
+        self,
+        window_days: int,
+        *,
+        generated_at: datetime = datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+    ) -> MarketPredictionCommitteeResponse:
         calls = [
             MarketPredictionCall(
                 symbol=symbol,
@@ -51,8 +56,8 @@ class _FakePredictionService:
             for symbol in PREDICTION_TARGET_SYMBOLS
         ]
         return MarketPredictionCommitteeResponse(
-            as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
-            generated_at=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+            as_of_ts=generated_at,
+            generated_at=generated_at,
             window_days=window_days,
             base_date=date(2026, 4, 21),
             target_date=date(2026, 4, 24),
@@ -101,6 +106,12 @@ class _FakePredictionService:
                 ],
             },
         )
+
+    def get_committee_snapshot(self, window_days: int) -> MarketPredictionCommitteeResponse:
+        return self._build_response(window_days)
+
+    def generate_snapshot(self, *, window_days: int) -> MarketPredictionCommitteeResponse:
+        return self._build_response(window_days, generated_at=datetime(2026, 4, 21, 22, 30, tzinfo=UTC))
 
     def get_history(self, symbol: str, window_days: int, limit: int = 30) -> list[MarketPredictionCall]:
         return [
@@ -240,6 +251,25 @@ def test_get_prediction_committee_allows_degraded_fetch_error_200_shape(client: 
     assert data["source_snapshot"]["clusters"]["macro_calendar"]["reason"] == "no_future_rows"
     assert data["freshness_summary"]["state"] == "degraded"
     assert data["freshness_summary"]["invalidated"] is True
+
+
+def test_refresh_prediction_committee_forces_new_snapshot_and_clears_cached_get(client: TestClient, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.api.market.prediction_router._get_prediction_service",
+        _fake_prediction_service,
+    )
+
+    cached_response = client.get("/api/market/prediction/committee?window_days=3")
+    assert cached_response.status_code == 200
+    assert cached_response.json()["generated_at"] == "2026-04-21T22:15:00Z"
+
+    refresh_response = client.post("/api/market/prediction/committee/refresh?window_days=3")
+    assert refresh_response.status_code == 200
+    assert refresh_response.json()["generated_at"] == "2026-04-21T22:30:00Z"
+
+    fresh_get_response = client.get("/api/market/prediction/committee?window_days=3")
+    assert fresh_get_response.status_code == 200
+    assert fresh_get_response.headers["x-cache-hit"] == "false"
 
 
 def test_get_prediction_committee_history(client: TestClient, monkeypatch) -> None:

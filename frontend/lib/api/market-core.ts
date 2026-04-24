@@ -58,6 +58,18 @@ export async function fetchMarketPredictionCommittee(
 }
 
 /**
+ * Force a new market prediction committee snapshot for a trading-day window.
+ */
+export async function refreshMarketPredictionCommittee(
+  windowDays: number = 3,
+): Promise<MarketPredictionCommitteeResponse> {
+  return apiRequest<MarketPredictionCommitteeResponse>(
+    `/api/market/prediction/committee/refresh?window_days=${windowDays}`,
+    { method: 'POST' },
+  )
+}
+
+/**
  * Get the latest market prediction review artifact for a trading-day window
  */
 export async function fetchMarketPredictionReview(

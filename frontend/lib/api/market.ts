@@ -17,6 +17,7 @@ export {
   fetchMarketPredictionReview,
   fetchMarketTrends,
   fetchPrices,
+  refreshMarketPredictionCommittee,
 } from './market-core'
 export {
   fetchMarketEventsForChart,

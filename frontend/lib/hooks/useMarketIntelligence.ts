@@ -2,7 +2,13 @@
  * React Query hooks for Market Intelligence API
  */
 
-import { type UseQueryResult, useQuery } from '@tanstack/react-query'
+import {
+  type UseMutationResult,
+  type UseQueryResult,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import {
   type FearGreedHistoryResponse,
   fetchFearGreedHistory,
@@ -25,6 +31,7 @@ import {
   type MarketPredictionSeatReviewResponse,
   type MarketStatusResponse,
   type NewsSentimentHistoryResponse,
+  refreshMarketPredictionCommittee,
   type SectorHistoryResponse,
 } from '../api/market'
 
@@ -75,6 +82,31 @@ export function useMarketPredictionCommittee(
       ),
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
+  })
+}
+
+export function useRefreshMarketPredictionCommittee(): UseMutationResult<
+  MarketPredictionCommitteeResponse,
+  Error,
+  number
+> {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (windowDays: number) =>
+      refreshMarketPredictionCommittee(windowDays),
+    onSuccess: (data, windowDays) => {
+      queryClient.setQueryData(
+        ['market', 'prediction', 'committee', windowDays],
+        data,
+      )
+      void queryClient.invalidateQueries({
+        queryKey: ['market', 'prediction', 'committee-history'],
+      })
+      void queryClient.invalidateQueries({
+        queryKey: ['market', 'prediction', 'review', windowDays],
+      })
+    },
   })
 }
 

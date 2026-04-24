@@ -30,6 +30,7 @@ import {
   useMarketPredictionCommittee,
   useMarketPredictionHistory,
   useMarketPredictionReview,
+  useRefreshMarketPredictionCommittee,
 } from '@/lib/hooks/useMarketIntelligence'
 import { cn } from '@/lib/utils'
 
@@ -1305,6 +1306,7 @@ function FreshnessRail({
   evaluatedAgeLabel,
   onRefresh,
   isRefreshing,
+  refreshErrorMessage,
   gapCallouts,
 }: {
   freshness: NormalizedPredictionFreshness
@@ -1314,6 +1316,7 @@ function FreshnessRail({
   evaluatedAgeLabel: string | null
   onRefresh: () => void
   isRefreshing: boolean
+  refreshErrorMessage: string | null
   gapCallouts: GapCallout[]
 }) {
   const freshnessBadge = freshnessStateDescriptor(freshness.state)
@@ -1380,6 +1383,7 @@ function FreshnessRail({
           variant={freshness.invalidated ? 'default' : 'outline'}
           size="sm"
           className="rounded-full px-4"
+          disabled={isRefreshing}
           onClick={onRefresh}
         >
           <RefreshCw
@@ -1388,6 +1392,15 @@ function FreshnessRail({
           {isRefreshing ? 'Refreshing…' : 'Refresh now'}
         </Button>
       </div>
+
+      {refreshErrorMessage ? (
+        <div
+          role="status"
+          className="mt-4 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-100"
+        >
+          Refresh failed: {refreshErrorMessage}
+        </div>
+      ) : null}
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         <div className="rounded-[18px] border border-border/30 bg-black/20 p-3">
@@ -1512,6 +1525,7 @@ export function InvestingPredictionPanel() {
   const selectedQuery = committeeQueries[windowDays]
   const { data, isLoading, error, isFetching } = selectedQuery
   const reviewQuery = useMarketPredictionReview(windowDays)
+  const refreshMutation = useRefreshMarketPredictionCommittee()
 
   const allCalls = useMemo(() => normalizeCalls(data?.calls), [data?.calls])
   const sectorCalls = useMemo(
@@ -1590,6 +1604,7 @@ export function InvestingPredictionPanel() {
     () => normalizePredictionFreshness(data?.freshnessSummary, truthState),
     [data?.freshnessSummary, truthState],
   )
+  const refreshErrorMessage = refreshMutation.error?.message ?? null
 
   const heroHeadline =
     committeeSummary.heroHeadline ??
@@ -1944,9 +1959,12 @@ export function InvestingPredictionPanel() {
                 generatedAgeLabel={generatedAgeLabel}
                 evaluatedLabel={lastEvaluatedLabel}
                 evaluatedAgeLabel={evaluatedAgeLabel}
-                isRefreshing={Boolean(isFetching && !isLoading)}
+                isRefreshing={Boolean(
+                  refreshMutation.isPending || (isFetching && !isLoading),
+                )}
+                refreshErrorMessage={refreshErrorMessage}
                 onRefresh={() => {
-                  void selectedQuery.refetch()
+                  refreshMutation.mutate(windowDays)
                 }}
                 gapCallouts={gapCallouts}
               />
