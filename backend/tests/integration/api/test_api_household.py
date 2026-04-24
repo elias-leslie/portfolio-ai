@@ -401,6 +401,8 @@ def test_household_dashboard_uses_profile_documents_and_portfolio(
     assert dashboard["retirement_preparedness"]["status"] == "scenario_ready"
     assert dashboard["budget_snapshot"]["monthly_income_target"] == 12500
     assert dashboard["budget_snapshot"]["monthly_plan_total"] == 9600
+    assert dashboard["budget_snapshot"]["monthly_plan_source"] == "household_profile_targets"
+    assert dashboard["budget_snapshot"]["monthly_plan_source_label"] == "Household profile targets"
     assert dashboard["overview"]["next_best_action"]
     assert dashboard["accounts"][0]["gap_flags"]
     assert dashboard["inbox"][0]["title"]

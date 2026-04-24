@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
+import json
+import math
 from pathlib import Path
 from threading import Lock
 from time import monotonic
 from typing import Any
 
 from app.models.household_finance import (
+    HouseholdConfirmedFact,
     HouseholdEvidenceAccount,
     HouseholdFinanceDashboard,
     HouseholdLedger,
     HouseholdProfile,
     HouseholdProfileUpdate,
     HouseholdResolvedValue,
+    HouseholdSpendingCategory,
     HouseholdSpendingView,
     HouseholdTrackedAccount,
     HouseholdTrackedAccountInput,
@@ -45,6 +49,125 @@ from app.services.household_transaction_service import HouseholdTransactionServi
 from app.storage import get_storage
 
 _DASHBOARD_REGISTRY_SYNC_INTERVAL_SECONDS = 30.0
+_CATEGORY_BUDGET_PREFIX = "category_budget:"
+
+
+def _round_budget(value: float | None) -> float | None:
+    if value is None or not math.isfinite(value):
+        return None
+    return float(math.floor((value / 25.0) + 0.5) * 25)
+
+
+def _recommended_category_budget(
+    category: HouseholdSpendingCategory,
+    coverage_months: int,
+) -> float | None:
+    if coverage_months < 2 or category.average_monthly_spend <= 0:
+        return None
+    if category.essentiality == "essential":
+        return _round_budget(category.average_monthly_spend * 1.02)
+    if category.essentiality == "mixed":
+        return _round_budget(category.average_monthly_spend * 0.95)
+    return _round_budget(category.average_monthly_spend * 0.85)
+
+
+def _category_budget_meta(
+    facts: list[HouseholdConfirmedFact],
+) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for fact in facts:
+        if not fact.fact_key.startswith(_CATEGORY_BUDGET_PREFIX):
+            continue
+        category = fact.fact_key.removeprefix(_CATEGORY_BUDGET_PREFIX)
+        try:
+            parsed = json.loads(fact.fact_value)
+        except json.JSONDecodeError:
+            parsed = {}
+        result[category] = parsed if isinstance(parsed, dict) else {}
+    return result
+
+
+def _confirmed_budget_from_meta(meta: dict[str, Any] | None) -> float | None:
+    value = (meta or {}).get("monthlyTarget")
+    if isinstance(value, int | float) and math.isfinite(float(value)):
+        return float(value)
+    return None
+
+
+def _with_budget_rollup(
+    view: HouseholdSpendingView,
+    facts: list[HouseholdConfirmedFact],
+) -> HouseholdSpendingView:
+    meta_by_category = _category_budget_meta(facts)
+    coverage_months = view.summary.coverage_months
+    categories: list[HouseholdSpendingCategory] = []
+    found_budget_total = 0.0
+    confirmed_budget_total = 0.0
+    found_budget_category_count = 0
+    confirmed_budget_category_count = 0
+    found_over_budget_count = 0
+    confirmed_over_budget_count = 0
+
+    for category in view.categories:
+        meta = meta_by_category.get(category.category)
+        disabled = bool((meta or {}).get("disabled") is True)
+        found_budget = _recommended_category_budget(category, coverage_months)
+        confirmed_budget = _confirmed_budget_from_meta(meta)
+        if disabled:
+            budget_source = "disabled"
+            budget_status = "disabled"
+        elif confirmed_budget is not None:
+            budget_source = "confirmed"
+            budget_status = (
+                "over_budget"
+                if category.average_monthly_spend > confirmed_budget
+                else "confirmed"
+            )
+            confirmed_budget_total += confirmed_budget
+            confirmed_budget_category_count += 1
+            if category.average_monthly_spend > confirmed_budget:
+                confirmed_over_budget_count += 1
+        elif found_budget is not None:
+            budget_source = "found_unconfirmed"
+            budget_status = (
+                "found_over_budget"
+                if category.average_monthly_spend > found_budget
+                else "found_unconfirmed"
+            )
+            found_budget_total += found_budget
+            found_budget_category_count += 1
+            if category.average_monthly_spend > found_budget:
+                found_over_budget_count += 1
+        else:
+            budget_source = "no_budget"
+            budget_status = "no_budget"
+        categories.append(
+            category.model_copy(
+                update={
+                    "found_monthly_budget": found_budget,
+                    "confirmed_monthly_budget": confirmed_budget,
+                    "budget_source": budget_source,
+                    "budget_status": budget_status,
+                    "budget_note": (meta or {}).get("note") or None,
+                    "budget_disabled": disabled,
+                }
+            )
+        )
+
+    summary = view.summary.model_copy(
+        update={
+            "found_budget_total": round(found_budget_total, 2),
+            "confirmed_budget_total": round(confirmed_budget_total, 2),
+            "budgeted_category_count": found_budget_category_count
+            + confirmed_budget_category_count,
+            "found_budget_category_count": found_budget_category_count,
+            "confirmed_budget_category_count": confirmed_budget_category_count,
+            "over_budget_count": found_over_budget_count + confirmed_over_budget_count,
+            "found_over_budget_count": found_over_budget_count,
+            "confirmed_over_budget_count": confirmed_over_budget_count,
+        }
+    )
+    return view.model_copy(update={"summary": summary, "categories": categories})
 
 
 class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
@@ -112,7 +235,10 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         )
 
     def get_spending(self, *, window: str = "1m") -> HouseholdSpendingView:
-        return self.transaction_service.build_spending_view(window=window)
+        return _with_budget_rollup(
+            self.transaction_service.build_spending_view(window=window),
+            self.list_confirmed_facts(),
+        )
 
     def update_profile(self, payload: HouseholdProfileUpdate) -> HouseholdProfile:
         return self.profile_service.update_profile(self, payload)

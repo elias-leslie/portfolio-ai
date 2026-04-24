@@ -134,6 +134,8 @@ function buildDashboard() {
       summary: 'On track',
       monthlyIncomeTarget: 10000,
       monthlyPlanTotal: 7500,
+      monthlyPlanSource: 'household_profile_targets',
+      monthlyPlanSourceLabel: 'Household profile targets',
       essentialTarget: 4000,
       discretionaryTarget: 1500,
       savingsTarget: 2000,

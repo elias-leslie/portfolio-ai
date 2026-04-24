@@ -174,6 +174,8 @@ export interface HouseholdBudgetSnapshot {
   summary: string
   monthlyIncomeTarget: number | null
   monthlyPlanTotal: number | null
+  monthlyPlanSource: string
+  monthlyPlanSourceLabel: string
   essentialTarget: number | null
   discretionaryTarget: number | null
   savingsTarget: number | null
@@ -497,6 +499,12 @@ export interface HouseholdSpendingCategory {
   averageMonthlySpend: number
   shareOfSpend: number
   transactionCount: number
+  foundMonthlyBudget?: number | null
+  confirmedMonthlyBudget?: number | null
+  budgetSource?: string
+  budgetStatus?: string
+  budgetNote?: string | null
+  budgetDisabled?: boolean
 }
 
 export interface HouseholdSpendingTransaction {
@@ -523,6 +531,14 @@ export interface HouseholdSpendingSummary {
   transactionCount: number
   coverageMonths: number
   accountCount: number
+  foundBudgetTotal?: number
+  confirmedBudgetTotal?: number
+  budgetedCategoryCount?: number
+  foundBudgetCategoryCount?: number
+  confirmedBudgetCategoryCount?: number
+  overBudgetCount?: number
+  foundOverBudgetCount?: number
+  confirmedOverBudgetCount?: number
 }
 
 export interface HouseholdSpendingView {

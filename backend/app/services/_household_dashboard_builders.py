@@ -300,6 +300,10 @@ def build_budget_snapshot(
         summary=summary,
         monthly_income_target=profile.monthly_net_income_target,
         monthly_plan_total=monthly_plan_total if has_plan else None,
+        monthly_plan_source="household_profile_targets" if has_plan else "none",
+        monthly_plan_source_label=(
+            "Household profile targets" if has_plan else "No monthly plan"
+        ),
         essential_target=profile.monthly_essential_target,
         discretionary_target=profile.monthly_discretionary_target,
         savings_target=profile.monthly_savings_target,

@@ -77,8 +77,9 @@ function budgetStatus(
   }
   if (foundBudget != null) {
     return {
-      label: 'Found budget',
-      variant: 'outline' as const,
+      label: actual > foundBudget ? 'Found over budget' : 'Found budget',
+      variant:
+        actual > foundBudget ? ('warning' as const) : ('outline' as const),
     }
   }
   return {
@@ -111,12 +112,16 @@ export function MoneyBudgetPanel() {
     return (spending?.categories ?? [])
       .map((row) => {
         const meta = budgetMeta.get(row.category)
-        const foundBudget = recommendedBudget(row, coverageMonths)
+        const foundBudget =
+          row.foundMonthlyBudget ?? recommendedBudget(row, coverageMonths)
         return {
           row,
           meta,
           foundBudget,
-          currentBudget: meta?.monthlyTarget ?? null,
+          currentBudget:
+            row.confirmedMonthlyBudget ?? meta?.monthlyTarget ?? null,
+          disabled: row.budgetDisabled ?? meta?.disabled === true,
+          note: row.budgetNote ?? meta?.note ?? '',
         }
       })
       .sort(
@@ -125,18 +130,129 @@ export function MoneyBudgetPanel() {
       )
   }, [budgetMeta, coverageMonths, spending?.categories])
 
-  const activeRows = rows.filter((entry) => entry.meta?.disabled !== true)
-  const hiddenRows = rows.filter((entry) => entry.meta?.disabled === true)
+  const activeRows = rows.filter((entry) => entry.disabled !== true)
+  const hiddenRows = rows.filter((entry) => entry.disabled === true)
+  const confirmedBudgetRows = activeRows.filter(
+    (entry) => entry.currentBudget != null,
+  )
+  const foundBudgetRows = activeRows.filter(
+    (entry) => entry.currentBudget == null && entry.foundBudget != null,
+  )
 
-  const totalBudget = activeRows.reduce(
+  const computedConfirmedBudgetTotal = confirmedBudgetRows.reduce(
     (sum, entry) => sum + (entry.currentBudget ?? 0),
     0,
   )
-  const overBudgetCount = activeRows.filter(
+  const computedFoundBudgetTotal = foundBudgetRows.reduce(
+    (sum, entry) => sum + (entry.foundBudget ?? 0),
+    0,
+  )
+  const computedConfirmedOverBudgetCount = confirmedBudgetRows.filter(
     (entry) =>
       entry.currentBudget != null &&
       entry.row.averageMonthlySpend > entry.currentBudget,
   ).length
+  const computedFoundOverBudgetCount = foundBudgetRows.filter(
+    (entry) =>
+      entry.foundBudget != null &&
+      entry.row.averageMonthlySpend > entry.foundBudget,
+  ).length
+  const computedBudgetedCategoryCount =
+    confirmedBudgetRows.length + foundBudgetRows.length
+  const foundBudgetTotal =
+    spending?.summary.foundBudgetTotal ?? computedFoundBudgetTotal
+  const confirmedBudgetTotal =
+    spending?.summary.confirmedBudgetTotal ?? computedConfirmedBudgetTotal
+  const foundBudgetCategoryCount =
+    spending?.summary.foundBudgetCategoryCount ?? foundBudgetRows.length
+  const confirmedBudgetCategoryCount =
+    spending?.summary.confirmedBudgetCategoryCount ?? confirmedBudgetRows.length
+  const budgetedCategoryCount =
+    spending?.summary.budgetedCategoryCount ?? computedBudgetedCategoryCount
+  const foundOverBudgetCount =
+    spending?.summary.foundOverBudgetCount ?? computedFoundOverBudgetCount
+  const confirmedOverBudgetCount =
+    spending?.summary.confirmedOverBudgetCount ??
+    computedConfirmedOverBudgetCount
+  const overBudgetCount =
+    spending?.summary.overBudgetCount ??
+    foundOverBudgetCount + confirmedOverBudgetCount
+
+  function renderBudgetRow({
+    row,
+    meta,
+    currentBudget,
+    foundBudget,
+    note,
+  }: (typeof activeRows)[number]) {
+    const status = budgetStatus(
+      currentBudget,
+      foundBudget,
+      row.averageMonthlySpend,
+    )
+
+    return (
+      <tr key={row.category} className="hover:bg-surface-muted/10">
+        <td className="border-b border-border/20 px-4 py-3 font-medium text-text">
+          {row.category}
+        </td>
+        <td className="border-b border-border/20 px-4 py-3">
+          <Badge variant="outline">{formatEnumLabel(row.essentiality)}</Badge>
+        </td>
+        <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
+          {formatCurrency(row.averageMonthlySpend, {
+            decimals: 0,
+          })}
+        </td>
+        <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
+          {currentBudget != null
+            ? formatCurrency(currentBudget, { decimals: 0 })
+            : foundBudget != null
+              ? formatCurrency(foundBudget, { decimals: 0 })
+              : '—'}
+        </td>
+        <td className="border-b border-border/20 px-4 py-3">
+          <Badge variant={status.variant}>{status.label}</Badge>
+        </td>
+        <td className="border-b border-border/20 px-4 py-3 text-text-muted">
+          {note ? note : '—'}
+        </td>
+        <td className="border-b border-border/20 px-4 py-3 text-right">
+          <div className="flex justify-end gap-2">
+            {currentBudget == null && foundBudget != null ? (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() =>
+                  void confirmFact.mutateAsync({
+                    factKey: `${CATEGORY_BUDGET_PREFIX}${row.category}`,
+                    factValue: serializeCategoryBudgetMeta({
+                      category: row.category,
+                      note: meta?.note ?? '',
+                      disabled: false,
+                      monthlyTarget: foundBudget,
+                      source: 'accepted',
+                    }),
+                  })
+                }
+                disabled={confirmFact.isPending}
+              >
+                Accept
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setSelectedCategory(row)}
+            >
+              Budget
+            </Button>
+          </div>
+        </td>
+      </tr>
+    )
+  }
 
   useEffect(() => {
     if (!selectedCategory) {
@@ -225,7 +341,7 @@ export function MoneyBudgetPanel() {
           </div>
         }
       >
-        <div className="grid gap-3 lg:grid-cols-4">
+        <div className="grid gap-3 lg:grid-cols-5">
           <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
               Observed monthly spend
@@ -236,10 +352,25 @@ export function MoneyBudgetPanel() {
           </div>
           <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Budget total
+              Found budget total
             </p>
             <p className="mt-3 text-2xl font-semibold text-text">
-              {formatCurrencyWhole(totalBudget)}
+              {formatCurrencyWhole(foundBudgetTotal)}
+            </p>
+            <p className="mt-1 text-xs text-text-muted">
+              {foundBudgetCategoryCount} found row
+              {foundBudgetCategoryCount === 1 ? '' : 's'} not accepted yet.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+              Confirmed budget total
+            </p>
+            <p className="mt-3 text-2xl font-semibold text-text">
+              {formatCurrencyWhole(confirmedBudgetTotal)}
+            </p>
+            <p className="mt-1 text-xs text-text-muted">
+              Manual or accepted category caps.
             </p>
           </div>
           <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
@@ -247,7 +378,11 @@ export function MoneyBudgetPanel() {
               Budgeted categories
             </p>
             <p className="mt-3 text-2xl font-semibold text-text">
-              {activeRows.filter((entry) => entry.currentBudget != null).length}
+              {budgetedCategoryCount}
+            </p>
+            <p className="mt-1 text-xs text-text-muted">
+              {foundBudgetCategoryCount} found · {confirmedBudgetCategoryCount}{' '}
+              confirmed.
             </p>
           </div>
           <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
@@ -256,6 +391,10 @@ export function MoneyBudgetPanel() {
             </p>
             <p className="mt-3 text-2xl font-semibold text-text">
               {overBudgetCount}
+            </p>
+            <p className="mt-1 text-xs text-text-muted">
+              {foundOverBudgetCount} found · {confirmedOverBudgetCount}{' '}
+              confirmed.
             </p>
           </div>
         </div>
@@ -315,79 +454,7 @@ export function MoneyBudgetPanel() {
                   </td>
                 </tr>
               ) : (
-                activeRows.map(({ row, meta, currentBudget, foundBudget }) => {
-                  const status = budgetStatus(
-                    currentBudget,
-                    foundBudget,
-                    row.averageMonthlySpend,
-                  )
-                  return (
-                    <tr
-                      key={row.category}
-                      className="hover:bg-surface-muted/10"
-                    >
-                      <td className="border-b border-border/20 px-4 py-3 font-medium text-text">
-                        {row.category}
-                      </td>
-                      <td className="border-b border-border/20 px-4 py-3">
-                        <Badge variant="outline">
-                          {formatEnumLabel(row.essentiality)}
-                        </Badge>
-                      </td>
-                      <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
-                        {formatCurrency(row.averageMonthlySpend, {
-                          decimals: 0,
-                        })}
-                      </td>
-                      <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
-                        {currentBudget != null
-                          ? formatCurrency(currentBudget, { decimals: 0 })
-                          : foundBudget != null
-                            ? formatCurrency(foundBudget, { decimals: 0 })
-                            : '—'}
-                      </td>
-                      <td className="border-b border-border/20 px-4 py-3">
-                        <Badge variant={status.variant}>{status.label}</Badge>
-                      </td>
-                      <td className="border-b border-border/20 px-4 py-3 text-text-muted">
-                        {meta?.note ? meta.note : '—'}
-                      </td>
-                      <td className="border-b border-border/20 px-4 py-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          {currentBudget == null && foundBudget != null ? (
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={() =>
-                                void confirmFact.mutateAsync({
-                                  factKey: `${CATEGORY_BUDGET_PREFIX}${row.category}`,
-                                  factValue: serializeCategoryBudgetMeta({
-                                    category: row.category,
-                                    note: meta?.note ?? '',
-                                    disabled: false,
-                                    monthlyTarget: foundBudget,
-                                    source: 'accepted',
-                                  }),
-                                })
-                              }
-                              disabled={confirmFact.isPending}
-                            >
-                              Accept
-                            </Button>
-                          ) : null}
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setSelectedCategory(row)}
-                          >
-                            Budget
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })
+                activeRows.map(renderBudgetRow)
               )}
             </tbody>
           </table>
@@ -401,7 +468,7 @@ export function MoneyBudgetPanel() {
           description="Disabled categories stay out of the main budget table until you re-enable them."
         >
           <div className="flex flex-wrap gap-2">
-            {hiddenRows.map(({ row, meta }) => (
+            {hiddenRows.map(({ row, note }) => (
               <button
                 key={row.category}
                 type="button"
@@ -409,7 +476,7 @@ export function MoneyBudgetPanel() {
                 className="rounded-full border border-border/35 bg-surface-muted/20 px-3 py-2 text-sm text-text transition-colors hover:border-border/60"
               >
                 {row.category}
-                {meta?.note ? ` · ${meta.note}` : ''}
+                {note ? ` · ${note}` : ''}
               </button>
             ))}
           </div>
