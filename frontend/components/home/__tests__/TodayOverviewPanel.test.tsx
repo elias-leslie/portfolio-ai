@@ -148,4 +148,62 @@ describe('TodayOverviewPanel', () => {
       screen.getByRole('button', { name: /cash reserve: more detail/i }),
     ).toBeInTheDocument()
   })
+
+  it('labels home market metrics with horizon and as-of freshness', () => {
+    useHomeTodayBriefMock.mockReturnValue({
+      data: {
+        generatedAt: '2026-04-16T10:00:00Z',
+        cacheTtlSeconds: 60,
+        asOf: {
+          household: '2026-04-16T10:00:00Z',
+          portfolio: '2026-04-16T10:00:00Z',
+          market: '2026-04-16T10:00:00Z',
+          news: '2026-04-16T10:00:00Z',
+        },
+        marketStatus: 'open',
+        brief: {
+          headline: 'Stable',
+          summary: 'Stable',
+          stance: 'neutral',
+          confidence: 'medium',
+          whyNow: 'Test',
+          bullets: ['Watch cash', 'Stay disciplined'],
+        },
+        catalysts: [],
+        impacts: [],
+        marketMetrics: [
+          {
+            key: 'sp500',
+            label: 'S&P 500',
+            value: '5,250.10',
+            changePct: 0.42,
+            detail: 'Broad market benchmark',
+            tone: 'positive',
+            horizon: 'Latest close · 1D change',
+            asOf: '2026-04-16T10:00:00Z',
+          },
+          {
+            key: 'vix',
+            label: 'VIX',
+            value: '18.25',
+            changePct: null,
+            detail: 'Risk pricing',
+            tone: 'neutral',
+            horizon: 'Latest close · 1D change',
+            asOf: null,
+          },
+        ],
+        sources: [],
+        stalenessNotes: [],
+      },
+      isLoading: false,
+    })
+
+    render(<TodayOverviewPanel />)
+
+    expect(
+      screen.getAllByText(/Latest close · 1D change · As of/).length,
+    ).toBeGreaterThan(0)
+    expect(screen.getByText(/As of time unavailable/)).toBeInTheDocument()
+  })
 })

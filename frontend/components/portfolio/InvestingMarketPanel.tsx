@@ -12,10 +12,12 @@ import {
 } from '@/components/market/TimeframeSelector'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
+import { MARKET_DATA_HORIZON_LABELS } from '@/lib/api/market-types'
 import {
   useMarketIntelligence,
   useSectorHistory,
 } from '@/lib/hooks/useMarketIntelligence'
+import { formatDate } from '@/lib/utils'
 import { describeMarketPositioning } from './investing-language'
 
 function timeframeLabel(timeframe: Timeframe) {
@@ -35,6 +37,18 @@ function timeframeLabel(timeframe: Timeframe) {
   }
 }
 
+function formatAsOfTimestamp(value?: string | null) {
+  if (!value) return 'Market update time unavailable'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return 'Market update time unavailable'
+  return `Intraday/current as of ${parsed.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })}`
+}
+
 export function InvestingMarketPanel() {
   const [sectorTimeframe, setSectorTimeframe] = useState<Timeframe>(
     DEFAULT_MARKET_TIMEFRAME,
@@ -47,6 +61,10 @@ export function InvestingMarketPanel() {
   } = useSectorHistory(timeframeToDays(sectorTimeframe))
   const positioning = describeMarketPositioning(market?.indicators.putcall)
   const sectorWindowLabel = timeframeLabel(sectorTimeframe)
+  const sectorAsOfLabel = sectorHistory?.periodEnd
+    ? `As of ${formatDate(sectorHistory.periodEnd)}`
+    : 'As-of date unavailable'
+  const marketUpdatedLabel = formatAsOfTimestamp(market?.lastUpdated)
   const leadingAreas = useMemo(() => {
     const sectors = sectorHistory?.sectors?.slice(0, 3) ?? []
     if (isSectorHistoryLoading) return 'Updating sector leaders...'
@@ -85,6 +103,7 @@ export function InvestingMarketPanel() {
         actions={
           <>
             <Badge variant="outline">Positioning: {positioning.label}</Badge>
+            <Badge variant="outline">{marketUpdatedLabel}</Badge>
             <MarketStatusBadge />
           </>
         }
@@ -96,7 +115,9 @@ export function InvestingMarketPanel() {
               Leading Areas
             </p>
             <p className="mt-2 text-[11px] uppercase tracking-[0.16em] text-text-muted">
-              Strongest relative performers over the {sectorWindowLabel}
+              {MARKET_DATA_HORIZON_LABELS.one_month} default · strongest
+              relative performers over the {sectorWindowLabel} ·{' '}
+              {sectorAsOfLabel}
             </p>
             <p className="mt-2 text-sm font-medium leading-relaxed text-text">
               {leadingAreas}
@@ -107,7 +128,8 @@ export function InvestingMarketPanel() {
               Lagging Areas
             </p>
             <p className="mt-2 text-[11px] uppercase tracking-[0.16em] text-text-muted">
-              Weakest relative performers over the {sectorWindowLabel}
+              {MARKET_DATA_HORIZON_LABELS.one_month} default · weakest relative
+              performers over the {sectorWindowLabel} · {sectorAsOfLabel}
             </p>
             <p className="mt-2 text-sm font-medium leading-relaxed text-text">
               {laggingAreas}

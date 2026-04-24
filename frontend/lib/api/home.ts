@@ -71,6 +71,8 @@ export interface HomeTodayBriefMetric {
   changePct: number | null
   detail: string
   tone: string
+  horizon?: string | null
+  asOf?: string | null
 }
 
 export interface HomeTodayBriefSource {

@@ -83,6 +83,7 @@ describe('InvestingMarketPanel', () => {
     useMarketIntelligenceMock.mockReturnValue({
       data: {
         narrative: 'Backdrop remains constructive.',
+        lastUpdated: '2026-04-10T15:30:00Z',
         indicators: {
           putcall: {
             value: 0.86,
@@ -110,6 +111,11 @@ describe('InvestingMarketPanel', () => {
 
     expect(
       screen.getByText(/strongest relative performers over the past month/i),
+    ).toBeInTheDocument()
+    expect(screen.getAllByText(/1M default/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/As of Apr 10, 2026/i).length).toBeGreaterThan(0)
+    expect(
+      screen.getByText(/Intraday\/current as of Apr 10/i),
     ).toBeInTheDocument()
     expect(
       screen.getByText(/weakest relative performers over the past month/i),

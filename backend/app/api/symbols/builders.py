@@ -304,6 +304,9 @@ def build_market_section(market: dict[str, Any]) -> MarketSection | None:
     return MarketSection(
         fear_greed_score=fg.get("score"),
         fear_greed_label=fg.get("label"),
+        fear_greed_as_of_date=fg.get("as_of_date"),
         vix=_finite_float(market.get("vix")),
+        vix_as_of_date=market.get("vix_as_of_date"),
         sp500_change=_finite_float(market.get("sp500_change")),
+        sp500_as_of_date=market.get("sp500_as_of_date"),
     )

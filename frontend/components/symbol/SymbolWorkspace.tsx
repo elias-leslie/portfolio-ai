@@ -19,7 +19,7 @@ import {
 import { useJennyDashboard } from '@/lib/hooks/usePortfolio'
 import { usePreferences } from '@/lib/hooks/usePreferences'
 import { useSymbolIntelligence } from '@/lib/hooks/useSymbolIntelligence'
-import { cn, formatRelativeTime } from '@/lib/utils'
+import { cn, formatDate, formatRelativeTime } from '@/lib/utils'
 import {
   compareNotifications,
   formatCountLabel,
@@ -112,6 +112,11 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
   const predictionReviewLabel = predictionReviewSummary
     ? `${formatEnumLabel(predictionReviewSummary.reviewState, 'Unknown')} · ${predictionReviewSummary.windowDays}D horizon`
     : null
+  const marketAsOfDate =
+    data?.market?.sp500AsOfDate ??
+    data?.market?.vixAsOfDate ??
+    data?.market?.fearGreedAsOfDate ??
+    null
 
   if (isLoading) {
     return (
@@ -265,13 +270,21 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
               {data.market.sector.name ?? 'Sector unavailable'} ·{' '}
               {data.market.sector.signal ?? 'No sector signal'} ·{' '}
               {formatPercent(data.market.sector.relativeToSpy, { sign: true })}{' '}
-              vs SPY
+              vs SPY over latest close
             </p>
           ) : data?.market?.sp500Change != null ? (
             <p className="mt-2 text-sm text-text-muted">
-              S&P 500 {formatPercent(data.market.sp500Change, { sign: true })}
+              S&P 500 latest close · 1D{' '}
+              {formatPercent(data.market.sp500Change, { sign: true })}
             </p>
           ) : null}
+          <p className="mt-2 text-xs uppercase tracking-[0.16em] text-text-muted">
+            {marketAsOfDate
+              ? `As of ${formatDate(marketAsOfDate)}`
+              : data?.generatedAt
+                ? `As of ${formatRelativeTime(data.generatedAt)}`
+                : 'As-of time unavailable'}
+          </p>
         </SectionCard>
       </div>
 

@@ -102,9 +102,14 @@ export function SectorPerformanceChart({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="font-display italic text-lg tracking-tight text-text">
-          Sector Trends
-        </h3>
+        <div>
+          <h3 className="font-display italic text-lg tracking-tight text-text">
+            Sector Trends
+          </h3>
+          <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-text-muted">
+            Latest close values · {timeframe} relative-performance window
+          </p>
+        </div>
         <TimeframeSelector value={timeframe} onChange={onTimeframeChange} />
       </div>
 

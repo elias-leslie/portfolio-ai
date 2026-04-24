@@ -83,7 +83,11 @@ describe('SymbolWorkspace', () => {
         market: {
           fearGreedLabel: 'Neutral',
           fearGreedScore: 55,
+          fearGreedAsOfDate: '2026-03-10',
           vix: 18.2,
+          vixAsOfDate: '2026-03-10',
+          sp500Change: 0.6,
+          sp500AsOfDate: '2026-03-10',
         },
         alerts: [{ icon: 'alert', label: 'Watch closely', priority: 1 }],
         recommendation: {
@@ -223,6 +227,10 @@ describe('SymbolWorkspace', () => {
         /no jenny\/data reasoning is attached to this decision yet/i,
       ),
     ).toBeInTheDocument()
+    expect(
+      screen.getByText(/S&P 500 latest close · 1D \+0.6%/i),
+    ).toBeInTheDocument()
+    expect(screen.getByText('As of Mar 10, 2026')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Track' }))
 

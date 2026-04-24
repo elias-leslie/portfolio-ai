@@ -88,6 +88,8 @@ class HomeTodayBriefMetricResponse(BaseModel):
     change_pct: float | None = None
     detail: str
     tone: str
+    horizon: str | None = None
+    as_of: str | None = None
 
 
 class HomeTodayBriefSourceResponse(BaseModel):

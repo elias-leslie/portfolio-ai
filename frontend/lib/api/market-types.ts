@@ -6,6 +6,21 @@
 // Market Conditions & Health
 // ============================================================================
 
+export type MarketDataHorizon =
+  | 'intraday'
+  | 'latest_close'
+  | 'one_day'
+  | 'one_month'
+  | 'prediction_window'
+
+export const MARKET_DATA_HORIZON_LABELS: Record<MarketDataHorizon, string> = {
+  intraday: 'Intraday/current',
+  latest_close: 'Latest close',
+  one_day: '1D',
+  one_month: '1M',
+  prediction_window: 'Prediction window',
+}
+
 export interface ComponentScore {
   name: string
   score: number

@@ -138,9 +138,14 @@ export function IndicatorsTrendChart() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="font-display italic text-lg tracking-tight text-text">
-          Market Benchmarks
-        </h3>
+        <div>
+          <h3 className="font-display italic text-lg tracking-tight text-text">
+            Market Benchmarks
+          </h3>
+          <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-text-muted">
+            Latest close values · {timeframe} change window
+          </p>
+        </div>
         <TimeframeSelector value={timeframe} onChange={setTimeframe} />
       </div>
 

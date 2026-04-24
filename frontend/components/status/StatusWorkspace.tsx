@@ -446,8 +446,9 @@ export function StatusWorkspace() {
               detail={
                 marketPending
                   ? 'Loading market calendar...'
-                  : (marketQuery.data?.currentTimeEt ??
-                    'No market clock available')
+                  : marketQuery.data
+                    ? `ET clock ${marketQuery.data.currentTimeEt} · latest close through ${marketQuery.data.lastTradingDay} · expected daily data ${marketQuery.data.expectedDataDate}`
+                    : 'No market clock available'
               }
               tone={marketTone(marketQuery.data?.status)}
             />
