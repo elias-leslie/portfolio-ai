@@ -181,8 +181,13 @@ describe('SymbolWorkspace', () => {
 
     expect(screen.getByText(/1 alert/i)).toBeInTheDocument()
     expect(
-      screen.getByText(/score 78 · buy · strength 7\/10/i),
+      screen.getByText(
+        /entry signal if not held: avoid · score 78 · buy signal · strength 7\/10/i,
+      ),
     ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/^score 78 · buy · strength 7\/10$/i),
+    ).not.toBeInTheDocument()
     expect(screen.getAllByText(/live signal model/i).length).toBeGreaterThan(0)
     expect(
       screen.getAllByText(/8 shares · \+1.4% · 0.2% of invested assets/i)
@@ -207,6 +212,12 @@ describe('SymbolWorkspace', () => {
     expect(
       screen.queryByText(/if you do not own it yet/i),
     ).not.toBeInTheDocument()
+    expect(
+      screen.getAllByText(/entry signal if not held/i).length,
+    ).toBeGreaterThan(0)
+    expect(document.body.textContent).toMatch(
+      /avoid\s*·\s*current setup:\s*hold\s*·\s*strength 2\/10\s*·\s*starter size 1.0%/i,
+    )
     expect(
       screen.getByText(
         /no jenny\/data reasoning is attached to this decision yet/i,

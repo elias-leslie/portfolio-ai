@@ -101,13 +101,19 @@ function shouldShowTradingSetup(data?: SymbolIntelligence | null) {
   return group === 'buy' || group === 'hold' || group === 'review'
 }
 
-function formatLiveSignalEvidence(data?: SymbolIntelligence | null) {
+function formatEntrySignalEvidence(data?: SymbolIntelligence | null) {
+  const ifNotHeld = data?.recommendation?.ifNotHeld
   const parts = [
+    ifNotHeld?.action
+      ? formatEnumLabel(ifNotHeld.action, 'Review')
+      : data?.signal?.type
+        ? formatEnumLabel(data.signal.type, 'Signal unavailable')
+        : null,
     data?.scores?.overall != null
       ? `Score ${data.scores.overall.toFixed(0)}`
       : null,
-    data?.signal?.type
-      ? formatEnumLabel(data.signal.type, 'Signal unavailable')
+    ifNotHeld && data?.signal?.type
+      ? `${formatEnumLabel(data.signal.type)} signal`
       : null,
     data?.signal?.strength != null
       ? `setup strength ${data.signal.strength}/10`
@@ -117,7 +123,10 @@ function formatLiveSignalEvidence(data?: SymbolIntelligence | null) {
       : null,
   ].filter((part): part is string => Boolean(part))
 
-  return parts.length > 0 ? parts.join(' · ') : null
+  if (parts.length === 0) {
+    return null
+  }
+  return `${data?.portfolio?.held ? 'Entry signal if not held' : 'Live entry signal'}: ${parts.join(' · ')}`
 }
 
 function DecisionReasonList({ reasons }: { reasons: string[] }) {
@@ -211,11 +220,10 @@ export function SymbolDecisionPanel({
   const decision = data?.decision ?? null
   const decisionMeta = formatDecisionMeta(decision)
   const conflict = hasMaterialConflict(decision, data?.recommendation)
-  const liveSignalEvidence = formatLiveSignalEvidence(data)
+  const entrySignalEvidence = formatEntrySignalEvidence(data)
   const showTradingSetup = shouldShowTradingSetup(data)
   const isHeld = Boolean(data?.portfolio?.held)
   const showIfNotHeld =
-    !isHeld &&
     decision?.sourceKind === 'live_signal_model' &&
     Boolean(data?.recommendation?.ifNotHeld)
 
@@ -283,9 +291,9 @@ export function SymbolDecisionPanel({
                   </p>
                 </div>
               </div>
-              {liveSignalEvidence ? (
+              {entrySignalEvidence ? (
                 <p className="mt-3 text-xs uppercase tracking-[0.16em] text-text-muted">
-                  {liveSignalEvidence}
+                  {entrySignalEvidence}
                 </p>
               ) : null}
             </div>
@@ -293,10 +301,10 @@ export function SymbolDecisionPanel({
 
           {!conflict &&
           decision?.sourceKind !== 'live_signal_model' &&
-          liveSignalEvidence ? (
+          entrySignalEvidence ? (
             <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4 text-sm text-text-muted">
               <p className="font-semibold text-text">Supporting live data</p>
-              <p className="mt-2">{liveSignalEvidence}</p>
+              <p className="mt-2">{entrySignalEvidence}</p>
             </div>
           ) : null}
 
@@ -304,15 +312,24 @@ export function SymbolDecisionPanel({
 
           {showIfNotHeld && data?.recommendation?.ifNotHeld ? (
             <div className="rounded-2xl border border-border/40 bg-primary/5 p-4 text-sm text-text">
-              If you do not own it yet:{' '}
-              {formatEnumLabel(data.recommendation.ifNotHeld.action, 'Review')}{' '}
-              ·{' '}
-              {formatIfNotHeldReasoning(
-                data.recommendation.ifNotHeld.reasoning,
-              )}
-              {data.recommendation.ifNotHeld.sizePct != null
-                ? ` · Starter size ${data.recommendation.ifNotHeld.sizePct.toFixed(1)}%`
-                : ''}
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                {isHeld
+                  ? 'Entry signal if not held'
+                  : 'If you do not own it yet'}
+              </p>
+              <p className="mt-2">
+                {formatEnumLabel(
+                  data.recommendation.ifNotHeld.action,
+                  'Review',
+                )}{' '}
+                ·{' '}
+                {formatIfNotHeldReasoning(
+                  data.recommendation.ifNotHeld.reasoning,
+                )}
+                {data.recommendation.ifNotHeld.sizePct != null
+                  ? ` · Starter size ${data.recommendation.ifNotHeld.sizePct.toFixed(1)}%`
+                  : ''}
+              </p>
             </div>
           ) : null}
 
