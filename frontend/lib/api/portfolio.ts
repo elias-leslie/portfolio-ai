@@ -5,11 +5,24 @@
 import { del, get, post, put } from './client'
 
 // Types matching backend Pydantic models
+export type HouseholdLinkageState =
+  | 'linked'
+  | 'standalone_by_design'
+  | 'unmapped'
+  | 'duplicate_candidate'
+  | 'stale_evidence'
+
 export interface Account {
   id: string
   name: string
   accountType: string
   householdAccountId: string | null
+  householdLinkageState?: HouseholdLinkageState
+  householdLinkageLabel?: string
+  householdLinkageDetail?: string | null
+  householdLinkageActionHref?: string | null
+  householdLinkageCandidateCount?: number
+  householdLinkageCandidateIds?: string[]
   cashBalance: number
   createdAt: string
   updatedAt: string

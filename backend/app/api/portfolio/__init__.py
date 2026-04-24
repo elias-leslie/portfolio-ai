@@ -13,6 +13,11 @@ from starlette.concurrency import run_in_threadpool
 
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response, invalidate_endpoint_cache
+from app.portfolio.account_linkage import (
+    AccountLinkage,
+    build_account_linkages,
+    classify_account_linkage,
+)
 from app.portfolio.account_valuation import (
     calculate_account_valuations,
     summarize_quote_freshness,
@@ -137,13 +142,17 @@ def _household_cash_overrides(dashboard: Any | None) -> dict[str, float]:
     return overrides
 
 
-def _get_portfolio_payload(include_paper: bool) -> PortfolioResponse:
-    accounts, account_ids, positions = _get_filtered_accounts_and_positions(include_paper)
-    household_dashboard = None
+def _get_household_dashboard() -> Any | None:
     try:
-        household_dashboard = _household_service().get_dashboard()
+        return _household_service().get_dashboard()
     except Exception as exc:
         logger.warning("portfolio_household_dashboard_unavailable", error=str(exc))
+        return None
+
+
+def _get_portfolio_payload(include_paper: bool) -> PortfolioResponse:
+    accounts, account_ids, positions = _get_filtered_accounts_and_positions(include_paper)
+    household_dashboard = _get_household_dashboard()
     effective_totals = get_effective_portfolio_totals(
         _storage(),
         include_paper=include_paper,
@@ -238,22 +247,37 @@ def _get_portfolio_payload(include_paper: bool) -> PortfolioResponse:
     )
 
 
+def _build_account_response(acc: Any, linkage: AccountLinkage | None = None) -> AccountResponse:
+    resolved_linkage = linkage or classify_account_linkage(acc, [])
+    return AccountResponse(
+        id=acc.id,
+        name=acc.name,
+        account_type=acc.account_type,
+        household_account_id=acc.household_account_id,
+        household_linkage_state=resolved_linkage.state,
+        household_linkage_label=resolved_linkage.label,
+        household_linkage_detail=resolved_linkage.detail,
+        household_linkage_action_href=resolved_linkage.action_href,
+        household_linkage_candidate_count=resolved_linkage.candidate_count,
+        household_linkage_candidate_ids=resolved_linkage.candidate_ids,
+        cash_balance=acc.cash_balance,
+        created_at=acc.created_at.isoformat(),
+        updated_at=acc.updated_at.isoformat(),
+    )
+
+
 def _get_accounts_payload(include_paper: bool) -> list[AccountResponse]:
     accounts = _portfolio_mgr().get_accounts()
 
     if not include_paper:
         accounts = [acc for acc in accounts if acc.account_type != "paper"]
 
+    household_dashboard = _get_household_dashboard()
+    household_accounts = list(getattr(household_dashboard, "accounts", []) or [])
+    linkages = build_account_linkages(accounts, household_accounts)
+
     return [
-        AccountResponse(
-            id=acc.id,
-            name=acc.name,
-            account_type=acc.account_type,
-            household_account_id=acc.household_account_id,
-            cash_balance=acc.cash_balance,
-            created_at=acc.created_at.isoformat(),
-            updated_at=acc.updated_at.isoformat(),
-        )
+        _build_account_response(acc, linkages.get(acc.id))
         for acc in accounts
     ]
 
@@ -275,15 +299,7 @@ def _create_account_payload(account: AccountCreate) -> AccountResponse:
         (account for account in _portfolio_mgr().get_accounts() if account.id == created.id),
         created,
     )
-    return AccountResponse(
-        id=persisted.id,
-        name=persisted.name,
-        account_type=persisted.account_type,
-        household_account_id=persisted.household_account_id,
-        cash_balance=persisted.cash_balance,
-        created_at=persisted.created_at.isoformat(),
-        updated_at=persisted.updated_at.isoformat(),
-    )
+    return _build_account_response(persisted)
 
 
 def _delete_account_payload(account_id: str) -> dict[str, str]:
