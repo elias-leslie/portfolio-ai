@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -9,7 +10,13 @@ from fastapi import Response
 
 from app.api.health import (
     STALE_MAINTENANCE_RUNS_QUERY,
+    _build_automation_decision_domain,
     _build_freshness_summary_payload,
+    _build_household_decision_domain,
+    _build_market_data_decision_domain,
+    _build_prediction_macro_decision_domain,
+    _build_source_decision_domain,
+    _summarize_decision_data_domains,
     detailed_health_check,
     get_recent_remediations,
     get_stale_maintenance_runs,
@@ -324,6 +331,169 @@ def test_freshness_summary_marks_stale_tables_as_warning() -> None:
     assert payload["message"] == "1 table getting old"
 
 
+def test_decision_data_domains_are_healthy_when_all_current() -> None:
+    market = _build_market_data_decision_domain(
+        {"status": "success", "message": "All checked tables are current", "fresh": 5, "stale": 0, "critical": 0}
+    )
+    prediction = _build_prediction_macro_decision_domain(
+        SimpleNamespace(
+            generated_at=datetime(2026, 4, 24, 13, 0, tzinfo=UTC),
+            freshness_summary=SimpleNamespace(
+                state="fresh",
+                summary="Snapshot aligned with current market session.",
+                invalidated=False,
+                reason_codes=[],
+                critical_clusters=[
+                    SimpleNamespace(cluster="macro_calendar", freshness="fresh", detail=None),
+                ],
+            ),
+        )
+    )
+    household = _build_household_decision_domain(
+        SimpleNamespace(
+            generated_at="2026-04-24T13:00:00+00:00",
+            overview=SimpleNamespace(
+                monthly_spend_status="current",
+                monthly_spend_detail="Monthly spend reflects current covered transaction accounts.",
+                net_worth_status="current",
+                net_worth_detail="Net worth reflects current covered accounts.",
+                needs_refresh_count=0,
+                gap_count=0,
+                inbox_count=0,
+                coverage_months=6,
+                last_transaction_date="2026-04-23",
+            ),
+        )
+    )
+    automation = _build_automation_decision_domain(
+        SimpleNamespace(
+            status="healthy",
+            total_workflows_24h=2,
+            successful_workflows=2,
+            failed_workflows=0,
+            blocked_workflows=0,
+            last_successful_workflow=datetime(2026, 4, 24, 13, 0, tzinfo=UTC),
+            last_successful_type="daily_operator",
+        ),
+        now=datetime(2026, 4, 24, 14, 0, tzinfo=UTC),
+    )
+    sources = _build_source_decision_domain(
+        {"polygon": SimpleNamespace(status="ok", last_success=datetime(2026, 4, 24, 13, 0, tzinfo=UTC))},
+        [SimpleNamespace(source_name="Polygon", configured=True)],
+    )
+
+    health = _summarize_decision_data_domains([market, prediction, household, automation, sources])
+
+    assert health.status == "healthy"
+    assert health.message == "All decision-data domains are current."
+
+
+def test_decision_data_prediction_macro_marks_stale_macro_calendar() -> None:
+    domain = _build_prediction_macro_decision_domain(
+        SimpleNamespace(
+            generated_at=datetime(2026, 4, 24, 13, 0, tzinfo=UTC),
+            freshness_summary=SimpleNamespace(
+                state="aging",
+                summary="Snapshot still usable.",
+                invalidated=False,
+                reason_codes=["macro_calendar_stale"],
+                critical_clusters=[
+                    SimpleNamespace(
+                        cluster="macro_calendar",
+                        freshness="stale",
+                        detail="Macro calendar table stale.",
+                    ),
+                ],
+            ),
+        )
+    )
+
+    assert domain.status == "stale"
+    assert domain.severity == "warning"
+    assert domain.message == "Macro calendar table stale."
+
+
+def test_decision_data_household_marks_stale_spend_evidence() -> None:
+    domain = _build_household_decision_domain(
+        SimpleNamespace(
+            generated_at="2026-04-24T13:00:00+00:00",
+            overview=SimpleNamespace(
+                monthly_spend_status="stale",
+                monthly_spend_detail="2 spending accounts should refresh before review.",
+                net_worth_status="current",
+                needs_refresh_count=2,
+                gap_count=0,
+                inbox_count=1,
+                coverage_months=4,
+            ),
+        )
+    )
+
+    assert domain.status == "stale"
+    assert domain.severity == "critical"
+    assert domain.evidence["needs_refresh_count"] == 2
+
+
+def test_decision_data_automation_marks_no_runs_as_missing() -> None:
+    domain = _build_automation_decision_domain(
+        SimpleNamespace(
+            status="healthy",
+            total_workflows_24h=0,
+            successful_workflows=0,
+            failed_workflows=0,
+            blocked_workflows=0,
+            last_successful_workflow=None,
+        )
+    )
+
+    assert domain.status == "missing"
+    assert domain.severity == "critical"
+
+
+def test_decision_data_source_marks_disabled_provider_distinctly() -> None:
+    domain = _build_source_decision_domain(
+        {"polygon": SimpleNamespace(status="ok", last_success=datetime(2026, 4, 24, 13, 0, tzinfo=UTC))},
+        [
+            SimpleNamespace(source_name="Polygon", configured=True),
+            SimpleNamespace(source_name="AlphaVantage", configured=False),
+        ],
+    )
+
+    assert domain.status == "disabled"
+    assert domain.severity == "warning"
+    assert domain.evidence["disabled_sources"] == ["AlphaVantage"]
+
+
+def test_decision_data_source_marks_quota_limited_provider_distinctly() -> None:
+    domain = _build_source_decision_domain(
+        {
+            "alphavantage": SimpleNamespace(
+                status="ok",
+                last_success=datetime(2026, 4, 24, 13, 0, tzinfo=UTC),
+                rate_limit_hits=3,
+                in_cooldown=True,
+            )
+        },
+        [SimpleNamespace(source_name="AlphaVantage", configured=True)],
+    )
+
+    assert domain.status == "quota_limited"
+    assert domain.severity == "warning"
+    assert domain.evidence["quota_limited_sources"] == ["alphavantage"]
+
+
+def test_decision_data_summary_reports_mixed_degraded_and_critical_domains() -> None:
+    health = _summarize_decision_data_domains(
+        [
+            _build_market_data_decision_domain({"status": "critical", "critical": 1}),
+            _build_source_decision_domain({}, [SimpleNamespace(source_name="Polygon", configured=False)]),
+        ]
+    )
+
+    assert health.status == "critical"
+    assert health.message == "2 of 2 decision-data domains need review."
+
+
 @pytest.mark.asyncio
 async def test_health_check_runs_service_in_threadpool(
     monkeypatch: pytest.MonkeyPatch,
@@ -391,9 +561,13 @@ async def test_detailed_health_check_runs_service_in_threadpool(
     async def fake_get_stale_maintenance_runs() -> list[dict[str, object]]:
         return []
 
+    async def fake_get_decision_data_health(**_kwargs) -> dict[str, object]:
+        return {"status": "healthy", "message": "All current.", "domains": []}
+
     monkeypatch.setattr("app.api.health._get_health_service", fake_get_health_service)
     monkeypatch.setattr("app.api.health.run_in_threadpool", fake_run_in_threadpool)
     monkeypatch.setattr("app.api.health.get_data_freshness_summary", fake_get_data_freshness_summary)
+    monkeypatch.setattr("app.api.health.get_decision_data_health", fake_get_decision_data_health)
     monkeypatch.setattr("app.api.health.get_recent_remediations", fake_get_recent_remediations)
     monkeypatch.setattr("app.api.health.get_stale_maintenance_runs", fake_get_stale_maintenance_runs)
 

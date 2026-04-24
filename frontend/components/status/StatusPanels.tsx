@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge'
 import type {
   ApiQuotaInfo,
   DataFreshnessStatus,
+  DecisionDataDomain,
+  DecisionDataHealth,
   HealthCheckResult,
   HealthServiceStatus,
   RecentRemediation,
@@ -87,30 +89,116 @@ export function EmptyPanelMessage({ message }: { message: string }) {
   )
 }
 
-function dataFreshnessBadgeVariant(status: string | undefined) {
-  switch (status) {
-    case 'success':
+function decisionSeverityVariant(
+  severity: DecisionDataDomain['severity'] | undefined,
+) {
+  switch (severity) {
+    case 'healthy':
       return 'success'
     case 'critical':
       return 'error'
     case 'warning':
-    case 'error':
       return 'warning'
     default:
       return 'secondary'
   }
 }
 
-function dataFreshnessBadgeLabel(status: string | undefined) {
+function decisionHealthVariant(
+  status: DecisionDataHealth['status'] | undefined,
+) {
   switch (status) {
-    case 'success':
-      return 'Current'
+    case 'healthy':
+      return 'success'
     case 'critical':
-      return 'Overdue'
-    case 'warning':
-      return 'Needs attention'
+      return 'error'
+    case 'degraded':
+      return 'warning'
     default:
-      return formatEnumLabel(status, 'Unknown')
+      return 'secondary'
+  }
+}
+
+function evidenceValue(
+  evidence: Record<string, unknown> | undefined,
+  ...keys: string[]
+) {
+  for (const key of keys) {
+    if (evidence && key in evidence) return evidence[key]
+  }
+  return undefined
+}
+
+function evidenceNumber(
+  evidence: Record<string, unknown> | undefined,
+  ...keys: string[]
+) {
+  const value = evidenceValue(evidence, ...keys)
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function evidenceString(
+  evidence: Record<string, unknown> | undefined,
+  ...keys: string[]
+) {
+  const value = evidenceValue(evidence, ...keys)
+  return typeof value === 'string' && value.trim() ? value : null
+}
+
+function evidenceArrayCount(
+  evidence: Record<string, unknown> | undefined,
+  ...keys: string[]
+) {
+  const value = evidenceValue(evidence, ...keys)
+  return Array.isArray(value) ? value.length : 0
+}
+
+function decisionEvidenceLine(domain: DecisionDataDomain) {
+  const evidence = domain.evidence
+  switch (domain.key) {
+    case 'market_data': {
+      return `${formatInteger(evidenceNumber(evidence, 'fresh'))} current, ${formatInteger(evidenceNumber(evidence, 'stale'))} getting old, ${formatInteger(evidenceNumber(evidence, 'critical'))} overdue`
+    }
+    case 'automation_recency': {
+      return `${formatInteger(evidenceNumber(evidence, 'total_workflows_24h', 'totalWorkflows24h'))} runs · ${formatInteger(evidenceNumber(evidence, 'failed_workflows', 'failedWorkflows'))} failed · ${formatInteger(evidenceNumber(evidence, 'blocked_workflows', 'blockedWorkflows'))} stuck`
+    }
+    case 'source_connectivity': {
+      return `${formatInteger(evidenceNumber(evidence, 'connected_sources', 'connectedSources'))} connected · ${formatInteger(evidenceArrayCount(evidence, 'disabled_sources', 'disabledSources'))} disabled · ${formatInteger(evidenceArrayCount(evidence, 'quota_limited_sources', 'quotaLimitedSources'))} quota-limited`
+    }
+    case 'household_evidence': {
+      return `Net worth ${formatEnumLabel(evidenceString(evidence, 'net_worth_status', 'netWorthStatus'), 'unknown')} · Spend ${formatEnumLabel(evidenceString(evidence, 'monthly_spend_status', 'monthlySpendStatus'), 'unknown')}`
+    }
+    case 'prediction_macro': {
+      return `Snapshot ${formatEnumLabel(evidenceString(evidence, 'state'), 'unknown')} · Macro ${formatEnumLabel(evidenceString(evidence, 'macro_freshness', 'macroFreshness'), 'unknown')}`
+    }
+    default:
+      return null
+  }
+}
+
+function sourceStatePresentation(source: SourceHealthCheck): {
+  label: string
+  variant: 'success' | 'warning' | 'error' | 'secondary'
+} {
+  if (source.inCooldown || (source.rateLimitHits ?? 0) > 0) {
+    return { label: 'quota-limited', variant: 'warning' }
+  }
+  if (source.status === 'ok') {
+    return { label: 'connected', variant: 'success' }
+  }
+  if (
+    source.statusReason?.toLowerCase().includes('older') ||
+    source.statusReason?.toLowerCase().includes('no successful') ||
+    !source.lastSuccess
+  ) {
+    return {
+      label: 'stale',
+      variant: source.status === 'down' ? 'error' : 'warning',
+    }
+  }
+  return {
+    label: source.status,
+    variant: checkVariant(source.status),
   }
 }
 
@@ -165,10 +253,58 @@ export function SystemChecksPanel({
 
 export function ServicePulsePanel({
   serviceRows,
+}: {
+  serviceRows: Array<[string, HealthServiceStatus]>
+}) {
+  return (
+    <SectionCard
+      variant="surface"
+      title="Service Uptime"
+      description="Backend, frontend, and worker processes only."
+    >
+      <div className="grid gap-3">
+        {serviceRows.length === 0 ? (
+          <EmptyPanelMessage message="No app-service status entries are available right now." />
+        ) : (
+          serviceRows.map(([name, service]) => (
+            <div
+              key={name}
+              className="flex items-center justify-between gap-3 rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
+            >
+              <div>
+                <p className="text-sm font-semibold capitalize text-text">
+                  {formatServiceName(name, service.serviceName)}
+                </p>
+                <p className="mt-1 text-sm text-text-muted">
+                  {service.message ||
+                    service.status ||
+                    'No service detail provided'}
+                </p>
+                {service.pid || service.port ? (
+                  <p className="mt-2 text-xs text-text-muted">
+                    {service.pid ? `PID ${service.pid}` : 'PID unavailable'}
+                    {service.pid && service.port ? ' · ' : ''}
+                    {service.port ? `Port ${service.port}` : ''}
+                  </p>
+                ) : null}
+              </div>
+              <Badge variant={isServiceActive(service) ? 'success' : 'warning'}>
+                {isServiceActive(service) ? 'active' : 'inactive'}
+              </Badge>
+            </div>
+          ))
+        )}
+      </div>
+    </SectionCard>
+  )
+}
+
+export function DecisionDataHealthPanel({
+  decisionDataHealth,
   dataFreshnessStatus,
   workflowHealth,
 }: {
-  serviceRows: Array<[string, HealthServiceStatus]>
+  decisionDataHealth: DecisionDataHealth | undefined
   dataFreshnessStatus: DataFreshnessStatus | undefined
   workflowHealth: WorkflowHealthInfo | null | undefined
 }) {
@@ -176,138 +312,131 @@ export function ServicePulsePanel({
     (workflowHealth?.successfulWorkflows ?? 0) +
     (workflowHealth?.failedWorkflows ?? 0)
   const totalWorkflowCount = getWorkflowCount(workflowHealth)
+  const displayedHealth =
+    decisionDataHealth ??
+    (dataFreshnessStatus || workflowHealth
+      ? {
+          status: 'unknown' as const,
+          message: 'Decision-data health contract unavailable.',
+          domains: [],
+        }
+      : undefined)
 
   return (
     <SectionCard
       variant="surface"
-      title="App Health"
-      description="What is running, whether the data is current, and whether background jobs are keeping up."
+      title="Decision Data Health"
+      description="Freshness and coverage for evidence used by forecasts, money views, automation, and data-source decisions."
     >
-      <div className="space-y-4">
-        <div className="grid gap-3">
-          {serviceRows.length === 0 ? (
-            <EmptyPanelMessage message="No app-service status entries are available right now." />
-          ) : (
-            serviceRows.map(([name, service]) => (
-              <div
-                key={name}
-                className="flex items-center justify-between gap-3 rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
-              >
-                <div>
-                  <p className="text-sm font-semibold capitalize text-text">
-                    {formatServiceName(name, service.serviceName)}
-                  </p>
-                  <p className="mt-1 text-sm text-text-muted">
-                    {service.message ||
-                      service.status ||
-                      'No service detail provided'}
-                  </p>
-                  {service.pid || service.port ? (
-                    <p className="mt-2 text-xs text-text-muted">
-                      {service.pid ? `PID ${service.pid}` : 'PID unavailable'}
-                      {service.pid && service.port ? ' · ' : ''}
-                      {service.port ? `Port ${service.port}` : ''}
-                    </p>
-                  ) : null}
-                </div>
-                <Badge
-                  variant={isServiceActive(service) ? 'success' : 'warning'}
-                >
-                  {isServiceActive(service) ? 'active' : 'inactive'}
-                </Badge>
-              </div>
-            ))
-          )}
-        </div>
-
-        {dataFreshnessStatus ? (
-          <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-text">Data recency</p>
-              <Badge
-                variant={dataFreshnessBadgeVariant(dataFreshnessStatus.status)}
-              >
-                {dataFreshnessBadgeLabel(dataFreshnessStatus.status)}
-              </Badge>
-            </div>
-            <p className="mt-2 text-sm text-text-muted">
-              Last check {formatRelativeTime(dataFreshnessStatus.lastCheck)}
-            </p>
-            {dataFreshnessStatus.message ? (
-              <p className="mt-2 text-sm text-text-muted">
-                {dataFreshnessStatus.message}
-              </p>
-            ) : null}
-            <p className="mt-2 text-sm text-text-muted">
-              {formatInteger(dataFreshnessStatus.fresh)} current,{' '}
-              {formatInteger(dataFreshnessStatus.stale)} getting old,{' '}
-              {formatInteger(dataFreshnessStatus.critical)} overdue
-            </p>
-            {dataFreshnessStatus.remediationsTriggered ? (
-              <p className="mt-2 text-sm text-text-muted">
-                Auto-fixes ran{' '}
-                {formatInteger(dataFreshnessStatus.remediationsTriggered)} time
-                {dataFreshnessStatus.remediationsTriggered === 1 ? '' : 's'} in
-                the latest check.
-              </p>
-            ) : null}
-            {dataFreshnessStatus.error ? (
-              <p className="mt-2 text-sm text-loss">
-                Data recency issue: {dataFreshnessStatus.error}
-              </p>
-            ) : null}
-          </div>
-        ) : (
-          <EmptyPanelMessage message="No data-recency summary is available right now." />
-        )}
-
-        {workflowHealth ? (
+      {displayedHealth ? (
+        <div className="space-y-4">
           <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-semibold text-text">
-                Automation health
+                Decision-data snapshot
               </p>
-              <Badge
-                variant={
-                  workflowHealth.status === 'healthy'
-                    ? 'success'
-                    : workflowHealth.status === 'critical'
-                      ? 'error'
-                      : 'warning'
-                }
-              >
-                {formatEnumLabel(workflowHealth.status, 'Unknown')}
+              <Badge variant={decisionHealthVariant(displayedHealth.status)}>
+                {formatEnumLabel(displayedHealth.status, 'Unknown')}
               </Badge>
             </div>
             <p className="mt-2 text-sm text-text-muted">
-              {completedWorkflowCount > 0
-                ? `${formatPercent(workflowHealth.successRate)} of ${formatInteger(completedWorkflowCount)} completed automation runs finished successfully in the last 24h.`
-                : workflowHealth.blockedWorkflows > 0
-                  ? `No automation runs finished in the last 24h. ${formatInteger(workflowHealth.blockedWorkflows)} ${workflowHealth.blockedWorkflows === 1 ? 'is' : 'are'} stuck or overdue.`
-                  : totalWorkflowCount && totalWorkflowCount > 0
-                    ? 'Automation started in the last 24h, but nothing has finished yet.'
-                    : 'No automation runs were recorded in the last 24h.'}
+              {displayedHealth.message}
             </p>
-            <p className="mt-2 text-sm text-text-muted">
-              {formatInteger(workflowHealth.failedWorkflows)} failed ·{' '}
-              {formatInteger(workflowHealth.blockedWorkflows)} stuck
-            </p>
-            <p className="mt-2 text-sm text-text-muted">
-              {workflowHealth.lastSuccessfulWorkflow
-                ? `Last success ${formatRelativeTime(workflowHealth.lastSuccessfulWorkflow)}`
-                : 'No successful automation run recorded yet.'}
-            </p>
-            {workflowHealth.lastSuccessfulType ? (
-              <p className="mt-2 text-sm text-text-muted">
-                Last successful automation:{' '}
-                {formatLabel(workflowHealth.lastSuccessfulType)}
-              </p>
-            ) : null}
           </div>
-        ) : (
-          <EmptyPanelMessage message="No automation-health summary is available right now." />
-        )}
-      </div>
+          <div className="grid gap-3">
+            {displayedHealth.domains.map((domain) => {
+              const evidenceLine = decisionEvidenceLine(domain)
+              return (
+                <div
+                  key={domain.key}
+                  className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-text">
+                      {domain.label}
+                    </p>
+                    <Badge variant={decisionSeverityVariant(domain.severity)}>
+                      {formatEnumLabel(domain.status, 'Unknown')}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-sm text-text-muted">
+                    {domain.message}
+                  </p>
+                  {domain.lastUpdated ? (
+                    <p className="mt-2 text-sm text-text-muted">
+                      Last updated {formatRelativeTime(domain.lastUpdated)}
+                    </p>
+                  ) : null}
+                  {evidenceLine ? (
+                    <p className="mt-2 text-sm text-text-muted">
+                      {evidenceLine}
+                    </p>
+                  ) : null}
+                </div>
+              )
+            })}
+          </div>
+          {!decisionDataHealth && dataFreshnessStatus?.status ? (
+            <p className="text-sm text-text-muted">
+              {dataFreshnessStatus.status === 'critical'
+                ? 'Overdue'
+                : dataFreshnessStatus.status === 'warning'
+                  ? 'Needs attention'
+                  : dataFreshnessStatus.status === 'success'
+                    ? 'Current'
+                    : formatEnumLabel(dataFreshnessStatus.status, 'Unknown')}
+            </p>
+          ) : null}
+          {!decisionDataHealth && dataFreshnessStatus?.message ? (
+            <p className="text-sm text-text-muted">
+              {dataFreshnessStatus.message}
+            </p>
+          ) : null}
+          {dataFreshnessStatus?.remediationsTriggered ? (
+            <p className="text-sm text-text-muted">
+              Auto-fixes ran{' '}
+              {formatInteger(dataFreshnessStatus.remediationsTriggered)} time
+              {dataFreshnessStatus.remediationsTriggered === 1 ? '' : 's'} in
+              the latest check.
+            </p>
+          ) : null}
+          {dataFreshnessStatus?.error ? (
+            <p className="text-sm text-loss">
+              Data recency issue: {dataFreshnessStatus.error}
+            </p>
+          ) : null}
+          {workflowHealth ? (
+            <div className="space-y-2 text-sm text-text-muted">
+              <p>
+                {completedWorkflowCount > 0
+                  ? `${formatPercent(workflowHealth.successRate)} of ${formatInteger(completedWorkflowCount)} completed automation runs finished successfully in the last 24h.`
+                  : workflowHealth.blockedWorkflows > 0
+                    ? `No automation runs finished in the last 24h. ${formatInteger(workflowHealth.blockedWorkflows)} ${workflowHealth.blockedWorkflows === 1 ? 'is' : 'are'} stuck or overdue.`
+                    : totalWorkflowCount && totalWorkflowCount > 0
+                      ? 'Automation started in the last 24h, but nothing has finished yet.'
+                      : 'No automation runs were recorded in the last 24h.'}
+              </p>
+              <p>
+                {formatInteger(workflowHealth.failedWorkflows)} failed ·{' '}
+                {formatInteger(workflowHealth.blockedWorkflows)} stuck
+              </p>
+              <p>
+                {workflowHealth.lastSuccessfulWorkflow
+                  ? `Last success ${formatRelativeTime(workflowHealth.lastSuccessfulWorkflow)}`
+                  : 'No successful automation run recorded yet.'}
+              </p>
+              {workflowHealth.lastSuccessfulType ? (
+                <p>
+                  Last successful automation:{' '}
+                  {formatLabel(workflowHealth.lastSuccessfulType)}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <EmptyPanelMessage message="No decision-data health summary is available right now." />
+      )}
     </SectionCard>
   )
 }
@@ -327,47 +456,50 @@ export function SourceHealthPanel({
         {sourceRows.length === 0 ? (
           <EmptyPanelMessage message="No data-source health signals are available right now." />
         ) : (
-          sourceRows.map(([name, source]) => (
-            <div
-              key={name}
-              className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-text">
-                  {formatLabel(name)}
-                </p>
-                <Badge variant={checkVariant(source.status)}>
-                  {source.status}
-                </Badge>
-              </div>
-              <div className="mt-3 grid gap-2 text-sm text-text-muted md:grid-cols-3">
-                <p>Request success: {formatPercent(source.successRate)}</p>
-                <p>Response time: {formatInteger(source.avgLatencyMs)}ms</p>
-                <p>
-                  Last good update:{' '}
-                  {source.lastSuccess
-                    ? formatRelativeTime(source.lastSuccess)
-                    : 'No successful fetch recorded'}
-                </p>
-              </div>
-              {source.statusReason ? (
-                <p className="mt-2 text-sm text-text-muted">
-                  Why: {source.statusReason}
-                </p>
-              ) : null}
-              {(source.rateLimitHits != null || source.inCooldown) && (
-                <div className="mt-2 grid gap-2 text-sm text-text-muted md:grid-cols-2">
-                  <p>Rate-limit hits: {formatInteger(source.rateLimitHits)}</p>
+          sourceRows.map(([name, source]) => {
+            const state = sourceStatePresentation(source)
+            return (
+              <div
+                key={name}
+                className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-text">
+                    {formatLabel(name)}
+                  </p>
+                  <Badge variant={state.variant}>{state.label}</Badge>
+                </div>
+                <div className="mt-3 grid gap-2 text-sm text-text-muted md:grid-cols-3">
+                  <p>Request success: {formatPercent(source.successRate)}</p>
+                  <p>Response time: {formatInteger(source.avgLatencyMs)}ms</p>
                   <p>
-                    Pause remaining:{' '}
-                    {source.inCooldown
-                      ? formatSeconds(source.cooldownRemainingSeconds)
-                      : 'clear'}
+                    Last good update:{' '}
+                    {source.lastSuccess
+                      ? formatRelativeTime(source.lastSuccess)
+                      : 'No successful fetch recorded'}
                   </p>
                 </div>
-              )}
-            </div>
-          ))
+                {source.statusReason ? (
+                  <p className="mt-2 text-sm text-text-muted">
+                    Why: {source.statusReason}
+                  </p>
+                ) : null}
+                {(source.rateLimitHits != null || source.inCooldown) && (
+                  <div className="mt-2 grid gap-2 text-sm text-text-muted md:grid-cols-2">
+                    <p>
+                      Rate-limit hits: {formatInteger(source.rateLimitHits)}
+                    </p>
+                    <p>
+                      Pause remaining:{' '}
+                      {source.inCooldown
+                        ? formatSeconds(source.cooldownRemainingSeconds)
+                        : 'clear'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )
+          })
         )}
       </div>
     </SectionCard>
@@ -474,7 +606,7 @@ export function QuotaCoveragePanel({
                   {quota.sourceName}
                 </p>
                 <Badge variant={quota.configured ? 'success' : 'secondary'}>
-                  {quota.configured ? 'connected' : 'needs key'}
+                  {quota.configured ? 'connected' : 'disabled'}
                 </Badge>
               </div>
               <p className="mt-2 text-sm text-text-muted">

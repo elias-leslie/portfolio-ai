@@ -92,6 +92,39 @@ export interface DataFreshnessStatus {
   error?: string
 }
 
+export type DecisionDataDomainStatus =
+  | 'current'
+  | 'aging'
+  | 'stale'
+  | 'missing'
+  | 'disabled'
+  | 'quotaLimited'
+  | 'quota_limited'
+  | 'degraded'
+  | 'unknown'
+
+export type DecisionDataDomainSeverity =
+  | 'healthy'
+  | 'warning'
+  | 'critical'
+  | 'unknown'
+
+export interface DecisionDataDomain {
+  key: string
+  label: string
+  status: DecisionDataDomainStatus
+  severity: DecisionDataDomainSeverity
+  message: string
+  lastUpdated?: string | null
+  evidence: Record<string, unknown>
+}
+
+export interface DecisionDataHealth {
+  status: 'healthy' | 'degraded' | 'critical' | 'unknown'
+  message: string
+  domains: DecisionDataDomain[]
+}
+
 export interface RecentRemediation {
   tableName: string
   triggeredAt?: string | null
@@ -124,6 +157,7 @@ export interface DetailedHealthCheckResponse {
   apiQuotas: ApiQuotaInfo[]
   workflowHealth?: WorkflowHealthInfo | null
   dataFreshnessStatus?: DataFreshnessStatus
+  decisionDataHealth?: DecisionDataHealth
   recentRemediations: RecentRemediation[]
   staleMaintenanceRuns: StaleMaintenanceRun[]
 }
