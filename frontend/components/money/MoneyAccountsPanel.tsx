@@ -711,6 +711,7 @@ export function MoneyAccountsPanel({
                                     : 'outline'
                             }
                             className="bg-surface/70 text-text-muted"
+                            interactive={false}
                           />
                         ) : null}
                         <InfoBadge
@@ -718,6 +719,7 @@ export function MoneyAccountsPanel({
                           detail={accountCoverageDetail(account, topGap)}
                           variant="outline"
                           className="bg-surface/70 text-text-muted"
+                          interactive={false}
                         />
                       </div>
 

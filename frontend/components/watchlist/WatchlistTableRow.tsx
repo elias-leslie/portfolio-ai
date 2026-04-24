@@ -85,28 +85,19 @@ export function WatchlistTableRow({
             'bg-surface-muted/30 shadow-[inset_2px_0_0_0] shadow-primary/30',
           highlightedSymbol === item.symbol && 'bg-accent/10 animate-pulse',
         )}
-        role="button"
-        tabIndex={0}
-        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${item.symbol} details`}
-        aria-expanded={isExpanded}
-        aria-controls={`watchlist-row-${item.id}`}
         data-slot="table-row"
         data-recently-updated={
           recentlyUpdatedRows.has(item.id) ? 'true' : undefined
         }
         onClick={onToggle}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            onToggle()
-          }
-        }}
       >
         <TableCell data-slot="table-cell">
           <button
             type="button"
             className="rounded p-1 hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-            aria-label={isExpanded ? 'Collapse row' : 'Expand row'}
+            aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${item.symbol} details`}
+            aria-expanded={isExpanded}
+            aria-controls={`watchlist-row-${item.id}`}
             onClick={(event) => {
               event.stopPropagation()
               onToggle()
