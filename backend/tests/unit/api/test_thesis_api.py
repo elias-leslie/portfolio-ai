@@ -31,12 +31,22 @@ def test_generate_thesis_accepts_force_regenerate_without_symbol(mocker) -> None
         "created_at": "2026-03-07T10:00:00+00:00",
         "updated_at": "2026-03-07T10:00:00+00:00",
     }
+    decision_eligibility = {
+        "eligible": True,
+        "status": "eligible",
+        "reasons": [],
+        "age_hours": 2.0,
+        "evaluated_at": "2026-03-07T12:00:00+00:00",
+    }
 
     mocker.patch(
         "app.api.thesis._get_thesis_service",
         return_value=mocker.Mock(
             generate_thesis=mocker.Mock(return_value=thesis_payload),
             get_thesis_versions=mocker.Mock(return_value=[]),
+            evaluate_decision_eligibility=mocker.Mock(
+                return_value=decision_eligibility
+            ),
         ),
     )
 
@@ -47,3 +57,4 @@ def test_generate_thesis_accepts_force_regenerate_without_symbol(mocker) -> None
 
     assert response.status_code == 200
     assert response.json()["thesis"]["symbol"] == "AAPL"
+    assert response.json()["decision_eligibility"]["eligible"] is True

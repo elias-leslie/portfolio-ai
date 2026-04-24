@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from ..agents.llm_client import DualProviderClient
 from ..logging_config import get_logger
-from ..models.thesis import Thesis, ThesisStatus, ThesisVersion
+from ..models.thesis import Thesis, ThesisDecisionEligibility, ThesisStatus, ThesisVersion
 from ..portfolio.watchlist_sync import ensure_symbols_in_watchlist
 from ..storage import get_storage
 from .thesis.intelligence_fetcher import IntelligenceFetcher
 from .thesis.thesis_builder import ThesisBuilder
+from .thesis.thesis_eligibility import (
+    evaluate_thesis_decision_eligibility,
+    unavailable_thesis_eligibility,
+)
 from .thesis.thesis_generation import ThesisGenerator
 from .thesis.thesis_storage import ThesisStorageManager
 from .thesis.thesis_triggers import (
@@ -91,6 +97,28 @@ class ThesisService:
     def get_thesis_versions(self, symbol: str, limit: int = 10) -> list[ThesisVersion]:
         """Retrieve version history for symbol (newest first)."""
         return self._storage.get_thesis_versions(symbol, limit)
+
+    def evaluate_decision_eligibility(
+        self,
+        symbol: str,
+        thesis: Thesis | None = None,
+    ) -> ThesisDecisionEligibility:
+        """Evaluate whether the thesis can be shown as current decision evidence."""
+        symbol = symbol.upper()
+        thesis = thesis if thesis is not None else self.get_thesis(symbol)
+        if thesis is None:
+            return unavailable_thesis_eligibility()
+
+        intelligence: dict[str, Any] | None = None
+        try:
+            intelligence = self._fetcher.fetch(symbol)
+        except Exception as exc:
+            logger.warning(
+                "thesis_eligibility_intelligence_failed",
+                symbol=symbol,
+                error=str(exc),
+            )
+        return evaluate_thesis_decision_eligibility(thesis, intelligence)
 
     def invalidate_thesis(self, symbol: str, reason: str) -> Thesis | None:
         """Mark thesis as invalidated and increment version."""

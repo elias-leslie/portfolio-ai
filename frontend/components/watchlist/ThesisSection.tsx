@@ -11,6 +11,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import type { ThesisDecisionEligibility } from '@/lib/api/thesis'
 import { fetchThesis, generateThesis, invalidateThesis } from '@/lib/api/thesis'
 import { formatTimestamp } from './ExpandedRowUtils'
 import { ActionBadge } from './thesis/ActionBadge'
@@ -26,6 +27,49 @@ import { VersionHistorySection } from './thesis/VersionHistorySection'
 interface ThesisSectionProps {
   symbol: string
   userTimezone: string
+}
+
+function eligibilityBadgeLabel(status: ThesisDecisionEligibility['status']) {
+  switch (status) {
+    case 'invalidated':
+      return 'Invalidated'
+    case 'unavailable':
+      return 'Unavailable'
+    case 'review_required':
+      return 'Review required'
+    default:
+      return 'Current'
+  }
+}
+
+function ThesisEligibilityNotice({
+  eligibility,
+}: {
+  eligibility: ThesisDecisionEligibility
+}) {
+  if (eligibility.eligible && eligibility.reasons.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-text">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="warning">
+          {eligibilityBadgeLabel(eligibility.status)}
+        </Badge>
+        <p className="font-semibold">
+          Do not treat this thesis as current decision evidence.
+        </p>
+      </div>
+      {eligibility.reasons.length > 0 ? (
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-text-muted">
+          {eligibility.reasons.slice(0, 4).map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  )
 }
 
 /**
@@ -94,6 +138,7 @@ export function ThesisSection({ symbol, userTimezone }: ThesisSectionProps) {
   }
 
   const thesis = data?.thesis
+  const eligibility = data?.decisionEligibility
 
   // No thesis exists
   if (!thesis) {
@@ -147,6 +192,10 @@ export function ThesisSection({ symbol, userTimezone }: ThesisSectionProps) {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {eligibility ? (
+            <ThesisEligibilityNotice eligibility={eligibility} />
+          ) : null}
+
           {/* Core Reasons */}
           <CoreReasonsSection reasons={thesis.coreReasons} />
 

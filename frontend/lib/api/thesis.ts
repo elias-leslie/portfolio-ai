@@ -64,10 +64,19 @@ export interface ThesisVersion {
   updatedAt: string
 }
 
+export interface ThesisDecisionEligibility {
+  eligible: boolean
+  status: 'eligible' | 'review_required' | 'invalidated' | 'unavailable'
+  reasons: string[]
+  ageHours: number | null
+  evaluatedAt: string | null
+}
+
 export interface ThesisResponse {
   thesis: Thesis | null
   versions: ThesisVersion[]
   versionCount: number
+  decisionEligibility: ThesisDecisionEligibility
 }
 
 export interface GenerateThesisRequest {
