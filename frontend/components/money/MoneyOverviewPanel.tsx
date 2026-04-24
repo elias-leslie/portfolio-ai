@@ -394,16 +394,21 @@ export function MoneyOverviewPanel({
   const weekendSpendAllowance = Number.isFinite(weekendSpendRaw)
     ? Math.max(weekendSpendRaw, 0)
     : null
-  const safeSpendStatus =
-    spendTrustUnavailable || weekendSpendAllowance == null
+  const safeSpendStatus = spendTrustDegraded
+    ? 'review'
+    : weekendSpendAllowance == null
       ? 'mixed'
       : weekendSpendAllowance <= 0
         ? 'hold'
         : weekendSpendAllowance < 150
           ? 'tight'
           : 'safe'
-  const safeSpendSummary =
-    'Discretionary spend room against visible cash, due-soon bills, and the current plan.'
+  const safeSpendRepairItems = dashboard.inbox
+    .filter((item) => item.detail.toLowerCase().includes('safe to spend'))
+    .slice(0, 2)
+  const safeSpendSummary = spendTrustDegraded
+    ? 'Calculated from visible cash and plan, but stale account evidence blocks current safe-to-spend guidance.'
+    : 'Discretionary spend room against visible cash, due-soon bills, and the current plan.'
   const needsAmount = dashboard.reports.executive.averageMonthlyEssentials
   const wantsAmount = dashboard.reports.executive.averageMonthlyDiscretionary
   const trackedMonthlySpend = dashboard.reports.executive.averageMonthlySpend
@@ -593,6 +598,25 @@ export function MoneyOverviewPanel({
                   )}
                 </p>
               </div>
+              {spendTrustDegraded && safeSpendRepairItems.length > 0 ? (
+                <div className="mt-3 space-y-2 border-t border-border/30 pt-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-muted">
+                    Refresh blockers
+                  </p>
+                  {safeSpendRepairItems.map((item) => (
+                    <Link
+                      key={item.id}
+                      href={item.actionHref ?? '/money?tab=accounts'}
+                      className="block rounded-xl border border-border/40 bg-background/30 px-3 py-2 text-xs text-text-muted transition-colors hover:border-primary/40 hover:text-text"
+                    >
+                      <span className="font-medium text-text">
+                        {item.title}
+                      </span>
+                      <span className="mt-1 block">{item.detail}</span>
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
             <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">

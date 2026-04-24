@@ -403,4 +403,44 @@ describe('MoneyAccountsPanel', () => {
     expect(screen.getByText('Supporting documents')).toBeInTheDocument()
     expect(screen.getByText(/hint: main checking/i)).toBeInTheDocument()
   })
+
+  it('shows exact stale balance and transaction evidence dates by account', async () => {
+    const user = userEvent.setup()
+    render(
+      <MoneyAccountsPanel
+        accounts={[
+          {
+            ...accounts[0],
+            balanceFreshnessStatus: 'stale',
+            balanceFreshnessLabel: 'Stale',
+            transactionFreshnessStatus: 'stale',
+            transactionFreshnessLabel: 'Stale',
+            freshnessStatus: 'stale',
+            freshnessLabel: 'Stale',
+            lastBalanceAt: '2026-04-11',
+            daysSinceBalance: 13,
+            lastTransactionAt: '2026-04-14',
+            daysSinceTransaction: 10,
+          },
+        ]}
+        documents={documents}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /main checking/i }))
+
+    expect(
+      screen.getByText(
+        (_, element) =>
+          element?.textContent === 'Balance Stale · Apr 11, 2026 (13d old)',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        (_, element) =>
+          element?.textContent ===
+          'Transactions Stale · Apr 14, 2026 (10d old)',
+      ),
+    ).toBeInTheDocument()
+  })
 })
