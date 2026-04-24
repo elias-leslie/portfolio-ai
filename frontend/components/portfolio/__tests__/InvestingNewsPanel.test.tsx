@@ -1,16 +1,21 @@
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { NewsBundle } from '@/lib/api/news'
+import type { NewsBundle, NewsHealthResponse } from '@/lib/api/news'
 import type { PositionWithValue } from '@/lib/api/portfolio'
 import type { SentimentArticle, WatchlistItem } from '@/lib/api/watchlist'
 import { InvestingNewsPanel } from '../InvestingNewsPanel'
 
 const useNewsIntelligenceMock = vi.fn()
+const useNewsHealthMock = vi.fn()
 const useWatchlistNewsMock = vi.fn()
 
 vi.mock('@/lib/hooks/useNews', () => ({
   useNewsIntelligence: () => useNewsIntelligenceMock(),
   useWatchlistNews: () => useWatchlistNewsMock(),
+}))
+
+vi.mock('@/lib/hooks/useNewsHealth', () => ({
+  useNewsHealth: () => useNewsHealthMock(),
 }))
 
 function buildArticle(
@@ -72,10 +77,41 @@ function buildPosition(
   }
 }
 
+function buildNewsHealth(
+  overrides: Partial<NewsHealthResponse> = {},
+): NewsHealthResponse {
+  return {
+    status: 'healthy',
+    message: 'News pipeline healthy.',
+    finbertAvailable: true,
+    qualityModelAvailable: true,
+    qualityScoringMode: 'model',
+    marketLastRefreshedAt: '2026-04-24T12:00:00Z',
+    watchlistLastRefreshedAt: '2026-04-24T12:00:00Z',
+    latestRefreshedAt: '2026-04-24T12:00:00Z',
+    latestRefreshAgeHours: 1,
+    fallbackHeadlines24H: 0,
+    headlines24H: 12,
+    cacheTtlHours: 6,
+    lookbackWindowHours: 24,
+    fallbackRate24H: 0,
+    fallbackAvgLatencyMs24H: null,
+    fallbackP95LatencyMs24H: null,
+    fallbackLastEventAt: null,
+    sentimentRescored24H: 0,
+    vendors: {},
+    ...overrides,
+  }
+}
+
 describe('InvestingNewsPanel', () => {
   beforeEach(() => {
     useNewsIntelligenceMock.mockReset()
+    useNewsHealthMock.mockReset()
     useWatchlistNewsMock.mockReset()
+    useNewsHealthMock.mockReturnValue({
+      data: buildNewsHealth(),
+    })
     useNewsIntelligenceMock.mockReturnValue({
       data: {
         symbol: '__MARKET__',
@@ -228,6 +264,9 @@ describe('InvestingNewsPanel', () => {
         "Software stocks are plunging. Why that's a warning sign for the entire market - Yahoo Finance",
       ),
     ).not.toBeInTheDocument()
+    expect(screen.getByText('News review audit')).toBeInTheDocument()
+    expect(screen.getByText(/Reviewed 6 headlines/)).toBeInTheDocument()
+    expect(screen.getByText(/shown 3/)).toBeInTheDocument()
   })
 
   it('shows the quiet-state copy when only generic or irrelevant market noise is available', () => {
@@ -268,15 +307,79 @@ describe('InvestingNewsPanel', () => {
 
     expect(
       screen.getByText(
-        'Nothing decision-useful right now. Duplicated, generic, and non-portfolio headlines stay hidden on purpose.',
+        'Reviewed 2 headlines; none passed the decision-useful filter.',
       ),
     ).toBeInTheDocument()
+    expect(screen.getByText('News review audit')).toBeInTheDocument()
+    expect(screen.getByText(/suppressed 2/)).toBeInTheDocument()
+    expect(screen.getByText(/Generic market noise:/)).toBeInTheDocument()
     expect(screen.queryByText('Market Context')).not.toBeInTheDocument()
     expect(
       screen.queryByText(
         "Rubrik's Growth Engines Are Working, But 18% Dilution Risk Weighs On The Upside",
       ),
     ).not.toBeInTheDocument()
+  })
+
+  it('distinguishes no ingested news from suppressed news', () => {
+    render(<InvestingNewsPanel positions={[]} watchlistItems={[]} />)
+
+    expect(
+      screen.getByText('No ingested portfolio news reached this panel.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Reviewed 0 headlines/)).toBeInTheDocument()
+  })
+
+  it('shows source-disabled state when no decision-useful news is available', () => {
+    useNewsHealthMock.mockReturnValue({
+      data: buildNewsHealth({
+        status: 'degraded',
+        message: 'Some news sources are disabled.',
+        vendors: {
+          polygon: {
+            configured: false,
+            enabled: false,
+            active: false,
+            lastAttemptAt: null,
+            lastSuccessAt: null,
+            lastErrorAt: null,
+            lastError: null,
+            articlesLastFetch: 0,
+            articlesLast24H: 0,
+            lastArticleAt: null,
+            notes: null,
+            reason: 'missing credentials',
+          },
+        },
+      }),
+    })
+
+    render(<InvestingNewsPanel positions={[]} watchlistItems={[]} />)
+
+    expect(
+      screen.getByText('1 news source disabled or unconfigured'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Some news sources are disabled.'),
+    ).toBeInTheDocument()
+  })
+
+  it('shows stale source state when refresh age explains quiet news', () => {
+    useNewsHealthMock.mockReturnValue({
+      data: buildNewsHealth({
+        status: 'down',
+        message: 'No fresh news in 24h.',
+        latestRefreshAgeHours: 14,
+        cacheTtlHours: 6,
+      }),
+    })
+
+    render(<InvestingNewsPanel positions={[]} watchlistItems={[]} />)
+
+    expect(
+      screen.getByText('Latest refresh 14.0h old; expected every 6.0h'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('No fresh news in 24h.')).toBeInTheDocument()
   })
 
   it('picks the best symbol article instead of only checking the first recent headline', () => {
