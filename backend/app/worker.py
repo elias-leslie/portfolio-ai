@@ -48,6 +48,7 @@ from app.workflows.maintenance import (
     vacuum_db_wf,
 )
 from app.workflows.market_prediction import (
+    market_macro_calendar_ingestion_wf,
     market_prediction_after_close_wf,
     market_prediction_morning_prep_wf,
     market_prediction_sunday_prep_wf,
@@ -166,7 +167,8 @@ def main() -> None:
             # Jenny (2)
             jenny_daily_operator_wf,
             jenny_weekly_learning_wf,
-            # Market Prediction (3)
+            # Market Prediction (4)
+            market_macro_calendar_ingestion_wf,
             market_prediction_morning_prep_wf,
             market_prediction_after_close_wf,
             market_prediction_sunday_prep_wf,

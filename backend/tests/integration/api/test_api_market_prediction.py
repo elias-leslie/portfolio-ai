@@ -258,6 +258,10 @@ def test_refresh_prediction_committee_forces_new_snapshot_and_clears_cached_get(
         "app.api.market.prediction_router._get_prediction_service",
         _fake_prediction_service,
     )
+    monkeypatch.setattr(
+        "app.api.market.prediction_router.ingest_macro_calendar_events",
+        lambda: {"status": "success", "events_updated": 0},
+    )
 
     cached_response = client.get("/api/market/prediction/committee?window_days=3")
     assert cached_response.status_code == 200

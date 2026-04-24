@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
 
 from app.constants import CACHE_TTL_SHORT
+from app.logging_config import get_logger
 from app.middleware.cache import cache_response, invalidate_endpoint_cache
 from app.models.market_prediction import (
     MarketPredictionCommitteeResponse,
@@ -19,8 +20,10 @@ from app.services.market_prediction_committee_service import (
 from app.services.market_prediction_seat_weighting_service import (
     MarketPredictionSeatWeightingService,
 )
+from app.tasks.market_data.macro_calendar_pipeline import ingest_macro_calendar_events
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 _state: dict[str, object] = {}
 
@@ -73,6 +76,10 @@ async def refresh_prediction_committee(
     service = _get_prediction_service()
     validated_window = _validate_window_days(window_days)
     _invalidate_prediction_caches()
+    try:
+        await run_in_threadpool(ingest_macro_calendar_events)
+    except Exception as exc:
+        logger.warning("macro_calendar_ingestion_for_refresh_failed", error=str(exc), exc_info=True)
     snapshot = await run_in_threadpool(service.generate_snapshot, window_days=validated_window)
     _invalidate_prediction_caches()
     return snapshot

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
+from app.logging_config import get_logger
 from app.services.market_prediction_cluster_weighting_service import (
     MarketPredictionClusterWeightingService,
 )
@@ -19,15 +21,19 @@ from app.services.market_prediction_evaluation_service import MarketPredictionEv
 from app.services.market_prediction_seat_weighting_service import (
     MarketPredictionSeatWeightingService,
 )
+from app.tasks.market_data.macro_calendar_pipeline import ingest_macro_calendar_events
 from app.utils.market_hours import is_trading_day
 
 from ..hatchet_app import hatchet
 from .data_refresh_schedules import (
+    MACRO_CALENDAR_INGESTION_CRONS,
     MARKET_PREDICTION_AFTER_CLOSE_CRONS,
     MARKET_PREDICTION_MORNING_CRONS,
     MARKET_PREDICTION_SUNDAY_CRONS,
 )
 from .models import EmptyInput
+
+logger = get_logger(__name__)
 
 
 def _concurrency(name: str) -> ConcurrencyExpression:
@@ -44,9 +50,22 @@ def run_market_prediction_cycle(
     evaluation_service: MarketPredictionEvaluationService | None = None,
     seat_weighting_service: MarketPredictionSeatWeightingService | None = None,
     cluster_weighting_service: MarketPredictionClusterWeightingService | None = None,
+    macro_calendar_ingestion_fn: Callable[..., dict[str, Any]] | None = ingest_macro_calendar_events,
     as_of_ts: datetime | None = None,
 ) -> dict[str, Any]:
     effective_ts = as_of_ts or datetime.now(UTC)
+    macro_calendar_ingestion: dict[str, Any]
+    if macro_calendar_ingestion_fn is None:
+        macro_calendar_ingestion = {"status": "skipped"}
+    else:
+        try:
+            macro_calendar_ingestion = macro_calendar_ingestion_fn(
+                start_date=effective_ts.date(),
+                horizon_days=365,
+            )
+        except Exception as exc:
+            logger.warning("macro_calendar_ingestion_for_prediction_failed", error=str(exc), exc_info=True)
+            macro_calendar_ingestion = {"status": "failed", "error": str(exc)}
     committee = committee_service or MarketPredictionCommitteeService()
     evaluation = evaluation_service or MarketPredictionEvaluationService()
     seat_weighting = seat_weighting_service or MarketPredictionSeatWeightingService()
@@ -75,7 +94,20 @@ def run_market_prediction_cycle(
         "as_of_ts": effective_ts.isoformat(),
         "generated_windows": generated_windows,
         "evaluations_completed": len(evaluations),
+        "macro_calendar_ingestion": macro_calendar_ingestion,
     }
+
+
+@hatchet.task(
+    name="portfolio-market-macro-calendar-ingestion",
+    input_validator=EmptyInput,
+    execution_timeout="600s",
+    retries=2,
+    on_crons=MACRO_CALENDAR_INGESTION_CRONS,
+    concurrency=_concurrency("portfolio-market-macro-calendar-ingestion"),
+)
+async def market_macro_calendar_ingestion_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    return await asyncio.to_thread(ingest_macro_calendar_events)
 
 
 @hatchet.task(

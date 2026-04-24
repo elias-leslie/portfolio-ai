@@ -92,6 +92,7 @@ def test_run_market_prediction_cycle_evaluates_then_backfills_reviews_and_genera
         evaluation_service=evaluation,
         seat_weighting_service=seat_weighting,
         cluster_weighting_service=cluster_weighting,
+        macro_calendar_ingestion_fn=lambda **_: {"status": "success", "events_updated": 2},
         as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
     )
 
@@ -112,3 +113,4 @@ def test_run_market_prediction_cycle_evaluates_then_backfills_reviews_and_genera
     ]
     assert result["generated_windows"] == [1, 3, 7, 14]
     assert result["evaluations_completed"] == 1
+    assert result["macro_calendar_ingestion"] == {"status": "success", "events_updated": 2}
