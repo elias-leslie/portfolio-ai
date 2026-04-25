@@ -208,3 +208,41 @@ def test_backfill_vote_evaluations_treats_small_realized_move_as_neutral_hit() -
     assert evaluation.vote_id == 22
     assert evaluation.realized_move_pct == pytest.approx(0.3)
     assert evaluation.direction_hit is True
+
+
+def test_backfill_vote_evaluations_scores_statistical_baseline_seat() -> None:
+    repo = _FakeRepo(
+        [
+            MarketPredictionVoteEvaluationCandidate(
+                vote_id=31,
+                run_id="run-baseline",
+                symbol="SPY",
+                window_days=3,
+                seat_key="baseline",
+                direction_label="bullish",
+                prob_up=0.58,
+                expected_move_pct=0.6,
+                base_date=date(2026, 4, 20),
+                target_date=date(2026, 4, 23),
+            )
+        ]
+    )
+    closes = {
+        ("SPY", date(2026, 4, 20)): 500.0,
+        ("SPY", date(2026, 4, 23)): 505.0,
+    }
+    service = MarketPredictionEvaluationService(
+        repository=repo,
+        price_lookup=lambda symbol, as_of_date: closes.get((symbol, as_of_date)),
+        evaluated_at_fn=lambda: datetime(2026, 4, 23, 22, 5, tzinfo=UTC),
+    )
+
+    results = service.backfill_vote_evaluations(
+        window_days=3,
+        as_of_ts=datetime(2026, 4, 23, 22, 5, tzinfo=UTC),
+    )
+
+    assert len(results) == 1
+    assert results[0].seat_key == "baseline"
+    assert results[0].direction_hit is True
+    assert results[0].brier_score == pytest.approx((1.0 - 0.58) ** 2)

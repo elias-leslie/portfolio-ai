@@ -636,7 +636,21 @@ def test_generate_snapshot_uses_weighted_committee_synthesis_and_additive_review
         "_build_source_snapshot",
         lambda _: {
             "clusters": {
-                "market_regime": {"freshness": "fresh"},
+                "market_regime": {
+                    "freshness": "fresh",
+                    "latest_closes": {
+                        "SPY": {"date": "2026-04-21", "close": 500.0},
+                        "QQQ": {"date": "2026-04-21", "close": 430.0},
+                        "IWM": {"date": "2026-04-21", "close": 205.0},
+                    },
+                },
+                "options_positioning": {
+                    "freshness": "fresh",
+                    "as_of_date": "2026-04-21",
+                    "call_pct": 0.54,
+                    "near_term_pct": 0.45,
+                    "concentration_pct": 0.15,
+                },
                 "macro_calendar": {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 1, "next_event_date": "2026-04-22"},
             }
         },
@@ -650,6 +664,7 @@ def test_generate_snapshot_uses_weighted_committee_synthesis_and_additive_review
             "next_event_date": "2026-04-22",
         },
     )
+    monkeypatch.setattr(service, "_build_statistical_baseline_votes", lambda **_: [], raising=False)
 
     result = service.generate_snapshot(
         window_days=3,
@@ -658,12 +673,15 @@ def test_generate_snapshot_uses_weighted_committee_synthesis_and_additive_review
         cluster_review=cluster_review,
     )
 
-    assert repo.calls[0].prob_up == pytest.approx(0.6713692625)
+    assert repo.calls[0].prob_up == pytest.approx(0.6199584837)
+    assert repo.calls[0].metadata["probability_calibration"]["raw_prob_up"] == pytest.approx(0.6713692625)
     assert repo.calls[0].expected_move_pct == pytest.approx(0.875)
-    assert repo.calls[0].confidence_score == pytest.approx(68.75)
+    assert repo.calls[0].confidence_score == pytest.approx(35.0)
     assert repo.calls[0].confidence_band_low_pct == pytest.approx(-1.0)
     assert repo.calls[0].confidence_band_high_pct == pytest.approx(2.0)
     assert repo.calls[0].committee_disagreement_score == pytest.approx(0.4)
+    assert repo.calls[0].metadata["publication_state"] == "no_edge"
+    assert repo.calls[0].metadata["abstain_reason_codes"] == ["high_disagreement"]
     assert repo.calls[0].metadata["aggregation_mode"] == "weighted_committee"
     assert repo.calls[0].metadata["active_seat_keys"] == ["macro", "risk"]
     assert repo.calls[0].metadata["active_cluster_keys"] == ["macro_calendar", "market_regime"]
@@ -919,7 +937,8 @@ def test_generate_snapshot_uses_single_seat_verbatim_consensus(monkeypatch) -> N
 
     result = service.generate_snapshot(window_days=3, as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC), review=review)
 
-    assert result.calls[0].prob_up == pytest.approx(0.8)
+    assert result.calls[0].prob_up == pytest.approx(0.71)
+    assert result.calls[0].metadata["probability_calibration"]["raw_prob_up"] == pytest.approx(0.8)
     assert result.calls[0].expected_move_pct == pytest.approx(2.0)
     assert result.calls[0].confidence_band_low_pct == pytest.approx(2.0)
     assert result.calls[0].confidence_band_high_pct == pytest.approx(2.0)
@@ -975,6 +994,95 @@ def test_generate_snapshot_falls_back_neutral_when_all_votes_use_unknown_seats(m
     assert result.calls[0].committee_disagreement_score == pytest.approx(0.0)
     assert result.calls[0].metadata["aggregation_mode"] == "neutral_fallback"
     assert result.calls[0].metadata["active_seat_keys"] == []
+
+
+def test_generate_snapshot_uses_statistical_baseline_when_agent_votes_are_empty(monkeypatch) -> None:
+    repo = _FakeRepo()
+    raw_payload = {
+        "_portfolio_execution_path": "committee_endpoint",
+        "calls": [],
+        "votes": [],
+    }
+    fake_client = _FakeRoundtableClient(raw_payload)
+    service = MarketPredictionCommitteeService(repository=repo, roundtable_client_factory=lambda **_: fake_client)
+    baseline_vote = CommitteeSeatVote(
+        seat_key="baseline",
+        agent_slug="statistical-baseline",
+        model_id="statistical-baseline-v1",
+        provider="portfolio-ai",
+        symbol="SPY",
+        window_days=3,
+        direction_label="bullish",
+        prob_up=0.6,
+        expected_move_pct=1.0,
+        confidence_score=55.0,
+        rationale_summary="Deterministic baseline.",
+        source_clusters=[{"cluster": "market_regime", "freshness": "fresh"}],
+        metadata={"baseline_version": "statistical-baseline-v1"},
+    )
+
+    monkeypatch.setattr("app.services.market_prediction_committee_service.get_expected_data_date", lambda _now: date(2026, 4, 21))
+    monkeypatch.setattr(
+        service,
+        "_build_source_snapshot",
+        lambda _: {
+            "clusters": {
+                "market_regime": {"freshness": "fresh", "latest_closes": {"SPY": {"date": "2026-04-21", "close": 500.0}}},
+                "options_positioning": {"freshness": "fresh", "as_of_date": "2026-04-21"},
+                "macro_calendar": {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 1, "next_event_date": "2026-04-22"},
+            }
+        },
+    )
+    monkeypatch.setattr(
+        service,
+        "_build_statistical_baseline_votes",
+        lambda **_: [baseline_vote],
+        raising=False,
+    )
+    monkeypatch.setattr("app.services.market_prediction_committee_service.get_macro_calendar_cluster", lambda **_: {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 1, "next_event_date": "2026-04-22"})
+
+    result = service.generate_snapshot(window_days=3, as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC))
+
+    assert repo.votes == [baseline_vote]
+    assert result.calls[0].metadata["aggregation_mode"] == "single_seat"
+    assert result.calls[0].metadata["active_seat_keys"] == ["baseline"]
+    assert result.calls[0].prob_up == pytest.approx(0.57)
+    assert result.calls[0].direction_label == "bullish"
+    assert result.calls[0].metadata["probability_calibration"]["version"] == "sample-shrink-v1"
+    assert result.calls[0].metadata["publication_state"] == "forecast"
+    assert result.committee_summary["baseline_vote_count"] == 1
+    assert result.committee_summary["publication_state"] == "forecast"
+    assert result.committee_summary["executed_seat_keys"] == ["baseline"]
+    assert len(repo.runs[0].metadata["prompt_hash"]) == 64
+    assert len(repo.runs[0].metadata["published_calls_hash"]) == 64
+
+
+def test_normalize_response_reconciles_stale_attribution_freshness(monkeypatch) -> None:
+    repo = _FakeRepo()
+    repo.snapshot = _response(
+        lead_call=_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4, "freshness": "fresh"}]),
+        calls=[_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4, "freshness": "fresh"}])],
+        source_snapshot={
+            "clusters": {
+                "market_regime": {
+                    "latest_closes": {
+                        "SPY": {"date": "2026-04-20", "close": 500.0},
+                        "XLK": {"date": "2026-04-20", "close": 210.0},
+                    }
+                },
+                "macro_calendar": {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 1, "next_event_date": "2026-04-22"},
+            }
+        },
+    )
+    service = MarketPredictionCommitteeService(repository=repo)
+    monkeypatch.setattr("app.services.market_prediction_committee_service.get_expected_data_date", lambda _now: date(2026, 4, 21))
+    monkeypatch.setattr("app.services.market_prediction_committee_service.get_macro_calendar_cluster", lambda **kwargs: kwargs.get("existing") or {})
+
+    result = service.get_committee_snapshot(window_days=3)
+
+    assert result is not None
+    assert result.source_snapshot["clusters"]["market_regime"]["freshness"] == "stale"
+    assert result.lead_call.top_source_clusters[0].freshness == "stale"
 
 
 

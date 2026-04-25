@@ -18,7 +18,9 @@ SeatRecommendedAction = Literal["upweight", "downweight", "hold"]
 ClusterRecommendedAction = Literal["upweight", "downweight", "hold"]
 ClusterFreshness = Literal["fresh", "stale", "missing", "unknown"]
 PredictionFreshnessState = Literal["fresh", "aging", "stale", "invalid", "degraded"]
+BASELINE_PREDICTION_SEAT_KEY = "baseline"
 SUPPORTED_ADAPTIVE_SEAT_KEYS = ("cross_asset", "macro", "risk")
+SUPPORTED_EVALUATED_SEAT_KEYS = (*SUPPORTED_ADAPTIVE_SEAT_KEYS, BASELINE_PREDICTION_SEAT_KEY)
 SUPPORTED_ADAPTIVE_CLUSTER_KEYS = (
     "market_regime",
     "sentiment",

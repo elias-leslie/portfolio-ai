@@ -259,6 +259,10 @@ export interface MarketPredictionCommitteeSummary {
   committeeExecutionPath?: CommitteeExecutionPath | null
   executedSeatKeys?: string[]
   truthState?: PredictionTruthState | null
+  publicationState?: string | null
+  abstainReasonCodes?: string[]
+  baselineVoteCount?: number | null
+  baselineSeatWeight?: number | null
   [key: string]: unknown
 }
 
@@ -299,6 +303,7 @@ export interface MarketPredictionCall {
   committeeDisagreementScore?: number | null
   rationaleSummary?: string | null
   topSourceClusters: PredictionSourceCluster[]
+  metadata?: Record<string, unknown> | null
 }
 
 export interface CommitteeSeatVote {
