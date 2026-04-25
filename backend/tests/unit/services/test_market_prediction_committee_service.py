@@ -774,7 +774,7 @@ def test_generate_snapshot_filters_zero_weight_supported_clusters_from_new_weigh
 
 
 
-def test_generate_snapshot_keeps_fallback_clusters_visible_but_out_of_active_weighted_attribution(monkeypatch) -> None:
+def test_generate_snapshot_ranks_fallback_clusters_when_scored_cluster_weights_exist(monkeypatch) -> None:
     repo = _FakeRepo()
     raw_payload = {
         "_portfolio_execution_path": "committee_endpoint",
@@ -792,13 +792,13 @@ def test_generate_snapshot_keeps_fallback_clusters_visible_but_out_of_active_wei
                         "cluster": "market_regime",
                         "weight": 0.9,
                         "freshness": "fresh",
-                        "note": "Derived fallback; tracked not ranked.",
+                        "note": "Awaiting scored history.",
                     },
                     {
                         "cluster": "macro_calendar",
                         "weight": 0.6,
                         "freshness": "stale",
-                        "note": "Derived fallback; tracked not ranked.",
+                        "note": "Awaiting scored history.",
                     },
                 ],
             },
@@ -814,7 +814,7 @@ def test_generate_snapshot_keeps_fallback_clusters_visible_but_out_of_active_wei
                         "cluster": "market_regime",
                         "weight": 0.5,
                         "freshness": "fresh",
-                        "note": "Derived fallback; tracked not ranked.",
+                        "note": "Awaiting scored history.",
                     }
                 ],
             },
@@ -863,10 +863,10 @@ def test_generate_snapshot_keeps_fallback_clusters_visible_but_out_of_active_wei
         cluster_review=cluster_review,
     )
 
-    assert result.calls[0].metadata["active_cluster_keys"] == []
-    assert [cluster.cluster for cluster in result.calls[0].top_source_clusters] == ["market_regime", "macro_calendar"]
-    assert [cluster.weight for cluster in result.calls[0].top_source_clusters] == [None, None]
-    assert {cluster.note for cluster in result.calls[0].top_source_clusters} == {"Derived fallback; tracked not ranked."}
+    assert result.calls[0].metadata["active_cluster_keys"] == ["market_regime"]
+    assert [cluster.cluster for cluster in result.calls[0].top_source_clusters] == ["market_regime"]
+    assert [cluster.weight for cluster in result.calls[0].top_source_clusters] == [pytest.approx(0.6)]
+    assert {cluster.note for cluster in result.calls[0].top_source_clusters} == {"Ranked by scored history."}
 
 
 

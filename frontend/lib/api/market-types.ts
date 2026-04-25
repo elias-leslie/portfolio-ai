@@ -373,6 +373,7 @@ export interface MarketPredictionSeatScorecard {
   priorWeight: number
   effectiveWeight: number
   sampleSize: number
+  avgConfidenceScore?: number | null
   directionHitRate?: number | null
   moveMaePct?: number | null
   brierScore?: number | null
@@ -394,6 +395,12 @@ export interface MarketPredictionSeatReviewResponse {
   reviewState: 'live' | 'warmup' | 'degraded'
   seatScorecards: MarketPredictionSeatScorecard[]
   reviewSummary: MarketPredictionReviewSummary
+  reviewHistory?: {
+    generatedAt: string
+    asOfTs: string
+    reviewState: 'live' | 'warmup' | 'degraded'
+    seatScorecards: MarketPredictionSeatScorecard[]
+  }[]
 }
 
 export interface MarketPredictionHistoryResponse {

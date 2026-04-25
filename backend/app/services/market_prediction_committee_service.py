@@ -59,8 +59,9 @@ DEFAULT_PENDING_TARGET_NOTE = "Target date has not been reached yet."
 DEFAULT_WAITING_AFTER_CLOSE_NOTE = "Target date passed; awaiting evaluation data."
 DEFAULT_SPARSE_HISTORY_NOTE = "Not enough comparable history for a stable trend."
 DEFAULT_LEGACY_SPARSE_NOTE = "Legacy sparse data: selected lead attribution unavailable."
-DEFAULT_ATTRIBUTION_NOTE = "Derived fallback; tracked not ranked."
-DEFAULT_UNATTRIBUTED_NOTE = "Derived fallback; no usable source snapshot."
+DEFAULT_ATTRIBUTION_NOTE = "Awaiting scored history."
+RANKED_ATTRIBUTION_NOTE = "Ranked by scored history."
+DEFAULT_UNATTRIBUTED_NOTE = "No usable source snapshot."
 CRITICAL_FRESHNESS_CLUSTERS = ("market_regime", "options_positioning", "macro_calendar")
 SESSION_FRESHNESS_THRESHOLDS_SECONDS = {
     "open": (20 * 60, 60 * 60, 2 * 60 * 60),
@@ -743,6 +744,11 @@ class MarketPredictionCommitteeService:
             for key in ("prior_weight", "effective_weight", "sample_size", "skill_score"):
                 if key in existing_macro and key not in macro_calendar:
                     macro_calendar[key] = existing_macro[key]
+        if (
+            self._normalize_source_freshness(macro_calendar.get("freshness")) == "fresh"
+            and self._normalize_iso_date(macro_calendar.get("as_of_date")) is None
+        ):
+            macro_calendar["as_of_date"] = market_date.isoformat()
         normalized_clusters["macro_calendar"] = macro_calendar
         snapshot["clusters"] = normalized_clusters
         if "target_universe" not in snapshot or not isinstance(snapshot.get("target_universe"), list):
@@ -949,14 +955,18 @@ class MarketPredictionCommitteeService:
         rows: list[PredictionFreshnessCluster] = []
         for cluster_name in CRITICAL_FRESHNESS_CLUSTERS:
             payload = clusters.get(cluster_name, {})
+            freshness = self._normalize_source_freshness(payload.get("freshness"))
+            as_of_date = self._freshness_cluster_as_of_date(
+                cluster_name=cluster_name,
+                payload=payload,
+            )
+            if as_of_date is None and freshness == "fresh":
+                freshness = "missing"
             rows.append(
                 PredictionFreshnessCluster(
                     cluster=cluster_name,
-                    freshness=self._normalize_source_freshness(payload.get("freshness")),
-                    as_of_date=self._freshness_cluster_as_of_date(
-                        cluster_name=cluster_name,
-                        payload=payload,
-                    ),
+                    freshness=freshness,
+                    as_of_date=as_of_date,
                     detail=self._freshness_cluster_detail(
                         cluster_name=cluster_name,
                         payload=payload,
@@ -975,6 +985,10 @@ class MarketPredictionCommitteeService:
             return self._normalize_iso_date(payload.get("latest_common_date"))
         if cluster_name == "options_positioning":
             return self._normalize_iso_date(payload.get("as_of_date"))
+        if cluster_name == "macro_calendar":
+            return self._normalize_iso_date(payload.get("as_of_date")) or self._normalize_iso_date(
+                payload.get("latest_event_date")
+            )
         return None
 
     def _freshness_cluster_detail(
@@ -989,7 +1003,8 @@ class MarketPredictionCommitteeService:
                 return "Macro calendar table stale."
             if reason in {"no_future_rows", "noFutureRows"}:
                 return "No future macro rows tracked."
-            return None
+            next_event_date = self._normalize_iso_date(payload.get("next_event_date"))
+            return f"Next tracked event {next_event_date}." if next_event_date else None
         if cluster_name == "market_regime":
             latest_common_date = self._normalize_iso_date(payload.get("latest_common_date"))
             return f"Latest closes through {latest_common_date}." if latest_common_date else None
@@ -1977,7 +1992,7 @@ class MarketPredictionCommitteeService:
                     cluster=normalized,
                     weight=float(effective),
                     freshness=row.get("freshness"),
-                    note=cluster.note,
+                    note=RANKED_ATTRIBUTION_NOTE,
                 )
             )
         if weighted:
@@ -2161,7 +2176,7 @@ class MarketPredictionCommitteeService:
         normalized = normalize_market_prediction_cluster_key(cluster.cluster)
         if normalized is None:
             return False
-        if cluster.note in {DEFAULT_ATTRIBUTION_NOTE, DEFAULT_UNATTRIBUTED_NOTE}:
+        if cluster.note == DEFAULT_UNATTRIBUTED_NOTE:
             return False
         freshness = self._normalize_source_freshness(cluster.freshness)
         return not (normalized == "macro_calendar" and freshness in {"stale", "missing"})
