@@ -99,6 +99,10 @@ def _call(
     call_id: str,
     symbol: str = "SPY",
     window_days: int = 3,
+    direction_label: str = "neutral",
+    prob_up: float = 0.5,
+    expected_move_pct: float = 0.0,
+    confidence_score: float | None = None,
     top_source_clusters: list[PredictionSourceCluster] | None = None,
     metadata: dict[str, object] | None = None,
 ) -> MarketPredictionCall:
@@ -106,9 +110,10 @@ def _call(
         id=call_id,
         symbol=symbol,
         window_days=window_days,
-        direction_label="neutral",
-        prob_up=0.5,
-        expected_move_pct=0.0,
+        direction_label=direction_label,
+        prob_up=prob_up,
+        expected_move_pct=expected_move_pct,
+        confidence_score=confidence_score,
         top_source_clusters=top_source_clusters or [],
         metadata=metadata or {},
     )
@@ -491,6 +496,126 @@ def test_get_scorecard_uses_latest_distinct_symbol_cohorts(storage: PortfolioSto
     assert scorecard.direction_hit_rate == pytest.approx(0.5)
     assert scorecard.move_mae_pct == pytest.approx(1.5)
     assert scorecard.brier_score == pytest.approx(0.35)
+
+
+def test_get_quality_report_splits_calibration_no_edge_and_baseline_seat(storage: PortfolioStorage) -> None:
+    repo = MarketPredictionRepository(storage)
+    run = _run(run_id="run-quality", as_of_ts=datetime(2026, 4, 20, 22, 15, tzinfo=UTC))
+
+    repo.create_run(run)
+    repo.upsert_call(
+        run.id,
+        _call(
+            call_id="call-forecast",
+            symbol="SPY",
+            direction_label="bullish",
+            prob_up=0.6,
+            expected_move_pct=1.0,
+            confidence_score=70.0,
+            metadata={
+                "publication_state": "forecast",
+                "aggregation_mode": "weighted_committee",
+                "probability_calibration": {"raw_prob_up": 0.3, "shrink": 0.25},
+            },
+        ),
+    )
+    repo.upsert_call(
+        run.id,
+        _call(
+            call_id="call-no-edge",
+            symbol="XLF",
+            prob_up=0.52,
+            expected_move_pct=0.0,
+            confidence_score=35.0,
+            metadata={
+                "publication_state": "no_edge",
+                "aggregation_mode": "single_seat",
+                "probability_calibration": {"raw_prob_up": 0.58, "shrink": 0.25},
+            },
+        ),
+    )
+    repo.upsert_evaluation(
+        MarketPredictionEvaluation(
+            call_id="call-forecast",
+            evaluated_at=datetime(2026, 4, 23, 22, 5, tzinfo=UTC),
+            base_close=500.0,
+            target_close=510.0,
+            realized_move_pct=2.0,
+            direction_hit=True,
+            move_abs_error_pct=1.0,
+            brier_score=(1.0 - 0.6) ** 2,
+            metadata={},
+        )
+    )
+    repo.upsert_evaluation(
+        MarketPredictionEvaluation(
+            call_id="call-no-edge",
+            evaluated_at=datetime(2026, 4, 23, 22, 6, tzinfo=UTC),
+            base_close=40.0,
+            target_close=40.04,
+            realized_move_pct=0.1,
+            direction_hit=True,
+            move_abs_error_pct=0.1,
+            brier_score=(1.0 - 0.52) ** 2,
+            metadata={},
+        )
+    )
+    repo.replace_votes_for_run(run.id, [_vote(seat_key="baseline"), _vote(seat_key="macro")])
+    with storage.connection() as conn:
+        vote_rows = conn.execute(
+            "SELECT id, seat_key FROM market_prediction_votes WHERE run_id = %s ORDER BY seat_key",
+            [run.id],
+        ).fetchall()
+    vote_ids = {str(row[1]): int(row[0]) for row in vote_rows}
+    repo.upsert_vote_evaluation(
+        MarketPredictionVoteEvaluation(
+            vote_id=vote_ids["baseline"],
+            evaluated_at=datetime(2026, 4, 23, 22, 7, tzinfo=UTC),
+            seat_key="baseline",
+            symbol="SPY",
+            window_days=3,
+            base_close=500.0,
+            target_close=510.0,
+            realized_move_pct=2.0,
+            direction_hit=True,
+            move_abs_error_pct=0.8,
+            brier_score=0.12,
+            metadata={},
+        )
+    )
+    repo.upsert_vote_evaluation(
+        MarketPredictionVoteEvaluation(
+            vote_id=vote_ids["macro"],
+            evaluated_at=datetime(2026, 4, 23, 22, 8, tzinfo=UTC),
+            seat_key="macro",
+            symbol="SPY",
+            window_days=3,
+            base_close=500.0,
+            target_close=490.0,
+            realized_move_pct=-2.0,
+            direction_hit=False,
+            move_abs_error_pct=3.0,
+            brier_score=0.5,
+            metadata={},
+        )
+    )
+
+    report = repo.get_quality_report(3)
+
+    assert report.overall.sample_size == 2
+    assert report.overall.direction_hit_rate == pytest.approx(1.0)
+    assert report.calibration.sample_size == 2
+    assert report.calibration.raw_brier_score == pytest.approx((((1.0 - 0.3) ** 2) + ((1.0 - 0.58) ** 2)) / 2)
+    assert report.calibration.calibrated_brier_score == pytest.approx((((1.0 - 0.6) ** 2) + ((1.0 - 0.52) ** 2)) / 2)
+    assert report.calibration.brier_improvement is not None
+    assert report.calibration.brier_improvement > 0
+    assert report.no_edge.no_edge_sample_size == 1
+    assert report.no_edge.no_edge_rate == pytest.approx(0.5)
+    assert {segment.key for segment in report.publication_segments} == {"forecast", "no_edge"}
+    assert {segment.key for segment in report.aggregation_segments} == {"single_seat", "weighted_committee"}
+    assert {segment.key for segment in report.seat_segments} == {"baseline", "macro"}
+    baseline = next(segment for segment in report.seat_segments if segment.key == "baseline")
+    assert baseline.metrics.brier_score == pytest.approx(0.12)
 
 
 

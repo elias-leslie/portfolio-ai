@@ -21,6 +21,7 @@ from app.models.market_prediction import (
     MarketPredictionCall,
     MarketPredictionClusterReview,
     MarketPredictionCommitteeResponse,
+    MarketPredictionQualityReport,
     MarketPredictionResolvedSeatWeight,
     MarketPredictionRun,
     MarketPredictionScorecard,
@@ -137,6 +138,10 @@ class MarketPredictionCommitteeService:
             if normalized is not None:
                 calls.append(normalized)
         return calls
+
+    def get_quality_report(self, window_days: int) -> MarketPredictionQualityReport:
+        self._validate_window_days(window_days)
+        return self.repository.get_quality_report(window_days)
 
     def generate_snapshot(
         self,

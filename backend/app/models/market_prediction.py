@@ -244,6 +244,51 @@ class MarketPredictionScorecard(BaseModel):
     sample_size: int = Field(default=0, ge=0)
 
 
+class MarketPredictionQualityMetric(BaseModel):
+    sample_size: int = Field(default=0, ge=0)
+    direction_hit_rate: float | None = Field(None, ge=0.0, le=1.0)
+    move_mae_pct: float | None = Field(None, ge=0.0)
+    brier_score: float | None = Field(None, ge=0.0)
+    avg_confidence_score: float | None = Field(None, ge=0.0, le=100.0)
+    avg_prob_up: float | None = Field(None, ge=0.0, le=1.0)
+
+
+class MarketPredictionQualitySegment(BaseModel):
+    key: str
+    label: str | None = None
+    metrics: MarketPredictionQualityMetric
+
+
+class MarketPredictionCalibrationQuality(BaseModel):
+    sample_size: int = Field(default=0, ge=0)
+    raw_brier_score: float | None = Field(None, ge=0.0)
+    calibrated_brier_score: float | None = Field(None, ge=0.0)
+    brier_improvement: float | None = None
+    brier_improvement_pct: float | None = None
+    avg_shrink: float | None = Field(None, ge=0.0, le=1.0)
+
+
+class MarketPredictionNoEdgeQuality(BaseModel):
+    total_sample_size: int = Field(default=0, ge=0)
+    no_edge_sample_size: int = Field(default=0, ge=0)
+    no_edge_rate: float | None = Field(None, ge=0.0, le=1.0)
+    forecast_metrics: MarketPredictionQualityMetric
+    no_edge_metrics: MarketPredictionQualityMetric
+    no_edge_brier_delta: float | None = None
+
+
+class MarketPredictionQualityReport(BaseModel):
+    generated_at: datetime
+    window_days: int = Field(..., ge=1)
+    overall: MarketPredictionQualityMetric
+    calibration: MarketPredictionCalibrationQuality
+    no_edge: MarketPredictionNoEdgeQuality
+    publication_segments: list[MarketPredictionQualitySegment] = Field(default_factory=list)
+    aggregation_segments: list[MarketPredictionQualitySegment] = Field(default_factory=list)
+    seat_segments: list[MarketPredictionQualitySegment] = Field(default_factory=list)
+    symbol_segments: list[MarketPredictionQualitySegment] = Field(default_factory=list)
+
+
 class PredictionFreshnessCluster(BaseModel):
     cluster: str
     freshness: ClusterFreshness = "unknown"

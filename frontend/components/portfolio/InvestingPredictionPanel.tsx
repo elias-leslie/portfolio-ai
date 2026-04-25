@@ -27,6 +27,7 @@ import type {
 import {
   useMarketPredictionCommittee,
   useMarketPredictionHistory,
+  useMarketPredictionQuality,
   useMarketPredictionReview,
   useRefreshMarketPredictionCommittee,
 } from '@/lib/hooks/useMarketIntelligence'
@@ -157,6 +158,13 @@ type HistoryState =
       detail: string
     }
 
+type CalibrationMetadata = {
+  rawProbUp: number | null
+  calibratedProbUp: number | null
+  shrink: number | null
+  sampleSize: number | null
+}
+
 type HorizonCard = {
   option: (typeof WINDOW_OPTIONS)[number]
   expectedMove: string
@@ -272,6 +280,17 @@ function formatTrackRecord(value?: number | null) {
 function formatAverageMiss(value?: number | null) {
   if (!isFiniteNumber(value)) return 'Pending'
   return formatPercent(value)
+}
+
+function formatBrier(value?: number | null) {
+  if (!isFiniteNumber(value)) return 'Pending'
+  return value.toFixed(3)
+}
+
+function formatSignedBrierDelta(value?: number | null) {
+  if (!isFiniteNumber(value)) return 'Pending'
+  const prefix = value > 0 ? '+' : ''
+  return `${prefix}${value.toFixed(3)}`
 }
 
 function formatModelLabel(vote: PredictionVote) {
@@ -476,6 +495,33 @@ function readRecord(value: unknown): Record<string, unknown> {
     return value as Record<string, unknown>
   }
   return {}
+}
+
+function readNumber(...values: unknown[]) {
+  for (const value of values) {
+    if (isFiniteNumber(value)) return value
+  }
+  return null
+}
+
+function normalizeCalibrationMetadata(
+  call: NormalizedPredictionCall | null,
+): CalibrationMetadata | null {
+  const metadata = readRecord(call?.metadata)
+  const calibration = readRecord(
+    metadata.probabilityCalibration ?? metadata.probability_calibration,
+  )
+  const rawProbUp = readNumber(calibration.rawProbUp, calibration.raw_prob_up)
+  const calibratedProbUp = readNumber(
+    calibration.calibratedProbUp,
+    calibration.calibrated_prob_up,
+  )
+  const shrink = readNumber(calibration.shrink)
+  const sampleSize = readNumber(calibration.sampleSize, calibration.sample_size)
+  if (rawProbUp == null && calibratedProbUp == null && shrink == null) {
+    return null
+  }
+  return { rawProbUp, calibratedProbUp, shrink, sampleSize }
 }
 
 function normalizeDirection(value: unknown): 'bullish' | 'neutral' | 'bearish' {
@@ -1947,6 +1993,7 @@ export function InvestingPredictionPanel() {
   const selectedQuery = committeeQueries[windowDays]
   const { data, isLoading, error, isFetching } = selectedQuery
   const reviewQuery = useMarketPredictionReview(windowDays)
+  const qualityQuery = useMarketPredictionQuality(windowDays)
   const refreshMutation = useRefreshMarketPredictionCommittee()
 
   const allCalls = useMemo(() => normalizeCalls(data?.calls), [data?.calls])
@@ -1992,6 +2039,10 @@ export function InvestingPredictionPanel() {
     [committeeSummary, leadCall, normalizedVotes],
   )
   const rangeState = useMemo(() => buildRangeState(leadCall), [leadCall])
+  const leadCalibration = useMemo(
+    () => normalizeCalibrationMetadata(leadCall),
+    [leadCall],
+  )
   const historyState = useMemo(
     () =>
       buildHistoryState(
@@ -2061,6 +2112,51 @@ export function InvestingPredictionPanel() {
           : 'Pending',
       detail: 'Lower is better',
       icon: BrainCircuit,
+    },
+  ]
+  const qualityReport = qualityQuery.data ?? null
+  const calibrationQuality = qualityReport?.calibration ?? null
+  const noEdgeQuality = qualityReport?.noEdge ?? null
+  const topSeatQuality = qualityReport?.seatSegments?.[0] ?? null
+  const qualityMetrics = [
+    {
+      label: 'Calibration lift',
+      value:
+        calibrationQuality?.sampleSize &&
+        isFiniteNumber(calibrationQuality.brierImprovementPct)
+          ? `${Math.round(calibrationQuality.brierImprovementPct * 100)}%`
+          : 'Pending',
+      detail:
+        calibrationQuality?.sampleSize &&
+        isFiniteNumber(calibrationQuality.rawBrierScore) &&
+        isFiniteNumber(calibrationQuality.calibratedBrierScore)
+          ? `${formatBrier(calibrationQuality.rawBrierScore)} raw -> ${formatBrier(
+              calibrationQuality.calibratedBrierScore,
+            )}`
+          : 'Needs calibrated outcomes',
+      icon: BrainCircuit,
+    },
+    {
+      label: 'No-edge rate',
+      value:
+        noEdgeQuality?.totalSampleSize &&
+        isFiniteNumber(noEdgeQuality.noEdgeRate)
+          ? formatProbability(noEdgeQuality.noEdgeRate)
+          : 'Pending',
+      detail: noEdgeQuality?.totalSampleSize
+        ? `${noEdgeQuality.noEdgeSampleSize}/${noEdgeQuality.totalSampleSize} abstained`
+        : 'Needs scored abstentions',
+      icon: Gauge,
+    },
+    {
+      label: 'Best seat',
+      value: topSeatQuality ? humanizeLabel(topSeatQuality.key) : 'Pending',
+      detail: topSeatQuality
+        ? `${formatTrackRecord(topSeatQuality.metrics.directionHitRate)} · ${formatBrier(
+            topSeatQuality.metrics.brierScore,
+          )} Brier`
+        : 'Needs vote outcomes',
+      icon: Radar,
     },
   ]
   const scorecardPending =
@@ -2334,6 +2430,19 @@ export function InvestingPredictionPanel() {
                       {noEdgeNote}
                     </p>
                   ) : null}
+                  {leadCalibration ? (
+                    <p className="mt-3 max-w-2xl text-sm leading-relaxed text-cyan-100/80">
+                      Calibrated probability:{' '}
+                      {formatProbability(leadCalibration.rawProbUp)} raw {'->'}{' '}
+                      {formatProbability(
+                        leadCalibration.calibratedProbUp ?? leadCall?.probUp,
+                      )}
+                      {isFiniteNumber(leadCalibration.shrink)
+                        ? ` with ${formatProbability(leadCalibration.shrink)} shrink`
+                        : ''}
+                      .
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="space-y-3">
@@ -2349,7 +2458,11 @@ export function InvestingPredictionPanel() {
                     <MetricTile
                       label="Closes higher"
                       value={formatProbability(leadCall?.probUp)}
-                      detail={predictionTargetLabel}
+                      detail={
+                        leadCalibration?.rawProbUp != null
+                          ? `Raw ${formatProbability(leadCalibration.rawProbUp)} · ${predictionTargetLabel}`
+                          : predictionTargetLabel
+                      }
                       icon={Radar}
                     />
                     <MetricTile
@@ -2436,6 +2549,19 @@ export function InvestingPredictionPanel() {
               {executedSeatKeys.length ? (
                 <p className="mt-3 text-xs text-text-muted">
                   Seats used: {executedSeatKeys.map(humanizeLabel).join(', ')}
+                </p>
+              ) : null}
+              {committeeSummary.baselineVoteCount ? (
+                <p className="mt-2 text-xs text-text-muted">
+                  Baseline: {committeeSummary.baselineVoteCount} deterministic
+                  vote
+                  {committeeSummary.baselineVoteCount === 1 ? '' : 's'}
+                  {committeeSummary.baselineSeatWeight != null
+                    ? ` at ${formatProbability(
+                        committeeSummary.baselineSeatWeight,
+                      )} seat weight`
+                    : ''}
+                  .
                 </p>
               ) : null}
               {normalizedVotes.length === 0 ? (
@@ -2713,6 +2839,54 @@ export function InvestingPredictionPanel() {
                     icon={metric.icon}
                   />
                 ))}
+              </div>
+              <div className="rounded-[20px] border border-border/30 bg-black/20 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
+                      Quality audit
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-text">
+                      Calibration and abstention
+                    </p>
+                  </div>
+                  <StatusBadge
+                    label={
+                      qualityReport?.overall.sampleSize
+                        ? `${qualityReport.overall.sampleSize} scored`
+                        : qualityQuery.isLoading
+                          ? 'Loading'
+                          : 'Pending'
+                    }
+                    tone={
+                      qualityReport?.overall.sampleSize
+                        ? 'success'
+                        : qualityQuery.error
+                          ? 'danger'
+                          : 'warning'
+                    }
+                  />
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+                  {qualityMetrics.map((metric) => (
+                    <MetricTile
+                      key={metric.label}
+                      label={metric.label}
+                      value={metric.value}
+                      detail={metric.detail}
+                      icon={metric.icon}
+                    />
+                  ))}
+                </div>
+                <p className="mt-3 text-xs text-text-muted">
+                  {qualityQuery.error instanceof Error
+                    ? qualityQuery.error.message
+                    : noEdgeQuality?.totalSampleSize
+                      ? `No-edge Brier delta ${formatSignedBrierDelta(
+                          noEdgeQuality.noEdgeBrierDelta,
+                        )}; lower is better.`
+                      : 'Quality audit starts after calibrated forecasts mature.'}
+                </p>
               </div>
               <div className="rounded-[20px] border border-border/30 bg-black/20 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
