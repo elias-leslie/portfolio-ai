@@ -8,6 +8,7 @@ import type {
   MarketIntelligenceResponse,
   MarketPredictionCommitteeResponse,
   MarketPredictionHistoryResponse,
+  MarketPredictionQualityReport,
   MarketPredictionSeatReviewResponse,
   MarketTrendsResponse,
   PricesResponse,
@@ -77,6 +78,17 @@ export async function fetchMarketPredictionReview(
 ): Promise<MarketPredictionSeatReviewResponse> {
   return apiRequest<MarketPredictionSeatReviewResponse>(
     `/api/market/prediction/review?window_days=${windowDays}`,
+  )
+}
+
+/**
+ * Get historical quality metrics for market prediction calls, seats, and calibration.
+ */
+export async function fetchMarketPredictionQuality(
+  windowDays: number = 3,
+): Promise<MarketPredictionQualityReport> {
+  return apiRequest<MarketPredictionQualityReport>(
+    `/api/market/prediction/quality?window_days=${windowDays}`,
   )
 }
 

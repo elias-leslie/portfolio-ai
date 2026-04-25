@@ -328,6 +328,51 @@ export interface MarketPredictionScorecard {
   sampleSize: number
 }
 
+export interface MarketPredictionQualityMetric {
+  sampleSize: number
+  directionHitRate?: number | null
+  moveMaePct?: number | null
+  brierScore?: number | null
+  avgConfidenceScore?: number | null
+  avgProbUp?: number | null
+}
+
+export interface MarketPredictionQualitySegment {
+  key: string
+  label?: string | null
+  metrics: MarketPredictionQualityMetric
+}
+
+export interface MarketPredictionCalibrationQuality {
+  sampleSize: number
+  rawBrierScore?: number | null
+  calibratedBrierScore?: number | null
+  brierImprovement?: number | null
+  brierImprovementPct?: number | null
+  avgShrink?: number | null
+}
+
+export interface MarketPredictionNoEdgeQuality {
+  totalSampleSize: number
+  noEdgeSampleSize: number
+  noEdgeRate?: number | null
+  forecastMetrics: MarketPredictionQualityMetric
+  noEdgeMetrics: MarketPredictionQualityMetric
+  noEdgeBrierDelta?: number | null
+}
+
+export interface MarketPredictionQualityReport {
+  generatedAt: string
+  windowDays: number
+  overall: MarketPredictionQualityMetric
+  calibration: MarketPredictionCalibrationQuality
+  noEdge: MarketPredictionNoEdgeQuality
+  publicationSegments: MarketPredictionQualitySegment[]
+  aggregationSegments: MarketPredictionQualitySegment[]
+  seatSegments: MarketPredictionQualitySegment[]
+  symbolSegments: MarketPredictionQualitySegment[]
+}
+
 export interface PredictionFreshnessCluster {
   cluster: string
   freshness: PredictionSourceFreshness
