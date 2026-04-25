@@ -175,6 +175,7 @@ class MarketPredictionSeatScorecardRow(BaseModel):
     prior_weight: float = Field(..., ge=0.0, le=1.0)
     effective_weight: float = Field(..., ge=0.0, le=1.0)
     sample_size: int = Field(default=0, ge=0)
+    avg_confidence_score: float | None = Field(None, ge=0.0, le=100.0)
     direction_hit_rate: float | None = Field(None, ge=0.0, le=1.0)
     move_mae_pct: float | None = Field(None, ge=0.0)
     brier_score: float | None = Field(None, ge=0.0)
@@ -201,12 +202,20 @@ class MarketPredictionSeatReview(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class MarketPredictionSeatReviewHistoryPoint(BaseModel):
+    generated_at: datetime
+    as_of_ts: datetime
+    review_state: ReviewState
+    seat_scorecards: list[MarketPredictionSeatScorecardRow] = Field(default_factory=list)
+
+
 class MarketPredictionSeatReviewResponse(BaseModel):
     as_of_ts: datetime
     window_days: int = Field(..., ge=1)
     review_state: ReviewState
     seat_scorecards: list[MarketPredictionSeatScorecardRow] = Field(default_factory=list)
     review_summary: dict[str, Any] = Field(default_factory=dict)
+    review_history: list[MarketPredictionSeatReviewHistoryPoint] = Field(default_factory=list)
 
 
 class MarketPredictionRun(BaseModel):

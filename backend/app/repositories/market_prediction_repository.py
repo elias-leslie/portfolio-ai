@@ -415,6 +415,7 @@ class MarketPredictionRepository:
                         e.move_abs_error_pct,
                         e.brier_score,
                         e.metadata,
+                        v.confidence_score,
                         ROW_NUMBER() OVER (
                             PARTITION BY LOWER(BTRIM(COALESCE(v.seat_key, e.seat_key, ''))), UPPER(COALESCE(v.symbol, e.symbol, '')), r.base_date, r.target_date
                             ORDER BY r.as_of_ts DESC, e.evaluated_at DESC, e.vote_id DESC
@@ -436,7 +437,8 @@ class MarketPredictionRepository:
                     direction_hit,
                     move_abs_error_pct,
                     brier_score,
-                    metadata
+                    metadata,
+                    confidence_score
                 FROM ranked_evaluations
                 WHERE cohort_rank = 1
                 ORDER BY evaluated_at DESC, vote_id DESC
@@ -1037,6 +1039,10 @@ class MarketPredictionRepository:
         )
 
     def _row_to_vote_evaluation(self, row: tuple[Any, ...]) -> MarketPredictionVoteEvaluation:
+        metadata = dict(self._load(row[11], {}))
+        confidence_score = row[12] if len(row) > 12 else None
+        if confidence_score is not None:
+            metadata["confidence_score"] = float(confidence_score)
         return MarketPredictionVoteEvaluation.model_construct(
             vote_id=int(row[0]),
             evaluated_at=self._coerce_datetime(row[1]),
@@ -1049,7 +1055,7 @@ class MarketPredictionRepository:
             direction_hit=bool(row[8]),
             move_abs_error_pct=float(row[9]),
             brier_score=float(row[10]),
-            metadata=self._load(row[11], {}),
+            metadata=metadata,
         )
 
     def _row_to_seat_review(self, row: tuple[Any, ...]) -> MarketPredictionSeatReview:

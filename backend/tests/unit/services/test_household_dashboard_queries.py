@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
@@ -47,7 +47,7 @@ class _FakeStorage:
 
 
 def test_statement_freshness_excludes_future_rows_and_surfaces_date_quality() -> None:
-    today = date.today()
+    today = datetime.now(UTC).date()
     storage = _FakeStorage(
         [
             (2, today + timedelta(days=30), today + timedelta(days=120)),

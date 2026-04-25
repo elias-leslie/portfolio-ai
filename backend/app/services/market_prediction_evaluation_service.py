@@ -115,6 +115,13 @@ class MarketPredictionEvaluationService:
                 continue
             realized_move_pct = ((target_close / base_close) - 1.0) * 100.0
             actual_up = 1.0 if realized_move_pct > 0 else 0.0
+            metadata: dict[str, Any] = {
+                "run_id": candidate.run_id,
+                "base_date": candidate.base_date.isoformat(),
+                "target_date": candidate.target_date.isoformat(),
+            }
+            if candidate.confidence_score is not None:
+                metadata["confidence_score"] = candidate.confidence_score
             evaluation = MarketPredictionVoteEvaluation(
                 vote_id=candidate.vote_id,
                 evaluated_at=self._evaluated_at_fn(),
@@ -130,11 +137,7 @@ class MarketPredictionEvaluationService:
                 ),
                 move_abs_error_pct=abs(realized_move_pct - candidate.expected_move_pct),
                 brier_score=(actual_up - candidate.prob_up) ** 2,
-                metadata={
-                    "run_id": candidate.run_id,
-                    "base_date": candidate.base_date.isoformat(),
-                    "target_date": candidate.target_date.isoformat(),
-                },
+                metadata=metadata,
             )
             self.repository.upsert_vote_evaluation(evaluation)
             results.append(evaluation)

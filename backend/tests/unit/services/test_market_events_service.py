@@ -114,6 +114,8 @@ def test_get_macro_calendar_cluster_marks_stale_table_from_latest_valid_row_even
     assert result == {
         "freshness": "stale",
         "reason": "stale_table",
+        "as_of_date": "2026-04-18",
+        "latest_event_date": "2026-04-18",
         "upcoming_event_count": 0,
         "next_event_date": None,
         "event_type_counts": {},
@@ -133,6 +135,8 @@ def test_build_macro_calendar_cluster_marks_no_future_rows_when_table_is_empty()
     assert result == {
         "freshness": "missing",
         "reason": "no_future_rows",
+        "as_of_date": None,
+        "latest_event_date": None,
         "upcoming_event_count": 0,
         "next_event_date": None,
         "event_type_counts": {},
