@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 from app.models.market_prediction import (
-    SUPPORTED_ADAPTIVE_SEAT_KEYS,
+    SUPPORTED_EVALUATED_SEAT_KEYS,
     MarketPredictionEvaluation,
     MarketPredictionVoteEvaluation,
     MarketPredictionVoteEvaluationCandidate,
@@ -96,7 +96,7 @@ class MarketPredictionEvaluationService:
             if candidate is None:
                 continue
             seat_key = normalize_market_prediction_seat_key(candidate.seat_key)
-            if seat_key not in SUPPORTED_ADAPTIVE_SEAT_KEYS:
+            if seat_key not in SUPPORTED_EVALUATED_SEAT_KEYS:
                 continue
             if not self._finite_probability(candidate.prob_up) or not self._finite_number(candidate.expected_move_pct):
                 continue

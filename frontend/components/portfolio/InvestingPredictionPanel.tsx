@@ -86,6 +86,10 @@ type NormalizedCommitteeSummary = {
   committeeRosterMode: CommitteeRosterMode | null
   committeeExecutionPath: CommitteeExecutionPath | null
   executedSeatKeys: string[]
+  publicationState: string | null
+  abstainReasonCodes: string[]
+  baselineVoteCount: number | null
+  baselineSeatWeight: number | null
 }
 
 type NormalizedSourceRow = {
@@ -723,6 +727,24 @@ function normalizeCommitteeSummary(
       ...readStringArray(record.executedSeatKeys),
       ...readStringArray(record.executed_seat_keys),
     ].filter((value, index, array) => array.indexOf(value) === index),
+    publicationState: readString(
+      record.publicationState,
+      record.publication_state,
+    ),
+    abstainReasonCodes: [
+      ...readStringArray(record.abstainReasonCodes),
+      ...readStringArray(record.abstain_reason_codes),
+    ].filter((value, index, array) => array.indexOf(value) === index),
+    baselineVoteCount: isFiniteNumber(record.baselineVoteCount)
+      ? record.baselineVoteCount
+      : isFiniteNumber(record.baseline_vote_count)
+        ? record.baseline_vote_count
+        : null,
+    baselineSeatWeight: isFiniteNumber(record.baselineSeatWeight)
+      ? record.baselineSeatWeight
+      : isFiniteNumber(record.baseline_seat_weight)
+        ? record.baseline_seat_weight
+        : null,
   }
 }
 
@@ -2076,6 +2098,14 @@ export function InvestingPredictionPanel() {
       : normalizeForecastCopy(
           committeeSummary.scorecardStatusNote ?? defaultStateNote,
         )
+  const noEdgeNote =
+    committeeSummary.publicationState === 'no_edge'
+      ? `No high-quality edge: ${
+          committeeSummary.abstainReasonCodes.length
+            ? committeeSummary.abstainReasonCodes.map(humanizeLabel).join(', ')
+            : 'evidence does not support a strong call'
+        }.`
+      : null
   const scorecardStatus =
     truthStateNote ??
     (scorecardPending
@@ -2211,6 +2241,9 @@ export function InvestingPredictionPanel() {
                       label={disagreementLabel}
                       tone={disagreementTone(disagreementLabel)}
                     />
+                    {committeeSummary.publicationState === 'no_edge' ? (
+                      <StatusBadge label="No edge" tone="warning" />
+                    ) : null}
                   </div>
                   <div className="flex items-start gap-4">
                     <div
@@ -2294,6 +2327,11 @@ export function InvestingPredictionPanel() {
                       className="mt-3 max-w-2xl text-sm leading-relaxed text-amber-100/85"
                     >
                       {truthStateNote}
+                    </p>
+                  ) : null}
+                  {noEdgeNote ? (
+                    <p className="mt-3 max-w-2xl text-sm leading-relaxed text-amber-100/85">
+                      {noEdgeNote}
                     </p>
                   ) : null}
                 </div>

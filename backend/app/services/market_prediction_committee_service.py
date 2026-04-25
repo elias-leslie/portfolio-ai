@@ -14,6 +14,7 @@ from app.agents.clients.agent_hub_client import AgentHubAPIClient
 from app.constants import MARKET_SYMBOL, PREDICTION_TARGET_SYMBOLS
 from app.logging_config import get_logger
 from app.models.market_prediction import (
+    BASELINE_PREDICTION_SEAT_KEY,
     SUPPORTED_ADAPTIVE_CLUSTER_KEYS,
     SUPPORTED_ADAPTIVE_SEAT_KEYS,
     CommitteeSeatVote,
@@ -51,6 +52,13 @@ from app.utils.market_hours import (
 logger = get_logger(__name__)
 
 SUPPORTED_PREDICTION_WINDOWS = (1, 3, 7, 14)
+SUPPORTED_SYNTHESIS_SEAT_KEYS = (*SUPPORTED_ADAPTIVE_SEAT_KEYS, BASELINE_PREDICTION_SEAT_KEY)
+BASELINE_SEAT_WEIGHT = 0.35
+BASELINE_MIN_HISTORY_POINTS = 6
+BASELINE_HISTORY_LOOKBACK = 30
+PROBABILITY_CALIBRATION_VERSION = "sample-shrink-v1"
+STATISTICAL_BASELINE_VERSION = "statistical-baseline-v1"
+PROMPT_TEMPLATE_VERSION = "market-prediction-v2"
 ALLOWED_CLUSTER_FRESHNESS = {"fresh", "stale", "missing", "unknown"}
 FRESHNESS_RANK = {"fresh": 0, "stale": 1, "missing": 2, "unknown": 3}
 PREDICTION_FRESHNESS_RANK = {"fresh": 0, "aging": 1, "stale": 2, "invalid": 3, "degraded": 4}
@@ -70,6 +78,7 @@ SESSION_FRESHNESS_THRESHOLDS_SECONDS = {
     "closed": (3 * 60 * 60, 12 * 60 * 60, 24 * 60 * 60),
 }
 DEFAULT_ROSTER = [
+    {"seat_key": "baseline", "agent_slug": "statistical-baseline", "model_id": STATISTICAL_BASELINE_VERSION},
     {"seat_key": "cross_asset", "agent_slug": "equity-analyst", "model_id": "grok-4.20-reasoning"},
     {"seat_key": "macro", "agent_slug": "market-pulse-analyst", "model_id": "gpt-5.4"},
     {"seat_key": "risk", "agent_slug": "risk-manager", "model_id": "claude-opus-4-7"},
@@ -162,6 +171,11 @@ class MarketPredictionCommitteeService:
                 window_days=window_days,
                 source_snapshot=source_snapshot,
             )
+            baseline_votes = self._build_statistical_baseline_votes(
+                window_days=window_days,
+                source_snapshot=source_snapshot,
+            )
+            votes.extend(baseline_votes)
             review_artifact = self._coerce_review(review=review, window_days=window_days, as_of_ts=generated_at)
             cluster_review_artifact = self._coerce_cluster_review(
                 review=cluster_review,
@@ -178,15 +192,40 @@ class MarketPredictionCommitteeService:
                 cluster_review=cluster_review_artifact,
                 source_snapshot=source_snapshot,
             )
+            source_snapshot = self._apply_cluster_review_to_source_snapshot(
+                source_snapshot=source_snapshot,
+                cluster_review=cluster_review_artifact,
+            )
+            source_snapshot = self._normalize_public_snapshot_contract(
+                raw_snapshot=source_snapshot,
+                market_date=base_date,
+            )
+            scorecard = self.repository.get_scorecard(window_days)
+            calls = self._finalize_generated_calls(
+                calls=calls,
+                scorecard=scorecard,
+                source_snapshot=source_snapshot,
+            )
             lead_call = next((call for call in calls if call.symbol == "SPY"), calls[0])
 
             committee_summary_raw = raw_payload.get("committee_summary") if isinstance(raw_payload, dict) else None
             if not isinstance(committee_summary_raw, dict):
                 committee_summary_raw = self._default_committee_summary(votes=votes, calls=calls)
+            committee_summary_raw = self._finalize_generated_committee_summary(
+                summary=committee_summary_raw,
+                lead_call=lead_call,
+                calls=calls,
+                baseline_vote_count=len(baseline_votes),
+                scorecard=scorecard,
+            )
 
             executed_seats = self._extract_executed_seats(
                 raw_votes=raw_votes,
                 committee_config=raw_payload.get("committee_config") if isinstance(raw_payload, dict) else None,
+            )
+            executed_seats = self._with_baseline_executed_seat(
+                executed_seats=executed_seats,
+                baseline_vote_count=len(baseline_votes),
             )
             metadata = self._build_run_metadata(
                 existing=None,
@@ -196,12 +235,11 @@ class MarketPredictionCommitteeService:
                 ),
                 review=review_artifact,
                 cluster_review=cluster_review_artifact,
-            )
-            source_snapshot = self._apply_cluster_review_to_source_snapshot(
+                raw_payload=raw_payload,
                 source_snapshot=source_snapshot,
-                cluster_review=cluster_review_artifact,
+                calls=calls,
+                votes=votes,
             )
-            scorecard = self.repository.get_scorecard(window_days)
             last_evaluated_at = self.repository.get_last_evaluated_at(window_days)
 
             run = MarketPredictionRun(
@@ -618,6 +656,7 @@ class MarketPredictionCommitteeService:
         target_date: str,
         source_snapshot: dict[str, Any],
     ) -> dict[str, Any]:
+        prompt_version = PROMPT_TEMPLATE_VERSION
         prompt = (
             "You are the Market Prediction Committee for Portfolio AI. "
             "Return JSON only with keys committee_summary, calls, votes. "
@@ -629,6 +668,8 @@ class MarketPredictionCommitteeService:
             f"Base date: {base_date}. Target date: {target_date}."
         )
         snapshot_json = json.dumps(source_snapshot, default=str, sort_keys=True)
+        prompt_hash = self._sha256_text(prompt)
+        source_snapshot_hash = self._sha256_text(snapshot_json)
         client = self._roundtable_client_factory(agent_slug="investment-committee")
         try:
             payload = client.run_committee_roundtable(
@@ -653,7 +694,22 @@ class MarketPredictionCommitteeService:
             except Exception:
                 logger.debug("market_prediction_roundtable_close_failed", exc_info=True)
 
-        return payload if isinstance(payload, dict) else {}
+        if not isinstance(payload, dict):
+            payload = {}
+        output_payload = {
+            key: value
+            for key, value in payload.items()
+            if not str(key).startswith("_portfolio_")
+        }
+        payload.update(
+            {
+                "_portfolio_prompt_template_version": prompt_version,
+                "_portfolio_prompt_hash": prompt_hash,
+                "_portfolio_source_snapshot_hash": source_snapshot_hash,
+                "_portfolio_output_hash": self._stable_hash(output_payload),
+            }
+        )
+        return payload
 
     def _normalize_response(
         self,
@@ -665,16 +721,21 @@ class MarketPredictionCommitteeService:
         market_date = get_expected_data_date(effective_now.astimezone(NY_TZ))
         calls = [call for raw_call in response.calls if (call := self._normalize_call_model(raw_call)) is not None]
         votes = [vote for raw_vote in response.votes if (vote := self._normalize_vote_model(raw_vote)) is not None]
+        normalized_source_snapshot = self._normalize_public_snapshot_contract(
+            raw_snapshot=response.source_snapshot,
+            market_date=market_date,
+        )
+        calls = [
+            self._reconcile_call_cluster_freshness(call, normalized_source_snapshot)
+            for call in calls
+        ]
         lead_call, legacy_sparse = self._select_public_lead_call(
             raw_lead_call=response.lead_call,
             calls=calls,
             window_days=response.window_days,
         )
+        lead_call = self._reconcile_call_cluster_freshness(lead_call, normalized_source_snapshot)
         normalized_scorecard = self._normalize_scorecard(response.scorecard)
-        normalized_source_snapshot = self._normalize_public_snapshot_contract(
-            raw_snapshot=response.source_snapshot,
-            market_date=market_date,
-        )
         metadata = self._normalize_metadata(getattr(response, "_storage_metadata", {}))
         truth_state = self._determine_truth_state(
             lead_call=lead_call,
@@ -1117,6 +1178,30 @@ class MarketPredictionCommitteeService:
             metadata=self._dict_or_empty(self._value(raw_call, "metadata")),
         )
 
+    def _reconcile_call_cluster_freshness(
+        self,
+        call: MarketPredictionCall,
+        source_snapshot: dict[str, Any],
+    ) -> MarketPredictionCall:
+        clusters = source_snapshot.get("clusters") if isinstance(source_snapshot, dict) else {}
+        if not isinstance(clusters, dict) or not call.top_source_clusters:
+            return call
+        reconciled: list[PredictionSourceCluster] = []
+        changed = False
+        for cluster in call.top_source_clusters:
+            normalized = normalize_market_prediction_cluster_key(cluster.cluster)
+            payload = clusters.get(normalized) if normalized is not None else None
+            if not isinstance(payload, dict):
+                reconciled.append(cluster)
+                continue
+            freshness = self._normalize_source_freshness(payload.get("freshness"))
+            if freshness != cluster.freshness:
+                changed = True
+                reconciled.append(cluster.model_copy(update={"freshness": freshness}))
+            else:
+                reconciled.append(cluster)
+        return call.model_copy(update={"top_source_clusters": reconciled}) if changed else call
+
     def _normalize_vote_model(self, raw_vote: Any) -> CommitteeSeatVote | None:
         symbol = self._normalize_symbol(self._value(raw_vote, "symbol"))
         seat_key = self._normalize_seat_key(self._value(raw_vote, "seat_key"))
@@ -1372,6 +1457,289 @@ class MarketPredictionCommitteeService:
             )
         return calls
 
+    def _build_statistical_baseline_votes(
+        self,
+        *,
+        window_days: int,
+        source_snapshot: dict[str, Any],
+    ) -> list[CommitteeSeatVote]:
+        clusters = source_snapshot.get("clusters") if isinstance(source_snapshot, dict) else {}
+        market_regime = clusters.get("market_regime") if isinstance(clusters, dict) else None
+        latest_closes = market_regime.get("latest_closes") if isinstance(market_regime, dict) else None
+        if not isinstance(latest_closes, dict) or not latest_closes:
+            return []
+        try:
+            history_by_symbol = self._query_recent_closes(
+                PREDICTION_TARGET_SYMBOLS,
+                limit_per_symbol=max(BASELINE_HISTORY_LOOKBACK, window_days + BASELINE_MIN_HISTORY_POINTS),
+            )
+        except Exception:
+            logger.warning("market_prediction_baseline_history_lookup_failed", exc_info=True)
+            return []
+
+        options_bias, options_metadata = self._baseline_options_bias(source_snapshot)
+        votes: list[CommitteeSeatVote] = []
+        for symbol in PREDICTION_TARGET_SYMBOLS:
+            history = history_by_symbol.get(symbol, [])
+            if len(history) < max(BASELINE_MIN_HISTORY_POINTS, window_days + 1):
+                continue
+            vote = self._build_statistical_baseline_vote(
+                symbol=symbol,
+                window_days=window_days,
+                history=history,
+                options_bias=options_bias,
+                options_metadata=options_metadata,
+                source_snapshot=source_snapshot,
+            )
+            if vote is not None:
+                votes.append(vote)
+        return votes
+
+    def _build_statistical_baseline_vote(
+        self,
+        *,
+        symbol: str,
+        window_days: int,
+        history: list[tuple[date, float]],
+        options_bias: float,
+        options_metadata: dict[str, Any],
+        source_snapshot: dict[str, Any],
+    ) -> CommitteeSeatVote | None:
+        returns = [
+            (history[index][1] / history[index + 1][1]) - 1.0
+            for index in range(min(len(history) - 1, BASELINE_HISTORY_LOOKBACK - 1))
+            if history[index + 1][1] != 0
+        ]
+        if len(returns) < BASELINE_MIN_HISTORY_POINTS - 1:
+            return None
+        horizon_index = min(window_days, len(history) - 1)
+        latest_close = history[0][1]
+        horizon_close = history[horizon_index][1]
+        if horizon_close == 0:
+            return None
+        horizon_momentum_pct = ((latest_close / horizon_close) - 1.0) * 100.0
+        recent_returns = returns[: min(10, len(returns))]
+        avg_projected_pct = (sum(recent_returns) / len(recent_returns)) * window_days * 100.0
+        one_day_move_pct = returns[0] * 100.0
+        mean_return = sum(returns[: min(20, len(returns))]) / min(20, len(returns))
+        variance = sum((value - mean_return) ** 2 for value in returns[: min(20, len(returns))]) / min(20, len(returns))
+        realized_vol_pct = math.sqrt(max(0.0, variance)) * math.sqrt(window_days) * 100.0
+        expected_move_pct = (0.55 * avg_projected_pct) + (0.35 * horizon_momentum_pct) - (0.10 * one_day_move_pct)
+        move_cap = max(0.25, min(4.0, realized_vol_pct * 1.25))
+        expected_move_pct = self._clamp(expected_move_pct, 0.0, low=-move_cap, high=move_cap)
+        prob_from_move = 0.5 + 0.28 * math.tanh(expected_move_pct / max(realized_vol_pct, 0.35))
+        prob_up = self._clamp(prob_from_move + options_bias, 0.5, low=0.35, high=0.65)
+        confidence_score = self._clamp(
+            35.0 + min(20.0, len(history) - BASELINE_MIN_HISTORY_POINTS) + (5.0 if options_bias else 0.0),
+            45.0,
+            low=20.0,
+            high=65.0,
+        )
+        source_clusters = [
+            PredictionSourceCluster(
+                cluster="market_regime",
+                weight=None,
+                freshness=self._source_cluster_freshness("market_regime", source_snapshot),
+                note="Statistical baseline input.",
+            )
+        ]
+        if options_metadata.get("used"):
+            source_clusters.append(
+                PredictionSourceCluster(
+                    cluster="options_positioning",
+                    weight=None,
+                    freshness=self._source_cluster_freshness("options_positioning", source_snapshot),
+                    note="Options-flow baseline input.",
+                )
+            )
+        return CommitteeSeatVote(
+            seat_key=BASELINE_PREDICTION_SEAT_KEY,
+            agent_slug="statistical-baseline",
+            model_id=STATISTICAL_BASELINE_VERSION,
+            provider="portfolio-ai",
+            symbol=symbol,
+            window_days=window_days,
+            direction_label=self._derive_direction(prob_up, expected_move_pct),
+            prob_up=prob_up,
+            expected_move_pct=expected_move_pct,
+            confidence_score=confidence_score,
+            rationale_summary="Deterministic baseline from recent returns, volatility, and fresh options flow when available.",
+            source_clusters=source_clusters,
+            metadata={
+                "baseline_version": STATISTICAL_BASELINE_VERSION,
+                "lookback_points": len(history),
+                "horizon_momentum_pct": horizon_momentum_pct,
+                "avg_projected_pct": avg_projected_pct,
+                "one_day_move_pct": one_day_move_pct,
+                "realized_vol_pct": realized_vol_pct,
+                "options_bias": options_bias,
+                "options": options_metadata,
+            },
+        )
+
+    def _baseline_options_bias(self, source_snapshot: dict[str, Any]) -> tuple[float, dict[str, Any]]:
+        clusters = source_snapshot.get("clusters") if isinstance(source_snapshot, dict) else {}
+        options = clusters.get("options_positioning") if isinstance(clusters, dict) else None
+        if not isinstance(options, dict):
+            return 0.0, {"used": False, "reason": "missing"}
+        freshness = self._normalize_source_freshness(options.get("freshness"))
+        call_pct = self._optional_float(options.get("call_pct"))
+        if freshness != "fresh" or call_pct is None:
+            return 0.0, {"used": False, "freshness": freshness}
+        near_term_pct = self._optional_float(options.get("near_term_pct")) or 0.0
+        strength = min(0.20, 0.08 + max(0.0, min(1.0, near_term_pct)) * 0.12)
+        bias = self._clamp((call_pct - 0.5) * strength, 0.0, low=-0.04, high=0.04)
+        return bias, {
+            "used": True,
+            "freshness": freshness,
+            "call_pct": call_pct,
+            "near_term_pct": near_term_pct,
+            "bias": bias,
+        }
+
+    def _finalize_generated_calls(
+        self,
+        *,
+        calls: list[MarketPredictionCall],
+        scorecard: MarketPredictionScorecard | None,
+        source_snapshot: dict[str, Any],
+    ) -> list[MarketPredictionCall]:
+        return [
+            self._apply_publication_state(
+                call=self._apply_probability_calibration(call=call, scorecard=scorecard),
+                source_snapshot=source_snapshot,
+            )
+            for call in calls
+        ]
+
+    def _apply_probability_calibration(
+        self,
+        *,
+        call: MarketPredictionCall,
+        scorecard: MarketPredictionScorecard | None,
+    ) -> MarketPredictionCall:
+        sample_size = scorecard.sample_size if scorecard is not None else 0
+        brier_score = scorecard.brier_score if scorecard is not None else None
+        sample_shrink = max(0.0, 1.0 - min(1.0, sample_size / 100.0)) * 0.22
+        brier_shrink = 0.0
+        if brier_score is None:
+            brier_shrink = 0.08
+        elif brier_score > 0.22:
+            brier_shrink = min(0.20, (brier_score - 0.22) * 1.25)
+        shrink = self._clamp(sample_shrink + brier_shrink, 0.0, low=0.0, high=0.45)
+        raw_prob = call.prob_up
+        calibrated_prob = 0.5 + (raw_prob - 0.5) * (1.0 - shrink)
+        metadata = dict(call.metadata)
+        metadata["probability_calibration"] = {
+            "version": PROBABILITY_CALIBRATION_VERSION,
+            "raw_prob_up": raw_prob,
+            "calibrated_prob_up": calibrated_prob,
+            "shrink": shrink,
+            "sample_size": sample_size,
+            "brier_score": brier_score,
+        }
+        return call.model_copy(
+            update={
+                "prob_up": calibrated_prob,
+                "direction_label": self._derive_direction(calibrated_prob, call.expected_move_pct),
+                "metadata": metadata,
+            }
+        )
+
+    def _apply_publication_state(
+        self,
+        *,
+        call: MarketPredictionCall,
+        source_snapshot: dict[str, Any],
+    ) -> MarketPredictionCall:
+        metadata = dict(call.metadata)
+        reason_codes: list[str] = []
+        raw_active_seat_keys = metadata.get("active_seat_keys", [])
+        if not isinstance(raw_active_seat_keys, list):
+            raw_active_seat_keys = []
+        active_seat_keys = [
+            str(value)
+            for value in raw_active_seat_keys
+            if isinstance(value, str)
+        ]
+        if metadata.get("aggregation_mode") == "neutral_fallback":
+            reason_codes.append("no_supported_votes")
+        if (call.committee_disagreement_score or 0.0) >= 0.35:
+            reason_codes.append("high_disagreement")
+        for cluster in CRITICAL_FRESHNESS_CLUSTERS:
+            freshness = self._source_cluster_freshness(cluster, source_snapshot)
+            if freshness == "missing":
+                reason_codes.append(f"{cluster}_missing")
+        if abs(call.prob_up - 0.5) < 0.03 and abs(call.expected_move_pct) < 0.25:
+            reason_codes.append("weak_edge")
+        if active_seat_keys == [BASELINE_PREDICTION_SEAT_KEY] and call.confidence_score is not None and call.confidence_score < 45:
+            reason_codes.append("baseline_only_low_confidence")
+
+        publication_state = "no_edge" if reason_codes else "forecast"
+        metadata["publication_state"] = publication_state
+        metadata["abstain_reason_codes"] = list(dict.fromkeys(reason_codes))
+        if publication_state == "no_edge":
+            metadata["published_as_no_edge"] = True
+            return call.model_copy(
+                update={
+                    "direction_label": "neutral",
+                    "confidence_score": min(call.confidence_score or 0.0, 35.0),
+                    "metadata": metadata,
+                }
+            )
+        metadata["published_as_no_edge"] = False
+        return call.model_copy(update={"metadata": metadata})
+
+    def _finalize_generated_committee_summary(
+        self,
+        *,
+        summary: dict[str, Any],
+        lead_call: MarketPredictionCall,
+        calls: list[MarketPredictionCall],
+        baseline_vote_count: int,
+        scorecard: MarketPredictionScorecard | None,
+    ) -> dict[str, Any]:
+        finalized = dict(summary)
+        lead_metadata = lead_call.metadata if isinstance(lead_call.metadata, dict) else {}
+        calibration = lead_metadata.get("probability_calibration") if isinstance(lead_metadata, dict) else None
+        no_edge_count = sum(
+            1
+            for call in calls
+            if isinstance(call.metadata, dict) and call.metadata.get("publication_state") == "no_edge"
+        )
+        finalized.update(
+            {
+                "publication_state": lead_metadata.get("publication_state", "forecast"),
+                "abstain_reason_codes": lead_metadata.get("abstain_reason_codes", []),
+                "baseline_vote_count": baseline_vote_count,
+                "baseline_seat_weight": BASELINE_SEAT_WEIGHT,
+                "statistical_baseline_version": STATISTICAL_BASELINE_VERSION,
+                "probability_calibration_version": PROBABILITY_CALIBRATION_VERSION,
+                "probability_calibration": calibration if isinstance(calibration, dict) else None,
+                "no_edge_call_count": no_edge_count,
+                "calibration_sample_size": scorecard.sample_size if scorecard is not None else 0,
+            }
+        )
+        if finalized["publication_state"] == "no_edge" and not finalized.get("hero_headline"):
+            finalized["hero_headline"] = "No high-quality market edge in the current evidence."
+        return finalized
+
+    def _with_baseline_executed_seat(
+        self,
+        *,
+        executed_seats: list[dict[str, Any]],
+        baseline_vote_count: int,
+    ) -> list[dict[str, Any]]:
+        if baseline_vote_count <= 0:
+            return executed_seats
+        baseline = {
+            "seat_key": BASELINE_PREDICTION_SEAT_KEY,
+            "agent_slug": "statistical-baseline",
+            "model_id": STATISTICAL_BASELINE_VERSION,
+            "provider": "portfolio-ai",
+        }
+        return self._normalize_executed_seats([baseline, *executed_seats])
+
     def _default_committee_summary(
         self,
         *,
@@ -1426,6 +1794,10 @@ class MarketPredictionCommitteeService:
         committee_execution_path: str,
         review: MarketPredictionSeatReview,
         cluster_review: MarketPredictionClusterReview,
+        raw_payload: dict[str, Any],
+        source_snapshot: dict[str, Any],
+        calls: list[MarketPredictionCall],
+        votes: list[CommitteeSeatVote],
     ) -> dict[str, Any]:
         metadata = self._normalize_metadata(existing)
         review_persisted = bool(review.metadata.get("_persisted", True)) if isinstance(review.metadata, dict) else True
@@ -1453,6 +1825,18 @@ class MarketPredictionCommitteeService:
                 "cluster_review_generated_at": cluster_review.generated_at.isoformat(),
                 "cluster_review_state": cluster_review.review_state,
                 "resolved_cluster_weights": self._resolved_cluster_weight_rows(cluster_review),
+                "statistical_baseline_version": STATISTICAL_BASELINE_VERSION,
+                "baseline_seat_weight": BASELINE_SEAT_WEIGHT,
+                "baseline_vote_count": sum(1 for vote in votes if vote.seat_key == BASELINE_PREDICTION_SEAT_KEY),
+                "probability_calibration_version": PROBABILITY_CALIBRATION_VERSION,
+                "audit_version": "prediction-audit-v1",
+                "prompt_template_version": self._optional_str(raw_payload.get("_portfolio_prompt_template_version")),
+                "prompt_hash": self._optional_str(raw_payload.get("_portfolio_prompt_hash")),
+                "prompt_source_snapshot_hash": self._optional_str(raw_payload.get("_portfolio_source_snapshot_hash")),
+                "raw_output_hash": self._optional_str(raw_payload.get("_portfolio_output_hash")),
+                "persisted_source_snapshot_hash": self._stable_hash(source_snapshot),
+                "published_calls_hash": self._stable_hash([call.model_dump() for call in calls]),
+                "published_votes_hash": self._stable_hash([vote.model_dump() for vote in votes]),
             }
         )
         return metadata
@@ -1886,17 +2270,23 @@ class MarketPredictionCommitteeService:
         return normalized
 
     def _review_weight_map(self, review: MarketPredictionSeatReview) -> dict[str, float]:
-        return {
+        adaptive_weights = {
             row.seat_key: row.effective_weight
             for row in self._resolved_seat_weight_rows(review)
             if row.seat_key in SUPPORTED_ADAPTIVE_SEAT_KEYS
         }
+        scaled_weights = {
+            seat_key: weight * (1.0 - BASELINE_SEAT_WEIGHT)
+            for seat_key, weight in adaptive_weights.items()
+        }
+        scaled_weights[BASELINE_PREDICTION_SEAT_KEY] = BASELINE_SEAT_WEIGHT
+        return scaled_weights
 
     def _dedupe_supported_votes(self, votes: list[CommitteeSeatVote]) -> list[CommitteeSeatVote]:
         deduped: list[CommitteeSeatVote] = []
         seen: set[str] = set()
         for vote in votes:
-            if vote.seat_key in seen or vote.seat_key not in SUPPORTED_ADAPTIVE_SEAT_KEYS:
+            if vote.seat_key in seen or vote.seat_key not in SUPPORTED_SYNTHESIS_SEAT_KEYS:
                 continue
             seen.add(vote.seat_key)
             deduped.append(vote)
@@ -1991,7 +2381,7 @@ class MarketPredictionCommitteeService:
                 PredictionSourceCluster(
                     cluster=normalized,
                     weight=float(effective),
-                    freshness=row.get("freshness"),
+                    freshness=self._source_cluster_freshness(normalized, source_snapshot),
                     note=RANKED_ATTRIBUTION_NOTE,
                 )
             )
@@ -2451,6 +2841,15 @@ class MarketPredictionCommitteeService:
     @staticmethod
     def _dict_or_empty(value: Any) -> dict[str, Any]:
         return dict(value) if isinstance(value, dict) else {}
+
+    @staticmethod
+    def _stable_hash(value: Any) -> str:
+        payload = json.dumps(value, default=str, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _sha256_text(value: str) -> str:
+        return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
     @staticmethod
     def _coerce_datetime(value: datetime) -> datetime:
