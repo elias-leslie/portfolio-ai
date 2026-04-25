@@ -78,11 +78,24 @@ SESSION_FRESHNESS_THRESHOLDS_SECONDS = {
     "after_hours": (60 * 60, 3 * 60 * 60, 8 * 60 * 60),
     "closed": (3 * 60 * 60, 12 * 60 * 60, 24 * 60 * 60),
 }
-DEFAULT_ROSTER = [
-    {"seat_key": "baseline", "agent_slug": "statistical-baseline", "model_id": STATISTICAL_BASELINE_VERSION},
-    {"seat_key": "cross_asset", "agent_slug": "equity-analyst", "model_id": "grok-4.20-reasoning"},
-    {"seat_key": "macro", "agent_slug": "market-pulse-analyst", "model_id": "gpt-5.4"},
-    {"seat_key": "risk", "agent_slug": "risk-manager", "model_id": "claude-opus-4-7"},
+BASELINE_ROSTER_ENTRY = {
+    "seat_key": BASELINE_PREDICTION_SEAT_KEY,
+    "agent_slug": "statistical-baseline",
+    "provider": "portfolio-ai",
+    "model_id": STATISTICAL_BASELINE_VERSION,
+}
+DEFAULT_LLM_ROSTER = [
+    {"seat_key": "cross_asset", "agent_slug": "equity-analyst", "provider": "xai", "model_id": "grok-4.20-reasoning"},
+    {"seat_key": "macro", "agent_slug": "market-pulse-analyst", "provider": "codex", "model_id": "gpt-5.4"},
+    {"seat_key": "risk", "agent_slug": "risk-manager", "provider": "anthropic", "model_id": "claude-opus-4-7"},
+]
+DEFAULT_LLM_ROSTER_IDENTITY = [
+    {
+        "seat_key": seat["seat_key"],
+        "agent_slug": seat["agent_slug"],
+        "model_id": seat["model_id"],
+    }
+    for seat in DEFAULT_LLM_ROSTER
 ]
 MAG7_TICKERS = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA"]
 MAG7_SECTOR_PROXIES = ["XLK", "XLC", "XLY"]
@@ -666,6 +679,12 @@ class MarketPredictionCommitteeService:
             "You are the Market Prediction Committee for Portfolio AI. "
             "Return JSON only with keys committee_summary, calls, votes. "
             "Forecast SPY plus the 11 SPDR sector ETFs for the requested trading-day window. "
+            "Use independent LLM seat roles exactly from this roster contract: "
+            f"{json.dumps(DEFAULT_LLM_ROSTER, sort_keys=True)}. "
+            "The cross_asset seat must prioritize price/sector breadth and cross-asset leadership; "
+            "the macro seat must prioritize macro calendar, rates, oil, holiday, and market-cycle context; "
+            "the risk seat must challenge bullish consensus and focus on downside, options positioning, stale evidence, and tail risk. "
+            "Each seat must reason independently, avoid copying another seat, and report its own seat_key, agent_slug, provider, and model_id. "
             "Each call should include symbol, direction_label, prob_up, expected_move_pct, "
             "confidence_band_low_pct, confidence_band_high_pct, confidence_score, rationale_summary, and top_source_clusters. "
             "Each vote should include seat_key, agent_slug, model_id, provider, symbol, direction_label, prob_up, "
@@ -1737,13 +1756,7 @@ class MarketPredictionCommitteeService:
     ) -> list[dict[str, Any]]:
         if baseline_vote_count <= 0:
             return executed_seats
-        baseline = {
-            "seat_key": BASELINE_PREDICTION_SEAT_KEY,
-            "agent_slug": "statistical-baseline",
-            "model_id": STATISTICAL_BASELINE_VERSION,
-            "provider": "portfolio-ai",
-        }
-        return self._normalize_executed_seats([baseline, *executed_seats])
+        return self._normalize_executed_seats([BASELINE_ROSTER_ENTRY, *executed_seats])
 
     def _default_committee_summary(
         self,
@@ -2439,8 +2452,9 @@ class MarketPredictionCommitteeService:
                 "model_id": seat.get("model_id"),
             }
             for seat in sorted(executed_seats, key=lambda item: item["seat_key"])
+            if seat["seat_key"] != BASELINE_PREDICTION_SEAT_KEY
         ]
-        return "default_roster" if canonical == DEFAULT_ROSTER else "custom_roster"
+        return "default_roster" if canonical == DEFAULT_LLM_ROSTER_IDENTITY else "custom_roster"
 
     def _compute_committee_fingerprint(self, executed_seats: list[dict[str, Any]]) -> str:
         payload = json.dumps(

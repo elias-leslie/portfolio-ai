@@ -105,6 +105,45 @@ class _FakeStorage:
         return _FakeRows([])
 
 
+def test_default_roster_mode_ignores_statistical_baseline_and_provider() -> None:
+    service = MarketPredictionCommitteeService(repository=_FakeRepo())
+    executed_seats = service._normalize_executed_seats(
+        [
+            {
+                "seat_key": "baseline",
+                "agent_slug": "statistical-baseline",
+                "provider": "portfolio-ai",
+                "model_id": "statistical-baseline-v1",
+            },
+            {
+                "seat_key": "cross_asset",
+                "agent_slug": "equity-analyst",
+                "provider": "other-provider",
+                "model_id": "grok-4.20-reasoning",
+            },
+            {
+                "seat_key": "macro",
+                "agent_slug": "market-pulse-analyst",
+                "provider": "codex",
+                "model_id": "gpt-5.4",
+            },
+            {
+                "seat_key": "risk",
+                "agent_slug": "risk-manager",
+                "provider": "anthropic",
+                "model_id": "claude-opus-4-7",
+            },
+        ]
+    )
+
+    assert service._classify_roster_mode(executed_seats) == "default_roster"
+    assert service._classify_roster_mode(executed_seats[1:]) == "default_roster"
+
+    custom_seats = [dict(seat) for seat in executed_seats[1:]]
+    custom_seats[0]["model_id"] = "other-model"
+    assert service._classify_roster_mode(custom_seats) == "custom_roster"
+
+
 def _call(
     *,
     symbol: str = "SPY",
@@ -1150,6 +1189,10 @@ def test_generate_snapshot_persists_root_provenance_and_generation_time_fallback
     )
 
     assert fake_client.closed is True
+    assert fake_client.call_kwargs is not None
+    assert "Use independent LLM seat roles exactly" in fake_client.call_kwargs["prompt"]
+    assert '"seat_key": "cross_asset"' in fake_client.call_kwargs["prompt"]
+    assert "Each seat must reason independently" in fake_client.call_kwargs["prompt"]
     assert repo.runs[0].metadata["committee_execution_path"] == "committee_endpoint"
     assert repo.runs[0].metadata["committee_roster_mode"] == "custom_roster"
     assert repo.runs[0].metadata["executed_seats"] == [
