@@ -104,6 +104,7 @@ def household_rank_score(need: object) -> float:
 
 def household_rank_metadata(need: object) -> dict[str, float]:
     action_href = str(getattr(need, "action_href", "") or "")
+    detail = str(getattr(need, "detail", "") or "")
     need_id = str(getattr(need, "id", "") or "")
     need_type = str(getattr(need, "need_type", "") or "")
     priority = getattr(need, "priority", "low")
@@ -118,6 +119,15 @@ def household_rank_metadata(need: object) -> dict[str, float]:
     elif "utility=planning" in action_href:
         impact = 170.0 if "housing" in need_id else 130.0
         metadata = action_rank_metadata(priority, impact=impact, effort=80.0)
+    elif "focus=date-quality" in action_href or "future-transaction" in need_id:
+        metadata = action_rank_metadata(priority, impact=260.0, freshness=180.0, effort=70.0)
+    elif "intent=evidence" in action_href:
+        if "monthly spend" in detail or "safe to spend" in detail:
+            metadata = action_rank_metadata(priority, impact=260.0, freshness=200.0, effort=70.0)
+        elif "net worth" in detail:
+            metadata = action_rank_metadata(priority, impact=220.0, freshness=160.0, effort=40.0)
+        else:
+            metadata = action_rank_metadata(priority, impact=180.0, freshness=140.0, effort=50.0)
     elif getattr(need, "related_question_id", None):
         metadata = action_rank_metadata(priority, impact=120.0, freshness=80.0, effort=40.0)
     elif need_type == "confirm":
