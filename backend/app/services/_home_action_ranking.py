@@ -121,6 +121,8 @@ def household_rank_metadata(need: object) -> dict[str, float]:
         metadata = action_rank_metadata(priority, impact=impact, effort=80.0)
     elif "focus=date-quality" in action_href or "future-transaction" in need_id:
         metadata = action_rank_metadata(priority, impact=260.0, freshness=180.0, effort=70.0)
+    elif need_id.startswith("need_document_") or "tab=intake" in action_href:
+        metadata = action_rank_metadata(priority, impact=190.0, freshness=120.0, effort=70.0)
     elif "intent=evidence" in action_href:
         if "monthly spend" in detail or "safe to spend" in detail:
             metadata = action_rank_metadata(priority, impact=260.0, freshness=200.0, effort=70.0)

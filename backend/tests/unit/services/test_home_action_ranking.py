@@ -54,3 +54,19 @@ def test_household_rank_metadata_scores_transaction_date_quality() -> None:
     assert metadata["impact_score"] == 260.0
     assert metadata["freshness_score"] == 180.0
     assert metadata["effort_score"] == 70.0
+
+
+def test_household_rank_metadata_scores_document_upload_needs() -> None:
+    metadata = household_rank_metadata(
+        SimpleNamespace(
+            id="need_document_tax_return",
+            priority="high",
+            action_href="/money?tab=intake",
+            detail="Tax documents support planning assumptions.",
+        )
+    )
+
+    assert metadata["_rank_score"] == 2240.0
+    assert metadata["impact_score"] == 190.0
+    assert metadata["freshness_score"] == 120.0
+    assert metadata["effort_score"] == 70.0

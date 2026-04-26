@@ -518,7 +518,41 @@ def test_household_actions_use_specific_labels_and_focused_destinations() -> Non
                     action_href="/money?tab=accounts&focus=discovered-accounts",
                     related_question_id=None,
                 ),
-            ]
+                SimpleNamespace(
+                    id="cashflow-future-transaction-dates",
+                    category="intake",
+                    title="Review future-dated transactions",
+                    detail="Future dated rows are held out.",
+                    priority="high",
+                    action_label="Review dates",
+                    action_href="/money?tab=intake&focus=date-quality",
+                    related_question_id=None,
+                ),
+            ],
+            jenny_needs=[
+                SimpleNamespace(
+                    id="need_planning_housing",
+                    need_type="provide",
+                    title="Complete housing planning",
+                    detail="Add rent or ownership costs.",
+                    priority="high",
+                    status="unsatisfied",
+                    recurrence="one_time",
+                    action_href="/money?utility=planning&focus=housing",
+                    related_question_id=None,
+                ),
+                SimpleNamespace(
+                    id="need_document_tax_return",
+                    need_type="provide",
+                    title="Upload Most recent tax return",
+                    detail="Tax documents support planning assumptions.",
+                    priority="high",
+                    status="unsatisfied",
+                    recurrence="one_time",
+                    action_href="/money?tab=intake",
+                    related_question_id=None,
+                ),
+            ],
         )
     )
 
@@ -528,3 +562,11 @@ def test_household_actions_use_specific_labels_and_focused_destinations() -> Non
     assert actions[0]["href"] == "/money?tab=accounts&focus=account-coverage"
     assert actions[1]["action_label"] == "Review accounts"
     assert actions[1]["href"] == "/money?tab=accounts&focus=discovered-accounts"
+    assert actions[2]["action_label"] == "Review dates"
+    assert actions[2]["href"] == "/money?tab=intake&focus=date-quality"
+    assert actions[3]["title"] == "Complete housing planning"
+    assert actions[3]["action_label"] == "Add housing info"
+    assert actions[3]["href"] == "/money?utility=planning&focus=housing"
+    assert actions[4]["title"] == "Upload Most recent tax return"
+    assert actions[4]["action_label"] == "Upload document"
+    assert actions[4]["href"] == "/money?tab=intake"

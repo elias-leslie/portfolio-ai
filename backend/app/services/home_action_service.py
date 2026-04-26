@@ -118,11 +118,39 @@ def _household_action_label(item: object) -> str:
             if section and section != need_id
             else "Add planning info"
         )
+    elif "focus=date-quality" in action_href:
+        label = action_label or "Review dates"
+    elif need_id.startswith("need_document_") or "tab=intake" in action_href:
+        label = (
+            "Upload document"
+            if need_id.startswith("need_document_")
+            else "Upload evidence"
+        )
     elif getattr(item, "related_question_id", None):
         label = "Answer question"
     elif need_type == "confirm":
         label = "Confirm"
     return label
+
+
+def _household_action_from_item(
+    item: object,
+    *,
+    action_id: str,
+) -> dict[str, object]:
+    return {
+        "id": action_id,
+        "source": "household",
+        "category": "household",
+        "priority": getattr(item, "priority", "low"),
+        "title": getattr(item, "title", "Household follow-up"),
+        "detail": getattr(item, "detail", ""),
+        "action_label": _household_action_label(item),
+        "href": getattr(item, "action_href", None) or "/money",
+        "symbol": None,
+        "badge": "Household",
+        **household_rank_metadata(item),
+    }
 
 
 class HomeActionService:
@@ -579,21 +607,26 @@ class HomeActionService:
 
         actions: list[dict[str, object]] = []
         items = list(dashboard.inbox)
-        for index, item in enumerate(items[:4], start=1):
+        for index, item in enumerate(items[:12], start=1):
             actions.append(
-                {
-                    "id": f"household-{index}-{item.id}",
-                    "source": "household",
-                    "category": "household",
-                    "priority": item.priority,
-                    "title": item.title,
-                    "detail": item.detail,
-                    "action_label": _household_action_label(item),
-                    "href": item.action_href or "/money",
-                    "symbol": None,
-                    "badge": "Household",
-                    **household_rank_metadata(item),
-                }
+                _household_action_from_item(
+                    item,
+                    action_id=f"household-{index}-{item.id}",
+                )
+            )
+
+        needs = [
+            need
+            for need in list(getattr(dashboard, "jenny_needs", []))
+            if str(getattr(need, "status", "") or "") == "unsatisfied"
+            and getattr(need, "action_href", None)
+        ]
+        for index, need in enumerate(needs[:8], start=1):
+            actions.append(
+                _household_action_from_item(
+                    need,
+                    action_id=f"household-need-{index}-{need.id}",
+                )
             )
 
         return actions
