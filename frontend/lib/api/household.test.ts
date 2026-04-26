@@ -160,7 +160,12 @@ describe('household api', () => {
     }) as unknown as typeof fetch
 
     const file = new File(['hello'], 'receipt.png', { type: 'image/png' })
-    await uploadHouseholdDocument({ file, sourceType: 'receipt' })
+    await uploadHouseholdDocument({
+      file,
+      sourceType: 'receipt',
+      accountLabel: 'Amazon Chase',
+      accountId: 'household-chase',
+    })
 
     expect(global.fetch).toHaveBeenCalledWith(
       '/api/intake/evidence',
@@ -172,6 +177,8 @@ describe('household api', () => {
     const [, request] = vi.mocked(global.fetch).mock.calls[0]
     const form = request?.body as FormData
     expect(form.get('source_type')).toBe('receipt')
+    expect(form.get('account_label')).toBe('Amazon Chase')
+    expect(form.get('household_account_id')).toBe('household-chase')
   })
 
   it('answers a household question', async () => {

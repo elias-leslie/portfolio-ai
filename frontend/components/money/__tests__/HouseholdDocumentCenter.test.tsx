@@ -302,6 +302,9 @@ describe('HouseholdDocumentCenter', () => {
     expect(
       screen.getByText(/1 transaction has a future date/i),
     ).toBeInTheDocument()
+    expect(document.getElementById('date-quality-review')).toHaveClass(
+      'scroll-mt-40',
+    )
     expect(screen.getByText('walmart-order.pdf')).toBeInTheDocument()
     expect(screen.getByText(/extracted 2026-09-03/i)).toBeInTheDocument()
     expect(screen.getByText('$164')).toBeInTheDocument()

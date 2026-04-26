@@ -115,7 +115,7 @@ function DateQualityIssuesCard({
   return (
     <div
       id="date-quality-review"
-      className={`rounded-2xl border p-4 ${
+      className={`scroll-mt-40 rounded-2xl border p-4 ${
         focusedReview
           ? 'border-amber-400/60 bg-amber-400/10 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]'
           : 'border-border/40 bg-surface-muted/20'

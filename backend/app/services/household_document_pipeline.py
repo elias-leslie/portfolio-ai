@@ -222,6 +222,7 @@ class HouseholdDocumentPipeline:
         source_type: str | None = None,
         document_type: str | None = None,
         account_label: str | None = None,
+        household_account_id: str | None = None,
     ) -> HouseholdDocument:
         document_id = str(uuid.uuid4())
         filename = upload.filename or f"{document_id}.bin"
@@ -251,6 +252,8 @@ class HouseholdDocumentPipeline:
             "stored_path": str(stored_path),
             "content_sha256": content_sha256,
         }
+        if household_account_id:
+            metadata["household_account_id_hint"] = household_account_id
         with service.storage.connection() as conn:
             insert_document_db(
                 conn,
@@ -327,6 +330,11 @@ class HouseholdDocumentPipeline:
                 content_type=document.content_type,
                 source_type=document.source_type,
                 document_type=document.document_type,
+                household_account_id_hint=(
+                    str(document.metadata.get("household_account_id_hint"))
+                    if document.metadata.get("household_account_id_hint")
+                    else None
+                ),
                 prior_review=prior_review,
                 reconciliation_summary=reconciliation_summary,
             )

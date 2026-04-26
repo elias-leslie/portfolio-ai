@@ -167,6 +167,7 @@ async def upload_household_document(
     source_type: str | None = Form(default=None),
     document_type: str | None = Form(default=None),
     account_label: str | None = Form(default=None),
+    household_account_id: str | None = Form(default=None),
 ) -> HouseholdDocument:
     """Stage a household document for future parsing."""
     service = _service()
@@ -175,6 +176,7 @@ async def upload_household_document(
         source_type=source_type,
         document_type=document_type,
         account_label=account_label,
+        household_account_id=household_account_id,
     )
     if document.metadata.get("duplicate_detected") is not True:
         background_tasks.add_task(service.review_document, document.id)

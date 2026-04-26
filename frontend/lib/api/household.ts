@@ -644,6 +644,7 @@ export interface HouseholdDocumentUpload {
   sourceType?: string
   documentType?: string
   accountLabel?: string
+  accountId?: string
 }
 
 export interface HouseholdQuestionAnswer {
@@ -768,6 +769,9 @@ export async function uploadHouseholdDocument(
   }
   if (payload.accountLabel) {
     form.append('account_label', payload.accountLabel)
+  }
+  if (payload.accountId) {
+    form.append('household_account_id', payload.accountId)
   }
   return postForm<HouseholdDocument>('/api/intake/evidence', form)
 }

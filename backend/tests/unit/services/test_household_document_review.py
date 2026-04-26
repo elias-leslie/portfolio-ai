@@ -21,6 +21,35 @@ _LLM_MODULE = "app.services._household_document_llm"
 _REVIEW_MODULE = "app.services.household_document_review"
 
 
+class _Rows:
+    def __init__(self, rows: list[tuple[object, ...]]) -> None:
+        self.rows = rows
+
+    def fetchall(self) -> list[tuple[object, ...]]:
+        return self.rows
+
+
+class _ContextStorage:
+    def __init__(self, account_rows: list[tuple[object, ...]]) -> None:
+        self.account_rows = account_rows
+
+    def connection(self) -> _ContextStorage:
+        return self
+
+    def __enter__(self) -> _ContextStorage:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def execute(self, query: str, _params: object | None = None) -> _Rows:
+        if "FROM household_account_identities" in query:
+            return _Rows([])
+        if "FROM household_evidence_accounts e" in query:
+            return _Rows([])
+        return _Rows(self.account_rows)
+
+
 def test_parse_review_payload_handles_fenced_json() -> None:
     payload = _parse_review_payload(
         """
@@ -468,6 +497,51 @@ def test_reconcile_reviewed_accounts_links_transaction_only_export_to_known_acco
     structured_data = cast(dict[str, Any], reviewed["structured_data"])
     account = cast(dict[str, Any], structured_data["financial_accounts"][0])
     assert account["household_account_id"] == "household-chase"
+
+
+def test_build_household_context_prioritizes_selected_upload_hint() -> None:
+    service = HouseholdDocumentReviewService(agent_service=MagicMock())
+    service.storage = _ContextStorage(
+        [
+            (
+                "household-other",
+                "Other Checking",
+                "bank",
+                "cash",
+                "checking",
+                "Other Bank",
+                None,
+                "1111",
+                "bank|other|1111",
+                None,
+                1,
+            ),
+            (
+                "household-selected",
+                "Cash Management Account",
+                "brokerage",
+                "cash",
+                "cash_management",
+                "Fidelity",
+                None,
+                "2222",
+                "brokerage|fidelity|2222",
+                None,
+                1,
+            ),
+        ]
+    )
+
+    context = service._build_household_context(
+        baseline_review={"source_type": "bank", "structured_data": {}},
+        extracted_text="generic statement text",
+        household_account_id_hint="household-selected",
+    )
+
+    assert context is not None
+    selected = context["related_accounts"][0]
+    assert selected["household_account_id"] == "household-selected"
+    assert selected["selected_upload_hint"] is True
 
 
 def test_reconcile_reviewed_accounts_preserves_explicit_match_key_over_stale_primary() -> None:

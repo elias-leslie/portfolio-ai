@@ -14,6 +14,7 @@ const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 interface EvidenceUploadComposerProps {
   title: string
   description: string
+  accountId?: string | null
   accountLabel?: string | null
   compact?: boolean
   highlighted?: boolean
@@ -22,6 +23,7 @@ interface EvidenceUploadComposerProps {
 export function EvidenceUploadComposer({
   title,
   description,
+  accountId = null,
   accountLabel = null,
   compact = false,
   highlighted = false,
@@ -140,6 +142,7 @@ export function EvidenceUploadComposer({
         ...files.map((file) =>
           upload.mutateAsync({
             file,
+            accountId: accountId ?? undefined,
             accountLabel: accountLabel ?? undefined,
           }),
         ),
@@ -153,6 +156,7 @@ export function EvidenceUploadComposer({
                 .toLowerCase()
                 .replace(/[^a-z0-9]+/g, '-')
                 .replace(/^-+|-+$/g, '') || 'pasted-evidence' + '.txt',
+            accountId: accountId ?? undefined,
             accountLabel: accountLabel ?? undefined,
           }),
         )

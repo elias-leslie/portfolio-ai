@@ -152,6 +152,7 @@ class HouseholdDocumentReviewService:
         content_type: str | None,
         source_type: str,
         document_type: str,
+        household_account_id_hint: str | None = None,
         prior_review: dict[str, Any] | None = None,
         reconciliation_summary: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
@@ -165,6 +166,7 @@ class HouseholdDocumentReviewService:
         household_context = self._build_household_context(
             baseline_review=baseline,
             extracted_text=extracted_text,
+            household_account_id_hint=household_account_id_hint,
         )
         signature_review = None
         if prior_review is None and reconciliation_summary is None:
@@ -364,6 +366,7 @@ class HouseholdDocumentReviewService:
         *,
         baseline_review: dict[str, Any],
         extracted_text: str | None,
+        household_account_id_hint: str | None = None,
     ) -> dict[str, Any] | None:
         structured_data = baseline_review.get("structured_data")
         structured = structured_data if isinstance(structured_data, dict) else {}
@@ -427,6 +430,7 @@ class HouseholdDocumentReviewService:
             return None
 
         ranked: list[tuple[int, Any]] = []
+        normalized_account_hint = str(household_account_id_hint or "").strip()
         for row in rows:
             haystack = " ".join(
                 str(value or "")
@@ -438,6 +442,8 @@ class HouseholdDocumentReviewService:
                 if token not in _CONTEXT_STOPWORDS
             }
             score = 0
+            if normalized_account_hint and str(row[0]) == normalized_account_hint:
+                score += 1000
             if source_type and str(row[2] or "") == source_type:
                 score += 5
             if institution_hint and institution_hint.lower() in haystack:
@@ -525,6 +531,9 @@ class HouseholdDocumentReviewService:
                 "primary_identity_key": str(row[8] or "") or None,
                 "last_as_of_date": str(row[9] or "") or None,
                 "evidence_count": int(row[10] or 0),
+                "selected_upload_hint": bool(
+                    normalized_account_hint and str(row[0]) == normalized_account_hint
+                ),
                 "identity_examples": identity_examples.get(str(row[0]), []),
             }
             for row in selected_rows
