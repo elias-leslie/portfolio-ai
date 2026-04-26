@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import Mock, patch
 
@@ -24,12 +25,56 @@ from app.services._household_dashboard_assembly import (
     _net_worth_trust,
     build_overview,
     gather_service_data,
+    household_overview_action_title,
 )
 from app.services.household_finance_service import HouseholdFinanceService
 
 
 def _service() -> HouseholdFinanceService:
     return HouseholdFinanceService()
+
+
+def test_household_overview_action_uses_ranked_household_contract() -> None:
+    action = household_overview_action_title(
+        inbox=[
+            SimpleNamespace(
+                id="cashflow-future-transaction-dates",
+                title="Review future-dated transactions",
+                priority="high",
+                detail="Future-dated transactions are held out.",
+                action_href="/money?tab=intake&focus=date-quality",
+            ),
+            SimpleNamespace(
+                id="account-cma-stale-transactions",
+                title="Refresh transactions for Cash Management Account (CMA)",
+                priority="high",
+                detail="Blocks monthly spend, budget status, and safe to spend.",
+                action_href="/money?tab=accounts&account=cma&intent=evidence",
+            ),
+        ],
+        jenny_needs=[
+            SimpleNamespace(
+                id="need_account_completeness",
+                title="Are all accounts covered?",
+                priority="high",
+                detail="Confirm account coverage.",
+                status="unsatisfied",
+                need_type="confirm",
+                action_href="/money?tab=accounts&focus=account-coverage",
+            ),
+            SimpleNamespace(
+                id="need_document_tax",
+                title="Upload tax return",
+                priority="high",
+                detail="Tax docs support assumptions.",
+                status="satisfied",
+                need_type="provide",
+                action_href="/money?tab=intake",
+            ),
+        ],
+    )
+
+    assert action == "Refresh transactions for Cash Management Account (CMA)"
 
 
 def test_get_dashboard_returns_composed_household_view() -> None:

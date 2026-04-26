@@ -23,6 +23,7 @@ from app.services._household_dashboard_assembly import (
     build_jenny_needs,
     build_overview,
     gather_service_data,
+    household_overview_action_title,
     resolve_dashboard_values,
     update_overview_action,
 )
@@ -113,10 +114,12 @@ class HouseholdDashboardComposer:
             freshness=freshness,
             categorization_queue=categorization_queue,
         )
-        if inbox:
-            overview = update_overview_action(overview, inbox[0].title)
-        elif jenny_needs:
-            overview = update_overview_action(overview, jenny_needs[0].title)
+        overview_action_title = household_overview_action_title(
+            inbox=inbox,
+            jenny_needs=jenny_needs,
+        )
+        if overview_action_title:
+            overview = update_overview_action(overview, overview_action_title)
         return assemble_finance_dashboard(
             d=d, service=service, overview=overview, resolved_values=resolved_values,
             visible_questions=visible_questions, jenny_needs=jenny_needs,
