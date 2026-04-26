@@ -266,7 +266,7 @@ def _overview_totals_from_account_summaries(
     taxable_assets = sum(
         float(account.current_value or 0.0)
         for account in asset_accounts
-        if account.asset_group in {"taxable", "education"}
+        if account.asset_group == "taxable"
     )
     cash_reserve = sum(
         float(
@@ -571,9 +571,11 @@ def build_overview(
         retirement_assets += retirement_fallback
         invested_assets += retirement_fallback
     if taxable_assets <= 0:
-        taxable_fallback = evidence_totals.get("taxable", 0.0) + evidence_totals.get("education", 0.0)
+        taxable_fallback = evidence_totals.get("taxable", 0.0)
         taxable_assets += taxable_fallback
         invested_assets += taxable_fallback
+    if summary_totals is None:
+        invested_assets += evidence_totals.get("education", 0.0)
     if invested_assets <= 0:
         invested_assets += evidence_totals.get("other", 0.0)
     if summary_totals is None:
