@@ -22,6 +22,7 @@ from app.models.household_finance import (
     HouseholdTrackedAccount,
     HouseholdTrackedAccountInput,
     HouseholdTransactionCategoryUpdate,
+    HouseholdTransactionDateIssueResolution,
 )
 from app.models.household_planning import HouseholdPlanningSnapshot, HouseholdPlanningUpdate
 from app.portfolio.manager import PortfolioManager
@@ -31,6 +32,7 @@ from app.services._household_finance_document_methods import _HFDocumentMethods
 from app.services._household_finance_intake_methods import _HFIntakeMethods
 from app.services.household_account_registry_service import HouseholdAccountRegistryService
 from app.services.household_dashboard_composer import HouseholdDashboardComposer
+from app.services.household_date_quality_service import HouseholdDateQualityService
 from app.services.household_document_pipeline import HouseholdDocumentPipeline
 from app.services.household_document_review import HouseholdDocumentReviewService
 from app.services.household_evidence_service import HouseholdEvidenceService
@@ -189,6 +191,7 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         self.account_registry_service = HouseholdAccountRegistryService()
         self.product_enrichment_service = HouseholdProductEnrichmentService()
         self.dashboard_composer = HouseholdDashboardComposer()
+        self.date_quality_service = HouseholdDateQualityService()
         self.ledger_service = HouseholdLedgerService()
         self.document_pipeline = HouseholdDocumentPipeline()
         self.question_reconciler = HouseholdQuestionReconciler()
@@ -254,6 +257,13 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
 
     def update_transaction_category(self, transaction_id: str, payload: HouseholdTransactionCategoryUpdate) -> bool:
         return self.transaction_rule_service.update_transaction_category(self, transaction_id, payload)
+
+    def resolve_transaction_date_issue(
+        self,
+        issue_id: str,
+        payload: HouseholdTransactionDateIssueResolution,
+    ) -> bool:
+        return self.date_quality_service.resolve_issue(self, issue_id=issue_id, payload=payload)
 
     def list_evidence_accounts(
         self,

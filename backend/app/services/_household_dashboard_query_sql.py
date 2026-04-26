@@ -7,7 +7,11 @@ from app.services._household_spend_filters import non_spend_sql_predicate
 
 def current_transaction_date_predicate(alias: str | None = None) -> str:
     qualifier = f"{alias}." if alias else ""
-    return f"{qualifier}transaction_date <= CURRENT_DATE"
+    return (
+        f"{qualifier}transaction_date <= CURRENT_DATE "
+        f"AND COALESCE({qualifier}metadata->'date_quality_resolution'->>'status', '') "
+        "NOT IN ('superseded', 'excluded')"
+    )
 
 
 _NON_SPEND_TRANSACTION_SQL = non_spend_sql_predicate(
@@ -113,6 +117,8 @@ FUTURE_TRANSACTION_QUALITY_SQL = """
         MAX(transaction_date) AS latest_future_date
     FROM household_transactions
     WHERE transaction_date > CURRENT_DATE
+      AND COALESCE(metadata->'date_quality_resolution'->>'status', '')
+          NOT IN ('resolved', 'superseded', 'excluded')
 """
 
 DOCUMENT_FUTURE_TRANSACTION_QUALITY_SQL = """
@@ -143,18 +149,27 @@ LATEST_TRANSACTION_DATE_SQL = {
         SELECT document_id, MAX(transaction_date) AS latest_transaction_date
         FROM household_transactions
         WHERE document_id IS NOT NULL
+          AND transaction_date <= CURRENT_DATE
+          AND COALESCE(metadata->'date_quality_resolution'->>'status', '')
+              NOT IN ('superseded', 'excluded')
         GROUP BY document_id
     """,
     "account_label": """
         SELECT account_label, MAX(transaction_date) AS latest_transaction_date
         FROM household_transactions
         WHERE account_label IS NOT NULL
+          AND transaction_date <= CURRENT_DATE
+          AND COALESCE(metadata->'date_quality_resolution'->>'status', '')
+              NOT IN ('superseded', 'excluded')
         GROUP BY account_label
     """,
     "household_account_id": """
         SELECT household_account_id, MAX(transaction_date) AS latest_transaction_date
         FROM household_transactions
         WHERE household_account_id IS NOT NULL
+          AND transaction_date <= CURRENT_DATE
+          AND COALESCE(metadata->'date_quality_resolution'->>'status', '')
+              NOT IN ('superseded', 'excluded')
         GROUP BY household_account_id
     """,
 }

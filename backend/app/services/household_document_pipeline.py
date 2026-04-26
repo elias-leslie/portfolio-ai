@@ -223,6 +223,9 @@ class HouseholdDocumentPipeline:
         document_type: str | None = None,
         account_label: str | None = None,
         household_account_id: str | None = None,
+        replaces_document_id: str | None = None,
+        date_quality_issue_id: str | None = None,
+        replacement_reason: str | None = None,
     ) -> HouseholdDocument:
         document_id = str(uuid.uuid4())
         filename = upload.filename or f"{document_id}.bin"
@@ -231,6 +234,14 @@ class HouseholdDocumentPipeline:
 
         duplicate = self.find_duplicate_document_by_hash(service, content_sha256)
         if duplicate is not None:
+            if replaces_document_id and duplicate.id != replaces_document_id:
+                service.date_quality_service.mark_replaced_document(
+                    service,
+                    replaced_document_id=replaces_document_id,
+                    replacement_document_id=duplicate.id,
+                    issue_id=date_quality_issue_id,
+                    reason=replacement_reason or "corrected_evidence_uploaded",
+                )
             duplicate.metadata["duplicate_detected"] = True
             duplicate.metadata["duplicate_reason"] = "exact_content_match"
             return duplicate
@@ -254,6 +265,12 @@ class HouseholdDocumentPipeline:
         }
         if household_account_id:
             metadata["household_account_id_hint"] = household_account_id
+        if replaces_document_id:
+            metadata["replaces_document_id"] = replaces_document_id
+        if date_quality_issue_id:
+            metadata["date_quality_issue_id"] = date_quality_issue_id
+        if replacement_reason:
+            metadata["replacement_reason"] = replacement_reason
         with service.storage.connection() as conn:
             insert_document_db(
                 conn,
@@ -266,6 +283,14 @@ class HouseholdDocumentPipeline:
         document = service.get_document(document_id)
         if document is None:
             raise RuntimeError("Failed to persist uploaded document")
+        if replaces_document_id and replaces_document_id != document.id:
+            service.date_quality_service.mark_replaced_document(
+                service,
+                replaced_document_id=replaces_document_id,
+                replacement_document_id=document.id,
+                issue_id=date_quality_issue_id,
+                reason=replacement_reason or "corrected_evidence_uploaded",
+            )
         return document
 
     def find_duplicate_document_by_hash(

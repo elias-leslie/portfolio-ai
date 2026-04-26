@@ -26,6 +26,7 @@ from app.models.household_finance import (
     HouseholdTrackedAccount,
     HouseholdTrackedAccountInput,
     HouseholdTransactionCategoryUpdate,
+    HouseholdTransactionDateIssueResolution,
 )
 from app.models.household_planning import HouseholdPlanningSnapshot, HouseholdPlanningUpdate
 
@@ -168,6 +169,9 @@ async def upload_household_document(
     document_type: str | None = Form(default=None),
     account_label: str | None = Form(default=None),
     household_account_id: str | None = Form(default=None),
+    replaces_document_id: str | None = Form(default=None),
+    date_quality_issue_id: str | None = Form(default=None),
+    replacement_reason: str | None = Form(default=None),
 ) -> HouseholdDocument:
     """Stage a household document for future parsing."""
     service = _service()
@@ -177,6 +181,9 @@ async def upload_household_document(
         document_type=document_type,
         account_label=account_label,
         household_account_id=household_account_id,
+        replaces_document_id=replaces_document_id,
+        date_quality_issue_id=date_quality_issue_id,
+        replacement_reason=replacement_reason,
     )
     if document.metadata.get("duplicate_detected") is not True:
         background_tasks.add_task(service.review_document, document.id)
@@ -217,4 +224,23 @@ async def categorize_household_transaction(
     updated = await run_in_threadpool(_service().update_transaction_category, transaction_id, payload)
     if not updated:
         raise HTTPException(status_code=404, detail=f"Household transaction not found: {transaction_id}")
+    return {"ok": True}
+
+
+@router.post("/transaction-date-issues/{issue_id}/resolve")
+async def resolve_transaction_date_issue(
+    issue_id: str,
+    payload: HouseholdTransactionDateIssueResolution,
+) -> dict[str, bool]:
+    """Resolve or supersede a future-dated transaction issue."""
+    try:
+        updated = await run_in_threadpool(
+            _service().resolve_transaction_date_issue,
+            issue_id,
+            payload,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Transaction date issue not found: {issue_id}")
     return {"ok": True}

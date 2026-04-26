@@ -3,6 +3,7 @@ import {
   answerHouseholdQuestion,
   categorizeHouseholdTransaction,
   fetchHouseholdDashboard,
+  resolveHouseholdTransactionDateIssue,
   uploadHouseholdDocument,
 } from './household'
 
@@ -165,6 +166,9 @@ describe('household api', () => {
       sourceType: 'receipt',
       accountLabel: 'Amazon Chase',
       accountId: 'household-chase',
+      replacesDocumentId: 'doc-old',
+      dateQualityIssueId: 'future-date-document-doc-old-0',
+      replacementReason: 'corrected_evidence_uploaded',
     })
 
     expect(global.fetch).toHaveBeenCalledWith(
@@ -179,6 +183,32 @@ describe('household api', () => {
     expect(form.get('source_type')).toBe('receipt')
     expect(form.get('account_label')).toBe('Amazon Chase')
     expect(form.get('household_account_id')).toBe('household-chase')
+    expect(form.get('replaces_document_id')).toBe('doc-old')
+    expect(form.get('date_quality_issue_id')).toBe(
+      'future-date-document-doc-old-0',
+    )
+    expect(form.get('replacement_reason')).toBe('corrected_evidence_uploaded')
+  })
+
+  it('resolves a household transaction date issue', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: vi.fn().mockResolvedValue({ ok: true }),
+    }) as unknown as typeof fetch
+
+    await resolveHouseholdTransactionDateIssue('future-date-document-doc-1-0', {
+      resolution: 'date_confirmed_future',
+    })
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/household/transaction-date-issues/future-date-document-doc-1-0/resolve',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ resolution: 'date_confirmed_future' }),
+      }),
+    )
   })
 
   it('answers a household question', async () => {
