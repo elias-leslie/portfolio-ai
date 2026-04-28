@@ -439,6 +439,30 @@ class _RetryPipeline(HouseholdDocumentPipeline):
             "needs_follow_up": False,
         }
 
+    def _fetch_applied_counts(
+        self,
+        service: Any,
+        *,
+        document_id: str,
+    ) -> dict[str, object]:
+        if self.apply_calls == 1:
+            return {
+                "import_count": 0,
+                "transaction_count": 0,
+                "transaction_linked_count": 0,
+                "evidence_account_count": 0,
+                "transaction_account_ids": [],
+                "evidence_account_ids": [],
+            }
+        return {
+            "import_count": 0,
+            "transaction_count": 0,
+            "transaction_linked_count": 0,
+            "evidence_account_count": 1,
+            "transaction_account_ids": [],
+            "evidence_account_ids": ["account-1"],
+        }
+
     def upsert_document_signatures(
         self,
         service: Any,
@@ -511,3 +535,130 @@ def test_process_document_review_retries_once_for_retryable_reconciliation(
     assert second_call["reconciliation_summary"]["status"] == "needs_retry"
     assert connection.commit.called
     update_application_summary.assert_called_once()
+
+
+def test_reconciliation_flags_invalid_numeric_account_fields() -> None:
+    pipeline = HouseholdDocumentPipeline()
+    pipeline._fetch_applied_counts = Mock(  # type: ignore[method-assign]
+        return_value={
+            "import_count": 0,
+            "transaction_count": 17,
+            "transaction_linked_count": 17,
+            "evidence_account_count": 1,
+            "transaction_account_ids": ["account-1"],
+            "evidence_account_ids": ["account-1"],
+        }
+    )
+
+    summary = pipeline._build_reconciliation_summary(  # type: ignore[attr-defined]
+        service=SimpleNamespace(storage=MagicMock()),
+        document=Mock(id="doc-1"),
+        reviewed={
+            "source_type": "brokerage",
+            "document_type": "brokerage_statement",
+            "structured_data": {
+                "financial_accounts": [
+                    {
+                        "account_name": "Fidelity CMA",
+                        "balance": "Processing",
+                        "cash_balance": "Processing",
+                    }
+                ]
+            },
+            "review_checks": {"expected_account_count": 1, "expects_transaction_activity": True},
+        },
+        application_summary={
+            "imports": {"inserted": 0},
+            "transactions": {"inserted": 0, "updated": 17, "held_for_date_review": 0},
+            "evidence_accounts": 1,
+        },
+    )
+
+    assert summary["status"] == "needs_retry"
+    assert summary["retry_recommended"] is True
+    issues = summary["issues"]
+    assert isinstance(issues, list)
+    codes = {issue["code"] for issue in issues if isinstance(issue, dict)}
+    assert "invalid_numeric_field" in codes
+
+
+def test_reconciliation_flags_transaction_account_mismatch_after_relink() -> None:
+    pipeline = HouseholdDocumentPipeline()
+    pipeline._fetch_applied_counts = Mock(  # type: ignore[method-assign]
+        return_value={
+            "import_count": 0,
+            "transaction_count": 3,
+            "transaction_linked_count": 3,
+            "evidence_account_count": 1,
+            "transaction_account_ids": ["old-account"],
+            "evidence_account_ids": ["new-account"],
+        }
+    )
+
+    summary = pipeline._build_reconciliation_summary(  # type: ignore[attr-defined]
+        service=SimpleNamespace(storage=MagicMock()),
+        document=Mock(id="doc-1"),
+        reviewed={
+            "source_type": "bank",
+            "document_type": "statement",
+            "structured_data": {
+                "financial_accounts": [
+                    {"account_name": "Wells Fargo checking", "account_type": "checking"}
+                ]
+            },
+            "review_checks": {"expected_account_count": 1, "expects_transaction_activity": True},
+        },
+        application_summary={
+            "imports": {"inserted": 0},
+            "transactions": {"inserted": 0, "updated": 3, "held_for_date_review": 0},
+            "evidence_accounts": 1,
+        },
+    )
+
+    assert summary["status"] == "needs_retry"
+    issues = summary["issues"]
+    assert isinstance(issues, list)
+    first_issue = issues[0]
+    assert isinstance(first_issue, dict)
+    assert first_issue["code"] == "transaction_account_mismatch"
+
+
+def test_reconciliation_flags_unlinked_transactions_even_when_rows_applied() -> None:
+    pipeline = HouseholdDocumentPipeline()
+    pipeline._fetch_applied_counts = Mock(  # type: ignore[method-assign]
+        return_value={
+            "import_count": 0,
+            "transaction_count": 4,
+            "transaction_linked_count": 0,
+            "evidence_account_count": 1,
+            "transaction_account_ids": [],
+            "evidence_account_ids": ["account-1"],
+        }
+    )
+
+    summary = pipeline._build_reconciliation_summary(  # type: ignore[attr-defined]
+        service=SimpleNamespace(storage=MagicMock()),
+        document=Mock(id="doc-1"),
+        reviewed={
+            "source_type": "credit_card",
+            "document_type": "statement",
+            "structured_data": {
+                "financial_accounts": [
+                    {"account_name": "Chase card", "account_type": "credit_card"}
+                ]
+            },
+            "review_checks": {"expected_account_count": 1, "expects_transaction_activity": True},
+        },
+        application_summary={
+            "imports": {"inserted": 0},
+            "transactions": {"inserted": 4, "updated": 0, "held_for_date_review": 0},
+            "evidence_accounts": 1,
+        },
+    )
+
+    assert summary["status"] == "needs_retry"
+    issues = summary["issues"]
+    assert isinstance(issues, list)
+    first_issue = issues[0]
+    assert isinstance(first_issue, dict)
+    assert first_issue["code"] == "unlinked_transactions"

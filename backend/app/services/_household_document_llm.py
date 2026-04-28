@@ -59,6 +59,7 @@ def _build_messages(
             "",
             "Own full intake outcome, not just classification.",
             "Read upload. infer all accounts, balances, transactions, and useful facts. reconcile against household context. use related evidence examples when format drift exists, but do not copy stale values. save strong identity hints. run an internal self-check. ask the user only if ambiguity remains real after all of that.",
+            "For single-account transaction activity exports, financial_accounts must describe only the uploaded account. Account names or masks mentioned inside transaction descriptions are counterparties; keep them in transaction context only, not as financial_accounts/evidence accounts.",
             "",
             "Use extracted text to improve or correct the baseline review.",
         ]

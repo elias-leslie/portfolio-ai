@@ -130,6 +130,34 @@ def test_baseline_review_detects_chase_activity_csv() -> None:
     assert financial_accounts[0]["account_type"] == "credit_card"
 
 
+def test_baseline_review_skips_pending_cash_balance_text_in_activity_csv() -> None:
+    payload = _baseline_review(
+        filename="Fidelity_CMA_Year_To_Date_4_27_26.csv",
+        source_type="other",
+        document_type="other",
+        extracted_text=(
+            "Run Date,Action,Symbol,Description,Type,Price ($),Quantity,Commission ($),"
+            "Fees ($),Accrued Interest ($),Amount ($),Cash Balance ($),Settlement Date\n"
+            "04/27/2026,DIRECT DEBIT CHASE CREDIT CEPAY (Cash),,No Description,Cash,,"
+            "0.000,,,,-6243.47,Processing,\n"
+            "04/20/2026,DIRECT DEBIT P C UTILITIES AUTO_PAY (Cash),,No Description,Cash,,"
+            "0.000,,,,-179.54,42059.44,\n"
+        ),
+    )
+    structured_data = cast(dict[str, Any], payload["structured_data"])
+    financial_accounts = cast(list[dict[str, Any]], structured_data["financial_accounts"])
+
+    assert payload["document_type"] == "brokerage_statement"
+    assert payload["source_type"] == "brokerage"
+    assert structured_data["total_amount"] == "42059.44"
+    assert structured_data["account_hint"] == "Cash Management account (CMA)"
+    assert financial_accounts[0]["institution_name"] == "Fidelity"
+    assert financial_accounts[0]["account_name"] == "Cash Management account (CMA)"
+    assert financial_accounts[0]["cash_balance"] == "42059.44"
+    assert financial_accounts[0]["as_of_date"] == "2026-04-20"
+    assert financial_accounts[0]["activity_observed_through"] == "2026-04-27"
+
+
 def test_extract_csv_text_preserves_amazon_price_columns(tmp_path: Path) -> None:
     csv_path = tmp_path / "Order History.csv"
     csv_path.write_text(
@@ -499,6 +527,58 @@ def test_reconcile_reviewed_accounts_links_transaction_only_export_to_known_acco
     assert account["household_account_id"] == "household-chase"
 
 
+def test_finalize_review_removes_bank_transaction_counterparty_accounts() -> None:
+    service = HouseholdDocumentReviewService(agent_service=MagicMock())
+
+    reviewed = service._finalize_review(
+        reviewed={
+            "summary": "Wells Fargo checking activity export.",
+            "source_type": "bank",
+            "document_type": "statement",
+            "confidence": 0.88,
+            "structured_data": {
+                "financial_accounts": [
+                    {
+                        "account_name": "Wells Fargo checking activity export",
+                        "account_type": "checking",
+                        "asset_group": "cash",
+                        "institution_name": "Wells Fargo",
+                    },
+                    {
+                        "account_name": "Everyday Checking",
+                        "account_type": "checking",
+                        "asset_group": "cash",
+                        "institution_name": "Wells Fargo",
+                        "account_mask": "4222",
+                    },
+                ]
+            },
+        },
+        baseline={
+            "summary": "Bank activity export.",
+            "source_type": "bank",
+            "document_type": "statement",
+            "confidence": 0.45,
+            "structured_data": {},
+        },
+        household_context=None,
+        filename="Wells_Fargo_Checking_Year_To_Date_4_27_26.csv",
+        extracted_text=(
+            "DATE,DESCRIPTION,AMOUNT,CHECK #,STATUS\n"
+            "04/02/2026,ONLINE TRANSFER TO EVERYDAY CHECKING XXXXXX4222,-227.00,,Posted\n"
+        ),
+        review_strategy="agent",
+    )
+
+    structured_data = cast(dict[str, Any], reviewed["structured_data"])
+    financial_accounts = cast(list[dict[str, Any]], structured_data["financial_accounts"])
+
+    assert len(financial_accounts) == 1
+    assert financial_accounts[0]["account_name"] == "Wells Fargo checking activity export"
+    assert reviewed["review_checks"]["counterparty_accounts_removed"] == 1
+    assert reviewed["review_checks"]["expected_account_count"] == 1
+
+
 def test_build_household_context_prioritizes_selected_upload_hint() -> None:
     service = HouseholdDocumentReviewService(agent_service=MagicMock())
     service.storage = _ContextStorage(
@@ -658,6 +738,54 @@ def test_signature_review_skips_weak_money_signature_without_financial_accounts(
         )
 
     assert reviewed is None
+
+
+def test_signature_review_strips_generic_bank_csv_header_accounts() -> None:
+    service = HouseholdDocumentReviewService(agent_service=MagicMock())
+    with (
+        patch.object(
+            service,
+            "_find_signature",
+            MagicMock(
+                return_value={
+                    "id": "sig-1",
+                    "signature_type": "csv_header",
+                    "source_type": "bank",
+                    "document_type": "statement",
+                    "merchant": None,
+                    "account_hint": None,
+                    "confidence": 0.93,
+                    "structured_data": {
+                        "financial_accounts": [
+                            {
+                                "account_name": "Wells Fargo closed checking",
+                                "account_type": "checking",
+                                "asset_group": "cash",
+                            },
+                            {
+                                "account_name": "Everyday Checking",
+                                "account_type": "checking",
+                                "asset_group": "cash",
+                                "account_mask": "7312",
+                            },
+                        ]
+                    },
+                }
+            ),
+        ),
+        patch.object(service, "_touch_signature", MagicMock()),
+    ):
+        reviewed = service._signature_review(
+            filename="Wells_Fargo_Checking_Year_To_Date_4_27_26.csv",
+            extracted_text=(
+                "DATE,DESCRIPTION,AMOUNT,CHECK #,STATUS\n"
+                "04/02/2026,ONLINE TRANSFER TO EVERYDAY CHECKING XXXXXX7312,-227.00,,Posted\n"
+            ),
+        )
+
+    assert reviewed is not None
+    structured_data = cast(dict[str, Any], reviewed["structured_data"])
+    assert "financial_accounts" not in structured_data
 
 
 @patch(f"{_REVIEW_MODULE}._extract_text")

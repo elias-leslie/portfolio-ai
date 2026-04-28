@@ -681,30 +681,50 @@ def _extract_statement_csv_account(
     if not {"run_date", "action", "amount", "cash_balance"}.issubset(header_set):
         return None
 
-    first_row = data_rows[0]
     account_mask_match = re.search(
         r"(?:history|activity|transactions?)_for_account_([A-Za-z0-9*]+)",
         filename,
         flags=re.IGNORECASE,
     )
     account_mask = account_mask_match.group(1).strip() if account_mask_match is not None else None
-    as_of_date = _parse_natural_date(first_row.get("run_date"))
-    balance = first_row.get("cash_balance") or None
-    if not balance:
+
+    observed_dates = [
+        parsed
+        for row in data_rows
+        for parsed in (_parse_natural_date(row.get("run_date")),)
+        if parsed is not None
+    ]
+    balance = None
+    balance_as_of_date = None
+    for row in data_rows:
+        numeric_balance = _numeric_string(row.get("cash_balance"))
+        if numeric_balance is None:
+            continue
+        balance = numeric_balance
+        balance_as_of_date = _parse_natural_date(row.get("run_date"))
+        break
+    if balance is None:
         return None
 
-    account_hint = f"Account {account_mask}" if account_mask else "Imported cash account"
+    filename_lower = filename.lower()
+    institution_name = None
+    if "fidelity" in filename_lower and ("cma" in filename_lower or "cash" in filename_lower):
+        institution_name = "Fidelity"
+        account_hint = "Cash Management account (CMA)"
+    else:
+        account_hint = f"Account {account_mask}" if account_mask else "Imported cash account"
     return {
         "asset_group": "taxable",
         "account_type": "brokerage",
+        "institution_name": institution_name,
         "account_name": account_hint,
         "account_hint": account_hint,
         "account_mask": account_mask,
         "balance": balance,
         "cash_balance": balance,
         "currency": "USD",
-        "as_of_date": as_of_date,
-        "activity_observed_through": as_of_date,
+        "as_of_date": balance_as_of_date,
+        "activity_observed_through": max(observed_dates) if observed_dates else balance_as_of_date,
     }
 
 

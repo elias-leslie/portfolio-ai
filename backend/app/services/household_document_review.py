@@ -333,6 +333,10 @@ class HouseholdDocumentReviewService:
         review_strategy: str,
     ) -> dict[str, Any]:
         reviewed["extracted_text"] = extracted_text
+        reviewed = self._remove_counterparty_accounts_for_transaction_export(
+            reviewed=reviewed,
+            extracted_text=extracted_text,
+        )
         reviewed = self._reconcile_reviewed_accounts(
             reviewed=reviewed,
             household_context=household_context,
@@ -359,6 +363,53 @@ class HouseholdDocumentReviewService:
             extracted_text=extracted_text,
         )
         reviewed["_review_strategy"] = review_strategy
+        return reviewed
+
+    @staticmethod
+    def _looks_like_single_account_transaction_export(extracted_text: str | None) -> bool:
+        if not extracted_text:
+            return False
+        first_line = next((line for line in extracted_text.splitlines() if line.strip()), "")
+        headers = {
+            re.sub(r"[^a-z0-9]+", "_", cell.strip().lower()).strip("_")
+            for cell in first_line.replace("\ufeff", "").split(",")
+            if cell.strip()
+        }
+        if not {"date", "description", "amount"}.issubset(headers):
+            return False
+        account_headers = {"account", "account_name", "account_number", "cash_balance", "run_date", "symbol"}
+        return not bool(headers & account_headers)
+
+    @classmethod
+    def _remove_counterparty_accounts_for_transaction_export(
+        cls,
+        *,
+        reviewed: dict[str, Any],
+        extracted_text: str | None,
+    ) -> dict[str, Any]:
+        if str(reviewed.get("source_type") or "") != "bank":
+            return reviewed
+        if not cls._looks_like_single_account_transaction_export(extracted_text):
+            return reviewed
+        structured_data = reviewed.get("structured_data")
+        if not isinstance(structured_data, dict):
+            return reviewed
+        raw_accounts = structured_data.get("financial_accounts")
+        if not isinstance(raw_accounts, list) or len(raw_accounts) < 2:
+            return reviewed
+        owner_accounts = [
+            account
+            for account in raw_accounts
+            if isinstance(account, dict) and not clean_text(account.get("account_mask"))
+        ]
+        if not owner_accounts or len(owner_accounts) == len(raw_accounts):
+            return reviewed
+
+        structured_data["financial_accounts"] = owner_accounts
+        review_checks = dict(reviewed.get("review_checks")) if isinstance(reviewed.get("review_checks"), dict) else {}
+        review_checks["counterparty_accounts_removed"] = len(raw_accounts) - len(owner_accounts)
+        review_checks["expected_account_count"] = len(owner_accounts)
+        reviewed["review_checks"] = review_checks
         return reviewed
 
     def _build_household_context(
@@ -1050,6 +1101,11 @@ class HouseholdDocumentReviewService:
             signature.get("structured_data"),
             source_type=str(signature.get("source_type") or ""),
         )
+        if (
+            str(signature.get("signature_type") or "") == "csv_header"
+            and self._looks_like_single_account_transaction_export(extracted_text)
+        ):
+            signature_structured.pop("financial_accounts", None)
         if (
             str(signature.get("source_type") or "") in _MONEY_SIGNATURE_SOURCE_TYPES
             and str(signature.get("signature_type") or "") not in {"csv_header", "filename_pattern"}

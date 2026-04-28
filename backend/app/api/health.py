@@ -335,6 +335,7 @@ def _build_freshness_summary_payload(result: Any) -> dict[str, Any]:
         "stale": summary.get("stale", 0),
         "critical": summary.get("critical", 0),
         "remediations_triggered": summary.get("remediations_triggered", 0),
+        "details": summary.get("details", []),
     }
 
 
@@ -429,6 +430,17 @@ def _build_market_data_decision_domain(
 ) -> DecisionDataDomain:
     freshness_status = freshness_status or {}
     status = str(freshness_status.get("status") or STATUS_UNKNOWN)
+    details = freshness_status.get("details")
+    decision_symbol_detail = None
+    if isinstance(details, list):
+        decision_symbol_detail = next(
+            (
+                detail
+                for detail in details
+                if isinstance(detail, dict) and detail.get("table_name") == "decision_symbol_day_bars"
+            ),
+            None,
+        )
     evidence = {
         "fresh": _as_int(freshness_status.get("fresh")),
         "stale": _as_int(freshness_status.get("stale")),
@@ -436,6 +448,8 @@ def _build_market_data_decision_domain(
         "tables_checked": _as_int(freshness_status.get("tables_checked")),
         "check_status": freshness_status.get("check_status"),
     }
+    if isinstance(decision_symbol_detail, dict):
+        evidence["decision_symbol_day_bars"] = decision_symbol_detail
     if status == STATUS_SUCCESS:
         return _decision_domain(
             key="market_data",

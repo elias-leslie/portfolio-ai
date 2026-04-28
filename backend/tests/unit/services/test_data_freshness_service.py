@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+from app.constants import PREDICTION_TARGET_SYMBOLS
 from app.services import data_freshness_service
 
 
@@ -172,3 +173,88 @@ def test_table_freshness_config_uses_live_options_and_reference_columns() -> Non
     assert config_by_table["options_market_metrics"]["date_column"] == "source_timestamp"
     assert config_by_table["reference_cache"]["date_column"] == "created_at"
     assert config_by_table["reference_cache"]["where_clause"] == "source = 'yfinance'"
+
+
+def test_decision_symbol_day_bars_freshness_marks_missing_symbol_critical(monkeypatch) -> None:
+    rows = [
+        {"symbol": symbol, "last_update": dt.date(2026, 4, 27)}
+        for symbol in PREDICTION_TARGET_SYMBOLS
+    ]
+    rows.append({"symbol": "VTI", "last_update": None})
+    monkeypatch.setattr(
+        data_freshness_service,
+        "_fetch_decision_symbol_rows",
+        lambda _storage: rows,
+    )
+
+    result = data_freshness_service.check_decision_symbol_day_bars_freshness(
+        Mock(),
+        dt.datetime(2026, 4, 28, 13, 0, tzinfo=dt.UTC),
+    )
+
+    assert result["is_stale"] is True
+    assert result["is_critical"] is True
+    assert result["reason"] == "missing_symbols"
+    assert result["missing_symbols"] == ["VTI"]
+    assert result["expected_date"] == "2026-04-27"
+
+
+def test_check_all_tables_freshness_includes_decision_symbol_gate(monkeypatch) -> None:
+    monkeypatch.setattr(
+        data_freshness_service,
+        "TABLE_FRESHNESS_CONFIG",
+        [
+            {
+                "table_name": "day_bars",
+                "date_column": "date",
+                "expected_hours": 24,
+                "critical_hours": 48,
+                "market_data": True,
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        data_freshness_service,
+        "_check_one_table",
+        lambda *_args, **_kwargs: (
+            {
+                "table_name": "day_bars",
+                "last_update": "2026-04-27T16:00:00-04:00",
+                "age_hours": 12.0,
+                "is_stale": False,
+                "is_critical": False,
+                "reason": None,
+            },
+            0,
+            0,
+        ),
+    )
+    monkeypatch.setattr(
+        data_freshness_service,
+        "check_decision_symbol_day_bars_freshness",
+        lambda *_args, **_kwargs: {
+            "table_name": "decision_symbol_day_bars",
+            "last_update": "2026-03-23",
+            "age_hours": 600.0,
+            "is_stale": True,
+            "is_critical": True,
+            "reason": "critical_symbols",
+            "symbols_checked": 13,
+            "missing_symbols": [],
+            "stale_symbols": ["SPY"],
+            "critical_symbols": ["SPY"],
+        },
+    )
+    monkeypatch.setattr(data_freshness_service, "_handle_critical_result", lambda *_args, **_kwargs: 0)
+
+    result = data_freshness_service.check_all_tables_freshness(Mock(), auto_remediate=False)
+
+    assert result["tables_checked"] == 2
+    assert result["fresh"] == 1
+    assert result["stale"] == 1
+    assert result["critical"] == 1
+    details = result["details"]
+    assert isinstance(details, list)
+    decision_detail = details[-1]
+    assert isinstance(decision_detail, dict)
+    assert decision_detail["table_name"] == "decision_symbol_day_bars"

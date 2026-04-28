@@ -60,6 +60,9 @@ _ACCOUNT_EVIDENCE_SOURCE_TYPES = frozenset({"bank", "credit_card", "brokerage", 
 _ACCOUNT_EVIDENCE_DOCUMENT_TYPES = frozenset(
     {"statement", "brokerage_statement", "retirement_statement"}
 )
+_ACCOUNT_NUMERIC_FIELDS = frozenset(
+    {"available_cash", "balance", "cash_balance", "holdings_value"}
+)
 _MONEY_SIGNATURE_VOLATILE_FIELDS = frozenset(
     {
         "activity_observed_through",
@@ -111,6 +114,49 @@ def _reviewed_financial_accounts(reviewed: dict[str, object]) -> list[dict[str, 
     if not isinstance(accounts, list):
         return []
     return [cast(dict[str, object], account) for account in accounts if isinstance(account, dict)]
+
+
+def _invalid_numeric_account_fields(reviewed: dict[str, object]) -> list[dict[str, object]]:
+    issues: list[dict[str, object]] = []
+    for index, account in enumerate(_reviewed_financial_accounts(reviewed), start=1):
+        account_name = str(account.get("account_name") or account.get("account_hint") or f"account {index}")
+        for field_name in _ACCOUNT_NUMERIC_FIELDS:
+            value = account.get(field_name)
+            if value in (None, ""):
+                continue
+            if parse_decimal(str(value)) is None:
+                issues.append(
+                    {
+                        "code": "invalid_numeric_field",
+                        "detail": f"{account_name} has non-numeric {field_name}: {value}.",
+                        "account_index": index,
+                        "field": field_name,
+                    }
+                )
+    return issues
+
+
+def _object_list(value: object) -> list[object]:
+    if isinstance(value, list):
+        return cast(list[object], value)
+    if isinstance(value, tuple | set):
+        return cast(list[object], list(value))
+    return []
+
+
+def _safe_int(value: object) -> int:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return 0
+    return 0
 
 
 def _normalized_review_payload(
@@ -368,6 +414,7 @@ class HouseholdDocumentPipeline:
                 service, document=document, reviewed=reviewed
             )
             reconciliation_summary = self._build_reconciliation_summary(
+                service=service,
                 document=document,
                 reviewed=reviewed,
                 application_summary=application_summary,
@@ -447,6 +494,7 @@ class HouseholdDocumentPipeline:
             reviewed=reviewed,
         )
         reconciliation_summary = self._build_reconciliation_summary(
+            service=service,
             document=document,
             reviewed=reviewed,
             application_summary=application_summary,
@@ -728,6 +776,7 @@ class HouseholdDocumentPipeline:
     def _build_reconciliation_summary(
         self,
         *,
+        service: HouseholdFinanceService,
         document: HouseholdDocument,
         reviewed: dict[str, object],
         application_summary: dict[str, object],
@@ -751,6 +800,26 @@ class HouseholdDocumentPipeline:
             else {},
         )
         evidence_account_count = int(application_summary.get("evidence_accounts") or 0)
+        applied_counts = self._fetch_applied_counts(service, document_id=document.id)
+        if applied_counts:
+            evidence_account_count = _safe_int(
+                applied_counts.get("evidence_account_count") or evidence_account_count
+            )
+        transaction_count = _safe_int(applied_counts.get("transaction_count"))
+        import_count = _safe_int(applied_counts.get("import_count"))
+        transaction_linked_count = _safe_int(applied_counts.get("transaction_linked_count"))
+        raw_evidence_account_ids = _object_list(applied_counts.get("evidence_account_ids"))
+        raw_transaction_account_ids = _object_list(applied_counts.get("transaction_account_ids"))
+        evidence_account_ids = {
+            str(account_id)
+            for account_id in raw_evidence_account_ids
+            if account_id
+        }
+        transaction_account_ids = {
+            str(account_id)
+            for account_id in raw_transaction_account_ids
+            if account_id
+        }
         transaction_changes = (
             int(transaction_summary.get("inserted") or 0)
             + int(transaction_summary.get("updated") or 0)
@@ -766,28 +835,48 @@ class HouseholdDocumentPipeline:
                 and str(reviewed.get("document_type") or "") == "statement"
             )
         ambiguity_remaining = _bool_value(review_checks.get("ambiguity_remaining")) or False
-        issues: list[dict[str, object]] = []
-        if expected_account_count > evidence_account_count:
+        issues: list[dict[str, object]] = _invalid_numeric_account_fields(reviewed)
+        if expected_account_count > 0 and expected_account_count != evidence_account_count:
             issues.append(
                 {
-                    "code": "missing_accounts",
+                    "code": "account_count_mismatch",
                     "detail": (
                         f"Review identified {expected_account_count} account(s) but "
                         f"only {evidence_account_count} evidence account row(s) applied."
                     ),
                 }
             )
-        if expects_transaction_activity and transaction_changes == 0:
+        if expects_transaction_activity and transaction_count == 0:
             issues.append(
                 {
                     "code": "missing_transactions",
                     "detail": "Review expected transaction activity but no transaction rows applied.",
                 }
             )
+        if transaction_count > 0 and transaction_linked_count < transaction_count:
+            issues.append(
+                {
+                    "code": "unlinked_transactions",
+                    "detail": (
+                        f"{transaction_count - transaction_linked_count} transaction row(s) "
+                        "were applied without a canonical household account."
+                    ),
+                }
+            )
+        unexpected_transaction_accounts = transaction_account_ids - evidence_account_ids
+        if evidence_account_ids and unexpected_transaction_accounts:
+            issues.append(
+                {
+                    "code": "transaction_account_mismatch",
+                    "detail": "Transaction rows link to household account(s) not present in document evidence.",
+                    "unexpected_household_account_ids": sorted(unexpected_transaction_accounts),
+                    "evidence_household_account_ids": sorted(evidence_account_ids),
+                }
+            )
         if (
             str(reviewed.get("source_type") or "") in _ACCOUNT_EVIDENCE_SOURCE_TYPES
-            and import_changes == 0
-            and transaction_changes == 0
+            and import_count == 0
+            and transaction_count == 0
             and evidence_account_count == 0
         ):
             issues.append(
@@ -805,9 +894,55 @@ class HouseholdDocumentPipeline:
             "expected_account_count": expected_account_count,
             "evidence_account_count": evidence_account_count,
             "transaction_changes": transaction_changes,
+            "transaction_count": transaction_count,
+            "transaction_linked_count": transaction_linked_count,
             "import_changes": import_changes,
+            "import_count": import_count,
             "ambiguity_remaining": ambiguity_remaining,
             "issues": issues,
+        }
+
+    @staticmethod
+    def _fetch_applied_counts(
+        service: HouseholdFinanceService,
+        *,
+        document_id: str,
+    ) -> dict[str, object]:
+        with service.storage.connection() as conn:
+            try:
+                raw_counts = fetch_document_application_counts(conn, document_id=document_id)
+            except (TypeError, ValueError):
+                raw_counts = {}
+            counts = raw_counts if isinstance(raw_counts, dict) else {}
+            transaction_row = conn.execute(
+                """
+                SELECT
+                    COUNT(*),
+                    COUNT(household_account_id),
+                    array_remove(array_agg(DISTINCT household_account_id), NULL)
+                FROM household_transactions
+                WHERE document_id = %s
+                """,
+                [document_id],
+            ).fetchone()
+            evidence_row = conn.execute(
+                """
+                SELECT array_remove(array_agg(DISTINCT household_account_id), NULL)
+                FROM household_evidence_accounts
+                WHERE document_id = %s
+                """,
+                [document_id],
+            ).fetchone()
+        transaction_count = _safe_int(transaction_row[0]) if transaction_row else 0
+        transaction_linked_count = _safe_int(transaction_row[1]) if transaction_row else 0
+        transaction_account_ids = _object_list(transaction_row[2]) if transaction_row else []
+        evidence_account_ids = _object_list(evidence_row[0]) if evidence_row else []
+        return {
+            **counts,
+            "transaction_count": transaction_count,
+            "transaction_linked_count": transaction_linked_count,
+            "transaction_account_ids": transaction_account_ids,
+            "evidence_account_ids": evidence_account_ids,
         }
 
     def describe_application_state(
