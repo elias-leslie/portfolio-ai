@@ -24,6 +24,35 @@ class _PipelineStub(HouseholdDocumentPipeline):
     ) -> dict[str, object]:
         return {"inserted": 0, "duplicates": 0}
 
+    def _fetch_applied_counts(
+        self,
+        service: Any,
+        *,
+        document_id: str,
+    ) -> dict[str, object]:
+        return {
+            "import_count": 0,
+            "transaction_count": 3,
+            "transaction_linked_count": 3,
+            "evidence_account_count": 1,
+            "transaction_account_ids": ["account-1"],
+            "evidence_account_ids": ["account-1"],
+        }
+
+
+class _ReconciliationPipeline(HouseholdDocumentPipeline):
+    def __init__(self, applied_counts: dict[str, object]) -> None:
+        super().__init__()
+        self.applied_counts = applied_counts
+
+    def _fetch_applied_counts(
+        self,
+        service: Any,
+        *,
+        document_id: str,
+    ) -> dict[str, object]:
+        return self.applied_counts
+
 
 def test_classify_document_detects_retirement_statement() -> None:
     pipeline = HouseholdDocumentPipeline()
@@ -538,9 +567,8 @@ def test_process_document_review_retries_once_for_retryable_reconciliation(
 
 
 def test_reconciliation_flags_invalid_numeric_account_fields() -> None:
-    pipeline = HouseholdDocumentPipeline()
-    pipeline._fetch_applied_counts = Mock(  # type: ignore[method-assign]
-        return_value={
+    pipeline = _ReconciliationPipeline(
+        {
             "import_count": 0,
             "transaction_count": 17,
             "transaction_linked_count": 17,
@@ -550,7 +578,7 @@ def test_reconciliation_flags_invalid_numeric_account_fields() -> None:
         }
     )
 
-    summary = pipeline._build_reconciliation_summary(  # type: ignore[attr-defined]
+    summary = pipeline._build_reconciliation_summary(
         service=SimpleNamespace(storage=MagicMock()),
         document=Mock(id="doc-1"),
         reviewed={
@@ -580,12 +608,15 @@ def test_reconciliation_flags_invalid_numeric_account_fields() -> None:
     assert isinstance(issues, list)
     codes = {issue["code"] for issue in issues if isinstance(issue, dict)}
     assert "invalid_numeric_field" in codes
+    coding_issue = summary["coding_issue_candidate"]
+    assert isinstance(coding_issue, dict)
+    assert coding_issue["component"] == "household_document_ingestion"
+    assert coding_issue["document_id"] == "doc-1"
 
 
 def test_reconciliation_flags_transaction_account_mismatch_after_relink() -> None:
-    pipeline = HouseholdDocumentPipeline()
-    pipeline._fetch_applied_counts = Mock(  # type: ignore[method-assign]
-        return_value={
+    pipeline = _ReconciliationPipeline(
+        {
             "import_count": 0,
             "transaction_count": 3,
             "transaction_linked_count": 3,
@@ -595,7 +626,7 @@ def test_reconciliation_flags_transaction_account_mismatch_after_relink() -> Non
         }
     )
 
-    summary = pipeline._build_reconciliation_summary(  # type: ignore[attr-defined]
+    summary = pipeline._build_reconciliation_summary(
         service=SimpleNamespace(storage=MagicMock()),
         document=Mock(id="doc-1"),
         reviewed={
@@ -624,9 +655,8 @@ def test_reconciliation_flags_transaction_account_mismatch_after_relink() -> Non
 
 
 def test_reconciliation_flags_unlinked_transactions_even_when_rows_applied() -> None:
-    pipeline = HouseholdDocumentPipeline()
-    pipeline._fetch_applied_counts = Mock(  # type: ignore[method-assign]
-        return_value={
+    pipeline = _ReconciliationPipeline(
+        {
             "import_count": 0,
             "transaction_count": 4,
             "transaction_linked_count": 0,
@@ -636,7 +666,7 @@ def test_reconciliation_flags_unlinked_transactions_even_when_rows_applied() -> 
         }
     )
 
-    summary = pipeline._build_reconciliation_summary(  # type: ignore[attr-defined]
+    summary = pipeline._build_reconciliation_summary(
         service=SimpleNamespace(storage=MagicMock()),
         document=Mock(id="doc-1"),
         reviewed={

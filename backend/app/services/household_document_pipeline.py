@@ -887,7 +887,7 @@ class HouseholdDocumentPipeline:
             )
         status = "clear" if not issues else "needs_retry"
         retry_recommended = bool(issues) and not ambiguity_remaining
-        return {
+        summary: dict[str, object] = {
             "status": status,
             "retry_recommended": retry_recommended,
             "review_strategy": str(reviewed.get("_review_strategy") or "unknown"),
@@ -901,6 +901,22 @@ class HouseholdDocumentPipeline:
             "ambiguity_remaining": ambiguity_remaining,
             "issues": issues,
         }
+        if issues and not ambiguity_remaining:
+            summary["coding_issue_candidate"] = {
+                "title": f"Fix household document ingestion audit failures for {document.filename}",
+                "kind": "bug",
+                "project": "portfolio-ai",
+                "component": "household_document_ingestion",
+                "document_id": document.id,
+                "filename": document.filename,
+                "issue_codes": [str(issue.get("code") or "unknown") for issue in issues],
+                "acceptance": (
+                    "Reproduce with the stored document, add regression coverage, "
+                    "fix extraction/application/reconciliation, reprocess the document, "
+                    "and verify reconciliation_summary.status is clear."
+                ),
+            }
+        return summary
 
     @staticmethod
     def _fetch_applied_counts(
