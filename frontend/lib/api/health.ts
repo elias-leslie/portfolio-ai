@@ -89,6 +89,7 @@ export interface DataFreshnessStatus {
   stale?: number
   critical?: number
   remediationsTriggered?: number
+  details?: Record<string, unknown>[]
   error?: string
 }
 

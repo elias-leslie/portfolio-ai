@@ -18,6 +18,7 @@ import {
   fetchMarketMovers,
   fetchMarketPredictionCommittee,
   fetchMarketPredictionHistory,
+  fetchMarketPredictionQuality,
   fetchMarketPredictionReview,
   fetchMarketStatus,
   fetchNewsSentimentHistory,
@@ -28,6 +29,7 @@ import {
   type MarketMoversResponse,
   type MarketPredictionCommitteeResponse,
   type MarketPredictionHistoryResponse,
+  type MarketPredictionQualityReport,
   type MarketPredictionSeatReviewResponse,
   type MarketStatusResponse,
   type NewsSentimentHistoryResponse,
@@ -104,6 +106,9 @@ export function useRefreshMarketPredictionCommittee(): UseMutationResult<
         queryKey: ['market', 'prediction', 'committee-history'],
       })
       void queryClient.invalidateQueries({
+        queryKey: ['market', 'prediction', 'quality', windowDays],
+      })
+      void queryClient.invalidateQueries({
         queryKey: ['market', 'prediction', 'review', windowDays],
       })
     },
@@ -116,6 +121,18 @@ export function useMarketPredictionReview(
   return useQuery({
     queryKey: ['market', 'prediction', 'review', windowDays],
     queryFn: () => fetchMarketPredictionReview(windowDays),
+    staleTime: 1000 * 60 * 10,
+    refetchInterval: 1000 * 60 * 10,
+    refetchOnWindowFocus: true,
+  })
+}
+
+export function useMarketPredictionQuality(
+  windowDays: number = 3,
+): UseQueryResult<MarketPredictionQualityReport> {
+  return useQuery({
+    queryKey: ['market', 'prediction', 'quality', windowDays],
+    queryFn: () => fetchMarketPredictionQuality(windowDays),
     staleTime: 1000 * 60 * 10,
     refetchInterval: 1000 * 60 * 10,
     refetchOnWindowFocus: true,

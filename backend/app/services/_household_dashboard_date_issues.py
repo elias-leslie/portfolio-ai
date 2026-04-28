@@ -28,6 +28,8 @@ _TRANSACTION_DATE_ISSUES_SQL = """
     JOIN household_documents d ON d.id = t.document_id
     LEFT JOIN household_merchants m ON m.id = t.merchant_id
     WHERE t.transaction_date > CURRENT_DATE
+      AND COALESCE(t.metadata->'date_quality_resolution'->>'status', '')
+          NOT IN ('resolved', 'superseded', 'excluded')
     ORDER BY t.transaction_date ASC, CAST(t.amount AS DOUBLE PRECISION) DESC
     LIMIT %s
 """

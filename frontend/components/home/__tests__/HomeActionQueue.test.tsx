@@ -45,6 +45,12 @@ describe('HomeActionQueue', () => {
             href: '/symbols/VTI?tab=decision',
             symbol: 'VTI',
             badge: 'High',
+            rankScore: 2460,
+            urgencyScore: 2000,
+            impactScore: 300,
+            confidenceScore: 120,
+            freshnessScore: 80,
+            effortScore: 40,
             decision: {
               action: 'INITIATE_POSITION',
               headline: 'Initiate position',
@@ -78,6 +84,14 @@ describe('HomeActionQueue', () => {
 
     expect(screen.getByText(/updated /i)).toBeInTheDocument()
     expect(screen.getByText(/live signal model/i)).toBeInTheDocument()
+    expect(screen.getByText('Rank')).toBeInTheDocument()
+    expect(screen.getByText('2,460')).toBeInTheDocument()
+    expect(screen.getByText('Urgency')).toBeInTheDocument()
+    expect(screen.getByText('2,000')).toBeInTheDocument()
+    expect(screen.getByText('Impact')).toBeInTheDocument()
+    expect(screen.getByText('300')).toBeInTheDocument()
+    expect(screen.getByText('Confidence')).toBeInTheDocument()
+    expect(screen.getByText('120')).toBeInTheDocument()
     expect(
       screen.getByRole('link', { name: /open decision/i }),
     ).toHaveAttribute('href', '/symbols/VTI?tab=decision')

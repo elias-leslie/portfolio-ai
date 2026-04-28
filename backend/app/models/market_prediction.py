@@ -18,7 +18,9 @@ SeatRecommendedAction = Literal["upweight", "downweight", "hold"]
 ClusterRecommendedAction = Literal["upweight", "downweight", "hold"]
 ClusterFreshness = Literal["fresh", "stale", "missing", "unknown"]
 PredictionFreshnessState = Literal["fresh", "aging", "stale", "invalid", "degraded"]
+BASELINE_PREDICTION_SEAT_KEY = "baseline"
 SUPPORTED_ADAPTIVE_SEAT_KEYS = ("cross_asset", "macro", "risk")
+SUPPORTED_EVALUATED_SEAT_KEYS = (*SUPPORTED_ADAPTIVE_SEAT_KEYS, BASELINE_PREDICTION_SEAT_KEY)
 SUPPORTED_ADAPTIVE_CLUSTER_KEYS = (
     "market_regime",
     "sentiment",
@@ -175,6 +177,7 @@ class MarketPredictionSeatScorecardRow(BaseModel):
     prior_weight: float = Field(..., ge=0.0, le=1.0)
     effective_weight: float = Field(..., ge=0.0, le=1.0)
     sample_size: int = Field(default=0, ge=0)
+    avg_confidence_score: float | None = Field(None, ge=0.0, le=100.0)
     direction_hit_rate: float | None = Field(None, ge=0.0, le=1.0)
     move_mae_pct: float | None = Field(None, ge=0.0)
     brier_score: float | None = Field(None, ge=0.0)
@@ -201,12 +204,20 @@ class MarketPredictionSeatReview(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class MarketPredictionSeatReviewHistoryPoint(BaseModel):
+    generated_at: datetime
+    as_of_ts: datetime
+    review_state: ReviewState
+    seat_scorecards: list[MarketPredictionSeatScorecardRow] = Field(default_factory=list)
+
+
 class MarketPredictionSeatReviewResponse(BaseModel):
     as_of_ts: datetime
     window_days: int = Field(..., ge=1)
     review_state: ReviewState
     seat_scorecards: list[MarketPredictionSeatScorecardRow] = Field(default_factory=list)
     review_summary: dict[str, Any] = Field(default_factory=dict)
+    review_history: list[MarketPredictionSeatReviewHistoryPoint] = Field(default_factory=list)
 
 
 class MarketPredictionRun(BaseModel):
@@ -231,6 +242,51 @@ class MarketPredictionScorecard(BaseModel):
     move_mae_pct: float | None = Field(None, ge=0.0)
     brier_score: float | None = Field(None, ge=0.0)
     sample_size: int = Field(default=0, ge=0)
+
+
+class MarketPredictionQualityMetric(BaseModel):
+    sample_size: int = Field(default=0, ge=0)
+    direction_hit_rate: float | None = Field(None, ge=0.0, le=1.0)
+    move_mae_pct: float | None = Field(None, ge=0.0)
+    brier_score: float | None = Field(None, ge=0.0)
+    avg_confidence_score: float | None = Field(None, ge=0.0, le=100.0)
+    avg_prob_up: float | None = Field(None, ge=0.0, le=1.0)
+
+
+class MarketPredictionQualitySegment(BaseModel):
+    key: str
+    label: str | None = None
+    metrics: MarketPredictionQualityMetric
+
+
+class MarketPredictionCalibrationQuality(BaseModel):
+    sample_size: int = Field(default=0, ge=0)
+    raw_brier_score: float | None = Field(None, ge=0.0)
+    calibrated_brier_score: float | None = Field(None, ge=0.0)
+    brier_improvement: float | None = None
+    brier_improvement_pct: float | None = None
+    avg_shrink: float | None = Field(None, ge=0.0, le=1.0)
+
+
+class MarketPredictionNoEdgeQuality(BaseModel):
+    total_sample_size: int = Field(default=0, ge=0)
+    no_edge_sample_size: int = Field(default=0, ge=0)
+    no_edge_rate: float | None = Field(None, ge=0.0, le=1.0)
+    forecast_metrics: MarketPredictionQualityMetric
+    no_edge_metrics: MarketPredictionQualityMetric
+    no_edge_brier_delta: float | None = None
+
+
+class MarketPredictionQualityReport(BaseModel):
+    generated_at: datetime
+    window_days: int = Field(..., ge=1)
+    overall: MarketPredictionQualityMetric
+    calibration: MarketPredictionCalibrationQuality
+    no_edge: MarketPredictionNoEdgeQuality
+    publication_segments: list[MarketPredictionQualitySegment] = Field(default_factory=list)
+    aggregation_segments: list[MarketPredictionQualitySegment] = Field(default_factory=list)
+    seat_segments: list[MarketPredictionQualitySegment] = Field(default_factory=list)
+    symbol_segments: list[MarketPredictionQualitySegment] = Field(default_factory=list)
 
 
 class PredictionFreshnessCluster(BaseModel):

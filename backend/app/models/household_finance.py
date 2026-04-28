@@ -102,6 +102,7 @@ __all__ = [
     "HouseholdTrackedAccountInput",
     "HouseholdTransactionCategoryUpdate",
     "HouseholdTransactionDateIssue",
+    "HouseholdTransactionDateIssueResolution",
     "ImportCenter",
     "ImportFormat",
     "JennyMoneyBrief",
@@ -163,6 +164,11 @@ class HouseholdTransactionCategoryUpdate(BaseModel):
     category: str
     essentiality: str
     apply_to_merchant: bool = False
+
+
+class HouseholdTransactionDateIssueResolution(BaseModel):
+    resolution: str = Field(default="date_confirmed_future", min_length=1, max_length=80)
+    note: str | None = Field(default=None, max_length=500)
 
 
 class HouseholdFinanceDashboard(BaseModel):

@@ -44,6 +44,7 @@ def _vote_evaluation(
     direction_hit: bool,
     move_abs_error_pct: float,
     brier_score: float,
+    confidence_score: float | None = None,
     target_date: str = "2026-04-23",
 ) -> MarketPredictionVoteEvaluation:
     return MarketPredictionVoteEvaluation(
@@ -62,6 +63,7 @@ def _vote_evaluation(
             "run_id": f"run-{vote_id}",
             "base_date": "2026-04-20",
             "target_date": target_date,
+            "confidence_score": confidence_score,
         },
     )
 
@@ -94,9 +96,9 @@ def test_get_review_returns_synthetic_warmup_before_first_persisted_row() -> Non
 def test_resolve_and_persist_review_computes_live_weights_and_recommended_actions() -> None:
     repo = _FakeRepo(
         evaluations=[
-            *[_vote_evaluation(vote_id=100 + idx, seat_key="macro", direction_hit=True, move_abs_error_pct=0.1, brier_score=0.01) for idx in range(6)],
-            *[_vote_evaluation(vote_id=200 + idx, seat_key="cross_asset", direction_hit=bool(idx % 2), move_abs_error_pct=1.0, brier_score=0.25) for idx in range(6)],
-            *[_vote_evaluation(vote_id=300 + idx, seat_key="risk", direction_hit=False, move_abs_error_pct=4.0, brier_score=1.0) for idx in range(6)],
+            *[_vote_evaluation(vote_id=100 + idx, seat_key="macro", direction_hit=True, move_abs_error_pct=0.1, brier_score=0.01, confidence_score=70.0) for idx in range(6)],
+            *[_vote_evaluation(vote_id=200 + idx, seat_key="cross_asset", direction_hit=bool(idx % 2), move_abs_error_pct=1.0, brier_score=0.25, confidence_score=55.0) for idx in range(6)],
+            *[_vote_evaluation(vote_id=300 + idx, seat_key="risk", direction_hit=False, move_abs_error_pct=4.0, brier_score=1.0, confidence_score=35.0) for idx in range(6)],
         ]
     )
     service = MarketPredictionSeatWeightingService(repository=repo)
@@ -112,6 +114,9 @@ def test_resolve_and_persist_review_computes_live_weights_and_recommended_action
     assert scorecards["macro"].effective_weight == pytest.approx(0.3895431834)
     assert scorecards["cross_asset"].effective_weight == pytest.approx(0.3435046395)
     assert scorecards["risk"].effective_weight == pytest.approx(0.2669521770)
+    assert scorecards["macro"].avg_confidence_score == pytest.approx(70.0)
+    assert scorecards["cross_asset"].avg_confidence_score == pytest.approx(55.0)
+    assert scorecards["risk"].avg_confidence_score == pytest.approx(35.0)
     assert scorecards["macro"].recommended_action == "upweight"
     assert scorecards["cross_asset"].recommended_action == "hold"
     assert scorecards["risk"].recommended_action == "downweight"
@@ -149,6 +154,7 @@ def test_get_review_ignores_malformed_latest_row_and_falls_back_to_next_valid_re
                     "prior_weight": 1 / 3,
                     "effective_weight": 0.3,
                     "sample_size": 8,
+                    "avg_confidence_score": 48.0,
                     "direction_hit_rate": 0.5,
                     "move_mae_pct": 1.5,
                     "brier_score": 0.2,
@@ -160,6 +166,7 @@ def test_get_review_ignores_malformed_latest_row_and_falls_back_to_next_valid_re
                     "prior_weight": 1 / 3,
                     "effective_weight": 0.45,
                     "sample_size": 8,
+                    "avg_confidence_score": 64.0,
                     "direction_hit_rate": 0.8,
                     "move_mae_pct": 0.4,
                     "brier_score": 0.08,
@@ -171,6 +178,7 @@ def test_get_review_ignores_malformed_latest_row_and_falls_back_to_next_valid_re
                     "prior_weight": 1 / 3,
                     "effective_weight": 0.25,
                     "sample_size": 8,
+                    "avg_confidence_score": 31.0,
                     "direction_hit_rate": 0.2,
                     "move_mae_pct": 3.0,
                     "brier_score": 0.7,
@@ -200,6 +208,8 @@ def test_get_review_ignores_malformed_latest_row_and_falls_back_to_next_valid_re
     assert review.as_of_ts == datetime(2026, 4, 23, 22, 15, tzinfo=UTC)
     assert review.review_state == "live"
     assert [row.seat_key for row in review.seat_scorecards] == ["cross_asset", "macro", "risk"]
+    assert review.review_history
+    assert review.review_history[0].seat_scorecards[1].avg_confidence_score == 64.0
     assert review.review_summary["top_upweighted"][0] == {
         "kind": "seat",
         "key": "macro",

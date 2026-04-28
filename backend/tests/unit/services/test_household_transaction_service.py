@@ -345,6 +345,59 @@ def test_import_document_transactions_holds_future_dated_receipts_for_review() -
     assert '"held_for_date_review": 1' in metadata_update[0]
 
 
+def test_extract_transactions_parses_walmart_receipt_abbreviated_order_date() -> None:
+    service = HouseholdTransactionService()
+
+    transactions = service._extract_transactions(
+        filename="1Order details - Walmart.com.pdf",
+        source_type="receipt",
+        document_type="receipt",
+        extracted_text="Invoice\nApr 27, 2026 order\nOrder# 2000145-75566683\n",
+        structured_data={
+            "merchant": "Walmart",
+            "total_amount": "170.91",
+            "account_hint": "Visa Credit ****4635",
+        },
+        account_label=None,
+        review_summary="Walmart receipt",
+        stored_path=None,
+    )
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.transaction_date == date(2026, 4, 27)
+    assert transaction.raw_merchant == "Walmart"
+    assert transaction.amount == Decimal("170.91")
+    assert transaction.account_label == "Visa Credit ****4635"
+    assert transaction.metadata == {"source": "receipt_summary"}
+
+
+def test_extract_transactions_uses_structured_receipt_date() -> None:
+    service = HouseholdTransactionService()
+
+    transactions = service._extract_transactions(
+        filename="5Order details - Walmart.com.pdf",
+        source_type="receipt",
+        document_type="receipt",
+        extracted_text="Return to previous page",
+        structured_data={
+            "merchant": "Walmart",
+            "total_amount": "40.59",
+            "receipt_date": "2025-08-27",
+            "account_hint": "Visa Credit ****4635",
+        },
+        account_label=None,
+        review_summary="Walmart receipt",
+        stored_path=None,
+    )
+
+    assert len(transactions) == 1
+    transaction = transactions[0]
+    assert transaction.transaction_date == date(2025, 8, 27)
+    assert transaction.amount == Decimal("40.59")
+    assert transaction.account_label == "Visa Credit ****4635"
+
+
 def test_import_document_transactions_keeps_transfer_categories_even_with_old_merchant_rule() -> None:
     service = HouseholdTransactionService()
     service.storage = _MerchantOverrideStorage()

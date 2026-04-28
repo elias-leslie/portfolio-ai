@@ -36,6 +36,12 @@ class HomeActionItemResponse(BaseModel):
     href: str
     symbol: str | None = None
     badge: str | None = None
+    rank_score: float | None = None
+    impact_score: float | None = None
+    urgency_score: float | None = None
+    confidence_score: float | None = None
+    freshness_score: float | None = None
+    effort_score: float | None = None
     decision: DecisionSection | None = None
     execution: HomeActionExecutionResponse | None = None
 

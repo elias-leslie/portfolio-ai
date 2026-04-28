@@ -8,7 +8,6 @@ import {
   Minus,
   Radar,
   RefreshCw,
-  Sparkles,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { SectionCard } from '@/components/shared/SectionCard'
@@ -17,7 +16,6 @@ import { Button } from '@/components/ui/button'
 import type {
   CommitteeExecutionPath,
   CommitteeRosterMode,
-  MacroCalendarSourceCluster,
   MarketPredictionCommitteeResponse,
   MarketPredictionHistoryResponse,
   MarketPredictionSeatReviewResponse,
@@ -29,6 +27,7 @@ import type {
 import {
   useMarketPredictionCommittee,
   useMarketPredictionHistory,
+  useMarketPredictionQuality,
   useMarketPredictionReview,
   useRefreshMarketPredictionCommittee,
 } from '@/lib/hooks/useMarketIntelligence'
@@ -48,23 +47,6 @@ const CANONICAL_SYMBOLS = [
   'XLRE',
   'XLB',
   'XLC',
-] as const
-const WORKFLOW_RHYTHM = [
-  {
-    title: 'Morning',
-    detail:
-      'Read the lead call, overnight handoff, and top sector tilts before the open.',
-  },
-  {
-    title: 'Evening',
-    detail:
-      'Review what changed, whether the scorecard matured, and the next-session risk.',
-  },
-  {
-    title: 'Weekend',
-    detail:
-      'Use the scenario framing, weekly prep, and macro-event disclosure before the week starts.',
-  },
 ] as const
 
 const CANONICAL_SYMBOL_SET = new Set<string>(CANONICAL_SYMBOLS)
@@ -105,6 +87,10 @@ type NormalizedCommitteeSummary = {
   committeeRosterMode: CommitteeRosterMode | null
   committeeExecutionPath: CommitteeExecutionPath | null
   executedSeatKeys: string[]
+  publicationState: string | null
+  abstainReasonCodes: string[]
+  baselineVoteCount: number | null
+  baselineSeatWeight: number | null
 }
 
 type NormalizedSourceRow = {
@@ -115,6 +101,15 @@ type NormalizedSourceRow = {
   trackedNotRanked: boolean
 }
 
+type ClusterLearningRow = {
+  cluster: string
+  priorWeight: number | null
+  effectiveWeight: number | null
+  sampleSize: number | null
+  skillScore: number | null
+  freshness: PredictionSourceFreshness | null
+}
+
 type TruthStateDescriptor = {
   label: string
   tone: 'neutral' | 'success' | 'warning' | 'danger'
@@ -123,12 +118,6 @@ type TruthStateDescriptor = {
 type FreshnessStateDescriptor = {
   label: string
   tone: 'neutral' | 'success' | 'warning' | 'danger'
-}
-
-type ScenarioCard = {
-  title: 'Bull' | 'Base' | 'Bear'
-  moveText: string
-  summary: string
 }
 
 type RangeState =
@@ -169,11 +158,40 @@ type HistoryState =
       detail: string
     }
 
-type GapCallout = {
-  label: string
-  status: string
-  detail: string
+type CalibrationMetadata = {
+  rawProbUp: number | null
+  calibratedProbUp: number | null
+  shrink: number | null
+  sampleSize: number | null
 }
+
+type HorizonCard = {
+  option: (typeof WINDOW_OPTIONS)[number]
+  expectedMove: string
+  expectedMoveValue: number | null
+  probability: string
+  status: string
+  tone: 'neutral' | 'success' | 'warning' | 'danger'
+  shortWindowLabel: string
+  targetLabel: string
+  tooltipLabel: string
+  freshnessLabel: string
+  freshnessTone: 'neutral' | 'success' | 'warning' | 'danger'
+}
+
+type ForecastCurveState =
+  | {
+      kind: 'ready'
+      path: string
+      zeroPct: number | null
+      points: { x: number; y: number; card: HorizonCard }[]
+      domainMin: number
+      domainMax: number
+    }
+  | {
+      kind: 'pending'
+      detail: string
+    }
 
 type FreshnessClusterRow = {
   cluster: string
@@ -213,6 +231,12 @@ type NormalizedReviewState = {
   generatedAt: string | null
   asOfTs: string | null
   seatScorecards: PredictionReviewSeat[]
+  reviewHistory: {
+    generatedAt: string | null
+    asOfTs: string | null
+    reviewState: 'live' | 'warmup' | 'degraded' | null
+    seatScorecards: PredictionReviewSeat[]
+  }[]
   driftCallouts: string[]
   topUpweighted: ReviewChangeRow[]
   topDownweighted: ReviewChangeRow[]
@@ -248,6 +272,52 @@ function formatConfidenceScore(value?: number | null) {
   return `${Math.round(normalized)}/100`
 }
 
+function formatTrackRecord(value?: number | null) {
+  if (!isFiniteNumber(value)) return 'Not enough history'
+  return `${Math.round(value * 100)}% right`
+}
+
+function formatAverageMiss(value?: number | null) {
+  if (!isFiniteNumber(value)) return 'Pending'
+  return formatPercent(value)
+}
+
+function formatBrier(value?: number | null) {
+  if (!isFiniteNumber(value)) return 'Pending'
+  return value.toFixed(3)
+}
+
+function formatSignedBrierDelta(value?: number | null) {
+  if (!isFiniteNumber(value)) return 'Pending'
+  const prefix = value > 0 ? '+' : ''
+  return `${prefix}${value.toFixed(3)}`
+}
+
+function formatModelLabel(vote: PredictionVote) {
+  return vote.modelId ?? vote.provider ?? 'Unknown model'
+}
+
+function dateOnlyOrdinal(value?: string | null) {
+  if (!value) return null
+  const parsed = Date.parse(`${value}T12:00:00Z`)
+  return Number.isNaN(parsed) ? null : parsed
+}
+
+function driverFreshnessDescriptor(
+  freshness?: PredictionSourceFreshness | null,
+): FreshnessStateDescriptor {
+  switch (freshness) {
+    case 'fresh':
+      return { label: 'Current', tone: 'success' }
+    case 'stale':
+      return { label: 'Old', tone: 'warning' }
+    case 'missing':
+      return { label: 'Missing', tone: 'danger' }
+    default:
+      return { label: 'Unknown', tone: 'warning' }
+  }
+}
+
 function formatScorecardDate(value?: string | null) {
   if (!value) return null
   const parsed = new Date(value)
@@ -257,6 +327,80 @@ function formatScorecardDate(value?: string | null) {
     day: 'numeric',
     year: 'numeric',
   }).format(parsed)
+}
+
+function formatDateOnlyLabel(value?: string | null, includeYear = true) {
+  if (!value) return null
+  const parsed = new Date(`${value}T12:00:00Z`)
+  if (Number.isNaN(parsed.getTime())) return null
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    ...(includeYear ? { year: 'numeric' as const } : {}),
+    timeZone: 'UTC',
+  }).format(parsed)
+}
+
+function tradingDayLabel(windowDays: number) {
+  return `${windowDays} trading day${windowDays === 1 ? '' : 's'}`
+}
+
+function normalizeForecastCopy(value?: string | null) {
+  if (!value) return value ?? null
+  return value
+    .replace(/\b(\d+)D\b/g, (_match, rawDays: string) => {
+      const parsed = Number(rawDays)
+      return Number.isFinite(parsed) ? tradingDayLabel(parsed) : rawDays
+    })
+    .replace(/\bcohort\b/gi, 'forecast')
+    .replace(/post-close evaluation/gi, 'scored result')
+    .replace(
+      /Scorecard populates after the first scored result\.?/gi,
+      'It will be scored after that close.',
+    )
+    .replace(
+      /Live scorecard truth is available, but the selected lead history still needs more usable committee snapshots\.?/gi,
+      'Need more scored forecasts for a reliable trend.',
+    )
+    .replace(
+      /Live scorecard exists, but the selected lead history still needs more usable committee snapshots\.?/gi,
+      'Need more scored forecasts for a reliable trend.',
+    )
+    .replace(
+      /(The target date has landed|Target date passed), but the scored result has not published yet\.?/gi,
+      'Target date passed. Waiting for the scored result.',
+    )
+    .replace(
+      /Prediction snapshot degraded on fetch\. Showing the latest safe fallback contract until a healthy refresh returns\.?/gi,
+      'Latest refresh failed. Showing fallback data.',
+    )
+    .replace(
+      /Legacy sparse data lacks surviving lead-call attribution, so the panel stays explicit instead of inventing detail\.?/gi,
+      'Older data lacks source detail.',
+    )
+}
+
+function forecastWindowLabel({
+  baseDate,
+  targetDate,
+  windowDays,
+  compact = false,
+}: {
+  baseDate?: string | null
+  targetDate?: string | null
+  windowDays: number
+  compact?: boolean
+}) {
+  const base = formatDateOnlyLabel(baseDate, !compact)
+  const target = formatDateOnlyLabel(targetDate, !compact)
+  if (!base || !target) return tradingDayLabel(windowDays)
+  const closeSuffix = compact ? '' : ' close'
+  return `${tradingDayLabel(windowDays)}: ${base}${closeSuffix} to ${target}${closeSuffix}`
+}
+
+function targetDateLabel(targetDate?: string | null) {
+  const target = formatDateOnlyLabel(targetDate)
+  return target ? `Targets ${target} close` : 'Target date unavailable'
 }
 
 function formatTimestampLabel(value?: string | null) {
@@ -353,6 +497,33 @@ function readRecord(value: unknown): Record<string, unknown> {
   return {}
 }
 
+function readNumber(...values: unknown[]) {
+  for (const value of values) {
+    if (isFiniteNumber(value)) return value
+  }
+  return null
+}
+
+function normalizeCalibrationMetadata(
+  call: NormalizedPredictionCall | null,
+): CalibrationMetadata | null {
+  const metadata = readRecord(call?.metadata)
+  const calibration = readRecord(
+    metadata.probabilityCalibration ?? metadata.probability_calibration,
+  )
+  const rawProbUp = readNumber(calibration.rawProbUp, calibration.raw_prob_up)
+  const calibratedProbUp = readNumber(
+    calibration.calibratedProbUp,
+    calibration.calibrated_prob_up,
+  )
+  const shrink = readNumber(calibration.shrink)
+  const sampleSize = readNumber(calibration.sampleSize, calibration.sample_size)
+  if (rawProbUp == null && calibratedProbUp == null && shrink == null) {
+    return null
+  }
+  return { rawProbUp, calibratedProbUp, shrink, sampleSize }
+}
+
 function normalizeDirection(value: unknown): 'bullish' | 'neutral' | 'bearish' {
   if (value === 'bullish' || value === 'bearish' || value === 'neutral') {
     return value
@@ -445,6 +616,28 @@ function normalizeReviewChangeRows(value: unknown): ReviewChangeRow[] {
   return rows
 }
 
+function normalizeReviewHistory(
+  value: unknown,
+): NormalizedReviewState['reviewHistory'] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => {
+      const record = readRecord(item)
+      const rawScorecards = record.seatScorecards ?? record.seat_scorecards
+      return {
+        generatedAt: readString(record.generatedAt, record.generated_at),
+        asOfTs: readString(record.asOfTs, record.as_of_ts),
+        reviewState: normalizeReviewState(
+          record.reviewState ?? record.review_state,
+        ),
+        seatScorecards: Array.isArray(rawScorecards)
+          ? (rawScorecards as PredictionReviewSeat[])
+          : [],
+      }
+    })
+    .filter((item) => item.seatScorecards.length > 0)
+}
+
 function normalizeReviewPanel(
   review: MarketPredictionSeatReviewResponse | undefined,
 ): NormalizedReviewState {
@@ -458,6 +651,7 @@ function normalizeReviewPanel(
     ),
     asOfTs: readString(review?.asOfTs),
     seatScorecards: review?.seatScorecards ?? [],
+    reviewHistory: normalizeReviewHistory(review?.reviewHistory),
     driftCallouts: [
       ...readStringArray(reviewSummary.driftCallouts),
       ...readStringArray(reviewSummary.drift_callouts),
@@ -579,6 +773,24 @@ function normalizeCommitteeSummary(
       ...readStringArray(record.executedSeatKeys),
       ...readStringArray(record.executed_seat_keys),
     ].filter((value, index, array) => array.indexOf(value) === index),
+    publicationState: readString(
+      record.publicationState,
+      record.publication_state,
+    ),
+    abstainReasonCodes: [
+      ...readStringArray(record.abstainReasonCodes),
+      ...readStringArray(record.abstain_reason_codes),
+    ].filter((value, index, array) => array.indexOf(value) === index),
+    baselineVoteCount: isFiniteNumber(record.baselineVoteCount)
+      ? record.baselineVoteCount
+      : isFiniteNumber(record.baseline_vote_count)
+        ? record.baseline_vote_count
+        : null,
+    baselineSeatWeight: isFiniteNumber(record.baselineSeatWeight)
+      ? record.baselineSeatWeight
+      : isFiniteNumber(record.baseline_seat_weight)
+        ? record.baseline_seat_weight
+        : null,
   }
 }
 
@@ -732,13 +944,44 @@ function normalizeSourceRows(
   })
 }
 
-function normalizeMacroCalendar(
+function normalizeClusterLearningRows(
   sourceSnapshot:
     | MarketPredictionCommitteeResponse['sourceSnapshot']
     | undefined,
-): MacroCalendarSourceCluster {
+): ClusterLearningRow[] {
   const clusters = readRecord(sourceSnapshot?.clusters)
-  return readRecord(clusters.macroCalendar) as MacroCalendarSourceCluster
+  const keys = [
+    ['market_regime', 'marketRegime'],
+    ['sentiment', 'sentiment'],
+    ['options_positioning', 'optionsPositioning'],
+    ['macro_calendar', 'macroCalendar'],
+  ] as const
+
+  return keys.map(([cluster, camelKey]) => {
+    const payload = readRecord(clusters[camelKey] ?? clusters[cluster])
+    const priorWeight = payload.priorWeight ?? payload.prior_weight
+    const effectiveWeight = payload.effectiveWeight ?? payload.effective_weight
+    const sampleSize = payload.sampleSize ?? payload.sample_size
+    const skillScore = payload.skillScore ?? payload.skill_score
+    return {
+      cluster,
+      priorWeight: isFiniteNumber(priorWeight) ? priorWeight : null,
+      effectiveWeight: isFiniteNumber(effectiveWeight) ? effectiveWeight : null,
+      sampleSize: isFiniteNumber(sampleSize)
+        ? Math.max(0, Math.trunc(sampleSize))
+        : null,
+      skillScore: isFiniteNumber(skillScore) ? skillScore : null,
+      freshness: normalizeFreshness(payload.freshness),
+    }
+  })
+}
+
+function sourceEvidenceLabel(row: NormalizedSourceRow) {
+  if (row.weight != null) return `Rank ${Math.round(row.weight * 100)}%`
+  if (/tracked not ranked/i.test(row.note ?? '')) {
+    return 'Awaiting scored history'
+  }
+  return normalizeForecastCopy(row.note) ?? 'Awaiting scored history'
 }
 
 function normalizeFreshnessClusters(value: unknown): FreshnessClusterRow[] {
@@ -830,15 +1073,15 @@ function truthStateDescriptor(
     case 'live':
       return { label: 'Live', tone: 'success' }
     case 'pendingTarget':
-      return { label: 'Pending target', tone: 'warning' }
+      return { label: 'Awaiting target close', tone: 'warning' }
     case 'waitingAfterClose':
-      return { label: 'Waiting after close', tone: 'warning' }
+      return { label: 'Waiting for score', tone: 'warning' }
     case 'sparseHistory':
-      return { label: 'Sparse history', tone: 'warning' }
+      return { label: 'Limited history', tone: 'warning' }
     case 'fetchError':
-      return { label: 'Fetch error', tone: 'danger' }
+      return { label: 'Refresh failed', tone: 'danger' }
     case 'legacySparse':
-      return { label: 'Legacy sparse data', tone: 'danger' }
+      return { label: 'Older data', tone: 'danger' }
     default:
       return { label: humanizeLabel(truthState), tone: 'neutral' }
   }
@@ -849,13 +1092,13 @@ function freshnessStateDescriptor(
 ): FreshnessStateDescriptor {
   switch (state) {
     case 'fresh':
-      return { label: 'Fresh', tone: 'success' }
+      return { label: 'Current', tone: 'success' }
     case 'aging':
       return { label: 'Aging', tone: 'warning' }
     case 'stale':
-      return { label: 'Stale', tone: 'warning' }
+      return { label: 'Old', tone: 'warning' }
     case 'invalid':
-      return { label: 'Invalidated', tone: 'danger' }
+      return { label: 'Needs refresh', tone: 'danger' }
     case 'degraded':
       return { label: 'Degraded', tone: 'danger' }
     default:
@@ -868,87 +1111,14 @@ function reviewStateDescriptor(
 ): ReviewStateDescriptor {
   switch (reviewState) {
     case 'live':
-      return { label: 'Live review', tone: 'success' }
+      return { label: 'Learning live', tone: 'success' }
     case 'warmup':
-      return { label: 'Warmup review', tone: 'warning' }
+      return { label: 'Learning warming up', tone: 'warning' }
     case 'degraded':
-      return { label: 'Degraded review', tone: 'danger' }
+      return { label: 'Learning degraded', tone: 'danger' }
     default:
       return { label: humanizeLabel(reviewState), tone: 'neutral' }
   }
-}
-
-function formatMacroStatusNote(
-  macroCalendar: MacroCalendarSourceCluster,
-  fallback: string,
-) {
-  const freshness = normalizeFreshness(macroCalendar.freshness)
-  if (freshness === 'fresh') return fallback
-
-  const upcomingEventCount = isFiniteNumber(macroCalendar.upcomingEventCount)
-    ? Math.max(0, Math.trunc(macroCalendar.upcomingEventCount))
-    : 0
-  const nextEventDate = formatScorecardDate(
-    readString(macroCalendar.nextEventDate),
-  )
-  const reason =
-    macroCalendar.reason === 'staleTable' ||
-    macroCalendar.reason === 'stale_table'
-      ? 'stale table coverage'
-      : macroCalendar.reason === 'noFutureRows' ||
-          macroCalendar.reason === 'no_future_rows'
-        ? 'no future rows'
-        : 'incomplete calendar coverage'
-  const nextEventCopy = nextEventDate ? ` Next event ${nextEventDate}.` : ''
-  return `Macro calendar is ${freshness ?? 'unknown'} (${reason}); ${upcomingEventCount} upcoming events tracked in the next 14 days.${nextEventCopy}`
-}
-
-function deriveScenarioCards(
-  leadCall: ReturnType<typeof selectDisplayLeadCall>,
-  summary: NormalizedCommitteeSummary,
-): ScenarioCard[] {
-  const expectedMove = leadCall?.expectedMovePct ?? null
-  const upperMove = isFiniteNumber(leadCall?.confidenceBandHighPct)
-    ? leadCall.confidenceBandHighPct
-    : expectedMove
-  const lowerMove = isFiniteNumber(leadCall?.confidenceBandLowPct)
-    ? leadCall.confidenceBandLowPct
-    : expectedMove
-  const bearNarrative = (() => {
-    if (
-      summary.confidenceNote &&
-      /(downside|bear|selloff|weakness|drawdown|decline|invalidation)/i.test(
-        summary.confidenceNote,
-      )
-    ) {
-      return summary.confidenceNote
-    }
-    return `No explicit bear narrative from committee. Lower-band reference: ${formatPercent(lowerMove)}.`
-  })()
-
-  return [
-    {
-      title: 'Bull',
-      moveText: formatPercent(upperMove),
-      summary:
-        summary.highestConvictionViews[0] ??
-        summary.marketRegimeSummary ??
-        'Upside case anchored to the upper confidence band.',
-    },
-    {
-      title: 'Base',
-      moveText: formatPercent(expectedMove),
-      summary:
-        leadCall?.rationaleSummary ??
-        summary.overallBias ??
-        'Base case follows the current committee call.',
-    },
-    {
-      title: 'Bear',
-      moveText: formatPercent(lowerMove),
-      summary: bearNarrative,
-    },
-  ]
 }
 
 function buildRangeState(
@@ -975,7 +1145,7 @@ function buildRangeState(
     if (low === high) {
       return {
         kind: 'point',
-        summary: `Single-point band ${formatPercent(low)}`,
+        summary: `Only one estimate: ${formatPercent(low)}`,
         point: low,
         pointPct: leftPct,
         zeroPct,
@@ -984,7 +1154,7 @@ function buildRangeState(
 
     return {
       kind: 'range',
-      summary: `Range ${formatPercent(low)} to ${formatPercent(high)}`,
+      summary: `Likely range: ${formatPercent(low)} to ${formatPercent(high)}`,
       low,
       high,
       expected,
@@ -998,7 +1168,7 @@ function buildRangeState(
   if (isFiniteNumber(expected)) {
     return {
       kind: 'point',
-      summary: `Point estimate only ${formatPercent(expected)}`,
+      summary: `Only one estimate: ${formatPercent(expected)}`,
       point: expected,
       pointPct: 50,
       zeroPct: expected === 0 ? 50 : null,
@@ -1007,7 +1177,7 @@ function buildRangeState(
 
   return {
     kind: 'pending',
-    summary: 'Pending range',
+    summary: 'Likely range pending',
   }
 }
 
@@ -1027,6 +1197,45 @@ function buildSparklinePath(values: number[]) {
     .join(' ')
 }
 
+function seatHistoryValues(
+  reviewHistory: NormalizedReviewState['reviewHistory'],
+  seatKey: string,
+  metric: keyof Pick<
+    PredictionReviewSeat,
+    'effectiveWeight' | 'directionHitRate' | 'avgConfidenceScore'
+  >,
+) {
+  return reviewHistory
+    .map((point) => {
+      const seat = point.seatScorecards.find((row) => row.seatKey === seatKey)
+      const value = seat?.[metric]
+      if (!isFiniteNumber(value)) return null
+      return metric === 'avgConfidenceScore'
+        ? normalizeConfidenceScore(value)
+        : value
+    })
+    .filter((value): value is number => isFiniteNumber(value))
+}
+
+function trendWord(values: number[], higherIsBetter = true) {
+  if (values.length < 2) return 'Needs history'
+  const first = values[0]
+  const last = values[values.length - 1]
+  const delta = last - first
+  if (Math.abs(delta) < 0.01) return 'Flat'
+  const improving = higherIsBetter ? delta > 0 : delta < 0
+  return improving ? 'Improving' : 'Worse'
+}
+
+function trendLabel(
+  values: number[],
+  formatter: (value: number) => string,
+  higherIsBetter = true,
+) {
+  if (values.length < 2) return 'Needs history'
+  return `${trendWord(values, higherIsBetter)} · ${formatter(values[values.length - 1])}`
+}
+
 function buildHistoryState(
   historyData: MarketPredictionHistoryResponse | undefined,
   historyError: unknown,
@@ -1044,7 +1253,7 @@ function buildHistoryState(
     return {
       kind: 'loading',
       label: 'Pending',
-      detail: 'Loading committee history.',
+      detail: 'Loading past forecasts.',
     }
   }
 
@@ -1056,104 +1265,64 @@ function buildHistoryState(
     return {
       kind: 'sparse',
       label: 'Insufficient history',
-      detail:
-        'Need at least two usable committee snapshots before rendering a trend.',
+      detail: 'Need two forecasts before showing a line.',
     }
   }
 
   return {
     kind: 'ready',
-    label: 'Live trend',
-    detail: `${points.length} snapshots across recent committee runs.`,
+    label: 'Forecast history',
+    detail: `${points.length} recent forecasts shown.`,
     path: buildSparklinePath(points),
     points,
   }
 }
 
-function buildGapCallouts({
-  macroMissing,
-  macroStatusNote,
-  sourceRows,
-  seatCount,
-  historyState,
-  scorecardPending,
-  summary,
-  truthState,
-}: {
-  macroMissing: boolean
-  macroStatusNote: string
-  sourceRows: NormalizedSourceRow[]
-  seatCount: number
-  historyState: HistoryState
-  scorecardPending: boolean
-  summary: NormalizedCommitteeSummary
-  truthState: PredictionTruthState
-}) {
-  const callouts: GapCallout[] = []
-
-  if (macroMissing) {
-    callouts.push({
-      label: 'Missing macro context',
-      status: 'Missing macro context',
-      detail: macroStatusNote,
-    })
+function buildForecastCurveState(
+  horizonCards: HorizonCard[],
+): ForecastCurveState {
+  const usableCards = horizonCards.filter((card) =>
+    isFiniteNumber(card.expectedMoveValue),
+  )
+  if (usableCards.length < 2) {
+    return {
+      kind: 'pending',
+      detail: 'Need at least two forecast windows before drawing a curve.',
+    }
   }
 
-  if (sourceRows.some((row) => row.trackedNotRanked)) {
-    callouts.push({
-      label: 'Tracked not ranked',
-      status: 'Tracked not ranked',
-      detail:
-        'Attribution rows are being tracked, but the committee has not ranked every driver by weight yet.',
+  const width = 176
+  const height = 64
+  const values = usableCards.map((card) => card.expectedMoveValue as number)
+  const domainMin = Math.min(...values, 0)
+  const domainMax = Math.max(...values, 0)
+  const span = domainMax - domainMin || 1
+  const points = usableCards.map((card, index) => {
+    const x =
+      usableCards.length === 1
+        ? width / 2
+        : (index / (usableCards.length - 1)) * width
+    const value = card.expectedMoveValue as number
+    const y = height - ((value - domainMin) / span) * height
+    return { x, y, card }
+  })
+  const path = points
+    .map((point, index) => {
+      const command = index === 0 ? 'M' : 'L'
+      return `${command} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`
     })
-  }
+    .join(' ')
+  const zeroPct =
+    domainMin <= 0 && domainMax >= 0 ? ((domainMax - 0) / span) * 100 : null
 
-  if (seatCount === 0) {
-    callouts.push({
-      label: 'Pending committee coverage',
-      status: 'Pending',
-      detail:
-        'Seat-level commentary will appear after the next roundtable response.',
-    })
-  } else if (seatCount < 3) {
-    callouts.push({
-      label: 'Partial committee coverage',
-      status: 'Partial committee coverage',
-      detail:
-        'Only the currently available SPY seats are shown. Missing commentary is left blank instead of invented.',
-    })
+  return {
+    kind: 'ready',
+    path,
+    zeroPct,
+    points,
+    domainMin,
+    domainMax,
   }
-
-  if (
-    truthState !== 'live' ||
-    historyState.kind !== 'ready' ||
-    scorecardPending
-  ) {
-    callouts.push({
-      label:
-        truthState === 'legacySparse'
-          ? 'Legacy sparse data'
-          : 'Insufficient history',
-      status:
-        truthState === 'legacySparse'
-          ? truthStateDescriptor(truthState).label
-          : historyState.label,
-      detail:
-        summary.scorecardStatusNote ??
-        'Calibration and trend depth will improve after more committee calls mature.',
-    })
-  }
-
-  for (const callout of summary.gapCallouts) {
-    if (callouts.some((item) => item.label === callout)) continue
-    callouts.push({
-      label: callout,
-      status: 'Live note',
-      detail: callout,
-    })
-  }
-
-  return callouts
 }
 
 function sortVotesForDisplay(votes: PredictionVote[]) {
@@ -1231,6 +1400,10 @@ function disagreementTone(
   return 'neutral'
 }
 
+function disagreementMetricValue(label: string) {
+  return label.replace(/\s+disagreement$/i, '')
+}
+
 function recommendedActionTone(
   action: string,
 ): 'success' | 'warning' | 'danger' | 'neutral' {
@@ -1238,6 +1411,12 @@ function recommendedActionTone(
   if (action === 'downweight') return 'danger'
   if (action === 'hold') return 'warning'
   return 'neutral'
+}
+
+function recommendedActionLabel(action: string) {
+  if (action === 'upweight') return 'Trust rising'
+  if (action === 'downweight') return 'Trust falling'
+  return 'Trust steady'
 }
 
 function StatusBadge({
@@ -1279,8 +1458,288 @@ function MetricTile({
         <Icon className="h-4 w-4" />
         <span className="text-[10px] uppercase tracking-[0.18em]">{label}</span>
       </div>
-      <p className="mt-3 text-2xl font-semibold text-text">{value}</p>
+      <p className="mt-3 text-xl font-semibold leading-tight text-text">
+        {value}
+      </p>
       {detail ? <p className="mt-2 text-xs text-text-muted">{detail}</p> : null}
+    </div>
+  )
+}
+
+function MiniTrend({
+  label,
+  values,
+  formatter,
+  higherIsBetter = true,
+}: {
+  label: string
+  values: number[]
+  formatter: (value: number) => string
+  higherIsBetter?: boolean
+}) {
+  const path = buildSparklinePath(values)
+  return (
+    <div className="rounded-[14px] border border-border/30 bg-black/20 p-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] uppercase tracking-[0.14em] text-text-muted">
+          {label}
+        </p>
+        <p className="text-[11px] text-text-muted">
+          {trendLabel(values, formatter, higherIsBetter)}
+        </p>
+      </div>
+      {path ? (
+        <svg viewBox="0 0 176 56" className="mt-2 h-10 w-full">
+          <path
+            d={path}
+            fill="none"
+            stroke="rgba(103,232,249,0.92)"
+            strokeLinecap="round"
+            strokeWidth="3"
+          />
+        </svg>
+      ) : (
+        <div className="mt-2 h-10 rounded-xl bg-white/[0.03]" />
+      )}
+    </div>
+  )
+}
+
+function ForecastPathPanel({
+  forecastCurve,
+  horizonCards,
+  rangeState,
+  windowDays,
+  freshnessState,
+  compact = false,
+}: {
+  forecastCurve: ForecastCurveState
+  horizonCards: HorizonCard[]
+  rangeState: RangeState
+  windowDays: number
+  freshnessState: NormalizedPredictionFreshness['state']
+  compact?: boolean
+}) {
+  const freshnessBadge = freshnessStateDescriptor(freshnessState)
+
+  return (
+    <div
+      className={cn(
+        'rounded-[22px] border border-border/30 bg-black/20',
+        compact ? 'p-3' : 'p-4',
+      )}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
+            Forecast path
+          </p>
+          {compact ? null : (
+            <p className="mt-2 text-sm text-text-muted">
+              Expected move by target close.
+            </p>
+          )}
+        </div>
+        <StatusBadge label={freshnessBadge.label} tone={freshnessBadge.tone} />
+      </div>
+      <div
+        className={cn(
+          'relative rounded-[18px] border border-border/30 bg-white/[0.03] p-3',
+          compact ? 'mt-3' : 'mt-4',
+        )}
+      >
+        {forecastCurve.kind === 'ready' ? (
+          <>
+            <svg
+              viewBox="0 0 176 64"
+              className={cn('w-full', compact ? 'h-14' : 'h-20')}
+              aria-label="Expected move across forecast windows"
+            >
+              {forecastCurve.zeroPct != null ? (
+                <line
+                  x1="0"
+                  x2="176"
+                  y1={`${forecastCurve.zeroPct}%`}
+                  y2={`${forecastCurve.zeroPct}%`}
+                  stroke="rgba(255,255,255,0.24)"
+                  strokeDasharray="4 4"
+                />
+              ) : null}
+              <path
+                d={forecastCurve.path}
+                fill="none"
+                stroke="url(#prediction-forecast-curve)"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              {forecastCurve.points.map((point) => (
+                <circle
+                  key={`forecast-point-${point.card.option}`}
+                  cx={point.x}
+                  cy={point.y}
+                  r={point.card.option === windowDays ? 4.2 : 3}
+                  fill={
+                    point.card.option === windowDays
+                      ? 'rgb(255,255,255)'
+                      : 'rgb(103,232,249)'
+                  }
+                >
+                  <title>{point.card.tooltipLabel}</title>
+                </circle>
+              ))}
+              <defs>
+                <linearGradient
+                  id="prediction-forecast-curve"
+                  x1="0%"
+                  y1="0%"
+                  x2="100%"
+                  y2="0%"
+                >
+                  <stop offset="0%" stopColor="rgba(94,234,212,0.95)" />
+                  <stop offset="100%" stopColor="rgba(56,189,248,0.95)" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div className="mt-2 flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.14em] text-text-muted">
+              {forecastCurve.points.map((point) => (
+                <span key={`forecast-label-${point.card.option}`}>
+                  {point.card.targetLabel}
+                </span>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="text-xs text-text-muted">{forecastCurve.detail}</p>
+        )}
+      </div>
+      <div
+        className={cn(
+          'grid gap-2',
+          compact ? 'mt-3 grid-cols-4' : 'mt-4 sm:grid-cols-4',
+        )}
+      >
+        {horizonCards.map((card) => (
+          <div
+            key={card.option}
+            title={card.tooltipLabel}
+            className={cn(
+              'rounded-[18px] border text-left',
+              compact ? 'p-2' : 'p-3',
+              card.option === windowDays
+                ? 'border-primary/40 bg-primary/10 shadow-[0_0_18px_-8px] shadow-primary/45'
+                : 'border-border/30 bg-white/[0.03]',
+            )}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] uppercase tracking-[0.14em] text-text-muted">
+                {compact ? card.targetLabel : tradingDayLabel(card.option)}
+              </p>
+              {compact ? null : (
+                <div className="flex flex-wrap justify-end gap-1.5">
+                  {card.status !== 'Live' ? (
+                    <StatusBadge label={card.status} tone={card.tone} />
+                  ) : null}
+                  <StatusBadge
+                    label={card.freshnessLabel}
+                    tone={card.freshnessTone}
+                  />
+                </div>
+              )}
+            </div>
+            <p
+              className={cn(
+                'font-semibold text-text',
+                compact ? 'mt-2 text-sm' : 'mt-3 text-xl',
+              )}
+            >
+              {card.expectedMove}
+            </p>
+            {compact ? null : (
+              <>
+                <p className="mt-1 text-xs text-text-muted">
+                  Closes higher: {card.probability}
+                </p>
+                <p className="mt-2 text-[11px] leading-relaxed text-text-muted">
+                  {card.shortWindowLabel}
+                </p>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className={compact ? 'mt-3' : 'mt-4'}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p
+            data-testid="prediction-range-summary"
+            className={cn(
+              'font-medium text-text',
+              compact ? 'text-xs' : 'text-sm',
+            )}
+          >
+            {rangeState.summary}
+          </p>
+          {rangeState.kind === 'range' ? (
+            <StatusBadge label="Likely range" tone="success" />
+          ) : rangeState.kind === 'point' ? (
+            <StatusBadge label="Point estimate" tone="warning" />
+          ) : (
+            <StatusBadge label="Range pending" tone="warning" />
+          )}
+        </div>
+        <div className="relative mt-3 h-10 rounded-full bg-white/[0.05]">
+          {rangeState.kind === 'range' ? (
+            <>
+              {rangeState.zeroPct != null ? (
+                <div
+                  className="absolute inset-y-1 my-auto w-px bg-white/35"
+                  style={{ left: `${rangeState.zeroPct}%` }}
+                />
+              ) : null}
+              <div
+                className="absolute top-1/2 h-4 -translate-y-1/2 rounded-full bg-gradient-to-r from-emerald-400/70 via-cyan-300/70 to-violet-400/70 shadow-[0_0_22px_-10px_rgba(103,232,249,0.9)]"
+                style={{
+                  left: `${rangeState.leftPct}%`,
+                  width: `${Math.max(rangeState.rightPct - rangeState.leftPct, 6)}%`,
+                }}
+              />
+              {rangeState.pointPct != null ? (
+                <div
+                  className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/80 bg-white shadow-[0_0_20px_-8px_rgba(255,255,255,0.9)]"
+                  style={{ left: `${rangeState.pointPct}%` }}
+                />
+              ) : null}
+            </>
+          ) : rangeState.kind === 'point' ? (
+            <>
+              {rangeState.zeroPct != null ? (
+                <div
+                  className="absolute inset-y-1 my-auto w-px bg-white/35"
+                  style={{ left: `${rangeState.zeroPct}%` }}
+                />
+              ) : null}
+              <div
+                className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/70 bg-cyan-200 shadow-[0_0_18px_-6px_rgba(103,232,249,0.9)]"
+                style={{ left: `${rangeState.pointPct}%` }}
+              />
+            </>
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-xs text-text-muted">
+              Waiting for a usable range.
+            </div>
+          )}
+        </div>
+        {rangeState.kind === 'range' ? (
+          <div className="mt-3 grid grid-cols-3 gap-2 text-xs text-text-muted">
+            <span>{formatPercent(rangeState.low)}</span>
+            <span className="text-center">
+              Mean {formatPercent(rangeState.expected)}
+            </span>
+            <span className="text-right">{formatPercent(rangeState.high)}</span>
+          </div>
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -1304,22 +1763,28 @@ function FreshnessRail({
   generatedAgeLabel,
   evaluatedLabel,
   evaluatedAgeLabel,
+  sourceRows,
+  clusterLearningRows,
   onRefresh,
   isRefreshing,
   refreshErrorMessage,
-  gapCallouts,
 }: {
   freshness: NormalizedPredictionFreshness
   generatedLabel: string
   generatedAgeLabel: string
   evaluatedLabel: string
   evaluatedAgeLabel: string | null
+  sourceRows: NormalizedSourceRow[]
+  clusterLearningRows: ClusterLearningRow[]
   onRefresh: () => void
   isRefreshing: boolean
   refreshErrorMessage: string | null
-  gapCallouts: GapCallout[]
 }) {
   const freshnessBadge = freshnessStateDescriptor(freshness.state)
+  const sourceByCluster = new Map(sourceRows.map((row) => [row.cluster, row]))
+  const learningByCluster = new Map(
+    clusterLearningRows.map((row) => [row.cluster, row]),
+  )
   const coverageRows = freshness.criticalClusters.length
     ? freshness.criticalClusters
     : [
@@ -1330,6 +1795,43 @@ function FreshnessRail({
           detail: 'Backend has not published cluster freshness yet.',
         },
       ]
+  const driverRows = coverageRows.map((cluster) => {
+    const source = sourceByCluster.get(cluster.cluster)
+    const learning = learningByCluster.get(cluster.cluster)
+    const rawFreshness =
+      normalizeFreshness(cluster.freshness) ??
+      normalizeFreshness(learning?.freshness) ??
+      normalizeFreshness(source?.freshness) ??
+      'unknown'
+    const asOfOrdinal = dateOnlyOrdinal(cluster.asOfDate)
+    const marketOrdinal = dateOnlyOrdinal(freshness.marketDate)
+    const freshnessValue =
+      rawFreshness === 'fresh' && !cluster.asOfDate
+        ? 'missing'
+        : rawFreshness === 'fresh' &&
+            asOfOrdinal != null &&
+            marketOrdinal != null &&
+            asOfOrdinal < marketOrdinal
+          ? 'stale'
+          : rawFreshness
+    const weight = source?.weight ?? learning?.effectiveWeight
+    const sampleSize = learning?.sampleSize
+    const rankLabel = source
+      ? sourceEvidenceLabel(source)
+      : weight != null
+        ? `Weight ${Math.round(weight * 100)}%`
+        : sampleSize
+          ? `${sampleSize} scored`
+          : 'Awaiting scored history'
+    return {
+      cluster: cluster.cluster,
+      freshness: freshnessValue,
+      asOfDate: cluster.asOfDate,
+      detail: cluster.detail,
+      rankLabel,
+      sampleSize,
+    }
+  })
 
   return (
     <div
@@ -1342,7 +1844,7 @@ function FreshnessRail({
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-2">
+        <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <div data-testid="prediction-freshness-state">
               <StatusBadge
@@ -1363,12 +1865,12 @@ function FreshnessRail({
               />
             ) : null}
             {freshness.invalidated ? (
-              <StatusBadge label="Refresh required" tone="danger" />
+              <StatusBadge label="Refresh needed" tone="danger" />
             ) : null}
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-[0.2em] text-text-muted">
-              Freshness + evidence
+              Data health
             </p>
             <p
               data-testid="prediction-freshness-summary"
@@ -1402,106 +1904,72 @@ function FreshnessRail({
         </div>
       ) : null}
 
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        <div className="rounded-[18px] border border-border/30 bg-black/20 p-3">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
-            Last committee snapshot
-          </p>
-          <p
-            data-testid="prediction-last-generated-at"
-            className="mt-2 text-sm font-medium text-text"
-          >
-            {generatedLabel}
-          </p>
-          <p className="mt-1 text-xs text-text-muted">{generatedAgeLabel}</p>
+      <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.25fr)]">
+        <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
+          <div className="rounded-[16px] border border-border/30 bg-black/20 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted">
+              Snapshot
+            </p>
+            <p
+              data-testid="prediction-last-generated-at"
+              className="mt-1 text-sm font-medium text-text"
+            >
+              {generatedLabel}
+            </p>
+            <p className="mt-0.5 text-xs text-text-muted">
+              {generatedAgeLabel}
+            </p>
+          </div>
+          <div className="rounded-[16px] border border-border/30 bg-black/20 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted">
+              Evaluation
+            </p>
+            <p className="mt-1 text-sm font-medium text-text">
+              {evaluatedLabel}
+            </p>
+            <p className="mt-0.5 text-xs text-text-muted">
+              {evaluatedAgeLabel ?? 'Pending'}
+            </p>
+          </div>
+          <div className="rounded-[16px] border border-border/30 bg-black/20 px-3 py-2">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted">
+              Refresh
+            </p>
+            <p className="mt-1 text-sm font-medium text-text">
+              In {formatRefreshCountdown(freshness.refreshAfterSeconds)}
+            </p>
+            <p className="mt-0.5 text-xs text-text-muted">
+              {freshness.marketDate ?? 'Next check'}
+            </p>
+          </div>
         </div>
-        <div className="rounded-[18px] border border-border/30 bg-black/20 p-3">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
-            Last evaluation
-          </p>
-          <p className="mt-2 text-sm font-medium text-text">{evaluatedLabel}</p>
-          <p className="mt-1 text-xs text-text-muted">
-            {evaluatedAgeLabel ?? 'Evaluation pending'}
-          </p>
-        </div>
-        <div className="rounded-[18px] border border-border/30 bg-black/20 p-3">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
-            Auto refresh
-          </p>
-          <p className="mt-2 text-sm font-medium text-text">
-            In {formatRefreshCountdown(freshness.refreshAfterSeconds)}
-          </p>
-          <p className="mt-1 text-xs text-text-muted">
-            {freshness.marketDate
-              ? `Watching ${freshness.marketDate} market date.`
-              : 'Watching next freshness checkpoint.'}
-          </p>
-        </div>
-      </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-        <div className="rounded-[18px] border border-border/30 bg-black/20 p-3">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
-            Key evidence
-          </p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            {coverageRows.map((cluster) => (
-              <div
-                key={cluster.cluster}
-                className="rounded-2xl border border-border/30 bg-white/[0.03] px-3 py-2"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text">
-                    {humanizeLabel(cluster.cluster)}
-                  </p>
-                  <StatusBadge
-                    label={humanizeLabel(cluster.freshness)}
-                    tone={
-                      cluster.freshness === 'fresh'
-                        ? 'success'
-                        : cluster.freshness === 'missing'
-                          ? 'danger'
-                          : 'warning'
-                    }
-                  />
-                </div>
-                <p className="mt-2 text-xs text-text-muted">
-                  {cluster.asOfDate
-                    ? `As of ${cluster.asOfDate}`
-                    : (cluster.detail ?? 'No as-of date published.')}
+        <div
+          data-testid="prediction-source-attribution"
+          className="grid gap-2 sm:grid-cols-3"
+        >
+          {driverRows.map((row) => (
+            <div
+              key={row.cluster}
+              className="rounded-[16px] border border-border/30 bg-black/20 px-3 py-2"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text">
+                  {humanizeLabel(row.cluster)}
                 </p>
+                <StatusBadge
+                  label={driverFreshnessDescriptor(row.freshness).label}
+                  tone={driverFreshnessDescriptor(row.freshness).tone}
+                />
               </div>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-[18px] border border-border/30 bg-black/20 p-3">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
-            Coverage watch
-          </p>
-          <div className="mt-3 space-y-2">
-            {gapCallouts.length ? (
-              gapCallouts.slice(0, 3).map((callout) => (
-                <div
-                  key={callout.label}
-                  className="rounded-2xl border border-border/30 bg-white/[0.03] px-3 py-2"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text">
-                      {callout.label}
-                    </p>
-                    <StatusBadge label={callout.status} tone="warning" />
-                  </div>
-                  <p className="mt-2 text-xs text-text-muted">
-                    {callout.detail}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
-                No live evidence gaps flagged for this window.
-              </div>
-            )}
-          </div>
+              <p className="mt-2 text-xs text-text">{row.rankLabel}</p>
+              <p className="mt-1 text-xs text-text-muted">
+                {row.asOfDate
+                  ? `As of ${row.asOfDate}`
+                  : (row.detail ?? 'Date missing')}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -1525,6 +1993,7 @@ export function InvestingPredictionPanel() {
   const selectedQuery = committeeQueries[windowDays]
   const { data, isLoading, error, isFetching } = selectedQuery
   const reviewQuery = useMarketPredictionReview(windowDays)
+  const qualityQuery = useMarketPredictionQuality(windowDays)
   const refreshMutation = useRefreshMarketPredictionCommittee()
 
   const allCalls = useMemo(() => normalizeCalls(data?.calls), [data?.calls])
@@ -1557,23 +2026,23 @@ export function InvestingPredictionPanel() {
     () => normalizeCommitteeSummary(data?.committeeSummary),
     [data?.committeeSummary],
   )
-  const macroCalendar = useMemo(
-    () => normalizeMacroCalendar(data?.sourceSnapshot),
+  const clusterLearningRows = useMemo(
+    () => normalizeClusterLearningRows(data?.sourceSnapshot),
     [data?.sourceSnapshot],
   )
   const sourceRows = useMemo(
     () => normalizeSourceRows(attributedLeadCall),
     [attributedLeadCall],
   )
-  const scenarioCards = useMemo(
-    () => deriveScenarioCards(leadCall, committeeSummary),
-    [committeeSummary, leadCall],
-  )
   const disagreementLabel = useMemo(
     () => deriveDisagreementLabel(leadCall, committeeSummary, normalizedVotes),
     [committeeSummary, leadCall, normalizedVotes],
   )
   const rangeState = useMemo(() => buildRangeState(leadCall), [leadCall])
+  const leadCalibration = useMemo(
+    () => normalizeCalibrationMetadata(leadCall),
+    [leadCall],
+  )
   const historyState = useMemo(
     () =>
       buildHistoryState(
@@ -1612,37 +2081,82 @@ export function InvestingPredictionPanel() {
     committeeSummary.headline ??
     leadCall?.rationaleSummary ??
     'Committee call pending.'
-  const supportCopy =
-    committeeSummary.marketRegimeSummary ??
-    committeeSummary.confidenceNote ??
-    leadCall?.rationaleSummary ??
-    'Waiting for fuller committee context.'
 
   const scorecard = data?.scorecard ?? null
   const scorecardMetrics = [
     {
-      label: 'Direction hit rate',
+      label: 'Direction right',
       value:
         scorecard?.sampleSize && scorecard.directionHitRate != null
           ? `${Math.round(scorecard.directionHitRate * 100)}%`
           : 'Pending',
+      detail: scorecard?.sampleSize
+        ? `${scorecard.sampleSize} past forecasts`
+        : 'Needs scored history',
       icon: Radar,
     },
     {
-      label: 'Move MAE',
+      label: 'Average miss',
       value:
         scorecard?.sampleSize && scorecard.moveMaePct != null
           ? formatPercent(scorecard.moveMaePct)
           : 'Pending',
+      detail: 'Lower is better',
       icon: Gauge,
     },
     {
-      label: 'Brier score',
+      label: 'Probability error',
       value:
         scorecard?.sampleSize && scorecard.brierScore != null
           ? scorecard.brierScore.toFixed(2)
           : 'Pending',
+      detail: 'Lower is better',
       icon: BrainCircuit,
+    },
+  ]
+  const qualityReport = qualityQuery.data ?? null
+  const calibrationQuality = qualityReport?.calibration ?? null
+  const noEdgeQuality = qualityReport?.noEdge ?? null
+  const topSeatQuality = qualityReport?.seatSegments?.[0] ?? null
+  const qualityMetrics = [
+    {
+      label: 'Calibration lift',
+      value:
+        calibrationQuality?.sampleSize &&
+        isFiniteNumber(calibrationQuality.brierImprovementPct)
+          ? `${Math.round(calibrationQuality.brierImprovementPct * 100)}%`
+          : 'Pending',
+      detail:
+        calibrationQuality?.sampleSize &&
+        isFiniteNumber(calibrationQuality.rawBrierScore) &&
+        isFiniteNumber(calibrationQuality.calibratedBrierScore)
+          ? `${formatBrier(calibrationQuality.rawBrierScore)} raw -> ${formatBrier(
+              calibrationQuality.calibratedBrierScore,
+            )}`
+          : 'Needs calibrated outcomes',
+      icon: BrainCircuit,
+    },
+    {
+      label: 'No-edge rate',
+      value:
+        noEdgeQuality?.totalSampleSize &&
+        isFiniteNumber(noEdgeQuality.noEdgeRate)
+          ? formatProbability(noEdgeQuality.noEdgeRate)
+          : 'Pending',
+      detail: noEdgeQuality?.totalSampleSize
+        ? `${noEdgeQuality.noEdgeSampleSize}/${noEdgeQuality.totalSampleSize} abstained`
+        : 'Needs scored abstentions',
+      icon: Gauge,
+    },
+    {
+      label: 'Best seat',
+      value: topSeatQuality ? humanizeLabel(topSeatQuality.key) : 'Pending',
+      detail: topSeatQuality
+        ? `${formatTrackRecord(topSeatQuality.metrics.directionHitRate)} · ${formatBrier(
+            topSeatQuality.metrics.brierScore,
+          )} Brier`
+        : 'Needs vote outcomes',
+      icon: Radar,
     },
   ]
   const scorecardPending =
@@ -1658,31 +2172,43 @@ export function InvestingPredictionPanel() {
     switch (truthState) {
       case 'pendingTarget':
         return scorecardTargetDate
-          ? `Current ${windowDays}D cohort targets ${scorecardTargetDate}. Scorecard populates after the first post-close evaluation.`
-          : `Current ${windowDays}D cohort has not hit target yet.`
+          ? `This forecast targets ${scorecardTargetDate}. It will be scored after that close.`
+          : `This ${tradingDayLabel(windowDays)} forecast has not reached its target close.`
       case 'waitingAfterClose':
-        return 'The target date has landed, but the post-close evaluation has not published yet.'
+        return 'Target date passed. Waiting for the scored result.'
       case 'sparseHistory':
-        return 'Live scorecard truth is available, but the selected lead history still needs more usable committee snapshots.'
+        return 'Need more scored forecasts for a reliable trend.'
       case 'fetchError':
-        return 'Prediction snapshot degraded on fetch. Showing the latest safe fallback contract until a healthy refresh returns.'
+        return 'Latest refresh failed. Showing fallback data.'
       case 'legacySparse':
-        return 'Legacy sparse data lacks surviving lead-call attribution, so the panel stays explicit instead of inventing detail.'
+        return 'Older data lacks source detail.'
       default:
         return scorecardTargetDate
-          ? `No matured ${windowDays}D committee calls yet. Current cohort targets ${scorecardTargetDate}. Scorecard populates after the first post-close evaluation.`
-          : `No matured ${windowDays}D committee calls yet. Scorecard populates after the first post-close evaluation.`
+          ? `This forecast targets ${scorecardTargetDate}. It will be scored after that close.`
+          : `No scored ${tradingDayLabel(windowDays)} forecasts yet.`
     }
   })()
   const truthStateNote =
     truthState === 'live'
       ? null
-      : (committeeSummary.scorecardStatusNote ?? defaultStateNote)
+      : normalizeForecastCopy(
+          committeeSummary.scorecardStatusNote ?? defaultStateNote,
+        )
+  const noEdgeNote =
+    committeeSummary.publicationState === 'no_edge'
+      ? `No high-quality edge: ${
+          committeeSummary.abstainReasonCodes.length
+            ? committeeSummary.abstainReasonCodes.map(humanizeLabel).join(', ')
+            : 'evidence does not support a strong call'
+        }.`
+      : null
   const scorecardStatus =
     truthStateNote ??
     (scorecardPending
-      ? (committeeSummary.scorecardStatusNote ?? defaultStateNote)
-      : `Scored on ${scorecard.sampleSize} matured committee calls.`)
+      ? normalizeForecastCopy(
+          committeeSummary.scorecardStatusNote ?? defaultStateNote,
+        )
+      : `${scorecard.sampleSize} past forecasts scored.`)
   const reviewGeneratedLabel =
     formatTimestampLabel(reviewState.generatedAt) ?? 'Unavailable'
   const reviewAsOfLabel =
@@ -1691,10 +2217,12 @@ export function InvestingPredictionPanel() {
     formatTimestampLabel(data?.generatedAt) ??
     formatTimestampLabel(data?.asOfTs) ??
     'Unavailable'
-  const predictionWindowLabel =
-    data?.baseDate && data?.targetDate
-      ? `${data.baseDate} to ${data.targetDate}`
-      : `${windowDays} trading days`
+  const predictionWindowLabel = forecastWindowLabel({
+    baseDate: data?.baseDate,
+    targetDate: data?.targetDate,
+    windowDays,
+  })
+  const predictionTargetLabel = targetDateLabel(data?.targetDate)
   const lastEvaluatedLabel =
     formatTimestampLabel(data?.lastEvaluatedAt) ?? 'Pending'
   const generatedAgeLabel = formatAgeLabel(
@@ -1709,55 +2237,16 @@ export function InvestingPredictionPanel() {
           freshness.evaluatedAgeSeconds,
       )
     : null
-  const reviewTimestampDiverged =
-    Boolean(reviewState.generatedAt) &&
-    Boolean(data?.generatedAt) &&
-    reviewState.generatedAt !== data?.generatedAt
   const reviewStateNote =
     reviewQuery.error instanceof Error
       ? reviewQuery.error.message
       : reviewState.reviewState === 'live'
-        ? 'Resolved seat weights are coming from matured vote cohorts.'
+        ? 'Weights use past scored agent calls. More scored calls make this more reliable.'
         : reviewState.reviewState === 'degraded'
-          ? 'Review artifact degraded. Keep weights visible, but do not over-trust drift.'
+          ? 'Learning data is degraded. Treat weights cautiously.'
           : reviewState.reviewState === 'warmup'
-            ? 'Warmup artifact is holding prior weights until enough matured votes arrive.'
-            : 'Review artifact will appear after the next persisted seat-weighting pass.'
-  const reviewDriftSummary =
-    reviewState.topUpweighted.length || reviewState.topDownweighted.length
-      ? `${reviewState.topUpweighted.length} upweighted · ${reviewState.topDownweighted.length} downweighted`
-      : 'No resolved drift yet'
-
-  const sourceFallbackInUse = sourceRows.some((row) => row.trackedNotRanked)
-  const macroFreshness = normalizeFreshness(macroCalendar.freshness)
-  const macroMissing = macroFreshness !== 'fresh'
-  const macroStatusNote = formatMacroStatusNote(
-    macroCalendar,
-    'Macro calendar is fresh enough for this committee snapshot.',
-  )
-  const gapCallouts = useMemo(
-    () =>
-      buildGapCallouts({
-        macroMissing,
-        macroStatusNote,
-        sourceRows,
-        seatCount: normalizedVotes.length,
-        historyState,
-        scorecardPending,
-        summary: committeeSummary,
-        truthState,
-      }),
-    [
-      committeeSummary,
-      historyState,
-      macroMissing,
-      macroStatusNote,
-      normalizedVotes.length,
-      scorecardPending,
-      sourceRows,
-      truthState,
-    ],
-  )
+            ? 'Not enough scored agent calls yet; weights stay equal.'
+            : 'Learning starts after scored agent calls exist.'
   const displayVotes = useMemo(
     () => sortVotesForDisplay(normalizedVotes),
     [normalizedVotes],
@@ -1781,52 +2270,56 @@ export function InvestingPredictionPanel() {
         ? 'live'
         : 'legacySparse')
     const snapshotTruthBadge = truthStateDescriptor(snapshotTruthState)
+    const snapshotFreshness = normalizePredictionFreshness(
+      snapshotQuery.data?.freshnessSummary,
+      snapshotTruthState,
+    )
+    const snapshotFreshnessBadge = freshnessStateDescriptor(
+      snapshotFreshness.state,
+    )
+    const expectedMove = formatPercent(snapshotLead?.expectedMovePct)
+    const probability = formatProbability(snapshotLead?.probUp)
+    const targetLabel =
+      formatDateOnlyLabel(snapshotQuery.data?.targetDate, false) ??
+      tradingDayLabel(option)
     return {
       option,
-      expectedMove: formatPercent(snapshotLead?.expectedMovePct),
-      probability: formatProbability(snapshotLead?.probUp),
+      expectedMove,
+      expectedMoveValue: isFiniteNumber(snapshotLead?.expectedMovePct)
+        ? snapshotLead.expectedMovePct
+        : null,
+      probability,
       status: snapshotTruthBadge.label,
       tone: snapshotTruthBadge.tone,
+      shortWindowLabel: forecastWindowLabel({
+        baseDate: snapshotQuery.data?.baseDate,
+        targetDate: snapshotQuery.data?.targetDate,
+        windowDays: option,
+        compact: true,
+      }),
+      targetLabel,
+      tooltipLabel: `${tradingDayLabel(option)} target ${targetLabel}: ${expectedMove}, closes higher ${probability}, ${snapshotFreshnessBadge.label.toLowerCase()}`,
+      freshnessLabel: snapshotFreshnessBadge.label,
+      freshnessTone: snapshotFreshnessBadge.tone,
     }
   })
+  const forecastCurve = buildForecastCurveState(horizonCards)
 
   const executedSeatKeys = committeeSummary.executedSeatKeys
-  const provenanceSummary = [
-    `Prediction window ${predictionWindowLabel}`,
-    committeeGeneratedLabel !== 'Unavailable'
-      ? `As of ${committeeGeneratedLabel}`
-      : null,
-    committeeSummary.committeeRosterMode
-      ? humanizeLabel(committeeSummary.committeeRosterMode)
-      : null,
-    committeeSummary.committeeExecutionPath
-      ? humanizeLabel(committeeSummary.committeeExecutionPath)
-      : null,
-    executedSeatKeys.length ? `Seats ${executedSeatKeys.join(', ')}` : null,
-  ]
-    .filter((value): value is string => Boolean(value))
-    .join(' · ')
-  const sourceEmptyStateCopy =
-    truthState === 'legacySparse'
-      ? 'Legacy sparse data lacks surviving lead-call attribution.'
-      : truthState === 'fetchError'
-        ? 'Source attribution is unavailable on the degraded fetch fallback.'
-        : 'Source attribution will appear when the selected lead call carries surviving cluster evidence.'
-
   const LeadIcon = directionIcon(leadCall?.directionLabel ?? 'neutral')
 
   return (
     <div className="space-y-4">
       <SectionCard
         title="Market Prediction Committee"
-        description="Premium committee command deck grounded in the live SPY + SPDR prediction payload."
+        description="SPY and sector ETF forecasts with dated targets, freshness, and scored history."
         variant="surface"
         contentClassName="space-y-4"
       >
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,0.95fr)]">
           <div
             data-testid="prediction-hero"
-            className="relative overflow-hidden rounded-[28px] border border-primary/20 bg-[radial-gradient(circle_at_top_left,_rgba(86,190,255,0.28),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(151,71,255,0.22),_transparent_36%),linear-gradient(145deg,rgba(8,12,20,0.98),rgba(10,18,30,0.94))] p-6 shadow-[0_0_32px_-12px_rgba(86,190,255,0.45)]"
+            className="relative self-start overflow-hidden rounded-[28px] border border-primary/20 bg-[linear-gradient(145deg,rgba(9,17,25,0.98),rgba(8,12,20,0.94))] p-6 shadow-[0_0_32px_-12px_rgba(86,190,255,0.45)]"
           >
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
             <div className="flex flex-col gap-6">
@@ -1839,17 +2332,13 @@ export function InvestingPredictionPanel() {
                         tone={truthStateBadge.tone}
                       />
                     </div>
-                    <StatusBadge label={`${windowDays}D horizon`} />
+                    <StatusBadge label={tradingDayLabel(windowDays)} />
                     <StatusBadge
                       label={disagreementLabel}
                       tone={disagreementTone(disagreementLabel)}
                     />
-                    {committeeSummary.committeeExecutionPath ? (
-                      <StatusBadge
-                        label={humanizeLabel(
-                          committeeSummary.committeeExecutionPath,
-                        )}
-                      />
+                    {committeeSummary.publicationState === 'no_edge' ? (
+                      <StatusBadge label="No edge" tone="warning" />
                     ) : null}
                   </div>
                   <div className="flex items-start gap-4">
@@ -1876,10 +2365,10 @@ export function InvestingPredictionPanel() {
                             ).toUpperCase()}
                           </p>
                           <p className="text-xs text-text-muted">
-                            {windowDays} trading days · {disagreementLabel}
+                            {predictionTargetLabel}
                           </p>
-                          <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-text-muted">
-                            Prediction window {predictionWindowLabel} · as of{' '}
+                          <p className="mt-1 text-xs leading-relaxed text-text-muted">
+                            Forecast {predictionWindowLabel} · made{' '}
                             {committeeGeneratedLabel}
                           </p>
                         </div>
@@ -1893,7 +2382,7 @@ export function InvestingPredictionPanel() {
                     <Button
                       key={option}
                       type="button"
-                      aria-label={`${option}D`}
+                      aria-label={`${tradingDayLabel(option)} forecast`}
                       aria-pressed={option === windowDays}
                       variant={option === windowDays ? 'default' : 'outline'}
                       size="sm"
@@ -1904,7 +2393,7 @@ export function InvestingPredictionPanel() {
                       )}
                       onClick={() => setWindowDays(option)}
                     >
-                      {option}D
+                      {tradingDayLabel(option)}
                     </Button>
                   ))}
                 </div>
@@ -1918,16 +2407,16 @@ export function InvestingPredictionPanel() {
                   <p className="mt-3 font-display text-5xl italic leading-none tracking-tight text-text md:text-6xl">
                     {formatPercent(leadCall?.expectedMovePct)}
                   </p>
-                  <p className="mt-4 max-w-2xl text-lg leading-snug text-text">
+                  <p className="mt-4 line-clamp-3 max-w-2xl text-base leading-snug text-text">
                     {heroHeadline}
                   </p>
-                  <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text-muted">
-                    {error instanceof Error
-                      ? error.message
-                      : isLoading
-                        ? 'Building the latest committee snapshot…'
-                        : supportCopy}
-                  </p>
+                  {error instanceof Error || isLoading ? (
+                    <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text-muted">
+                      {error instanceof Error
+                        ? error.message
+                        : 'Building the latest committee snapshot…'}
+                    </p>
+                  ) : null}
                   {truthStateNote ? (
                     <p
                       data-testid="prediction-truth-note"
@@ -1936,32 +2425,62 @@ export function InvestingPredictionPanel() {
                       {truthStateNote}
                     </p>
                   ) : null}
-                  {provenanceSummary ? (
-                    <p
-                      data-testid="prediction-provenance"
-                      className="mt-3 max-w-2xl text-xs uppercase tracking-[0.18em] text-text-muted"
-                    >
-                      {provenanceSummary}
+                  {noEdgeNote ? (
+                    <p className="mt-3 max-w-2xl text-sm leading-relaxed text-amber-100/85">
+                      {noEdgeNote}
+                    </p>
+                  ) : null}
+                  {leadCalibration ? (
+                    <p className="mt-3 max-w-2xl text-sm leading-relaxed text-cyan-100/80">
+                      Calibrated probability:{' '}
+                      {formatProbability(leadCalibration.rawProbUp)} raw {'->'}{' '}
+                      {formatProbability(
+                        leadCalibration.calibratedProbUp ?? leadCall?.probUp,
+                      )}
+                      {isFiniteNumber(leadCalibration.shrink)
+                        ? ` with ${formatProbability(leadCalibration.shrink)} shrink`
+                        : ''}
+                      .
                     </p>
                   ) : null}
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-                  <MetricTile
-                    label="Probability up"
-                    value={formatProbability(leadCall?.probUp)}
-                    icon={Radar}
+                <div className="space-y-3">
+                  <ForecastPathPanel
+                    forecastCurve={forecastCurve}
+                    horizonCards={horizonCards}
+                    rangeState={rangeState}
+                    windowDays={windowDays}
+                    freshnessState={freshness.state}
+                    compact
                   />
-                  <MetricTile
-                    label="Confidence"
-                    value={formatConfidenceScore(leadCall?.confidenceScore)}
-                    icon={Gauge}
-                  />
-                  <MetricTile
-                    label="Disagreement"
-                    value={disagreementLabel}
-                    icon={BrainCircuit}
-                  />
+                  <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                    <MetricTile
+                      label="Closes higher"
+                      value={formatProbability(leadCall?.probUp)}
+                      detail={
+                        leadCalibration?.rawProbUp != null
+                          ? `Raw ${formatProbability(leadCalibration.rawProbUp)} · ${predictionTargetLabel}`
+                          : predictionTargetLabel
+                      }
+                      icon={Radar}
+                    />
+                    <MetricTile
+                      label="Confidence"
+                      value={formatConfidenceScore(leadCall?.confidenceScore)}
+                      detail={
+                        scorecard?.sampleSize
+                          ? `${scorecard.sampleSize} scored forecasts`
+                          : 'Needs scored history'
+                      }
+                      icon={Gauge}
+                    />
+                    <MetricTile
+                      label="Disagreement"
+                      value={disagreementMetricValue(disagreementLabel)}
+                      icon={BrainCircuit}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -1971,6 +2490,8 @@ export function InvestingPredictionPanel() {
                 generatedAgeLabel={generatedAgeLabel}
                 evaluatedLabel={lastEvaluatedLabel}
                 evaluatedAgeLabel={evaluatedAgeLabel}
+                sourceRows={sourceRows}
+                clusterLearningRows={clusterLearningRows}
                 isRefreshing={Boolean(
                   refreshMutation.isPending || (isFetching && !isLoading),
                 )}
@@ -1978,185 +2499,17 @@ export function InvestingPredictionPanel() {
                 onRefresh={() => {
                   refreshMutation.mutate(windowDays)
                 }}
-                gapCallouts={gapCallouts}
               />
-
-              <div className="rounded-[22px] border border-border/30 bg-black/20 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
-                      Vote split
-                    </p>
-                    <p className="mt-2 text-sm text-text-muted">
-                      Committee disagreement now resolves through seat counts,
-                      not prose alone.
-                    </p>
-                  </div>
-                  <StatusBadge
-                    label={disagreementLabel}
-                    tone={disagreementTone(disagreementLabel)}
-                  />
-                </div>
-                <div className="mt-4">
-                  <VoteBar votes={displayVotes} />
-                </div>
-              </div>
-
-              <div className="rounded-[22px] border border-border/30 bg-black/20 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
-                      Forecast band
-                    </p>
-                    <p className="mt-2 text-sm text-text-muted">
-                      Every horizon stays visible, even while the live hero
-                      focuses on the selected committee window.
-                    </p>
-                  </div>
-                  <StatusBadge label="Live strip" tone="success" />
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-4">
-                  {horizonCards.map((card) => (
-                    <div
-                      key={card.option}
-                      className={cn(
-                        'rounded-[18px] border p-3 text-left',
-                        card.option === windowDays
-                          ? 'border-primary/40 bg-primary/10 shadow-[0_0_18px_-8px] shadow-primary/45'
-                          : 'border-border/30 bg-white/[0.03]',
-                      )}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
-                          {card.option}D
-                        </p>
-                        <StatusBadge label={card.status} tone={card.tone} />
-                      </div>
-                      <p className="mt-3 text-xl font-semibold text-text">
-                        {card.expectedMove}
-                      </p>
-                      <p className="mt-1 text-xs text-text-muted">
-                        Prob up {card.probability}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-[22px] border border-border/30 bg-black/20 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-text-muted">
-                      Confidence band
-                    </p>
-                    <p
-                      data-testid="prediction-range-summary"
-                      className="mt-2 text-sm font-medium text-text"
-                    >
-                      {rangeState.summary}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {rangeState.kind === 'range' ? (
-                      <StatusBadge label="Range" tone="success" />
-                    ) : rangeState.kind === 'point' ? (
-                      <StatusBadge label="Point estimate only" tone="warning" />
-                    ) : (
-                      <StatusBadge label="Pending" tone="warning" />
-                    )}
-                  </div>
-                </div>
-                <div className="relative mt-4 h-10 rounded-full bg-white/[0.05]">
-                  {rangeState.kind === 'range' ? (
-                    <>
-                      {rangeState.zeroPct != null ? (
-                        <div
-                          className="absolute inset-y-1 my-auto w-px bg-white/35"
-                          style={{ left: `${rangeState.zeroPct}%` }}
-                        />
-                      ) : null}
-                      <div
-                        className="absolute top-1/2 h-4 -translate-y-1/2 rounded-full bg-gradient-to-r from-emerald-400/70 via-cyan-300/70 to-violet-400/70 shadow-[0_0_22px_-10px_rgba(103,232,249,0.9)]"
-                        style={{
-                          left: `${rangeState.leftPct}%`,
-                          width: `${Math.max(rangeState.rightPct - rangeState.leftPct, 6)}%`,
-                        }}
-                      />
-                      {rangeState.pointPct != null ? (
-                        <div
-                          className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/80 bg-white shadow-[0_0_20px_-8px_rgba(255,255,255,0.9)]"
-                          style={{ left: `${rangeState.pointPct}%` }}
-                        />
-                      ) : null}
-                    </>
-                  ) : rangeState.kind === 'point' ? (
-                    <>
-                      {rangeState.zeroPct != null ? (
-                        <div
-                          className="absolute inset-y-1 my-auto w-px bg-white/35"
-                          style={{ left: `${rangeState.zeroPct}%` }}
-                        />
-                      ) : null}
-                      <div
-                        className="absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/70 bg-cyan-200 shadow-[0_0_18px_-6px_rgba(103,232,249,0.9)]"
-                        style={{ left: `${rangeState.pointPct}%` }}
-                      />
-                    </>
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-xs text-text-muted">
-                      Waiting for a usable confidence band.
-                    </div>
-                  )}
-                </div>
-                {rangeState.kind === 'range' ? (
-                  <div className="mt-3 grid grid-cols-3 gap-2 text-xs text-text-muted">
-                    <span>{formatPercent(rangeState.low)}</span>
-                    <span className="text-center">
-                      Mean {formatPercent(rangeState.expected)}
-                    </span>
-                    <span className="text-right">
-                      {formatPercent(rangeState.high)}
-                    </span>
-                  </div>
-                ) : null}
-              </div>
             </div>
           </div>
 
           <SectionCard
-            title="Committee rollup"
-            description="Who agrees, who hesitates, and how truthful the room feels right now."
+            title="Committee"
+            description="Votes, models, and learned weights."
             variant="surface"
             className="border-primary/10 bg-[linear-gradient(165deg,rgba(11,17,28,0.96),rgba(13,19,31,0.9))]"
             contentClassName="space-y-4"
           >
-            <div className="rounded-[22px] border border-border/30 bg-black/20 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-text-muted">
-                    Room status
-                  </p>
-                  <p className="mt-2 text-lg font-semibold text-text">
-                    {disagreementLabel}
-                  </p>
-                </div>
-                <StatusBadge
-                  label={
-                    normalizedVotes.length >= 3
-                      ? 'Live coverage'
-                      : 'Partial committee coverage'
-                  }
-                  tone={normalizedVotes.length >= 3 ? 'success' : 'warning'}
-                />
-              </div>
-              <div className="mt-4">
-                <VoteBar votes={displayVotes} />
-              </div>
-              <p className="mt-3 text-sm leading-relaxed text-text-muted">
-                {supportCopy}
-              </p>
-            </div>
-
             <div
               data-testid="prediction-seat-roster"
               className="rounded-[22px] border border-border/30 bg-black/20 p-4"
@@ -2164,32 +2517,22 @@ export function InvestingPredictionPanel() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.2em] text-text-muted">
-                    Seat visibility
+                    Votes
                   </p>
                   <p className="mt-2 text-lg font-semibold text-text">
-                    {normalizedVotes.length === 0
-                      ? 'Pending coverage'
-                      : normalizedVotes.length < 3
-                        ? 'Partial committee coverage'
-                        : 'Live committee coverage'}
+                    {disagreementLabel}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <StatusBadge
                     label={
-                      normalizedVotes.length === 0
-                        ? 'Pending'
-                        : normalizedVotes.length < 3
-                          ? 'Partial committee coverage'
-                          : 'Live'
+                      normalizedVotes.length >= 3
+                        ? 'Live coverage'
+                        : normalizedVotes.length > 0
+                          ? 'Partial coverage'
+                          : 'Pending coverage'
                     }
-                    tone={
-                      normalizedVotes.length === 0
-                        ? 'warning'
-                        : normalizedVotes.length < 3
-                          ? 'warning'
-                          : 'success'
-                    }
+                    tone={normalizedVotes.length >= 3 ? 'success' : 'warning'}
                   />
                   {committeeSummary.committeeRosterMode ? (
                     <StatusBadge
@@ -2198,59 +2541,221 @@ export function InvestingPredictionPanel() {
                       )}
                     />
                   ) : null}
-                  {committeeSummary.committeeExecutionPath ? (
-                    <StatusBadge
-                      label={humanizeLabel(
-                        committeeSummary.committeeExecutionPath,
-                      )}
-                    />
-                  ) : null}
                 </div>
               </div>
+              <div className="mt-4">
+                <VoteBar votes={displayVotes} />
+              </div>
               {executedSeatKeys.length ? (
-                <p className="mt-4 text-xs uppercase tracking-[0.18em] text-text-muted">
-                  Executed seats: {executedSeatKeys.join(', ')}
+                <p className="mt-3 text-xs text-text-muted">
+                  Seats used: {executedSeatKeys.map(humanizeLabel).join(', ')}
+                </p>
+              ) : null}
+              {committeeSummary.baselineVoteCount ? (
+                <p className="mt-2 text-xs text-text-muted">
+                  Baseline: {committeeSummary.baselineVoteCount} deterministic
+                  vote
+                  {committeeSummary.baselineVoteCount === 1 ? '' : 's'}
+                  {committeeSummary.baselineSeatWeight != null
+                    ? ` at ${formatProbability(
+                        committeeSummary.baselineSeatWeight,
+                      )} seat weight`
+                    : ''}
+                  .
                 </p>
               ) : null}
               {normalizedVotes.length === 0 ? (
                 <p className="mt-4 text-sm text-text-muted">
-                  Seat-level commentary will appear after the next roundtable
-                  response.
+                  Agent votes pending.
                 </p>
               ) : (
                 <div className="mt-4 space-y-3">
-                  {displayVotes.map((vote) => (
+                  {displayVotes.map((vote) => {
+                    const tone =
+                      vote.directionLabel === 'bullish'
+                        ? 'success'
+                        : vote.directionLabel === 'bearish'
+                          ? 'danger'
+                          : 'warning'
+                    return (
+                      <div
+                        key={vote.seatKey}
+                        className="rounded-2xl border border-border/30 bg-white/[0.03] p-4"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-text">
+                              {humanizeLabel(vote.seatKey)}
+                            </p>
+                            <p className="mt-1 break-words text-xs text-text-muted">
+                              Agent: {vote.agentSlug || 'Unknown agent'}
+                            </p>
+                            <p className="mt-1 break-words text-xs text-text-muted">
+                              Model: {formatModelLabel(vote)}
+                            </p>
+                          </div>
+                          <StatusBadge
+                            label={humanizeLabel(vote.directionLabel)}
+                            tone={tone}
+                          />
+                        </div>
+                        <div className="mt-4 grid grid-cols-3 gap-2">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-[0.14em] text-text-muted">
+                              Move
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-text">
+                              {formatPercent(vote.expectedMovePct)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-[0.14em] text-text-muted">
+                              Higher
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-text">
+                              {formatProbability(vote.probUp)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-[0.14em] text-text-muted">
+                              Confidence
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-text">
+                              {formatConfidenceScore(vote.confidenceScore)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div
+              data-testid="prediction-review-panel"
+              className="rounded-[22px] border border-border/30 bg-black/20 p-4"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
+                    Learning track record
+                  </p>
+                  <p className="mt-2 text-lg font-semibold text-text">
+                    Agent trust weights
+                  </p>
+                  <p className="mt-2 max-w-2xl text-sm leading-relaxed text-text-muted">
+                    {reviewStateNote}
+                  </p>
+                  <p className="mt-2 text-xs text-text-muted">
+                    Updated {reviewGeneratedLabel} · Scores through{' '}
+                    {reviewAsOfLabel}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <StatusBadge
+                    label={reviewStatusBadge.label}
+                    tone={reviewStatusBadge.tone}
+                  />
+                  <StatusBadge label={tradingDayLabel(windowDays)} />
+                </div>
+              </div>
+
+              <div
+                data-testid="prediction-review-seat-weights"
+                className="mt-4 grid gap-3"
+              >
+                {reviewState.seatScorecards.map((seat) => {
+                  const weightValues = seatHistoryValues(
+                    reviewState.reviewHistory,
+                    seat.seatKey,
+                    'effectiveWeight',
+                  )
+                  const confidenceValues = seatHistoryValues(
+                    reviewState.reviewHistory,
+                    seat.seatKey,
+                    'avgConfidenceScore',
+                  )
+                  const accuracyValues = seatHistoryValues(
+                    reviewState.reviewHistory,
+                    seat.seatKey,
+                    'directionHitRate',
+                  )
+                  return (
                     <div
-                      key={vote.seatKey}
-                      className="rounded-2xl border border-border/30 bg-white/[0.03] p-4"
+                      key={seat.seatKey}
+                      className="rounded-[18px] border border-border/30 bg-white/[0.03] p-3"
                     >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold text-text">
-                            {vote.seatKey}
+                            {humanizeLabel(seat.seatKey)}
                           </p>
-                          <p className="text-[11px] uppercase tracking-[0.18em] text-text-muted">
-                            {vote.modelId ?? vote.agentSlug}
+                          <p className="mt-1 text-xs text-text-muted">
+                            {seat.sampleSize} scored forecast
+                            {seat.sampleSize === 1 ? '' : 's'}
                           </p>
                         </div>
                         <StatusBadge
-                          label={humanizeLabel(vote.directionLabel)}
-                          tone={
-                            vote.directionLabel === 'bullish'
-                              ? 'success'
-                              : vote.directionLabel === 'bearish'
-                                ? 'danger'
-                                : 'warning'
-                          }
+                          label={recommendedActionLabel(seat.recommendedAction)}
+                          tone={recommendedActionTone(seat.recommendedAction)}
                         />
                       </div>
-                      <p className="mt-3 text-sm leading-relaxed text-text-muted">
-                        {vote.rationaleSummary ?? 'No seat commentary yet.'}
-                      </p>
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.14em] text-text-muted">
+                            Trust weight
+                          </p>
+                          <p className="mt-1 text-lg font-semibold text-text">
+                            {formatWeightShare(seat.effectiveWeight)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.14em] text-text-muted">
+                            Accuracy
+                          </p>
+                          <p className="mt-1 text-lg font-semibold text-text">
+                            {formatTrackRecord(seat.directionHitRate)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.14em] text-text-muted">
+                            Avg miss
+                          </p>
+                          <p className="mt-1 text-lg font-semibold text-text">
+                            {formatAverageMiss(seat.moveMaePct)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.14em] text-text-muted">
+                            Avg confidence
+                          </p>
+                          <p className="mt-1 text-lg font-semibold text-text">
+                            {formatConfidenceScore(seat.avgConfidenceScore)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                        <MiniTrend
+                          label="Trust"
+                          values={weightValues}
+                          formatter={formatWeightShare}
+                        />
+                        <MiniTrend
+                          label="Confidence"
+                          values={confidenceValues}
+                          formatter={formatConfidenceScore}
+                        />
+                        <MiniTrend
+                          label="Accuracy"
+                          values={accuracyValues}
+                          formatter={formatTrackRecord}
+                        />
+                      </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  )
+                })}
+              </div>
             </div>
           </SectionCard>
         </div>
@@ -2259,7 +2764,7 @@ export function InvestingPredictionPanel() {
           <div className="grid gap-4">
             <SectionCard
               title="Sector board"
-              description="Canonical SPY + SPDR committee calls only."
+              description="Same forecast window across sector ETFs."
               variant="surface"
             >
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -2299,7 +2804,7 @@ export function InvestingPredictionPanel() {
                         </div>
                         <div>
                           <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted">
-                            Prob up
+                            Closes higher
                           </p>
                           <p className="mt-1 text-base font-medium text-text">
                             {formatProbability(call.probUp)}
@@ -2315,215 +2820,12 @@ export function InvestingPredictionPanel() {
                 })}
               </div>
             </SectionCard>
-
-            <SectionCard
-              title="Source attribution"
-              description="What actually drove the current SPY call."
-              variant="surface"
-            >
-              <div
-                data-testid="prediction-source-attribution"
-                className="space-y-3"
-              >
-                {sourceFallbackInUse ? (
-                  <div className="flex justify-end">
-                    <StatusBadge label="Tracked not ranked" tone="warning" />
-                  </div>
-                ) : null}
-                {sourceRows.length === 0 ? (
-                  <div className="rounded-[20px] border border-border/30 bg-black/20 px-4 py-3 text-sm text-text-muted">
-                    {sourceEmptyStateCopy}
-                  </div>
-                ) : null}
-                {sourceRows.map((row) => (
-                  <div
-                    key={row.cluster}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-border/30 bg-black/20 px-4 py-3"
-                  >
-                    <div>
-                      <p className="text-sm font-medium uppercase tracking-[0.16em] text-text">
-                        {humanizeLabel(row.cluster)}
-                      </p>
-                      {row.weight != null ? (
-                        <p className="mt-1 text-xs text-text-muted">
-                          Weight {Math.round(row.weight * 100)}%
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {row.note ? <StatusBadge label={row.note} /> : null}
-                      <StatusBadge
-                        label={row.freshness ?? 'unknown'}
-                        tone={
-                          row.freshness === 'fresh'
-                            ? 'success'
-                            : row.freshness === 'missing'
-                              ? 'danger'
-                              : 'warning'
-                        }
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </SectionCard>
-
-            <SectionCard
-              title="Scenario framing"
-              description="Always derived from the live lead call and confidence band."
-              variant="surface"
-            >
-              <div className="grid gap-3 md:grid-cols-3">
-                {scenarioCards.map((card) => (
-                  <div
-                    key={card.title}
-                    className="rounded-[20px] border border-border/30 bg-black/20 p-4"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <h3 className="text-lg font-semibold text-text">
-                          {card.title}
-                        </h3>
-                        <p className="mt-1 text-2xl font-medium text-text">
-                          {card.moveText}
-                        </p>
-                      </div>
-                      <StatusBadge label="Derived" tone="warning" />
-                    </div>
-                    <p className="mt-4 text-sm leading-relaxed text-text-muted">
-                      {card.summary}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </SectionCard>
           </div>
 
           <div className="grid gap-4">
             <SectionCard
-              title="Review artifact"
-              description="Seat-weight review stays read-only and keeps its own timestamp apart from the committee snapshot."
-              variant="surface"
-              contentClassName="space-y-4"
-            >
-              <div
-                data-testid="prediction-review-panel"
-                className="rounded-[20px] border border-border/30 bg-black/20 p-4"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
-                      Review state
-                    </p>
-                    <p className="mt-2 text-lg font-semibold text-text">
-                      {reviewStatusBadge.label}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <StatusBadge
-                      label={reviewStatusBadge.label}
-                      tone={reviewStatusBadge.tone}
-                    />
-                    <StatusBadge label={`${windowDays}D horizon`} />
-                    <StatusBadge
-                      label={
-                        reviewTimestampDiverged
-                          ? 'Separate timestamps'
-                          : 'Synced timestamps'
-                      }
-                      tone={reviewTimestampDiverged ? 'warning' : 'success'}
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <div className="rounded-[18px] border border-border/30 bg-white/[0.03] p-3">
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
-                      Review artifact
-                    </p>
-                    <p
-                      data-testid="prediction-review-generated-at"
-                      className="mt-2 text-sm font-medium text-text"
-                    >
-                      {reviewGeneratedLabel}
-                    </p>
-                    <p className="mt-1 text-xs text-text-muted">
-                      As of {reviewAsOfLabel}
-                    </p>
-                  </div>
-                  <div className="rounded-[18px] border border-border/30 bg-white/[0.03] p-3">
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
-                      Committee snapshot
-                    </p>
-                    <p
-                      data-testid="prediction-committee-generated-at"
-                      className="mt-2 text-sm font-medium text-text"
-                    >
-                      {committeeGeneratedLabel}
-                    </p>
-                    <p className="mt-1 text-xs text-text-muted">
-                      {reviewDriftSummary}
-                    </p>
-                  </div>
-                </div>
-
-                <p className="mt-4 text-sm leading-relaxed text-text-muted">
-                  {reviewStateNote}
-                </p>
-
-                <div
-                  data-testid="prediction-review-seat-weights"
-                  className="mt-4 grid gap-3 md:grid-cols-3"
-                >
-                  {reviewState.seatScorecards.map((seat) => (
-                    <div
-                      key={seat.seatKey}
-                      className="rounded-[18px] border border-border/30 bg-white/[0.03] p-3"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-text">
-                            {humanizeLabel(seat.seatKey)}
-                          </p>
-                          <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-text-muted">
-                            Prior {formatWeightShare(seat.priorWeight)} ·{' '}
-                            {seat.sampleSize} matured vote
-                            {seat.sampleSize === 1 ? '' : 's'}
-                          </p>
-                        </div>
-                        <StatusBadge
-                          label={humanizeLabel(seat.recommendedAction)}
-                          tone={recommendedActionTone(seat.recommendedAction)}
-                        />
-                      </div>
-                      <p className="mt-3 text-2xl font-semibold text-text">
-                        {formatWeightShare(seat.effectiveWeight)}
-                      </p>
-                      <p className="mt-1 text-xs text-text-muted">
-                        Effective weight
-                      </p>
-                    </div>
-                  ))}
-                </div>
-
-                {reviewState.driftCallouts.length > 0 ? (
-                  <div className="mt-4 space-y-2">
-                    {reviewState.driftCallouts.map((callout) => (
-                      <div
-                        key={callout}
-                        className="rounded-[16px] border border-border/30 bg-white/[0.03] px-3 py-2 text-xs text-text-muted"
-                      >
-                        {callout}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            </SectionCard>
-
-            <SectionCard
-              title="Calibration + self-improvement"
-              description="Real scorecard truth first, then history only when it is usable."
+              title="Past results"
+              description="Older forecasts after target dates arrived."
               variant="surface"
               contentClassName="space-y-4"
             >
@@ -2533,6 +2835,7 @@ export function InvestingPredictionPanel() {
                     key={metric.label}
                     label={metric.label}
                     value={metric.value}
+                    detail={metric.detail}
                     icon={metric.icon}
                   />
                 ))}
@@ -2541,7 +2844,55 @@ export function InvestingPredictionPanel() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
-                      Trend status
+                      Quality audit
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-text">
+                      Calibration and abstention
+                    </p>
+                  </div>
+                  <StatusBadge
+                    label={
+                      qualityReport?.overall.sampleSize
+                        ? `${qualityReport.overall.sampleSize} scored`
+                        : qualityQuery.isLoading
+                          ? 'Loading'
+                          : 'Pending'
+                    }
+                    tone={
+                      qualityReport?.overall.sampleSize
+                        ? 'success'
+                        : qualityQuery.error
+                          ? 'danger'
+                          : 'warning'
+                    }
+                  />
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+                  {qualityMetrics.map((metric) => (
+                    <MetricTile
+                      key={metric.label}
+                      label={metric.label}
+                      value={metric.value}
+                      detail={metric.detail}
+                      icon={metric.icon}
+                    />
+                  ))}
+                </div>
+                <p className="mt-3 text-xs text-text-muted">
+                  {qualityQuery.error instanceof Error
+                    ? qualityQuery.error.message
+                    : noEdgeQuality?.totalSampleSize
+                      ? `No-edge Brier delta ${formatSignedBrierDelta(
+                          noEdgeQuality.noEdgeBrierDelta,
+                        )}; lower is better.`
+                      : 'Quality audit starts after calibrated forecasts mature.'}
+                </p>
+              </div>
+              <div className="rounded-[20px] border border-border/30 bg-black/20 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
+                      Expected move history
                     </p>
                     <p
                       data-testid="prediction-history-state"
@@ -2571,14 +2922,14 @@ export function InvestingPredictionPanel() {
                         />
                       ))}
                       <p className="text-xs text-text-muted">
-                        Awaiting third snapshot.
+                        Need one more forecast for a line.
                       </p>
                     </div>
                   ) : (
                     <svg
                       viewBox="0 0 176 56"
                       className="mt-4 h-14 w-full"
-                      aria-label="Calibration trend sparkline"
+                      aria-label="Expected move history sparkline"
                     >
                       <path
                         d={historyState.path}
@@ -2608,61 +2959,11 @@ export function InvestingPredictionPanel() {
                 <p className="mt-3 text-xs text-text-muted">
                   {historyState.kind === 'ready' &&
                   historyState.points.length < 3
-                    ? `${historyState.detail} Awaiting third snapshot.`
+                    ? `${historyState.detail} Need one more forecast for a line.`
                     : historyState.detail}
                 </p>
               </div>
               <p className="text-xs text-text-muted">{scorecardStatus}</p>
-            </SectionCard>
-
-            <SectionCard
-              title="Workflow rhythm"
-              description="Fixed product guidance, not invented telemetry."
-              variant="surface"
-            >
-              <div className="grid gap-3">
-                {WORKFLOW_RHYTHM.map((card) => (
-                  <div
-                    key={card.title}
-                    className="rounded-[20px] border border-border/30 bg-black/20 p-4"
-                  >
-                    <div className="flex items-center gap-2 text-text">
-                      <Sparkles className="h-4 w-4 text-cyan-300" />
-                      <h3 className="text-sm font-semibold uppercase tracking-[0.16em]">
-                        {card.title}
-                      </h3>
-                    </div>
-                    <p className="mt-3 text-sm leading-relaxed text-text-muted">
-                      {card.detail}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </SectionCard>
-
-            <SectionCard
-              title="What is missing"
-              description="The surface keeps every current data gap explicit instead of smoothing it away."
-              variant="surface"
-            >
-              <div className="grid gap-3">
-                {gapCallouts.map((callout) => (
-                  <div
-                    key={callout.label}
-                    className="rounded-[20px] border border-border/30 bg-black/20 p-4"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <h3 className="text-sm font-semibold text-text">
-                        {callout.label}
-                      </h3>
-                      <StatusBadge label={callout.status} tone="warning" />
-                    </div>
-                    <p className="mt-3 text-sm leading-relaxed text-text-muted">
-                      {callout.detail}
-                    </p>
-                  </div>
-                ))}
-              </div>
             </SectionCard>
           </div>
         </div>

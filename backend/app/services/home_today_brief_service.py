@@ -161,6 +161,30 @@ def _as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
+def _market_event_brief(event: Any) -> dict[str, str | None]:
+    if isinstance(event, dict):
+        title = event.get("title") or event.get("label") or event.get("event_type")
+        event_type = event.get("event_type")
+        event_date = event.get("event_date")
+        impact_score = event.get("impact_score")
+    else:
+        title = (
+            getattr(event, "title", None)
+            or getattr(event, "label", None)
+            or getattr(event, "event_type", None)
+        )
+        event_type = getattr(event, "event_type", None)
+        event_date = getattr(event, "event_date", None)
+        impact_score = getattr(event, "impact_score", None)
+
+    return {
+        "label": _trim_text(title) or "Market event",
+        "event_type": str(event_type) if event_type is not None else "unknown",
+        "event_date": _iso(event_date),
+        "importance": str(impact_score) if impact_score is not None else "unknown",
+    }
+
+
 def _sort_article(article: dict[str, Any]) -> tuple[float, int, str]:
     return (
         _safe_float(article.get("decision_value_score")),
@@ -975,13 +999,7 @@ class HomeTodayBriefService:
         news_sources = self._news_sources(articles)
         official_sources = list(_OFFICIAL_SOURCE_STACK)
         upcoming_events = [
-            {
-                "label": str(event.label),
-                "event_type": str(event.event_type),
-                "event_date": _iso(event.event_date),
-                "importance": str(event.importance),
-            }
-            for event in get_upcoming_events(14)[:5]
+            _market_event_brief(event) for event in get_upcoming_events(14)[:5]
         ]
 
         fallback = self._fallback_payload(household, portfolio, market, articles)

@@ -38,6 +38,8 @@ from app.services._household_document_pipeline_utils import (
     parse_row_date,
 )
 from app.services._household_finance_utils import iso, iso_or_none, to_float
+from app.services.household_coding_issue_task_service import HouseholdCodingIssueTaskService
+from app.services.household_date_quality_service import HouseholdDateQualityService
 from app.services.household_finance_rows import FIELD_LABELS, row_to_document
 from app.services.household_review_agent_service import HOUSEHOLD_REVIEW_AGENT_SLUG
 
@@ -59,6 +61,9 @@ __all__ = [
 _ACCOUNT_EVIDENCE_SOURCE_TYPES = frozenset({"bank", "credit_card", "brokerage", "retirement"})
 _ACCOUNT_EVIDENCE_DOCUMENT_TYPES = frozenset(
     {"statement", "brokerage_statement", "retirement_statement"}
+)
+_ACCOUNT_NUMERIC_FIELDS = frozenset(
+    {"available_cash", "balance", "cash_balance", "holdings_value"}
 )
 _MONEY_SIGNATURE_VOLATILE_FIELDS = frozenset(
     {
@@ -111,6 +116,49 @@ def _reviewed_financial_accounts(reviewed: dict[str, object]) -> list[dict[str, 
     if not isinstance(accounts, list):
         return []
     return [cast(dict[str, object], account) for account in accounts if isinstance(account, dict)]
+
+
+def _invalid_numeric_account_fields(reviewed: dict[str, object]) -> list[dict[str, object]]:
+    issues: list[dict[str, object]] = []
+    for index, account in enumerate(_reviewed_financial_accounts(reviewed), start=1):
+        account_name = str(account.get("account_name") or account.get("account_hint") or f"account {index}")
+        for field_name in _ACCOUNT_NUMERIC_FIELDS:
+            value = account.get(field_name)
+            if value in (None, ""):
+                continue
+            if parse_decimal(str(value)) is None:
+                issues.append(
+                    {
+                        "code": "invalid_numeric_field",
+                        "detail": f"{account_name} has non-numeric {field_name}: {value}.",
+                        "account_index": index,
+                        "field": field_name,
+                    }
+                )
+    return issues
+
+
+def _object_list(value: object) -> list[object]:
+    if isinstance(value, list):
+        return cast(list[object], value)
+    if isinstance(value, tuple | set):
+        return cast(list[object], list(value))
+    return []
+
+
+def _safe_int(value: object) -> int:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return 0
+    return 0
 
 
 def _normalized_review_payload(
@@ -222,6 +270,10 @@ class HouseholdDocumentPipeline:
         source_type: str | None = None,
         document_type: str | None = None,
         account_label: str | None = None,
+        household_account_id: str | None = None,
+        replaces_document_id: str | None = None,
+        date_quality_issue_id: str | None = None,
+        replacement_reason: str | None = None,
     ) -> HouseholdDocument:
         document_id = str(uuid.uuid4())
         filename = upload.filename or f"{document_id}.bin"
@@ -230,6 +282,14 @@ class HouseholdDocumentPipeline:
 
         duplicate = self.find_duplicate_document_by_hash(service, content_sha256)
         if duplicate is not None:
+            if replaces_document_id and duplicate.id != replaces_document_id:
+                service.date_quality_service.mark_replaced_document(
+                    service,
+                    replaced_document_id=replaces_document_id,
+                    replacement_document_id=duplicate.id,
+                    issue_id=date_quality_issue_id,
+                    reason=replacement_reason or "corrected_evidence_uploaded",
+                )
             duplicate.metadata["duplicate_detected"] = True
             duplicate.metadata["duplicate_reason"] = "exact_content_match"
             return duplicate
@@ -251,6 +311,14 @@ class HouseholdDocumentPipeline:
             "stored_path": str(stored_path),
             "content_sha256": content_sha256,
         }
+        if household_account_id:
+            metadata["household_account_id_hint"] = household_account_id
+        if replaces_document_id:
+            metadata["replaces_document_id"] = replaces_document_id
+        if date_quality_issue_id:
+            metadata["date_quality_issue_id"] = date_quality_issue_id
+        if replacement_reason:
+            metadata["replacement_reason"] = replacement_reason
         with service.storage.connection() as conn:
             insert_document_db(
                 conn,
@@ -263,6 +331,14 @@ class HouseholdDocumentPipeline:
         document = service.get_document(document_id)
         if document is None:
             raise RuntimeError("Failed to persist uploaded document")
+        if replaces_document_id and replaces_document_id != document.id:
+            service.date_quality_service.mark_replaced_document(
+                service,
+                replaced_document_id=replaces_document_id,
+                replacement_document_id=document.id,
+                issue_id=date_quality_issue_id,
+                reason=replacement_reason or "corrected_evidence_uploaded",
+            )
         return document
 
     def find_duplicate_document_by_hash(
@@ -327,6 +403,11 @@ class HouseholdDocumentPipeline:
                 content_type=document.content_type,
                 source_type=document.source_type,
                 document_type=document.document_type,
+                household_account_id_hint=(
+                    str(document.metadata.get("household_account_id_hint"))
+                    if document.metadata.get("household_account_id_hint")
+                    else None
+                ),
                 prior_review=prior_review,
                 reconciliation_summary=reconciliation_summary,
             )
@@ -335,6 +416,7 @@ class HouseholdDocumentPipeline:
                 service, document=document, reviewed=reviewed
             )
             reconciliation_summary = self._build_reconciliation_summary(
+                service=service,
                 document=document,
                 reviewed=reviewed,
                 application_summary=application_summary,
@@ -364,6 +446,71 @@ class HouseholdDocumentPipeline:
                 reconciliation_summary=reconciliation_summary,
             )
             conn.commit()
+        self._supersede_matching_date_issues(
+            service,
+            document_id=document.id,
+            reviewed=reviewed,
+            reconciliation_summary=reconciliation_summary,
+        )
+        self._queue_coding_issue_candidate(
+            service,
+            document_id=document.id,
+            reconciliation_summary=reconciliation_summary,
+        )
+
+    @staticmethod
+    def _queue_coding_issue_candidate(
+        service: HouseholdFinanceService,
+        *,
+        document_id: str,
+        reconciliation_summary: dict[str, object] | None,
+    ) -> None:
+        if not isinstance(reconciliation_summary, dict):
+            return
+        raw_candidate = reconciliation_summary.get("coding_issue_candidate")
+        candidate = raw_candidate if isinstance(raw_candidate, dict) else None
+        try:
+            HouseholdCodingIssueTaskService().export_candidate(
+                service,
+                document_id=document_id,
+                candidate=candidate,
+            )
+        except Exception as exc:
+            logger.exception(
+                "household_coding_issue_task_export_failed",
+                document_id=document_id,
+                error=str(exc),
+            )
+
+    @staticmethod
+    def _supersede_matching_date_issues(
+        service: HouseholdFinanceService,
+        *,
+        document_id: str,
+        reviewed: dict[str, object],
+        reconciliation_summary: dict[str, object] | None,
+    ) -> None:
+        if not isinstance(reconciliation_summary, dict) or reconciliation_summary.get("status") != "clear":
+            return
+        try:
+            superseded = HouseholdDateQualityService().supersede_matching_document_issues(
+                service,
+                replacement_document_id=document_id,
+                reviewed=reviewed,
+            )
+        except Exception as exc:
+            logger.exception(
+                "household_date_quality_supersede_failed",
+                document_id=document_id,
+                error=str(exc),
+            )
+            return
+        if superseded:
+            logger.info(
+                "household_date_quality_issues_superseded",
+                document_id=document_id,
+                count=superseded,
+            )
 
     def _load_latest_review_payload(
         self,
@@ -414,6 +561,7 @@ class HouseholdDocumentPipeline:
             reviewed=reviewed,
         )
         reconciliation_summary = self._build_reconciliation_summary(
+            service=service,
             document=document,
             reviewed=reviewed,
             application_summary=application_summary,
@@ -428,6 +576,17 @@ class HouseholdDocumentPipeline:
                 reconciliation_summary=reconciliation_summary,
             )
             conn.commit()
+        self._supersede_matching_date_issues(
+            service,
+            document_id=document.id,
+            reviewed=reviewed,
+            reconciliation_summary=reconciliation_summary,
+        )
+        self._queue_coding_issue_candidate(
+            service,
+            document_id=document.id,
+            reconciliation_summary=reconciliation_summary,
+        )
         logger.info(
             "household_document_reapplied_latest_review",
             document_id=document.id,
@@ -695,6 +854,7 @@ class HouseholdDocumentPipeline:
     def _build_reconciliation_summary(
         self,
         *,
+        service: HouseholdFinanceService,
         document: HouseholdDocument,
         reviewed: dict[str, object],
         application_summary: dict[str, object],
@@ -718,33 +878,55 @@ class HouseholdDocumentPipeline:
             else {},
         )
         evidence_account_count = int(application_summary.get("evidence_accounts") or 0)
+        applied_counts = self._fetch_applied_counts(service, document_id=document.id)
+        if applied_counts:
+            evidence_account_count = _safe_int(
+                applied_counts.get("evidence_account_count") or evidence_account_count
+            )
+        transaction_count = _safe_int(applied_counts.get("transaction_count"))
+        import_count = _safe_int(applied_counts.get("import_count"))
+        transaction_linked_count = _safe_int(applied_counts.get("transaction_linked_count"))
+        raw_evidence_account_ids = _object_list(applied_counts.get("evidence_account_ids"))
+        raw_transaction_account_ids = _object_list(applied_counts.get("transaction_account_ids"))
+        evidence_account_ids = {
+            str(account_id)
+            for account_id in raw_evidence_account_ids
+            if account_id
+        }
+        transaction_account_ids = {
+            str(account_id)
+            for account_id in raw_transaction_account_ids
+            if account_id
+        }
         transaction_changes = (
             int(transaction_summary.get("inserted") or 0)
             + int(transaction_summary.get("updated") or 0)
             + int(transaction_summary.get("held_for_date_review") or 0)
         )
         import_changes = int(import_summary.get("inserted") or 0)
+        source_type = str(reviewed.get("source_type") or "")
+        document_type = str(reviewed.get("document_type") or "")
         expects_transaction_activity = _bool_value(
             review_checks.get("expects_transaction_activity")
         )
         if expects_transaction_activity is None:
             expects_transaction_activity = (
-                str(reviewed.get("source_type") or "") in {"bank", "credit_card"}
-                and str(reviewed.get("document_type") or "") == "statement"
+                source_type in {"bank", "credit_card"}
+                and document_type == "statement"
             )
         ambiguity_remaining = _bool_value(review_checks.get("ambiguity_remaining")) or False
-        issues: list[dict[str, object]] = []
-        if expected_account_count > evidence_account_count:
+        issues: list[dict[str, object]] = _invalid_numeric_account_fields(reviewed)
+        if expected_account_count > 0 and expected_account_count != evidence_account_count:
             issues.append(
                 {
-                    "code": "missing_accounts",
+                    "code": "account_count_mismatch",
                     "detail": (
                         f"Review identified {expected_account_count} account(s) but "
                         f"only {evidence_account_count} evidence account row(s) applied."
                     ),
                 }
             )
-        if expects_transaction_activity and transaction_changes == 0:
+        if expects_transaction_activity and transaction_count == 0:
             issues.append(
                 {
                     "code": "missing_transactions",
@@ -752,9 +934,48 @@ class HouseholdDocumentPipeline:
                 }
             )
         if (
-            str(reviewed.get("source_type") or "") in _ACCOUNT_EVIDENCE_SOURCE_TYPES
-            and import_changes == 0
+            source_type == "receipt"
+            and document_type == "receipt"
             and transaction_changes == 0
+            and transaction_count == 0
+        ):
+            issues.append(
+                {
+                    "code": "missing_receipt_transaction",
+                    "detail": "Receipt review produced no applied or held transaction row.",
+                }
+            )
+        requires_transaction_link = not (
+            source_type == "receipt" and evidence_account_count == 0
+        )
+        if (
+            requires_transaction_link
+            and transaction_count > 0
+            and transaction_linked_count < transaction_count
+        ):
+            issues.append(
+                {
+                    "code": "unlinked_transactions",
+                    "detail": (
+                        f"{transaction_count - transaction_linked_count} transaction row(s) "
+                        "were applied without a canonical household account."
+                    ),
+                }
+            )
+        unexpected_transaction_accounts = transaction_account_ids - evidence_account_ids
+        if evidence_account_ids and unexpected_transaction_accounts:
+            issues.append(
+                {
+                    "code": "transaction_account_mismatch",
+                    "detail": "Transaction rows link to household account(s) not present in document evidence.",
+                    "unexpected_household_account_ids": sorted(unexpected_transaction_accounts),
+                    "evidence_household_account_ids": sorted(evidence_account_ids),
+                }
+            )
+        if (
+            source_type in _ACCOUNT_EVIDENCE_SOURCE_TYPES
+            and import_count == 0
+            and transaction_count == 0
             and evidence_account_count == 0
         ):
             issues.append(
@@ -765,16 +986,78 @@ class HouseholdDocumentPipeline:
             )
         status = "clear" if not issues else "needs_retry"
         retry_recommended = bool(issues) and not ambiguity_remaining
-        return {
+        summary: dict[str, object] = {
             "status": status,
             "retry_recommended": retry_recommended,
             "review_strategy": str(reviewed.get("_review_strategy") or "unknown"),
             "expected_account_count": expected_account_count,
             "evidence_account_count": evidence_account_count,
             "transaction_changes": transaction_changes,
+            "transaction_count": transaction_count,
+            "transaction_linked_count": transaction_linked_count,
             "import_changes": import_changes,
+            "import_count": import_count,
             "ambiguity_remaining": ambiguity_remaining,
             "issues": issues,
+        }
+        if issues and not ambiguity_remaining:
+            summary["coding_issue_candidate"] = {
+                "title": f"Fix household document ingestion audit failures for {document.filename}",
+                "kind": "bug",
+                "project": "portfolio-ai",
+                "component": "household_document_ingestion",
+                "document_id": document.id,
+                "filename": document.filename,
+                "issue_codes": [str(issue.get("code") or "unknown") for issue in issues],
+                "acceptance": (
+                    "Reproduce with the stored document, add regression coverage, "
+                    "fix extraction/application/reconciliation, reprocess the document, "
+                    "and verify reconciliation_summary.status is clear."
+                ),
+            }
+        return summary
+
+    @staticmethod
+    def _fetch_applied_counts(
+        service: HouseholdFinanceService,
+        *,
+        document_id: str,
+    ) -> dict[str, object]:
+        with service.storage.connection() as conn:
+            try:
+                raw_counts = fetch_document_application_counts(conn, document_id=document_id)
+            except (TypeError, ValueError):
+                raw_counts = {}
+            counts = raw_counts if isinstance(raw_counts, dict) else {}
+            transaction_row = conn.execute(
+                """
+                SELECT
+                    COUNT(*),
+                    COUNT(household_account_id),
+                    array_remove(array_agg(DISTINCT household_account_id), NULL)
+                FROM household_transactions
+                WHERE document_id = %s
+                """,
+                [document_id],
+            ).fetchone()
+            evidence_row = conn.execute(
+                """
+                SELECT array_remove(array_agg(DISTINCT household_account_id), NULL)
+                FROM household_evidence_accounts
+                WHERE document_id = %s
+                """,
+                [document_id],
+            ).fetchone()
+        transaction_count = _safe_int(transaction_row[0]) if transaction_row else 0
+        transaction_linked_count = _safe_int(transaction_row[1]) if transaction_row else 0
+        transaction_account_ids = _object_list(transaction_row[2]) if transaction_row else []
+        evidence_account_ids = _object_list(evidence_row[0]) if evidence_row else []
+        return {
+            **counts,
+            "transaction_count": transaction_count,
+            "transaction_linked_count": transaction_linked_count,
+            "transaction_account_ids": transaction_account_ids,
+            "evidence_account_ids": evidence_account_ids,
         }
 
     def describe_application_state(

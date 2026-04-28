@@ -10,6 +10,7 @@ from app.logging_config import get_logger
 from app.models.market_prediction import (
     SUPPORTED_ADAPTIVE_SEAT_KEYS,
     MarketPredictionSeatReview,
+    MarketPredictionSeatReviewHistoryPoint,
     MarketPredictionSeatReviewResponse,
     MarketPredictionSeatScorecardRow,
     MarketPredictionVoteEvaluation,
@@ -47,11 +48,24 @@ class MarketPredictionSeatWeightingService:
     ) -> MarketPredictionSeatReviewResponse:
         self._validate_window_days(window_days)
         effective_ts = self._coerce_datetime(as_of_ts or datetime.now(UTC))
-        for raw_row in self.repository.list_latest_seat_reviews(window_days=window_days, limit=5):
+        normalized_reviews: list[MarketPredictionSeatReviewResponse] = []
+        for raw_row in self.repository.list_latest_seat_reviews(
+            window_days=window_days,
+            limit=24,
+        ):
             normalized = self._normalize_persisted_review(raw_row)
             if normalized is not None:
-                return normalized
-        return self._build_synthetic_warmup_response(window_days=window_days, as_of_ts=effective_ts)
+                normalized_reviews.append(normalized)
+        if normalized_reviews:
+            return normalized_reviews[0].model_copy(
+                update={
+                    "review_history": self._review_history_points(normalized_reviews),
+                },
+            )
+        return self._build_synthetic_warmup_response(
+            window_days=window_days,
+            as_of_ts=effective_ts,
+        )
 
     def resolve_and_persist_review(
         self,
@@ -64,8 +78,16 @@ class MarketPredictionSeatWeightingService:
         try:
             review = self._resolve_review(window_days=window_days, as_of_ts=effective_ts)
         except Exception:
-            logger.warning("market_prediction_review_resolution_failed", window_days=window_days, exc_info=True)
-            review = self._build_prior_review(window_days=window_days, as_of_ts=effective_ts, review_state="degraded")
+            logger.warning(
+                "market_prediction_review_resolution_failed",
+                window_days=window_days,
+                exc_info=True,
+            )
+            review = self._build_prior_review(
+                window_days=window_days,
+                as_of_ts=effective_ts,
+                review_state="degraded",
+            )
         try:
             persisted = self.repository.upsert_seat_review(review)
             if isinstance(persisted, MarketPredictionSeatReview):
@@ -73,8 +95,16 @@ class MarketPredictionSeatWeightingService:
             normalized = self._normalize_review_model(persisted)
             return normalized or review
         except Exception:
-            logger.warning("market_prediction_review_persist_failed", window_days=window_days, exc_info=True)
-            degraded = self._build_prior_review(window_days=window_days, as_of_ts=effective_ts, review_state="degraded")
+            logger.warning(
+                "market_prediction_review_persist_failed",
+                window_days=window_days,
+                exc_info=True,
+            )
+            degraded = self._build_prior_review(
+                window_days=window_days,
+                as_of_ts=effective_ts,
+                review_state="degraded",
+            )
             degraded.metadata["_persisted"] = False
             return degraded
 
@@ -145,9 +175,32 @@ class MarketPredictionSeatWeightingService:
             )
         sample_size = len(weighted_rows)
         weights = [weight for _, weight in weighted_rows]
-        direction_hit_rate = self._weighted_mean([1.0 if row.direction_hit else 0.0 for row, _ in weighted_rows], weights)
-        move_mae_pct = self._weighted_mean([row.move_abs_error_pct for row, _ in weighted_rows], weights)
+        direction_hit_rate = self._weighted_mean(
+            [1.0 if row.direction_hit else 0.0 for row, _ in weighted_rows],
+            weights,
+        )
+        move_mae_pct = self._weighted_mean(
+            [row.move_abs_error_pct for row, _ in weighted_rows],
+            weights,
+        )
         brier_score = self._weighted_mean([row.brier_score for row, _ in weighted_rows], weights)
+        confidence_scores = [
+            self._optional_float(row.metadata.get("confidence_score"))
+            for row, _ in weighted_rows
+        ]
+        weighted_confidence_rows = [
+            (score, weight)
+            for score, weight in zip(confidence_scores, weights, strict=False)
+            if score is not None
+        ]
+        avg_confidence_score = (
+            self._weighted_mean(
+                [score for score, _ in weighted_confidence_rows],
+                [weight for _, weight in weighted_confidence_rows],
+            )
+            if weighted_confidence_rows
+            else None
+        )
         skill_score = self._skill_score(
             direction_hit_rate=direction_hit_rate,
             move_mae_pct=move_mae_pct,
@@ -158,6 +211,7 @@ class MarketPredictionSeatWeightingService:
             prior_weight=prior_weight,
             effective_weight=prior_weight,
             sample_size=sample_size,
+            avg_confidence_score=avg_confidence_score,
             direction_hit_rate=direction_hit_rate,
             move_mae_pct=move_mae_pct,
             brier_score=brier_score,
@@ -170,7 +224,12 @@ class MarketPredictionSeatWeightingService:
         scorecards: list[MarketPredictionSeatScorecardRow],
     ) -> list[MarketPredictionSeatScorecardRow]:
         return [
-            row.model_copy(update={"effective_weight": row.prior_weight, "recommended_action": "hold"})
+            row.model_copy(
+                update={
+                    "effective_weight": row.prior_weight,
+                    "recommended_action": "hold",
+                },
+            )
             for row in scorecards
         ]
 
@@ -292,6 +351,7 @@ class MarketPredictionSeatWeightingService:
                 prior_weight=prior,
                 effective_weight=prior,
                 sample_size=0,
+                avg_confidence_score=None,
                 direction_hit_rate=None,
                 move_mae_pct=None,
                 brier_score=None,
@@ -308,7 +368,11 @@ class MarketPredictionSeatWeightingService:
         rows = self._normalize_persisted_scorecards(review.seat_scorecards)
         if rows is None:
             return None
-        summary = self._normalize_review_summary(review.review_summary, generated_at=review.generated_at, review_state=review.review_state)
+        summary = self._normalize_review_summary(
+            review.review_summary,
+            generated_at=review.generated_at,
+            review_state=review.review_state,
+        )
         return MarketPredictionSeatReviewResponse(
             as_of_ts=review.as_of_ts,
             window_days=review.window_days,
@@ -316,6 +380,24 @@ class MarketPredictionSeatWeightingService:
             seat_scorecards=rows,
             review_summary=summary,
         )
+
+    def _review_history_points(
+        self,
+        reviews: list[MarketPredictionSeatReviewResponse],
+    ) -> list[MarketPredictionSeatReviewHistoryPoint]:
+        points: list[MarketPredictionSeatReviewHistoryPoint] = []
+        for review in sorted(reviews, key=lambda item: item.as_of_ts):
+            points.append(
+                MarketPredictionSeatReviewHistoryPoint(
+                    generated_at=self._coerce_datetime(
+                        review.review_summary.get("generated_at") or review.as_of_ts,
+                    ),
+                    as_of_ts=review.as_of_ts,
+                    review_state=review.review_state,
+                    seat_scorecards=review.seat_scorecards,
+                )
+            )
+        return points
 
     def _normalize_review_model(self, raw_row: Any) -> MarketPredictionSeatReview | None:
         if raw_row is None:
@@ -344,22 +426,42 @@ class MarketPredictionSeatWeightingService:
         seen: set[str] = set()
         normalized_by_key: dict[str, MarketPredictionSeatScorecardRow] = {}
         for raw_row in raw_rows:
-            if not isinstance(raw_row, dict):
+            raw_scorecard = (
+                raw_row.model_dump()
+                if isinstance(raw_row, MarketPredictionSeatScorecardRow)
+                else raw_row
+            )
+            if not isinstance(raw_scorecard, dict):
                 continue
-            seat_key = normalize_market_prediction_seat_key(raw_row.get("seat_key"))
+            seat_key = normalize_market_prediction_seat_key(raw_scorecard.get("seat_key"))
             if seat_key not in SUPPORTED_ADAPTIVE_SEAT_KEYS or seat_key in seen:
                 continue
             seen.add(seat_key)
             normalized_by_key[seat_key] = MarketPredictionSeatScorecardRow(
                 seat_key=seat_key,
-                prior_weight=self._float_or_default(raw_row.get("prior_weight"), 1.0 / len(SUPPORTED_ADAPTIVE_SEAT_KEYS)),
-                effective_weight=self._float_or_default(raw_row.get("effective_weight"), 1.0 / len(SUPPORTED_ADAPTIVE_SEAT_KEYS)),
-                sample_size=int(raw_row.get("sample_size") or 0),
-                direction_hit_rate=self._optional_float(raw_row.get("direction_hit_rate")),
-                move_mae_pct=self._optional_float(raw_row.get("move_mae_pct")),
-                brier_score=self._optional_float(raw_row.get("brier_score")),
-                skill_score=self._optional_float(raw_row.get("skill_score")),
-                recommended_action=self._normalize_recommended_action(raw_row.get("recommended_action")),
+                prior_weight=self._float_or_default(
+                    raw_scorecard.get("prior_weight"),
+                    1.0 / len(SUPPORTED_ADAPTIVE_SEAT_KEYS),
+                ),
+                effective_weight=self._float_or_default(
+                    raw_scorecard.get("effective_weight"),
+                    1.0 / len(SUPPORTED_ADAPTIVE_SEAT_KEYS),
+                ),
+                sample_size=int(raw_scorecard.get("sample_size") or 0),
+                avg_confidence_score=self._optional_float(
+                    raw_scorecard.get("avg_confidence_score")
+                    if "avg_confidence_score" in raw_scorecard
+                    else raw_scorecard.get("avgConfidenceScore")
+                ),
+                direction_hit_rate=self._optional_float(
+                    raw_scorecard.get("direction_hit_rate"),
+                ),
+                move_mae_pct=self._optional_float(raw_scorecard.get("move_mae_pct")),
+                brier_score=self._optional_float(raw_scorecard.get("brier_score")),
+                skill_score=self._optional_float(raw_scorecard.get("skill_score")),
+                recommended_action=self._normalize_recommended_action(
+                    raw_scorecard.get("recommended_action"),
+                ),
             )
         ordered: list[MarketPredictionSeatScorecardRow] = []
         for seat_key in SUPPORTED_ADAPTIVE_SEAT_KEYS:
@@ -371,6 +473,7 @@ class MarketPredictionSeatWeightingService:
                     prior_weight=prior,
                     effective_weight=prior,
                     sample_size=0,
+                    avg_confidence_score=None,
                     direction_hit_rate=None,
                     move_mae_pct=None,
                     brier_score=None,
@@ -388,11 +491,25 @@ class MarketPredictionSeatWeightingService:
         review_state: str,
     ) -> dict[str, Any]:
         return {
-            "generated_at": str(raw_summary.get("generated_at") or generated_at.isoformat()),
+            "generated_at": str(
+                raw_summary.get("generated_at") or generated_at.isoformat(),
+            ),
             "review_state": str(raw_summary.get("review_state") or review_state),
-            "drift_callouts": [str(item) for item in raw_summary.get("drift_callouts", []) if str(item).strip()],
-            "top_upweighted": [self._normalize_change_item(item) for item in raw_summary.get("top_upweighted", []) if self._normalize_change_item(item) is not None],
-            "top_downweighted": [self._normalize_change_item(item) for item in raw_summary.get("top_downweighted", []) if self._normalize_change_item(item) is not None],
+            "drift_callouts": [
+                str(item)
+                for item in raw_summary.get("drift_callouts", [])
+                if str(item).strip()
+            ],
+            "top_upweighted": [
+                normalized
+                for item in raw_summary.get("top_upweighted", [])
+                if (normalized := self._normalize_change_item(item)) is not None
+            ],
+            "top_downweighted": [
+                normalized
+                for item in raw_summary.get("top_downweighted", [])
+                if (normalized := self._normalize_change_item(item)) is not None
+            ],
         }
 
     def _build_review_summary(
@@ -447,8 +564,14 @@ class MarketPredictionSeatWeightingService:
         return {
             "kind": "seat",
             "key": key,
-            "prior_weight": self._float_or_default(raw_item.get("prior_weight"), 1.0 / len(SUPPORTED_ADAPTIVE_SEAT_KEYS)),
-            "effective_weight": self._float_or_default(raw_item.get("effective_weight"), 1.0 / len(SUPPORTED_ADAPTIVE_SEAT_KEYS)),
+            "prior_weight": self._float_or_default(
+                raw_item.get("prior_weight"),
+                1.0 / len(SUPPORTED_ADAPTIVE_SEAT_KEYS),
+            ),
+            "effective_weight": self._float_or_default(
+                raw_item.get("effective_weight"),
+                1.0 / len(SUPPORTED_ADAPTIVE_SEAT_KEYS),
+            ),
         }
 
     def _review_metadata(self) -> dict[str, Any]:
@@ -558,7 +681,13 @@ class MarketPredictionSeatWeightingService:
         return numeric
 
     @staticmethod
-    def _coerce_datetime(value: datetime) -> datetime:
+    def _coerce_datetime(value: Any) -> datetime:
+        if isinstance(value, str):
+            normalized = value.replace("Z", "+00:00")
+            parsed = datetime.fromisoformat(normalized)
+            return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+        if not isinstance(value, datetime):
+            raise TypeError("Expected datetime-compatible value")
         if value.tzinfo is None:
             return value.replace(tzinfo=UTC)
         return value

@@ -1535,6 +1535,7 @@ class HouseholdAccountRegistryService:
             """
             SELECT
                 t.id,
+                t.household_account_id,
                 t.document_id,
                 t.account_label,
                 d.account_label,
@@ -1542,15 +1543,15 @@ class HouseholdAccountRegistryService:
             FROM household_transactions t
             LEFT JOIN household_documents d ON d.id = t.document_id
             LEFT JOIN household_evidence_accounts e ON e.document_id = t.document_id
-            WHERE t.household_account_id IS NULL
             GROUP BY t.id, d.account_label
             """
         ).fetchall()
         updated = 0
         for row in rows:
             transaction_id = str(row[0])
-            transaction_label = clean_text(row[2]) or clean_text(row[3])
-            account_ids = list(row[4] or [])
+            current_account_id = str(row[1]) if row[1] else None
+            transaction_label = clean_text(row[3]) or clean_text(row[4])
+            account_ids = list(row[5] or [])
             next_account_id: str | None = None
             if len(account_ids) == 1:
                 next_account_id = str(account_ids[0])
@@ -1569,7 +1570,7 @@ class HouseholdAccountRegistryService:
                 matched = {identity_map[key] for key in candidates if key in identity_map}
                 if len(matched) == 1:
                     next_account_id = next(iter(matched))
-            if not next_account_id:
+            if not next_account_id or next_account_id == current_account_id:
                 continue
             conn.execute(
                 """

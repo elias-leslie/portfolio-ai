@@ -23,6 +23,10 @@ from app.models.household_finance import (
     RetirementPreparedness,
 )
 from app.portfolio.account_valuation import calculate_account_valuations
+from app.services._home_action_ranking import (
+    PRIORITY_RANK,
+    household_rank_score,
+)
 from app.services._household_dashboard_builders import (
     build_budget_snapshot,
     build_retirement_contribution_tracker,
@@ -157,6 +161,32 @@ def update_overview_action(overview: HouseholdOverview, title: str) -> Household
     return overview.model_copy(update={"next_best_action": title})
 
 
+def household_overview_action_title(
+    *,
+    inbox: list[Any],
+    jenny_needs: list[Any],
+) -> str | None:
+    candidates = list(inbox)
+    candidates.extend(
+        need
+        for need in jenny_needs
+        if str(getattr(need, "status", "") or "") == "unsatisfied"
+        and getattr(need, "action_href", None)
+    )
+    if not candidates:
+        return None
+
+    candidates.sort(
+        key=lambda item: (
+            -household_rank_score(item),
+            PRIORITY_RANK.get(str(getattr(item, "priority", "low") or "low"), 99),
+            str(getattr(item, "title", "")),
+        )
+    )
+    title = str(getattr(candidates[0], "title", "") or "").strip()
+    return title or None
+
+
 def _apply_account_freshness_visibility_cap(
     visibility_score: int,
     account_summaries: list[Any],
@@ -236,7 +266,7 @@ def _overview_totals_from_account_summaries(
     taxable_assets = sum(
         float(account.current_value or 0.0)
         for account in asset_accounts
-        if account.asset_group in {"taxable", "education"}
+        if account.asset_group == "taxable"
     )
     cash_reserve = sum(
         float(
@@ -541,9 +571,11 @@ def build_overview(
         retirement_assets += retirement_fallback
         invested_assets += retirement_fallback
     if taxable_assets <= 0:
-        taxable_fallback = evidence_totals.get("taxable", 0.0) + evidence_totals.get("education", 0.0)
+        taxable_fallback = evidence_totals.get("taxable", 0.0)
         taxable_assets += taxable_fallback
         invested_assets += taxable_fallback
+    if summary_totals is None:
+        invested_assets += evidence_totals.get("education", 0.0)
     if invested_assets <= 0:
         invested_assets += evidence_totals.get("other", 0.0)
     if summary_totals is None:

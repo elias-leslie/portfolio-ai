@@ -21,6 +21,35 @@ _LLM_MODULE = "app.services._household_document_llm"
 _REVIEW_MODULE = "app.services.household_document_review"
 
 
+class _Rows:
+    def __init__(self, rows: list[tuple[object, ...]]) -> None:
+        self.rows = rows
+
+    def fetchall(self) -> list[tuple[object, ...]]:
+        return self.rows
+
+
+class _ContextStorage:
+    def __init__(self, account_rows: list[tuple[object, ...]]) -> None:
+        self.account_rows = account_rows
+
+    def connection(self) -> _ContextStorage:
+        return self
+
+    def __enter__(self) -> _ContextStorage:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def execute(self, query: str, _params: object | None = None) -> _Rows:
+        if "FROM household_account_identities" in query:
+            return _Rows([])
+        if "FROM household_evidence_accounts e" in query:
+            return _Rows([])
+        return _Rows(self.account_rows)
+
+
 def test_parse_review_payload_handles_fenced_json() -> None:
     payload = _parse_review_payload(
         """
@@ -101,6 +130,34 @@ def test_baseline_review_detects_chase_activity_csv() -> None:
     assert financial_accounts[0]["account_type"] == "credit_card"
 
 
+def test_baseline_review_skips_pending_cash_balance_text_in_activity_csv() -> None:
+    payload = _baseline_review(
+        filename="Fidelity_CMA_Year_To_Date_4_27_26.csv",
+        source_type="other",
+        document_type="other",
+        extracted_text=(
+            "Run Date,Action,Symbol,Description,Type,Price ($),Quantity,Commission ($),"
+            "Fees ($),Accrued Interest ($),Amount ($),Cash Balance ($),Settlement Date\n"
+            "04/27/2026,DIRECT DEBIT CHASE CREDIT CEPAY (Cash),,No Description,Cash,,"
+            "0.000,,,,-6243.47,Processing,\n"
+            "04/20/2026,DIRECT DEBIT P C UTILITIES AUTO_PAY (Cash),,No Description,Cash,,"
+            "0.000,,,,-179.54,42059.44,\n"
+        ),
+    )
+    structured_data = cast(dict[str, Any], payload["structured_data"])
+    financial_accounts = cast(list[dict[str, Any]], structured_data["financial_accounts"])
+
+    assert payload["document_type"] == "brokerage_statement"
+    assert payload["source_type"] == "brokerage"
+    assert structured_data["total_amount"] == "42059.44"
+    assert structured_data["account_hint"] == "Cash Management account (CMA)"
+    assert financial_accounts[0]["institution_name"] == "Fidelity"
+    assert financial_accounts[0]["account_name"] == "Cash Management account (CMA)"
+    assert financial_accounts[0]["cash_balance"] == "42059.44"
+    assert financial_accounts[0]["as_of_date"] == "2026-04-20"
+    assert financial_accounts[0]["activity_observed_through"] == "2026-04-27"
+
+
 def test_extract_csv_text_preserves_amazon_price_columns(tmp_path: Path) -> None:
     csv_path = tmp_path / "Order History.csv"
     csv_path.write_text(
@@ -156,6 +213,29 @@ def test_extract_pdf_text_uses_ocr_fallback_for_low_signal_pages(
     assert extracted is not None
     assert "Order details - Walmart.com" in extracted
     assert "Order total $83.21" in extracted
+
+
+@patch(f"{_TEXT_MODULE}._extract_pdf_image_text")
+@patch(f"{_TEXT_MODULE}.PdfReader")
+def test_extract_pdf_text_keeps_pdf_text_when_ocr_fails(
+    mock_pdf_reader: MagicMock,
+    pdf_image_text: MagicMock,
+    tmp_path: Path,
+) -> None:
+    from app.services._household_document_text import _extract_pdf_text
+
+    pdf_path = tmp_path / "walmart.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+
+    mock_page = MagicMock()
+    mock_page.extract_text.return_value = "Return to previous page\n28/04/2026 Order details - Walmart.com"
+    mock_pdf_reader.return_value.pages = [mock_page]
+    pdf_image_text.side_effect = ImportError("libGL.so.1")
+
+    extracted = _extract_pdf_text(pdf_path)
+
+    assert extracted is not None
+    assert "Order details - Walmart.com" in extracted
 
 
 @patch(f"{_TEXT_MODULE}.PdfReader")
@@ -470,6 +550,103 @@ def test_reconcile_reviewed_accounts_links_transaction_only_export_to_known_acco
     assert account["household_account_id"] == "household-chase"
 
 
+def test_finalize_review_removes_bank_transaction_counterparty_accounts() -> None:
+    service = HouseholdDocumentReviewService(agent_service=MagicMock())
+
+    reviewed = service._finalize_review(
+        reviewed={
+            "summary": "Wells Fargo checking activity export.",
+            "source_type": "bank",
+            "document_type": "statement",
+            "confidence": 0.88,
+            "structured_data": {
+                "financial_accounts": [
+                    {
+                        "account_name": "Wells Fargo checking activity export",
+                        "account_type": "checking",
+                        "asset_group": "cash",
+                        "institution_name": "Wells Fargo",
+                    },
+                    {
+                        "account_name": "Everyday Checking",
+                        "account_type": "checking",
+                        "asset_group": "cash",
+                        "institution_name": "Wells Fargo",
+                        "account_mask": "4222",
+                    },
+                ]
+            },
+        },
+        baseline={
+            "summary": "Bank activity export.",
+            "source_type": "bank",
+            "document_type": "statement",
+            "confidence": 0.45,
+            "structured_data": {},
+        },
+        household_context=None,
+        filename="Wells_Fargo_Checking_Year_To_Date_4_27_26.csv",
+        extracted_text=(
+            "DATE,DESCRIPTION,AMOUNT,CHECK #,STATUS\n"
+            "04/02/2026,ONLINE TRANSFER TO EVERYDAY CHECKING XXXXXX4222,-227.00,,Posted\n"
+        ),
+        review_strategy="agent",
+    )
+
+    structured_data = cast(dict[str, Any], reviewed["structured_data"])
+    financial_accounts = cast(list[dict[str, Any]], structured_data["financial_accounts"])
+
+    assert len(financial_accounts) == 1
+    assert financial_accounts[0]["account_name"] == "Wells Fargo checking activity export"
+    assert reviewed["review_checks"]["counterparty_accounts_removed"] == 1
+    assert reviewed["review_checks"]["expected_account_count"] == 1
+
+
+def test_build_household_context_prioritizes_selected_upload_hint() -> None:
+    service = HouseholdDocumentReviewService(agent_service=MagicMock())
+    service.storage = _ContextStorage(
+        [
+            (
+                "household-other",
+                "Other Checking",
+                "bank",
+                "cash",
+                "checking",
+                "Other Bank",
+                None,
+                "1111",
+                "bank|other|1111",
+                None,
+                1,
+            ),
+            (
+                "household-selected",
+                "Cash Management Account",
+                "brokerage",
+                "cash",
+                "cash_management",
+                "Fidelity",
+                None,
+                "2222",
+                "brokerage|fidelity|2222",
+                None,
+                1,
+            ),
+        ]
+    )
+
+    context = service._build_household_context(
+        baseline_review={"source_type": "bank", "structured_data": {}},
+        extracted_text="generic statement text",
+        household_account_id_hint="household-selected",
+    )
+
+    assert context is not None
+    selected = context["related_accounts"][0]
+    assert selected["household_account_id"] == "household-selected"
+    assert selected["selected_upload_hint"] is True
+
+
 def test_reconcile_reviewed_accounts_preserves_explicit_match_key_over_stale_primary() -> None:
     service = HouseholdDocumentReviewService(agent_service=MagicMock())
 
@@ -584,6 +761,54 @@ def test_signature_review_skips_weak_money_signature_without_financial_accounts(
         )
 
     assert reviewed is None
+
+
+def test_signature_review_strips_generic_bank_csv_header_accounts() -> None:
+    service = HouseholdDocumentReviewService(agent_service=MagicMock())
+    with (
+        patch.object(
+            service,
+            "_find_signature",
+            MagicMock(
+                return_value={
+                    "id": "sig-1",
+                    "signature_type": "csv_header",
+                    "source_type": "bank",
+                    "document_type": "statement",
+                    "merchant": None,
+                    "account_hint": None,
+                    "confidence": 0.93,
+                    "structured_data": {
+                        "financial_accounts": [
+                            {
+                                "account_name": "Wells Fargo closed checking",
+                                "account_type": "checking",
+                                "asset_group": "cash",
+                            },
+                            {
+                                "account_name": "Everyday Checking",
+                                "account_type": "checking",
+                                "asset_group": "cash",
+                                "account_mask": "7312",
+                            },
+                        ]
+                    },
+                }
+            ),
+        ),
+        patch.object(service, "_touch_signature", MagicMock()),
+    ):
+        reviewed = service._signature_review(
+            filename="Wells_Fargo_Checking_Year_To_Date_4_27_26.csv",
+            extracted_text=(
+                "DATE,DESCRIPTION,AMOUNT,CHECK #,STATUS\n"
+                "04/02/2026,ONLINE TRANSFER TO EVERYDAY CHECKING XXXXXX7312,-227.00,,Posted\n"
+            ),
+        )
+
+    assert reviewed is not None
+    structured_data = cast(dict[str, Any], reviewed["structured_data"])
+    assert "financial_accounts" not in structured_data
 
 
 @patch(f"{_REVIEW_MODULE}._extract_text")
@@ -1087,6 +1312,50 @@ def test_signature_review_skips_generic_image_name(
     find_signature.assert_called_once()
 
 
+@patch("app.services.household_document_review.AGENT_HUB_ENABLED", True)
+@patch("app.services.household_document_review._extract_text")
+def test_review_skips_signature_for_low_text_visual_upload(
+    extract_text: MagicMock,
+    tmp_path: Path,
+) -> None:
+    extract_text.return_value = "Order details - Walmart.com"
+    service = HouseholdDocumentReviewService(agent_service=MagicMock())
+    pdf_path = tmp_path / "walmart.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+
+    with (
+        patch.object(service, "_build_household_context", return_value=None),
+        patch.object(service, "_signature_review", return_value={"summary": "stale signature"}) as signature_review,
+        patch.object(
+            service,
+            "_review_with_llm",
+            return_value={
+                "summary": "Walmart receipt",
+                "source_type": "receipt",
+                "document_type": "receipt",
+                "confidence": 0.9,
+                "structured_data": {"merchant": "Walmart", "total_amount": "11.40"},
+                "inferred_values": [],
+                "questions": [],
+            },
+        ) as review_with_llm,
+    ):
+        reviewed = service.review(
+            document_id="doc-1",
+            filename="3Order details - Walmart.com.pdf",
+            stored_path=pdf_path,
+            content_type="application/pdf",
+            source_type="receipt",
+            document_type="receipt",
+        )
+
+    signature_review.assert_not_called()
+    review_with_llm.assert_called_once()
+    structured_data = reviewed["structured_data"]
+    assert isinstance(structured_data, dict)
+    assert structured_data["total_amount"] == "11.40"
+
+
 def test_build_messages_uses_single_text_message() -> None:
     messages = _build_messages(
         payload={
@@ -1114,6 +1383,31 @@ def test_build_messages_uses_single_text_message() -> None:
     assert isinstance(messages[0].content, str)
     assert "Document metadata:" in messages[0].content
     assert "Extracted text preview:" in messages[0].content
+
+
+@patch(f"{_LLM_MODULE}._render_pdf_pages_to_png")
+def test_build_messages_attaches_low_text_pdf_image_for_review(
+    render_pdf_pages: MagicMock,
+    tmp_path: Path,
+) -> None:
+    pdf_path = tmp_path / "walmart.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+    render_pdf_pages.return_value = [b"fake-png"]
+
+    messages = _build_messages(
+        payload={"document_id": "doc-1", "filename": "walmart.pdf"},
+        stored_path=pdf_path,
+        content_type="application/pdf",
+        extracted_text="Order details - Walmart.com",
+        baseline_review={"summary": "Receipt", "structured_data": {}},
+    )
+
+    content = messages[0].content
+    assert isinstance(content, list)
+    assert content[0].type == "text"
+    assert content[1].type == "image"
+    assert content[1].source["media_type"] == "image/png"
+    assert content[1].source["data"]
 
 
 def test_build_messages_includes_context_and_prior_attempt_when_present() -> None:

@@ -259,6 +259,10 @@ export interface MarketPredictionCommitteeSummary {
   committeeExecutionPath?: CommitteeExecutionPath | null
   executedSeatKeys?: string[]
   truthState?: PredictionTruthState | null
+  publicationState?: string | null
+  abstainReasonCodes?: string[]
+  baselineVoteCount?: number | null
+  baselineSeatWeight?: number | null
   [key: string]: unknown
 }
 
@@ -299,6 +303,7 @@ export interface MarketPredictionCall {
   committeeDisagreementScore?: number | null
   rationaleSummary?: string | null
   topSourceClusters: PredictionSourceCluster[]
+  metadata?: Record<string, unknown> | null
 }
 
 export interface CommitteeSeatVote {
@@ -321,6 +326,51 @@ export interface MarketPredictionScorecard {
   moveMaePct?: number | null
   brierScore?: number | null
   sampleSize: number
+}
+
+export interface MarketPredictionQualityMetric {
+  sampleSize: number
+  directionHitRate?: number | null
+  moveMaePct?: number | null
+  brierScore?: number | null
+  avgConfidenceScore?: number | null
+  avgProbUp?: number | null
+}
+
+export interface MarketPredictionQualitySegment {
+  key: string
+  label?: string | null
+  metrics: MarketPredictionQualityMetric
+}
+
+export interface MarketPredictionCalibrationQuality {
+  sampleSize: number
+  rawBrierScore?: number | null
+  calibratedBrierScore?: number | null
+  brierImprovement?: number | null
+  brierImprovementPct?: number | null
+  avgShrink?: number | null
+}
+
+export interface MarketPredictionNoEdgeQuality {
+  totalSampleSize: number
+  noEdgeSampleSize: number
+  noEdgeRate?: number | null
+  forecastMetrics: MarketPredictionQualityMetric
+  noEdgeMetrics: MarketPredictionQualityMetric
+  noEdgeBrierDelta?: number | null
+}
+
+export interface MarketPredictionQualityReport {
+  generatedAt: string
+  windowDays: number
+  overall: MarketPredictionQualityMetric
+  calibration: MarketPredictionCalibrationQuality
+  noEdge: MarketPredictionNoEdgeQuality
+  publicationSegments: MarketPredictionQualitySegment[]
+  aggregationSegments: MarketPredictionQualitySegment[]
+  seatSegments: MarketPredictionQualitySegment[]
+  symbolSegments: MarketPredictionQualitySegment[]
 }
 
 export interface PredictionFreshnessCluster {
@@ -373,6 +423,7 @@ export interface MarketPredictionSeatScorecard {
   priorWeight: number
   effectiveWeight: number
   sampleSize: number
+  avgConfidenceScore?: number | null
   directionHitRate?: number | null
   moveMaePct?: number | null
   brierScore?: number | null
@@ -394,6 +445,12 @@ export interface MarketPredictionSeatReviewResponse {
   reviewState: 'live' | 'warmup' | 'degraded'
   seatScorecards: MarketPredictionSeatScorecard[]
   reviewSummary: MarketPredictionReviewSummary
+  reviewHistory?: {
+    generatedAt: string
+    asOfTs: string
+    reviewState: 'live' | 'warmup' | 'degraded'
+    seatScorecards: MarketPredictionSeatScorecard[]
+  }[]
 }
 
 export interface MarketPredictionHistoryResponse {

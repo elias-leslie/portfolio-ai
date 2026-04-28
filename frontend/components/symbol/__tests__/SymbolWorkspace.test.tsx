@@ -238,7 +238,7 @@ describe('SymbolWorkspace', () => {
     expect(screen.getByText(/jenny committee review/i)).toBeInTheDocument()
     expect(
       screen.getByTestId('symbol-jenny-prediction-review'),
-    ).toHaveTextContent('Warmup · 3D horizon')
+    ).toHaveTextContent('Warmup · 3 trading days')
     expect(
       screen.getByTestId('symbol-jenny-prediction-review'),
     ).toHaveTextContent(/cross asset/i)

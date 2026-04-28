@@ -15,6 +15,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING
 
+from app.constants import MARKET_PREDICTION_PRICE_SYMBOLS
 from app.hatchet_app import get_admin_client
 from app.logging_config import get_logger
 from app.services._data_freshness_config import (
@@ -25,6 +26,7 @@ from app.services._data_freshness_config import (
 from app.services.maintenance_tracker import record_maintenance_completion, record_maintenance_start
 from app.utils.market_hours import (
     NY_TZ,
+    get_expected_data_date,
     get_market_aware_age_hours,
     get_market_close_time,
     is_market_open,
@@ -53,6 +55,9 @@ logger = get_logger(__name__)
 # Maps table_name -> last_remediation_timestamp
 _remediation_cooldowns: dict[str, dt.datetime] = {}
 REMEDIATION_COOLDOWN_MINUTES = 30
+DECISION_SYMBOL_DAY_BARS_TABLE = "decision_symbol_day_bars"
+DECISION_SYMBOL_DAY_BARS_EXPECTED_HOURS = 24
+DECISION_SYMBOL_DAY_BARS_CRITICAL_HOURS = 48
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +192,104 @@ def check_table_freshness(
     }
 
 
+def _fetch_decision_symbol_rows(storage: ConnectionManager) -> list[dict[str, object]]:
+    query = """
+        WITH decision_symbols AS (
+            SELECT UPPER(unnest(?::text[])) AS symbol
+            UNION
+            SELECT UPPER(symbol) AS symbol
+            FROM watchlist_items
+            WHERE symbol IS NOT NULL AND symbol <> ''
+            UNION
+            SELECT UPPER(symbol) AS symbol
+            FROM portfolio_positions
+            WHERE symbol IS NOT NULL AND symbol <> '' AND shares <> 0
+        )
+        SELECT ds.symbol, MAX(db.date) AS last_update
+        FROM decision_symbols ds
+        LEFT JOIN day_bars db ON UPPER(db.symbol) = ds.symbol
+        GROUP BY ds.symbol
+        ORDER BY ds.symbol
+    """
+    with storage.connection() as conn:
+        rows = conn.execute(query, [MARKET_PREDICTION_PRICE_SYMBOLS]).fetchall()
+    return [{"symbol": row[0], "last_update": row[1]} for row in rows]
+
+
+def _coerce_market_date(value: object) -> dt.date | None:
+    if isinstance(value, dt.datetime):
+        return value.date()
+    if isinstance(value, dt.date):
+        return value
+    return None
+
+
+def _market_date_age_hours(value: dt.date, now: dt.datetime) -> float:
+    last_update = _coerce_to_datetime(value, DECISION_SYMBOL_DAY_BARS_TABLE, "date", True)
+    if last_update is None:
+        return float("inf")
+    return get_market_aware_age_hours(last_update=last_update, now=now, is_market_data=True)
+
+
+def check_decision_symbol_day_bars_freshness(
+    storage: ConnectionManager,
+    now: dt.datetime,
+) -> dict[str, object]:
+    """Check per-symbol OHLCV freshness for symbols used in decisions."""
+    rows = _fetch_decision_symbol_rows(storage)
+    expected_date = get_expected_data_date(now.astimezone(NY_TZ))
+    missing_symbols: list[str] = []
+    stale_symbols: list[str] = []
+    critical_symbols: list[str] = []
+    latest_updates: list[dt.date] = []
+    max_age_hours = 0.0
+
+    for row in rows:
+        symbol = str(row.get("symbol") or "").upper()
+        last_update = _coerce_market_date(row.get("last_update"))
+        if not symbol:
+            continue
+        if last_update is None:
+            missing_symbols.append(symbol)
+            critical_symbols.append(symbol)
+            max_age_hours = float("inf")
+            continue
+        latest_updates.append(last_update)
+        age_hours = _market_date_age_hours(last_update, now)
+        max_age_hours = max(max_age_hours, age_hours)
+        if last_update < expected_date or age_hours > DECISION_SYMBOL_DAY_BARS_EXPECTED_HOURS:
+            stale_symbols.append(symbol)
+        if age_hours > DECISION_SYMBOL_DAY_BARS_CRITICAL_HOURS:
+            critical_symbols.append(symbol)
+
+    latest_common = min(latest_updates) if latest_updates else None
+    missing_symbols = sorted(set(missing_symbols))
+    stale_symbols = sorted(set(stale_symbols))
+    critical_symbols = sorted(set(critical_symbols))
+    is_stale = bool(missing_symbols or stale_symbols)
+    is_critical = bool(missing_symbols or critical_symbols)
+    reason = None
+    if missing_symbols:
+        reason = "missing_symbols"
+    elif critical_symbols:
+        reason = "critical_symbols"
+    elif stale_symbols:
+        reason = "stale_symbols"
+    return {
+        "table_name": DECISION_SYMBOL_DAY_BARS_TABLE,
+        "last_update": latest_common.isoformat() if latest_common is not None else None,
+        "age_hours": None if max_age_hours == float("inf") else round(max_age_hours, 2),
+        "is_stale": is_stale,
+        "is_critical": is_critical,
+        "reason": reason,
+        "symbols_checked": len(rows),
+        "expected_date": expected_date.isoformat(),
+        "missing_symbols": missing_symbols,
+        "stale_symbols": stale_symbols,
+        "critical_symbols": critical_symbols,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Bulk check helpers
 # ---------------------------------------------------------------------------
@@ -271,6 +374,53 @@ def check_all_tables_freshness(storage: ConnectionManager, auto_remediate: bool 
         results.append(result)
         alerts_created += alerts
         remediations_triggered += triggered
+
+    decision_symbols_config = TableFreshnessConfig(
+        table_name=DECISION_SYMBOL_DAY_BARS_TABLE,
+        date_column="date",
+        expected_hours=DECISION_SYMBOL_DAY_BARS_EXPECTED_HOURS,
+        critical_hours=DECISION_SYMBOL_DAY_BARS_CRITICAL_HOURS,
+        market_data=True,
+    )
+    try:
+        decision_symbols_result = check_decision_symbol_day_bars_freshness(storage, now)
+    except Exception as e:
+        logger.error("decision_symbol_day_bars_freshness_failed", error=str(e), exc_info=True)
+        decision_symbols_result = {
+            "table_name": DECISION_SYMBOL_DAY_BARS_TABLE,
+            "last_update": None,
+            "age_hours": None,
+            "is_stale": True,
+            "is_critical": True,
+            "reason": f"check_failed: {e}",
+            "symbols_checked": 0,
+            "missing_symbols": [],
+            "stale_symbols": [],
+            "critical_symbols": [],
+        }
+    results.append(decision_symbols_result)
+    if decision_symbols_result["is_critical"]:
+        if _should_suppress_alert(decision_symbols_config, decision_symbols_result, is_trading):
+            logger.info(
+                "skipping_weekend_alert",
+                table=DECISION_SYMBOL_DAY_BARS_TABLE,
+                reason="market_closed",
+                age_hours=_as_age_hours(decision_symbols_result.get("age_hours")),
+            )
+        else:
+            remediations_triggered += _handle_critical_result(
+                decision_symbols_config,
+                decision_symbols_result,
+                auto_remediate,
+            )
+            alerts_created += 1
+    elif decision_symbols_result["is_stale"] and auto_remediate:
+        task_id = trigger_remediation(
+            table_name=DECISION_SYMBOL_DAY_BARS_TABLE,
+            age_hours=_as_age_hours(decision_symbols_result.get("age_hours")),
+            is_market_data=True,
+        )
+        remediations_triggered += 1 if task_id else 0
 
     critical_count = sum(1 for r in results if r["is_critical"])
     stale_count = sum(1 for r in results if r["is_stale"])

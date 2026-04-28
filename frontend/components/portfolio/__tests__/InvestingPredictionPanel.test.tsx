@@ -51,7 +51,7 @@ function buildCall(windowDays: number, overrides: JsonRecord = {}): JsonRecord {
         cluster: 'macro_calendar',
         weight: null,
         freshness: 'missing',
-        note: 'Derived fallback; tracked not ranked.',
+        note: 'Awaiting scored history.',
       },
     ],
     ...overrides,
@@ -185,8 +185,8 @@ function buildCommitteeResponse(
         {
           cluster: 'macro_calendar',
           freshness: 'fresh',
-          asOfDate: null,
-          detail: null,
+          asOfDate: '2026-04-21',
+          detail: 'Macro calendar through 2026-04-21.',
         },
       ],
     },
@@ -231,6 +231,7 @@ function buildReviewResponse(
         priorWeight: 1 / 3,
         effectiveWeight: 1 / 3,
         sampleSize: 0,
+        avgConfidenceScore: null,
         directionHitRate: null,
         moveMaePct: null,
         brierScore: null,
@@ -242,6 +243,7 @@ function buildReviewResponse(
         priorWeight: 1 / 3,
         effectiveWeight: 1 / 3,
         sampleSize: 0,
+        avgConfidenceScore: null,
         directionHitRate: null,
         moveMaePct: null,
         brierScore: null,
@@ -253,6 +255,7 @@ function buildReviewResponse(
         priorWeight: 1 / 3,
         effectiveWeight: 1 / 3,
         sampleSize: 0,
+        avgConfidenceScore: null,
         directionHitRate: null,
         moveMaePct: null,
         brierScore: null,
@@ -309,7 +312,7 @@ describe('InvestingPredictionPanel', () => {
     global.fetch = originalFetch
   })
 
-  it('renders live truth, provenance, and macro calendar detail without inventing attribution from sourceSnapshot', () => {
+  it('renders live truth, roster, and macro calendar detail without inventing attribution from sourceSnapshot', () => {
     useMarketPredictionCommitteeMock.mockReturnValue({
       data: buildCommitteeResponse(3, {
         leadCall: buildCall(3, {
@@ -379,36 +382,28 @@ describe('InvestingPredictionPanel', () => {
     expect(screen.getByTestId('prediction-truth-state')).toHaveTextContent(
       'Live',
     )
-    expect(screen.getByTestId('prediction-provenance')).toHaveTextContent(
+    expect(screen.getByTestId('prediction-seat-roster')).toHaveTextContent(
       'Custom Roster',
     )
-    expect(screen.getByTestId('prediction-provenance')).toHaveTextContent(
-      'Committee Endpoint',
-    )
-    expect(screen.getByTestId('prediction-provenance')).toHaveTextContent(
-      'Seats macro, risk',
-    )
-    expect(screen.getByTestId('prediction-provenance')).toHaveTextContent(
-      'Prediction window 2026-04-20 to 2026-04-23',
+    expect(screen.getByTestId('prediction-seat-roster')).toHaveTextContent(
+      'Seats used: Macro, Risk',
     )
     expect(screen.getByTestId('prediction-hero')).toHaveTextContent(
-      /Prediction window 2026-04-20 to 2026-04-23 · as of Apr 21/i,
+      '3 trading days: Apr 20, 2026 close to Apr 23, 2026 close',
+    )
+    expect(screen.getByTestId('prediction-hero')).toHaveTextContent(
+      /Forecast 3 trading days: Apr 20, 2026 close to Apr 23, 2026 close · made Apr 21/i,
     )
     expect(
       screen.getByText('Committee stays balanced while macro risk lingers.'),
     ).toBeInTheDocument()
-    expect(
-      screen.getAllByText(/0 upcoming events tracked in the next 14 days/i),
-    ).toHaveLength(2)
-
     const sourceSection = screen.getByTestId('prediction-source-attribution')
     expect(sourceSection).toHaveTextContent('Options Positioning')
-    expect(sourceSection).not.toHaveTextContent('Macro Calendar')
+    expect(sourceSection).toHaveTextContent('Rank 50%')
+    expect(sourceSection).toHaveTextContent('Macro Calendar')
+    expect(sourceSection).toHaveTextContent('Awaiting scored history')
     expect(screen.getByTestId('prediction-freshness-state')).toHaveTextContent(
-      'Stale',
-    )
-    expect(screen.getByTestId('prediction-freshness-rail')).toHaveTextContent(
-      'Missing macro context',
+      'Old',
     )
     expect(screen.getByTestId('prediction-freshness-rail')).toHaveTextContent(
       'No future macro rows tracked.',
@@ -465,7 +460,7 @@ describe('InvestingPredictionPanel', () => {
     render(<InvestingPredictionPanel />)
 
     expect(screen.getByTestId('prediction-freshness-state')).toHaveTextContent(
-      'Invalidated',
+      'Needs refresh',
     )
     expect(
       screen.getByTestId('prediction-freshness-summary'),
@@ -476,7 +471,7 @@ describe('InvestingPredictionPanel', () => {
       screen.getByTestId('prediction-last-generated-at'),
     ).toHaveTextContent('Apr')
     expect(screen.getByTestId('prediction-freshness-rail')).toHaveTextContent(
-      'Refresh required',
+      'Refresh needed',
     )
     await user.click(screen.getByRole('button', { name: /refresh now/i }))
     expect(refreshMutate).toHaveBeenCalledWith(3)
@@ -496,7 +491,7 @@ describe('InvestingPredictionPanel', () => {
     )
   })
 
-  it('renders the review artifact panel with separate committee and review timestamps', () => {
+  it('renders learning track record with agent models and seat trends', () => {
     useMarketPredictionReviewMock.mockReturnValue({
       data: buildReviewResponse(3, {
         asOfTs: '2026-04-21T20:20:00Z',
@@ -507,6 +502,7 @@ describe('InvestingPredictionPanel', () => {
             priorWeight: 1 / 3,
             effectiveWeight: 0.29,
             sampleSize: 9,
+            avgConfidenceScore: 44,
             directionHitRate: 0.57,
             moveMaePct: 0.8,
             brierScore: 0.19,
@@ -518,6 +514,7 @@ describe('InvestingPredictionPanel', () => {
             priorWeight: 1 / 3,
             effectiveWeight: 0.39,
             sampleSize: 12,
+            avgConfidenceScore: 62,
             directionHitRate: 0.66,
             moveMaePct: 0.61,
             brierScore: 0.16,
@@ -529,6 +526,7 @@ describe('InvestingPredictionPanel', () => {
             priorWeight: 1 / 3,
             effectiveWeight: 0.32,
             sampleSize: 7,
+            avgConfidenceScore: 51,
             directionHitRate: 0.51,
             moveMaePct: 0.92,
             brierScore: 0.22,
@@ -550,6 +548,94 @@ describe('InvestingPredictionPanel', () => {
           ],
           topDownweighted: [],
         },
+        reviewHistory: [
+          {
+            generatedAt: '2026-04-20T20:20:00Z',
+            asOfTs: '2026-04-20T20:20:00Z',
+            reviewState: 'live',
+            seatScorecards: [
+              {
+                seatKey: 'cross_asset',
+                priorWeight: 1 / 3,
+                effectiveWeight: 0.31,
+                sampleSize: 8,
+                avgConfidenceScore: 41,
+                directionHitRate: 0.55,
+                moveMaePct: 0.9,
+                brierScore: 0.2,
+                skillScore: 0.6,
+                recommendedAction: 'hold',
+              },
+              {
+                seatKey: 'macro',
+                priorWeight: 1 / 3,
+                effectiveWeight: 0.35,
+                sampleSize: 10,
+                avgConfidenceScore: 58,
+                directionHitRate: 0.61,
+                moveMaePct: 0.7,
+                brierScore: 0.18,
+                skillScore: 0.69,
+                recommendedAction: 'hold',
+              },
+              {
+                seatKey: 'risk',
+                priorWeight: 1 / 3,
+                effectiveWeight: 0.34,
+                sampleSize: 6,
+                avgConfidenceScore: 52,
+                directionHitRate: 0.49,
+                moveMaePct: 1.0,
+                brierScore: 0.24,
+                skillScore: 0.55,
+                recommendedAction: 'hold',
+              },
+            ],
+          },
+          {
+            generatedAt: '2026-04-21T20:20:00Z',
+            asOfTs: '2026-04-21T20:20:00Z',
+            reviewState: 'live',
+            seatScorecards: [
+              {
+                seatKey: 'cross_asset',
+                priorWeight: 1 / 3,
+                effectiveWeight: 0.29,
+                sampleSize: 9,
+                avgConfidenceScore: 44,
+                directionHitRate: 0.57,
+                moveMaePct: 0.8,
+                brierScore: 0.19,
+                skillScore: 0.62,
+                recommendedAction: 'hold',
+              },
+              {
+                seatKey: 'macro',
+                priorWeight: 1 / 3,
+                effectiveWeight: 0.39,
+                sampleSize: 12,
+                avgConfidenceScore: 62,
+                directionHitRate: 0.66,
+                moveMaePct: 0.61,
+                brierScore: 0.16,
+                skillScore: 0.74,
+                recommendedAction: 'upweight',
+              },
+              {
+                seatKey: 'risk',
+                priorWeight: 1 / 3,
+                effectiveWeight: 0.32,
+                sampleSize: 7,
+                avgConfidenceScore: 51,
+                directionHitRate: 0.51,
+                moveMaePct: 0.92,
+                brierScore: 0.22,
+                skillScore: 0.58,
+                recommendedAction: 'downweight',
+              },
+            ],
+          },
+        ],
       }),
       isLoading: false,
       error: null,
@@ -558,12 +644,13 @@ describe('InvestingPredictionPanel', () => {
     render(<InvestingPredictionPanel />)
 
     expect(screen.getByTestId('prediction-review-panel')).toHaveTextContent(
-      'Live review',
+      'Learning track record',
     )
-    expect(
-      screen.getByTestId('prediction-review-generated-at').textContent,
-    ).not.toEqual(
-      screen.getByTestId('prediction-committee-generated-at').textContent,
+    expect(screen.getByTestId('prediction-seat-roster')).toHaveTextContent(
+      'Model: openai/gpt-5.4',
+    )
+    expect(screen.getByTestId('prediction-seat-roster')).toHaveTextContent(
+      'Agent: macro-analyst',
     )
     expect(
       screen.getByTestId('prediction-review-seat-weights'),
@@ -573,10 +660,13 @@ describe('InvestingPredictionPanel', () => {
     ).toHaveTextContent('39%')
     expect(
       screen.getByTestId('prediction-review-seat-weights'),
-    ).toHaveTextContent('Upweight')
+    ).toHaveTextContent('Trust rising')
     expect(
-      screen.getByText(/macro upweighted from 0.3333 to 0.3900/i),
-    ).toBeInTheDocument()
+      screen.getByTestId('prediction-review-seat-weights'),
+    ).toHaveTextContent('62/100')
+    expect(
+      screen.getByTestId('prediction-review-seat-weights'),
+    ).toHaveTextContent('Improving')
   })
 
   it('switches horizons and keeps the selected-truth badge wired to each window payload', async () => {
@@ -602,7 +692,9 @@ describe('InvestingPredictionPanel', () => {
 
     render(<InvestingPredictionPanel />)
 
-    await user.click(screen.getByRole('button', { name: '14D' }))
+    await user.click(
+      screen.getByRole('button', { name: '14 trading days forecast' }),
+    )
 
     expect(useMarketPredictionCommitteeMock).toHaveBeenLastCalledWith(14)
     expect(useMarketPredictionHistoryMock).toHaveBeenLastCalledWith(
@@ -611,10 +703,10 @@ describe('InvestingPredictionPanel', () => {
       30,
     )
     expect(screen.getByTestId('prediction-truth-state')).toHaveTextContent(
-      'Pending target',
+      'Awaiting target close',
     )
     expect(screen.getByTestId('prediction-truth-note')).toHaveTextContent(
-      'Two-week cohort has not reached target yet.',
+      'Two-week forecast has not reached target yet.',
     )
   })
 
@@ -645,10 +737,10 @@ describe('InvestingPredictionPanel', () => {
     const { rerender } = render(<InvestingPredictionPanel />)
 
     expect(screen.getByTestId('prediction-truth-state')).toHaveTextContent(
-      'Pending target',
+      'Awaiting target close',
     )
     expect(screen.getByTestId('prediction-truth-note')).toHaveTextContent(
-      'Current 3D cohort targets Apr 23, 2026.',
+      'Current 3 trading days forecast targets Apr 23, 2026.',
     )
 
     selectedSnapshot = buildCommitteeResponse(3, {
@@ -666,10 +758,10 @@ describe('InvestingPredictionPanel', () => {
     rerender(<InvestingPredictionPanel />)
 
     expect(screen.getByTestId('prediction-truth-state')).toHaveTextContent(
-      'Waiting after close',
+      'Waiting for score',
     )
     expect(screen.getByTestId('prediction-truth-note')).toHaveTextContent(
-      'Target date passed, but the post-close evaluation has not published yet.',
+      'Target date passed. Waiting for the scored result.',
     )
   })
 
@@ -699,13 +791,13 @@ describe('InvestingPredictionPanel', () => {
     render(<InvestingPredictionPanel />)
 
     expect(screen.getByTestId('prediction-truth-state')).toHaveTextContent(
-      'Sparse history',
+      'Limited history',
     )
     expect(screen.getByTestId('prediction-history-state')).toHaveTextContent(
       'Insufficient history',
     )
     expect(screen.getByTestId('prediction-truth-note')).toHaveTextContent(
-      'selected lead history still needs more usable committee snapshots',
+      'Need more scored forecasts for a reliable trend.',
     )
   })
 
@@ -732,18 +824,17 @@ describe('InvestingPredictionPanel', () => {
     render(<InvestingPredictionPanel />)
 
     expect(screen.getByTestId('prediction-truth-state')).toHaveTextContent(
-      'Fetch error',
+      'Refresh failed',
     )
     expect(screen.getByTestId('prediction-truth-note')).toHaveTextContent(
-      'Prediction snapshot degraded on fetch.',
+      'Latest refresh failed. Showing fallback data.',
     )
-    expect(screen.getByTestId('prediction-provenance')).toHaveTextContent(
-      'Fallback Completion',
-    )
-    expect(
-      screen.getByTestId('prediction-source-attribution'),
-    ).toHaveTextContent(
-      'Source attribution is unavailable on the degraded fetch fallback.',
+    const sourceSection = screen.getByTestId('prediction-source-attribution')
+    expect(sourceSection).toHaveTextContent('Market Regime')
+    expect(sourceSection).toHaveTextContent('Options Positioning')
+    expect(sourceSection).toHaveTextContent('Macro Calendar')
+    expect(sourceSection).not.toHaveTextContent(
+      'Source attribution is unavailable',
     )
   })
 
@@ -785,7 +876,7 @@ describe('InvestingPredictionPanel', () => {
     )
     expect(screen.getAllByText(/history offline/i).length).toBeGreaterThan(0)
     expect(screen.getByTestId('prediction-truth-state')).not.toHaveTextContent(
-      'Fetch error',
+      'Refresh failed',
     )
   })
 
@@ -891,18 +982,19 @@ describe('InvestingPredictionPanel', () => {
     render(<InvestingPredictionPanel />)
 
     expect(screen.getByTestId('prediction-truth-state')).toHaveTextContent(
-      'Legacy sparse data',
+      'Older data',
+    )
+    expect(screen.getByTestId('prediction-truth-note')).toHaveTextContent(
+      'Older data lacks source detail.',
     )
     expect(
       screen.getByTestId('prediction-source-attribution'),
-    ).toHaveTextContent(
-      'Legacy sparse data lacks surviving lead-call attribution.',
-    )
+    ).toHaveTextContent('Awaiting scored history')
     expect(screen.getByTestId('prediction-history-state')).toHaveTextContent(
       'Trend unavailable',
     )
     expect(screen.getByTestId('prediction-truth-state')).not.toHaveTextContent(
-      'Fetch error',
+      'Refresh failed',
     )
   })
 
@@ -1015,19 +1107,20 @@ describe('InvestingPredictionPanel', () => {
     render(<InvestingPredictionPanel />)
 
     expect(screen.getByTestId('prediction-truth-state')).toHaveTextContent(
-      'Pending target',
+      'Awaiting target close',
     )
     expect(screen.getByTestId('prediction-truth-note')).toHaveTextContent(
       'backend note',
     )
-    expect(screen.getByTestId('prediction-provenance')).toHaveTextContent(
+    expect(screen.getByTestId('prediction-seat-roster')).toHaveTextContent(
       'Default Roster',
     )
-    expect(
-      screen.getAllByText(/0 upcoming events tracked in the next 14 days/i),
-    ).toHaveLength(2)
+    const sourceSection = screen.getByTestId('prediction-source-attribution')
+    expect(sourceSection).toHaveTextContent('Macro Calendar')
+    expect(sourceSection).toHaveTextContent('Awaiting scored history')
+    expect(sourceSection).toHaveTextContent('No future macro rows tracked.')
     expect(screen.getByTestId('prediction-freshness-state')).toHaveTextContent(
-      'Stale',
+      'Old',
     )
 
     const refreshed = await refreshMarketPredictionCommittee(3)

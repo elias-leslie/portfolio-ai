@@ -644,6 +644,10 @@ export interface HouseholdDocumentUpload {
   sourceType?: string
   documentType?: string
   accountLabel?: string
+  accountId?: string
+  replacesDocumentId?: string
+  dateQualityIssueId?: string
+  replacementReason?: string
 }
 
 export interface HouseholdQuestionAnswer {
@@ -654,6 +658,11 @@ export interface HouseholdTransactionCategoryUpdate {
   category: string
   essentiality: string
   applyToMerchant?: boolean
+}
+
+export interface HouseholdTransactionDateIssueResolution {
+  resolution: string
+  note?: string
 }
 
 export async function fetchHouseholdDashboard(): Promise<HouseholdFinanceDashboard> {
@@ -769,6 +778,18 @@ export async function uploadHouseholdDocument(
   if (payload.accountLabel) {
     form.append('account_label', payload.accountLabel)
   }
+  if (payload.accountId) {
+    form.append('household_account_id', payload.accountId)
+  }
+  if (payload.replacesDocumentId) {
+    form.append('replaces_document_id', payload.replacesDocumentId)
+  }
+  if (payload.dateQualityIssueId) {
+    form.append('date_quality_issue_id', payload.dateQualityIssueId)
+  }
+  if (payload.replacementReason) {
+    form.append('replacement_reason', payload.replacementReason)
+  }
   return postForm<HouseholdDocument>('/api/intake/evidence', form)
 }
 
@@ -806,6 +827,16 @@ export async function categorizeHouseholdTransaction(
 ): Promise<{ ok: boolean }> {
   return post<{ ok: boolean }>(
     `/api/household/transactions/${transactionId}/categorize`,
+    payload,
+  )
+}
+
+export async function resolveHouseholdTransactionDateIssue(
+  issueId: string,
+  payload: HouseholdTransactionDateIssueResolution,
+): Promise<{ ok: boolean }> {
+  return post<{ ok: boolean }>(
+    `/api/household/transaction-date-issues/${encodeURIComponent(issueId)}/resolve`,
     payload,
   )
 }

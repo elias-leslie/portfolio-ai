@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import type { HouseholdTransactionDateIssue } from '@/lib/api/household'
 import { useUploadHouseholdDocument } from '@/lib/hooks/useHousehold'
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
@@ -14,17 +15,23 @@ const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 interface EvidenceUploadComposerProps {
   title: string
   description: string
+  accountId?: string | null
   accountLabel?: string | null
   compact?: boolean
   highlighted?: boolean
+  dateQualityRepairIssue?: HouseholdTransactionDateIssue | null
+  onClearDateQualityRepair?: () => void
 }
 
 export function EvidenceUploadComposer({
   title,
   description,
+  accountId = null,
   accountLabel = null,
   compact = false,
   highlighted = false,
+  dateQualityRepairIssue = null,
+  onClearDateQualityRepair,
 }: EvidenceUploadComposerProps) {
   const upload = useUploadHouseholdDocument()
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -43,6 +50,7 @@ export function EvidenceUploadComposer({
     setRawText('')
     setIsDragActive(false)
     setDedupedCount(0)
+    onClearDateQualityRepair?.()
     if (inputRef.current) inputRef.current.value = ''
   }
 
@@ -140,7 +148,13 @@ export function EvidenceUploadComposer({
         ...files.map((file) =>
           upload.mutateAsync({
             file,
+            accountId: accountId ?? undefined,
             accountLabel: accountLabel ?? undefined,
+            replacesDocumentId: dateQualityRepairIssue?.documentId,
+            dateQualityIssueId: dateQualityRepairIssue?.id,
+            replacementReason: dateQualityRepairIssue
+              ? 'corrected_evidence_uploaded'
+              : undefined,
           }),
         ),
       ]
@@ -153,7 +167,13 @@ export function EvidenceUploadComposer({
                 .toLowerCase()
                 .replace(/[^a-z0-9]+/g, '-')
                 .replace(/^-+|-+$/g, '') || 'pasted-evidence' + '.txt',
+            accountId: accountId ?? undefined,
             accountLabel: accountLabel ?? undefined,
+            replacesDocumentId: dateQualityRepairIssue?.documentId,
+            dateQualityIssueId: dateQualityRepairIssue?.id,
+            replacementReason: dateQualityRepairIssue
+              ? 'corrected_evidence_uploaded'
+              : undefined,
           }),
         )
       }
@@ -186,6 +206,23 @@ export function EvidenceUploadComposer({
           </span>
         ) : null}
       </div>
+
+      {dateQualityRepairIssue ? (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs text-text">
+          <span>
+            Replacing {dateQualityRepairIssue.filename} · extracted{' '}
+            {dateQualityRepairIssue.transactionDate}
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={onClearDateQualityRepair}
+          >
+            Clear
+          </Button>
+        </div>
+      ) : null}
 
       <div className="mt-4 space-y-4">
         <div
