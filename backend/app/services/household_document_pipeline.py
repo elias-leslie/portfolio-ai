@@ -38,6 +38,8 @@ from app.services._household_document_pipeline_utils import (
     parse_row_date,
 )
 from app.services._household_finance_utils import iso, iso_or_none, to_float
+from app.services.household_coding_issue_task_service import HouseholdCodingIssueTaskService
+from app.services.household_date_quality_service import HouseholdDateQualityService
 from app.services.household_finance_rows import FIELD_LABELS, row_to_document
 from app.services.household_review_agent_service import HOUSEHOLD_REVIEW_AGENT_SLUG
 
@@ -444,6 +446,71 @@ class HouseholdDocumentPipeline:
                 reconciliation_summary=reconciliation_summary,
             )
             conn.commit()
+        self._supersede_matching_date_issues(
+            service,
+            document_id=document.id,
+            reviewed=reviewed,
+            reconciliation_summary=reconciliation_summary,
+        )
+        self._queue_coding_issue_candidate(
+            service,
+            document_id=document.id,
+            reconciliation_summary=reconciliation_summary,
+        )
+
+    @staticmethod
+    def _queue_coding_issue_candidate(
+        service: HouseholdFinanceService,
+        *,
+        document_id: str,
+        reconciliation_summary: dict[str, object] | None,
+    ) -> None:
+        if not isinstance(reconciliation_summary, dict):
+            return
+        raw_candidate = reconciliation_summary.get("coding_issue_candidate")
+        candidate = raw_candidate if isinstance(raw_candidate, dict) else None
+        try:
+            HouseholdCodingIssueTaskService().export_candidate(
+                service,
+                document_id=document_id,
+                candidate=candidate,
+            )
+        except Exception as exc:
+            logger.exception(
+                "household_coding_issue_task_export_failed",
+                document_id=document_id,
+                error=str(exc),
+            )
+
+    @staticmethod
+    def _supersede_matching_date_issues(
+        service: HouseholdFinanceService,
+        *,
+        document_id: str,
+        reviewed: dict[str, object],
+        reconciliation_summary: dict[str, object] | None,
+    ) -> None:
+        if not isinstance(reconciliation_summary, dict) or reconciliation_summary.get("status") != "clear":
+            return
+        try:
+            superseded = HouseholdDateQualityService().supersede_matching_document_issues(
+                service,
+                replacement_document_id=document_id,
+                reviewed=reviewed,
+            )
+        except Exception as exc:
+            logger.exception(
+                "household_date_quality_supersede_failed",
+                document_id=document_id,
+                error=str(exc),
+            )
+            return
+        if superseded:
+            logger.info(
+                "household_date_quality_issues_superseded",
+                document_id=document_id,
+                count=superseded,
+            )
 
     def _load_latest_review_payload(
         self,
@@ -509,6 +576,17 @@ class HouseholdDocumentPipeline:
                 reconciliation_summary=reconciliation_summary,
             )
             conn.commit()
+        self._supersede_matching_date_issues(
+            service,
+            document_id=document.id,
+            reviewed=reviewed,
+            reconciliation_summary=reconciliation_summary,
+        )
+        self._queue_coding_issue_candidate(
+            service,
+            document_id=document.id,
+            reconciliation_summary=reconciliation_summary,
+        )
         logger.info(
             "household_document_reapplied_latest_review",
             document_id=document.id,
@@ -826,13 +904,15 @@ class HouseholdDocumentPipeline:
             + int(transaction_summary.get("held_for_date_review") or 0)
         )
         import_changes = int(import_summary.get("inserted") or 0)
+        source_type = str(reviewed.get("source_type") or "")
+        document_type = str(reviewed.get("document_type") or "")
         expects_transaction_activity = _bool_value(
             review_checks.get("expects_transaction_activity")
         )
         if expects_transaction_activity is None:
             expects_transaction_activity = (
-                str(reviewed.get("source_type") or "") in {"bank", "credit_card"}
-                and str(reviewed.get("document_type") or "") == "statement"
+                source_type in {"bank", "credit_card"}
+                and document_type == "statement"
             )
         ambiguity_remaining = _bool_value(review_checks.get("ambiguity_remaining")) or False
         issues: list[dict[str, object]] = _invalid_numeric_account_fields(reviewed)
@@ -853,7 +933,26 @@ class HouseholdDocumentPipeline:
                     "detail": "Review expected transaction activity but no transaction rows applied.",
                 }
             )
-        if transaction_count > 0 and transaction_linked_count < transaction_count:
+        if (
+            source_type == "receipt"
+            and document_type == "receipt"
+            and transaction_changes == 0
+            and transaction_count == 0
+        ):
+            issues.append(
+                {
+                    "code": "missing_receipt_transaction",
+                    "detail": "Receipt review produced no applied or held transaction row.",
+                }
+            )
+        requires_transaction_link = not (
+            source_type == "receipt" and evidence_account_count == 0
+        )
+        if (
+            requires_transaction_link
+            and transaction_count > 0
+            and transaction_linked_count < transaction_count
+        ):
             issues.append(
                 {
                     "code": "unlinked_transactions",
@@ -874,7 +973,7 @@ class HouseholdDocumentPipeline:
                 }
             )
         if (
-            str(reviewed.get("source_type") or "") in _ACCOUNT_EVIDENCE_SOURCE_TYPES
+            source_type in _ACCOUNT_EVIDENCE_SOURCE_TYPES
             and import_count == 0
             and transaction_count == 0
             and evidence_account_count == 0

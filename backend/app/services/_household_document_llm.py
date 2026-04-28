@@ -2,12 +2,86 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import re
 from pathlib import Path
 from typing import Any
 
-from agent_hub.models.content import MessageInput
+from agent_hub.models.content import ImageContent, MessageInput, TextContent
+
+from app.services._household_document_text import _render_pdf_pages_to_png
+
+_VISUAL_REVIEW_TEXT_THRESHOLD = 500
+_IMAGE_MEDIA_TYPES = {
+    ".bmp": "image/bmp",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+}
+
+
+def _visual_review_blocks(
+    *,
+    stored_path: Path,
+    content_type: str | None,
+    extracted_text: str | None,
+) -> list[ImageContent]:
+    if not needs_visual_review(
+        stored_path=stored_path,
+        content_type=content_type,
+        extracted_text=extracted_text,
+    ):
+        return []
+    suffix = stored_path.suffix.lower()
+    image_payloads: list[tuple[str, bytes]] = []
+    if suffix == ".pdf" or content_type == "application/pdf":
+        try:
+            image_payloads = [
+                ("image/png", png_bytes)
+                for png_bytes in _render_pdf_pages_to_png(
+                    stored_path,
+                    scale=2,
+                    max_pages=2,
+                )
+            ]
+        except Exception:
+            image_payloads = []
+    elif (content_type and content_type.startswith("image/")) or suffix in _IMAGE_MEDIA_TYPES:
+        media_type = content_type if content_type and content_type.startswith("image/") else _IMAGE_MEDIA_TYPES.get(suffix, "image/png")
+        image_payloads = [(media_type, stored_path.read_bytes())]
+
+    return [
+        ImageContent(
+            source={
+                "type": "base64",
+                "media_type": media_type,
+                "data": base64.b64encode(image_bytes).decode("ascii"),
+            }
+        )
+        for media_type, image_bytes in image_payloads[:2]
+        if image_bytes
+    ]
+
+
+def needs_visual_review(
+    *,
+    stored_path: Path,
+    content_type: str | None,
+    extracted_text: str | None,
+) -> bool:
+    if not stored_path.exists():
+        return False
+    if extracted_text and len(extracted_text) >= _VISUAL_REVIEW_TEXT_THRESHOLD:
+        return False
+    suffix = stored_path.suffix.lower()
+    return bool(
+        suffix == ".pdf"
+        or content_type == "application/pdf"
+        or (content_type and content_type.startswith("image/"))
+        or suffix in _IMAGE_MEDIA_TYPES
+    )
 
 
 def _build_messages(
@@ -68,7 +142,23 @@ def _build_messages(
         prompt_parts.extend(["", "Extracted text preview:", extracted_text[:12000]])
     else:
         prompt_parts.extend(["", "Extracted text preview:", "[none]"])
-    return [MessageInput(role="user", content="\n".join(prompt_parts))]
+    prompt_text = "\n".join(prompt_parts)
+    image_blocks = _visual_review_blocks(
+        stored_path=stored_path,
+        content_type=content_type,
+        extracted_text=extracted_text,
+    )
+    if not image_blocks:
+        return [MessageInput(role="user", content=prompt_text)]
+    return [
+        MessageInput(
+            role="user",
+            content=[
+                TextContent(text=prompt_text),
+                *image_blocks,
+            ],
+        )
+    ]
 
 
 def _parse_review_payload(content: Any) -> dict[str, Any]:

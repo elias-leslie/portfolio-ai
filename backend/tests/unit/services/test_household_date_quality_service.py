@@ -87,6 +87,64 @@ def test_mark_replaced_document_supersedes_document_and_future_rows() -> None:
     conn.commit.assert_called_once()
 
 
+def test_supersede_matching_document_issues_marks_exact_receipt_match() -> None:
+    service, conn = _service_with_connection()
+    list_result = MagicMock()
+    list_result.fetchall.return_value = [
+        (
+            "doc-old",
+            [{"amount": "164.14"}],
+            "https://www.walmart.com/orders/084371683152095307956?groupId=0",
+            {"total_amount": "164.14"},
+        )
+    ]
+    document_result = MagicMock()
+    document_result.fetchone.return_value = ("doc-old",)
+    transaction_result = MagicMock()
+    conn.execute.side_effect = [list_result, document_result, transaction_result]
+
+    updated = HouseholdDateQualityService().supersede_matching_document_issues(
+        service,
+        replacement_document_id="doc-new",
+        reviewed={
+            "extracted_text": "https://www.walmart.com/orders/084371683152095307956?groupId=0",
+            "structured_data": {"total_amount": "164.14"},
+        },
+    )
+
+    assert updated == 1
+    patch = json.loads(conn.execute.call_args_list[1].args[1][0])
+    assert patch["status"] == "superseded"
+    assert patch["replacement_document_id"] == "doc-new"
+    conn.commit.assert_called_once()
+
+
+def test_supersede_matching_document_issues_requires_amount_match() -> None:
+    service, conn = _service_with_connection()
+    list_result = MagicMock()
+    list_result.fetchall.return_value = [
+        (
+            "doc-old",
+            [{"amount": "164.14"}],
+            "https://www.walmart.com/orders/084371683152095307956?groupId=0",
+            {"total_amount": "164.14"},
+        )
+    ]
+    conn.execute.return_value = list_result
+
+    updated = HouseholdDateQualityService().supersede_matching_document_issues(
+        service,
+        replacement_document_id="doc-new",
+        reviewed={
+            "extracted_text": "https://www.walmart.com/orders/084371683152095307956?groupId=0",
+            "structured_data": {"total_amount": "165.00"},
+        },
+    )
+
+    assert updated == 0
+    conn.commit.assert_not_called()
+
+
 def test_unknown_resolution_is_rejected() -> None:
     service, _conn = _service_with_connection()
 

@@ -19,6 +19,7 @@ from app.services._household_document_baseline import (
 from app.services._household_document_llm import (
     _build_messages,
     _parse_review_payload,
+    needs_visual_review,
 )
 from app.services._household_document_pipeline_utils import (
     looks_like_transaction_activity,
@@ -169,7 +170,15 @@ class HouseholdDocumentReviewService:
             household_account_id_hint=household_account_id_hint,
         )
         signature_review = None
-        if prior_review is None and reconciliation_summary is None:
+        if (
+            prior_review is None
+            and reconciliation_summary is None
+            and not needs_visual_review(
+                stored_path=stored_path,
+                content_type=content_type,
+                extracted_text=extracted_text,
+            )
+        ):
             signature_review = self._signature_review(filename=filename, extracted_text=extracted_text)
         if signature_review is not None:
             signature_type = str(signature_review.pop("_signature_type", "") or "")

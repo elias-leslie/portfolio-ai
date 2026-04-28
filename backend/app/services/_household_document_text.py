@@ -106,8 +106,17 @@ def _extract_pdf_image_text(stored_path: Path) -> str | None:
         return None
 
     ocr_chunks: list[str] = []
-    for png_bytes in png_pages:
-        page_text = _prepare_and_ocr(Image.open(io.BytesIO(png_bytes)))
+    for page_index, png_bytes in enumerate(png_pages):
+        try:
+            page_text = _prepare_and_ocr(Image.open(io.BytesIO(png_bytes)))
+        except Exception as exc:
+            logger.warning(
+                "household_pdf_page_ocr_failed",
+                path=str(stored_path),
+                page_index=page_index,
+                error=str(exc),
+            )
+            continue
         if page_text:
             ocr_chunks.append(page_text)
     merged = "\n\n".join(ocr_chunks).strip()
@@ -127,7 +136,11 @@ def _extract_pdf_text(stored_path: Path) -> str | None:
             t in merged.lower() for t in _FINANCIAL_SIGNAL_TERMS
         )
         if needs_ocr:
-            ocr_text = _extract_pdf_image_text(stored_path)
+            try:
+                ocr_text = _extract_pdf_image_text(stored_path)
+            except Exception as exc:
+                logger.warning("household_pdf_ocr_failed", path=str(stored_path), error=str(exc))
+                ocr_text = None
             if ocr_text:
                 merged = _merge_text_fragments(merged, ocr_text)
         return merged[:_MAX_EXTRACTED_TEXT_CHARS] if merged else None

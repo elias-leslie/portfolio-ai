@@ -215,6 +215,29 @@ def test_extract_pdf_text_uses_ocr_fallback_for_low_signal_pages(
     assert "Order total $83.21" in extracted
 
 
+@patch(f"{_TEXT_MODULE}._extract_pdf_image_text")
+@patch(f"{_TEXT_MODULE}.PdfReader")
+def test_extract_pdf_text_keeps_pdf_text_when_ocr_fails(
+    mock_pdf_reader: MagicMock,
+    pdf_image_text: MagicMock,
+    tmp_path: Path,
+) -> None:
+    from app.services._household_document_text import _extract_pdf_text
+
+    pdf_path = tmp_path / "walmart.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+
+    mock_page = MagicMock()
+    mock_page.extract_text.return_value = "Return to previous page\n28/04/2026 Order details - Walmart.com"
+    mock_pdf_reader.return_value.pages = [mock_page]
+    pdf_image_text.side_effect = ImportError("libGL.so.1")
+
+    extracted = _extract_pdf_text(pdf_path)
+
+    assert extracted is not None
+    assert "Order details - Walmart.com" in extracted
+
+
 @patch(f"{_TEXT_MODULE}.PdfReader")
 def test_extract_pdf_text_keeps_later_statement_pages(
     mock_pdf_reader: MagicMock,
@@ -1289,6 +1312,50 @@ def test_signature_review_skips_generic_image_name(
     find_signature.assert_called_once()
 
 
+@patch("app.services.household_document_review.AGENT_HUB_ENABLED", True)
+@patch("app.services.household_document_review._extract_text")
+def test_review_skips_signature_for_low_text_visual_upload(
+    extract_text: MagicMock,
+    tmp_path: Path,
+) -> None:
+    extract_text.return_value = "Order details - Walmart.com"
+    service = HouseholdDocumentReviewService(agent_service=MagicMock())
+    pdf_path = tmp_path / "walmart.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+
+    with (
+        patch.object(service, "_build_household_context", return_value=None),
+        patch.object(service, "_signature_review", return_value={"summary": "stale signature"}) as signature_review,
+        patch.object(
+            service,
+            "_review_with_llm",
+            return_value={
+                "summary": "Walmart receipt",
+                "source_type": "receipt",
+                "document_type": "receipt",
+                "confidence": 0.9,
+                "structured_data": {"merchant": "Walmart", "total_amount": "11.40"},
+                "inferred_values": [],
+                "questions": [],
+            },
+        ) as review_with_llm,
+    ):
+        reviewed = service.review(
+            document_id="doc-1",
+            filename="3Order details - Walmart.com.pdf",
+            stored_path=pdf_path,
+            content_type="application/pdf",
+            source_type="receipt",
+            document_type="receipt",
+        )
+
+    signature_review.assert_not_called()
+    review_with_llm.assert_called_once()
+    structured_data = reviewed["structured_data"]
+    assert isinstance(structured_data, dict)
+    assert structured_data["total_amount"] == "11.40"
+
+
 def test_build_messages_uses_single_text_message() -> None:
     messages = _build_messages(
         payload={
@@ -1316,6 +1383,31 @@ def test_build_messages_uses_single_text_message() -> None:
     assert isinstance(messages[0].content, str)
     assert "Document metadata:" in messages[0].content
     assert "Extracted text preview:" in messages[0].content
+
+
+@patch(f"{_LLM_MODULE}._render_pdf_pages_to_png")
+def test_build_messages_attaches_low_text_pdf_image_for_review(
+    render_pdf_pages: MagicMock,
+    tmp_path: Path,
+) -> None:
+    pdf_path = tmp_path / "walmart.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+    render_pdf_pages.return_value = [b"fake-png"]
+
+    messages = _build_messages(
+        payload={"document_id": "doc-1", "filename": "walmart.pdf"},
+        stored_path=pdf_path,
+        content_type="application/pdf",
+        extracted_text="Order details - Walmart.com",
+        baseline_review={"summary": "Receipt", "structured_data": {}},
+    )
+
+    content = messages[0].content
+    assert isinstance(content, list)
+    assert content[0].type == "text"
+    assert content[1].type == "image"
+    assert content[1].source["media_type"] == "image/png"
+    assert content[1].source["data"]
 
 
 def test_build_messages_includes_context_and_prior_attempt_when_present() -> None:
