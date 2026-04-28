@@ -45,7 +45,7 @@ COPY backend/alembic ./alembic
 # ── Stage 2: Runtime ─────────────────────────────────────────────
 FROM python:3.13-slim-bookworm
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl libgl1 libglib2.0-0 \
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user before COPY --chown

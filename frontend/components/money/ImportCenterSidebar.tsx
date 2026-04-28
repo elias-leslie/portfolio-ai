@@ -1,4 +1,3 @@
-import { CheckCircle2, UploadCloud } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,7 +8,6 @@ import type {
   ImportCenter,
 } from '@/lib/api/household'
 import { formatCurrencyWhole } from '@/lib/formatters'
-import { useResolveHouseholdTransactionDateIssue } from '@/lib/hooks/useHousehold'
 import { DocumentCard } from './DocumentCard'
 
 export function ImportCenterSidebar({
@@ -19,7 +17,6 @@ export function ImportCenterSidebar({
   dateQualityIssues = [],
   moneyInbox: _moneyInbox = [],
   focusedReview = false,
-  onRepairDateIssue,
 }: {
   documents: HouseholdDocument[]
   importCenter?: ImportCenter
@@ -27,7 +24,6 @@ export function ImportCenterSidebar({
   dateQualityIssues?: HouseholdTransactionDateIssue[]
   moneyInbox?: unknown[]
   focusedReview?: boolean
-  onRepairDateIssue?: (issue: HouseholdTransactionDateIssue) => void
 }) {
   const [showAllDocuments, setShowAllDocuments] = useState(false)
   const visibleDocuments = useMemo(
@@ -59,7 +55,6 @@ export function ImportCenterSidebar({
         <DateQualityIssuesCard
           issues={dateQualityIssues}
           focusedReview={focusedReview}
-          onRepairDateIssue={onRepairDateIssue}
         />
       ) : null}
       {documents.length === 0 ? (
@@ -113,18 +108,14 @@ function formatFutureDistance(transactionDate: string) {
 function DateQualityIssuesCard({
   issues,
   focusedReview,
-  onRepairDateIssue,
 }: {
   issues: HouseholdTransactionDateIssue[]
   focusedReview: boolean
-  onRepairDateIssue?: (issue: HouseholdTransactionDateIssue) => void
 }) {
-  const resolveDateIssue = useResolveHouseholdTransactionDateIssue()
-
   return (
     <div
       id="date-quality-review"
-      className={`scroll-mt-40 rounded-2xl border p-4 ${
+      className={`rounded-2xl border p-4 ${
         focusedReview
           ? 'border-amber-400/60 bg-amber-400/10 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]'
           : 'border-border/40 bg-surface-muted/20'
@@ -143,14 +134,8 @@ function DateQualityIssuesCard({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">Needs review</Badge>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => onRepairDateIssue?.(issues[0])}
-          >
-            <UploadCloud className="h-4 w-4" />
-            Upload corrected evidence
+          <Button asChild size="sm" variant="outline">
+            <a href="#add-evidence-upload">Upload corrected evidence</a>
           </Button>
         </div>
       </div>
@@ -167,10 +152,6 @@ function DateQualityIssuesCard({
                   {issue.merchant}
                 </p>
                 <p className="mt-1 text-xs text-text-muted">{issue.filename}</p>
-                <p className="mt-1 text-xs text-text-muted">
-                  {issue.description}
-                  {issue.accountLabel ? ` · ${issue.accountLabel}` : ''}
-                </p>
               </div>
               <div className="text-right">
                 <p className="text-sm font-semibold tabular-nums text-text">
@@ -189,31 +170,9 @@ function DateQualityIssuesCard({
                 Evidence: {issue.sourceExcerpt}
               </p>
             ) : null}
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => onRepairDateIssue?.(issue)}
-              >
-                <UploadCloud className="h-4 w-4" />
-                Re-upload corrected file
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                disabled={resolveDateIssue.isPending}
-                aria-busy={resolveDateIssue.isPending}
-                onClick={() =>
-                  resolveDateIssue.mutate({
-                    issueId: issue.id,
-                    resolution: 'date_confirmed_future',
-                  })
-                }
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                Date is intentional
+            <div className="mt-3">
+              <Button asChild size="sm" variant="outline">
+                <a href="#add-evidence-upload">Re-upload corrected file</a>
               </Button>
             </div>
           </div>

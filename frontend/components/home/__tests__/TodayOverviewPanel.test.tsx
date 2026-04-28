@@ -124,7 +124,6 @@ describe('TodayOverviewPanel', () => {
         stalenessNotes: [],
       },
       isLoading: false,
-      isError: false,
     })
   })
 
@@ -198,7 +197,6 @@ describe('TodayOverviewPanel', () => {
         stalenessNotes: [],
       },
       isLoading: false,
-      isError: false,
     })
 
     render(<TodayOverviewPanel />)
@@ -207,21 +205,5 @@ describe('TodayOverviewPanel', () => {
       screen.getAllByText(/Latest close · 1D change · As of/).length,
     ).toBeGreaterThan(0)
     expect(screen.getByText(/As of time unavailable/)).toBeInTheDocument()
-  })
-
-  it('shows a compact error state when the Today market tape fails to load', () => {
-    useHomeTodayBriefMock.mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      isError: true,
-    })
-
-    render(<TodayOverviewPanel />)
-
-    expect(screen.getByText('Tape error')).toBeInTheDocument()
-    expect(screen.getByText('Fetch failed')).toBeInTheDocument()
-    expect(
-      screen.getByText(/Portfolio Market remains the source/i),
-    ).toBeInTheDocument()
   })
 })

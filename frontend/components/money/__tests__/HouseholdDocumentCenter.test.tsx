@@ -8,19 +8,12 @@ import { HouseholdDocumentCenter } from '../HouseholdDocumentCenter'
 const mutate = vi.fn()
 const mutateAsync = vi.fn()
 const useUploadHouseholdDocumentMock = vi.fn()
-const resolveMutate = vi.fn()
-const useResolveHouseholdTransactionDateIssueMock = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useUploadHouseholdDocument: () =>
     useUploadHouseholdDocumentMock() ?? {
       mutate,
       mutateAsync,
-      isPending: false,
-    },
-  useResolveHouseholdTransactionDateIssue: () =>
-    useResolveHouseholdTransactionDateIssueMock() ?? {
-      mutate: resolveMutate,
       isPending: false,
     },
 }))
@@ -30,8 +23,6 @@ describe('HouseholdDocumentCenter', () => {
     mutate.mockReset()
     mutateAsync.mockReset()
     useUploadHouseholdDocumentMock.mockReset()
-    resolveMutate.mockReset()
-    useResolveHouseholdTransactionDateIssueMock.mockReset()
   })
 
   it('stages a pasted screenshot and uploads it', async () => {
@@ -280,8 +271,7 @@ describe('HouseholdDocumentCenter', () => {
     expect(screen.queryByText(/needed right now/i)).not.toBeInTheDocument()
   })
 
-  it('surfaces focused future-date evidence issues and tags corrected re-uploads', async () => {
-    mutateAsync.mockResolvedValue(undefined)
+  it('surfaces focused future-date evidence issues without treating them as applied transactions', () => {
     render(
       <HouseholdDocumentCenter
         documents={[]}
@@ -312,82 +302,15 @@ describe('HouseholdDocumentCenter', () => {
     expect(
       screen.getByText(/1 transaction has a future date/i),
     ).toBeInTheDocument()
-    expect(document.getElementById('date-quality-review')).toHaveClass(
-      'scroll-mt-40',
-    )
     expect(screen.getByText('walmart-order.pdf')).toBeInTheDocument()
     expect(screen.getByText(/extracted 2026-09-03/i)).toBeInTheDocument()
     expect(screen.getByText('$164')).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: /upload corrected evidence/i }),
-    ).toBeInTheDocument()
-
-    await userEvent.click(
-      screen.getByRole('button', { name: /re-upload corrected file/i }),
-    )
-
+      screen.getByRole('link', { name: /upload corrected evidence/i }),
+    ).toHaveAttribute('href', '#add-evidence-upload')
     expect(
-      screen.getByText(/replacing walmart-order\.pdf · extracted 2026-09-03/i),
-    ).toBeInTheDocument()
-
-    const corrected = new File(['corrected'], 'walmart-corrected.pdf', {
-      type: 'application/pdf',
-    })
-    fireEvent.change(screen.getByLabelText(/^files$/i), {
-      target: {
-        files: [corrected],
-      },
-    })
-    fireEvent.click(screen.getByRole('button', { name: /upload file/i }))
-
-    await waitFor(() => {
-      expect(mutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({
-          file: corrected,
-          replacesDocumentId: 'doc-1',
-          dateQualityIssueId: 'future-date-1',
-          replacementReason: 'corrected_evidence_uploaded',
-        }),
-      )
-    })
-  })
-
-  it('can resolve an intentional future date without a re-upload', async () => {
-    render(
-      <HouseholdDocumentCenter
-        documents={[]}
-        dateQualityIssues={[
-          {
-            id: 'future-date-document-doc-1-0',
-            transactionId: null,
-            documentId: 'doc-1',
-            filename: 'target-order.pdf',
-            sourceType: 'receipt',
-            documentType: 'receipt',
-            transactionDate: '2026-09-03',
-            uploadedAt: '2026-03-09',
-            merchant: 'Target',
-            description: 'Target receipt',
-            amount: 42.5,
-            accountLabel: 'Visa Credit ****4635',
-            confidence: 0.9,
-            reason:
-              'Extracted transaction date is after today, so Jenny held it out instead of inserting it into the current ledger.',
-            sourceExcerpt: '09/03/2026 Target order details',
-          },
-        ]}
-        focusedReview
-      />,
-    )
-
-    await userEvent.click(
-      screen.getByRole('button', { name: /date is intentional/i }),
-    )
-
-    expect(resolveMutate).toHaveBeenCalledWith({
-      issueId: 'future-date-document-doc-1-0',
-      resolution: 'date_confirmed_future',
-    })
+      screen.getByRole('link', { name: /re-upload corrected file/i }),
+    ).toHaveAttribute('href', '#add-evidence-upload')
   })
 
   it('marks upload controls busy while household documents are uploading', () => {

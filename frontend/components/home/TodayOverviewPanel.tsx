@@ -263,11 +263,7 @@ export function TodayOverviewPanel() {
   const { data: analytics, isLoading: analyticsLoading } =
     usePortfolioAnalytics()
   const { data: market, isLoading: marketLoading } = useMarketIntelligence()
-  const {
-    data: todayBrief,
-    isError: briefError,
-    isLoading: briefLoading,
-  } = useHomeTodayBrief()
+  const { data: todayBrief, isLoading: briefLoading } = useHomeTodayBrief()
 
   const marketMood = describeMarketMood(market?.fearGreed)
   const portfolioHealth = describePortfolioHealth(analytics)
@@ -401,42 +397,24 @@ export function TodayOverviewPanel() {
                 ? `Generated ${formatRelativeTime(todayBrief.generatedAt)}`
                 : briefLoading
                   ? 'Loading tape'
-                  : briefError
-                    ? 'Tape error'
-                    : 'No timestamp'}
+                  : 'Update time unavailable'}
             </p>
           </div>
 
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {briefLoading && marketMetrics.length === 0 ? (
-              [...Array(5)].map((_, index) => (
-                <div
-                  key={`overview-market-strip-skeleton-${index}`}
-                  className={cn(
-                    'h-[4.75rem] rounded-2xl skeleton',
-                    index === 4 && 'sm:col-span-2',
-                  )}
-                />
-              ))
-            ) : marketMetrics.length > 0 ? (
-              marketMetrics.map((metric) => (
-                <MarketStripItem key={metric.key} metric={metric} />
-              ))
-            ) : (
-              <div className="rounded-2xl border border-border/30 bg-background/25 px-3 py-3 sm:col-span-2">
-                <Badge
-                  variant={briefError ? 'error' : 'outline'}
-                  className="h-5 px-2 text-[10px] uppercase tracking-[0.14em]"
-                >
-                  {briefError ? 'Fetch failed' : 'No market metrics'}
-                </Badge>
-                <p className="mt-2 text-[11px] leading-5 text-text-muted">
-                  {briefError
-                    ? 'Today market tape could not load. Portfolio Market remains the source for current market context.'
-                    : 'Today brief returned no market tape metrics for this run.'}
-                </p>
-              </div>
-            )}
+            {briefLoading && marketMetrics.length === 0
+              ? [...Array(5)].map((_, index) => (
+                  <div
+                    key={`overview-market-strip-skeleton-${index}`}
+                    className={cn(
+                      'h-[4.75rem] rounded-2xl skeleton',
+                      index === 4 && 'sm:col-span-2',
+                    )}
+                  />
+                ))
+              : marketMetrics.map((metric) => (
+                  <MarketStripItem key={metric.key} metric={metric} />
+                ))}
           </div>
         </section>
 

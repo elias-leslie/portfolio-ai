@@ -42,31 +42,6 @@ def action_rank_score(
     )
 
 
-def action_rank_metadata(
-    priority: object,
-    *,
-    impact: float = 0.0,
-    confidence: float = 0.0,
-    freshness: float = 0.0,
-    effort: float = 0.0,
-) -> dict[str, float]:
-    urgency = PRIORITY_POINTS.get(str(priority or "low"), PRIORITY_POINTS["low"])
-    return {
-        "_rank_score": action_rank_score(
-            priority,
-            impact=impact,
-            confidence=confidence,
-            freshness=freshness,
-            effort=effort,
-        ),
-        "impact_score": impact,
-        "urgency_score": urgency,
-        "confidence_score": confidence,
-        "freshness_score": freshness,
-        "effort_score": effort,
-    }
-
-
 def internal_rank_score(action: dict[str, object]) -> float:
     score = action.get("_rank_score")
     if isinstance(score, (int, float)):
@@ -75,17 +50,7 @@ def internal_rank_score(action: dict[str, object]) -> float:
 
 
 def public_action(action: dict[str, object]) -> dict[str, object]:
-    public = {key: value for key, value in action.items() if key != "_rank_score"}
-    public.setdefault("rank_score", internal_rank_score(action))
-    public.setdefault(
-        "urgency_score",
-        PRIORITY_POINTS.get(str(action.get("priority") or "low"), PRIORITY_POINTS["low"]),
-    )
-    public.setdefault("impact_score", 0.0)
-    public.setdefault("confidence_score", 0.0)
-    public.setdefault("freshness_score", 0.0)
-    public.setdefault("effort_score", 0.0)
-    return public
+    return {key: value for key, value in action.items() if key != "_rank_score"}
 
 
 def position_impact_score(portfolio_position: object | None) -> float:
@@ -99,39 +64,23 @@ def position_impact_score(portfolio_position: object | None) -> float:
 
 
 def household_rank_score(need: object) -> float:
-    return household_rank_metadata(need)["_rank_score"]
-
-
-def household_rank_metadata(need: object) -> dict[str, float]:
     action_href = str(getattr(need, "action_href", "") or "")
-    detail = str(getattr(need, "detail", "") or "")
     need_id = str(getattr(need, "id", "") or "")
     need_type = str(getattr(need, "need_type", "") or "")
     priority = getattr(need, "priority", "low")
 
-    metadata = action_rank_metadata(priority)
+    score = action_rank_score(priority)
     if "focus=account-coverage" in action_href:
-        metadata = action_rank_metadata(priority, impact=260.0, freshness=140.0, effort=20.0)
+        score = action_rank_score(priority, impact=260.0, freshness=140.0, effort=20.0)
     elif "focus=discovered-accounts" in action_href:
-        metadata = action_rank_metadata(priority, impact=220.0, freshness=120.0, effort=30.0)
+        score = action_rank_score(priority, impact=220.0, freshness=120.0, effort=30.0)
     elif "utility=evidence" in action_href:
-        metadata = action_rank_metadata(priority, impact=180.0, freshness=160.0, effort=60.0)
+        score = action_rank_score(priority, impact=180.0, freshness=160.0, effort=60.0)
     elif "utility=planning" in action_href:
         impact = 170.0 if "housing" in need_id else 130.0
-        metadata = action_rank_metadata(priority, impact=impact, effort=80.0)
-    elif "focus=date-quality" in action_href or "future-transaction" in need_id:
-        metadata = action_rank_metadata(priority, impact=260.0, freshness=180.0, effort=70.0)
-    elif need_id.startswith("need_document_") or "tab=intake" in action_href:
-        metadata = action_rank_metadata(priority, impact=190.0, freshness=120.0, effort=70.0)
-    elif "intent=evidence" in action_href:
-        if "monthly spend" in detail or "safe to spend" in detail:
-            metadata = action_rank_metadata(priority, impact=260.0, freshness=200.0, effort=70.0)
-        elif "net worth" in detail:
-            metadata = action_rank_metadata(priority, impact=220.0, freshness=160.0, effort=40.0)
-        else:
-            metadata = action_rank_metadata(priority, impact=180.0, freshness=140.0, effort=50.0)
+        score = action_rank_score(priority, impact=impact, effort=80.0)
     elif getattr(need, "related_question_id", None):
-        metadata = action_rank_metadata(priority, impact=120.0, freshness=80.0, effort=40.0)
+        score = action_rank_score(priority, impact=120.0, freshness=80.0, effort=40.0)
     elif need_type == "confirm":
-        metadata = action_rank_metadata(priority, impact=120.0, effort=40.0)
-    return metadata
+        score = action_rank_score(priority, impact=120.0, effort=40.0)
+    return score

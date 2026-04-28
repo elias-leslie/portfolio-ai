@@ -13,8 +13,6 @@ _UNKNOWN_ACCOUNT_SQL = """
     FROM household_transactions t
     WHERE t.flow_type IN ('transfer_out', 'payment')
       AND t.transaction_date <= CURRENT_DATE
-      AND COALESCE(t.metadata->'date_quality_resolution'->>'status', '')
-          NOT IN ('superseded', 'excluded')
     GROUP BY t.description, t.flow_type
     ORDER BY COUNT(*) DESC, t.description
     LIMIT 500

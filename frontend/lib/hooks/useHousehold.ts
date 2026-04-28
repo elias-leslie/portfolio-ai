@@ -16,7 +16,6 @@ import {
   type HouseholdPlanningUpdate,
   type HouseholdProfileUpdate,
   type HouseholdTrackedAccountInput,
-  resolveHouseholdTransactionDateIssue,
   updateHouseholdPlanning,
   updateHouseholdProfile,
   updateHouseholdTrackedAccount,
@@ -312,31 +311,6 @@ export function useCategorizeHouseholdTransaction() {
         error instanceof Error
           ? error.message
           : 'Failed to categorize transaction',
-      )
-    },
-  })
-}
-
-export function useResolveHouseholdTransactionDateIssue() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: ({
-      issueId,
-      resolution,
-      note,
-    }: {
-      issueId: string
-      resolution: string
-      note?: string
-    }) => resolveHouseholdTransactionDateIssue(issueId, { resolution, note }),
-    onSuccess: async () => {
-      await refreshHouseholdQueries(queryClient)
-      toast.success('Date issue resolved.')
-    },
-    onError: (error) => {
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to resolve date issue',
       )
     },
   })

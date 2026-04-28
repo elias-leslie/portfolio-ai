@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 from types import SimpleNamespace
 from typing import Any
 
@@ -47,7 +47,7 @@ class _FakeStorage:
 
 
 def test_statement_freshness_excludes_future_rows_and_surfaces_date_quality() -> None:
-    today = datetime.now(UTC).date()
+    today = date.today()
     storage = _FakeStorage(
         [
             (2, today + timedelta(days=30), today + timedelta(days=120)),
@@ -64,9 +64,7 @@ def test_statement_freshness_excludes_future_rows_and_surfaces_date_quality() ->
     assert freshness["future_transaction_count"] == 2
     assert freshness["latest_future_date"] == (today + timedelta(days=120)).isoformat()
     assert "transaction_date > CURRENT_DATE" in storage.sql[0]
-    assert "date_quality_resolution" in storage.sql[0]
     assert "transaction_date <= CURRENT_DATE" in storage.sql[2]
-    assert "date_quality_resolution" in storage.sql[2]
 
 
 def test_transaction_date_issues_include_transaction_and_held_document_rows() -> None:
@@ -122,7 +120,6 @@ def test_transaction_date_issues_include_transaction_and_held_document_rows() ->
     assert issues[1].transaction_id is None
     assert issues[1].merchant == "Target"
     assert issues[1].amount == 42.5
-    assert "date_quality_resolution" in storage.sql[0]
 
 
 def test_current_fact_queries_share_current_date_guard() -> None:
@@ -137,18 +134,6 @@ def test_current_fact_queries_share_current_date_guard() -> None:
     ]
 
     assert all("transaction_date <= CURRENT_DATE" in sql for sql in guarded_queries)
-    assert all("date_quality_resolution" in sql for sql in guarded_queries)
-
-
-def test_latest_transaction_dates_use_current_non_superseded_rows() -> None:
-    today = date.today()
-    storage = _FakeStorage([[("doc-1", today)]])
-
-    latest = queries.fetch_latest_transaction_dates_by_document(storage)
-
-    assert latest == {"doc-1": today}
-    assert "transaction_date <= CURRENT_DATE" in storage.sql[0]
-    assert "date_quality_resolution" in storage.sql[0]
 
 
 def test_detect_unknown_accounts_skips_institution_when_known_account_exists_for_same_source_type() -> None:

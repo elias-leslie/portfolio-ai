@@ -63,8 +63,6 @@ def test_get_action_queue_sorts_and_dedupes_actions() -> None:
         "Review NVDA",
     ]
     assert all("_rank_score" not in action for action in payload["actions"])
-    assert all("rank_score" in action for action in payload["actions"])
-    assert all("urgency_score" in action for action in payload["actions"])
 
 
 def test_get_action_queue_uses_rank_score_before_title_order() -> None:
@@ -139,9 +137,6 @@ def test_get_action_queue_uses_rank_score_before_title_order() -> None:
         "TSLA: Recheck this position",
     ]
     assert all("_rank_score" not in action for action in payload["actions"])
-    assert payload["actions"][0]["rank_score"] == 2489.5
-    assert payload["actions"][0]["urgency_score"] == 2000.0
-    assert payload["actions"][0]["impact_score"] == 0.0
 
 
 def test_get_action_queue_prefers_specific_household_follow_up_for_duplicate_titles() -> None:
@@ -187,44 +182,6 @@ def test_get_action_queue_prefers_specific_household_follow_up_for_duplicate_tit
     assert len(payload["actions"]) == 1
     assert payload["actions"][0]["source"] == "household"
     assert payload["actions"][0]["href"].startswith("/money?")
-
-
-def test_get_action_queue_exposes_rank_components_from_action_builders() -> None:
-    service = object.__new__(HomeActionService)
-    service._recommendation_actions = lambda: []
-    service._portfolio_health_actions = lambda: [
-        {
-            "id": "portfolio-health-top-holding",
-            "source": "portfolio",
-            "category": "investing",
-            "priority": "high",
-            "title": "Portfolio needs a concentration check",
-            "detail": "Largest holding is 60% of invested assets.",
-            "action_label": "Check concentration",
-            "href": "/portfolio?tab=holdings&highlight=concentration#portfolio-overview",
-            "symbol": None,
-            "badge": "Concentration",
-            "_rank_score": 2360.0,
-            "impact_score": 300.0,
-            "urgency_score": 2000.0,
-            "confidence_score": 80.0,
-            "freshness_score": 0.0,
-            "effort_score": 20.0,
-        }
-    ]
-    service._jenny_actions = lambda: []
-    service._workflow_actions = lambda: []
-    service._household_actions = lambda: []
-
-    action = service.get_action_queue()["actions"][0]
-
-    assert action["rank_score"] == 2360.0
-    assert action["impact_score"] == 300.0
-    assert action["urgency_score"] == 2000.0
-    assert action["confidence_score"] == 80.0
-    assert action["freshness_score"] == 0.0
-    assert action["effort_score"] == 20.0
-    assert "_rank_score" not in action
 
 
 def test_jenny_actions_link_into_decision_context() -> None:
@@ -518,41 +475,7 @@ def test_household_actions_use_specific_labels_and_focused_destinations() -> Non
                     action_href="/money?tab=accounts&focus=discovered-accounts",
                     related_question_id=None,
                 ),
-                SimpleNamespace(
-                    id="cashflow-future-transaction-dates",
-                    category="intake",
-                    title="Review future-dated transactions",
-                    detail="Future dated rows are held out.",
-                    priority="high",
-                    action_label="Review dates",
-                    action_href="/money?tab=intake&focus=date-quality",
-                    related_question_id=None,
-                ),
-            ],
-            jenny_needs=[
-                SimpleNamespace(
-                    id="need_planning_housing",
-                    need_type="provide",
-                    title="Complete housing planning",
-                    detail="Add rent or ownership costs.",
-                    priority="high",
-                    status="unsatisfied",
-                    recurrence="one_time",
-                    action_href="/money?utility=planning&focus=housing",
-                    related_question_id=None,
-                ),
-                SimpleNamespace(
-                    id="need_document_tax_return",
-                    need_type="provide",
-                    title="Upload Most recent tax return",
-                    detail="Tax documents support planning assumptions.",
-                    priority="high",
-                    status="unsatisfied",
-                    recurrence="one_time",
-                    action_href="/money?tab=intake",
-                    related_question_id=None,
-                ),
-            ],
+            ]
         )
     )
 
@@ -562,11 +485,3 @@ def test_household_actions_use_specific_labels_and_focused_destinations() -> Non
     assert actions[0]["href"] == "/money?tab=accounts&focus=account-coverage"
     assert actions[1]["action_label"] == "Review accounts"
     assert actions[1]["href"] == "/money?tab=accounts&focus=discovered-accounts"
-    assert actions[2]["action_label"] == "Review dates"
-    assert actions[2]["href"] == "/money?tab=intake&focus=date-quality"
-    assert actions[3]["title"] == "Complete housing planning"
-    assert actions[3]["action_label"] == "Add housing info"
-    assert actions[3]["href"] == "/money?utility=planning&focus=housing"
-    assert actions[4]["title"] == "Upload Most recent tax return"
-    assert actions[4]["action_label"] == "Upload document"
-    assert actions[4]["href"] == "/money?tab=intake"

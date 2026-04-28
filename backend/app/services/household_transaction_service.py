@@ -265,7 +265,7 @@ def _effective_transaction_classification(
 
 def _parse_date_value(raw_value: str) -> date | None:
     value = raw_value.strip()
-    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%B %d, %Y", "%b %d, %Y"):
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%B %d, %Y"):
         try:
             return datetime.strptime(value, fmt).date()
         except ValueError:
@@ -972,21 +972,11 @@ class HouseholdTransactionService:
             and isinstance(structured_data.get("merchant"), str)
             and isinstance(structured_data.get("total_amount"), str)
         ):
-            parsed_date = None
-            for key in ("statement_period", "receipt_date", "transaction_date"):
-                candidate = structured_data.get(key)
-                parsed_date = _parse_date_value(str(candidate)) if isinstance(candidate, str) else None
-                if parsed_date is not None:
-                    break
+            candidate = structured_data.get("statement_period")
+            parsed_date = _parse_date_value(str(candidate)) if isinstance(candidate, str) else None
             if parsed_date is None:
-                for pattern in (
-                    r"\b(\d{1,2}/\d{1,2}/\d{2,4})\b",
-                    r"\b([A-Z][a-z]{2,8}\s+\d{1,2},\s+\d{4})\b",
-                ):
-                    dm = re.search(pattern, extracted_text)
-                    parsed_date = _parse_date_value(dm.group(1)) if dm else None
-                    if parsed_date is not None:
-                        break
+                dm = re.search(r"\b(\d{1,2}/\d{1,2}/\d{2,4})\b", extracted_text)
+                parsed_date = _parse_date_value(dm.group(1)) if dm else None
             parsed_amount = _parse_decimal(str(structured_data.get("total_amount")))
             if parsed_date is not None and parsed_amount is not None:
                 category, essentiality = _classification_for_flow(

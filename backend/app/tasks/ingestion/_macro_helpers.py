@@ -18,10 +18,6 @@ from ._fundamental_helpers import to_python
 logger = get_logger(__name__)
 
 YIELD_CURVE_FIELD_COUNT = 5  # yield_3m, yield_2y, yield_5y, yield_10y, yield_30y
-FRED_INDICATORS_BY_FETCH_FN: dict[str, tuple[str, ...]] = {
-    "fetch_inflation_data": ("CPI", "CORE_CPI", "PCE", "BREAKEVEN_5Y", "BREAKEVEN_10Y"),
-    "fetch_fed_funds_data": ("FEDFUNDS", "EFFR"),
-}
 
 
 def insert_yield_curve(
@@ -62,7 +58,7 @@ def insert_macro_indicator(
     storage: PortfolioStorage,
     indicator: str,
     value: float,
-    observation_date: date,
+    as_of_date: date,
 ) -> None:
     """Insert a single macro indicator."""
     series_id = FREDSource.INDICATORS.get(indicator)
@@ -77,57 +73,10 @@ def insert_macro_indicator(
         [
             indicator,
             series_id,
-            datetime.combine(observation_date, datetime.min.time()),
+            datetime.combine(as_of_date, datetime.min.time()),
             to_python(value),
         ],
     )
-
-
-def _coerce_indicator_point(raw: Any, fallback_date: date) -> tuple[date, float] | None:
-    if raw is None:
-        return None
-    if isinstance(raw, tuple) and len(raw) == 2:
-        raw_date, raw_value = raw
-    elif isinstance(raw, dict):
-        raw_date = raw.get("observation_date") or raw.get("date")
-        raw_value = raw.get("value")
-    else:
-        raw_date = fallback_date
-        raw_value = raw
-
-    try:
-        if isinstance(raw_date, datetime):
-            observation_date = raw_date.date()
-        elif isinstance(raw_date, date):
-            observation_date = raw_date
-        elif isinstance(raw_date, str):
-            observation_date = datetime.strptime(raw_date, "%Y-%m-%d").date()
-        else:
-            observation_date = fallback_date
-        return observation_date, float(raw_value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _fetch_indicator_points(
-    fred: FREDSource,
-    fetch_fn_name: str,
-    fallback_date: date,
-) -> dict[str, tuple[date, float] | None]:
-    indicators = FRED_INDICATORS_BY_FETCH_FN.get(fetch_fn_name)
-    if indicators and hasattr(fred, "get_latest_value"):
-        return {indicator: fred.get_latest_value(indicator) for indicator in indicators}
-
-    fetch_fn = getattr(fred, fetch_fn_name, None)
-    if fetch_fn is None:
-        raise AttributeError(f"FREDSource has no method '{fetch_fn_name}'")
-    data = fetch_fn()
-    if not data:
-        return {}
-    return {
-        str(indicator).upper(): _coerce_indicator_point(value, fallback_date)
-        for indicator, value in data.items()
-    }
 
 
 def fetch_and_store_yield_curve(
@@ -155,12 +104,14 @@ def fetch_and_store_indicators(
 ) -> None:
     """Fetch a named FRED indicator set and persist each value; update stats in place."""
     try:
-        data = _fetch_indicator_points(fred, fetch_fn_name, today)
+        fetch_fn = getattr(fred, fetch_fn_name, None)
+        if fetch_fn is None:
+            raise AttributeError(f"FREDSource has no method '{fetch_fn_name}'")
+        data = fetch_fn()
         if data:
-            for indicator, point in data.items():
-                if point is not None:
-                    observation_date, value = point
-                    insert_macro_indicator(storage, indicator.upper(), value, observation_date)
+            for indicator, value in data.items():
+                if value is not None:
+                    insert_macro_indicator(storage, indicator.upper(), value, today)
                     stats["indicators_inserted"] += 1
             stats[stat_key] = True
     except Exception as e:

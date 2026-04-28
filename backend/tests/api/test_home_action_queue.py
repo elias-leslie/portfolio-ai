@@ -31,12 +31,6 @@ def test_home_action_queue_returns_actions(monkeypatch) -> None:
                             "href": "/symbols/NVDA",
                             "symbol": "NVDA",
                             "badge": "High",
-                            "rank_score": 2380.0,
-                            "impact_score": 300.0,
-                            "urgency_score": 2000.0,
-                            "confidence_score": 80.0,
-                            "freshness_score": 20.0,
-                            "effort_score": 20.0,
                         }
                     ],
                     summary="1 prioritized action ready.",
@@ -52,8 +46,6 @@ def test_home_action_queue_returns_actions(monkeypatch) -> None:
     assert payload["summary"] == "1 prioritized action ready."
     assert payload["actions"][0]["href"] == "/symbols/NVDA"
     assert payload["actions"][0]["category"] == "investing"
-    assert payload["actions"][0]["rank_score"] == 2380.0
-    assert payload["actions"][0]["impact_score"] == 300.0
 
 
 def test_home_today_brief_returns_market_pulse(monkeypatch) -> None:

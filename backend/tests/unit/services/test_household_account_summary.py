@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from app.models.household_finance import (
-    HouseholdAccountGap,
-    HouseholdAccountSummary,
     HouseholdDiscoveredAccount,
     HouseholdDocument,
     HouseholdEvidenceAccount,
@@ -336,53 +334,6 @@ def test_build_money_inbox_routes_future_date_issues_to_focused_evidence_review(
     assert inbox[0].id == "cashflow-future-transaction-dates"
     assert inbox[0].action_label == "Review dates"
     assert inbox[0].action_href == MONEY_DATE_QUALITY_ROUTE
-
-
-def test_build_money_inbox_disambiguates_duplicate_account_titles_by_owner() -> None:
-    gap = HouseholdAccountGap(
-        code="refresh_balance_soon",
-        severity="medium",
-        title="Refresh balance soon",
-        detail="Upload newer evidence.",
-    )
-    inbox = build_money_inbox(
-        accounts=[
-            HouseholdAccountSummary(
-                id="frs-elias",
-                label="FRS",
-                asset_group="retirement",
-                account_type="401k",
-                source_type="retirement",
-                owner_name="Elias B. Leslie",
-                last_balance_at="2026-04-10T00:00:00+00:00",
-                freshness_status="aging",
-                freshness_label="Refresh soon",
-                match_status="tracked",
-                gap_flags=[gap],
-            ),
-            HouseholdAccountSummary(
-                id="frs-mariana",
-                label="FRS",
-                asset_group="retirement",
-                account_type="401k",
-                source_type="retirement",
-                owner_name="Mariana Leslie",
-                last_balance_at="2026-04-10T00:00:00+00:00",
-                freshness_status="aging",
-                freshness_label="Refresh soon",
-                match_status="tracked",
-                gap_flags=[gap],
-            ),
-        ],
-        questions=[],
-        tracked_documents=2,
-        parsed_documents=2,
-        statement_freshness={"coverage_months": 1, "gap_months": []},
-    )
-
-    titles = {item.title for item in inbox}
-    assert "Refresh FRS (Elias B. Leslie)" in titles
-    assert "Refresh FRS (Mariana Leslie)" in titles
 
 
 def test_build_account_summaries_marks_stale_spending_transactions_and_routes_to_statements() -> None:

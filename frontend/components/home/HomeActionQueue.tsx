@@ -60,24 +60,6 @@ function quickActionTitle(action: HomeActionItem) {
   return undefined
 }
 
-function formatScore(value?: number | null) {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return null
-  }
-  return Math.round(value).toLocaleString()
-}
-
-function scoreChips(action: HomeActionItem) {
-  return [
-    { label: 'Rank', value: formatScore(action.rankScore) },
-    { label: 'Urgency', value: formatScore(action.urgencyScore) },
-    { label: 'Impact', value: formatScore(action.impactScore) },
-    { label: 'Confidence', value: formatScore(action.confidenceScore) },
-    { label: 'Freshness', value: formatScore(action.freshnessScore) },
-    { label: 'Effort', value: formatScore(action.effortScore) },
-  ].filter((item) => item.value != null && item.value !== '0')
-}
-
 export function HomeActionQueue() {
   const { data, isLoading, error, refetch, isFetching } = useHomeActionQueue()
   const acknowledgeNotification = useAcknowledgeJennyNotification()
@@ -240,7 +222,6 @@ export function HomeActionQueue() {
               ? formatDecisionSeverity(action.decision.severity)
               : action.badge
             const isClearing = clearingActionIds.has(action.id)
-            const chips = scoreChips(action)
 
             return (
               <div
@@ -282,23 +263,6 @@ export function HomeActionQueue() {
                     <p className="line-clamp-3 text-[12px] leading-5 text-text-muted">
                       {action.detail}
                     </p>
-                    {chips.length > 0 ? (
-                      <dl className="flex flex-wrap gap-1.5">
-                        {chips.map((chip) => (
-                          <div
-                            key={chip.label}
-                            className="inline-flex items-center gap-1 rounded-full border border-border/45 bg-surface-muted/25 px-2 py-1 text-[10px] text-text-muted"
-                          >
-                            <dt className="uppercase tracking-[0.14em]">
-                              {chip.label}
-                            </dt>
-                            <dd className="font-semibold text-text">
-                              {chip.value}
-                            </dd>
-                          </div>
-                        ))}
-                      </dl>
-                    ) : null}
                   </div>
                   {badgeLabel ? (
                     <Badge variant="outline" className="shrink-0">

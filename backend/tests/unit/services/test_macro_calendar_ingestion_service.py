@@ -43,12 +43,9 @@ class _FakeStorage:
 
     def query(self, query: str, params: Any | None = None) -> _FakeRows:
         if "SELECT id" in query and "WHERE event_type" in query:
-            assert isinstance(params, dict)
             key = (str(params["event_type"]), params["event_date"])
             existing = self.rows.get(key)
-            if existing is None:
-                return _FakeRows([])
-            return _FakeRows([{"id": existing["id"]}])
+            return _FakeRows([{"id": existing["id"]}] if existing else [])
         return _FakeRows(
             sorted(
                 [self._complete_row(row) for row in self.rows.values()],
@@ -277,8 +274,6 @@ def test_ingested_events_make_macro_calendar_cluster_fresh() -> None:
     cluster = get_macro_calendar_cluster(market_date=dt.date(2026, 4, 24), storage=storage)
 
     assert cluster["freshness"] == "fresh"
-    assert cluster["as_of_date"] == "2026-04-24"
-    assert cluster["latest_event_date"] == "2026-04-30"
     assert cluster["reason"] == "ok"
     assert cluster["upcoming_event_count"] == 2
     assert cluster["event_type_counts"] == {"fomc_decision": 1, "gdp_release": 1}

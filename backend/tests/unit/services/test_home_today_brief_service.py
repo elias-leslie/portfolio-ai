@@ -5,27 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from app.models.market_events import MarketEvent
-from app.services.home_today_brief_service import HomeTodayBriefService, _market_event_brief
-
-
-def test_market_event_brief_uses_current_market_event_schema() -> None:
-    event = MarketEvent(
-        id=1,
-        event_type="pce_release",
-        event_date="2026-04-24",
-        event_time=None,
-        title="PCE inflation release",
-        description=None,
-        impact_score=4,
-    )
-
-    assert _market_event_brief(event) == {
-        "label": "PCE inflation release",
-        "event_type": "pce_release",
-        "event_date": "2026-04-24",
-        "importance": "4",
-    }
+from app.services.home_today_brief_service import HomeTodayBriefService
 
 
 def test_agent_payload_uses_dedicated_market_pulse_agent(monkeypatch) -> None:

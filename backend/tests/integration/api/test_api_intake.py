@@ -66,16 +66,12 @@ def test_evidence_upload_preserves_optional_account_hint(tmp_path: Path) -> None
         response = client.post(
             "/api/intake/evidence",
             files={"file": ("brokerage.pdf", b"pdf bytes", "application/pdf")},
-            data={
-                "account_label": "Individual - TOD",
-                "household_account_id": "household-brokerage",
-            },
+            data={"account_label": "Individual - TOD"},
         )
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["account_label"] == "Individual - TOD"
-    assert payload["metadata"]["household_account_id_hint"] == "household-brokerage"
 
 
 def test_evidence_list_reads_existing_intake_items(tmp_path: Path) -> None:

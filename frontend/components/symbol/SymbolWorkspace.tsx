@@ -30,10 +30,6 @@ import {
   formatShareCount,
 } from './symbol-formatters'
 
-function tradingDayLabel(windowDays: number) {
-  return `${windowDays} trading day${windowDays === 1 ? '' : 's'}`
-}
-
 export function SymbolWorkspace({ symbol }: { symbol: string }) {
   const uppercaseSymbol = symbol.toUpperCase()
   const { data, isLoading, error, refetch, isFetching } =
@@ -114,7 +110,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
       ? `${data?.portfolio?.held ? 'Entry signal if not held' : 'Live entry signal'}: ${entrySignalParts.join(' · ')}`
       : null
   const predictionReviewLabel = predictionReviewSummary
-    ? `${formatEnumLabel(predictionReviewSummary.reviewState, 'Unknown')} · ${tradingDayLabel(predictionReviewSummary.windowDays)}`
+    ? `${formatEnumLabel(predictionReviewSummary.reviewState, 'Unknown')} · ${predictionReviewSummary.windowDays}D horizon`
     : null
   const marketAsOfDate =
     data?.market?.sp500AsOfDate ??

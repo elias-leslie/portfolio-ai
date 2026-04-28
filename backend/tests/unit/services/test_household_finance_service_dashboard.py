@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import Mock, patch
 
@@ -25,56 +24,12 @@ from app.services._household_dashboard_assembly import (
     _net_worth_trust,
     build_overview,
     gather_service_data,
-    household_overview_action_title,
 )
 from app.services.household_finance_service import HouseholdFinanceService
 
 
 def _service() -> HouseholdFinanceService:
     return HouseholdFinanceService()
-
-
-def test_household_overview_action_uses_ranked_household_contract() -> None:
-    action = household_overview_action_title(
-        inbox=[
-            SimpleNamespace(
-                id="cashflow-future-transaction-dates",
-                title="Review future-dated transactions",
-                priority="high",
-                detail="Future-dated transactions are held out.",
-                action_href="/money?tab=intake&focus=date-quality",
-            ),
-            SimpleNamespace(
-                id="account-cma-stale-transactions",
-                title="Refresh transactions for Cash Management Account (CMA)",
-                priority="high",
-                detail="Blocks monthly spend, budget status, and safe to spend.",
-                action_href="/money?tab=accounts&account=cma&intent=evidence",
-            ),
-        ],
-        jenny_needs=[
-            SimpleNamespace(
-                id="need_account_completeness",
-                title="Are all accounts covered?",
-                priority="high",
-                detail="Confirm account coverage.",
-                status="unsatisfied",
-                need_type="confirm",
-                action_href="/money?tab=accounts&focus=account-coverage",
-            ),
-            SimpleNamespace(
-                id="need_document_tax",
-                title="Upload tax return",
-                priority="high",
-                detail="Tax docs support assumptions.",
-                status="satisfied",
-                need_type="provide",
-                action_href="/money?tab=intake",
-            ),
-        ],
-    )
-
-    assert action == "Refresh transactions for Cash Management Account (CMA)"
 
 
 def test_get_dashboard_returns_composed_household_view() -> None:
@@ -608,57 +563,5 @@ def test_build_overview_prefers_account_summary_totals_over_legacy_portfolio_inp
     assert round(overview.liabilities_total, 2) == 2958.17
     assert round(overview.net_worth, 2) == 950076.89
     assert round(retirement_assets, 2) == 403298.57
-    assert round(taxable_assets, 2) == 546649.20
+    assert round(taxable_assets, 2) == 549736.49
     assert round(cash_reserve, 2) == 39400.59
-
-
-def test_build_overview_keeps_education_assets_out_of_taxable_fallback() -> None:
-    reports = HouseholdReports(
-        executive=HouseholdExecutiveReport(
-            headline="Visible household cash flow",
-            summary="Current spending is visible.",
-            average_monthly_spend=3000.0,
-            average_monthly_essentials=2000.0,
-            average_monthly_discretionary=700.0,
-            recent_30_day_spend=2500.0,
-            recurring_merchant_count=2,
-            tracked_expense_count=8,
-            coverage_months=3,
-        ),
-        recent_transactions=[],
-    )
-    service = SimpleNamespace(
-        evidence_service=SimpleNamespace(
-            totals_by_group=lambda _accounts: {
-                "cash": 0.0,
-                "retirement": 0.0,
-                "taxable": 0.0,
-                "education": 25000.0,
-                "debt": 0.0,
-                "credit": 0.0,
-                "other": 0.0,
-            },
-            investment_like_count=lambda _accounts: 1,
-        )
-    )
-
-    overview, retirement_assets, taxable_assets, cash_reserve, total_tracked_assets = build_overview(
-        accounts=[],
-        live_positions=[],
-        evidence_accounts=[],
-        account_summaries=[],
-        inbox=[],
-        statement_freshness={"coverage_months": 3, "gap_months": []},
-        reports=reports,
-        holdings_by_account={},
-        documents=[],
-        questions=[],
-        resolved_values=[],
-        service=service,
-    )
-
-    assert taxable_assets == 0.0
-    assert retirement_assets == 0.0
-    assert cash_reserve == 0.0
-    assert total_tracked_assets == 25000.0
-    assert overview.invested_assets == 25000.0

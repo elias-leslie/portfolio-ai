@@ -19,12 +19,6 @@ export interface HomeActionItem {
   href: string
   symbol: string | null
   badge: string | null
-  rankScore?: number | null
-  impactScore?: number | null
-  urgencyScore?: number | null
-  confidenceScore?: number | null
-  freshnessScore?: number | null
-  effortScore?: number | null
   decision?: SymbolDecisionSection | null
   execution?: HomeActionExecution | null
 }

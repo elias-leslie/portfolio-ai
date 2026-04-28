@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -628,33 +628,6 @@ def _join_with_and(items: list[str]) -> str:
     if len(items) == 2:
         return f"{items[0]} and {items[1]}"
     return f"{', '.join(items[:-1])}, and {items[-1]}"
-
-
-def _account_inbox_label(
-    account: HouseholdAccountSummary,
-    *,
-    label_counts: Counter[str],
-) -> str:
-    label = account.label
-    label_key = _duplicate_label_key(label)
-    if not label_key or label_counts[label_key] <= 1:
-        return label
-
-    normalized_label = _normalize_text(label)
-    owner_name = str(account.owner_name or "").strip()
-    if owner_name and _normalize_text(owner_name) not in normalized_label:
-        return f"{label} ({owner_name})"
-
-    account_mask = str(account.account_mask or "").strip()
-    mask_suffix = account_mask[-4:] if len(account_mask) >= 4 else account_mask
-    if mask_suffix and mask_suffix not in label:
-        return f"{label} (ending {mask_suffix})"
-
-    institution_name = str(account.institution_name or "").strip()
-    if institution_name and _normalize_text(institution_name) not in normalized_label:
-        return f"{label} ({institution_name})"
-
-    return label
 
 
 def _account_blocked_metrics(account: HouseholdAccountSummary, gap_code: str) -> list[str]:
@@ -1454,15 +1427,13 @@ def build_money_inbox(
             )
         )
 
-    account_label_counts = Counter(_duplicate_label_key(account.label) for account in accounts)
     for account in accounts:
         top_gap = _top_gap(account.gap_flags)
         if top_gap is None or top_gap.severity == "low":
             continue
-        account_label = _account_inbox_label(account, label_counts=account_label_counts)
         action_href = MONEY_ACCOUNTS_ROUTE
         action_label = "Review account"
-        title = f"Review {account_label}"
+        title = f"Review {account.label}"
         if top_gap.code in {
             "missing_evidence",
             "missing_current_state",
@@ -1475,14 +1446,14 @@ def build_money_inbox(
             action_href = MONEY_EVIDENCE_ROUTE
             action_label = "Add evidence"
             title = (
-                f"Refresh {account_label}"
+                f"Refresh {account.label}"
                 if top_gap.code in {
                     "refresh_balance_soon",
                     "refresh_soon",
                     "stale_balance",
                     "stale_evidence",
                 }
-                else f"Add evidence for {account_label}"
+                else f"Add evidence for {account.label}"
             )
             action_href = money_account_focus_route(account.id, intent="evidence")
         elif top_gap.code in {
@@ -1494,14 +1465,14 @@ def build_money_inbox(
             action_href = MONEY_EVIDENCE_ROUTE
             action_label = "Add statements"
             title = (
-                f"Refresh transactions for {account_label}"
+                f"Refresh transactions for {account.label}"
                 if top_gap.code in {"refresh_transactions_soon", "stale_transactions"}
-                else f"Add statements for {account_label}"
+                else f"Add statements for {account.label}"
             )
             action_href = money_account_focus_route(account.id, intent="evidence")
         elif top_gap.code == "unconfirmed_match":
             action_label = "Confirm account"
-            title = f"Confirm {account_label}"
+            title = f"Confirm {account.label}"
             action_href = money_account_focus_route(account.id)
         detail = _account_request_detail(account, top_gap.code) or top_gap.detail
         items.append(

@@ -3,25 +3,19 @@
 from __future__ import annotations
 
 import json
-import math
 import uuid
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from app.models.market_prediction import (
     SUPPORTED_ADAPTIVE_CLUSTER_KEYS,
     CommitteeSeatVote,
-    MarketPredictionCalibrationQuality,
     MarketPredictionCall,
     MarketPredictionClusterEvaluationSample,
     MarketPredictionClusterReview,
     MarketPredictionCommitteeResponse,
     MarketPredictionEvaluation,
     MarketPredictionEvaluationCandidate,
-    MarketPredictionNoEdgeQuality,
-    MarketPredictionQualityMetric,
-    MarketPredictionQualityReport,
-    MarketPredictionQualitySegment,
     MarketPredictionRun,
     MarketPredictionScorecard,
     MarketPredictionSeatReview,
@@ -421,7 +415,6 @@ class MarketPredictionRepository:
                         e.move_abs_error_pct,
                         e.brier_score,
                         e.metadata,
-                        v.confidence_score,
                         ROW_NUMBER() OVER (
                             PARTITION BY LOWER(BTRIM(COALESCE(v.seat_key, e.seat_key, ''))), UPPER(COALESCE(v.symbol, e.symbol, '')), r.base_date, r.target_date
                             ORDER BY r.as_of_ts DESC, e.evaluated_at DESC, e.vote_id DESC
@@ -443,8 +436,7 @@ class MarketPredictionRepository:
                     direction_hit,
                     move_abs_error_pct,
                     brier_score,
-                    metadata,
-                    confidence_score
+                    metadata
                 FROM ranked_evaluations
                 WHERE cohort_rank = 1
                 ORDER BY evaluated_at DESC, vote_id DESC
@@ -982,185 +974,6 @@ class MarketPredictionRepository:
             sample_size=int(row[3] or 0),
         )
 
-    def get_quality_report(self, window_days: int) -> MarketPredictionQualityReport:
-        call_rows = self._list_call_quality_rows(window_days)
-        seat_evaluations = self.list_vote_evaluations_for_weighting(
-            window_days=window_days,
-            effective_market_date=date.today(),
-        )
-        overall = self._quality_metric(call_rows)
-        forecast_rows = [row for row in call_rows if row["publication_state"] != "no_edge"]
-        no_edge_rows = [row for row in call_rows if row["publication_state"] == "no_edge"]
-        forecast_metrics = self._quality_metric(forecast_rows)
-        no_edge_metrics = self._quality_metric(no_edge_rows)
-        no_edge_brier_delta = (
-            no_edge_metrics.brier_score - forecast_metrics.brier_score
-            if no_edge_metrics.brier_score is not None and forecast_metrics.brier_score is not None
-            else None
-        )
-        return MarketPredictionQualityReport(
-            generated_at=datetime.now(UTC),
-            window_days=window_days,
-            overall=overall,
-            calibration=self._calibration_quality(call_rows),
-            no_edge=MarketPredictionNoEdgeQuality(
-                total_sample_size=len(call_rows),
-                no_edge_sample_size=len(no_edge_rows),
-                no_edge_rate=(len(no_edge_rows) / len(call_rows)) if call_rows else None,
-                forecast_metrics=forecast_metrics,
-                no_edge_metrics=no_edge_metrics,
-                no_edge_brier_delta=no_edge_brier_delta,
-            ),
-            publication_segments=self._quality_segments(call_rows, key="publication_state"),
-            aggregation_segments=self._quality_segments(call_rows, key="aggregation_mode"),
-            seat_segments=self._seat_quality_segments(seat_evaluations),
-            symbol_segments=self._quality_segments(call_rows, key="symbol"),
-        )
-
-    def _list_call_quality_rows(self, window_days: int) -> list[dict[str, Any]]:
-        with self.storage.connection() as conn:
-            rows = conn.execute(
-                """
-                WITH ranked_evaluations AS (
-                    SELECT
-                        c.id,
-                        c.symbol,
-                        c.window_days,
-                        c.prob_up,
-                        c.confidence_score,
-                        c.metadata,
-                        e.direction_hit,
-                        e.move_abs_error_pct,
-                        e.brier_score,
-                        e.realized_move_pct,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY UPPER(COALESCE(c.symbol, '')), r.base_date, r.target_date
-                            ORDER BY r.as_of_ts DESC, e.evaluated_at DESC, c.id DESC
-                        ) AS cohort_rank
-                    FROM market_prediction_evaluations e
-                    JOIN market_prediction_calls c ON c.id = e.call_id
-                    JOIN market_prediction_runs r ON r.id = c.run_id
-                    WHERE c.window_days = %s
-                )
-                SELECT
-                    id,
-                    symbol,
-                    window_days,
-                    prob_up,
-                    confidence_score,
-                    metadata,
-                    direction_hit,
-                    move_abs_error_pct,
-                    brier_score,
-                    realized_move_pct
-                FROM ranked_evaluations
-                WHERE cohort_rank = 1
-                ORDER BY symbol ASC, id ASC
-                """,
-                [window_days],
-            ).fetchall()
-        normalized: list[dict[str, Any]] = []
-        for row in rows:
-            metadata = self._load(row[5], {})
-            calibration = metadata.get("probability_calibration") if isinstance(metadata, dict) else None
-            publication_state = self._clean_segment_key(metadata.get("publication_state") if isinstance(metadata, dict) else None, "forecast")
-            aggregation_mode = self._clean_segment_key(metadata.get("aggregation_mode") if isinstance(metadata, dict) else None, "unknown")
-            normalized.append(
-                {
-                    "id": str(row[0]),
-                    "symbol": str(row[1]).upper(),
-                    "window_days": int(row[2]),
-                    "prob_up": float(row[3]),
-                    "confidence_score": float(row[4]) if row[4] is not None else None,
-                    "publication_state": publication_state,
-                    "aggregation_mode": aggregation_mode,
-                    "direction_hit": bool(row[6]),
-                    "move_abs_error_pct": float(row[7]),
-                    "brier_score": float(row[8]),
-                    "realized_move_pct": float(row[9]),
-                    "raw_prob_up": self._metadata_float(calibration, "raw_prob_up"),
-                    "calibration_shrink": self._metadata_float(calibration, "shrink"),
-                }
-            )
-        return normalized
-
-    def _quality_segments(self, rows: list[dict[str, Any]], *, key: str) -> list[MarketPredictionQualitySegment]:
-        grouped: dict[str, list[dict[str, Any]]] = {}
-        for row in rows:
-            grouped.setdefault(self._clean_segment_key(row.get(key), "unknown"), []).append(row)
-        return [
-            MarketPredictionQualitySegment(
-                key=segment_key,
-                label=segment_key.replace("_", " ").title(),
-                metrics=self._quality_metric(segment_rows),
-            )
-            for segment_key, segment_rows in sorted(grouped.items(), key=lambda item: (-len(item[1]), item[0]))
-        ]
-
-    def _seat_quality_segments(
-        self,
-        evaluations: list[MarketPredictionVoteEvaluation],
-    ) -> list[MarketPredictionQualitySegment]:
-        grouped: dict[str, list[MarketPredictionVoteEvaluation]] = {}
-        for evaluation in evaluations:
-            grouped.setdefault(self._clean_segment_key(evaluation.seat_key, "unknown"), []).append(evaluation)
-        segments: list[MarketPredictionQualitySegment] = []
-        for seat_key, rows in sorted(grouped.items(), key=lambda item: (-len(item[1]), item[0])):
-            metric_rows = [
-                {
-                    "direction_hit": row.direction_hit,
-                    "move_abs_error_pct": row.move_abs_error_pct,
-                    "brier_score": row.brier_score,
-                    "confidence_score": self._metadata_float(row.metadata, "confidence_score"),
-                    "prob_up": None,
-                }
-                for row in rows
-            ]
-            segments.append(
-                MarketPredictionQualitySegment(
-                    key=seat_key,
-                    label=seat_key.replace("_", " ").title(),
-                    metrics=self._quality_metric(metric_rows),
-                )
-            )
-        return segments
-
-    def _quality_metric(self, rows: list[dict[str, Any]]) -> MarketPredictionQualityMetric:
-        if not rows:
-            return MarketPredictionQualityMetric()
-        return MarketPredictionQualityMetric(
-            sample_size=len(rows),
-            direction_hit_rate=self._average(1.0 if row.get("direction_hit") else 0.0 for row in rows),
-            move_mae_pct=self._average(row.get("move_abs_error_pct") for row in rows),
-            brier_score=self._average(row.get("brier_score") for row in rows),
-            avg_confidence_score=self._average(row.get("confidence_score") for row in rows),
-            avg_prob_up=self._average(row.get("prob_up") for row in rows),
-        )
-
-    def _calibration_quality(self, rows: list[dict[str, Any]]) -> MarketPredictionCalibrationQuality:
-        calibrated_rows = [row for row in rows if row.get("raw_prob_up") is not None]
-        if not calibrated_rows:
-            return MarketPredictionCalibrationQuality()
-        raw_brier_scores = [
-            (self._actual_up(row.get("realized_move_pct")) - float(row["raw_prob_up"])) ** 2
-            for row in calibrated_rows
-        ]
-        raw_brier = self._average(raw_brier_scores)
-        calibrated_brier = self._average(row.get("brier_score") for row in calibrated_rows)
-        improvement = (
-            raw_brier - calibrated_brier
-            if raw_brier is not None and calibrated_brier is not None
-            else None
-        )
-        return MarketPredictionCalibrationQuality(
-            sample_size=len(calibrated_rows),
-            raw_brier_score=raw_brier,
-            calibrated_brier_score=calibrated_brier,
-            brier_improvement=improvement,
-            brier_improvement_pct=(improvement / raw_brier) if improvement is not None and raw_brier else None,
-            avg_shrink=self._average(row.get("calibration_shrink") for row in calibrated_rows),
-        )
-
     def get_last_evaluated_at(self, window_days: int) -> datetime | None:
         with self.storage.connection() as conn:
             row = conn.execute(
@@ -1188,46 +1001,6 @@ class MarketPredictionRepository:
             return value
         parsed = datetime.fromisoformat(str(value))
         return parsed
-
-    @staticmethod
-    def _clean_segment_key(value: Any, fallback: str) -> str:
-        text = str(value or "").strip().lower()
-        return text or fallback
-
-    @staticmethod
-    def _metadata_float(metadata: Any, key: str) -> float | None:
-        if not isinstance(metadata, dict):
-            return None
-        value = metadata.get(key)
-        try:
-            numeric = None if value is None else float(value)
-        except (TypeError, ValueError):
-            return None
-        return numeric if numeric is not None and math.isfinite(numeric) else None
-
-    @staticmethod
-    def _average(values: Any) -> float | None:
-        numeric_values: list[float] = []
-        for value in values:
-            if value is None:
-                continue
-            try:
-                numeric = float(value)
-            except (TypeError, ValueError):
-                continue
-            if math.isfinite(numeric):
-                numeric_values.append(numeric)
-        if not numeric_values:
-            return None
-        return sum(numeric_values) / len(numeric_values)
-
-    @staticmethod
-    def _actual_up(realized_move_pct: Any) -> float:
-        try:
-            realized = float(realized_move_pct)
-        except (TypeError, ValueError):
-            return 0.0
-        return 1.0 if realized > 0 else 0.0
 
     def _row_to_call(self, row: tuple[Any, ...]) -> MarketPredictionCall:
         return MarketPredictionCall.model_construct(
@@ -1264,10 +1037,6 @@ class MarketPredictionRepository:
         )
 
     def _row_to_vote_evaluation(self, row: tuple[Any, ...]) -> MarketPredictionVoteEvaluation:
-        metadata = dict(self._load(row[11], {}))
-        confidence_score = row[12] if len(row) > 12 else None
-        if confidence_score is not None:
-            metadata["confidence_score"] = float(confidence_score)
         return MarketPredictionVoteEvaluation.model_construct(
             vote_id=int(row[0]),
             evaluated_at=self._coerce_datetime(row[1]),
@@ -1280,7 +1049,7 @@ class MarketPredictionRepository:
             direction_hit=bool(row[8]),
             move_abs_error_pct=float(row[9]),
             brier_score=float(row[10]),
-            metadata=metadata,
+            metadata=self._load(row[11], {}),
         )
 
     def _row_to_seat_review(self, row: tuple[Any, ...]) -> MarketPredictionSeatReview:

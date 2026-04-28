@@ -9,7 +9,7 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 
-from app.constants import ALL_MARKET_SYMBOLS, TRADING_DAYS_PER_YEAR
+from app.constants import TRADING_DAYS_PER_YEAR
 from app.logging_config import get_logger
 from app.storage import get_storage
 from app.tasks.ingestion._ohlcv_helpers import (
@@ -64,13 +64,13 @@ def _ingest_historical_ohlcv_impl(
 def refresh_daily_ohlcv(
     symbols: list[str] | None = None,
 ) -> dict[str, int | str | float]:
-    """Refresh latest OHLCV data for critical market-decision symbols.
+    """Refresh latest OHLCV data for critical symbols (SPY by default).
 
     Fetches the most recent 5 trading days to ensure fresh data,
     scheduled to run daily to keep day_bars table current.
 
     Args:
-        symbols: List of symbols (default: market indicators, sector ETFs, and committee evidence symbols).
+        symbols: List of symbols (default: ["SPY"]).
 
     Returns:
         Dict with task results:
@@ -81,7 +81,7 @@ def refresh_daily_ohlcv(
         >>> refresh_daily_ohlcv(["SPY", "QQQ", "IWM"])
     """
     if symbols is None:
-        symbols = ALL_MARKET_SYMBOLS
+        symbols = ["SPY"]
 
     task_id = str(uuid.uuid4())
     logger.info("refresh_daily_ohlcv_started", task_id=task_id, symbols=symbols)

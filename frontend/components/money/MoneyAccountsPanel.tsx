@@ -842,10 +842,7 @@ export function MoneyAccountsPanel({
                           </div>
                         </div>
 
-                        <div
-                          id={`account-evidence-upload-${account.id}`}
-                          className="scroll-mt-40"
-                        >
+                        <div id={`account-evidence-upload-${account.id}`}>
                           <EvidenceUploadComposer
                             compact
                             highlighted={
@@ -854,7 +851,6 @@ export function MoneyAccountsPanel({
                             }
                             title="Add evidence to this account"
                             description="Use this when you already know the account. Jenny still verifies the contents before applying any update."
-                            accountId={account.id}
                             accountLabel={account.label}
                           />
                         </div>

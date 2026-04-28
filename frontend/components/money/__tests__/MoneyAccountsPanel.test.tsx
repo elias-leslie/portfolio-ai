@@ -160,11 +160,6 @@ describe('MoneyAccountsPanel', () => {
     expect(screen.getByText('Supporting documents')).toBeInTheDocument()
     expect(screen.getByText('checking-april.pdf')).toBeInTheDocument()
     expect(screen.getByText(/hint: main checking/i)).toBeInTheDocument()
-    expect(
-      screen
-        .getByText('Drop account evidence here')
-        .closest('[id^="account-evidence-upload-"]'),
-    ).toHaveClass('scroll-mt-40')
 
     const input = screen.getByLabelText('Files')
     const file = new File(['pdf'], 'may.pdf', { type: 'application/pdf' })
@@ -180,7 +175,6 @@ describe('MoneyAccountsPanel', () => {
       expect(uploadMutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({
           file,
-          accountId: 'account-1',
           accountLabel: 'Main Checking',
         }),
       )
@@ -204,7 +198,6 @@ describe('MoneyAccountsPanel', () => {
         expect.objectContaining({
           rawText:
             'Available balance $25,057\nPosted transaction 04/06/2026\nVendor: Amazon',
-          accountId: 'account-1',
           accountLabel: 'Main Checking',
         }),
       )

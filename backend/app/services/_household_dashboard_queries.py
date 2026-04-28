@@ -14,9 +14,6 @@ from app.services._household_dashboard_builders import (
     suggest_category,
     suggest_essentiality,
 )
-from app.services._household_dashboard_date_issues import (
-    fetch_transaction_date_issues as _fetch_transaction_date_issues_impl,
-)
 from app.services._household_dashboard_queries_shared import (
     _date_value,
     _days_since,
@@ -34,9 +31,6 @@ from app.services._household_dashboard_query_sql import (
     RETIREMENT_CONTRIBUTION_SQL,
     STATEMENT_FRESHNESS_SQL,
 )
-from app.services._household_dashboard_unknown_accounts import (
-    detect_unknown_accounts as _detect_unknown_accounts_impl,
-)
 
 # Backward-compatible aliases while this module is being slimmed down.
 _CATEGORIZATION_SQL = CATEGORIZATION_SQL
@@ -53,8 +47,6 @@ _UNKNOWN_ACCOUNT_SQL = """
     FROM household_transactions t
     WHERE t.flow_type IN ('transfer_out', 'payment')
       AND t.transaction_date <= CURRENT_DATE
-      AND COALESCE(t.metadata->'date_quality_resolution'->>'status', '')
-          NOT IN ('superseded', 'excluded')
     GROUP BY t.description, t.flow_type
     ORDER BY COUNT(*) DESC, t.description
     LIMIT 500
@@ -62,11 +54,19 @@ _UNKNOWN_ACCOUNT_SQL = """
 
 
 def fetch_transaction_date_issues(storage: Any, limit: int = 12):
-    return _fetch_transaction_date_issues_impl(storage, limit=limit)
+    from app.services._household_dashboard_date_issues import (
+        fetch_transaction_date_issues as _impl,
+    )
+
+    return _impl(storage, limit=limit)
 
 
 def detect_unknown_accounts(storage: Any, documents: list[Any]):
-    return _detect_unknown_accounts_impl(storage, documents)
+    from app.services._household_dashboard_unknown_accounts import (
+        detect_unknown_accounts as _impl,
+    )
+
+    return _impl(storage, documents)
 
 
 def _empty_future_transaction_quality() -> dict[str, Any]:

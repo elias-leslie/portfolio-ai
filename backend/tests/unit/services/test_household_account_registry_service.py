@@ -78,27 +78,6 @@ class _ConnectionRecorder:
         self.calls.append((sql, params))
 
 
-class _Rows:
-    def __init__(self, rows: list[tuple[object, ...]]) -> None:
-        self.rows = rows
-
-    def fetchall(self) -> list[tuple[object, ...]]:
-        return self.rows
-
-
-class _TransactionSyncConnection:
-    def __init__(self, rows: list[tuple[object, ...]]) -> None:
-        self.rows = rows
-        self.updates: list[list[object] | None] = []
-
-    def execute(self, sql: str, params: list[object] | None = None) -> _Rows:
-        if "SELECT" in sql and "FROM household_transactions" in sql:
-            return _Rows(self.rows)
-        if "UPDATE household_transactions" in sql:
-            self.updates.append(params)
-        return _Rows([])
-
-
 def _evidence(
     *,
     evidence_id: str,
@@ -222,23 +201,6 @@ def test_derive_account_mask_ignores_year_like_export_tokens() -> None:
     )
     assert derive_account_mask("Shares", "529 college savings account", None) is None
     assert derive_account_mask("5313", "Prime Visa", None) == "5313"
-
-
-def test_sync_transactions_moves_stale_document_transactions_to_current_evidence_account() -> None:
-    registry = HouseholdAccountRegistryService()
-    conn = _TransactionSyncConnection(
-        [
-            ("txn-stale", "old-account", "doc-1", None, None, ["new-account"]),
-            ("txn-current", "new-account", "doc-1", None, None, ["new-account"]),
-        ]
-    )
-
-    updated = registry._sync_transactions(conn, identity_map={})  # type: ignore[attr-defined]
-
-    assert updated == 1
-    assert conn.updates[0] is not None
-    assert conn.updates[0][0] == "new-account"
-    assert conn.updates[0][2] == "txn-stale"
 
 
 def test_should_not_merge_same_owner_sibling_evidence_accounts() -> None:
