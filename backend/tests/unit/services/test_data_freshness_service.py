@@ -5,7 +5,11 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from app.constants import PREDICTION_TARGET_SYMBOLS
+from app.constants import (
+    MARKET_PREDICTION_AUXILIARY_SYMBOLS,
+    MARKET_PREDICTION_PRICE_SYMBOLS,
+    PREDICTION_TARGET_SYMBOLS,
+)
 from app.services import data_freshness_service
 
 
@@ -197,6 +201,26 @@ def test_decision_symbol_day_bars_freshness_marks_missing_symbol_critical(monkey
     assert result["reason"] == "missing_symbols"
     assert result["missing_symbols"] == ["VTI"]
     assert result["expected_date"] == "2026-04-27"
+
+
+def test_decision_symbol_rows_include_committee_auxiliary_symbols() -> None:
+    fake_conn = Mock()
+    fake_conn.execute.return_value.fetchall.return_value = []
+
+    @contextmanager
+    def fake_connection():
+        yield fake_conn
+
+    fake_storage = Mock()
+    fake_storage.connection.side_effect = fake_connection
+
+    rows = data_freshness_service._fetch_decision_symbol_rows(fake_storage)
+
+    assert rows == []
+    symbols_arg = fake_conn.execute.call_args.args[1][0]
+    assert symbols_arg == MARKET_PREDICTION_PRICE_SYMBOLS
+    assert all(symbol in symbols_arg for symbol in PREDICTION_TARGET_SYMBOLS)
+    assert all(symbol in symbols_arg for symbol in MARKET_PREDICTION_AUXILIARY_SYMBOLS)
 
 
 def test_check_all_tables_freshness_includes_decision_symbol_gate(monkeypatch) -> None:

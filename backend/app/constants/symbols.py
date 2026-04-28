@@ -102,13 +102,34 @@ SECTOR_LABELS: dict[str, dict[str, str]] = {
 # COMBINED SYMBOL LISTS
 # =============================================================================
 
-# All market symbols for historical data ingestion
-# Includes both market indicators and sector ETFs
-ALL_MARKET_SYMBOLS: list[str] = MARKET_INDICATORS + list(SECTOR_ETFS.keys())
-
 # Sector ETF symbols only (for iteration)
 SECTOR_ETF_SYMBOLS: list[str] = list(SECTOR_ETFS.keys())
 
 # Canonical target universe for the market-prediction committee v1.
 # Keeps the scope explicit and aligned with the approved product contract.
 PREDICTION_TARGET_SYMBOLS: list[str] = [BENCHMARK_SPY, *SECTOR_ETF_SYMBOLS]
+
+# Symbols used as auxiliary evidence by market-prediction clusters.
+MAG7_LEADERSHIP_SYMBOLS: list[str] = [
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "AMZN",
+    "META",
+    "GOOGL",
+    "TSLA",
+]
+OIL_SHOCK_PROXY_SYMBOL = "CL=F"
+MARKET_PREDICTION_AUXILIARY_SYMBOLS: list[str] = [
+    *MAG7_LEADERSHIP_SYMBOLS,
+    OIL_SHOCK_PROXY_SYMBOL,
+]
+MARKET_PREDICTION_PRICE_SYMBOLS: list[str] = list(
+    dict.fromkeys([*PREDICTION_TARGET_SYMBOLS, *MARKET_PREDICTION_AUXILIARY_SYMBOLS])
+)
+
+# All market symbols for historical data ingestion.
+# Includes indicators, sector ETFs, and auxiliary committee evidence symbols.
+ALL_MARKET_SYMBOLS: list[str] = list(
+    dict.fromkeys([*MARKET_INDICATORS, *SECTOR_ETF_SYMBOLS, *MARKET_PREDICTION_AUXILIARY_SYMBOLS])
+)

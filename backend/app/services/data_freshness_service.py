@@ -15,7 +15,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING
 
-from app.constants import PREDICTION_TARGET_SYMBOLS
+from app.constants import MARKET_PREDICTION_PRICE_SYMBOLS
 from app.hatchet_app import get_admin_client
 from app.logging_config import get_logger
 from app.services._data_freshness_config import (
@@ -212,7 +212,7 @@ def _fetch_decision_symbol_rows(storage: ConnectionManager) -> list[dict[str, ob
         ORDER BY ds.symbol
     """
     with storage.connection() as conn:
-        rows = conn.execute(query, [PREDICTION_TARGET_SYMBOLS]).fetchall()
+        rows = conn.execute(query, [MARKET_PREDICTION_PRICE_SYMBOLS]).fetchall()
     return [{"symbol": row[0], "last_update": row[1]} for row in rows]
 
 

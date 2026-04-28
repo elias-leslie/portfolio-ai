@@ -11,7 +11,12 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any, cast
 
 from app.agents.clients.agent_hub_client import AgentHubAPIClient
-from app.constants import MARKET_SYMBOL, PREDICTION_TARGET_SYMBOLS
+from app.constants import (
+    MAG7_LEADERSHIP_SYMBOLS,
+    MARKET_SYMBOL,
+    OIL_SHOCK_PROXY_SYMBOL,
+    PREDICTION_TARGET_SYMBOLS,
+)
 from app.logging_config import get_logger
 from app.models.market_prediction import (
     BASELINE_PREDICTION_SEAT_KEY,
@@ -98,7 +103,7 @@ DEFAULT_LLM_ROSTER_IDENTITY = [
     }
     for seat in DEFAULT_LLM_ROSTER
 ]
-MAG7_TICKERS = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA"]
+MAG7_TICKERS = MAG7_LEADERSHIP_SYMBOLS
 MAG7_SECTOR_PROXIES = ["XLK", "XLC", "XLY"]
 WTI_SERIES_ID = "DCOILWTICO"
 SEAT_CLUSTER_PREFERENCES = {
@@ -483,7 +488,7 @@ class MarketPredictionCommitteeService:
         missing_tickers = [symbol for symbol in MAG7_TICKERS if symbol not in available_tickers]
         freshness = "missing"
         if len(available_tickers) >= 4 and proxy_ok and latest_common_date is not None:
-            freshness = "fresh" if latest_common_date == effective_market_date.isoformat() else "stale"
+            freshness = "fresh" if latest_common_date >= effective_market_date.isoformat() else "stale"
         leader_symbol = laggard_symbol = None
         leader_change_pct = laggard_change_pct = average_change_pct = None
         if symbol_changes:
@@ -596,29 +601,67 @@ class MarketPredictionCommitteeService:
         cleaned.sort(key=lambda item: item[0], reverse=True)
         return cleaned[:2]
 
+    def _load_oil_proxy_observations(self, *, market_date: date) -> list[tuple[date, float]]:
+        rows = self.storage.query(
+            """
+            SELECT date, close
+            FROM day_bars
+            WHERE symbol = ?
+              AND date <= ?::date + INTERVAL '1 day'
+            ORDER BY date DESC
+            LIMIT 5
+            """,
+            [OIL_SHOCK_PROXY_SYMBOL, market_date],
+        )
+        observations: list[tuple[date, float]] = []
+        for row in rows.iter_rows(named=True):
+            observation_date = row.get("date")
+            value = row.get("close")
+            if not isinstance(observation_date, date) or value is None:
+                continue
+            try:
+                numeric_value = float(value)
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(numeric_value):
+                continue
+            observations.append((observation_date, numeric_value))
+        return observations[:2]
+
     def _build_oil_shock_overlay_cluster(self, *, as_of_ts: datetime) -> dict[str, Any]:
         market_date = get_expected_data_date(as_of_ts.astimezone(NY_TZ))
-        observations = self._load_oil_observations(market_date=market_date)
+        observations = self._load_oil_proxy_observations(market_date=market_date)
+        source = "yfinance_day_bars"
+        canonical_series = OIL_SHOCK_PROXY_SYMBOL
+        if len(observations) < 2 or observations[0][0] < market_date:
+            observations = self._load_oil_observations(market_date=market_date)
+            source = "fred"
+            canonical_series = WTI_SERIES_ID
         if len(observations) < 2:
             return {
                 "freshness": "missing",
                 "gate_state": "missing",
-                "canonical_series": WTI_SERIES_ID,
+                "canonical_series": canonical_series,
+                "source": source,
                 "latest_observation_date": None,
                 "latest_value": None,
                 "prior_value": None,
                 "daily_change_pct": None,
                 "event_tags": [],
                 "note": None,
-            }
+        }
         (latest_date, latest_value), (_, prior_value) = observations[:2]
         daily_change_pct = None if prior_value == 0 else ((latest_value / prior_value) - 1.0) * 100.0
-        freshness = "fresh" if latest_date == market_date else "stale"
-        gate_state = "active" if daily_change_pct is not None and abs(daily_change_pct) >= 2.0 else "off"
+        freshness = "fresh" if latest_date >= market_date else "stale"
+        if freshness == "stale":
+            gate_state = "stale"
+        else:
+            gate_state = "active" if daily_change_pct is not None and abs(daily_change_pct) >= 2.0 else "off"
         return {
             "freshness": freshness,
             "gate_state": gate_state,
-            "canonical_series": WTI_SERIES_ID,
+            "canonical_series": canonical_series,
+            "source": source,
             "latest_observation_date": latest_date.isoformat(),
             "latest_value": latest_value,
             "prior_value": prior_value,
@@ -905,7 +948,7 @@ class MarketPredictionCommitteeService:
                 continue
             if close_value is None or not math.isfinite(close_value) or close_value <= 0:
                 invalid_close_symbols.append(symbol)
-            if normalized_date != market_date.isoformat():
+            if normalized_date < market_date.isoformat():
                 stale_symbols.append(symbol)
         cluster["missing_symbols"] = missing_symbols
         cluster["stale_symbols"] = stale_symbols
@@ -915,7 +958,7 @@ class MarketPredictionCommitteeService:
             cluster["latest_common_date"] = latest_common_date
             if missing_symbols or invalid_close_symbols:
                 cluster["freshness"] = "missing"
-            elif stale_symbols or latest_common_date != market_date.isoformat():
+            elif stale_symbols or latest_common_date < market_date.isoformat():
                 cluster["freshness"] = "stale"
             else:
                 cluster["freshness"] = "fresh"
@@ -934,7 +977,7 @@ class MarketPredictionCommitteeService:
         as_of_date = self._normalize_iso_date(cluster.get("as_of_date"))
         if as_of_date is not None:
             cluster["as_of_date"] = as_of_date
-            cluster["freshness"] = "fresh" if as_of_date == market_date.isoformat() else "stale"
+            cluster["freshness"] = "fresh" if as_of_date >= market_date.isoformat() else "stale"
             return cluster
         if any(cluster.get(key) is not None for key in ("call_pct", "near_term_pct", "concentration_pct")):
             cluster["freshness"] = self._normalize_source_freshness(cluster.get("freshness"))

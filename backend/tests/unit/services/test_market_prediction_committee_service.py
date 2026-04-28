@@ -412,6 +412,65 @@ def test_market_regime_freshness_requires_every_prediction_target() -> None:
     assert cluster["latest_common_date"] == "2026-04-21"
 
 
+def test_market_regime_freshness_accepts_newer_session_prices() -> None:
+    service = MarketPredictionCommitteeService(repository=_FakeRepo(), storage=_FakeStorage())
+
+    cluster = service._normalize_market_regime_cluster(
+        {
+            "latest_closes": {
+                symbol: {"date": "2026-04-28", "close": 100.0}
+                for symbol in PREDICTION_TARGET_SYMBOLS
+            }
+        },
+        market_date=date(2026, 4, 27),
+    )
+
+    assert cluster["freshness"] == "fresh"
+    assert cluster["stale_symbols"] == []
+    assert cluster["latest_common_date"] == "2026-04-28"
+
+
+def test_mag7_sector_leadership_accepts_newer_session_prices(monkeypatch) -> None:
+    service = MarketPredictionCommitteeService(repository=_FakeRepo())
+    symbols = [
+        "AAPL",
+        "MSFT",
+        "NVDA",
+        "AMZN",
+        "META",
+        "GOOGL",
+        "TSLA",
+        "XLK",
+        "XLC",
+        "XLY",
+    ]
+
+    def recent_closes(_symbols: list[str], **_: object) -> dict[str, list[tuple[date, float]]]:
+        return {
+            symbol: [(date(2026, 4, 28), 101.0), (date(2026, 4, 27), 100.0)]
+            for symbol in symbols
+        }
+
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_expected_data_date",
+        lambda _now: date(2026, 4, 27),
+    )
+    monkeypatch.setattr(
+        service,
+        "_query_recent_closes",
+        recent_closes,
+        raising=False,
+    )
+
+    cluster = service._build_mag7_sector_leadership_cluster(
+        as_of_ts=datetime(2026, 4, 28, 13, 0, tzinfo=UTC)
+    )
+
+    assert cluster["freshness"] == "fresh"
+    assert cluster["missing_tickers"] == []
+    assert cluster["latest_common_date"] == "2026-04-28"
+
+
 def test_build_source_snapshot_adds_additive_indicator_sleeves(monkeypatch) -> None:
     service = MarketPredictionCommitteeService(
         repository=_FakeRepo(),
@@ -578,6 +637,12 @@ def test_build_oil_shock_overlay_cluster_returns_missing_when_wti_unavailable(mo
 
     monkeypatch.setattr(
         service,
+        "_load_oil_proxy_observations",
+        lambda **_: [],
+        raising=False,
+    )
+    monkeypatch.setattr(
+        service,
         "_load_oil_observations",
         lambda **_: [],
         raising=False,
@@ -593,6 +658,7 @@ def test_build_oil_shock_overlay_cluster_returns_missing_when_wti_unavailable(mo
         "freshness": "missing",
         "gate_state": "missing",
         "canonical_series": "DCOILWTICO",
+        "source": "fred",
         "latest_observation_date": None,
         "latest_value": None,
         "prior_value": None,
@@ -600,6 +666,81 @@ def test_build_oil_shock_overlay_cluster_returns_missing_when_wti_unavailable(mo
         "event_tags": [],
         "note": None,
     }
+
+
+def test_build_oil_shock_overlay_cluster_does_not_activate_stale_wti(monkeypatch) -> None:
+    service = MarketPredictionCommitteeService(repository=_FakeRepo())
+    as_of_ts = datetime(2026, 4, 27, 13, 15, tzinfo=UTC)
+
+    monkeypatch.setattr(
+        service,
+        "_load_oil_proxy_observations",
+        lambda **_: [],
+        raising=False,
+    )
+    monkeypatch.setattr(
+        service,
+        "_load_oil_observations",
+        lambda **_: [(date(2026, 4, 20), 91.06), (date(2026, 4, 17), 85.91)],
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_expected_data_date",
+        lambda _now: date(2026, 4, 27),
+    )
+
+    cluster = service._build_oil_shock_overlay_cluster(as_of_ts=as_of_ts)
+
+    assert cluster["freshness"] == "stale"
+    assert cluster["gate_state"] == "stale"
+    assert cluster["source"] == "fred"
+    assert cluster["daily_change_pct"] == pytest.approx(5.9946, rel=0.001)
+
+
+def test_build_oil_shock_overlay_cluster_prefers_fresh_proxy(monkeypatch) -> None:
+    service = MarketPredictionCommitteeService(repository=_FakeRepo())
+    as_of_ts = datetime(2026, 4, 28, 13, 15, tzinfo=UTC)
+
+    monkeypatch.setattr(
+        service,
+        "_load_oil_proxy_observations",
+        lambda **_: [(date(2026, 4, 28), 91.0), (date(2026, 4, 27), 89.0)],
+        raising=False,
+    )
+    monkeypatch.setattr(
+        service,
+        "_load_oil_observations",
+        lambda **_: [(date(2026, 4, 20), 91.06), (date(2026, 4, 17), 85.91)],
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_expected_data_date",
+        lambda _now: date(2026, 4, 27),
+    )
+
+    cluster = service._build_oil_shock_overlay_cluster(as_of_ts=as_of_ts)
+
+    assert cluster["freshness"] == "fresh"
+    assert cluster["gate_state"] == "active"
+    assert cluster["canonical_series"] == "CL=F"
+    assert cluster["source"] == "yfinance_day_bars"
+    assert cluster["latest_observation_date"] == "2026-04-28"
+
+
+def test_normalize_options_positioning_allows_newer_session_data() -> None:
+    service = MarketPredictionCommitteeService(repository=_FakeRepo())
+
+    current = service._normalize_options_positioning_cluster(
+        {"as_of_date": "2026-04-28", "call_pct": 0.5},
+        market_date=date(2026, 4, 27),
+    )
+    stale = service._normalize_options_positioning_cluster(
+        {"as_of_date": "2026-04-24", "call_pct": 0.5},
+        market_date=date(2026, 4, 27),
+    )
+
+    assert current["freshness"] == "fresh"
+    assert stale["freshness"] == "stale"
 
 
 
