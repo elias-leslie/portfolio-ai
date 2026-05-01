@@ -18,6 +18,7 @@ from app.models.market_prediction import (
     MarketPredictionRun,
     MarketPredictionSeatReview,
     MarketPredictionVoteEvaluation,
+    PredictionDirection,
     PredictionSourceCluster,
 )
 from app.repositories.market_prediction_repository import MarketPredictionRepository
@@ -58,14 +59,21 @@ def clean_prediction_tables(storage: PortfolioStorage) -> Generator[None]:
 
 
 
-def _run(*, run_id: str, as_of_ts: datetime, window_days: int = 3) -> MarketPredictionRun:
+def _run(
+    *,
+    run_id: str,
+    as_of_ts: datetime,
+    window_days: int = 3,
+    base_date: date = date(2026, 4, 20),
+    target_date: date = date(2026, 4, 23),
+) -> MarketPredictionRun:
     return MarketPredictionRun(
         id=run_id,
         generated_at=as_of_ts,
         as_of_ts=as_of_ts,
         window_days=window_days,
-        base_date=date(2026, 4, 20),
-        target_date=date(2026, 4, 23),
+        base_date=base_date,
+        target_date=target_date,
         target_universe=["SPY"],
         lead_symbol="SPY",
         lead_direction="neutral",
@@ -99,6 +107,8 @@ def _call(
     call_id: str,
     symbol: str = "SPY",
     window_days: int = 3,
+    direction_label: PredictionDirection = "neutral",
+    expected_move_pct: float = 0.0,
     top_source_clusters: list[PredictionSourceCluster] | None = None,
     metadata: dict[str, object] | None = None,
 ) -> MarketPredictionCall:
@@ -106,12 +116,41 @@ def _call(
         id=call_id,
         symbol=symbol,
         window_days=window_days,
-        direction_label="neutral",
+        direction_label=direction_label,
         prob_up=0.5,
-        expected_move_pct=0.0,
+        expected_move_pct=expected_move_pct,
         top_source_clusters=top_source_clusters or [],
         metadata=metadata or {},
     )
+
+
+def _insert_day_bar(storage: PortfolioStorage, *, symbol: str, day: date, open_price: float, close_price: float) -> None:
+    high_price = max(open_price, close_price)
+    low_price = min(open_price, close_price)
+    with storage.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO symbols (symbol, security_type, created_at)
+            VALUES (%s, 'equity', NOW())
+            ON CONFLICT (symbol) DO NOTHING
+            """,
+            [symbol],
+        )
+        conn.execute(
+            """
+            INSERT INTO day_bars (symbol, date, open, high, low, close, volume, source)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (symbol, date) DO UPDATE SET
+                open = EXCLUDED.open,
+                high = EXCLUDED.high,
+                low = EXCLUDED.low,
+                close = EXCLUDED.close,
+                volume = EXCLUDED.volume,
+                source = EXCLUDED.source
+            """,
+            [symbol, day, open_price, high_price, low_price, close_price, 1000, "test"],
+        )
+        conn.commit()
 
 
 
@@ -491,6 +530,110 @@ def test_get_scorecard_uses_latest_distinct_symbol_cohorts(storage: PortfolioSto
     assert scorecard.direction_hit_rate == pytest.approx(0.5)
     assert scorecard.move_mae_pct == pytest.approx(1.5)
     assert scorecard.brier_score == pytest.approx(0.35)
+
+    spy_scorecard = repo.get_scorecard(3, symbol="spy")
+
+    assert spy_scorecard is not None
+    assert spy_scorecard.sample_size == 1
+    assert spy_scorecard.direction_hit_rate == pytest.approx(0.0)
+    assert spy_scorecard.move_mae_pct == pytest.approx(2.0)
+    assert spy_scorecard.brier_score == pytest.approx(0.5)
+
+
+def test_get_after_cost_edge_pct_uses_directional_latest_symbol_cohorts(storage: PortfolioStorage) -> None:
+    repo = MarketPredictionRepository(storage)
+    symbol = "ZTEST_EDGE"
+    bullish_run = _run(
+        run_id="run-cost-bullish",
+        as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
+        base_date=date(2026, 4, 20),
+        target_date=date(2026, 4, 23),
+    )
+    bearish_run = _run(
+        run_id="run-cost-bearish",
+        as_of_ts=datetime(2026, 4, 24, 22, 15, tzinfo=UTC),
+        base_date=date(2026, 4, 21),
+        target_date=date(2026, 4, 24),
+    )
+
+    repo.create_run(bullish_run)
+    repo.create_run(bearish_run)
+    _insert_day_bar(storage, symbol=symbol, day=date(2026, 4, 21), open_price=100.0, close_price=100.2)
+    _insert_day_bar(storage, symbol=symbol, day=date(2026, 4, 22), open_price=100.0, close_price=99.8)
+    _insert_day_bar(storage, symbol=symbol, day=date(2026, 4, 23), open_price=100.5, close_price=101.0)
+    _insert_day_bar(storage, symbol=symbol, day=date(2026, 4, 24), open_price=99.5, close_price=99.0)
+    repo.upsert_call(
+        bullish_run.id,
+        _call(call_id="call-cost-bullish", symbol=symbol, direction_label="bullish"),
+    )
+    repo.upsert_call(
+        bearish_run.id,
+        _call(call_id="call-cost-bearish", symbol=symbol, direction_label="bearish"),
+    )
+    repo.upsert_call(
+        bearish_run.id,
+        _call(call_id="call-cost-other-symbol", symbol="XLF", direction_label="bullish"),
+    )
+    repo.upsert_evaluation(
+        MarketPredictionEvaluation(
+            call_id="call-cost-bullish",
+            evaluated_at=datetime(2026, 4, 23, 22, 6, tzinfo=UTC),
+            base_close=500.0,
+            target_close=502.0,
+            realized_move_pct=0.4,
+            direction_hit=True,
+            move_abs_error_pct=0.1,
+            brier_score=0.1,
+            metadata={},
+        )
+    )
+    repo.upsert_evaluation(
+        MarketPredictionEvaluation(
+            call_id="call-cost-bearish",
+            evaluated_at=datetime(2026, 4, 24, 22, 6, tzinfo=UTC),
+            base_close=502.0,
+            target_close=500.5,
+            realized_move_pct=-0.3,
+            direction_hit=True,
+            move_abs_error_pct=0.1,
+            brier_score=0.1,
+            metadata={},
+        )
+    )
+    repo.upsert_evaluation(
+        MarketPredictionEvaluation(
+            call_id="call-cost-other-symbol",
+            evaluated_at=datetime(2026, 4, 24, 22, 7, tzinfo=UTC),
+            base_close=40.0,
+            target_close=38.0,
+            realized_move_pct=-5.0,
+            direction_hit=False,
+            move_abs_error_pct=5.0,
+            brier_score=0.6,
+            metadata={},
+        )
+    )
+
+    edge = repo.get_after_cost_edge_pct(window_days=3, symbol=symbol.lower(), round_trip_cost_pct=0.05)
+
+    assert edge == pytest.approx(0.95)
+    assert repo.get_after_cost_edge_pct(window_days=3, symbol="XLK") is None
+
+
+def test_list_day_bars_for_research_returns_latest_window_in_ascending_order(storage: PortfolioStorage) -> None:
+    repo = MarketPredictionRepository(storage)
+    symbol = "ZTEST_RESEARCH_BARS"
+    _insert_day_bar(storage, symbol=symbol, day=date(2026, 1, 1), open_price=99.0, close_price=100.0)
+    _insert_day_bar(storage, symbol=symbol, day=date(2026, 1, 2), open_price=100.0, close_price=101.0)
+    _insert_day_bar(storage, symbol=symbol, day=date(2026, 1, 3), open_price=101.0, close_price=102.0)
+    _insert_day_bar(storage, symbol=symbol, day=date(2026, 1, 4), open_price=102.0, close_price=103.0)
+
+    bars = repo.list_day_bars_for_research(symbol.lower(), limit=2)
+
+    assert bars == [
+        (date(2026, 1, 3), 101.0, 102.0),
+        (date(2026, 1, 4), 102.0, 103.0),
+    ]
 
 
 

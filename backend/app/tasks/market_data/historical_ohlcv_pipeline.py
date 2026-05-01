@@ -9,15 +9,16 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 
-from app.constants import ALL_MARKET_SYMBOLS, TRADING_DAYS_PER_YEAR
+from app.constants import ALL_MARKET_SYMBOLS, DEFAULT_BACKFILL_DAYS
 from app.logging_config import get_logger
 from app.storage import get_storage
 from app.tasks.ingestion import ingest_historical_ohlcv
+from app.utils.market_hours import get_expected_data_date
 
 logger = get_logger(__name__)
 
-# Target: ~5 years of trading days
-TARGET_DAYS = TRADING_DAYS_PER_YEAR * 5
+# Target: centralized backfill window used by OHLCV ingestion.
+TARGET_DAYS = DEFAULT_BACKFILL_DAYS
 
 
 def _check_symbol_data(symbol: str) -> tuple[bool, int]:
@@ -39,7 +40,8 @@ def _check_symbol_data(symbol: str) -> tuple[bool, int]:
     days_available: int = days_available_raw if isinstance(days_available_raw, int) else 0
     latest_date: dt.date | None = latest_date_raw if isinstance(latest_date_raw, dt.date) else None
 
-    is_stale = latest_date is None or latest_date < dt.date.today()
+    expected_date = get_expected_data_date(dt.datetime.now(dt.UTC))
+    is_stale = latest_date is None or latest_date < expected_date
     needs_backfill: bool = bool(days_available < TARGET_DAYS or is_stale)
     return needs_backfill, days_available
 

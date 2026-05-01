@@ -14,6 +14,7 @@ from app.middleware.cache import clear_cache
 from app.models.market_prediction import (
     MarketPredictionCall,
     MarketPredictionCommitteeResponse,
+    MarketPredictionResearchScoreboard,
     PredictionSourceCluster,
 )
 
@@ -65,6 +66,10 @@ class _FakePredictionService:
             lead_call=calls[0],
             calls=calls,
             votes=[],
+            research_scoreboard=MarketPredictionResearchScoreboard(
+                status="no_edge",
+                status_reason="Snapshot is not mature enough for an edge claim.",
+            ),
             committee_summary={
                 "headline": "Constructive risk appetite",
                 "disagreement_label": "moderate",
@@ -107,7 +112,13 @@ class _FakePredictionService:
             },
         )
 
-    def get_committee_snapshot(self, window_days: int) -> MarketPredictionCommitteeResponse:
+    def get_committee_snapshot(
+        self,
+        window_days: int,
+        *,
+        generate_if_missing: bool = True,
+    ) -> MarketPredictionCommitteeResponse:
+        assert generate_if_missing is False
         return self._build_response(window_days)
 
     def generate_snapshot(self, *, window_days: int) -> MarketPredictionCommitteeResponse:
@@ -129,7 +140,13 @@ class _FakePredictionService:
 
 
 class _DegradedPredictionService:
-    def get_committee_snapshot(self, window_days: int) -> MarketPredictionCommitteeResponse:
+    def get_committee_snapshot(
+        self,
+        window_days: int,
+        *,
+        generate_if_missing: bool = True,
+    ) -> MarketPredictionCommitteeResponse:
+        assert generate_if_missing is False
         lead_call = MarketPredictionCall(
             symbol="SPY",
             window_days=window_days,
@@ -167,6 +184,10 @@ class _DegradedPredictionService:
                 }
             },
             scorecard=None,
+            research_scoreboard=MarketPredictionResearchScoreboard(
+                status="no_edge",
+                status_reason="Committee snapshot unavailable; serving degraded fallback.",
+            ),
             freshness_summary={
                 "state": "degraded",
                 "summary": "Committee snapshot degraded. Auto-refreshing until a healthy run returns.",
@@ -221,6 +242,9 @@ def test_get_prediction_committee_snapshot_serializes_additive_summary_and_macro
     assert data["committee_summary"]["executed_seat_keys"] == ["cross_asset", "macro", "risk"]
     assert data["committee_summary"]["truth_state"] == "live"
     assert data["committee_summary"]["scorecard_status_note"] is None
+    assert data["research_scoreboard"]["status"] == "no_edge"
+    assert data["research_scoreboard"]["sample_count"] == 0
+    assert data["research_scoreboard"]["status_reason"] == "Snapshot is not mature enough for an edge claim."
     assert data["source_snapshot"]["clusters"]["macro_calendar"] == {
         "freshness": "fresh",
         "reason": "ok",
@@ -246,6 +270,8 @@ def test_get_prediction_committee_allows_degraded_fetch_error_200_shape(client: 
     assert data["lead_call"]["symbol"] == "SPY"
     assert data["votes"] == []
     assert data["scorecard"] is None
+    assert data["research_scoreboard"]["status"] == "no_edge"
+    assert data["research_scoreboard"]["status_reason"] == "Committee snapshot unavailable; serving degraded fallback."
     assert data["committee_summary"]["committee_execution_path"] == "fallback_completion"
     assert data["committee_summary"]["truth_state"] == "fetch_error"
     assert data["source_snapshot"]["clusters"]["macro_calendar"]["reason"] == "no_future_rows"
@@ -260,7 +286,11 @@ def test_refresh_prediction_committee_forces_new_snapshot_and_clears_cached_get(
     )
     monkeypatch.setattr(
         "app.api.market.prediction_router.ingest_macro_calendar_events",
-        lambda: {"status": "success", "events_updated": 0},
+        lambda **_: {"status": "success", "events_updated": 0},
+    )
+    monkeypatch.setattr(
+        "app.api.market.prediction_router.fetch_options_activity_metrics",
+        lambda: {"success": True, "as_of_date": "2026-04-21"},
     )
 
     cached_response = client.get("/api/market/prediction/committee?window_days=3")

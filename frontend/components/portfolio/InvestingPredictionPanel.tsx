@@ -232,6 +232,11 @@ function formatPercent(value?: number | null, digits: number = 2) {
   return `${prefix}${value.toFixed(digits)}%`
 }
 
+function formatUnsignedPercent(value?: number | null, digits: number = 2) {
+  if (value == null || Number.isNaN(value)) return '—'
+  return `${value.toFixed(digits)}%`
+}
+
 function formatProbability(value?: number | null) {
   if (value == null || Number.isNaN(value)) return '—'
   return `${Math.round(value * 100)}%`
@@ -1267,19 +1272,33 @@ function MetricTile({
   value,
   detail,
   icon: Icon,
+  muted = false,
 }: {
   label: string
   value: string
   detail?: string
   icon: typeof Radar
+  muted?: boolean
 }) {
   return (
-    <div className="rounded-[20px] border border-border/30 bg-black/20 p-4">
+    <div
+      className={cn(
+        'rounded-lg border border-border/30 bg-black/20 p-4',
+        muted && 'opacity-65',
+      )}
+    >
       <div className="flex items-center gap-2 text-text-muted">
         <Icon className="h-4 w-4" />
         <span className="text-[10px] uppercase tracking-[0.18em]">{label}</span>
       </div>
-      <p className="mt-3 text-2xl font-semibold text-text">{value}</p>
+      <p
+        className={cn(
+          'mt-3 text-2xl font-semibold text-text',
+          muted && 'text-text-muted',
+        )}
+      >
+        {value}
+      </p>
       {detail ? <p className="mt-2 text-xs text-text-muted">{detail}</p> : null}
     </div>
   )
@@ -1508,7 +1527,723 @@ function FreshnessRail({
   )
 }
 
+type ResearchStatus = 'no_edge' | 'shadow' | 'usable'
+
+type ResearchScoreboardView = {
+  status: ResearchStatus
+  statusLabel: string
+  statusTone: 'neutral' | 'success' | 'warning' | 'danger'
+  statusReason: string
+  sampleCount: number
+  minSampleCount: number
+  sufficientSamples: boolean
+  hitRate: number | null
+  moveMaePct: number | null
+  brierScore: number | null
+  baselineHitRate: number | null
+  baselineBrierScore: number | null
+  beatsBaseline: boolean
+  hitRateLcb: number | null
+  hitRateConfident: boolean
+  maxMoveMaePct: number | null
+  moveErrorOk: boolean
+  afterCostEdgePct: number | null
+  costModel: string
+  modelId: string | null
+  modelVersion: string | null
+  referee: string
+  experimentLoop: string
+  walkForward: {
+    status: string
+    statusReason: string
+    candidateId: string | null
+    candidateLabel: string | null
+    candidateFeatureKind: string
+    benchmarkSymbol: string | null
+    driverLabels: string[]
+    testedCandidates: number
+    sampleCount: number
+    minSampleCount: number
+    tradeCount: number
+    hitRate: number | null
+    hitRateLcb: number | null
+    brierScore: number | null
+    baselineBrierScore: number | null
+    brierImprovementPct: number | null
+    moveMaePct: number | null
+    baselineMoveMaePct: number | null
+    afterCostEdgePct: number | null
+    passed: boolean
+    topCandidates: {
+      candidateId: string | null
+      candidateLabel: string | null
+      candidateFeatureKind: string
+      benchmarkSymbol: string | null
+      status: string
+      sampleCount: number
+      hitRateLcb: number | null
+      brierImprovementPct: number | null
+      afterCostEdgePct: number | null
+      passed: boolean
+    }[]
+  } | null
+  dataHealth: {
+    label: string
+    status: string
+    detail: string | null
+    asOfDate: string | null
+  }[]
+}
+
+function normalizeResearchStatus(value: unknown): ResearchStatus {
+  const normalized = String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, '_')
+  if (normalized === 'usable') return 'usable'
+  if (normalized === 'shadow') return 'shadow'
+  return 'no_edge'
+}
+
+function researchStatusDescriptor(status: ResearchStatus): {
+  label: string
+  tone: 'neutral' | 'success' | 'warning' | 'danger'
+} {
+  if (status === 'usable') return { label: 'USABLE', tone: 'success' }
+  if (status === 'shadow') return { label: 'SHADOW', tone: 'warning' }
+  return { label: 'NO EDGE', tone: 'danger' }
+}
+
+function nullableNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function normalizeResearchScoreboard(
+  data: MarketPredictionCommitteeResponse | undefined,
+): ResearchScoreboardView {
+  const raw = data?.researchScoreboard
+  const scorecard = data?.scorecard ?? null
+  const status = normalizeResearchStatus(raw?.status)
+  const descriptor = researchStatusDescriptor(status)
+  const sampleCount =
+    typeof raw?.sampleCount === 'number'
+      ? raw.sampleCount
+      : (scorecard?.sampleSize ?? 0)
+  const minSampleCount =
+    typeof raw?.minSampleCount === 'number' && raw.minSampleCount > 0
+      ? raw.minSampleCount
+      : 100
+  const healthRows = Array.isArray(raw?.dataHealth)
+    ? raw.dataHealth
+        .map((row) => ({
+          label: typeof row.label === 'string' ? row.label : 'data',
+          status: typeof row.status === 'string' ? row.status : 'unknown',
+          detail: typeof row.detail === 'string' ? row.detail : null,
+          asOfDate: typeof row.asOfDate === 'string' ? row.asOfDate : null,
+        }))
+        .filter((row) => row.label.trim().length > 0)
+    : []
+  const walkForward =
+    raw?.walkForward && typeof raw.walkForward === 'object'
+      ? {
+          status:
+            typeof raw.walkForward.status === 'string'
+              ? raw.walkForward.status
+              : 'insufficient',
+          statusReason:
+            typeof raw.walkForward.statusReason === 'string'
+              ? raw.walkForward.statusReason
+              : 'Walk-forward proof unavailable.',
+          candidateId:
+            typeof raw.walkForward.candidateId === 'string'
+              ? raw.walkForward.candidateId
+              : null,
+          candidateLabel:
+            typeof raw.walkForward.candidateLabel === 'string'
+              ? raw.walkForward.candidateLabel
+              : null,
+          candidateFeatureKind:
+            typeof raw.walkForward.candidateFeatureKind === 'string'
+              ? raw.walkForward.candidateFeatureKind
+              : 'absolute',
+          benchmarkSymbol:
+            typeof raw.walkForward.benchmarkSymbol === 'string'
+              ? raw.walkForward.benchmarkSymbol
+              : null,
+          driverLabels: Array.isArray(raw.walkForward.driverLabels)
+            ? raw.walkForward.driverLabels.filter(
+                (label): label is string =>
+                  typeof label === 'string' && label.trim().length > 0,
+              )
+            : [],
+          testedCandidates:
+            typeof raw.walkForward.testedCandidates === 'number'
+              ? raw.walkForward.testedCandidates
+              : 0,
+          sampleCount:
+            typeof raw.walkForward.sampleCount === 'number'
+              ? raw.walkForward.sampleCount
+              : 0,
+          minSampleCount:
+            typeof raw.walkForward.minSampleCount === 'number'
+              ? raw.walkForward.minSampleCount
+              : minSampleCount,
+          tradeCount:
+            typeof raw.walkForward.tradeCount === 'number'
+              ? raw.walkForward.tradeCount
+              : 0,
+          hitRate: nullableNumber(raw.walkForward.hitRate),
+          hitRateLcb: nullableNumber(raw.walkForward.hitRateLcb),
+          brierScore: nullableNumber(raw.walkForward.brierScore),
+          baselineBrierScore: nullableNumber(
+            raw.walkForward.baselineBrierScore,
+          ),
+          brierImprovementPct: nullableNumber(
+            raw.walkForward.brierImprovementPct,
+          ),
+          moveMaePct: nullableNumber(raw.walkForward.moveMaePct),
+          baselineMoveMaePct: nullableNumber(
+            raw.walkForward.baselineMoveMaePct,
+          ),
+          afterCostEdgePct: nullableNumber(raw.walkForward.afterCostEdgePct),
+          passed:
+            typeof raw.walkForward.passed === 'boolean'
+              ? raw.walkForward.passed
+              : false,
+          topCandidates: Array.isArray(raw.walkForward.topCandidates)
+            ? raw.walkForward.topCandidates
+                .map((candidate) => ({
+                  candidateId:
+                    typeof candidate.candidateId === 'string'
+                      ? candidate.candidateId
+                      : null,
+                  candidateLabel:
+                    typeof candidate.candidateLabel === 'string'
+                      ? candidate.candidateLabel
+                      : null,
+                  candidateFeatureKind:
+                    typeof candidate.candidateFeatureKind === 'string'
+                      ? candidate.candidateFeatureKind
+                      : 'absolute',
+                  benchmarkSymbol:
+                    typeof candidate.benchmarkSymbol === 'string'
+                      ? candidate.benchmarkSymbol
+                      : null,
+                  status:
+                    typeof candidate.status === 'string'
+                      ? candidate.status
+                      : 'insufficient',
+                  sampleCount:
+                    typeof candidate.sampleCount === 'number'
+                      ? candidate.sampleCount
+                      : 0,
+                  hitRateLcb: nullableNumber(candidate.hitRateLcb),
+                  brierImprovementPct: nullableNumber(
+                    candidate.brierImprovementPct,
+                  ),
+                  afterCostEdgePct: nullableNumber(candidate.afterCostEdgePct),
+                  passed:
+                    typeof candidate.passed === 'boolean'
+                      ? candidate.passed
+                      : false,
+                }))
+                .filter((candidate) => candidate.candidateLabel)
+            : [],
+        }
+      : null
+
+  return {
+    status,
+    statusLabel: descriptor.label,
+    statusTone: descriptor.tone,
+    statusReason:
+      typeof raw?.statusReason === 'string' && raw.statusReason.trim()
+        ? raw.statusReason
+        : 'No edge proof published.',
+    sampleCount,
+    minSampleCount,
+    sufficientSamples:
+      typeof raw?.sufficientSamples === 'boolean'
+        ? raw.sufficientSamples
+        : sampleCount >= minSampleCount,
+    hitRate: nullableNumber(raw?.hitRate ?? scorecard?.directionHitRate),
+    moveMaePct: nullableNumber(raw?.moveMaePct ?? scorecard?.moveMaePct),
+    brierScore: nullableNumber(raw?.brierScore ?? scorecard?.brierScore),
+    baselineHitRate: nullableNumber(raw?.baselineHitRate),
+    baselineBrierScore: nullableNumber(raw?.baselineBrierScore),
+    beatsBaseline:
+      typeof raw?.beatsBaseline === 'boolean' ? raw.beatsBaseline : false,
+    hitRateLcb: nullableNumber(raw?.hitRateLcb),
+    hitRateConfident:
+      typeof raw?.hitRateConfident === 'boolean' ? raw.hitRateConfident : false,
+    maxMoveMaePct: nullableNumber(raw?.maxMoveMaePct),
+    moveErrorOk:
+      typeof raw?.moveErrorOk === 'boolean' ? raw.moveErrorOk : false,
+    afterCostEdgePct: nullableNumber(raw?.afterCostEdgePct),
+    costModel:
+      typeof raw?.costModel === 'string' ? raw.costModel : 'not_tracked',
+    modelId: typeof raw?.modelId === 'string' ? raw.modelId : null,
+    modelVersion:
+      typeof raw?.modelVersion === 'string' ? raw.modelVersion : null,
+    referee:
+      typeof raw?.referee === 'string' ? raw.referee : 'fixed_scorecard_v1',
+    experimentLoop:
+      typeof raw?.experimentLoop === 'string'
+        ? raw.experimentLoop
+        : 'shadow_only',
+    walkForward,
+    dataHealth: healthRows,
+  }
+}
+
+function formatRate(value: number | null): string {
+  return value == null ? 'not tracked' : `${Math.round(value * 1000) / 10}%`
+}
+
+function formatDecimal(value: number | null): string {
+  return value == null ? 'not tracked' : value.toFixed(3)
+}
+
 export function InvestingPredictionPanel() {
+  const [windowDays, setWindowDays] =
+    useState<(typeof WINDOW_OPTIONS)[number]>(3)
+  const nowMs = useRelativeNow()
+  const selectedQuery = useMarketPredictionCommittee(windowDays)
+  const { data, isLoading, error, isFetching } = selectedQuery
+  const refreshMutation = useRefreshMarketPredictionCommittee()
+  const reviewQuery = useMarketPredictionReview(windowDays)
+
+  const allCalls = useMemo(() => normalizeCalls(data?.calls), [data?.calls])
+  const displayLeadCall = useMemo(
+    () => selectDisplayLeadCall(data?.leadCall, allCalls),
+    [allCalls, data?.leadCall],
+  )
+  const leadCall = displayLeadCall
+  const leadSymbol = leadCall?.symbol ?? 'SPY'
+  const historyQuery = useMarketPredictionHistory(leadSymbol, windowDays, 30)
+  const committeeSummary = useMemo(
+    () => normalizeCommitteeSummary(data?.committeeSummary),
+    [data?.committeeSummary],
+  )
+  const truthState = committeeSummary.truthState ?? 'legacySparse'
+  const truthStateBadge = truthStateDescriptor(truthState)
+  const scoreboard = useMemo(() => normalizeResearchScoreboard(data), [data])
+  const freshness = useMemo(
+    () => normalizePredictionFreshness(data?.freshnessSummary, truthState),
+    [data?.freshnessSummary, truthState],
+  )
+  const reviewState = useMemo(
+    () => normalizeReviewPanel(reviewQuery.data),
+    [reviewQuery.data],
+  )
+  const normalizedVotes = useMemo(
+    () => normalizeVotes(data?.votes, leadSymbol),
+    [data?.votes, leadSymbol],
+  )
+  const historyState = useMemo(
+    () =>
+      buildHistoryState(
+        historyQuery.data,
+        historyQuery.error,
+        historyQuery.isLoading,
+      ),
+    [historyQuery.data, historyQuery.error, historyQuery.isLoading],
+  )
+  const sectorCalls = useMemo(
+    () =>
+      normalizeCalls(data?.calls, true)
+        .filter((call) => call.symbol !== leadSymbol)
+        .slice(0, 6),
+    [data?.calls, leadSymbol],
+  )
+
+  const generatedLabel =
+    formatTimestampLabel(data?.generatedAt) ??
+    formatTimestampLabel(data?.asOfTs) ??
+    'Unavailable'
+  const generatedAgeLabel = formatAgeLabel(
+    ageSecondsFromTimestamp(
+      data?.generatedAt ?? data?.asOfTs ?? freshness.checkedAt,
+      nowMs,
+    ) ?? freshness.generatedAgeSeconds,
+  )
+  const targetLabel = formatScorecardDate(data?.targetDate) ?? 'pending'
+  const refreshErrorMessage = refreshMutation.error?.message ?? null
+  const freshnessBadge = freshnessStateDescriptor(freshness.state)
+  const signalUsable = scoreboard.status === 'usable'
+  const heroAfterCost = signalUsable
+    ? formatPercent(scoreboard.afterCostEdgePct)
+    : '—'
+  const backtestLabel = scoreboard.walkForward
+    ? `${humanizeLabel(scoreboard.walkForward.status)} · ${scoreboard.walkForward.sampleCount}/${scoreboard.walkForward.minSampleCount}`
+    : 'not run'
+  const topCandidateLabel = scoreboard.walkForward?.topCandidates.length
+    ? scoreboard.walkForward.topCandidates
+        .slice(0, 3)
+        .map(
+          (candidate) =>
+            `${candidate.candidateLabel ?? 'idea'} ${formatPercent(
+              candidate.afterCostEdgePct,
+            )}`,
+        )
+        .join(' · ')
+    : 'no edge'
+  const experimentRows = [
+    ['test', scoreboard.walkForward?.candidateLabel ?? 'no keeper'],
+    ['best tries', topCandidateLabel],
+    [
+      'drivers',
+      scoreboard.walkForward?.driverLabels.length
+        ? scoreboard.walkForward.driverLabels.join(' · ')
+        : 'SPY',
+    ],
+    ['mode', scoreboard.status === 'usable' ? 'usable' : 'watch only'],
+    ['tried', `${scoreboard.walkForward?.testedCandidates ?? 0} ideas`],
+    ['committee', 'checks only'],
+  ] as const
+  const proofRows = [
+    ['backtest', backtestLabel],
+    ['samples', `${scoreboard.sampleCount}/${scoreboard.minSampleCount}`],
+    ['hit', `${formatRate(scoreboard.hitRate)} · n=${scoreboard.sampleCount}`],
+    ['hit low', formatRate(scoreboard.hitRateLcb)],
+    ['prob error', formatDecimal(scoreboard.brierScore)],
+    ['move error', formatUnsignedPercent(scoreboard.moveMaePct)],
+    ['after cost', formatPercent(scoreboard.afterCostEdgePct)],
+  ] as const
+  const dataHealthRows = scoreboard.dataHealth.length
+    ? scoreboard.dataHealth
+    : freshness.criticalClusters.map((cluster) => ({
+        label: cluster.cluster,
+        status: cluster.freshness,
+        detail: cluster.detail ?? null,
+        asOfDate: cluster.asOfDate ?? null,
+      }))
+
+  return (
+    <div className="space-y-4">
+      <SectionCard
+        title="Prediction Research"
+        description="Walk-forward first. Live check second."
+        variant="surface"
+        contentClassName="space-y-4"
+      >
+        <div
+          data-testid="prediction-hero"
+          className="rounded-lg border border-amber-400/20 bg-[linear-gradient(135deg,rgba(14,16,20,0.98),rgba(22,20,15,0.94))] p-5"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <div data-testid="prediction-research-status">
+                  <StatusBadge
+                    label={scoreboard.statusLabel}
+                    tone={scoreboard.statusTone}
+                  />
+                </div>
+                <div data-testid="prediction-truth-state">
+                  <StatusBadge
+                    label={truthStateBadge.label}
+                    tone={truthStateBadge.tone}
+                  />
+                </div>
+                <StatusBadge label={`${windowDays}D`} />
+                <StatusBadge
+                  label={freshnessBadge.label}
+                  tone={freshnessBadge.tone}
+                />
+              </div>
+              <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-text-muted">
+                    Current signal
+                  </p>
+                  <p className="mt-2 font-display text-5xl leading-none text-text">
+                    {scoreboard.statusLabel}
+                  </p>
+                  <p
+                    data-testid="prediction-status-reason"
+                    className="mt-3 max-w-xl text-sm text-amber-100/85"
+                  >
+                    {scoreboard.statusReason}
+                  </p>
+                  <p className="mt-5 text-[10px] uppercase tracking-[0.2em] text-text-muted">
+                    Action edge
+                  </p>
+                  <p className="mt-2 font-mono text-4xl tabular-nums text-text">
+                    {heroAfterCost}
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <MetricTile
+                    label="symbol"
+                    value={leadCall?.symbol ?? 'SPY'}
+                    detail={`${windowDays} trading days`}
+                    icon={Radar}
+                  />
+                  <MetricTile
+                    label="chance up"
+                    value={formatProbability(leadCall?.probUp)}
+                    detail={`${signalUsable ? '' : 'unproven '}${humanizeLabel(
+                      leadCall?.directionLabel ?? 'neutral',
+                    ).toLowerCase()}`}
+                    icon={BrainCircuit}
+                    muted={!signalUsable}
+                  />
+                  <MetricTile
+                    label="expected move"
+                    value={formatPercent(leadCall?.expectedMovePct)}
+                    detail={`${signalUsable ? 'target' : 'unproven target'} ${targetLabel}`}
+                    icon={Gauge}
+                    muted={!signalUsable}
+                  />
+                  <MetricTile
+                    label="last made"
+                    value={generatedLabel}
+                    detail={generatedAgeLabel}
+                    icon={RefreshCw}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {WINDOW_OPTIONS.map((option) => (
+                <Button
+                  key={option}
+                  type="button"
+                  aria-label={`${option}D`}
+                  aria-pressed={option === windowDays}
+                  variant={option === windowDays ? 'default' : 'outline'}
+                  size="sm"
+                  className="rounded-md px-3"
+                  onClick={() => setWindowDays(option)}
+                >
+                  {option}D
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+          <div className="rounded-lg border border-border/30 bg-black/20 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-text">
+                  Proof
+                </h3>
+                <p className="mt-1 text-xs text-text-muted">
+                  Backtest first. Then live check. Count after costs.
+                </p>
+              </div>
+              <StatusBadge
+                label={
+                  scoreboard.beatsBaseline
+                    ? 'beats baseline'
+                    : 'does not beat baseline'
+                }
+                tone={scoreboard.beatsBaseline ? 'success' : 'danger'}
+              />
+            </div>
+            <div className="mt-4 grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+              {proofRows.map(([label, value]) => (
+                <div
+                  key={label}
+                  className="rounded-md border border-border/30 bg-white/[0.03] p-3"
+                >
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted">
+                    {label}
+                  </p>
+                  <p className="mt-2 font-mono text-lg tabular-nums text-text">
+                    {value}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border/30 bg-black/20 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-text">
+                  Research loop
+                </h3>
+                <p className="mt-1 text-xs text-text-muted">
+                  Try ideas. Keep winners. Drop losers.
+                </p>
+              </div>
+              <StatusBadge label="checks only" tone="warning" />
+            </div>
+            <div className="mt-4 divide-y divide-border/20 rounded-md border border-border/30">
+              {experimentRows.map(([label, value]) => (
+                <div
+                  key={label}
+                  className="grid grid-cols-[120px_minmax(0,1fr)] gap-3 px-3 py-2 text-sm"
+                >
+                  <span className="uppercase tracking-[0.14em] text-text-muted">
+                    {label}
+                  </span>
+                  <span
+                    className="min-w-0 truncate font-mono text-text"
+                    title={value}
+                  >
+                    {value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          <div
+            data-testid="prediction-data-health"
+            className="rounded-lg border border-border/30 bg-black/20 p-4"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-text">
+                  Data
+                </h3>
+                <p
+                  data-testid="prediction-freshness-state"
+                  className="mt-1 text-xs text-text-muted"
+                >
+                  {freshness.summary}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant={freshness.invalidated ? 'default' : 'outline'}
+                size="sm"
+                className="rounded-md"
+                disabled={refreshMutation.isPending}
+                onClick={() => refreshMutation.mutate(windowDays)}
+              >
+                <RefreshCw
+                  className={cn(
+                    'mr-2 h-4 w-4',
+                    (refreshMutation.isPending || (isFetching && !isLoading)) &&
+                      'animate-spin',
+                  )}
+                />
+                Refresh
+              </Button>
+            </div>
+            {refreshErrorMessage ? (
+              <div
+                role="status"
+                className="mt-3 rounded-md border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-100"
+              >
+                Refresh failed: {refreshErrorMessage}
+              </div>
+            ) : null}
+            <div className="mt-4 overflow-hidden rounded-md border border-border/30">
+              {dataHealthRows.map((row) => (
+                <div
+                  key={row.label}
+                  className="grid gap-3 border-b border-border/20 px-3 py-2 last:border-b-0 sm:grid-cols-[150px_90px_minmax(0,1fr)]"
+                >
+                  <span className="text-sm font-medium text-text">
+                    {humanizeLabel(row.label)}
+                  </span>
+                  <span className="font-mono text-xs uppercase text-text-muted">
+                    {humanizeLabel(row.status)}
+                  </span>
+                  <span className="text-xs text-text-muted">
+                    {row.asOfDate ?? row.detail ?? 'no date'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border/30 bg-black/20 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-text">
+                  Checks
+                </h3>
+                <p className="mt-1 text-xs text-text-muted">
+                  Data checks, test ideas, miss review. Not final signal.
+                </p>
+              </div>
+              <StatusBadge
+                label={`${normalizedVotes.length} seats`}
+                tone={normalizedVotes.length ? 'success' : 'warning'}
+              />
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {reviewState.seatScorecards.slice(0, 3).map((seat) => (
+                <div
+                  key={seat.seatKey}
+                  className="rounded-md border border-border/30 bg-white/[0.03] p-3"
+                >
+                  <p className="text-sm font-semibold text-text">
+                    {humanizeLabel(seat.seatKey)}
+                  </p>
+                  <p className="mt-2 font-mono text-xl tabular-nums text-text">
+                    {formatWeightShare(seat.effectiveWeight)}
+                  </p>
+                  <p className="mt-1 text-xs text-text-muted">
+                    {seat.sampleSize} samples ·{' '}
+                    {humanizeLabel(seat.recommendedAction)}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <p
+              data-testid="prediction-history-state"
+              className="mt-4 text-xs text-text-muted"
+            >
+              History: {historyState.label}. {historyState.detail}
+            </p>
+          </div>
+        </div>
+
+        {sectorCalls.length ? (
+          <div className="rounded-lg border border-border/30 bg-black/20 p-4">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-text">
+              Sector calls
+            </h3>
+            <div className="mt-4 overflow-hidden rounded-md border border-border/30">
+              {sectorCalls.map((call) => (
+                <div
+                  key={call.symbol}
+                  className="grid gap-3 border-b border-border/20 px-3 py-2 last:border-b-0 sm:grid-cols-[80px_110px_110px_minmax(0,1fr)]"
+                >
+                  <span className="font-mono text-sm text-text">
+                    {call.symbol}
+                  </span>
+                  <span className="text-sm text-text-muted">
+                    {formatPercent(call.expectedMovePct)}
+                  </span>
+                  <span className="text-sm text-text-muted">
+                    {formatProbability(call.probUp)}
+                  </span>
+                  <span className="truncate text-xs text-text-muted">
+                    {humanizeLabel(call.directionLabel)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {error instanceof Error ? (
+          <div
+            role="alert"
+            className="rounded-lg border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100"
+          >
+            {error.message}
+          </div>
+        ) : null}
+      </SectionCard>
+    </div>
+  )
+}
+
+function _LegacyInvestingPredictionPanel() {
   const [windowDays, setWindowDays] =
     useState<(typeof WINDOW_OPTIONS)[number]>(3)
   const nowMs = useRelativeNow()

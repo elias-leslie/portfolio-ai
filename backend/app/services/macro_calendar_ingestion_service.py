@@ -23,6 +23,10 @@ logger = get_logger(__name__)
 BEA_RELEASE_DATES_URL: Final = "https://apps.bea.gov/API/signup/release_dates.json"
 BLS_RELEASE_CALENDAR_URL: Final = "https://www.bls.gov/schedule/news_release/bls.ics"
 FED_FOMC_CALENDAR_URL: Final = "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+BLS_MONTHLY_SCHEDULE_URL_TEMPLATE: Final = "https://www.bls.gov/schedule/{year}/{month:02d}_sched_list.htm"
+BLS_MONTHLY_SCHEDULE_READER_URL_TEMPLATE: Final = (
+    "https://r.jina.ai/https://www.bls.gov/schedule/{year}/{month:02d}_sched_list.htm"
+)
 
 REQUEST_HEADERS: Final = {
     "User-Agent": "portfolio-ai macro-calendar-ingestion/1.0",
@@ -42,7 +46,8 @@ SOURCE_PROVENANCE: Final = {
     },
     "bls_release_calendar": {
         "url": BLS_RELEASE_CALENDAR_URL,
-        "availability": "BLS public iCalendar release calendar for national-office releases.",
+        "fallback_url": "https://www.bls.gov/schedule/",
+        "availability": "BLS public iCalendar release calendar, with BLS monthly schedule page fallback when the calendar blocks server fetches.",
         "event_types": ["cpi_release", "nfp_release"],
     },
 }
@@ -303,6 +308,36 @@ def fetch_bls_release_events(
     end_date: dt.date,
     text_fetcher: TextFetcher = _http_get_text,
 ) -> list[MacroCalendarEvent]:
+    ics_error: Exception | None = None
+    try:
+        events = _fetch_bls_release_events_from_ics(
+            start_date=start_date,
+            end_date=end_date,
+            text_fetcher=text_fetcher,
+        )
+    except Exception as exc:
+        ics_error = exc
+        logger.warning("bls_ics_calendar_failed", error=str(exc))
+    else:
+        if events:
+            return events
+
+    fallback_events = fetch_bls_release_events_from_monthly_pages(
+        start_date=start_date,
+        end_date=end_date,
+        text_fetcher=text_fetcher,
+    )
+    if fallback_events or ics_error is None:
+        return fallback_events
+    raise ics_error
+
+
+def _fetch_bls_release_events_from_ics(
+    *,
+    start_date: dt.date,
+    end_date: dt.date,
+    text_fetcher: TextFetcher,
+) -> list[MacroCalendarEvent]:
     calendar_text = text_fetcher(BLS_RELEASE_CALENDAR_URL)
     events: list[MacroCalendarEvent] = []
     current: dict[str, str] | None = None
@@ -320,6 +355,90 @@ def fetch_bls_release_events(
         key, value = line.split(":", 1)
         current[key.split(";", 1)[0].upper()] = value.replace("\\,", ",").strip()
     return events
+
+
+def fetch_bls_release_events_from_monthly_pages(
+    *,
+    start_date: dt.date,
+    end_date: dt.date,
+    text_fetcher: TextFetcher = _http_get_text,
+) -> list[MacroCalendarEvent]:
+    events: list[MacroCalendarEvent] = []
+    for month_start in _month_starts(start_date, end_date):
+        url = BLS_MONTHLY_SCHEDULE_READER_URL_TEMPLATE.format(
+            year=month_start.year,
+            month=month_start.month,
+        )
+        page_text = text_fetcher(url)
+        events.extend(_parse_bls_monthly_schedule(page_text, start_date=start_date, end_date=end_date))
+    return _dedupe_macro_events(events)
+
+
+def _month_starts(start_date: dt.date, end_date: dt.date) -> Iterable[dt.date]:
+    current = start_date.replace(day=1)
+    while current <= end_date:
+        yield current
+        if current.month == 12:
+            current = dt.date(current.year + 1, 1, 1)
+        else:
+            current = dt.date(current.year, current.month + 1, 1)
+
+
+def _parse_bls_monthly_schedule(
+    page_text: str,
+    *,
+    start_date: dt.date,
+    end_date: dt.date,
+) -> list[MacroCalendarEvent]:
+    events: list[MacroCalendarEvent] = []
+    row_pattern = re.compile(
+        r"\|\s*(?P<date>[A-Za-z]+,\s+[A-Za-z]+\s+\d{1,2},\s+\d{4})\s*"
+        r"\|\s*(?P<time>\d{1,2}:\d{2}\s+[AP]M)\s*"
+        r"\|\s*\*\*(?P<title>[^*]+)\*\*[^|]*\|",
+    )
+    for match in row_pattern.finditer(page_text):
+        title = match.group("title").strip()
+        release_type = BLS_RELEASE_TYPES.get(title)
+        if release_type is None:
+            continue
+        event_date = _parse_bls_date_label(match.group("date"))
+        event_time = _parse_bls_time_label(match.group("time"))
+        if event_date is None or event_time is None or not _in_window(event_date, start_date, end_date):
+            continue
+        event_type, impact_score = release_type
+        events.append(
+            MacroCalendarEvent(
+                event_type=event_type,
+                event_date=event_date,
+                event_time=event_time,
+                title=title,
+                source="bls_release_calendar",
+                description=_event_description(
+                    source_name="BLS monthly release schedule",
+                    source_url=BLS_MONTHLY_SCHEDULE_URL_TEMPLATE.format(
+                        year=event_date.year,
+                        month=event_date.month,
+                    ),
+                    detail=f"{title} release calendar",
+                ),
+                impact_score=impact_score,
+            )
+        )
+    return events
+
+
+def _parse_bls_date_label(value: str) -> dt.date | None:
+    try:
+        return dt.datetime.strptime(value.strip(), "%A, %B %d, %Y").date()
+    except ValueError:
+        return None
+
+
+def _parse_bls_time_label(value: str) -> dt.time | None:
+    try:
+        return dt.datetime.strptime(value.strip().upper(), "%I:%M %p").time()
+    except ValueError:
+        return None
 
 
 def _build_bls_event(

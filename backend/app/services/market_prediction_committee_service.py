@@ -8,10 +8,15 @@ import math
 import uuid
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from app.agents.clients.agent_hub_client import AgentHubAPIClient
-from app.constants import MARKET_SYMBOL, PREDICTION_TARGET_SYMBOLS
+from app.constants import (
+    MAG7_COMPONENT_SYMBOLS,
+    MARKET_SYMBOL,
+    PREDICTION_DRIVER_SYMBOLS,
+    PREDICTION_TARGET_SYMBOLS,
+)
 from app.logging_config import get_logger
 from app.models.market_prediction import (
     SUPPORTED_ADAPTIVE_CLUSTER_KEYS,
@@ -20,10 +25,13 @@ from app.models.market_prediction import (
     MarketPredictionCall,
     MarketPredictionClusterReview,
     MarketPredictionCommitteeResponse,
+    MarketPredictionDataHealthRow,
+    MarketPredictionResearchScoreboard,
     MarketPredictionResolvedSeatWeight,
     MarketPredictionRun,
     MarketPredictionScorecard,
     MarketPredictionSeatReview,
+    MarketPredictionWalkForwardScorecard,
     PredictionDirection,
     PredictionFreshnessCluster,
     PredictionFreshnessSummary,
@@ -36,6 +44,7 @@ from app.services.market_events_service import (
     build_default_macro_calendar_cluster,
     get_macro_calendar_cluster,
 )
+from app.services.market_prediction_walk_forward_service import MarketPredictionWalkForwardService
 from app.services.options_flow_service import get_latest_options_flow
 from app.sources.fred import FREDSource
 from app.storage import PortfolioStorage, get_storage
@@ -61,7 +70,14 @@ DEFAULT_SPARSE_HISTORY_NOTE = "Not enough comparable history for a stable trend.
 DEFAULT_LEGACY_SPARSE_NOTE = "Legacy sparse data: selected lead attribution unavailable."
 DEFAULT_ATTRIBUTION_NOTE = "Derived fallback; tracked not ranked."
 DEFAULT_UNATTRIBUTED_NOTE = "Derived fallback; no usable source snapshot."
-CRITICAL_FRESHNESS_CLUSTERS = ("market_regime", "options_positioning", "macro_calendar")
+CRITICAL_FRESHNESS_CLUSTERS = ("market_regime", "driver_bars", "options_positioning", "macro_calendar")
+RESEARCH_SCOREBOARD_MIN_SAMPLE_COUNT_BY_WINDOW = {1: 100, 3: 80, 7: 60, 14: 40}
+RESEARCH_BASELINE_HIT_RATE = 0.5
+RESEARCH_BASELINE_BRIER_SCORE = 0.25
+RESEARCH_ROUND_TRIP_COST_PCT = 0.05
+RESEARCH_MAX_MOVE_MAE_PCT_BY_WINDOW = {1: 0.75, 3: 1.25, 7: 2.0, 14: 3.0}
+RESEARCH_WILSON_Z = 1.96
+RESEARCH_LIVE_CONFIRMATION_MIN_SAMPLE_COUNT = 20
 SESSION_FRESHNESS_THRESHOLDS_SECONDS = {
     "open": (20 * 60, 60 * 60, 2 * 60 * 60),
     "pre_market": (60 * 60, 3 * 60 * 60, 6 * 60 * 60),
@@ -73,7 +89,7 @@ DEFAULT_ROSTER = [
     {"seat_key": "macro", "agent_slug": "market-pulse-analyst", "model_id": "gpt-5.4"},
     {"seat_key": "risk", "agent_slug": "risk-manager", "model_id": "claude-opus-4-7"},
 ]
-MAG7_TICKERS = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA"]
+MAG7_TICKERS = MAG7_COMPONENT_SYMBOLS
 MAG7_SECTOR_PROXIES = ["XLK", "XLC", "XLY"]
 WTI_SERIES_ID = "DCOILWTICO"
 SEAT_CLUSTER_PREFERENCES = {
@@ -200,7 +216,7 @@ class MarketPredictionCommitteeService:
                 source_snapshot=source_snapshot,
                 cluster_review=cluster_review_artifact,
             )
-            scorecard = self.repository.get_scorecard(window_days)
+            scorecard = self.repository.get_scorecard(window_days, symbol=lead_call.symbol)
             last_evaluated_at = self.repository.get_last_evaluated_at(window_days)
 
             run = MarketPredictionRun(
@@ -274,22 +290,8 @@ class MarketPredictionCommitteeService:
         fear_greed = self.storage.get_fear_greed_latest()
         options_flow = get_latest_options_flow(self.storage)
         market_date = get_expected_data_date(as_of_ts.astimezone(NY_TZ))
-        price_rows = self.storage.query(
-            """
-            SELECT DISTINCT ON (symbol) symbol, date, close
-            FROM day_bars
-            WHERE symbol = ANY(?::text[])
-            ORDER BY symbol, date DESC
-            """,
-            [PREDICTION_TARGET_SYMBOLS],
-        )
-        latest_closes = {
-            str(row["symbol"]): {
-                "date": row["date"].isoformat() if row.get("date") else None,
-                "close": float(row["close"]) if row.get("close") is not None else None,
-            }
-            for row in price_rows.iter_rows(named=True)
-        }
+        latest_closes = self._latest_close_payloads(PREDICTION_TARGET_SYMBOLS)
+        driver_closes = self._latest_close_payloads(PREDICTION_DRIVER_SYMBOLS)
 
         options_summary: dict[str, Any] = {
             "freshness": "missing",
@@ -324,6 +326,10 @@ class MarketPredictionCommitteeService:
                 "freshness": "fresh" if latest_closes else "missing",
                 "latest_closes": latest_closes,
             },
+            "driver_bars": {
+                "freshness": "fresh" if driver_closes else "missing",
+                "latest_closes": driver_closes,
+            },
             "sentiment": {
                 "freshness": "fresh" if fear_greed else "missing",
                 "fear_greed": fear_greed,
@@ -342,6 +348,24 @@ class MarketPredictionCommitteeService:
             "as_of_ts": as_of_ts.isoformat(),
             "target_universe": PREDICTION_TARGET_SYMBOLS,
             "clusters": clusters,
+        }
+
+    def _latest_close_payloads(self, symbols: list[str]) -> dict[str, dict[str, float | str | None]]:
+        rows = self.storage.query(
+            """
+            SELECT DISTINCT ON (symbol) symbol, date, close
+            FROM day_bars
+            WHERE symbol = ANY(?::text[])
+            ORDER BY symbol, date DESC
+            """,
+            [symbols],
+        )
+        return {
+            str(row["symbol"]): {
+                "date": row["date"].isoformat() if row.get("date") else None,
+                "close": float(row["close"]) if row.get("close") is not None else None,
+            }
+            for row in rows.iter_rows(named=True)
         }
 
     def _query_recent_closes(self, symbols: list[str], *, limit_per_symbol: int = 2) -> dict[str, list[tuple[date, float]]]:
@@ -691,12 +715,21 @@ class MarketPredictionCommitteeService:
             scorecard_status_note=scorecard_status_note,
             as_of_ts=response.as_of_ts,
         )
+        research_scoreboard = self._build_research_scoreboard(
+            lead_call=lead_call,
+            scorecard=normalized_scorecard,
+            truth_state=truth_state,
+            scorecard_status_note=scorecard_status_note,
+            source_snapshot=normalized_source_snapshot,
+            metadata=metadata,
+        )
         normalized = response.model_copy(
             update={
                 "lead_call": lead_call,
                 "calls": calls,
                 "votes": votes,
                 "scorecard": normalized_scorecard,
+                "research_scoreboard": research_scoreboard,
                 "committee_summary": committee_summary,
                 "source_snapshot": normalized_source_snapshot,
                 "target_universe": self._normalize_target_universe(response.target_universe),
@@ -722,6 +755,10 @@ class MarketPredictionCommitteeService:
         normalized_clusters = self._normalize_source_snapshot_clusters(snapshot.get("clusters"))
         normalized_clusters["market_regime"] = self._normalize_market_regime_cluster(
             normalized_clusters.get("market_regime"),
+            market_date=market_date,
+        )
+        normalized_clusters["driver_bars"] = self._normalize_market_regime_cluster(
+            normalized_clusters.get("driver_bars"),
             market_date=market_date,
         )
         normalized_clusters["options_positioning"] = self._normalize_options_positioning_cluster(
@@ -766,7 +803,7 @@ class MarketPredictionCommitteeService:
         if latest_dates:
             latest_common_date = min(latest_dates)
             cluster["latest_common_date"] = latest_common_date
-            cluster["freshness"] = "fresh" if latest_common_date == market_date.isoformat() else "stale"
+            cluster["freshness"] = "fresh" if latest_common_date >= market_date.isoformat() else "stale"
             return cluster
         cluster["freshness"] = "missing"
         cluster["latest_common_date"] = None
@@ -782,7 +819,7 @@ class MarketPredictionCommitteeService:
         as_of_date = self._normalize_iso_date(cluster.get("as_of_date"))
         if as_of_date is not None:
             cluster["as_of_date"] = as_of_date
-            cluster["freshness"] = "fresh" if as_of_date == market_date.isoformat() else "stale"
+            cluster["freshness"] = "fresh" if as_of_date >= market_date.isoformat() else "stale"
             return cluster
         if any(cluster.get(key) is not None for key in ("call_pct", "near_term_pct", "concentration_pct")):
             cluster["freshness"] = self._normalize_source_freshness(cluster.get("freshness"))
@@ -840,6 +877,191 @@ class MarketPredictionCommitteeService:
             }
         )
         return summary
+
+    def _build_research_scoreboard(
+        self,
+        *,
+        lead_call: MarketPredictionCall,
+        scorecard: MarketPredictionScorecard | None,
+        truth_state: str,
+        scorecard_status_note: str | None,
+        source_snapshot: dict[str, Any],
+        metadata: dict[str, Any],
+    ) -> MarketPredictionResearchScoreboard:
+        sample_count = scorecard.sample_size if scorecard is not None else 0
+        hit_rate = scorecard.direction_hit_rate if scorecard is not None else None
+        brier_score = scorecard.brier_score if scorecard is not None else None
+        move_mae_pct = scorecard.move_mae_pct if scorecard is not None else None
+        min_sample_count = RESEARCH_SCOREBOARD_MIN_SAMPLE_COUNT_BY_WINDOW.get(lead_call.window_days, 100)
+        max_move_mae_pct = RESEARCH_MAX_MOVE_MAE_PCT_BY_WINDOW.get(lead_call.window_days, 1.25)
+        sufficient_samples = sample_count >= min_sample_count
+        beats_baseline = (
+            hit_rate is not None
+            and brier_score is not None
+            and hit_rate > RESEARCH_BASELINE_HIT_RATE
+            and brier_score < RESEARCH_BASELINE_BRIER_SCORE
+        )
+        hit_rate_lcb = self._wilson_lower_bound(hit_rate, sample_count)
+        hit_rate_confident = hit_rate_lcb is not None and hit_rate_lcb > RESEARCH_BASELINE_HIT_RATE
+        move_error_ok = move_mae_pct is not None and move_mae_pct <= max_move_mae_pct
+        walk_forward = self._lookup_walk_forward_scorecard(
+            lead_call=lead_call,
+            min_sample_count=min_sample_count,
+            max_move_mae_pct=max_move_mae_pct,
+        )
+        stored_after_cost_edge_pct = self._coerce_optional_float(metadata.get("after_cost_edge_pct"))
+        after_cost_edge_pct = stored_after_cost_edge_pct
+        cost_model = "stored" if after_cost_edge_pct is not None else "next_open_to_target_close_5bps"
+        if after_cost_edge_pct is None:
+            after_cost_edge_pct = self._lookup_after_cost_edge_pct(lead_call)
+        if after_cost_edge_pct is None:
+            cost_model = "next_open_to_target_close_5bps_no_trades"
+        data_health = self._build_research_data_health(source_snapshot)
+        data_health_blocked = any(row.status in {"missing", "stale", "unknown"} for row in data_health)
+
+        status: Literal["no_edge", "shadow", "usable"] = "no_edge"
+        if truth_state != "live":
+            status_reason = scorecard_status_note or "Snapshot is not mature enough for an edge claim."
+        elif data_health_blocked:
+            status_reason = "Data health is not fresh."
+        elif walk_forward is None:
+            status_reason = "Walk-forward proof unavailable."
+        elif not walk_forward.passed:
+            status_reason = walk_forward.status_reason
+        elif sample_count < RESEARCH_LIVE_CONFIRMATION_MIN_SAMPLE_COUNT:
+            status = "shadow"
+            status_reason = (
+                f"Walk-forward passed; live check needs {RESEARCH_LIVE_CONFIRMATION_MIN_SAMPLE_COUNT} "
+                f"samples, {sample_count} available."
+            )
+        elif not sufficient_samples:
+            status = "shadow"
+            status_reason = (
+                f"Walk-forward passed; live sample still building: {sample_count}/{min_sample_count}."
+            )
+        elif hit_rate is None or brier_score is None:
+            status_reason = "Live check missing hit or probability-error proof."
+        elif not beats_baseline:
+            status_reason = "Live check worse than simple baseline."
+        elif not hit_rate_confident:
+            status_reason = "Live hit rate is not far enough above a coin flip."
+        elif not move_error_ok:
+            status_reason = f"Live move error too high: {move_mae_pct:.2f}% > {max_move_mae_pct:.2f}%."
+        elif after_cost_edge_pct is None:
+            status = "shadow"
+            status_reason = "Walk-forward passed; no evaluated live long/short trades yet."
+        elif after_cost_edge_pct <= 0:
+            status_reason = "Live edge is not positive after costs."
+        else:
+            status = "usable"
+            status_reason = "Walk-forward and live checks pass after costs."
+
+        if walk_forward is None and truth_state == "live" and not data_health_blocked and not sufficient_samples:
+            status_reason = (
+                f"Need {min_sample_count} mature samples; "
+                f"{sample_count} available."
+            )
+
+        return MarketPredictionResearchScoreboard(
+            status=status,
+            status_reason=status_reason,
+            sample_count=sample_count,
+            min_sample_count=min_sample_count,
+            sufficient_samples=sufficient_samples,
+            hit_rate=hit_rate,
+            move_mae_pct=move_mae_pct,
+            brier_score=brier_score,
+            baseline_hit_rate=RESEARCH_BASELINE_HIT_RATE,
+            baseline_brier_score=RESEARCH_BASELINE_BRIER_SCORE,
+            beats_baseline=beats_baseline,
+            hit_rate_lcb=hit_rate_lcb,
+            hit_rate_confident=hit_rate_confident,
+            max_move_mae_pct=max_move_mae_pct,
+            move_error_ok=move_error_ok,
+            after_cost_edge_pct=after_cost_edge_pct,
+            cost_model=cost_model,
+            model_id=self._optional_str(lead_call.metadata.get("model_id"))
+            or self._optional_str(metadata.get("prediction_model_id")),
+            model_version=self._optional_str(lead_call.metadata.get("model_version"))
+            or self._optional_str(metadata.get("prediction_model_version")),
+            referee="walk_forward_referee_v1",
+            experiment_loop="walk_forward_grid_v1",
+            walk_forward=walk_forward,
+            data_health=data_health,
+        )
+
+    def _lookup_walk_forward_scorecard(
+        self,
+        *,
+        lead_call: MarketPredictionCall,
+        min_sample_count: int,
+        max_move_mae_pct: float,
+    ) -> MarketPredictionWalkForwardScorecard | None:
+        try:
+            return MarketPredictionWalkForwardService(repository=self.repository, storage=self.storage).build_scorecard(
+                symbol=lead_call.symbol,
+                window_days=lead_call.window_days,
+                min_sample_count=min_sample_count,
+                max_move_mae_pct=max_move_mae_pct,
+            )
+        except Exception:
+            logger.warning(
+                "market_prediction_walk_forward_lookup_failed",
+                symbol=lead_call.symbol,
+                window_days=lead_call.window_days,
+                exc_info=True,
+            )
+            return None
+
+    def _lookup_after_cost_edge_pct(self, lead_call: MarketPredictionCall) -> float | None:
+        getter = getattr(self.repository, "get_after_cost_edge_pct", None)
+        if not callable(getter):
+            return None
+        try:
+            return getter(
+                window_days=lead_call.window_days,
+                symbol=lead_call.symbol,
+                round_trip_cost_pct=RESEARCH_ROUND_TRIP_COST_PCT,
+            )
+        except Exception:
+            logger.warning(
+                "market_prediction_after_cost_edge_lookup_failed",
+                symbol=lead_call.symbol,
+                window_days=lead_call.window_days,
+                exc_info=True,
+            )
+            return None
+
+    def _build_research_data_health(self, source_snapshot: dict[str, Any]) -> list[MarketPredictionDataHealthRow]:
+        rows: list[MarketPredictionDataHealthRow] = []
+        for cluster in self._build_freshness_clusters(source_snapshot):
+            rows.append(
+                MarketPredictionDataHealthRow(
+                    label=cluster.cluster,
+                    status=cluster.freshness,
+                    detail=cluster.detail,
+                    as_of_date=cluster.as_of_date,
+                )
+            )
+        return rows
+
+    @staticmethod
+    def _coerce_optional_float(value: Any) -> float | None:
+        if value is None or isinstance(value, bool) or not isinstance(value, (int, float)):
+            return None
+        numeric = float(value)
+        return numeric if math.isfinite(numeric) else None
+
+    @staticmethod
+    def _wilson_lower_bound(hit_rate: float | None, sample_count: int) -> float | None:
+        if hit_rate is None or sample_count <= 0:
+            return None
+        p = min(1.0, max(0.0, hit_rate))
+        z = RESEARCH_WILSON_Z
+        denominator = 1.0 + (z * z / sample_count)
+        center = p + (z * z / (2.0 * sample_count))
+        margin = z * math.sqrt(((p * (1.0 - p)) + (z * z / (4.0 * sample_count))) / sample_count)
+        return max(0.0, (center - margin) / denominator)
 
     def _build_freshness_summary(
         self,
@@ -971,11 +1193,14 @@ class MarketPredictionCommitteeService:
         cluster_name: str,
         payload: dict[str, Any],
     ) -> str | None:
-        if cluster_name == "market_regime":
-            return self._normalize_iso_date(payload.get("latest_common_date"))
-        if cluster_name == "options_positioning":
-            return self._normalize_iso_date(payload.get("as_of_date"))
-        return None
+        candidate: Any = None
+        if cluster_name in {"market_regime", "driver_bars"}:
+            candidate = payload.get("latest_common_date")
+        elif cluster_name == "options_positioning":
+            candidate = payload.get("as_of_date")
+        elif cluster_name == "macro_calendar":
+            candidate = payload.get("next_event_date")
+        return self._normalize_iso_date(candidate)
 
     def _freshness_cluster_detail(
         self,
@@ -983,20 +1208,25 @@ class MarketPredictionCommitteeService:
         cluster_name: str,
         payload: dict[str, Any],
     ) -> str | None:
+        detail: str | None = None
         if cluster_name == "macro_calendar":
             reason = self._optional_str(payload.get("reason"))
             if reason in {"stale_table", "staleTable"}:
-                return "Macro calendar table stale."
-            if reason in {"no_future_rows", "noFutureRows"}:
-                return "No future macro rows tracked."
-            return None
-        if cluster_name == "market_regime":
+                detail = "Macro calendar table stale."
+            elif reason in {"no_future_rows", "noFutureRows"}:
+                detail = "No future macro rows tracked."
+            elif isinstance(next_high_impact := payload.get("next_high_impact_event"), dict):
+                title = self._optional_str(next_high_impact.get("title"))
+                event_date = self._normalize_iso_date(next_high_impact.get("event_date"))
+                if title and event_date:
+                    detail = f"Next high impact: {title} on {event_date}."
+        elif cluster_name in {"market_regime", "driver_bars"}:
             latest_common_date = self._normalize_iso_date(payload.get("latest_common_date"))
-            return f"Latest closes through {latest_common_date}." if latest_common_date else None
-        if cluster_name == "options_positioning":
+            detail = f"Latest closes through {latest_common_date}." if latest_common_date else None
+        elif cluster_name == "options_positioning":
             as_of_date = self._normalize_iso_date(payload.get("as_of_date"))
-            return f"Options positioning through {as_of_date}." if as_of_date else None
-        return None
+            detail = f"Options positioning through {as_of_date}." if as_of_date else None
+        return detail
 
     def _freshness_thresholds_for_market_status(self, market_status: str) -> tuple[int, int, int]:
         return SESSION_FRESHNESS_THRESHOLDS_SECONDS.get(
@@ -2320,6 +2550,11 @@ class MarketPredictionCommitteeService:
             logger.warning("market_prediction_degraded_macro_calendar_failed", exc_info=True)
             macro_calendar = build_default_macro_calendar_cluster()
         lead_call = self._neutral_call(window_days=window_days)
+        source_snapshot = {
+            "as_of_ts": as_of_ts.isoformat(),
+            "target_universe": PREDICTION_TARGET_SYMBOLS,
+            "clusters": {"macro_calendar": macro_calendar},
+        }
         return MarketPredictionCommitteeResponse(
             as_of_ts=as_of_ts,
             generated_at=as_of_ts,
@@ -2331,6 +2566,11 @@ class MarketPredictionCommitteeService:
             calls=[lead_call],
             votes=[],
             scorecard=None,
+            research_scoreboard=MarketPredictionResearchScoreboard(
+                status="no_edge",
+                status_reason=DEFAULT_FETCH_ERROR_NOTE,
+                data_health=self._build_research_data_health(source_snapshot),
+            ),
             committee_summary={
                 "committee_roster_mode": None,
                 "committee_execution_path": "fallback_completion",
@@ -2338,11 +2578,7 @@ class MarketPredictionCommitteeService:
                 "truth_state": "fetch_error",
                 "scorecard_status_note": DEFAULT_FETCH_ERROR_NOTE,
             },
-            source_snapshot={
-                "as_of_ts": as_of_ts.isoformat(),
-                "target_universe": PREDICTION_TARGET_SYMBOLS,
-                "clusters": {"macro_calendar": macro_calendar},
-            },
+            source_snapshot=source_snapshot,
             last_evaluated_at=None,
         )
 

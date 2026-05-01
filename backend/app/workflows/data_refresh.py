@@ -13,9 +13,16 @@ from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 from ..constants import TRADING_DAYS_PER_YEAR
 from ..hatchet_app import hatchet
 from .data_refresh_schedules import (
+    DAILY_OHLCV_CRONS,
     FEAR_GREED_CALC_CRONS,
     FEAR_GREED_INPUTS_CRONS,
+    FUNDAMENTAL_INGESTION_CRONS,
+    HISTORICAL_OHLCV_MAINTENANCE_CRONS,
+    MACRO_INDICATOR_INGESTION_CRONS,
+    OPTIONS_ACTIVITY_CRONS,
     PUTCALL_RATIO_CRONS,
+    TECHNICAL_INDICATOR_BACKFILL_CRONS,
+    WATCHLIST_OHLCV_CRONS,
 )
 from .models import EmptyInput, SymbolsInput
 
@@ -26,7 +33,7 @@ from .models import EmptyInput, SymbolsInput
     execution_timeout="3600s",
     retries=3,
     backoff_factor=2.0,
-    on_crons=["0 2 * * *"],
+    on_crons=DAILY_OHLCV_CRONS,
     concurrency=ConcurrencyExpression(
         expression="'portfolio-refresh-ohlcv'",
         max_runs=1,
@@ -45,7 +52,7 @@ async def refresh_daily_ohlcv_wf(input: EmptyInput, ctx: Context) -> dict[str, A
     execution_timeout="3600s",
     retries=3,
     backoff_factor=2.0,
-    on_crons=["15 2 * * *"],
+    on_crons=WATCHLIST_OHLCV_CRONS,
     concurrency=ConcurrencyExpression(
         expression="'portfolio-refresh-watchlist-ohlcv'",
         max_runs=1,
@@ -63,7 +70,7 @@ async def refresh_watchlist_ohlcv_wf(input: EmptyInput, ctx: Context) -> dict[st
     input_validator=EmptyInput,
     execution_timeout="3600s",
     retries=1,
-    on_crons=["30 2 * * *"],
+    on_crons=TECHNICAL_INDICATOR_BACKFILL_CRONS,
     concurrency=ConcurrencyExpression(
         expression="'portfolio-backfill-indicators'",
         max_runs=1,
@@ -120,7 +127,7 @@ async def calculate_fear_greed_wf(input: EmptyInput, ctx: Context) -> dict[str, 
     execution_timeout="7200s",
     retries=3,
     backoff_factor=2.0,
-    on_crons=["15 4 * * *"],
+    on_crons=HISTORICAL_OHLCV_MAINTENANCE_CRONS,
     concurrency=ConcurrencyExpression(
         expression="'portfolio-maintain-historical'",
         max_runs=1,
@@ -138,7 +145,7 @@ async def maintain_historical_wf(input: EmptyInput, ctx: Context) -> dict[str, A
     input_validator=EmptyInput,
     execution_timeout="1800s",
     retries=1,
-    on_crons=["15 21 * * *"],
+    on_crons=OPTIONS_ACTIVITY_CRONS,
     concurrency=ConcurrencyExpression(
         expression="'portfolio-options-activity'",
         max_runs=1,
@@ -212,7 +219,7 @@ async def update_technical_indicators_wf(input: SymbolsInput, ctx: Context) -> d
     execution_timeout="7200s",
     retries=2,
     backoff_factor=2.0,
-    on_crons=["10 6 * * 0"],
+    on_crons=FUNDAMENTAL_INGESTION_CRONS,
     concurrency=ConcurrencyExpression(
         expression="'portfolio-ingest-fundamentals'",
         max_runs=1,
@@ -231,7 +238,7 @@ async def ingest_fundamental_data_wf(input: EmptyInput, ctx: Context) -> dict[st
     execution_timeout="3600s",
     retries=2,
     backoff_factor=2.0,
-    on_crons=["30 6 * * *"],
+    on_crons=MACRO_INDICATOR_INGESTION_CRONS,
     concurrency=ConcurrencyExpression(
         expression="'portfolio-ingest-macro'",
         max_runs=1,

@@ -323,6 +323,86 @@ export interface MarketPredictionScorecard {
   sampleSize: number
 }
 
+export interface MarketPredictionDataHealthRow {
+  label: string
+  status: PredictionSourceFreshness | string
+  detail?: string | null
+  asOfDate?: string | null
+}
+
+export interface MarketPredictionWalkForwardCandidateSummary {
+  candidateId?: string | null
+  candidateLabel?: string | null
+  candidateFeatureKind?: 'absolute' | 'relative_to_target' | string
+  benchmarkSymbol?: string | null
+  status: 'pass' | 'fail' | 'insufficient' | string
+  statusReason?: string | null
+  sampleCount: number
+  hitRate?: number | null
+  hitRateLcb?: number | null
+  brierImprovementPct?: number | null
+  moveMaePct?: number | null
+  baselineMoveMaePct?: number | null
+  afterCostEdgePct?: number | null
+  passed: boolean
+}
+
+export interface MarketPredictionWalkForwardScorecard {
+  status: 'pass' | 'fail' | 'insufficient' | string
+  statusReason: string
+  candidateId?: string | null
+  candidateLabel?: string | null
+  candidateFeatureKind?: 'absolute' | 'relative_to_target' | string
+  benchmarkSymbol?: string | null
+  driverLabels: string[]
+  testedCandidates: number
+  sampleCount: number
+  minSampleCount: number
+  tradeCount: number
+  startDate?: string | null
+  endDate?: string | null
+  trainWindowDays: number
+  strideDays: number
+  hitRate?: number | null
+  hitRateLcb?: number | null
+  brierScore?: number | null
+  baselineBrierScore?: number | null
+  brierImprovementPct?: number | null
+  moveMaePct?: number | null
+  baselineMoveMaePct?: number | null
+  maxMoveMaePct?: number | null
+  afterCostEdgePct?: number | null
+  costModel: string
+  passed: boolean
+  topCandidates: MarketPredictionWalkForwardCandidateSummary[]
+}
+
+export interface MarketPredictionResearchScoreboard {
+  status: 'no_edge' | 'noEdge' | 'shadow' | 'usable' | string
+  statusReason: string
+  sampleCount: number
+  minSampleCount: number
+  sufficientSamples: boolean
+  hitRate?: number | null
+  moveMaePct?: number | null
+  brierScore?: number | null
+  baselineHitRate?: number | null
+  baselineBrierScore?: number | null
+  beatsBaseline: boolean
+  hitRateLcb?: number | null
+  hitRateConfident?: boolean | null
+  maxMoveMaePct?: number | null
+  moveErrorOk?: boolean | null
+  afterCostEdgePct?: number | null
+  costModel: string
+  modelId?: string | null
+  modelVersion?: string | null
+  referee: string
+  experimentLoop: string
+  walkForward?: MarketPredictionWalkForwardScorecard | null
+  dataHealth: MarketPredictionDataHealthRow[]
+}
+
 export interface PredictionFreshnessCluster {
   cluster: string
   freshness: PredictionSourceFreshness
@@ -355,6 +435,7 @@ export interface MarketPredictionCommitteeResponse {
   calls: MarketPredictionCall[]
   votes: CommitteeSeatVote[]
   scorecard?: MarketPredictionScorecard | null
+  researchScoreboard?: MarketPredictionResearchScoreboard | null
   committeeSummary: MarketPredictionCommitteeSummary
   sourceSnapshot: MarketPredictionSourceSnapshot
   lastEvaluatedAt?: string | null
