@@ -114,3 +114,4 @@ certs/
 # Experiment/scratch scripts
 scripts/experiments/
 .index.yaml
+.gitnexus
