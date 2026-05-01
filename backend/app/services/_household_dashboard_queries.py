@@ -14,6 +14,9 @@ from app.services._household_dashboard_builders import (
     suggest_category,
     suggest_essentiality,
 )
+from app.services._household_dashboard_date_issues import (
+    fetch_transaction_date_issues as _fetch_transaction_date_issues_impl,
+)
 from app.services._household_dashboard_queries_shared import (
     _date_value,
     _days_since,
@@ -30,6 +33,9 @@ from app.services._household_dashboard_query_sql import (
     RECURRING_SQL,
     RETIREMENT_CONTRIBUTION_SQL,
     STATEMENT_FRESHNESS_SQL,
+)
+from app.services._household_dashboard_unknown_accounts import (
+    detect_unknown_accounts as _detect_unknown_accounts_impl,
 )
 
 # Backward-compatible aliases while this module is being slimmed down.
@@ -54,19 +60,11 @@ _UNKNOWN_ACCOUNT_SQL = """
 
 
 def fetch_transaction_date_issues(storage: Any, limit: int = 12):
-    from app.services._household_dashboard_date_issues import (
-        fetch_transaction_date_issues as _impl,
-    )
-
-    return _impl(storage, limit=limit)
+    return _fetch_transaction_date_issues_impl(storage, limit=limit)
 
 
 def detect_unknown_accounts(storage: Any, documents: list[Any]):
-    from app.services._household_dashboard_unknown_accounts import (
-        detect_unknown_accounts as _impl,
-    )
-
-    return _impl(storage, documents)
+    return _detect_unknown_accounts_impl(storage, documents)
 
 
 def _empty_future_transaction_quality() -> dict[str, Any]:
