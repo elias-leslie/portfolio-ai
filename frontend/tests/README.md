@@ -1,7 +1,7 @@
 # Frontend Test Organization
 
 Frontend automated tests in this repo use Vitest and React Testing Library.
-Live page verification uses `sf-browser`, not Playwright.
+Live page verification uses `st browser`, not Playwright.
 
 ## Directory Structure
 
@@ -36,11 +36,11 @@ These tests should cover:
 
 ## Browser Verification
 
-For real browser checks, use `sf-browser` against the running app:
+For real browser checks, use `st browser` against the running app:
 
 ```bash
-sf-browser health
-sf-browser check http://<host-ip-from-.index.yaml>:3000/status /tmp/status-check.png
+st browser health
+st browser check http://<host-ip-from-.index.yaml>:3000/status /tmp/status-check.png
 ```
 
 Use it to verify:
