@@ -14,7 +14,7 @@ import pytest
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from app.agents.llm_client import AgentHubAPIClient, DualProviderClient
+from app.agents.clients.agent_hub_client import AgentHubAPIClient
 
 pytestmark = [pytest.mark.manual, pytest.mark.slow]
 
@@ -81,45 +81,6 @@ def test_agent_hub_gemini() -> dict[str, str]:
         return {"status": "ERROR", "provider": "gemini", "error": str(e)}
 
 
-def test_dual_provider_client() -> dict[str, object]:
-    """Test DualProviderClient (Agent Hub wrapper).
-
-    Returns:
-        Dictionary with test results
-    """
-    print("\n=== TESTING DUAL PROVIDER CLIENT ===")
-    try:
-        print("Creating DualProviderClient(primary='gemini')...")
-        client = DualProviderClient(primary="gemini")
-
-        print(f"  Model: {client.get_model_name()}")
-        print(f"  Client is available: {client.is_available()}")
-
-        if not client.is_available():
-            return {"status": "NO_PROVIDERS", "error": "Agent Hub not available"}
-
-        # Try to generate
-        print("  Attempting to generate...")
-        try:
-            response = client.generate(
-                prompt="What is 2+2?",
-                system="You are a helpful assistant.",
-                max_tokens=50,
-            )
-            return {
-                "status": "SUCCESS",
-                "provider": response.provider,
-                "model": response.model,
-                "content": response.content[:100],
-                "tokens": response.usage.get("total_tokens", 0),
-            }
-        except RuntimeError as e:
-            return {"status": "GENERATION_FAILED", "error": str(e)}
-
-    except RuntimeError as e:
-        return {"status": "INITIALIZATION_FAILED", "error": str(e)}
-
-
 def print_summary(results: list[dict[str, object]]) -> None:
     """Print test summary and recommendations.
 
@@ -170,10 +131,6 @@ if __name__ == "__main__":
     results.append(
         {"name": "Agent Hub (Gemini)", "status": gemini_result["status"], **gemini_result}
     )
-
-    # Test dual provider
-    dual_result = test_dual_provider_client()
-    results.append({"name": "Dual Provider Client", "status": dual_result["status"], **dual_result})
 
     # Print summary
     print_summary(results)

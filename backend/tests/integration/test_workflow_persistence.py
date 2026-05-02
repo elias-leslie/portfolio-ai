@@ -5,7 +5,6 @@ Tests verify that agent_workflows and agent_messages tables are populated correc
 
 from __future__ import annotations
 
-import uuid
 from collections.abc import Generator
 
 import pytest
@@ -211,46 +210,3 @@ def test_workflow_fail_persists_status_and_error(storage: PortfolioStorage) -> N
     assert db_status == "failed"
     assert db_error == "simulated failure"
     assert completed_at is not None
-
-
-def test_agent_message_storage(storage: PortfolioStorage) -> None:
-    """Test that agent messages are stored correctly in agent_messages table."""
-    from app.agents.tool_executors_collaboration import CollaborationTools
-
-    tools = CollaborationTools(storage)
-    agent_run_id = str(uuid.uuid4())
-
-    # Send message from gemini to claude
-    result = tools.execute_send_message_to_agent(
-        agent_run_id=agent_run_id,
-        agent_type="claude",
-        message_type="question",
-        message="What do you think about AAPL?",
-        data={"question": "What do you think about AAPL?", "context": "earnings analysis"},
-        priority=5,
-    )
-
-    assert result["status"] == "sent"
-    message_id: str = str(result["message_id"])
-
-    # Verify message was stored
-    with storage.connection() as conn:
-        msg_result = conn.execute(
-            "SELECT from_agent_run_id, to_agent_type, message_type, status, priority, content FROM agent_messages WHERE id = $1",
-            [message_id],
-        ).fetchone()
-
-    assert msg_result is not None
-    (from_agent_run_id, to_agent_type, message_type, status, priority, content) = msg_result
-
-    assert from_agent_run_id == agent_run_id
-    assert to_agent_type == "claude"
-    assert message_type == "question"
-    assert status == "pending"
-    assert priority == 5
-
-    # Verify content is valid JSON
-    assert isinstance(content, dict)
-    assert content["message"] == "What do you think about AAPL?"
-    assert content["data"]["question"] == "What do you think about AAPL?"
-    assert content["data"]["context"] == "earnings analysis"

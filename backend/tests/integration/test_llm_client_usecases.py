@@ -17,7 +17,8 @@ from unittest.mock import patch
 
 import pytest
 
-from app.agents.llm_client import AgentHubAPIClient, DualProviderClient, LLMResponse
+from app.agents.clients.agent_hub_client import AgentHubAPIClient
+from app.agents.clients.base_client import LLMResponse
 
 
 @pytest.fixture
@@ -94,32 +95,6 @@ Reply with just the severity level."""
 
             assert response.content.strip().upper() in ["LOW", "MEDIUM", "HIGH"]
             mock_generate.assert_called_once()
-
-    def test_dual_provider_gap_analysis(self, mock_llm_response: Callable[..., LLMResponse]) -> None:
-        """Test DualProviderClient (Agent Hub wrapper) with gap analysis."""
-        gaps = {
-            "symbols": ["AAPL", "GOOGL", "MSFT"],
-            "common_gaps": ["real_time_options", "institutional_holdings"],
-            "priority": "high",
-        }
-
-        prompt = f"""How many symbols have data gaps?
-
-{json.dumps(gaps, indent=2)}
-
-Reply with just the number."""
-
-        with patch("app.agents.llm_client.AgentHubAPIClient") as mock_client_class:
-            mock_client = mock_client_class.return_value
-            mock_client.generate.return_value = mock_llm_response("3", "gemini-3-flash-preview")
-            mock_client.is_available.return_value = True
-            mock_client.get_model_name.return_value = "gemini-3-flash-preview"
-
-            client = DualProviderClient(primary="gemini")
-            response = client.generate(prompt)
-
-            assert response.content.strip() == "3"
-
 
 class TestPaperTradingUseCase:
     """Test Agent Hub with paper trading decision data."""

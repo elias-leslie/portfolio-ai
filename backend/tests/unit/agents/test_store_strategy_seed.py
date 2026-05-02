@@ -2,22 +2,22 @@
 
 from unittest.mock import MagicMock
 
+from app.agents.trading.ideas import execute_store_strategy_seed
+
 
 class TestStoreStrategySeed:
     """Tests for the store_strategy_seed tool executor."""
 
     def test_store_seed_basic(self) -> None:
         """Test basic seed storage."""
-        from app.agents.tool_executors_trading import TradingTools
-
         mock_storage = MagicMock()
-        tools = TradingTools(mock_storage)
 
-        result = tools.execute_store_strategy_seed(
-            agent_run_id="test-run-123",
-            symbol="AAPL",
-            thesis="Strong earnings growth expected",
-            confidence=6.0,
+        result = execute_store_strategy_seed(
+            mock_storage,
+            "test-run-123",
+            "AAPL",
+            "Strong earnings growth expected",
+            6.0,
         )
 
         assert result["status"] == "stored"
@@ -29,32 +29,28 @@ class TestStoreStrategySeed:
 
     def test_store_seed_normalizes_symbol(self) -> None:
         """Test symbol is normalized to uppercase."""
-        from app.agents.tool_executors_trading import TradingTools
-
         mock_storage = MagicMock()
-        tools = TradingTools(mock_storage)
 
-        result = tools.execute_store_strategy_seed(
-            agent_run_id="test-run",
-            symbol="  aapl  ",
-            thesis="Test thesis",
-            confidence=5.0,
+        result = execute_store_strategy_seed(
+            mock_storage,
+            "test-run",
+            "  aapl  ",
+            "Test thesis",
+            5.0,
         )
 
         assert result["symbol"] == "AAPL"
 
     def test_store_seed_empty_symbol_returns_error(self) -> None:
         """Test empty symbol returns error."""
-        from app.agents.tool_executors_trading import TradingTools
-
         mock_storage = MagicMock()
-        tools = TradingTools(mock_storage)
 
-        result = tools.execute_store_strategy_seed(
-            agent_run_id="test-run",
-            symbol="   ",
-            thesis="Test thesis",
-            confidence=5.0,
+        result = execute_store_strategy_seed(
+            mock_storage,
+            "test-run",
+            "   ",
+            "Test thesis",
+            5.0,
         )
 
         assert result["status"] == "error"
@@ -62,53 +58,44 @@ class TestStoreStrategySeed:
 
     def test_store_seed_normalizes_confidence_from_100_scale(self) -> None:
         """Test confidence is normalized from 0-100 to 1-10 scale."""
-        from app.agents.tool_executors_trading import TradingTools
-
         mock_storage = MagicMock()
-        tools = TradingTools(mock_storage)
 
-        result = tools.execute_store_strategy_seed(
-            agent_run_id="test-run",
-            symbol="NVDA",
-            thesis="AI boom",
-            confidence=85.0,  # Should become 8.5
+        result = execute_store_strategy_seed(
+            mock_storage,
+            "test-run",
+            "NVDA",
+            "AI boom",
+            85.0,
         )
 
         assert result["confidence"] == 8.5
 
     def test_store_seed_clamps_confidence(self) -> None:
         """Test confidence is clamped to 1-10 range."""
-        from app.agents.tool_executors_trading import TradingTools
-
         mock_storage = MagicMock()
-        tools = TradingTools(mock_storage)
 
-        # Test lower bound (0.5 should become 1.0)
-        result = tools.execute_store_strategy_seed(
-            agent_run_id="test-run",
-            symbol="TSLA",
-            thesis="Test",
-            confidence=0.5,
+        result = execute_store_strategy_seed(
+            mock_storage,
+            "test-run",
+            "TSLA",
+            "Test",
+            0.5,
         )
         assert result["confidence"] == 1.0
 
     def test_store_seed_high_confidence_sets_workflow_flag(self) -> None:
         """Test workflow_triggered flag is set for confidence >= 7 (actual trigger tested in integration)."""
-        from app.agents.tool_executors_trading import TradingTools
-
         mock_storage = MagicMock()
         mock_conn = MagicMock()
         mock_storage.connection.return_value.__enter__ = MagicMock(return_value=mock_conn)
         mock_storage.connection.return_value.__exit__ = MagicMock(return_value=False)
 
-        tools = TradingTools(mock_storage)
-
-        # Low confidence - no trigger
-        result_low = tools.execute_store_strategy_seed(
-            agent_run_id="test-run",
-            symbol="GOOGL",
-            thesis="Test thesis",
-            confidence=6.0,
+        result_low = execute_store_strategy_seed(
+            mock_storage,
+            "test-run",
+            "GOOGL",
+            "Test thesis",
+            6.0,
         )
         assert result_low["workflow_triggered"] is False
 
@@ -117,16 +104,14 @@ class TestStoreStrategySeed:
 
     def test_store_seed_inserts_correct_data(self) -> None:
         """Test correct data is inserted into strategy_seeds table."""
-        from app.agents.tool_executors_trading import TradingTools
-
         mock_storage = MagicMock()
-        tools = TradingTools(mock_storage)
 
-        tools.execute_store_strategy_seed(
-            agent_run_id="run-456",
-            symbol="MSFT",
-            thesis="Enterprise AI adoption",
-            confidence=7.5,
+        execute_store_strategy_seed(
+            mock_storage,
+            "run-456",
+            "MSFT",
+            "Enterprise AI adoption",
+            7.5,
         )
 
         call_args = mock_storage.insert_dict.call_args
