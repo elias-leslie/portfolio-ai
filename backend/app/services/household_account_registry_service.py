@@ -478,9 +478,35 @@ class HouseholdAccountRegistryService:
 
     def _fetch_tracked_accounts(self, conn: Any, *, limit: int) -> list[HouseholdTrackedAccount]:
         rows = conn.execute(
-            f"""
-            SELECT {_TRACKED_COLS}
-            FROM household_tracked_accounts
+            """
+            SELECT id, household_account_id, label, asset_group, account_type, source_type,
+                   match_key, institution_name, owner_name, account_mask, notes, created_at, updated_at
+            FROM (
+                SELECT
+                    p.id,
+                    p.household_account_id,
+                    COALESCE(NULLIF(p.display_label, ''), a.canonical_label) AS label,
+                    a.asset_group,
+                    a.account_type,
+                    a.source_type,
+                    a.primary_identity_key AS match_key,
+                    a.institution_name,
+                    COALESCE(NULLIF(p.display_owner_name, ''), a.owner_name) AS owner_name,
+                    a.account_mask,
+                    p.notes,
+                    p.created_at,
+                    p.updated_at
+                FROM household_account_preferences p
+                JOIN household_accounts a ON a.id = p.household_account_id
+                WHERE p.hidden_at IS NULL
+
+                UNION ALL
+
+                SELECT id, household_account_id, label, asset_group, account_type, source_type,
+                       match_key, institution_name, owner_name, account_mask, notes, created_at, updated_at
+                FROM household_tracked_accounts
+                WHERE household_account_id IS NULL
+            ) tracked
             ORDER BY updated_at DESC, created_at DESC
             LIMIT %s
             """,
@@ -1319,6 +1345,35 @@ class HouseholdAccountRegistryService:
             conn.execute("DELETE FROM household_tracked_accounts WHERE id = %s", [tracked.id])
 
         conn.execute(
+            """
+            INSERT INTO household_account_preferences (
+                household_account_id, display_label, display_owner_name, notes,
+                hidden_at, metadata, created_at, updated_at
+            )
+            SELECT
+                %s,
+                display_label,
+                display_owner_name,
+                notes,
+                hidden_at,
+                metadata,
+                created_at,
+                updated_at
+            FROM household_account_preferences
+            WHERE household_account_id = %s
+            ON CONFLICT (household_account_id) DO UPDATE
+            SET display_label = COALESCE(household_account_preferences.display_label, EXCLUDED.display_label),
+                display_owner_name = COALESCE(household_account_preferences.display_owner_name, EXCLUDED.display_owner_name),
+                notes = COALESCE(household_account_preferences.notes, EXCLUDED.notes),
+                updated_at = GREATEST(household_account_preferences.updated_at, EXCLUDED.updated_at)
+            """,
+            [winner_id, loser_id],
+        )
+        conn.execute(
+            "DELETE FROM household_account_preferences WHERE household_account_id = %s",
+            [loser_id],
+        )
+        conn.execute(
             "UPDATE household_evidence_accounts SET household_account_id = %s WHERE household_account_id = %s",
             [winner_id, loser_id],
         )
@@ -1503,7 +1558,7 @@ class HouseholdAccountRegistryService:
             and tracked.match_key == next_match_key
         ):
             return 0
-        conn.execute(
+        result = conn.execute(
             """
             UPDATE household_tracked_accounts
             SET match_key = %s,
@@ -1528,7 +1583,7 @@ class HouseholdAccountRegistryService:
                 tracked.id,
             ],
         )
-        return 1
+        return int(getattr(result, "rowcount", 0) or 0)
 
     def _sync_transactions(self, conn: Any, *, identity_map: dict[str, str]) -> int:
         rows = conn.execute(
@@ -1658,11 +1713,11 @@ class HouseholdAccountRegistryService:
             SELECT a.id
             FROM household_accounts a
             LEFT JOIN household_evidence_accounts ea ON ea.household_account_id = a.id
-            LEFT JOIN household_tracked_accounts ta ON ta.household_account_id = a.id
+            LEFT JOIN household_account_preferences ap ON ap.household_account_id = a.id
             LEFT JOIN household_transactions tx ON tx.household_account_id = a.id
             LEFT JOIN portfolio_accounts pa ON pa.household_account_id = a.id
             GROUP BY a.id
-            HAVING COUNT(ea.id) = 0 AND COUNT(ta.id) = 0 AND COUNT(tx.id) = 0 AND COUNT(pa.id) = 0
+            HAVING COUNT(ea.id) = 0 AND COUNT(ap.id) = 0 AND COUNT(tx.id) = 0 AND COUNT(pa.id) = 0
             """
         ).fetchall()
         orphan_ids = [str(row[0]) for row in rows if row[0] is not None]

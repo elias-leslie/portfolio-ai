@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
 from unittest.mock import Mock
 
 from app.services.thesis.thesis_generation import ThesisGenerator
@@ -30,7 +31,8 @@ def test_generate_thesis_sanitizes_invalid_trading_guidance_before_prompt() -> N
     llm = Mock()
     llm.generate.return_value = Mock(content='{"action": "BUY"}')
     generator = ThesisGenerator(llm_client=llm)
-    generator.parse_json_response = Mock(return_value={"action": "BUY"})
+    parse_json_response = Mock(return_value={"action": "BUY"})
+    generator.parse_json_response = cast(Any, parse_json_response)
 
     intelligence = {
         "symbol": "AAPL",

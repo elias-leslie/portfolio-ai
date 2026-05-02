@@ -22,7 +22,7 @@ from app.storage import PortfolioStorage
 
 
 @pytest.fixture
-def mock_storage(tmp_path):  # type: ignore[no-untyped-def]
+def mock_storage(tmp_path):
     """Create a test storage instance."""
     from app.storage import get_storage
 

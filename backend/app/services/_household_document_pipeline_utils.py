@@ -250,8 +250,8 @@ def parse_row_date(value: str | None) -> str | None:
         return None
 
 
-def parse_decimal(value: str | None) -> str | None:
-    """Parse a currency string to a plain Decimal string; return None on failure."""
+def parse_decimal_value(value: str | None) -> Decimal | None:
+    """Parse a currency string to Decimal; return None on failure."""
     if value is None:
         return None
     normalized = value.strip().replace(",", "").replace("$", "")
@@ -262,9 +262,15 @@ def parse_decimal(value: str | None) -> str | None:
     if normalized.startswith("(") and normalized.endswith(")"):
         normalized = f"-{normalized[1:-1]}"
     try:
-        return str(Decimal(normalized))
+        return Decimal(normalized)
     except InvalidOperation:
         return None
+
+
+def parse_decimal(value: str | None) -> str | None:
+    """Parse a currency string to a plain Decimal string; return None on failure."""
+    parsed = parse_decimal_value(value)
+    return str(parsed) if parsed is not None else None
 
 
 def detect_import_dataset(
@@ -311,5 +317,6 @@ __all__ = [
     "looks_like_transaction_activity",
     "normalize_financial_document_classification",
     "parse_decimal",
+    "parse_decimal_value",
     "parse_row_date",
 ]

@@ -267,8 +267,11 @@ def _csv_rows_from_text(extracted_text: str | None) -> tuple[list[str], list[dic
 def _numeric_string(value: str | None) -> str | None:
     if not value:
         return None
-    match = re.search(r"[-+]?\$?([0-9][0-9,]*\.\d+)", value)
-    return match.group(1).replace(",", "") if match else None
+    cleaned = value.strip().replace(",", "").replace("$", "").replace("%", "")
+    if cleaned.startswith("(") and cleaned.endswith(")"):
+        cleaned = f"-{cleaned[1:-1]}"
+    match = re.search(r"[-+]?[0-9]+(?:\.[0-9]+)?", cleaned)
+    return match.group(0) if match else None
 
 
 def _float_value(value: str | None) -> float | None:
@@ -753,10 +756,14 @@ def _extract_fidelity_positions_accounts(
         description = row.get("description", "").strip()
         quantity = _numeric_string(row.get("quantity"))
         weight_pct = _numeric_string(row.get("percent_of_account"))
+        cost_basis_total = _numeric_string(row.get("cost_basis_total"))
+        average_cost_basis = _numeric_string(row.get("average_cost_basis"))
         group["balance_total"] = float(group["balance_total"]) + current_value
+        normalized_symbol = symbol.upper()
         is_cash_like = (
-            symbol.upper() in {"SPAXX", "FCASH", "FDRXX"}
+            normalized_symbol in {"SPAXX", "FCASH", "FDRXX"}
             or "money market" in description.lower()
+            or normalized_symbol in {"PENDING ACTIVITY", "PENDING"}
         )
         if is_cash_like:
             group["cash_total"] = float(group["cash_total"]) + current_value
@@ -769,6 +776,9 @@ def _extract_fidelity_positions_accounts(
                     "quantity": quantity,
                     "market_value": f"{current_value:.2f}",
                     "weight_pct": weight_pct,
+                    "cost_basis_total": cost_basis_total,
+                    "average_cost_basis": average_cost_basis,
+                    "cash_like": is_cash_like,
                 }
             )
 
@@ -806,6 +816,8 @@ def _extract_fidelity_positions_accounts(
                 "cash_balance": f"{cash_total:.2f}",
                 "as_of_date": as_of_date,
                 "holdings": group["holdings"],
+                "position_snapshot": True,
+                "position_source": "fidelity_positions_csv",
             }
         )
 

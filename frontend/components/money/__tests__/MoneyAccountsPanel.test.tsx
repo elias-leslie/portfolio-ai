@@ -150,8 +150,25 @@ describe('MoneyAccountsPanel', () => {
     uploadMutateAsync.mockResolvedValue(undefined)
   })
 
-  it('renders account rows and uploads evidence with an account hint', async () => {
-    render(<MoneyAccountsPanel accounts={accounts} documents={documents} />)
+  it('renders account rows and uploads evidence bound to the selected account', async () => {
+    render(
+      <MoneyAccountsPanel
+        accounts={[
+          {
+            ...accounts[0],
+            linkedPortfolioAccountName: 'Main Checking Portfolio',
+          },
+        ]}
+        documents={documents}
+      />,
+    )
+
+    expect(screen.getByText('Balance Fresh')).toBeInTheDocument()
+    expect(screen.getByText('Activity Fresh')).toBeInTheDocument()
+    expect(screen.queryByText(/linked to/i)).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Main Checking Portfolio'),
+    ).not.toBeInTheDocument()
 
     await userEvent.click(
       screen.getByRole('button', { name: /main checking/i }),
@@ -159,7 +176,7 @@ describe('MoneyAccountsPanel', () => {
 
     expect(screen.getByText('Supporting documents')).toBeInTheDocument()
     expect(screen.getByText('checking-april.pdf')).toBeInTheDocument()
-    expect(screen.getByText(/hint: main checking/i)).toBeInTheDocument()
+    expect(screen.getByText(/selected: main checking/i)).toBeInTheDocument()
 
     const input = screen.getByLabelText('Files')
     const file = new File(['pdf'], 'may.pdf', { type: 'application/pdf' })
@@ -176,6 +193,7 @@ describe('MoneyAccountsPanel', () => {
         expect.objectContaining({
           file,
           accountLabel: 'Main Checking',
+          householdAccountId: 'household-1',
         }),
       )
     })
@@ -199,6 +217,7 @@ describe('MoneyAccountsPanel', () => {
           rawText:
             'Available balance $25,057\nPosted transaction 04/06/2026\nVendor: Amazon',
           accountLabel: 'Main Checking',
+          householdAccountId: 'household-1',
         }),
       )
     })
@@ -223,7 +242,7 @@ describe('MoneyAccountsPanel', () => {
     expect(screen.getByText('Supporting documents')).toBeInTheDocument()
   })
 
-  it('creates a tracked account from the add account dialog', async () => {
+  it('creates an account from the add account dialog', async () => {
     const user = userEvent.setup()
     render(<MoneyAccountsPanel accounts={accounts} documents={documents} />)
 
@@ -246,7 +265,7 @@ describe('MoneyAccountsPanel', () => {
     })
   })
 
-  it('prefills a tracked account from a discovered account hint', async () => {
+  it('prefills an account from a discovered account hint', async () => {
     const user = userEvent.setup()
     render(
       <MoneyAccountsPanel
@@ -270,7 +289,7 @@ describe('MoneyAccountsPanel', () => {
     )
     expect(screen.getByLabelText(/institution/i)).toHaveValue('Wells Fargo')
     expect(screen.getByLabelText(/account mask/i)).toHaveValue('4421')
-    expect(screen.getByText('Track account')).toBeInTheDocument()
+    expect(screen.getByText('Confirm account')).toBeInTheDocument()
 
     await user.click(
       screen.getByRole('button', { name: /save account details/i }),
@@ -290,7 +309,7 @@ describe('MoneyAccountsPanel', () => {
     })
   })
 
-  it('edits and renames a tracked account', async () => {
+  it('edits and renames an account', async () => {
     const user = userEvent.setup()
     render(<MoneyAccountsPanel accounts={accounts} documents={documents} />)
 
@@ -314,26 +333,37 @@ describe('MoneyAccountsPanel', () => {
     })
   })
 
-  it('locks identity fields when editing an evidence-linked tracked account', async () => {
+  it('hides backend identity fields when editing an evidence-backed account', async () => {
     const user = userEvent.setup()
     render(<MoneyAccountsPanel accounts={accounts} documents={documents} />)
 
     await user.click(screen.getByRole('button', { name: /main checking/i }))
     await user.click(screen.getByRole('button', { name: /edit/i }))
 
-    expect(screen.getByText('Edit linked account')).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog')
+    expect(await within(dialog).findByText('Edit account')).toBeInTheDocument()
     expect(
-      screen.getByText(/update label, display owner, or notes here/i),
+      within(dialog).getByText(/update the account display details/i),
     ).toBeInTheDocument()
-    expect(screen.getByLabelText(/institution/i)).toBeDisabled()
-    expect(screen.getByLabelText(/account mask/i)).toBeDisabled()
-    expect(screen.getByLabelText(/owner/i)).toBeEnabled()
     expect(
-      screen.getByRole('button', { name: /save account details/i }),
+      within(dialog).queryByLabelText(/asset group/i),
+    ).not.toBeInTheDocument()
+    expect(
+      within(dialog).queryByLabelText(/account type/i),
+    ).not.toBeInTheDocument()
+    expect(
+      within(dialog).queryByLabelText(/institution/i),
+    ).not.toBeInTheDocument()
+    expect(
+      within(dialog).queryByLabelText(/account mask/i),
+    ).not.toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/owner/i)).toBeEnabled()
+    expect(
+      within(dialog).getByRole('button', { name: /save account details/i }),
     ).toBeInTheDocument()
   })
 
-  it('keeps identity fields locked even if linked account temporarily reports zero evidence', async () => {
+  it('keeps backend identity fields hidden even if account temporarily reports zero evidence', async () => {
     const user = userEvent.setup()
     render(
       <MoneyAccountsPanel
@@ -353,12 +383,17 @@ describe('MoneyAccountsPanel', () => {
     await user.click(screen.getByRole('button', { name: /main checking/i }))
     await user.click(screen.getByRole('button', { name: /edit/i }))
 
-    expect(screen.getByLabelText(/institution/i)).toBeDisabled()
-    expect(screen.getByLabelText(/account mask/i)).toBeDisabled()
-    expect(screen.getByLabelText(/owner/i)).toBeEnabled()
+    const dialog = screen.getByRole('dialog')
+    expect(
+      within(dialog).queryByLabelText(/institution/i),
+    ).not.toBeInTheDocument()
+    expect(
+      within(dialog).queryByLabelText(/account mask/i),
+    ).not.toBeInTheDocument()
+    expect(within(dialog).getByLabelText(/owner/i)).toBeEnabled()
   })
 
-  it('deletes a tracked account from the row dialog', async () => {
+  it('deletes account display settings from the row dialog', async () => {
     const user = userEvent.setup()
     render(<MoneyAccountsPanel accounts={accounts} documents={documents} />)
 
@@ -371,7 +406,7 @@ describe('MoneyAccountsPanel', () => {
     })
   })
 
-  it('creates a tracked row from an evidence-backed account so name can be customized', async () => {
+  it('edits an evidence-backed account by anchoring customization to the official account id', async () => {
     const user = userEvent.setup()
     render(
       <MoneyAccountsPanel
@@ -383,24 +418,28 @@ describe('MoneyAccountsPanel', () => {
     await user.click(
       screen.getByRole('button', { name: /cash management \(joint wros\)/i }),
     )
-    await user.click(screen.getByRole('button', { name: /track \/ rename/i }))
+    await user.click(screen.getByRole('button', { name: /edit/i }))
 
     expect(screen.getByLabelText(/account label/i)).toHaveValue(
       'Cash Management (Joint WROS)',
     )
-    expect(screen.getByLabelText(/account mask/i)).toHaveValue('Z38367298')
-    expect(screen.getByText('Track account')).toBeInTheDocument()
+    expect(await screen.findByText('Edit account')).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog')
+    expect(
+      within(dialog).queryByLabelText(/account mask/i),
+    ).not.toBeInTheDocument()
 
-    const labelInput = screen.getByLabelText(/account label/i)
+    const labelInput = within(dialog).getByLabelText(/account label/i)
     await user.clear(labelInput)
     await user.type(labelInput, 'Main Cash Management')
     await user.click(
-      screen.getByRole('button', { name: /save account details/i }),
+      within(dialog).getByRole('button', { name: /save account details/i }),
     )
 
     await waitFor(() => {
       expect(createMutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({
+          householdAccountId: 'household-1',
           label: 'Main Cash Management',
           accountMask: 'Z38367298',
           sourceType: 'bank',
@@ -420,7 +459,7 @@ describe('MoneyAccountsPanel', () => {
     )
 
     expect(screen.getByText('Supporting documents')).toBeInTheDocument()
-    expect(screen.getByText(/hint: main checking/i)).toBeInTheDocument()
+    expect(screen.getByText(/selected: main checking/i)).toBeInTheDocument()
   })
 
   it('shows exact stale balance and transaction evidence dates by account', async () => {

@@ -12,6 +12,7 @@ import {
   fetchHouseholdDocuments,
   fetchHouseholdLedger,
   fetchHouseholdSpending,
+  type HouseholdDocument,
   type HouseholdDocumentUpload,
   type HouseholdPlanningUpdate,
   type HouseholdProfileUpdate,
@@ -22,6 +23,9 @@ import {
   uploadHouseholdDocument,
 } from '@/lib/api/household'
 
+const DOCUMENT_REVIEW_POLL_INTERVAL_MS = 1500
+const DOCUMENT_REVIEW_POLL_ATTEMPTS = 40
+
 async function refreshHouseholdQueries(
   queryClient: ReturnType<typeof useQueryClient>,
 ) {
@@ -29,6 +33,51 @@ async function refreshHouseholdQueries(
     queryKey: ['household'],
     exact: false,
   })
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function applicationStatus(document: HouseholdDocument) {
+  const summary = document.metadata?.application_summary
+  if (!summary || typeof summary !== 'object' || Array.isArray(summary)) {
+    return null
+  }
+  const status = (summary as Record<string, unknown>).status
+  return typeof status === 'string' ? status : null
+}
+
+function documentApplicationDone(document: HouseholdDocument) {
+  if (document.metadata?.duplicate_detected === true) return true
+  if (document.status === 'failed' || document.reviewStatus === 'failed') {
+    return true
+  }
+  if (applicationStatus(document)) return true
+  return document.status === 'parsed' || document.reviewStatus === 'complete'
+}
+
+async function watchUploadedDocument(
+  queryClient: ReturnType<typeof useQueryClient>,
+  document: HouseholdDocument,
+) {
+  let latest = document
+  for (let attempt = 0; attempt < DOCUMENT_REVIEW_POLL_ATTEMPTS; attempt += 1) {
+    if (documentApplicationDone(latest)) {
+      await refreshHouseholdQueries(queryClient)
+      return latest
+    }
+
+    await wait(DOCUMENT_REVIEW_POLL_INTERVAL_MS)
+    const documents = await fetchHouseholdDocuments()
+    queryClient.setQueryData(['household', 'documents'], documents)
+    latest =
+      documents.items.find((candidate) => candidate.id === document.id) ??
+      latest
+    await refreshHouseholdQueries(queryClient)
+  }
+  await refreshHouseholdQueries(queryClient)
+  return latest
 }
 
 export function useHouseholdDashboard() {
@@ -137,11 +186,31 @@ export function useUploadHouseholdDocument() {
       uploadHouseholdDocument(payload),
     onSuccess: async (document) => {
       await refreshHouseholdQueries(queryClient)
-      if (document.metadata?.duplicate_detected === true) {
+      if (
+        document.metadata?.duplicate_detected === true &&
+        document.metadata?.duplicate_rebound !== true
+      ) {
         toast.info(`${document.filename} already exists in evidence intake.`)
         return
       }
-      toast.success(`${document.filename} staged for evidence intake.`)
+      toast.success(
+        document.metadata?.duplicate_rebound === true
+          ? `${document.filename} already exists; reapplying to selected account.`
+          : `${document.filename} staged for evidence intake.`,
+      )
+      void watchUploadedDocument(queryClient, document)
+        .then((latest) => {
+          if (latest.status === 'failed' || latest.reviewStatus === 'failed') {
+            toast.error(`${latest.filename} evidence review failed.`)
+            return
+          }
+          if (applicationStatus(latest) === 'applied') {
+            toast.success(`${latest.filename} applied to money views.`)
+          }
+        })
+        .catch(() => {
+          void refreshHouseholdQueries(queryClient)
+        })
     },
     onError: (error) => {
       toast.error(
@@ -159,13 +228,11 @@ export function useCreateHouseholdTrackedAccount() {
       createHouseholdTrackedAccount(payload),
     onSuccess: async () => {
       await refreshHouseholdQueries(queryClient)
-      toast.success('Tracked account created.')
+      toast.success('Account saved.')
     },
     onError: (error) => {
       toast.error(
-        error instanceof Error
-          ? error.message
-          : 'Failed to create tracked account',
+        error instanceof Error ? error.message : 'Failed to save account',
       )
     },
   })
@@ -184,13 +251,11 @@ export function useUpdateHouseholdTrackedAccount() {
     }) => updateHouseholdTrackedAccount(accountId, payload),
     onSuccess: async () => {
       await refreshHouseholdQueries(queryClient)
-      toast.success('Tracked account updated.')
+      toast.success('Account updated.')
     },
     onError: (error) => {
       toast.error(
-        error instanceof Error
-          ? error.message
-          : 'Failed to update tracked account',
+        error instanceof Error ? error.message : 'Failed to update account',
       )
     },
   })
@@ -203,13 +268,13 @@ export function useDeleteHouseholdTrackedAccount() {
     mutationFn: (accountId: string) => deleteHouseholdTrackedAccount(accountId),
     onSuccess: async () => {
       await refreshHouseholdQueries(queryClient)
-      toast.success('Tracked account removed.')
+      toast.success('Account display settings removed.')
     },
     onError: (error) => {
       toast.error(
         error instanceof Error
           ? error.message
-          : 'Failed to remove tracked account',
+          : 'Failed to remove account display settings',
       )
     },
   })

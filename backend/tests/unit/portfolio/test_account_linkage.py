@@ -17,7 +17,7 @@ def _portfolio_account(
     return Account(
         id=account_id,
         name=name,
-        account_type=account_type,  # type: ignore[arg-type]
+        account_type=account_type,
         household_account_id=household_account_id,
     )
 

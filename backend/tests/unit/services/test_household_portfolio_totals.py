@@ -39,7 +39,7 @@ def test_get_effective_portfolio_totals_prefers_household_invested_assets(
     )
 
     totals = get_effective_portfolio_totals(
-        object(), household_service=household_service  # type: ignore[arg-type]
+        object(), household_service=household_service
     )
 
     assert totals.live_cash_inclusive_total_value == pytest.approx(925_000.0)
@@ -66,7 +66,7 @@ def test_get_effective_portfolio_totals_falls_back_to_live_totals(
         object(),
         household_service=SimpleNamespace(
             get_dashboard=lambda: (_ for _ in ()).throw(RuntimeError("boom"))
-        ),  # type: ignore[arg-type]
+        ),
     )
 
     assert totals.household_total_value is None

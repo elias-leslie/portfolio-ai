@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
 from unittest.mock import Mock
 
 from app.models.household_finance import HouseholdEvidenceAccount, HouseholdTrackedAccount
@@ -137,7 +138,7 @@ def test_sync_tracked_identity_snapshot_preserves_display_owner_for_linked_accou
     )
     conn = _ConnectionRecorder()
 
-    service._sync_tracked_identity_snapshot(  # type: ignore[attr-defined]
+    service._sync_tracked_identity_snapshot(
         conn,
         tracked=tracked,
         canonical_account=canonical,
@@ -439,7 +440,8 @@ def test_resolve_from_tracked_merges_shadow_linked_row_into_evidence_account_via
         match_key="institution-name-owner::florida retirement system (frs)|frs investment plan|mariana leslie|retirement|retirement",
     )
     tracked.household_account_id = "shadow"
-    registry._merge_accounts_if_needed = Mock(return_value="evidence")  # type: ignore[method-assign]
+    merge_accounts = Mock(return_value="evidence")
+    registry._merge_accounts_if_needed = cast(Any, merge_accounts)
 
     account_id, created = registry._resolve_from_tracked(
         conn,
@@ -450,8 +452,8 @@ def test_resolve_from_tracked_merges_shadow_linked_row_into_evidence_account_via
 
     assert created == 0
     assert account_id == "evidence"
-    registry._merge_accounts_if_needed.assert_called_once()  # type: ignore[attr-defined]
-    merge_args = registry._merge_accounts_if_needed.call_args.kwargs["account_ids"]  # type: ignore[attr-defined]
+    merge_accounts.assert_called_once()
+    merge_args = merge_accounts.call_args.kwargs["account_ids"]
     assert set(merge_args) == {"shadow", "evidence"}
 
 

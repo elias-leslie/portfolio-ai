@@ -74,6 +74,41 @@ def test_evidence_upload_preserves_optional_account_hint(tmp_path: Path) -> None
     assert payload["account_label"] == "Individual - TOD"
 
 
+def test_evidence_upload_preserves_selected_household_account_id(tmp_path: Path) -> None:
+    client = TestClient(app)
+
+    with (
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+            return_value=tmp_path,
+        ),
+        patch(
+            "app.services.household_document_review.HouseholdDocumentReviewService.review",
+            return_value={
+                "summary": "Brokerage statement with holdings.",
+                "document_type": "brokerage_statement",
+                "source_type": "brokerage",
+                "confidence": 0.95,
+                "structured_data": {"financial_accounts": []},
+                "inferred_values": [],
+                "questions": [],
+            },
+        ),
+    ):
+        response = client.post(
+            "/api/intake/evidence",
+            files={"file": ("brokerage.pdf", b"bound pdf bytes", "application/pdf")},
+            data={
+                "account_label": "Individual - TOD",
+                "household_account_id": "5deacc73-4aa5-4910-aa12-bb00d0fe3b51",
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["metadata"]["upload_household_account_id"] == "5deacc73-4aa5-4910-aa12-bb00d0fe3b51"
+
+
 def test_evidence_list_reads_existing_intake_items(tmp_path: Path) -> None:
     client = TestClient(app)
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
-from typing import Any, cast
+from typing import Any
 
 from ..logging_config import get_logger
 from ..models.market_events import (
@@ -289,7 +289,7 @@ def get_events_for_chart(start_date: dt.date, end_date: dt.date) -> list[dict[st
         ORDER BY event_date ASC, event_time ASC NULLS LAST
     """
     df = storage.query(query, {"start_date": start_date, "end_date": end_date})
-    return [_chart_event_dict(cast(dict[str, Any], row)) for row in df.iter_rows(named=True)]
+    return [_chart_event_dict(row) for row in df.iter_rows(named=True)]
 
 
 def create_market_event(event: MarketEventCreate) -> MarketEvent:

@@ -824,10 +824,24 @@ class HouseholdDocumentReviewService:
         if review_checks.get("expected_account_count") in {None, ""}:
             review_checks["expected_account_count"] = len(financial_accounts)
         if review_checks.get("expects_transaction_activity") is None:
-            review_checks["expects_transaction_activity"] = looks_like_transaction_activity(
-                source_type=str(reviewed.get("source_type") or ""),
-                document_type=str(reviewed.get("document_type") or ""),
-                extracted_text=extracted_text,
+            has_position_snapshot = any(
+                isinstance(account.get("holdings"), list)
+                or account.get("position_snapshot") is True
+                for account in financial_accounts
+            )
+            review_source_type = str(reviewed.get("source_type") or "")
+            review_document_type = str(reviewed.get("document_type") or "")
+            review_checks["expects_transaction_activity"] = (
+                False
+                if has_position_snapshot
+                and review_source_type in {"brokerage", "retirement"}
+                and review_document_type
+                in {"brokerage_statement", "retirement_statement"}
+                else looks_like_transaction_activity(
+                    source_type=review_source_type,
+                    document_type=review_document_type,
+                    extracted_text=extracted_text,
+                )
             )
         if review_checks.get("ambiguity_remaining") is None:
             review_checks["ambiguity_remaining"] = bool(reviewed.get("questions"))

@@ -23,6 +23,8 @@ if TYPE_CHECKING:
     from app.storage import PortfolioStorage
 
 from app.models.preferences import (
+    DEFAULT_NEWS_LOOKBACK_HOURS,
+    DEFAULT_NEWS_MAX_ARTICLES,
     clamp_optional_watchlist_refresh_minutes,
     clamp_watchlist_refresh_minutes,
 )
@@ -84,8 +86,8 @@ class UserPreferences:
         if df.is_empty():
             # Return defaults if no preferences exist
             return cls(
-                news_lookback_hours=24,
-                news_max_articles=10,
+                news_lookback_hours=DEFAULT_NEWS_LOOKBACK_HOURS,
+                news_max_articles=DEFAULT_NEWS_MAX_ARTICLES,
                 watchlist_price_weight=50.0,
                 watchlist_technical_weight=50.0,
                 watchlist_refresh_override=None,
@@ -95,8 +97,8 @@ class UserPreferences:
 
         row = df.to_dicts()[0]
         return cls(
-            news_lookback_hours=row.get("news_lookback_hours") or 24,
-            news_max_articles=row.get("news_max_articles") or 10,
+            news_lookback_hours=row.get("news_lookback_hours") or DEFAULT_NEWS_LOOKBACK_HOURS,
+            news_max_articles=row.get("news_max_articles") or DEFAULT_NEWS_MAX_ARTICLES,
             watchlist_price_weight=row.get("watchlist_price_weight") or 50.0,
             watchlist_technical_weight=row.get("watchlist_technical_weight") or 50.0,
             watchlist_refresh_override=clamp_optional_watchlist_refresh_minutes(

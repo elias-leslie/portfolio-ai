@@ -15,6 +15,7 @@ interface EvidenceUploadComposerProps {
   title: string
   description: string
   accountLabel?: string | null
+  householdAccountId?: string | null
   compact?: boolean
   highlighted?: boolean
 }
@@ -23,6 +24,7 @@ export function EvidenceUploadComposer({
   title,
   description,
   accountLabel = null,
+  householdAccountId = null,
   compact = false,
   highlighted = false,
 }: EvidenceUploadComposerProps) {
@@ -141,6 +143,7 @@ export function EvidenceUploadComposer({
           upload.mutateAsync({
             file,
             accountLabel: accountLabel ?? undefined,
+            householdAccountId: householdAccountId ?? undefined,
           }),
         ),
       ]
@@ -154,6 +157,7 @@ export function EvidenceUploadComposer({
                 .replace(/[^a-z0-9]+/g, '-')
                 .replace(/^-+|-+$/g, '') || 'pasted-evidence' + '.txt',
             accountLabel: accountLabel ?? undefined,
+            householdAccountId: householdAccountId ?? undefined,
           }),
         )
       }
@@ -182,7 +186,7 @@ export function EvidenceUploadComposer({
         </div>
         {accountLabel ? (
           <span className="rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-            Hint: {accountLabel}
+            Selected: {accountLabel}
           </span>
         ) : null}
       </div>
@@ -221,7 +225,7 @@ export function EvidenceUploadComposer({
           </p>
           <p className="mt-1">
             {accountLabel
-              ? 'Jenny will use the selected account as a routing hint, then verify the actual document contents before applying anything.'
+              ? 'Jenny will attach this to the selected account after verifying the document contents.'
               : 'Jenny will infer the account, document type, dates, and what money view to update from the evidence itself.'}
           </p>
           {files.length > 0 ? (

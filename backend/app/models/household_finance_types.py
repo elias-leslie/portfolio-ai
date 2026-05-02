@@ -391,6 +391,7 @@ class HouseholdTrackedAccount(BaseModel):
 
 
 class HouseholdTrackedAccountInput(BaseModel):
+    household_account_id: str | None = None
     label: str
     asset_group: str
     account_type: str

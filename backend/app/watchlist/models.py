@@ -59,7 +59,8 @@ class RawMetricsDict(TypedDict, total=False):
     sma_50: float
     sma_200: float
     ema_20: float
-    price: float
+    price: float | ScoreComponentDict
+    technical: ScoreComponentDict
     volume: float
     volume_avg_20: float
 

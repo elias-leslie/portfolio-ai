@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
 from unittest.mock import Mock
 
 from app.models.jenny import JennyAgentEvaluation, JennyTradeReview
@@ -67,11 +68,13 @@ def test_refresh_scorecards_groups_by_agent() -> None:
             )
         ]
     )
-    helper.build_scorecard = Mock(return_value=Mock())
-    helper.save_scorecard = Mock()
+    build_scorecard = Mock(return_value=Mock())
+    save_scorecard = Mock()
+    helper.build_scorecard = cast(Any, build_scorecard)
+    helper.save_scorecard = cast(Any, save_scorecard)
 
     updated = helper.refresh_scorecards(service)
 
     assert updated == 1
-    helper.build_scorecard.assert_called_once()
-    helper.save_scorecard.assert_called_once()
+    build_scorecard.assert_called_once()
+    save_scorecard.assert_called_once()

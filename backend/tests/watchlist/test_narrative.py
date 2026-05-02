@@ -67,7 +67,7 @@ class TestSignalClassification:
         # Test missing signal_type
         with pytest.raises(ValidationError):
             SignalClassification(
-                signal_type=None,  # type: ignore[arg-type]  # intentional: testing validation rejects None
+                signal_type=None,  # intentional: testing validation rejects None
                 strength=SignalStrength(value=5),
                 reasons=[],
             )
@@ -76,7 +76,7 @@ class TestSignalClassification:
         with pytest.raises(ValidationError):
             SignalClassification(
                 signal_type=SignalType.HOLD,
-                strength=None,  # type: ignore[arg-type]  # intentional: testing validation rejects None
+                strength=None,  # intentional: testing validation rejects None
                 reasons=[],
             )
 

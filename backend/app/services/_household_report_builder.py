@@ -18,6 +18,7 @@ from app.models.household_finance import (
     HouseholdRecentTransaction,
     HouseholdReports,
 )
+from app.services._household_document_pipeline_utils import parse_decimal_value
 
 _EXECUTIVE_WINDOW_MONTHS = 6
 _UNIT_PATTERN = (
@@ -105,12 +106,10 @@ def _coerce_metadata(raw_metadata: Any) -> dict[str, Any]:
 def _parse_decimal_text(value: Any) -> float | None:
     if value in (None, ""):
         return None
-    text = str(value).strip().replace(",", "")
-    try:
-        parsed = float(text)
-    except ValueError:
+    parsed = parse_decimal_value(str(value))
+    if parsed is None or parsed <= 0:
         return None
-    return parsed if parsed > 0 else None
+    return float(parsed)
 
 
 def _singularize_unit(raw_unit: str) -> str:
