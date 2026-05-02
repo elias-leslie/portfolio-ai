@@ -807,7 +807,7 @@ class MarketPredictionRepository:
             lead_call=lead_call,
             calls=calls,
             votes=votes,
-            scorecard=self.get_scorecard(window_days),
+            scorecard=self.get_scorecard(window_days, symbol=lead_call.symbol),
             committee_summary=run.committee_summary,
             source_snapshot=run.source_snapshot,
             last_evaluated_at=self.get_last_evaluated_at(window_days),
@@ -936,8 +936,15 @@ class MarketPredictionRepository:
             for row in rows
         ]
 
-    def get_scorecard(self, window_days: int, sample_limit: int = 500) -> MarketPredictionScorecard | None:
+    def get_scorecard(
+        self,
+        window_days: int,
+        sample_limit: int = 500,
+        *,
+        symbol: str | None = None,
+    ) -> MarketPredictionScorecard | None:
         del sample_limit
+        normalized_symbol = symbol.strip().upper() if isinstance(symbol, str) and symbol.strip() else None
         with self.storage.connection() as conn:
             row = conn.execute(
                 """
@@ -954,6 +961,7 @@ class MarketPredictionRepository:
                     JOIN market_prediction_calls c ON c.id = e.call_id
                     JOIN market_prediction_runs r ON r.id = c.run_id
                     WHERE c.window_days = %s
+                    AND (%s::text IS NULL OR UPPER(COALESCE(c.symbol, '')) = %s)
                 )
                 SELECT
                     AVG(CASE WHEN direction_hit THEN 1.0 ELSE 0.0 END),
@@ -963,7 +971,7 @@ class MarketPredictionRepository:
                 FROM ranked_evaluations
                 WHERE cohort_rank = 1
                 """,
-                [window_days],
+                [window_days, normalized_symbol, normalized_symbol],
             ).fetchone()
         if not row or int(row[3] or 0) == 0:
             return None
@@ -973,6 +981,89 @@ class MarketPredictionRepository:
             brier_score=float(row[2]) if row[2] is not None else None,
             sample_size=int(row[3] or 0),
         )
+
+    def get_after_cost_edge_pct(
+        self,
+        *,
+        window_days: int,
+        symbol: str,
+        round_trip_cost_pct: float = 0.05,
+    ) -> float | None:
+        normalized_symbol = symbol.strip().upper()
+        if not normalized_symbol:
+            return None
+        with self.storage.connection() as conn:
+            row = conn.execute(
+                """
+                WITH ranked_evaluations AS (
+                    SELECT
+                        LOWER(c.direction_label) AS direction_label,
+                        ((target_bar.close / NULLIF(entry_bar.open, 0)) - 1.0) * 100.0 AS trade_move_pct,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY UPPER(COALESCE(c.symbol, '')), r.base_date, r.target_date
+                            ORDER BY r.as_of_ts DESC, e.evaluated_at DESC, c.id DESC
+                        ) AS cohort_rank
+                    FROM market_prediction_evaluations e
+                    JOIN market_prediction_calls c ON c.id = e.call_id
+                    JOIN market_prediction_runs r ON r.id = c.run_id
+                    JOIN LATERAL (
+                        SELECT db.open
+                        FROM day_bars db
+                        WHERE UPPER(db.symbol) = UPPER(COALESCE(c.symbol, ''))
+                          AND db.date > r.base_date
+                        ORDER BY db.date ASC
+                        LIMIT 1
+                    ) entry_bar ON TRUE
+                    JOIN day_bars target_bar
+                      ON UPPER(target_bar.symbol) = UPPER(COALESCE(c.symbol, ''))
+                     AND target_bar.date = r.target_date
+                    WHERE c.window_days = %s
+                    AND UPPER(COALESCE(c.symbol, '')) = %s
+                    AND LOWER(c.direction_label) IN ('bullish', 'bearish')
+                    AND entry_bar.open > 0
+                )
+                SELECT AVG(
+                    CASE
+                        WHEN direction_label = 'bullish' THEN trade_move_pct - %s
+                        WHEN direction_label = 'bearish' THEN -trade_move_pct - %s
+                    END
+                )
+                FROM ranked_evaluations
+                WHERE cohort_rank = 1
+                """,
+                [window_days, normalized_symbol, round_trip_cost_pct, round_trip_cost_pct],
+            ).fetchone()
+        if not row or row[0] is None:
+            return None
+        return float(row[0])
+
+    def list_day_bars_for_research(self, symbol: str, *, limit: int = 5000) -> list[tuple[date, float, float]]:
+        normalized_symbol = symbol.strip().upper()
+        if not normalized_symbol:
+            return []
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT date, open, close
+                FROM (
+                    SELECT date, open, close
+                    FROM day_bars
+                    WHERE UPPER(symbol) = %s
+                    ORDER BY date DESC
+                    LIMIT %s
+                ) recent_bars
+                ORDER BY date ASC
+                """,
+                [normalized_symbol, limit],
+            ).fetchall()
+        result: list[tuple[date, float, float]] = []
+        for row in rows:
+            row_date = self._coerce_date(row[0])
+            open_price = float(row[1])
+            close_price = float(row[2])
+            if open_price > 0 and close_price > 0:
+                result.append((row_date, open_price, close_price))
+        return result
 
     def get_last_evaluated_at(self, window_days: int) -> datetime | None:
         with self.storage.connection() as conn:

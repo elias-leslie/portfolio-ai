@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from app.agents.llm_client import AgentHubAPIClient
+from app.agents.clients.agent_hub_client import AgentHubAPIClient
 from app.logging_config import get_logger
 from app.services.agent_hub_prompt_service import render_agent_hub_prompt, require_agent_hub_prompt
 from app.strategies.models import StrategyDefinition

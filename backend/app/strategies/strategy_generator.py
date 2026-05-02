@@ -9,7 +9,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.agents.llm_client import DualProviderClient, LLMResponse
+from app.agents.clients.agent_hub_client import AgentHubAPIClient
+from app.agents.clients.base_client import LLMResponse
 from app.logging_config import get_logger
 from app.services.agent_hub_prompt_service import render_agent_hub_prompt, require_agent_hub_prompt
 
@@ -31,7 +32,7 @@ class StrategyGeneratorAgent:
 
     def __init__(self) -> None:
         """Initialize strategy generator agent."""
-        self.llm_client = DualProviderClient(agent_slug="trade-manager")
+        self.llm_client = AgentHubAPIClient(agent_slug="trade-manager")
 
     async def generate_strategy(self, research: ResearchInsights) -> StrategyGenerationResult:
         """Generate trading strategy from research insights.

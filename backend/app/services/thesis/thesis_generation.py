@@ -6,7 +6,8 @@ import copy
 import json
 from typing import Any
 
-from ...agents.llm_client import DualProviderClient
+from ...agents.clients.agent_hub_client import AgentHubAPIClient
+from ...agents.clients.base_client import LLMClient
 from ...logging_config import get_logger
 from ..agent_hub_prompt_service import render_agent_hub_prompt, require_agent_hub_prompt
 from .thesis_prompts import THESIS_GENERATION_PROMPT, THESIS_GENERATION_SYSTEM_PROMPT
@@ -17,7 +18,7 @@ logger = get_logger(__name__)
 class ThesisGenerator:
     """Handles LLM-based thesis generation."""
 
-    def __init__(self, llm_client: DualProviderClient | None = None) -> None:
+    def __init__(self, llm_client: LLMClient | None = None) -> None:
         """Initialize generator.
 
         Args:
@@ -25,10 +26,10 @@ class ThesisGenerator:
         """
         self._llm_client = llm_client
 
-    def _ensure_llm_client(self) -> DualProviderClient:
+    def _ensure_llm_client(self) -> LLMClient:
         """Lazy-initialize LLM client."""
         if self._llm_client is None:
-            self._llm_client = DualProviderClient(agent_slug="equity-analyst")
+            self._llm_client = AgentHubAPIClient(agent_slug="equity-analyst")
             logger.info("thesis_llm_client_initialized", agent_slug="equity-analyst")
         return self._llm_client
 

@@ -21,6 +21,7 @@ from app.services.market_prediction_seat_weighting_service import (
     MarketPredictionSeatWeightingService,
 )
 from app.tasks.market_data.macro_calendar_pipeline import ingest_macro_calendar_events
+from app.tasks.market_data.options_pipeline import fetch_options_activity_metrics
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -62,7 +63,10 @@ async def get_prediction_committee(
     window_days: int = Query(3, description="Trading-day forecast window"),
 ) -> MarketPredictionCommitteeResponse:
     service = _get_prediction_service()
-    snapshot = service.get_committee_snapshot(window_days=_validate_window_days(window_days))
+    snapshot = service.get_committee_snapshot(
+        window_days=_validate_window_days(window_days),
+        generate_if_missing=False,
+    )
     if snapshot is None:
         raise HTTPException(status_code=404, detail="No committee snapshot available")
     return snapshot
@@ -77,9 +81,13 @@ async def refresh_prediction_committee(
     validated_window = _validate_window_days(window_days)
     _invalidate_prediction_caches()
     try:
-        await run_in_threadpool(ingest_macro_calendar_events)
+        await run_in_threadpool(ingest_macro_calendar_events, horizon_days=45)
     except Exception as exc:
         logger.warning("macro_calendar_ingestion_for_refresh_failed", error=str(exc), exc_info=True)
+    try:
+        await run_in_threadpool(fetch_options_activity_metrics)
+    except Exception as exc:
+        logger.warning("options_activity_ingestion_for_refresh_failed", error=str(exc), exc_info=True)
     snapshot = await run_in_threadpool(service.generate_snapshot, window_days=validated_window)
     _invalidate_prediction_caches()
     return snapshot

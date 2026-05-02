@@ -13,7 +13,9 @@ from app.models.market_prediction import (
     MarketPredictionCall,
     MarketPredictionClusterReview,
     MarketPredictionCommitteeResponse,
+    MarketPredictionScorecard,
     MarketPredictionSeatReview,
+    MarketPredictionWalkForwardScorecard,
 )
 from app.services.market_prediction_committee_service import MarketPredictionCommitteeService
 
@@ -28,7 +30,9 @@ class _FakeRepo:
         self.votes: list[CommitteeSeatVote] = []
         self.history: list[MarketPredictionCall] = []
         self.scorecard: Any = None
+        self.scorecard_requests: list[tuple[int, str | None]] = []
         self.last_evaluated_at: datetime | None = None
+        self.after_cost_edge_pct: float | None = None
 
     def get_latest_committee_snapshot(self, window_days: int) -> MarketPredictionCommitteeResponse | None:
         if self.raise_on_get:
@@ -62,8 +66,20 @@ class _FakeRepo:
     def list_history(self, symbol: str, window_days: int, limit: int = 30) -> list[MarketPredictionCall]:
         return self.history[:limit]
 
-    def get_scorecard(self, window_days: int) -> Any:
+    def get_scorecard(self, window_days: int, sample_limit: int = 500, *, symbol: str | None = None) -> Any:
+        del sample_limit
+        self.scorecard_requests.append((window_days, symbol))
         return self.scorecard
+
+    def get_after_cost_edge_pct(
+        self,
+        *,
+        window_days: int,
+        symbol: str,
+        round_trip_cost_pct: float = 0.05,
+    ) -> float | None:
+        del window_days, symbol, round_trip_cost_pct
+        return self.after_cost_edge_pct
 
     def get_last_evaluated_at(self, window_days: int) -> datetime | None:
         return self.last_evaluated_at
@@ -81,6 +97,11 @@ class _FakeRoundtableClient:
 
     def close(self) -> None:
         self.closed = True
+
+
+class _NoGeneratePredictionService(MarketPredictionCommitteeService):
+    def generate_snapshot(self, **_: Any) -> MarketPredictionCommitteeResponse:
+        raise AssertionError("GET read path must not generate")
 
 
 class _FakeRows:
@@ -135,6 +156,10 @@ def _response(
     target_date: date | None = None,
     last_evaluated_at: datetime | None = None,
 ) -> MarketPredictionCommitteeResponse:
+    if isinstance(source_snapshot, dict):
+        clusters = source_snapshot.get("clusters")
+        if isinstance(clusters, dict) and "driver_bars" not in clusters and "market_regime" in clusters:
+            clusters["driver_bars"] = clusters["market_regime"]
     response = MarketPredictionCommitteeResponse.model_construct(
         as_of_ts=as_of_ts or datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
         generated_at=generated_at or datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
@@ -152,6 +177,29 @@ def _response(
     )
     response._storage_metadata = {}
     return response
+
+
+def _passed_walk_forward() -> MarketPredictionWalkForwardScorecard:
+    return MarketPredictionWalkForwardScorecard(
+        status="pass",
+        status_reason="Walk-forward passed after costs.",
+        candidate_id="trend_20d_t0_0",
+        candidate_label="trend 20d",
+        tested_candidates=30,
+        sample_count=240,
+        min_sample_count=80,
+        trade_count=180,
+        hit_rate=0.62,
+        hit_rate_lcb=0.55,
+        brier_score=0.22,
+        baseline_brier_score=0.25,
+        brier_improvement_pct=12.0,
+        move_mae_pct=0.7,
+        baseline_move_mae_pct=0.9,
+        max_move_mae_pct=1.25,
+        after_cost_edge_pct=0.14,
+        passed=True,
+    )
 
 
 def test_get_committee_snapshot_freezes_truth_contract_baseline(monkeypatch) -> None:
@@ -225,6 +273,290 @@ def test_get_committee_snapshot_defaults_additive_review_fields_for_legacy_rows(
     assert result.committee_summary["review_state"] is None
     assert result.committee_summary["review_as_of_ts"] is None
     assert result.committee_summary["review_row_id"] is None
+
+
+def test_research_scoreboard_defaults_to_no_edge_for_weak_live_proof(monkeypatch) -> None:
+    repo = _FakeRepo()
+    repo.history = [_call(symbol="SPY"), _call(symbol="SPY")]
+    service = MarketPredictionCommitteeService(repository=repo, storage=_FakeStorage())
+    snapshot = _response(
+        lead_call=_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}]),
+        calls=[_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}])],
+        scorecard=MarketPredictionScorecard(
+            sample_size=48,
+            direction_hit_rate=0.354,
+            move_mae_pct=1.2,
+            brier_score=0.251,
+        ),
+        source_snapshot={
+            "clusters": {
+                "market_regime": {"latest_closes": {"SPY": {"date": "2026-04-21", "close": 500.0}}},
+                "options_positioning": {"as_of_date": "2026-04-21"},
+                "macro_calendar": {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 1, "next_event_date": "2026-04-22"},
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_macro_calendar_cluster",
+        lambda **kwargs: kwargs.get("existing") or {},
+    )
+    monkeypatch.setattr(service, "_lookup_walk_forward_scorecard", lambda **_: _passed_walk_forward())
+
+    result = service._normalize_response(snapshot, market_now=datetime(2026, 4, 21, 22, 30, tzinfo=UTC))
+
+    assert result.research_scoreboard is not None
+    assert result.research_scoreboard.status == "shadow"
+    assert result.research_scoreboard.sample_count == 48
+    assert result.research_scoreboard.min_sample_count == 80
+    assert result.research_scoreboard.sufficient_samples is False
+    assert result.research_scoreboard.beats_baseline is False
+    assert result.research_scoreboard.status_reason == "Walk-forward passed; live sample still building: 48/80."
+
+
+def test_research_scoreboard_shadows_only_after_baseline_beat_without_cost_proof(monkeypatch) -> None:
+    repo = _FakeRepo()
+    repo.history = [_call(symbol="SPY"), _call(symbol="SPY")]
+    service = MarketPredictionCommitteeService(repository=repo, storage=_FakeStorage())
+    snapshot = _response(
+        lead_call=_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}]),
+        calls=[_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}])],
+        scorecard=MarketPredictionScorecard(
+            sample_size=120,
+            direction_hit_rate=0.66,
+            move_mae_pct=0.8,
+            brier_score=0.18,
+        ),
+        source_snapshot={
+            "clusters": {
+                "market_regime": {"latest_closes": {"SPY": {"date": "2026-04-21", "close": 500.0}}},
+                "options_positioning": {"as_of_date": "2026-04-21"},
+                "macro_calendar": {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 1, "next_event_date": "2026-04-22"},
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_macro_calendar_cluster",
+        lambda **kwargs: kwargs.get("existing") or {},
+    )
+    monkeypatch.setattr(service, "_lookup_walk_forward_scorecard", lambda **_: _passed_walk_forward())
+
+    result = service._normalize_response(snapshot, market_now=datetime(2026, 4, 21, 22, 30, tzinfo=UTC))
+
+    assert result.research_scoreboard is not None
+    assert result.research_scoreboard.status == "shadow"
+    assert result.research_scoreboard.beats_baseline is True
+    assert result.research_scoreboard.after_cost_edge_pct is None
+    assert result.research_scoreboard.cost_model == "next_open_to_target_close_5bps_no_trades"
+    assert result.research_scoreboard.status_reason == "Walk-forward passed; no evaluated live long/short trades yet."
+
+
+def test_research_scoreboard_can_mark_usable_only_with_after_cost_edge(monkeypatch) -> None:
+    repo = _FakeRepo()
+    repo.history = [_call(symbol="SPY"), _call(symbol="SPY")]
+    service = MarketPredictionCommitteeService(repository=repo, storage=_FakeStorage())
+    snapshot = _response(
+        lead_call=_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}]),
+        calls=[_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}])],
+        scorecard=MarketPredictionScorecard(
+            sample_size=140,
+            direction_hit_rate=0.66,
+            move_mae_pct=0.7,
+            brier_score=0.18,
+        ),
+        source_snapshot={
+            "clusters": {
+                "market_regime": {"latest_closes": {"SPY": {"date": "2026-04-21", "close": 500.0}}},
+                "options_positioning": {"as_of_date": "2026-04-21"},
+                "macro_calendar": {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 1, "next_event_date": "2026-04-22"},
+            }
+        },
+    )
+    snapshot._storage_metadata = {"after_cost_edge_pct": 0.18, "prediction_model_id": "scoreboard-v1"}
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_macro_calendar_cluster",
+        lambda **kwargs: kwargs.get("existing") or {},
+    )
+    monkeypatch.setattr(service, "_lookup_walk_forward_scorecard", lambda **_: _passed_walk_forward())
+
+    result = service._normalize_response(snapshot, market_now=datetime(2026, 4, 21, 22, 30, tzinfo=UTC))
+
+    assert result.research_scoreboard is not None
+    assert result.research_scoreboard.status == "usable"
+    assert result.research_scoreboard.after_cost_edge_pct == 0.18
+    assert result.research_scoreboard.cost_model == "stored"
+    assert result.research_scoreboard.model_id == "scoreboard-v1"
+    assert result.research_scoreboard.status_reason == "Walk-forward and live checks pass after costs."
+
+
+def test_research_scoreboard_blocks_when_walk_forward_fails(monkeypatch) -> None:
+    repo = _FakeRepo()
+    repo.history = [_call(symbol="SPY"), _call(symbol="SPY")]
+    service = MarketPredictionCommitteeService(repository=repo, storage=_FakeStorage())
+    snapshot = _response(
+        lead_call=_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}]),
+        calls=[_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}])],
+        scorecard=MarketPredictionScorecard(
+            sample_size=140,
+            direction_hit_rate=0.66,
+            move_mae_pct=0.7,
+            brier_score=0.18,
+        ),
+        source_snapshot={
+            "clusters": {
+                "market_regime": {"latest_closes": {"SPY": {"date": "2026-04-21", "close": 500.0}}},
+                "options_positioning": {"as_of_date": "2026-04-21"},
+                "macro_calendar": {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 1, "next_event_date": "2026-04-22"},
+            }
+        },
+    )
+    snapshot._storage_metadata = {"after_cost_edge_pct": 0.18}
+    failed = _passed_walk_forward().model_copy(
+        update={
+            "status": "fail",
+            "status_reason": "Walk-forward edge is not positive after costs.",
+            "after_cost_edge_pct": -0.02,
+            "passed": False,
+        }
+    )
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_macro_calendar_cluster",
+        lambda **kwargs: kwargs.get("existing") or {},
+    )
+    monkeypatch.setattr(service, "_lookup_walk_forward_scorecard", lambda **_: failed)
+
+    result = service._normalize_response(snapshot, market_now=datetime(2026, 4, 21, 22, 30, tzinfo=UTC))
+
+    assert result.research_scoreboard is not None
+    assert result.research_scoreboard.status == "no_edge"
+    assert result.research_scoreboard.walk_forward == failed
+    assert result.research_scoreboard.status_reason == "Walk-forward edge is not positive after costs."
+
+
+def test_research_scoreboard_uses_evaluated_after_cost_edge(monkeypatch) -> None:
+    repo = _FakeRepo()
+    repo.after_cost_edge_pct = 0.12
+    repo.history = [_call(symbol="SPY"), _call(symbol="SPY")]
+    service = MarketPredictionCommitteeService(repository=repo, storage=_FakeStorage())
+    snapshot = _response(
+        lead_call=_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}]),
+        calls=[_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}])],
+        scorecard=MarketPredictionScorecard(
+            sample_size=140,
+            direction_hit_rate=0.66,
+            move_mae_pct=0.7,
+            brier_score=0.18,
+        ),
+        source_snapshot={
+            "clusters": {
+                "market_regime": {"latest_closes": {"SPY": {"date": "2026-04-21", "close": 500.0}}},
+                "options_positioning": {"as_of_date": "2026-04-21"},
+                "macro_calendar": {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 1, "next_event_date": "2026-04-22"},
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_macro_calendar_cluster",
+        lambda **kwargs: kwargs.get("existing") or {},
+    )
+    monkeypatch.setattr(service, "_lookup_walk_forward_scorecard", lambda **_: _passed_walk_forward())
+
+    result = service._normalize_response(snapshot, market_now=datetime(2026, 4, 21, 22, 30, tzinfo=UTC))
+
+    assert result.research_scoreboard is not None
+    assert result.research_scoreboard.status == "usable"
+    assert result.research_scoreboard.after_cost_edge_pct == 0.12
+    assert result.research_scoreboard.cost_model == "next_open_to_target_close_5bps"
+
+
+def test_research_scoreboard_blocks_usable_when_data_health_is_stale(monkeypatch) -> None:
+    repo = _FakeRepo()
+    repo.history = [_call(symbol="SPY"), _call(symbol="SPY")]
+    service = MarketPredictionCommitteeService(repository=repo, storage=_FakeStorage())
+    snapshot = _response(
+        lead_call=_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}]),
+        calls=[_call(symbol="SPY", clusters=[{"cluster": "market_regime", "weight": 0.4}])],
+        scorecard=MarketPredictionScorecard(
+            sample_size=140,
+            direction_hit_rate=0.66,
+            move_mae_pct=0.7,
+            brier_score=0.18,
+        ),
+        source_snapshot={
+            "clusters": {
+                "market_regime": {"latest_closes": {"SPY": {"date": "2026-04-21", "close": 500.0}}},
+                "options_positioning": {"as_of_date": "2026-04-22"},
+                "macro_calendar": {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 1, "next_event_date": "2026-04-22"},
+            }
+        },
+    )
+    snapshot._storage_metadata = {"after_cost_edge_pct": 0.18}
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_macro_calendar_cluster",
+        lambda **kwargs: kwargs.get("existing") or {},
+    )
+    monkeypatch.setattr(service, "_lookup_walk_forward_scorecard", lambda **_: _passed_walk_forward())
+
+    result = service._normalize_response(snapshot, market_now=datetime(2026, 4, 22, 22, 30, tzinfo=UTC))
+
+    assert result.research_scoreboard is not None
+    assert result.research_scoreboard.status == "no_edge"
+    assert result.research_scoreboard.status_reason == "Data health is not fresh."
+
+
+def test_get_committee_snapshot_without_generate_returns_none_instead_of_generating() -> None:
+    result = _NoGeneratePredictionService(repository=_FakeRepo()).get_committee_snapshot(
+        window_days=3,
+        generate_if_missing=False,
+    )
+
+    assert result is None
+
+
+def test_options_positioning_newer_than_market_date_is_fresh(monkeypatch) -> None:
+    service = MarketPredictionCommitteeService(repository=_FakeRepo(), storage=_FakeStorage())
+    snapshot = _response(
+        lead_call=_call(symbol="SPY", clusters=[{"cluster": "options_positioning", "weight": 0.4}]),
+        calls=[_call(symbol="SPY", clusters=[{"cluster": "options_positioning", "weight": 0.4}])],
+        source_snapshot={
+            "clusters": {
+                "market_regime": {"latest_closes": {"SPY": {"date": "2026-04-21", "close": 500.0}}},
+                "options_positioning": {"as_of_date": "2026-04-22"},
+                "macro_calendar": {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 1, "next_event_date": "2026-04-22"},
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "app.services.market_prediction_committee_service.get_macro_calendar_cluster",
+        lambda **kwargs: kwargs.get("existing") or {},
+    )
+
+    result = service._normalize_response(snapshot, market_now=datetime(2026, 4, 21, 22, 30, tzinfo=UTC))
+
+    assert result.source_snapshot["clusters"]["options_positioning"]["freshness"] == "fresh"
+    assert result.research_scoreboard is not None
+    option_row = next(
+        row
+        for row in result.research_scoreboard.data_health
+        if row.label == "options_positioning"
+    )
+    assert option_row.status == "fresh"
+
+
+def test_price_clusters_newer_than_expected_market_date_are_fresh() -> None:
+    service = MarketPredictionCommitteeService(repository=_FakeRepo(), storage=_FakeStorage())
+
+    snapshot = service._normalize_public_snapshot_contract(
+        raw_snapshot={
+            "clusters": {
+                "market_regime": {"latest_closes": {"SPY": {"date": "2026-05-01", "close": 500.0}}},
+                "driver_bars": {"latest_closes": {"VIX": {"date": "2026-05-01", "close": 15.0}}},
+            }
+        },
+        market_date=date(2026, 4, 30),
+    )
+
+    assert snapshot["clusters"]["market_regime"]["freshness"] == "fresh"
+    assert snapshot["clusters"]["driver_bars"]["freshness"] == "fresh"
 
 
 
@@ -659,6 +991,7 @@ def test_generate_snapshot_uses_weighted_committee_synthesis_and_additive_review
     )
 
     assert repo.calls[0].prob_up == pytest.approx(0.6713692625)
+    assert repo.scorecard_requests == [(3, "SPY")]
     assert repo.calls[0].expected_move_pct == pytest.approx(0.875)
     assert repo.calls[0].confidence_score == pytest.approx(68.75)
     assert repo.calls[0].confidence_band_low_pct == pytest.approx(-1.0)

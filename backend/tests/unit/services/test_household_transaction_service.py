@@ -9,10 +9,14 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from app.services.household_transaction_service import (
-    HouseholdTransactionService,
-    _merchant_aliases,
+from app.services._household_report_builder import _merchant_aliases
+from app.services._household_transaction_parsers import (
+    extract_transactions,
+    parse_chase_statement,
+    parse_ofx_transactions,
+    parse_wells_fargo_statement,
 )
+from app.services.household_transaction_service import HouseholdTransactionService
 
 
 class _FakeConnection:
@@ -103,9 +107,7 @@ class _MerchantOverrideStorage:
 
 
 def test_parse_chase_statement_extracts_walmart_activity_lines() -> None:
-    service = HouseholdTransactionService()
-
-    transactions = service._parse_chase_statement(
+    transactions = parse_chase_statement(
         (
             "ELIAS B LESLIE Page 2 of 4 Statement Date: 01/11/26\n"
             "Date of\n"
@@ -125,9 +127,7 @@ def test_parse_chase_statement_extracts_walmart_activity_lines() -> None:
 
 
 def test_parse_wells_fargo_statement_extracts_payroll_and_spotify() -> None:
-    service = HouseholdTransactionService()
-
-    transactions = service._parse_wells_fargo_statement(
+    transactions = parse_wells_fargo_statement(
         (
             "February 25, 2026 Page 2 of 5\n"
             "Transaction history\n"
@@ -148,9 +148,7 @@ def test_parse_wells_fargo_statement_extracts_payroll_and_spotify() -> None:
 
 
 def test_parse_wells_fargo_statement_reclassifies_transfers_benefits_and_card_payments() -> None:
-    service = HouseholdTransactionService()
-
-    transactions = service._parse_wells_fargo_statement(
+    transactions = parse_wells_fargo_statement(
         (
             "February 25, 2026 Page 2 of 5\n"
             "Transaction history\n"
@@ -178,9 +176,7 @@ def test_parse_wells_fargo_statement_reclassifies_transfers_benefits_and_card_pa
 
 
 def test_parse_wells_fargo_statement_treats_payables_as_income() -> None:
-    service = HouseholdTransactionService()
-
-    transactions = service._parse_wells_fargo_statement(
+    transactions = parse_wells_fargo_statement(
         (
             "January 27, 2026 Page 2 of 5\n"
             "Transaction history\n"
@@ -196,9 +192,7 @@ def test_parse_wells_fargo_statement_treats_payables_as_income() -> None:
 
 
 def test_parse_ofx_transactions_extracts_credit_card_expenses_and_payments() -> None:
-    service = HouseholdTransactionService()
-
-    transactions = service._parse_ofx_transactions(
+    transactions = parse_ofx_transactions(
         (
             "<OFX><CREDITCARDMSGSRSV1><CCSTMTTRNRS><BANKTRANLIST>"
             "<STMTTRN><DTPOSTED>20260301</DTPOSTED><TRNAMT>-14.99</TRNAMT>"
@@ -221,7 +215,6 @@ def test_parse_ofx_transactions_extracts_credit_card_expenses_and_payments() -> 
 
 
 def test_extract_transactions_treats_credit_card_csv_returns_as_refunds(tmp_path: Path) -> None:
-    service = HouseholdTransactionService()
     csv_path = tmp_path / "credit-card-activity.csv"
     csv_path.write_text(
         (
@@ -232,7 +225,7 @@ def test_extract_transactions_treats_credit_card_csv_returns_as_refunds(tmp_path
         encoding="utf-8",
     )
 
-    transactions = service._extract_transactions(
+    transactions = extract_transactions(
         filename=csv_path.name,
         source_type="credit_card",
         document_type="statement",
@@ -251,7 +244,6 @@ def test_extract_transactions_treats_credit_card_csv_returns_as_refunds(tmp_path
 
 
 def test_extract_transactions_parses_generic_cash_management_csv(tmp_path: Path) -> None:
-    service = HouseholdTransactionService()
     csv_path = tmp_path / "History_for_Account_Z38367298.csv"
     csv_path.write_text(
         (
@@ -266,7 +258,7 @@ def test_extract_transactions_parses_generic_cash_management_csv(tmp_path: Path)
         encoding="utf-8",
     )
 
-    transactions = service._extract_transactions(
+    transactions = extract_transactions(
         filename=csv_path.name,
         source_type="brokerage",
         document_type="brokerage_statement",

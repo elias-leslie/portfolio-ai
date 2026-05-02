@@ -21,7 +21,9 @@ from app.services.market_prediction_evaluation_service import MarketPredictionEv
 from app.services.market_prediction_seat_weighting_service import (
     MarketPredictionSeatWeightingService,
 )
+from app.tasks.ingestion.price_ingestion import refresh_daily_ohlcv
 from app.tasks.market_data.macro_calendar_pipeline import ingest_macro_calendar_events
+from app.tasks.market_data.options_pipeline import fetch_options_activity_metrics
 from app.utils.market_hours import is_trading_day
 
 from ..hatchet_app import hatchet
@@ -51,9 +53,20 @@ def run_market_prediction_cycle(
     seat_weighting_service: MarketPredictionSeatWeightingService | None = None,
     cluster_weighting_service: MarketPredictionClusterWeightingService | None = None,
     macro_calendar_ingestion_fn: Callable[..., dict[str, Any]] | None = ingest_macro_calendar_events,
+    options_activity_fn: Callable[[], dict[str, Any]] | None = fetch_options_activity_metrics,
+    ohlcv_refresh_fn: Callable[[], dict[str, Any]] | None = refresh_daily_ohlcv,
     as_of_ts: datetime | None = None,
 ) -> dict[str, Any]:
     effective_ts = as_of_ts or datetime.now(UTC)
+    ohlcv_refresh: dict[str, Any]
+    if ohlcv_refresh_fn is None:
+        ohlcv_refresh = {"status": "skipped"}
+    else:
+        try:
+            ohlcv_refresh = ohlcv_refresh_fn()
+        except Exception as exc:
+            logger.warning("ohlcv_refresh_for_prediction_failed", error=str(exc), exc_info=True)
+            ohlcv_refresh = {"status": "failed", "error": str(exc)}
     macro_calendar_ingestion: dict[str, Any]
     if macro_calendar_ingestion_fn is None:
         macro_calendar_ingestion = {"status": "skipped"}
@@ -61,11 +74,20 @@ def run_market_prediction_cycle(
         try:
             macro_calendar_ingestion = macro_calendar_ingestion_fn(
                 start_date=effective_ts.date(),
-                horizon_days=365,
+                horizon_days=60,
             )
         except Exception as exc:
             logger.warning("macro_calendar_ingestion_for_prediction_failed", error=str(exc), exc_info=True)
             macro_calendar_ingestion = {"status": "failed", "error": str(exc)}
+    options_activity: dict[str, Any]
+    if options_activity_fn is None:
+        options_activity = {"status": "skipped"}
+    else:
+        try:
+            options_activity = options_activity_fn()
+        except Exception as exc:
+            logger.warning("options_activity_for_prediction_failed", error=str(exc), exc_info=True)
+            options_activity = {"status": "failed", "error": str(exc)}
     committee = committee_service or MarketPredictionCommitteeService()
     evaluation = evaluation_service or MarketPredictionEvaluationService()
     seat_weighting = seat_weighting_service or MarketPredictionSeatWeightingService()
@@ -94,7 +116,9 @@ def run_market_prediction_cycle(
         "as_of_ts": effective_ts.isoformat(),
         "generated_windows": generated_windows,
         "evaluations_completed": len(evaluations),
+        "ohlcv_refresh": ohlcv_refresh,
         "macro_calendar_ingestion": macro_calendar_ingestion,
+        "options_activity": options_activity,
     }
 
 

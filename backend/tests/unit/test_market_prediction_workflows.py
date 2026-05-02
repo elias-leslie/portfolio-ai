@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from app.workflows.market_prediction import run_market_prediction_cycle
 
@@ -26,11 +27,25 @@ class _FakeCommitteeService:
         *,
         window_days: int,
         as_of_ts: datetime | None = None,
-        review=None,
-        cluster_review=None,
-        source_snapshot=None,
+        review: dict[str, Any] | None = None,
+        cluster_review: dict[str, Any] | None = None,
+        source_snapshot: dict[str, Any] | None = None,
     ):
-        self.generated.append((window_days, review["id"], cluster_review["id"], source_snapshot["clusters"]["macro_calendar"]["freshness"]))
+        assert review is not None
+        assert cluster_review is not None
+        assert source_snapshot is not None
+        clusters = source_snapshot["clusters"]
+        assert isinstance(clusters, dict)
+        macro_calendar = clusters["macro_calendar"]
+        assert isinstance(macro_calendar, dict)
+        self.generated.append(
+            (
+                window_days,
+                str(review["id"]),
+                str(cluster_review["id"]),
+                str(macro_calendar["freshness"]),
+            )
+        )
         return {
             "window_days": window_days,
             "as_of_ts": as_of_ts,
@@ -93,6 +108,8 @@ def test_run_market_prediction_cycle_evaluates_then_backfills_reviews_and_genera
         seat_weighting_service=seat_weighting,
         cluster_weighting_service=cluster_weighting,
         macro_calendar_ingestion_fn=lambda **_: {"status": "success", "events_updated": 2},
+        options_activity_fn=lambda: {"success": True, "as_of_date": "2026-04-21"},
+        ohlcv_refresh_fn=lambda: {"status": "success", "rows_inserted": 24},
         as_of_ts=datetime(2026, 4, 21, 22, 15, tzinfo=UTC),
     )
 
@@ -113,4 +130,6 @@ def test_run_market_prediction_cycle_evaluates_then_backfills_reviews_and_genera
     ]
     assert result["generated_windows"] == [1, 3, 7, 14]
     assert result["evaluations_completed"] == 1
+    assert result["ohlcv_refresh"] == {"status": "success", "rows_inserted": 24}
     assert result["macro_calendar_ingestion"] == {"status": "success", "events_updated": 2}
+    assert result["options_activity"] == {"success": True, "as_of_date": "2026-04-21"}

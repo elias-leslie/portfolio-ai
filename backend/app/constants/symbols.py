@@ -21,6 +21,8 @@ INDEX_SP500 = "^GSPC"  # S&P 500 Index
 INDEX_VIX = "^VIX"  # CBOE Volatility Index
 INDEX_TNX = "^TNX"  # 10-Year Treasury Note Yield
 INDEX_DXY = "DX-Y.NYB"  # US Dollar Index
+ETF_GROWTH = "VUG"  # Vanguard Growth ETF
+ETF_TOTAL_MARKET = "VTI"  # Vanguard Total Stock Market ETF
 
 # Combined market indicators list
 MARKET_INDICATORS: list[str] = [
@@ -103,11 +105,45 @@ SECTOR_LABELS: dict[str, dict[str, str]] = {
 # =============================================================================
 
 # All market symbols for historical data ingestion
-# Includes both market indicators and sector ETFs
-ALL_MARKET_SYMBOLS: list[str] = MARKET_INDICATORS + list(SECTOR_ETFS.keys())
+# Includes market indicators, sector ETFs, style ETFs, and prediction drivers.
+MAG7_COMPONENT_SYMBOLS: list[str] = ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA"]
+
+PREDICTION_DRIVER_SYMBOLS: list[str] = [
+    INDEX_VIX,
+    INDEX_TNX,
+    INDEX_DXY,
+    ETF_GROWTH,
+    ETF_TOTAL_MARKET,
+    *MAG7_COMPONENT_SYMBOLS,
+    *SECTOR_ETFS.keys(),
+]
+
+ALL_MARKET_SYMBOLS: list[str] = list(dict.fromkeys([*MARKET_INDICATORS, *PREDICTION_DRIVER_SYMBOLS]))
 
 # Sector ETF symbols only (for iteration)
 SECTOR_ETF_SYMBOLS: list[str] = list(SECTOR_ETFS.keys())
+CYCLICAL_SECTOR_SYMBOLS: list[str] = ["XLK", "XLF", "XLY", "XLI", "XLE"]
+DEFENSIVE_SECTOR_SYMBOLS: list[str] = ["XLU", "XLP", "XLV"]
+
+PREDICTION_COMPOSITE_FEATURES: list[str] = [
+    "MAG7_EQ",
+    "SECTOR_EQ",
+    "CYCLICAL_DEFENSIVE",
+    "GROWTH_MARKET",
+]
+PREDICTION_DRIVER_FEATURES: list[str] = [
+    INDEX_VIX,
+    INDEX_TNX,
+    INDEX_DXY,
+    ETF_GROWTH,
+    ETF_TOTAL_MARKET,
+    *PREDICTION_COMPOSITE_FEATURES,
+    "XLK",
+    "XLF",
+    "XLE",
+    "XLP",
+    "XLU",
+]
 
 # Canonical target universe for the market-prediction committee v1.
 # Keeps the scope explicit and aligned with the approved product contract.

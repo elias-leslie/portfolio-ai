@@ -1,16 +1,3 @@
-"""AI agent system for portfolio-ai.
+"""Agent Hub integrations and agent-adjacent services for portfolio-ai."""
 
-This module provides AI agents that generate investment ideas.
-"""
-
-from .base import Agent
-from .discovery import DiscoveryAgent
-from .portfolio_analyzer import PortfolioAnalyzerAgent
-from .tools import AgentTools
-
-__all__ = [
-    "Agent",
-    "AgentTools",
-    "DiscoveryAgent",
-    "PortfolioAnalyzerAgent",
-]
+__all__: list[str] = []

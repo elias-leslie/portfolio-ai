@@ -1,10 +1,10 @@
-"""Thesis Service - LLM-powered investment thesis generation with dual-provider validation."""
+"""Thesis Service - LLM-powered investment thesis generation."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from ..agents.llm_client import DualProviderClient
+from ..agents.clients.base_client import LLMClient
 from ..logging_config import get_logger
 from ..models.thesis import Thesis, ThesisDecisionEligibility, ThesisStatus, ThesisVersion
 from ..portfolio.watchlist_sync import ensure_symbols_in_watchlist
@@ -30,11 +30,11 @@ logger = get_logger(__name__)
 
 
 class ThesisService:
-    """Service for generating and managing investment theses with dual-LLM validation."""
+    """Service for generating and managing investment theses."""
 
     def __init__(
         self,
-        llm_client: DualProviderClient | None = None,
+        llm_client: LLMClient | None = None,
     ) -> None:
         self._app_storage = get_storage()
         self._fetcher = IntelligenceFetcher()

@@ -7,11 +7,14 @@ from typing import Any
 
 from app.services.macro_calendar_ingestion_service import (
     BEA_RELEASE_DATES_URL,
+    BLS_MONTHLY_SCHEDULE_READER_URL_TEMPLATE,
+    BLS_MONTHLY_SCHEDULE_URL_TEMPLATE,
     BLS_RELEASE_CALENDAR_URL,
     FED_FOMC_CALENDAR_URL,
     collect_macro_calendar_events,
     fetch_bea_release_events,
     fetch_bls_release_events,
+    fetch_bls_release_events_from_monthly_pages,
     fetch_fomc_meeting_events,
     ingest_macro_calendar,
 )
@@ -43,6 +46,7 @@ class _FakeStorage:
 
     def query(self, query: str, params: Any | None = None) -> _FakeRows:
         if "SELECT id" in query and "WHERE event_type" in query:
+            assert params is not None
             key = (str(params["event_type"]), params["event_date"])
             existing = self.rows.get(key)
             return _FakeRows([{"id": existing["id"]}] if existing else [])
@@ -183,6 +187,53 @@ END:VCALENDAR
     ]
 
 
+def test_fetch_bls_release_events_falls_back_to_official_monthly_schedule_reader() -> None:
+    monthly_page = """
+| Date | Time | Release |
+| --- | --- | --- |
+| Friday, May 08, 2026 | 08:30 AM | **Employment Situation** for April 2026 |
+| Tuesday, May 12, 2026 | 08:30 AM | **Consumer Price Index** for April 2026 |
+"""
+
+    def text_fetcher(url: str) -> str:
+        if url == BLS_RELEASE_CALENDAR_URL:
+            raise RuntimeError("403 forbidden")
+        expected_url = BLS_MONTHLY_SCHEDULE_READER_URL_TEMPLATE.format(year=2026, month=5)
+        assert url == expected_url
+        return monthly_page
+
+    events = fetch_bls_release_events(
+        start_date=dt.date(2026, 5, 1),
+        end_date=dt.date(2026, 5, 31),
+        text_fetcher=text_fetcher,
+    )
+
+    assert [(event.event_type, event.event_date, event.event_time, event.title) for event in events] == [
+        ("nfp_release", dt.date(2026, 5, 8), dt.time(8, 30), "Employment Situation"),
+        ("cpi_release", dt.date(2026, 5, 12), dt.time(8, 30), "Consumer Price Index"),
+    ]
+    assert all("BLS monthly release schedule" in str(event.description) for event in events)
+    assert all(BLS_MONTHLY_SCHEDULE_URL_TEMPLATE.format(year=2026, month=5) in str(event.description) for event in events)
+
+
+def test_fetch_bls_monthly_schedule_filters_to_supported_market_movers() -> None:
+    monthly_page = """
+| Date | Time | Release |
+| --- | --- | --- |
+| Tuesday, May 05, 2026 | 10:00 AM | **Job Openings and Labor Turnover Survey** for March 2026 |
+| Friday, May 08, 2026 | 08:30 AM | **Employment Situation** for April 2026 |
+| Tuesday, May 12, 2026 | 08:30 AM | **Consumer Price Index** for April 2026 |
+"""
+
+    events = fetch_bls_release_events_from_monthly_pages(
+        start_date=dt.date(2026, 5, 1),
+        end_date=dt.date(2026, 5, 31),
+        text_fetcher=lambda _url: monthly_page,
+    )
+
+    assert [event.event_type for event in events] == ["nfp_release", "cpi_release"]
+
+
 def test_ingest_macro_calendar_dedupes_and_upserts_without_overwriting_actuals() -> None:
     storage = _FakeStorage(
         [
@@ -240,7 +291,11 @@ def test_collect_macro_calendar_events_reports_empty_and_failed_sources() -> Non
     assert collection.source_statuses["bea_release_dates"]["status"] == "empty"
     assert collection.source_statuses["bls_release_calendar"]["status"] == "error"
     assert collection.errors == [
-        {"source": "bls_release_calendar", "error": "blocked " + BLS_RELEASE_CALENDAR_URL}
+        {
+            "source": "bls_release_calendar",
+            "error": "blocked "
+            + BLS_MONTHLY_SCHEDULE_READER_URL_TEMPLATE.format(year=2026, month=4),
+        }
     ]
 
 

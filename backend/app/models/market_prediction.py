@@ -18,6 +18,7 @@ SeatRecommendedAction = Literal["upweight", "downweight", "hold"]
 ClusterRecommendedAction = Literal["upweight", "downweight", "hold"]
 ClusterFreshness = Literal["fresh", "stale", "missing", "unknown"]
 PredictionFreshnessState = Literal["fresh", "aging", "stale", "invalid", "degraded"]
+PredictionResearchStatus = Literal["no_edge", "shadow", "usable"]
 SUPPORTED_ADAPTIVE_SEAT_KEYS = ("cross_asset", "macro", "risk")
 SUPPORTED_ADAPTIVE_CLUSTER_KEYS = (
     "market_regime",
@@ -233,6 +234,86 @@ class MarketPredictionScorecard(BaseModel):
     sample_size: int = Field(default=0, ge=0)
 
 
+class MarketPredictionDataHealthRow(BaseModel):
+    label: str
+    status: str
+    detail: str | None = None
+    as_of_date: str | None = None
+
+
+class MarketPredictionWalkForwardCandidateSummary(BaseModel):
+    candidate_id: str | None = None
+    candidate_label: str | None = None
+    candidate_feature_kind: Literal["absolute", "relative_to_target"] = "absolute"
+    benchmark_symbol: str | None = None
+    status: Literal["pass", "fail", "insufficient"] = "insufficient"
+    status_reason: str | None = None
+    sample_count: int = Field(default=0, ge=0)
+    hit_rate: float | None = Field(None, ge=0.0, le=1.0)
+    hit_rate_lcb: float | None = Field(None, ge=0.0, le=1.0)
+    brier_improvement_pct: float | None = None
+    move_mae_pct: float | None = Field(None, ge=0.0)
+    baseline_move_mae_pct: float | None = Field(None, ge=0.0)
+    after_cost_edge_pct: float | None = None
+    passed: bool = False
+
+
+class MarketPredictionWalkForwardScorecard(BaseModel):
+    status: Literal["pass", "fail", "insufficient"] = "insufficient"
+    status_reason: str
+    candidate_id: str | None = None
+    candidate_label: str | None = None
+    candidate_feature_kind: Literal["absolute", "relative_to_target"] = "absolute"
+    benchmark_symbol: str | None = None
+    driver_labels: list[str] = Field(default_factory=list)
+    tested_candidates: int = Field(default=0, ge=0)
+    sample_count: int = Field(default=0, ge=0)
+    min_sample_count: int = Field(default=100, ge=1)
+    trade_count: int = Field(default=0, ge=0)
+    start_date: date | None = None
+    end_date: date | None = None
+    train_window_days: int = Field(default=504, ge=1)
+    stride_days: int = Field(default=1, ge=1)
+    hit_rate: float | None = Field(None, ge=0.0, le=1.0)
+    hit_rate_lcb: float | None = Field(None, ge=0.0, le=1.0)
+    brier_score: float | None = Field(None, ge=0.0)
+    baseline_brier_score: float | None = Field(None, ge=0.0)
+    brier_improvement_pct: float | None = None
+    move_mae_pct: float | None = Field(None, ge=0.0)
+    baseline_move_mae_pct: float | None = Field(None, ge=0.0)
+    max_move_mae_pct: float | None = Field(None, ge=0.0)
+    after_cost_edge_pct: float | None = None
+    cost_model: str = "next_open_to_target_close_5bps"
+    passed: bool = False
+    top_candidates: list[MarketPredictionWalkForwardCandidateSummary] = Field(default_factory=list)
+
+
+class MarketPredictionResearchScoreboard(BaseModel):
+    status: PredictionResearchStatus = "no_edge"
+    status_reason: str
+    sample_count: int = Field(default=0, ge=0)
+    min_sample_count: int = Field(default=100, ge=1)
+    sufficient_samples: bool = False
+    hit_rate: float | None = Field(None, ge=0.0, le=1.0)
+    move_mae_pct: float | None = Field(None, ge=0.0)
+    brier_score: float | None = Field(None, ge=0.0)
+    baseline_hit_rate: float | None = Field(None, ge=0.0, le=1.0)
+    baseline_brier_score: float | None = Field(None, ge=0.0)
+    beats_baseline: bool = False
+    hit_rate_lcb: float | None = Field(None, ge=0.0, le=1.0)
+    hit_rate_confident: bool = False
+    max_move_mae_pct: float | None = Field(None, ge=0.0)
+    move_error_ok: bool = False
+    after_cost_edge_pct: float | None = None
+    cost_model: str = "not_tracked"
+    model_id: str | None = None
+    model_version: str | None = None
+    referee: str = "fixed_scorecard_v1"
+    experiment_loop: str = "shadow_only"
+    walk_forward: MarketPredictionWalkForwardScorecard | None = None
+    data_health: list[MarketPredictionDataHealthRow] = Field(default_factory=list)
+
+
 class PredictionFreshnessCluster(BaseModel):
     cluster: str
     freshness: ClusterFreshness = "unknown"
@@ -267,6 +348,7 @@ class MarketPredictionCommitteeResponse(BaseModel):
     calls: list[MarketPredictionCall] = Field(default_factory=list)
     votes: list[CommitteeSeatVote] = Field(default_factory=list)
     scorecard: MarketPredictionScorecard | None = None
+    research_scoreboard: MarketPredictionResearchScoreboard | None = None
     committee_summary: dict[str, Any] = Field(default_factory=dict)
     source_snapshot: dict[str, Any] = Field(default_factory=dict)
     last_evaluated_at: datetime | None = None
