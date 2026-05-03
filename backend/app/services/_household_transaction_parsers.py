@@ -6,10 +6,11 @@ import re
 from csv import reader as csv_reader
 from dataclasses import dataclass
 from datetime import date, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from app.services._household_document_pipeline_utils import parse_decimal_value
 from app.services._household_merchants import (
     _classification_for_flow,
     _classify_merchant,
@@ -74,16 +75,6 @@ def _statement_transaction_date(*, raw_date: str, statement_date: date) -> date 
         return None
 
 
-def _parse_decimal(raw_value: str) -> Decimal | None:
-    cleaned = raw_value.strip().replace(",", "").replace("$", "")
-    if not cleaned:
-        return None
-    try:
-        return Decimal(cleaned)
-    except InvalidOperation:
-        return None
-
-
 def _normalize_csv_header(raw_value: str) -> str:
     normalized = re.sub(r"[^a-z0-9]+", "_", raw_value.strip().lower())
     return normalized.strip("_")
@@ -137,7 +128,7 @@ def _extract_csv_signed_amount(row: dict[str, str]) -> Decimal | None:
         exclude=("subtotal", "price", "fee", "commission", "interest", "balance"),
     )
     if amount_key is not None:
-        amount = _parse_decimal(row.get(amount_key, ""))
+        amount = parse_decimal_value(row.get(amount_key, ""))
         if amount is not None:
             return amount
 
@@ -152,8 +143,8 @@ def _extract_csv_signed_amount(row: dict[str, str]) -> Decimal | None:
         exact=("credit", "deposit", "inflow"),
         contains=("credit",),
     )
-    debit = _parse_decimal(row.get(debit_key, "")) if debit_key is not None else None
-    credit = _parse_decimal(row.get(credit_key, "")) if credit_key is not None else None
+    debit = parse_decimal_value(row.get(debit_key, "")) if debit_key is not None else None
+    credit = parse_decimal_value(row.get(credit_key, "")) if credit_key is not None else None
     if debit is not None and debit != 0:
         return -abs(debit)
     if credit is not None and credit != 0:
@@ -362,7 +353,7 @@ def parse_ofx_transactions(
             transaction_date = datetime.strptime(date_match.group(1), "%Y%m%d").date()
         except ValueError:
             continue
-        amount = _parse_decimal(amount_match.group(1))
+        amount = parse_decimal_value(amount_match.group(1))
         if amount is None:
             continue
         description = (
@@ -457,7 +448,7 @@ def parse_chase_statement(
             continue
 
         description = match.group("desc").strip()
-        amount = _parse_decimal(match.group("amount"))
+        amount = parse_decimal_value(match.group("amount"))
         if amount is None:
             previous_normalized_line = normalized_line
             continue
@@ -521,7 +512,7 @@ def parse_wells_fargo_statement(
                 else None
             )
             amount = (
-                _parse_decimal(amounts[-2] if len(amounts) >= 2 else amounts[0])
+                parse_decimal_value(amounts[-2] if len(amounts) >= 2 else amounts[0])
                 if parsed_date is not None and amounts
                 else None
             )
@@ -560,7 +551,7 @@ def parse_wells_fargo_statement(
 
         amounts = re.findall(r"\d[\d,]*\.\d{2}", line)
         if amounts:
-            amount = _parse_decimal(amounts[0])
+            amount = parse_decimal_value(amounts[0])
             if amount is None:
                 continue
             description = " ".join(description_parts).strip()
@@ -637,7 +628,7 @@ def extract_transactions(
         if parsed_date is None:
             dm = re.search(r"\b(\d{1,2}/\d{1,2}/\d{2,4})\b", extracted_text)
             parsed_date = _parse_date_value(dm.group(1)) if dm else None
-        parsed_amount = _parse_decimal(str(structured_data.get("total_amount")))
+        parsed_amount = parse_decimal_value(str(structured_data.get("total_amount")))
         if parsed_date is not None and parsed_amount is not None:
             category, essentiality = _classification_for_flow(
                 raw_merchant=str(structured_data["merchant"]),

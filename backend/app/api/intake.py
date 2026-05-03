@@ -35,6 +35,7 @@ async def upload_evidence(
     source_type: str | None = Form(default=None),
     document_type: str | None = Form(default=None),
     account_label: str | None = Form(default=None),
+    household_account_id: str | None = Form(default=None),
 ) -> HouseholdDocument:
     """Ingest a financial evidence file through the canonical intake path."""
     service = _service()
@@ -43,7 +44,11 @@ async def upload_evidence(
         source_type=source_type,
         document_type=document_type,
         account_label=account_label,
+        household_account_id=household_account_id,
     )
-    if document.metadata.get("duplicate_detected") is not True:
+    if (
+        document.metadata.get("duplicate_detected") is not True
+        or document.metadata.get("duplicate_rebound") is True
+    ):
         background_tasks.add_task(service.review_document, document.id)
     return document

@@ -105,7 +105,7 @@ async def list_household_questions() -> HouseholdQuestionList:
 
 @router.get("/accounts", response_model=list[HouseholdTrackedAccount])
 async def list_household_accounts() -> list[HouseholdTrackedAccount]:
-    """Return manually tracked household accounts."""
+    """Return household account display preferences."""
     return await run_in_threadpool(_service().list_tracked_accounts)
 
 
@@ -113,7 +113,7 @@ async def list_household_accounts() -> list[HouseholdTrackedAccount]:
 async def create_household_account(
     payload: HouseholdTrackedAccountInput,
 ) -> HouseholdTrackedAccount:
-    """Create a manually tracked household account."""
+    """Create a canonical household account or display preferences."""
     try:
         return await run_in_threadpool(_service().create_tracked_account, payload)
     except ValueError as exc:
@@ -125,7 +125,7 @@ async def update_household_account(
     account_id: str,
     payload: HouseholdTrackedAccountInput,
 ) -> HouseholdTrackedAccount:
-    """Update a manually tracked household account."""
+    """Update household account display preferences."""
     try:
         account = await run_in_threadpool(
             _service().update_tracked_account,
@@ -141,7 +141,7 @@ async def update_household_account(
 
 @router.delete("/accounts/{account_id}")
 async def delete_household_account(account_id: str) -> dict[str, bool]:
-    """Delete a manually tracked household account."""
+    """Delete household account display preferences."""
     deleted = await run_in_threadpool(_service().delete_tracked_account, account_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Household account not found: {account_id}")
@@ -167,6 +167,7 @@ async def upload_household_document(
     source_type: str | None = Form(default=None),
     document_type: str | None = Form(default=None),
     account_label: str | None = Form(default=None),
+    household_account_id: str | None = Form(default=None),
 ) -> HouseholdDocument:
     """Stage a household document for future parsing."""
     service = _service()
@@ -175,8 +176,12 @@ async def upload_household_document(
         source_type=source_type,
         document_type=document_type,
         account_label=account_label,
+        household_account_id=household_account_id,
     )
-    if document.metadata.get("duplicate_detected") is not True:
+    if (
+        document.metadata.get("duplicate_detected") is not True
+        or document.metadata.get("duplicate_rebound") is True
+    ):
         background_tasks.add_task(service.review_document, document.id)
     return document
 

@@ -17,7 +17,7 @@ Portfolio AI is a full-stack application for managing investment portfolios, tra
 | Workflows | Hatchet (background tasks, scheduling) |
 | AI | Optional Agent Hub companion for Jenny, thesis validation, and document review |
 | Data | yfinance, Finnhub, Polygon.io, FMP, TwelveData, AlphaVantage, FRED, RSS feeds |
-| Quality | Ruff, ty, pytest, Vitest, sf-browser verification, Biome |
+| Quality | Ruff, ty, pytest, Vitest, st browser verification, Biome |
 
 ## Architecture
 
@@ -214,9 +214,9 @@ dt --frontend-only
 dt --check
 
 # Browser verification
-sf-browser health
-sf-browser open http://<host-ip-from-.index.yaml>:3000
-sf-browser screenshot /tmp/portfolio-home.png
+st browser health
+st browser open http://<host-ip-from-.index.yaml>:3000
+st browser screenshot /tmp/portfolio-home.png
 ```
 
 ## API

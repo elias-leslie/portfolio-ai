@@ -16,14 +16,16 @@ from ..storage import PortfolioStorage
 from .news_ai_features import NewsAIFeatures
 from .news_cache import NewsCacheManager
 from .news_cache_refresh import (
+    NewsCacheRefresher,
+    ensure_credentials_loaded,
+)
+from .news_constants import (
     ARTICLE_OVERFETCH_CAP,
     ARTICLE_OVERFETCH_MULTIPLIER,
     DEFAULT_MAX_ARTICLES,
     DEFAULT_TTL_HOURS,
-    NewsCacheRefresher,
-    ensure_credentials_loaded,
+    MARKET_SYMBOL,
 )
-from .news_constants import MARKET_SYMBOL
 from .news_health_metrics import NewsHealthMetrics
 from .news_models import NewsArticle, NewsBundle, NewsSummary
 from .news_processing import FinBertUnavailableError, NewsProcessor

@@ -761,7 +761,12 @@ def _contextual_gaps(
         gaps.append(_gap("thin_evidence", "low", "Thin evidence", "This account is backed by a single document so far. More evidence will make the state more trustworthy."))
     if duplicate:
         gaps.append(_gap("possible_duplicate", "medium", "Possible duplicate", "Jenny sees another similar account and is keeping them separate until the identity is clearer."))
-    if statement_freshness.get("gap_months") and summary.asset_group in {"cash", "credit", "debt"}:
+    if (
+        statement_freshness.get("gap_months")
+        and summary.asset_group in {"cash", "credit", "debt"}
+        and summary.money_role == "spend_driver"
+        and summary.transaction_freshness_status != "fresh"
+    ):
         gaps.append(_gap("statement_gap", "medium", "Statement coverage gap", "Jenny detected a gap in transaction-month coverage, so cash-flow conclusions may still be incomplete."))
     return gaps
 
@@ -1048,6 +1053,12 @@ def build_account_summaries(
             portfolio_valuation is not None
             and getattr(portfolio_valuation, "priced_position_count", 0) > 0
         )
+        evidence_current_value = _account_value(balance_account)
+        live_priced_positions_value = (
+            float(getattr(portfolio_valuation, "priced_positions_value", 0.0) or 0.0)
+            if has_live_pricing
+            else None
+        )
         effective_cash_balance = (
             float(balance_account.cash_balance)
             if balance_account.cash_balance is not None
@@ -1058,17 +1069,24 @@ def build_account_summaries(
             )
         )
         effective_holdings_value = (
-            float(getattr(portfolio_valuation, "priced_positions_value", 0.0) or 0.0)
-            if has_live_pricing
-            else balance_account.holdings_value
+            float(balance_account.holdings_value)
+            if balance_account.holdings_value is not None
+            else live_priced_positions_value
         )
         effective_current_value = (
-            float(getattr(portfolio_valuation, "priced_positions_value", 0.0) or 0.0)
-            + float(effective_cash_balance or 0.0)
-            if has_live_pricing and portfolio_valuation is not None
-            else _account_value(balance_account)
+            evidence_current_value
+            if evidence_current_value is not None
+            else live_priced_positions_value + float(effective_cash_balance or 0.0)
+            if live_priced_positions_value is not None
+            else None
         )
-        valuation_source = "live_quotes" if has_live_pricing else "evidence"
+        valuation_source = (
+            "evidence"
+            if evidence_current_value is not None
+            else "live_quotes"
+            if has_live_pricing
+            else "evidence"
+        )
         linked_group_household_account_id = next(
             (
                 candidate.household_account_id

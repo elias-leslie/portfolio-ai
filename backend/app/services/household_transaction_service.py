@@ -35,7 +35,6 @@ from app.services._household_report_builder import (
 from app.services._household_spend_filters import is_budget_driving_expense
 from app.services._household_time_windows import resolve_household_time_window
 from app.services._household_transaction_parsers import (
-    ExtractedTransaction,
     _parse_date_value,
     extract_transactions,
 )
@@ -104,7 +103,7 @@ class HouseholdTransactionService:
             structured_data=structured_data,
         )
 
-        transactions = self._extract_transactions(
+        transactions = extract_transactions(
             filename=document.filename,
             source_type=str(reviewed.get("source_type") or document.source_type),
             document_type=str(reviewed.get("document_type") or document.document_type),
@@ -495,7 +494,7 @@ class HouseholdTransactionService:
                     t.category,
                     t.essentiality,
                     t.flow_type,
-                    COALESCE(ta.label, a.canonical_label, t.account_label) AS account_label,
+                    COALESCE(ap.display_label, a.canonical_label, t.account_label) AS account_label,
                     t.document_id,
                     COALESCE(m.canonical_name, t.raw_merchant, t.description) AS canonical_name,
                     d.document_type,
@@ -507,12 +506,13 @@ class HouseholdTransactionService:
                 LEFT JOIN household_merchants m ON m.id = t.merchant_id
                 LEFT JOIN household_accounts a ON a.id = t.household_account_id
                 LEFT JOIN LATERAL (
-                    SELECT label
-                    FROM household_tracked_accounts ta
-                    WHERE ta.household_account_id = t.household_account_id
-                    ORDER BY ta.updated_at DESC
+                    SELECT display_label
+                    FROM household_account_preferences ap
+                    WHERE ap.household_account_id = t.household_account_id
+                      AND ap.hidden_at IS NULL
+                    ORDER BY ap.updated_at DESC
                     LIMIT 1
-                ) ta ON TRUE
+                ) ap ON TRUE
                 LEFT JOIN household_documents d ON d.id = t.document_id
                 WHERE t.flow_type IN ('expense', 'payment', 'refund')
                 ORDER BY t.transaction_date DESC
@@ -665,29 +665,6 @@ class HouseholdTransactionService:
         if len(row_dates) < MIN_DATES_FOR_CADENCE:
             return None
         return self._dates_to_cadence(row_dates)
-
-    def _extract_transactions(
-        self,
-        *,
-        filename: str,
-        source_type: str,
-        document_type: str,
-        extracted_text: str,
-        structured_data: dict[str, Any],
-        account_label: str | None,
-        review_summary: str,
-        stored_path: Path | None,
-    ) -> list[ExtractedTransaction]:
-        return extract_transactions(
-            filename=filename,
-            source_type=source_type,
-            document_type=document_type,
-            extracted_text=extracted_text,
-            structured_data=structured_data,
-            account_label=account_label,
-            review_summary=review_summary,
-            stored_path=stored_path,
-        )
 
     @staticmethod
     def _document_stored_path(document: Any) -> Path | None:

@@ -46,6 +46,7 @@ def test_update_progress_executes_with_session_id() -> None:
     sql, params = conn.executed[0]
     assert "UPDATE ml_training_progress SET" in sql
     assert "WHERE session_id = %s" in sql
+    assert params is not None
     assert params[-1] == "sess-123"
 
 
@@ -54,6 +55,7 @@ def test_update_progress_includes_kwargs() -> None:
     _update_progress(conn, "sess-123", "labeling", "Labeling...", 20, articles_found=50)
     sql, params = conn.executed[0]
     assert "articles_found = %s" in sql
+    assert params is not None
     assert 50 in params
 
 

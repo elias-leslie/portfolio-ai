@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 from app.tasks.data_freshness_tasks import check_all_data_freshness
@@ -64,8 +65,10 @@ def test_check_all_data_freshness_persists_table_details(monkeypatch) -> None:
         fake_check_all_tables_freshness,
     )
 
-    result = check_all_data_freshness(auto_remediate=False)
+    result = cast(dict[str, Any], check_all_data_freshness(auto_remediate=False))
+    summary = recorded_completion["summary"]
 
     assert result["details"] == details
     assert recorded_completion["status"] == "success"
-    assert recorded_completion["summary"]["details"] == details
+    assert isinstance(summary, dict)
+    assert summary["details"] == details

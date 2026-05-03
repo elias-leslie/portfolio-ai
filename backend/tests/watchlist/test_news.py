@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import copy
-from collections.abc import Sequence
+import datetime as dt
+from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
@@ -16,7 +17,7 @@ from app.services.news_models import NewsArticle, NewsBundle, NewsSummary, Senti
 from app.services.news_processing import FinBertUnavailableError
 from app.services.news_service import NewsService
 from app.services.preferences_service import get_or_create_preferences
-from app.sources.base import BaseSource
+from app.sources.base import BaseSource, DatasetRequest
 from app.storage import get_storage
 from app.watchlist.refresh_builders import build_recent_news_payload
 
@@ -154,16 +155,20 @@ class StubNewsSource(BaseSource):
     def reset_calls(self) -> None:
         self.fetch_call_count = 0
 
-    def fetch_day_bars(self, request: Any) -> pl.DataFrame:
+    def fetch_day_bars(self, request: DatasetRequest) -> pl.DataFrame | None:
         return pl.DataFrame()
 
-    def fetch_reference_payload(self, tickers: Any, as_of: Any) -> pl.DataFrame:
+    def fetch_reference_payload(
+        self, symbols: Iterable[str], as_of: dt.date
+    ) -> pl.DataFrame | None:
         return pl.DataFrame()
 
-    def fetch_news_payload(self, tickers: Any, start: Any, end: Any) -> pl.DataFrame:
+    def fetch_news_payload(
+        self, symbols: Iterable[str], start: dt.datetime, end: dt.datetime
+    ) -> pl.DataFrame | None:
         self.fetch_call_count += 1
         rows: list[dict[str, str | None]] = []
-        for ticker in tickers:
+        for ticker in symbols:
             for entry in self._entries:
                 source_info = entry.get("source")
                 source_name = (

@@ -209,7 +209,7 @@ class HouseholdTransactionAuditService:
                     d.source_type,
                     d.document_type,
                     d.filename,
-                    COALESCE(ta.label, a.canonical_label, t.account_label) AS account_label,
+                    COALESCE(ap.display_label, a.canonical_label, t.account_label) AS account_label,
                     COALESCE(similar_txns.similar_count, 0) AS similar_count
                 FROM household_transactions t
                 LEFT JOIN household_merchants m
@@ -219,12 +219,13 @@ class HouseholdTransactionAuditService:
                 LEFT JOIN household_accounts a
                   ON a.id = t.household_account_id
                 LEFT JOIN LATERAL (
-                    SELECT label
-                    FROM household_tracked_accounts ta
-                    WHERE ta.household_account_id = t.household_account_id
-                    ORDER BY ta.updated_at DESC
+                    SELECT display_label
+                    FROM household_account_preferences ap
+                    WHERE ap.household_account_id = t.household_account_id
+                      AND ap.hidden_at IS NULL
+                    ORDER BY ap.updated_at DESC
                     LIMIT 1
-                ) ta ON TRUE
+                ) ap ON TRUE
                 LEFT JOIN (
                     SELECT merchant_id, COUNT(*) AS similar_count
                     FROM household_transactions

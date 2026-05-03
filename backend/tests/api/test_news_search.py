@@ -74,7 +74,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app = FastAPI()
     app.include_router(router)
     client = TestClient(app)
-    client.captured_limits = captured_limits  # type: ignore[attr-defined]
+    client.captured_limits = captured_limits
     return client
 
 
@@ -129,7 +129,7 @@ class TestNewsSearchEndpoint:
         response = client.get("/api/news/search?query=AAPL&max_results=5")
         assert response.status_code == 200
         assert "articles" in response.json()
-        assert client.captured_limits[-1] == 5  # type: ignore[attr-defined]
+        assert client.captured_limits[-1] == 5
 
     def test_news_search_unknown_symbol_returns_200(self, client: TestClient) -> None:
         response = client.get("/api/news/search?query=XYZNOTASYMBOL123")

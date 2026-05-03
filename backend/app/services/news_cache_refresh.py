@@ -8,7 +8,12 @@ from typing import TYPE_CHECKING
 
 from ..logging_config import get_logger
 from ..storage.credential_loader import load_credentials_from_database
-from .news_constants import DEFAULT_TTL_HOURS, MARKET_SYMBOL
+from .news_constants import (
+    ALLOWED_LOOKBACK_HOURS,
+    ARTICLE_OVERFETCH_CAP,
+    DEFAULT_TTL_HOURS,
+    MARKET_SYMBOL,
+)
 
 if TYPE_CHECKING:
     from ..storage import PortfolioStorage
@@ -23,13 +28,6 @@ logger = get_logger(__name__)
 # Module-level credential loading state
 _CREDENTIALS_LOADED = False
 _CREDENTIALS_LOCK = threading.Lock()
-
-# Constants
-DEFAULT_MAX_ARTICLES = 10
-ARTICLE_OVERFETCH_MULTIPLIER = 3
-ARTICLE_OVERFETCH_CAP = 45
-ALLOWED_LOOKBACK_HOURS = {6, 12, 24, 48}
-
 
 def ensure_credentials_loaded(*, force: bool = False) -> None:
     """Load credentials from database into environment once per process.

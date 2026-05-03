@@ -11,6 +11,7 @@ from app.models.household_finance import (
     HouseholdQuestion,
     HouseholdTrackedAccount,
 )
+from app.portfolio.account_valuation import AccountValuation
 from app.portfolio.models import Account
 from app.services._household_account_summary import (
     build_account_summaries,
@@ -257,6 +258,84 @@ def test_build_account_summaries_includes_portfolio_accounts_without_evidence() 
     assert any(gap.code == "missing_evidence" for gap in summary.gap_flags)
 
 
+def test_build_account_summaries_uses_evidence_total_for_linked_statement_with_quote_drift() -> None:
+    document = HouseholdDocument(
+        id="doc-positions",
+        filename="Portfolio_Positions_May-02-2026.csv",
+        source_type="brokerage",
+        document_type="statement",
+        status="parsed",
+        account_label="Traditional IRA",
+        file_size_bytes=10,
+        content_type="text/csv",
+        classification_confidence=0.98,
+        review_status="complete",
+        review_summary="Reviewed",
+        review_confidence=0.98,
+        statement_start=None,
+        statement_end="2026-05-01T00:00:00+00:00",
+        uploaded_at="2026-05-02T12:00:00+00:00",
+        parsed_at="2026-05-02T12:01:00+00:00",
+        metadata={"file_available": True, "application_summary": {"status": "applied"}},
+    )
+    evidence_account = HouseholdEvidenceAccount(
+        id="acct-traditional-ira",
+        document_id="doc-positions",
+        household_account_id="household-traditional-ira",
+        source_type="brokerage",
+        asset_group="retirement",
+        account_type="ira",
+        institution_name="Fidelity",
+        account_name="Traditional IRA",
+        account_mask=None,
+        owner_name=None,
+        currency="USD",
+        balance=368331.51,
+        holdings_value=368192.73,
+        cash_balance=138.78,
+        as_of_date="2026-05-01T00:00:00+00:00",
+        confidence=0.99,
+        metadata={},
+    )
+    portfolio_account = Account(
+        id="portfolio-traditional-ira",
+        name="Traditional IRA",
+        account_type="IRA",
+        household_account_id="household-traditional-ira",
+        cash_balance=138.78,
+    )
+    valuation = AccountValuation(
+        account_id="portfolio-traditional-ira",
+        priced_positions_value=368192.73966,
+        effective_cash_balance=138.78,
+        total_value=368331.51966,
+        priced_position_count=4,
+        quote_updated_at=datetime(2026, 5, 1, 20, 0, tzinfo=UTC),
+        quote_freshness_status="fresh",
+        quote_freshness_label="Latest close",
+        quote_source="cache",
+    )
+
+    summaries = build_account_summaries(
+        evidence_accounts=[evidence_account],
+        documents=[document],
+        portfolio_accounts=[portfolio_account],
+        tracked_accounts=[],
+        account_valuations={"portfolio-traditional-ira": valuation},
+        holdings_by_account={"portfolio-traditional-ira": 368192.73966},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    assert len(summaries) == 1
+    summary = summaries[0]
+    assert summary.current_value == 368331.51
+    assert summary.holdings_value == 368192.73
+    assert summary.cash_balance == 138.78
+    assert summary.valuation_source == "evidence"
+    assert summary.priced_position_count == 4
+    assert summary.quote_freshness_label == "Latest close"
+
+
 def test_build_money_inbox_prioritizes_questions_and_account_gaps() -> None:
     account_summaries = build_account_summaries(
         evidence_accounts=[],
@@ -468,7 +547,7 @@ def test_build_account_summaries_use_activity_observed_through_for_spend_driver_
         portfolio_accounts=[],
         tracked_accounts=[],
         holdings_by_account={},
-        statement_freshness={"coverage_months": 1, "gap_months": []},
+        statement_freshness={"coverage_months": 1, "gap_months": ["old global gap"]},
         latest_transaction_dates_by_document={"doc-cash": (datetime.now(UTC) - timedelta(days=5)).date()},
     )
 
@@ -479,6 +558,7 @@ def test_build_account_summaries_use_activity_observed_through_for_spend_driver_
     assert summary.last_transaction_at.startswith((datetime.now(UTC) - timedelta(days=5)).date().isoformat())
     assert summary.transaction_freshness_status == "fresh"
     assert not any(gap.code == "refresh_transactions_soon" for gap in summary.gap_flags)
+    assert not any(gap.code == "statement_gap" for gap in summary.gap_flags)
 
 
 def test_build_account_summaries_merge_same_mask_across_alias_names() -> None:

@@ -74,7 +74,7 @@ class QueryCounter:
 
             # Store original and patch
             self._original_execute = PostgreSQLConnectionWrapper.execute
-            PostgreSQLConnectionWrapper.execute = self._capture_execute(self._original_execute)  # type: ignore[method-assign]
+            PostgreSQLConnectionWrapper.execute = self._capture_execute(self._original_execute)
             self._patched = True
 
     def stop_listening(self) -> None:
@@ -82,7 +82,7 @@ class QueryCounter:
         if self._patched and self._original_execute:
             from app.storage.connection import PostgreSQLConnectionWrapper
 
-            PostgreSQLConnectionWrapper.execute = self._original_execute  # type: ignore[method-assign]
+            PostgreSQLConnectionWrapper.execute = self._original_execute
             self._patched = False
 
     def get_queries_to_table(self, table_name: str) -> list[dict[str, Any]]:

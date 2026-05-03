@@ -34,7 +34,7 @@ class _FakeConnection:
     def __exit__(self, exc_type, exc, tb) -> bool:
         return False
 
-    def execute(self, query: str, params=None):  # type: ignore[no-untyped-def]
+    def execute(self, query: str, params=None):
         self.calls.append((query, params))
         row = self._rows.pop(0) if self._rows else None
         return _FakeResult(row)
@@ -53,7 +53,7 @@ class _FakeStorage:
 
 @pytest.mark.asyncio
 async def test_trigger_profiling_returns_task_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_run_in_threadpool(func, *args):  # type: ignore[no-untyped-def]
+    async def fake_run_in_threadpool(func, *args):
         assert func.__name__ == "profile_news_sources_task"
         assert args == ("default",)
         return {"status": "completed", "task_id": "profile-123"}
@@ -69,7 +69,7 @@ async def test_trigger_profiling_returns_task_id(monkeypatch: pytest.MonkeyPatch
 
 @pytest.mark.asyncio
 async def test_reset_source_metrics_returns_task_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_run_in_threadpool(func, *args):  # type: ignore[no-untyped-def]
+    async def fake_run_in_threadpool(func, *args):
         assert func.__name__ == "reset_source_metrics_task"
         assert args == ()
         return {"status": "completed", "task_id": "reset-456"}

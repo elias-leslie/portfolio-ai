@@ -5,7 +5,43 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from app.services.home_today_brief_service import HomeTodayBriefService
+from app.models.market_events import MarketEvent
+from app.services.home_today_brief_service import (
+    HomeTodayBriefService,
+    _upcoming_event_payloads,
+)
+
+
+def test_upcoming_event_payloads_use_market_event_contract() -> None:
+    events = [
+        MarketEvent(
+            id=1,
+            event_type="cpi_release",
+            event_date="2026-05-12",
+            event_time=None,
+            title="CPI release",
+            description=None,
+            expected_value=None,
+            actual_value=None,
+            prior_value=None,
+            surprise_pct=None,
+            impact_score=4,
+            spy_change_1h=None,
+            spy_change_1d=None,
+            source="test",
+            created_at=None,
+        )
+    ]
+
+    assert _upcoming_event_payloads(events) == [
+        {
+            "label": "CPI release",
+            "event_type": "cpi_release",
+            "event_date": "2026-05-12",
+            "importance": "high",
+            "impact_score": 4,
+        }
+    ]
 
 
 def test_agent_payload_uses_dedicated_market_pulse_agent(monkeypatch) -> None:

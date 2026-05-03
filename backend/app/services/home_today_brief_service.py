@@ -197,6 +197,31 @@ def _merge_sources(*source_lists: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return merged
 
 
+def _market_event_importance(impact_score: Any) -> str:
+    score = abs(_safe_float(impact_score))
+    if score >= 4:
+        return "high"
+    if score >= 2:
+        return "medium"
+    return "scheduled"
+
+
+def _upcoming_event_payloads(events: list[Any]) -> list[dict[str, Any]]:
+    payloads: list[dict[str, Any]] = []
+    for event in events[:5]:
+        impact_score = getattr(event, "impact_score", None)
+        payloads.append(
+            {
+                "label": _trim_text(getattr(event, "title", "")) or str(getattr(event, "event_type", "")),
+                "event_type": str(getattr(event, "event_type", "")),
+                "event_date": _iso(getattr(event, "event_date", None)),
+                "importance": _market_event_importance(impact_score),
+                "impact_score": impact_score,
+            }
+        )
+    return payloads
+
+
 class HomeTodayBriefService:
     """Build a market- and portfolio-aware brief for the Today page."""
 
@@ -974,15 +999,7 @@ class HomeTodayBriefService:
         portfolio = self._portfolio_snapshot(portfolio_payload)
         news_sources = self._news_sources(articles)
         official_sources = list(_OFFICIAL_SOURCE_STACK)
-        upcoming_events = [
-            {
-                "label": str(event.label),
-                "event_type": str(event.event_type),
-                "event_date": _iso(event.event_date),
-                "importance": str(event.importance),
-            }
-            for event in get_upcoming_events(14)[:5]
-        ]
+        upcoming_events = _upcoming_event_payloads(get_upcoming_events(14))
 
         fallback = self._fallback_payload(household, portfolio, market, articles)
         research_cache_key = self._research_cache_key(

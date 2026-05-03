@@ -304,6 +304,7 @@ export interface HouseholdAccountGap {
 
 export interface HouseholdTrackedAccount {
   id: string
+  householdAccountId?: string | null
   label: string
   assetGroup: string
   accountType: string
@@ -318,6 +319,7 @@ export interface HouseholdTrackedAccount {
 }
 
 export interface HouseholdTrackedAccountInput {
+  householdAccountId?: string | null
   label: string
   assetGroup: string
   accountType: string
@@ -644,6 +646,7 @@ export interface HouseholdDocumentUpload {
   sourceType?: string
   documentType?: string
   accountLabel?: string
+  householdAccountId?: string
 }
 
 export interface HouseholdQuestionAnswer {
@@ -768,6 +771,9 @@ export async function uploadHouseholdDocument(
   }
   if (payload.accountLabel) {
     form.append('account_label', payload.accountLabel)
+  }
+  if (payload.householdAccountId) {
+    form.append('household_account_id', payload.householdAccountId)
   }
   return postForm<HouseholdDocument>('/api/intake/evidence', form)
 }

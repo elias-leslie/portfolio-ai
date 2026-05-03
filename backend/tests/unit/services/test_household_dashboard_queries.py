@@ -9,6 +9,16 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
+from app.services._household_dashboard_query_sql import (
+    CATEGORIZATION_SQL,
+    INCOME_MONTHLY_AVG_SQL,
+    MONTH_SPEND_SQL,
+    RECURRING_SQL,
+    RETIREMENT_CONTRIBUTION_SQL,
+    STATEMENT_FRESHNESS_SQL,
+)
+from app.services._household_dashboard_unknown_accounts import _UNKNOWN_ACCOUNT_SQL
+
 queries = importlib.import_module("app.services._household_dashboard_queries")
 
 
@@ -124,13 +134,13 @@ def test_transaction_date_issues_include_transaction_and_held_document_rows() ->
 
 def test_current_fact_queries_share_current_date_guard() -> None:
     guarded_queries = [
-        queries._CATEGORIZATION_SQL,
-        queries._RECURRING_SQL,
-        queries._RETIREMENT_CONTRIBUTION_SQL,
-        queries._MONTH_SPEND_SQL,
-        queries._UNKNOWN_ACCOUNT_SQL,
-        queries._STATEMENT_FRESHNESS_SQL,
-        queries._INCOME_MONTHLY_AVG_SQL,
+        CATEGORIZATION_SQL,
+        RECURRING_SQL,
+        RETIREMENT_CONTRIBUTION_SQL,
+        MONTH_SPEND_SQL,
+        _UNKNOWN_ACCOUNT_SQL,
+        STATEMENT_FRESHNESS_SQL,
+        INCOME_MONTHLY_AVG_SQL,
     ]
 
     assert all("transaction_date <= CURRENT_DATE" in sql for sql in guarded_queries)

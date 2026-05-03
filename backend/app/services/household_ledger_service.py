@@ -100,7 +100,7 @@ def _transaction_sql(window_start: str | None, *, limit: int) -> tuple[str, list
             t.id,
             t.flow_type,
             t.household_account_id,
-            COALESCE(ta.label, a.canonical_label, t.account_label) AS account_label,
+            COALESCE(ap.display_label, a.canonical_label, t.account_label) AS account_label,
             t.transaction_date,
             t.posted_date,
             COALESCE(m.canonical_name, NULLIF(t.raw_merchant, ''), NULLIF(t.description, '')) AS merchant,
@@ -123,12 +123,13 @@ def _transaction_sql(window_start: str | None, *, limit: int) -> tuple[str, list
         LEFT JOIN household_accounts a
           ON a.id = t.household_account_id
         LEFT JOIN LATERAL (
-            SELECT label
-            FROM household_tracked_accounts ta
-            WHERE ta.household_account_id = t.household_account_id
-            ORDER BY ta.updated_at DESC
+            SELECT display_label
+            FROM household_account_preferences ap
+            WHERE ap.household_account_id = t.household_account_id
+              AND ap.hidden_at IS NULL
+            ORDER BY ap.updated_at DESC
             LIMIT 1
-        ) ta ON TRUE
+        ) ap ON TRUE
         LEFT JOIN household_documents d
           ON d.id = t.document_id
         WHERE {" AND ".join(where_clauses)}

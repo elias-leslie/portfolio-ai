@@ -42,7 +42,7 @@ def test_structured_logging_with_json_formatter() -> None:
     handler.setLevel(logging.INFO)
 
     # Use JSON formatter
-    json_formatter = jsonlogger.JsonFormatter(  # type: ignore[attr-defined]
+    json_formatter = jsonlogger.JsonFormatter(
         "%(timestamp)s %(level)s %(name)s %(message)s",
         rename_fields={
             "levelname": "level",

@@ -36,10 +36,12 @@ class _HFDocumentMethods:
         source_type: str | None = None,
         document_type: str | None = None,
         account_label: str | None = None,
+        household_account_id: str | None = None,
     ) -> HouseholdDocument:
         return await self.document_pipeline.ingest_document(
             self, upload=upload, source_type=source_type,
             document_type=document_type, account_label=account_label,
+            household_account_id=household_account_id,
         )
 
     def _annotate_document(self, document: HouseholdDocument) -> HouseholdDocument:

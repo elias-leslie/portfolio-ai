@@ -774,6 +774,37 @@ def test_baseline_review_detects_fidelity_positions_csv_and_groups_accounts() ->
     assert structured_data["statement_period"] == "2026-04-12"
 
 
+def test_baseline_review_parses_fidelity_position_quantities_costs_and_pending_cash() -> None:
+    payload = _baseline_review(
+        filename="Portfolio_Positions_May-02-2026.csv",
+        source_type="other",
+        document_type="other",
+        extracted_text=(
+            "Account Number,Account Name,Symbol,Description,Quantity,Last Price,Last Price Change,Current Value,Today's Gain/Loss Dollar,Today's Gain/Loss Percent,Total Gain/Loss Dollar,Total Gain/Loss Percent,Percent Of Account,Cost Basis Total,Average Cost Basis,Type\n"
+            "245944181,Traditional IRA,SPAXX**,HELD IN MONEY MARKET,,,,$1976.42,,,,,0.54%,,,Cash,\n"
+            "245944181,Traditional IRA,AMZN,AMAZON.COM INC,2,$268.26,+$3.20,$536.52,+$6.40,+1.20%,+$134.18,+33.34%,0.15%,$402.34,$201.17,Cash,\n"
+            "245944181,Traditional IRA,VGT,VANGUARD WORLD FD INF TECH ETF,124,$104.85,+$1.67,$13001.40,+$68.20,+0.52%,+$68.20,+0.52%,3.53%,$12933.20,$104.30,Cash,\n"
+            "245944181,Traditional IRA,Pending activity,,,,,-$1837.64,,,,,,\n"
+            "Date downloaded May-02-2026 4:19 p.m ET\n"
+        ),
+    )
+    structured_data = cast(dict[str, Any], payload["structured_data"])
+    account = cast(list[dict[str, Any]], structured_data["financial_accounts"])[0]
+    holdings = cast(list[dict[str, Any]], account["holdings"])
+
+    assert account["balance"] == "13676.70"
+    assert account["cash_balance"] == "138.78"
+    assert account["holdings_value"] == "13537.92"
+    assert account["position_snapshot"] is True
+    assert holdings[1]["symbol"] == "AMZN"
+    assert holdings[1]["quantity"] == "2"
+    assert holdings[1]["cost_basis_total"] == "402.34"
+    assert holdings[1]["average_cost_basis"] == "201.17"
+    assert holdings[3]["symbol"] == "Pending activity"
+    assert holdings[3]["market_value"] == "-1837.64"
+    assert holdings[3]["cash_like"] is True
+
+
 def test_baseline_review_detects_fidelity_statement_summary_csv_and_groups_accounts() -> None:
     payload = _baseline_review(
         filename="Statement3312026.csv",

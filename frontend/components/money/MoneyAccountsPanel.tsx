@@ -53,6 +53,13 @@ const freshnessTone = {
   not_applicable: 'border-border/40 bg-surface/70 text-text-muted',
 }
 
+function freshnessToneClass(status: string | null | undefined) {
+  return (
+    freshnessTone[status as keyof typeof freshnessTone] ??
+    freshnessTone.needs_evidence
+  )
+}
+
 const ASSET_GROUP_OPTIONS = [
   { value: 'cash', label: 'Cash' },
   { value: 'credit', label: 'Credit' },
@@ -128,6 +135,8 @@ function buildInitialState(
 ): HouseholdTrackedAccountInput {
   const assetGroup = account?.assetGroup ?? seed?.assetGroup ?? 'cash'
   return {
+    householdAccountId:
+      account?.householdAccountId ?? seed?.householdAccountId ?? null,
     label: account?.label ?? seed?.label ?? '',
     assetGroup,
     accountType:
@@ -172,23 +181,26 @@ function TrackedAccountDialog({
   const accountTypeOptions =
     ACCOUNT_TYPE_OPTIONS[form.assetGroup] ?? ACCOUNT_TYPE_OPTIONS.other
   const canSubmit = form.label.trim().length > 0
-  const isEditing = Boolean(account?.trackedAccountId)
+  const isEditing = Boolean(
+    account?.trackedAccountId || account?.householdAccountId,
+  )
   const isPrefilled = Boolean(seed) && !isEditing
   const identityLocked = Boolean(
-    isEditing && identityManagedByCanonicalAccount(account),
+    account && identityManagedByCanonicalAccount(account),
   )
+  const showIdentityFields = !identityLocked
   const ownerLocked = false
   const dialogTitle = identityLocked
-    ? 'Edit linked account'
+    ? 'Edit account'
     : isEditing
-      ? 'Edit tracked account'
+      ? 'Edit account'
       : isPrefilled
-        ? 'Track account'
-        : 'Add tracked account'
+        ? 'Confirm account'
+        : 'Add account'
   const dialogDescription = isPrefilled
     ? 'Jenny found this account from evidence. Confirm the details once, then keep attaching evidence to this row over time.'
     : identityLocked
-      ? 'Update label, display owner, or notes here. Identity fields stay tied to linked evidence so one account cannot silently turn into another.'
+      ? 'Update the account display details.'
       : 'Create a real account row first, then let Jenny attach evidence to it over time.'
   const submitLabel = identityLocked
     ? 'Save account details'
@@ -215,7 +227,11 @@ function TrackedAccountDialog({
         payload: form,
       })
     } else {
-      await createAccount.mutateAsync(form)
+      await createAccount.mutateAsync({
+        ...form,
+        householdAccountId:
+          account?.householdAccountId ?? form.householdAccountId,
+      })
     }
     onOpenChange(false)
   }
@@ -244,83 +260,80 @@ function TrackedAccountDialog({
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="money-account-group">Asset group</Label>
-              <Select
-                value={form.assetGroup}
-                onValueChange={setAssetGroup}
-                disabled={identityLocked}
-              >
-                <SelectTrigger id="money-account-group">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ASSET_GROUP_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {showIdentityFields ? (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="money-account-group">Asset group</Label>
+                  <Select value={form.assetGroup} onValueChange={setAssetGroup}>
+                    <SelectTrigger id="money-account-group">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ASSET_GROUP_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="money-account-type">Account type</Label>
-              <Select
-                value={form.accountType}
-                disabled={identityLocked}
-                onValueChange={(accountType) =>
-                  setForm((current) => ({ ...current, accountType }))
-                }
-              >
-                <SelectTrigger id="money-account-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {accountTypeOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="money-account-type">Account type</Label>
+                  <Select
+                    value={form.accountType}
+                    onValueChange={(accountType) =>
+                      setForm((current) => ({ ...current, accountType }))
+                    }
+                  >
+                    <SelectTrigger id="money-account-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {accountTypeOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="money-account-institution">Institution</Label>
-              <Input
-                id="money-account-institution"
-                value={form.institutionName ?? ''}
-                disabled={identityLocked}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    institutionName: event.target.value,
-                  }))
-                }
-                placeholder="Wells Fargo"
-              />
-            </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="money-account-institution">Institution</Label>
+                  <Input
+                    id="money-account-institution"
+                    value={form.institutionName ?? ''}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        institutionName: event.target.value,
+                      }))
+                    }
+                    placeholder="Wells Fargo"
+                  />
+                </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="money-account-mask">Account mask</Label>
-              <Input
-                id="money-account-mask"
-                value={form.accountMask ?? ''}
-                disabled={identityLocked}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    accountMask: event.target.value,
-                  }))
-                }
-                placeholder="4421"
-              />
-            </div>
-          </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="money-account-mask">Account mask</Label>
+                  <Input
+                    id="money-account-mask"
+                    value={form.accountMask ?? ''}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        accountMask: event.target.value,
+                      }))
+                    }
+                    placeholder="4421"
+                  />
+                </div>
+              </div>
+            </>
+          ) : null}
 
           <div className="grid gap-2">
             <Label htmlFor="money-account-owner">Owner</Label>
@@ -386,10 +399,7 @@ function accountMetaLine(account: HouseholdAccountSummary) {
 
 function accountSubline(account: HouseholdAccountSummary) {
   const parts: string[] = []
-  if (account.linkedPortfolioAccountName) {
-    parts.push(`Linked to ${account.linkedPortfolioAccountName}`)
-  }
-  if (parts.length === 0 && account.evidenceCount > 0) {
+  if (account.evidenceCount > 0) {
     parts.push(
       account.evidenceCount === 1
         ? '1 supporting document'
@@ -415,29 +425,11 @@ function accountCoverageDetail(
       : null,
     account.lastEvidenceAt
       ? `Last evidence ${formatRelativeTime(account.lastEvidenceAt)}`
-      : 'No evidence linked yet',
+      : 'No evidence yet',
     `${account.evidenceCount} source${account.evidenceCount === 1 ? '' : 's'}`,
   ].filter(Boolean)
 
   return parts.join(' · ')
-}
-
-function seedFromAccount(
-  account: HouseholdAccountSummary,
-): HouseholdTrackedAccountInput {
-  return {
-    label: account.label,
-    assetGroup: account.assetGroup,
-    accountType: account.accountType,
-    sourceType: account.sourceType,
-    matchKey:
-      account.matchKey ??
-      (account.accountOrigin !== 'tracked' ? account.id : ''),
-    institutionName: account.institutionName ?? '',
-    ownerName: account.ownerName ?? '',
-    accountMask: account.accountMask ?? '',
-    notes: account.notes ?? '',
-  }
 }
 
 function moneyRoleLabel(role: string) {
@@ -618,7 +610,7 @@ export function MoneyAccountsPanel({
         <div>
           <p className="text-sm font-semibold text-text">Accounts</p>
           <p className="mt-1 text-sm text-text-muted">
-            Expand a row for uploads, linked documents, and account details.
+            Expand a row for uploads, documents, and account details.
           </p>
         </div>
         <Button
@@ -679,17 +671,24 @@ export function MoneyAccountsPanel({
 
                       <div className="flex flex-wrap gap-2">
                         <span
-                          className={`rounded-full border px-2.5 py-1 text-xs ${
-                            freshnessTone[
-                              account.freshnessStatus as keyof typeof freshnessTone
-                            ] ?? freshnessTone.needs_evidence
-                          }`}
+                          className={`rounded-full border px-2.5 py-1 text-xs ${freshnessToneClass(
+                            account.balanceFreshnessStatus,
+                          )}`}
                         >
-                          {account.freshnessLabel}
+                          Balance {account.balanceFreshnessLabel}
                         </span>
+                        {account.moneyRole === 'spend_driver' ? (
+                          <span
+                            className={`rounded-full border px-2.5 py-1 text-xs ${freshnessToneClass(
+                              account.transactionFreshnessStatus,
+                            )}`}
+                          >
+                            Activity {account.transactionFreshnessLabel}
+                          </span>
+                        ) : null}
                         {pricedPositionCount > 0 ? (
                           <InfoBadge
-                            label={account.quoteFreshnessLabel ?? 'Live quotes'}
+                            label={`Quotes ${account.quoteFreshnessLabel ?? 'Live'}`}
                             detail={[
                               `${pricedPositionCount} priced position${pricedPositionCount === 1 ? '' : 's'}`,
                               account.quoteUpdatedAt
@@ -775,13 +774,13 @@ export function MoneyAccountsPanel({
                               size="sm"
                               variant="outline"
                               onClick={() => {
-                                setEditingAccount(null)
-                                setDraftSeed(seedFromAccount(account))
+                                setEditingAccount(account)
+                                setDraftSeed(null)
                                 setDialogOpen(true)
                               }}
                             >
                               <Pencil className="mr-2 h-4 w-4" />
-                              Track / rename
+                              Edit
                             </Button>
                           )}
                         </div>
@@ -815,7 +814,7 @@ export function MoneyAccountsPanel({
                               <p className="text-text-muted">
                                 {account.lastEvidenceAt
                                   ? `Last evidence ${formatRelativeTime(account.lastEvidenceAt)}`
-                                  : 'No evidence linked yet'}
+                                  : 'No evidence yet'}
                               </p>
                               <p className="text-text-muted">
                                 {account.evidenceCount} source
@@ -831,9 +830,9 @@ export function MoneyAccountsPanel({
                               <p>{moneyRoleLabel(account.moneyRole)}</p>
                               <p className="text-text-muted">
                                 {account.accountOrigin === 'tracked'
-                                  ? 'Tracked account'
+                                  ? 'Account'
                                   : account.accountOrigin === 'portfolio'
-                                    ? 'Portfolio account'
+                                    ? 'Investing source only'
                                     : account.matchStatus === 'candidate'
                                       ? 'Candidate account'
                                       : 'Evidence-backed'}
@@ -850,8 +849,9 @@ export function MoneyAccountsPanel({
                               intent === 'evidence'
                             }
                             title="Add evidence to this account"
-                            description="Use this when you already know the account. Jenny still verifies the contents before applying any update."
+                            description="Uploads here are bound to this account. Jenny verifies the contents before applying the update."
                             accountLabel={account.label}
+                            householdAccountId={account.householdAccountId}
                           />
                         </div>
                       </div>
@@ -932,9 +932,9 @@ export function MoneyAccountsPanel({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete tracked account</DialogTitle>
+            <DialogTitle>Delete account display settings</DialogTitle>
             <DialogDescription>
-              Remove the tracked row for{' '}
+              Remove display settings for{' '}
               <span className="font-medium text-text">
                 {deletingAccount?.label ?? 'this account'}
               </span>

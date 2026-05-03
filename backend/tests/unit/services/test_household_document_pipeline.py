@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 from app.models.household_finance import HouseholdDocument
 from app.services.household_document_pipeline import (
     HouseholdDocumentPipeline,
+    _apply_upload_account_binding,
     _is_duplicate_import_validation,
     _signature_structured_data,
 )
@@ -143,6 +144,318 @@ def test_duplicate_import_validation_requires_known_dataset_and_no_other_changes
         planning_count=0,
         inferred_count=0,
     )
+
+
+def test_describe_application_state_preserves_portfolio_position_snapshot_impact() -> None:
+    pipeline = HouseholdDocumentPipeline()
+    document = HouseholdDocument(
+        id="doc-positions",
+        filename="positions.csv",
+        source_type="retirement",
+        document_type="retirement_statement",
+        status="parsed",
+        account_label="Traditional IRA",
+        content_type="text/csv",
+        file_size_bytes=10,
+        classification_confidence=0.95,
+        uploaded_at="2026-05-02T00:00:00+00:00",
+        metadata={
+            "application_summary": {
+                "status": "applied",
+                "impacts": ["accounts", "portfolio_positions"],
+                "account_registry": {"evidence_linked": 1},
+                "portfolio_positions": {
+                    "accounts_scanned": 1,
+                    "accounts_linked": 1,
+                    "cash_updated": 1,
+                    "positions_seen": 4,
+                    "positions_inserted": 0,
+                    "positions_updated": 0,
+                    "positions_unchanged": 4,
+                    "positions_deleted": 0,
+                },
+            }
+        },
+    )
+    connection = MagicMock()
+    context_manager = MagicMock()
+    context_manager.__enter__.return_value = connection
+    context_manager.__exit__.return_value = None
+    service = SimpleNamespace(storage=SimpleNamespace(connection=Mock(return_value=context_manager)))
+
+    with patch(
+        "app.services.household_document_pipeline.fetch_document_application_counts",
+        return_value={
+            "import_count": 0,
+            "transaction_count": 0,
+            "evidence_account_count": 1,
+            "inferred_count": 0,
+            "dataset_type": None,
+        },
+    ):
+        summary = pipeline.describe_application_state(service, document=document)
+
+    assert summary["status"] == "applied"
+    assert summary["impacts"] == ["accounts", "portfolio_positions"]
+    assert summary["account_registry"] == {"evidence_linked": 1}
+    assert summary["portfolio_positions"] == {
+        "accounts_scanned": 1,
+        "accounts_linked": 1,
+        "cash_updated": 1,
+        "positions_seen": 4,
+        "positions_inserted": 0,
+        "positions_updated": 0,
+        "positions_unchanged": 4,
+        "positions_deleted": 0,
+    }
+
+
+async def test_duplicate_upload_rebinds_existing_document_to_selected_account() -> None:
+    pipeline = HouseholdDocumentPipeline()
+    existing = HouseholdDocument(
+        id="doc-existing",
+        filename="positions.csv",
+        source_type="retirement",
+        document_type="retirement_statement",
+        status="parsed",
+        account_label=None,
+        content_type="text/csv",
+        file_size_bytes=10,
+        classification_confidence=0.95,
+        uploaded_at="2026-05-02T00:00:00+00:00",
+        metadata={"content_sha256": "existing-hash"},
+    )
+    refreshed = existing.model_copy(
+        update={
+            "account_label": "Traditional IRA",
+            "metadata": {
+                "content_sha256": "existing-hash",
+                "upload_household_account_id": "household-ira",
+                "duplicate_rebound": True,
+            },
+        }
+    )
+    connection = MagicMock()
+    context_manager = MagicMock()
+    context_manager.__enter__.return_value = connection
+    context_manager.__exit__.return_value = None
+    service = SimpleNamespace(
+        get_document=Mock(return_value=refreshed),
+        storage=SimpleNamespace(connection=Mock(return_value=context_manager)),
+    )
+    pipeline.find_duplicate_document_by_hash = Mock(return_value=existing)  # type: ignore[method-assign]
+    upload = SimpleNamespace(
+        filename="positions.csv",
+        content_type="text/csv",
+        read=AsyncMock(return_value=b"same bytes"),
+    )
+
+    result = await pipeline.ingest_document(
+        service,
+        upload=upload,
+        account_label="Traditional IRA",
+        household_account_id="household-ira",
+    )
+
+    connection.execute.assert_called_once()
+    assert "metadata = COALESCE" in connection.execute.call_args.args[0]
+    assert result.id == "doc-existing"
+    assert result.account_label == "Traditional IRA"
+    assert result.metadata["upload_household_account_id"] == "household-ira"
+    assert result.metadata["duplicate_detected"] is True
+    assert result.metadata["duplicate_rebound"] is True
+
+
+def test_upload_account_binding_attaches_single_account_to_selected_household_account() -> None:
+    connection = MagicMock()
+    connection.execute.return_value.fetchone.return_value = (
+        "household-ira",
+        "Traditional IRA",
+        "retirement",
+        "retirement",
+        "ira",
+        "Fidelity",
+        None,
+        "245944181",
+        "institution-mask::fidelity|245944181",
+    )
+    context_manager = MagicMock()
+    context_manager.__enter__.return_value = connection
+    context_manager.__exit__.return_value = None
+    service = SimpleNamespace(storage=SimpleNamespace(connection=Mock(return_value=context_manager)))
+    document = HouseholdDocument(
+        id="doc-positions",
+        filename="Portfolio_Positions_May-02-2026.csv",
+        source_type="retirement",
+        document_type="retirement_statement",
+        status="parsed",
+        account_label="Traditional IRA",
+        content_type="text/csv",
+        file_size_bytes=10,
+        classification_confidence=0.95,
+        uploaded_at="2026-05-02T00:00:00+00:00",
+        metadata={"upload_household_account_id": "household-ira"},
+    )
+
+    reviewed = _apply_upload_account_binding(
+        service,
+        document=document,
+        reviewed={
+            "source_type": "retirement",
+            "document_type": "retirement_statement",
+            "structured_data": {
+                "financial_accounts": [
+                    {
+                        "account_name": "Traditional IRA",
+                        "institution_name": "Fidelity",
+                        "account_mask": "245944181",
+                        "balance": "372006.79",
+                    }
+                ]
+            },
+        },
+    )
+
+    structured_data = reviewed["structured_data"]
+    assert isinstance(structured_data, dict)
+    accounts = structured_data["financial_accounts"]
+    assert isinstance(accounts, list)
+    account = accounts[0]
+    assert isinstance(account, dict)
+    assert account["household_account_id"] == "household-ira"
+    assert account["match_key"] == "institution-mask::fidelity|245944181"
+    assert reviewed.get("questions") == []
+    assert reviewed.get("review_checks") == {"ambiguity_remaining": False}
+
+
+def test_upload_account_binding_accepts_provider_prefixed_matching_mask() -> None:
+    connection = MagicMock()
+    connection.execute.return_value.fetchone.return_value = (
+        "household-chase",
+        "Amazon Chase (CC)",
+        "credit_card",
+        "credit",
+        "credit_card",
+        "Chase",
+        "Elias B Leslie",
+        "9728",
+        "credit-lineage|chase|chase prime visa / amazon card|elias b leslie|credit_card",
+    )
+    context_manager = MagicMock()
+    context_manager.__enter__.return_value = connection
+    context_manager.__exit__.return_value = None
+    service = SimpleNamespace(storage=SimpleNamespace(connection=Mock(return_value=context_manager)))
+    document = HouseholdDocument(
+        id="doc-chase-activity",
+        filename="Chase9728_Activity20260101_20260502_20260502.CSV",
+        source_type="credit_card",
+        document_type="statement",
+        status="parsed",
+        account_label="Chase Prime Visa / Amazon card",
+        content_type="text/csv",
+        file_size_bytes=10,
+        classification_confidence=0.95,
+        uploaded_at="2026-05-02T00:00:00+00:00",
+        metadata={"upload_household_account_id": "household-chase"},
+    )
+
+    reviewed = _apply_upload_account_binding(
+        service,
+        document=document,
+        reviewed={
+            "source_type": "credit_card",
+            "document_type": "statement",
+            "structured_data": {
+                "financial_accounts": [
+                    {
+                        "account_name": "Chase credit card activity export",
+                        "institution_name": "Chase",
+                        "account_mask": "Chase9728",
+                        "extracted_account_mask": "9728",
+                        "account_type": "credit_card",
+                    }
+                ]
+            },
+            "review_checks": {"ambiguity_remaining": True},
+        },
+    )
+
+    structured_data = reviewed["structured_data"]
+    assert isinstance(structured_data, dict)
+    accounts = structured_data["financial_accounts"]
+    assert isinstance(accounts, list)
+    account = accounts[0]
+    assert isinstance(account, dict)
+    assert account["household_account_id"] == "household-chase"
+    assert reviewed.get("questions") == []
+    assert reviewed.get("review_checks") == {"ambiguity_remaining": False}
+
+
+def test_upload_account_binding_asks_when_selected_account_conflicts() -> None:
+    connection = MagicMock()
+    connection.execute.return_value.fetchone.return_value = (
+        "household-ira",
+        "Traditional IRA",
+        "retirement",
+        "retirement",
+        "ira",
+        "Fidelity",
+        None,
+        "245944181",
+        "institution-mask::fidelity|245944181",
+    )
+    context_manager = MagicMock()
+    context_manager.__enter__.return_value = connection
+    context_manager.__exit__.return_value = None
+    service = SimpleNamespace(storage=SimpleNamespace(connection=Mock(return_value=context_manager)))
+    document = HouseholdDocument(
+        id="doc-wrong",
+        filename="wrong.csv",
+        source_type="retirement",
+        document_type="retirement_statement",
+        status="parsed",
+        account_label="Traditional IRA",
+        content_type="text/csv",
+        file_size_bytes=10,
+        classification_confidence=0.95,
+        uploaded_at="2026-05-02T00:00:00+00:00",
+        metadata={"upload_household_account_id": "household-ira"},
+    )
+
+    reviewed = _apply_upload_account_binding(
+        service,
+        document=document,
+        reviewed={
+            "source_type": "retirement",
+            "document_type": "retirement_statement",
+            "structured_data": {
+                "financial_accounts": [
+                    {
+                        "account_name": "ROTH IRA",
+                        "institution_name": "Fidelity",
+                        "account_mask": "250696445",
+                        "balance": "48014.15",
+                    }
+                ]
+            },
+        },
+    )
+
+    structured_data = reviewed["structured_data"]
+    assert isinstance(structured_data, dict)
+    accounts = structured_data["financial_accounts"]
+    assert isinstance(accounts, list)
+    account = accounts[0]
+    assert isinstance(account, dict)
+    assert "household_account_id" not in account
+    review_checks = reviewed["review_checks"]
+    assert isinstance(review_checks, dict)
+    assert review_checks["ambiguity_remaining"] is True
+    questions = reviewed["questions"]
+    assert isinstance(questions, list)
+    question = questions[0]
+    assert isinstance(question, dict)
+    assert "Which account should this evidence update?" in str(question["question"])
 
 
 def test_apply_review_outputs_skips_planning_merge_for_account_statement() -> None:

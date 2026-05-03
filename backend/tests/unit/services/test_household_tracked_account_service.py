@@ -218,6 +218,122 @@ def test_ensure_unique_identity_rejects_duplicate_match_key() -> None:
         )
 
 
+def test_create_account_with_household_account_id_anchors_to_existing_canonical_account() -> None:
+    service = HouseholdTrackedAccountService()
+    linked = _tracked_account(
+        account_id="tracked-457b",
+        household_account_id="household-457b",
+        label="PCSB 457b",
+        asset_group="retirement",
+        account_type="401k",
+        source_type="retirement",
+        match_key="identity::pcsb-457b",
+        institution_name="Pinellas County Schools",
+        owner_name="Mariana Leslie",
+        account_mask=None,
+    )
+    service.get_account_by_household_account_id = Mock(return_value=None)  # type: ignore[method-assign]
+    service._get_canonical_account = Mock(  # type: ignore[method-assign]
+        return_value={
+            "id": "household-457b",
+            "primary_identity_key": "identity::pcsb-457b",
+            "canonical_label": "Pinellas County Schools 457(b) Deferred Compensation Plan",
+            "asset_group": "retirement",
+            "account_type": "401k",
+            "source_type": "retirement",
+            "institution_name": "Pinellas County Schools",
+            "owner_name": None,
+            "account_mask": None,
+        }
+    )
+    service._ensure_unique_identity = Mock(side_effect=AssertionError("should not use legacy tracked identity"))  # type: ignore[method-assign]
+    service._ensure_canonical_account = Mock(side_effect=AssertionError("canonical account already provided"))  # type: ignore[method-assign]
+    service._insert_account = Mock(return_value=linked)  # type: ignore[method-assign]
+
+    result = service.create_account(
+        Mock(),
+        HouseholdTrackedAccountInput(
+            household_account_id="household-457b",
+            label="PCSB 457b",
+            asset_group="retirement",
+            account_type="401k",
+            source_type="retirement",
+            institution_name="Wrong",
+            owner_name="Mariana Leslie",
+            account_mask="401k",
+        ),
+    )
+
+    assert result == linked
+    service._insert_account.assert_called_once()
+    _, kwargs = service._insert_account.call_args
+    assert kwargs["household_account_id"] == "household-457b"
+    account = kwargs["account"]
+    assert account["label"] == "PCSB 457b"
+    assert account["owner_name"] == "Mariana Leslie"
+
+
+def test_create_account_without_household_account_id_creates_canonical_account_first() -> None:
+    service = HouseholdTrackedAccountService()
+    created = _tracked_account(
+        account_id="pref-1",
+        household_account_id="household-new",
+        label="New Account",
+        asset_group="cash",
+        account_type="checking",
+        source_type="bank",
+    )
+    service._ensure_canonical_account = Mock(return_value="household-new")  # type: ignore[method-assign]
+    service._insert_account = Mock(return_value=created)  # type: ignore[method-assign]
+    service._ensure_unique_identity = Mock(side_effect=AssertionError("should not create account through tracked rows"))  # type: ignore[method-assign]
+
+    result = service.create_account(
+        Mock(),
+        HouseholdTrackedAccountInput(
+            label="New Account",
+            asset_group="cash",
+            account_type="checking",
+            source_type="bank",
+            institution_name="Bank",
+            account_mask="1234",
+        ),
+    )
+
+    assert result == created
+    service._ensure_canonical_account.assert_called_once()
+    _, kwargs = service._insert_account.call_args
+    assert kwargs["household_account_id"] == "household-new"
+
+
+def test_create_account_with_household_account_id_upserts_existing_customization() -> None:
+    service = HouseholdTrackedAccountService()
+    existing = _tracked_account(
+        account_id="tracked-existing",
+        household_account_id="household-457b",
+        label="Old label",
+        asset_group="retirement",
+        account_type="401k",
+        source_type="retirement",
+    )
+    updated = existing.model_copy(update={"label": "PCSB 457b"})
+    service.get_account_by_household_account_id = Mock(return_value=existing)  # type: ignore[method-assign]
+    service.update_account = Mock(return_value=updated)  # type: ignore[method-assign]
+
+    result = service.create_account(
+        Mock(),
+        HouseholdTrackedAccountInput(
+            household_account_id="household-457b",
+            label="PCSB 457b",
+            asset_group="retirement",
+            account_type="401k",
+            source_type="retirement",
+        ),
+    )
+
+    assert result == updated
+    service.update_account.assert_called_once()
+
+
 def test_sync_linked_accounts_from_evidence_delegates_to_registry() -> None:
     service = HouseholdTrackedAccountService()
     fake_service = Mock()
@@ -238,6 +354,23 @@ def test_sync_linked_accounts_from_evidence_ignores_unanchored_rows() -> None:
 
     assert updated == 0
     fake_service.account_registry_service.sync_registry.assert_called_once_with(fake_service, limit=500)
+
+
+def test_delete_account_syncs_registry_to_prune_orphan_canonical_rows() -> None:
+    service = HouseholdTrackedAccountService()
+    connection = _FakeConnection()
+    fake_service = Mock()
+    fake_service.storage = _FakeStorage(connection)
+    fake_service.account_registry_service.sync_registry = Mock()
+
+    deleted = service.delete_account(fake_service, "tracked-1")
+
+    assert deleted is True
+    assert connection.committed is True
+    fake_service.account_registry_service.sync_registry.assert_called_once_with(
+        fake_service,
+        limit=500,
+    )
 
 
 def test_update_account_preserves_linked_identity_fields_but_allows_owner_change() -> None:
@@ -271,6 +404,7 @@ def test_update_account_preserves_linked_identity_fields_but_allows_owner_change
     fake_service.storage = _FakeStorage(connection)
     fake_service.account_registry_service.sync_registry = Mock()
     service.get_account = Mock(side_effect=[existing, updated])  # type: ignore[method-assign]
+    service._get_canonical_account = Mock(return_value=None)  # type: ignore[method-assign]
     service._ensure_unique_identity = Mock()  # type: ignore[method-assign]
 
     payload = HouseholdTrackedAccountInput(
@@ -293,15 +427,9 @@ def test_update_account_preserves_linked_identity_fields_but_allows_owner_change
     _, params = connection.calls[0]
     assert params is not None
     assert params[0] == "Pinellas 403(b)"
-    assert params[1] == "retirement"
-    assert params[2] == "retirement"
-    assert params[3] == "retirement"
-    assert params[4] == "identity::pinellas|403b"
-    assert params[5] == "Pinellas County Schools"
-    assert params[6] == "Wrong Owner"
-    assert params[7] is None
-    assert params[8] == "Renamed for display"
-    assert params[10] == "acct-1"
+    assert params[1] == "Wrong Owner"
+    assert params[2] == "Renamed for display"
+    assert params[4] == "acct-1"
     service._ensure_unique_identity.assert_not_called()
     fake_service.account_registry_service.sync_registry.assert_called_once_with(fake_service, limit=500)
 
@@ -337,6 +465,7 @@ def test_update_account_allows_display_owner_change_for_linked_accounts() -> Non
     fake_service.storage = _FakeStorage(connection)
     fake_service.account_registry_service.sync_registry = Mock()
     service.get_account = Mock(side_effect=[existing, updated])  # type: ignore[method-assign]
+    service._get_canonical_account = Mock(return_value=None)  # type: ignore[method-assign]
     service._ensure_unique_identity = Mock()  # type: ignore[method-assign]
 
     payload = HouseholdTrackedAccountInput(
@@ -357,8 +486,7 @@ def test_update_account_allows_display_owner_change_for_linked_accounts() -> Non
     _, params = connection.calls[0]
     assert params is not None
     assert params[0] == "Prime Visa"
-    assert params[5] == "Chase"
-    assert params[6] == "Elias"
-    assert params[7] == "5313"
-    assert params[8] == "Updated display name only"
+    assert params[1] == "Elias"
+    assert params[2] == "Updated display name only"
+    assert params[4] == "acct-2"
     service._ensure_unique_identity.assert_not_called()

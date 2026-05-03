@@ -43,7 +43,7 @@ class TestCalculateMetricsFromState:
         """Test empty trades list returns zero metrics."""
         state =MockBacktestState(trades=[], equity_curve=[])
 
-        metrics = calculate_metrics_from_state(state)  # type: ignore[arg-type]
+        metrics = calculate_metrics_from_state(state)
 
         assert metrics.num_trades == 0
         assert metrics.win_rate == 0.0
@@ -61,7 +61,7 @@ class TestCalculateMetricsFromState:
         ]
         state = MockBacktestState(trades=trades, equity_curve=[])
 
-        metrics = calculate_metrics_from_state(state)  # type: ignore[arg-type]
+        metrics = calculate_metrics_from_state(state)
 
         assert metrics.num_trades == 3
         assert metrics.win_rate == 1.0
@@ -78,7 +78,7 @@ class TestCalculateMetricsFromState:
         ]
         state = MockBacktestState(trades=trades, equity_curve=[])
 
-        metrics = calculate_metrics_from_state(state)  # type: ignore[arg-type]
+        metrics = calculate_metrics_from_state(state)
 
         assert metrics.num_trades == 4
         assert metrics.win_rate == 0.5  # 2/4
@@ -97,7 +97,7 @@ class TestCalculateMetricsFromState:
             equity_curve=equity_curve,
         )
 
-        metrics = calculate_metrics_from_state(state)  # type: ignore[arg-type]
+        metrics = calculate_metrics_from_state(state)
 
         # Total return = (11000 - 10000) / 10000 = 0.10
         assert metrics.total_return == pytest.approx(0.10, rel=0.01)
@@ -115,7 +115,7 @@ class TestCalculateMetricsFromState:
             equity_curve=equity_curve,
         )
 
-        metrics = calculate_metrics_from_state(state)  # type: ignore[arg-type]
+        metrics = calculate_metrics_from_state(state)
 
         # Max drawdown = 13.64 (from the curve)
         assert metrics.max_drawdown == pytest.approx(13.64, rel=0.01)
@@ -135,7 +135,7 @@ class TestCalculateMetricsFromState:
             equity_curve=equity_curve,
         )
 
-        metrics = calculate_metrics_from_state(state)  # type: ignore[arg-type]
+        metrics = calculate_metrics_from_state(state)
 
         # Should have a positive Sharpe ratio for consistent gains
         assert metrics.sharpe_ratio > 0
@@ -149,7 +149,7 @@ class TestCalculateMetricsFromState:
         ]
         state = MockBacktestState(trades=trades, equity_curve=[])
 
-        metrics = calculate_metrics_from_state(state)  # type: ignore[arg-type]
+        metrics = calculate_metrics_from_state(state)
 
         assert metrics.num_trades == 3  # All trades counted
         # Win rate only considers trades with pnl
@@ -164,7 +164,7 @@ class TestCalculateMetricsFromState:
             equity_curve=equity_curve,
         )
 
-        metrics = calculate_metrics_from_state(state)  # type: ignore[arg-type]
+        metrics = calculate_metrics_from_state(state)
 
         # Can't calculate Sharpe with 1 point
         assert metrics.sharpe_ratio == 0.0
