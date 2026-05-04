@@ -25,6 +25,7 @@ from app.services._data_freshness_config import (
 from app.services.maintenance_tracker import record_maintenance_completion, record_maintenance_start
 from app.utils.market_hours import (
     NY_TZ,
+    get_expected_data_date,
     get_market_aware_age_hours,
     get_market_close_time,
     is_market_open,
@@ -53,6 +54,7 @@ logger = get_logger(__name__)
 # Maps table_name -> last_remediation_timestamp
 _remediation_cooldowns: dict[str, dt.datetime] = {}
 REMEDIATION_COOLDOWN_MINUTES = 30
+_MARKET_SESSION_DATE_COLUMNS = {"date", "as_of_date"}
 
 
 # ---------------------------------------------------------------------------
@@ -123,15 +125,100 @@ def trigger_remediation(
 # ---------------------------------------------------------------------------
 
 
-def _build_freshness_query(table_name: str, date_column: str, where_clause: str | None) -> str:
+def _append_where_clause(base: str, clauses: list[str]) -> str:
+    return f"{base}\nWHERE {' AND '.join(clauses)}" if clauses else base
+
+
+def _build_freshness_query(
+    table_name: str,
+    date_column: str,
+    where_clause: str | None,
+    max_market_date: dt.date | None = None,
+) -> str:
     base = f"SELECT MAX({date_column}) as last_update\nFROM {table_name}"
-    return f"{base}\nWHERE {where_clause}" if where_clause else base
+    clauses = [where_clause] if where_clause else []
+    if max_market_date is not None:
+        clauses.append(f"{date_column} <= DATE '{max_market_date.isoformat()}'")
+    return _append_where_clause(base, clauses)
+
+
+def _max_market_date_for_config(config: TableFreshnessConfig, now: dt.datetime) -> dt.date | None:
+    if not config["market_data"] or config["date_column"] not in _MARKET_SESSION_DATE_COLUMNS:
+        return None
+    return get_expected_data_date(now)
 
 
 def _fetch_last_update(storage: ConnectionManager, query: str) -> object:
     with storage.connection() as conn:
         result = conn.execute(query).fetchone()
     return result[0] if result else None
+
+
+def _as_symbol_list(value: object) -> list[str]:
+    if not value:
+        return []
+    if isinstance(value, (list, tuple)):
+        return sorted(str(item) for item in value if item)
+    return []
+
+
+def _build_symbol_coverage_query(config: TableFreshnessConfig, expected_date: dt.date) -> str:
+    required_symbols_query = config["required_symbols_query"]
+    table_name = config["table_name"]
+    date_column = config["date_column"]
+    return f"""
+        WITH required_symbols AS (
+            SELECT DISTINCT upper(trim(symbol)) AS symbol
+            FROM ({required_symbols_query}) required_source
+            WHERE symbol IS NOT NULL AND trim(symbol) <> ''
+        ),
+        latest AS (
+            SELECT upper(trim(symbol)) AS symbol, MAX({date_column}) AS last_update
+            FROM {table_name}
+            WHERE {date_column} <= DATE '{expected_date.isoformat()}'
+              AND symbol IS NOT NULL AND trim(symbol) <> ''
+            GROUP BY upper(trim(symbol))
+        )
+        SELECT
+            COUNT(*) AS required_count,
+            COUNT(*) FILTER (WHERE latest.last_update >= DATE '{expected_date.isoformat()}') AS current_count,
+            ARRAY_AGG(required_symbols.symbol ORDER BY required_symbols.symbol)
+                FILTER (WHERE latest.last_update IS NULL) AS missing_symbols,
+            ARRAY_AGG(required_symbols.symbol ORDER BY required_symbols.symbol)
+                FILTER (WHERE latest.last_update IS NOT NULL
+                    AND latest.last_update < DATE '{expected_date.isoformat()}') AS stale_symbols
+        FROM required_symbols
+        LEFT JOIN latest USING (symbol)
+    """
+
+
+def _fetch_symbol_coverage(
+    storage: ConnectionManager,
+    config: TableFreshnessConfig,
+    expected_date: dt.date | None,
+) -> dict[str, object] | None:
+    if expected_date is None or "required_symbols_query" not in config:
+        return None
+
+    query = _build_symbol_coverage_query(config, expected_date)
+    with storage.connection() as conn:
+        result = conn.execute(query).fetchone()
+    if not result:
+        return None
+
+    required_count = int(result[0] or 0)
+    current_count = int(result[1] or 0)
+    missing_symbols = _as_symbol_list(result[2])
+    stale_symbols = _as_symbol_list(result[3])
+    stale_count = len(missing_symbols) + len(stale_symbols)
+    return {
+        "required_symbols": required_count,
+        "current_symbols": current_count,
+        "expected_date": expected_date.isoformat(),
+        "stale_symbols": stale_symbols,
+        "missing_symbols": missing_symbols,
+        "stale_symbol_count": stale_count,
+    }
 
 
 def _coerce_to_datetime(
@@ -166,7 +253,13 @@ def check_table_freshness(
     """
     table_name = config["table_name"]
     date_column = config["date_column"]
-    query = _build_freshness_query(table_name, date_column, config.get("where_clause"))
+    max_market_date = _max_market_date_for_config(config, now)
+    query = _build_freshness_query(
+        table_name,
+        date_column,
+        config.get("where_clause"),
+        max_market_date,
+    )
     raw = _fetch_last_update(storage, query)
     if raw is None:
         return _stale_result(table_name, "no_data")
@@ -177,13 +270,19 @@ def check_table_freshness(
     age_hours = max(0.0, age_hours - config.get("availability_delay_hours", 0.0))
     is_stale = age_hours > config["expected_hours"]
     is_critical = age_hours > config["critical_hours"]
+    coverage = _fetch_symbol_coverage(storage, config, max_market_date)
+    coverage_stale = bool(coverage and int(coverage["stale_symbol_count"]) > 0)
+    if coverage_stale:
+        is_stale = True
+    reason = "symbol_coverage" if coverage_stale else "age" if is_stale else None
     return {
         "table_name": table_name,
         "last_update": last_update.isoformat(),
         "age_hours": round(age_hours, 2),
         "is_stale": is_stale,
         "is_critical": is_critical,
-        "reason": "age" if is_critical else None,
+        "reason": reason,
+        "coverage": coverage,
     }
 
 
@@ -196,7 +295,32 @@ def _as_age_hours(value: object) -> float | None:
     return value if isinstance(value, (float, int, type(None))) else None
 
 
-def _handle_critical_result(config: TableFreshnessConfig, result: dict[str, object], auto_remediate: bool) -> int:
+def _trigger_remediation_once(
+    *,
+    config: TableFreshnessConfig,
+    age_hours: float | None,
+    triggered_task_names: set[str],
+) -> int:
+    table_name = config["table_name"]
+    task_name = REMEDIATION_TASKS.get(table_name)
+    if not task_name:
+        return 0
+    if task_name in triggered_task_names:
+        logger.info("remediation_skipped_duplicate_task", table_name=table_name, task_name=task_name)
+        return 0
+    task_id = trigger_remediation(table_name=table_name, age_hours=age_hours, is_market_data=config["market_data"])
+    if not task_id:
+        return 0
+    triggered_task_names.add(task_name)
+    return 1
+
+
+def _handle_critical_result(
+    config: TableFreshnessConfig,
+    result: dict[str, object],
+    auto_remediate: bool,
+    triggered_task_names: set[str],
+) -> int:
     """Create a staleness alert and optionally trigger remediation. Returns remediations triggered."""
     age_hours = _as_age_hours(result.get("age_hours"))
     reason = result.get("reason")
@@ -208,8 +332,11 @@ def _handle_critical_result(config: TableFreshnessConfig, result: dict[str, obje
     )
     if not auto_remediate:
         return 0
-    task_id = trigger_remediation(table_name=config["table_name"], age_hours=age_hours, is_market_data=config["market_data"])
-    return 1 if task_id else 0
+    return _trigger_remediation_once(
+        config=config,
+        age_hours=age_hours,
+        triggered_task_names=triggered_task_names,
+    )
 
 
 def _should_suppress_alert(config: TableFreshnessConfig, result: dict[str, object], is_trading: bool) -> bool:
@@ -231,6 +358,7 @@ def _check_one_table(
     now: dt.datetime,
     is_trading: bool,
     auto_remediate: bool,
+    triggered_task_names: set[str],
 ) -> tuple[dict[str, object], int, int]:
     """Check a single table and return (result, alerts_created, remediations_triggered)."""
     try:
@@ -247,13 +375,17 @@ def _check_one_table(
         if _should_suppress_alert(config, result, is_trading):
             logger.info("skipping_weekend_alert", table=config["table_name"], reason="market_closed", age_hours=_as_age_hours(result.get("age_hours")))
             return result, 0, 0
-        triggered = _handle_critical_result(config, result, auto_remediate)
+        triggered = _handle_critical_result(config, result, auto_remediate, triggered_task_names)
         return result, 1, triggered
 
     if result["is_stale"] and auto_remediate:
         age_hours = _as_age_hours(result.get("age_hours"))
-        task_id = trigger_remediation(table_name=config["table_name"], age_hours=age_hours, is_market_data=config["market_data"])
-        return result, 0, 1 if task_id else 0
+        triggered = _trigger_remediation_once(
+            config=config,
+            age_hours=age_hours,
+            triggered_task_names=triggered_task_names,
+        )
+        return result, 0, triggered
 
     return result, 0, 0
 
@@ -265,9 +397,17 @@ def check_all_tables_freshness(storage: ConnectionManager, auto_remediate: bool 
     results: list[dict[str, object]] = []
     alerts_created = 0
     remediations_triggered = 0
+    triggered_task_names: set[str] = set()
 
     for config in TABLE_FRESHNESS_CONFIG:
-        result, alerts, triggered = _check_one_table(storage, config, now, is_trading, auto_remediate)
+        result, alerts, triggered = _check_one_table(
+            storage,
+            config,
+            now,
+            is_trading,
+            auto_remediate,
+            triggered_task_names,
+        )
         results.append(result)
         alerts_created += alerts
         remediations_triggered += triggered

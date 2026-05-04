@@ -115,7 +115,7 @@ def get_daily_returns(
         SELECT date, close
         FROM day_bars
         WHERE symbol = %s
-          AND date >= CURRENT_DATE - INTERVAL '%s days'
+          AND date >= CURRENT_DATE - (%s * INTERVAL '1 day')
         ORDER BY date
     """
 
