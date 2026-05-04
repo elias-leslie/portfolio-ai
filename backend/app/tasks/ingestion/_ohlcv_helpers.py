@@ -9,6 +9,8 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
+import polars as pl
+
 from app.logging_config import get_logger
 from app.sources import initialize_data_sources
 from app.sources.base import DatasetRequest
@@ -16,6 +18,7 @@ from app.sources.multi_source_fetcher import MultiSourceFetcher
 from app.storage import PortfolioStorage, get_storage
 from app.storage.credential_loader import load_credentials_from_database
 from app.utils.db_helpers import ensure_symbols_exist
+from app.utils.market_hours import get_expected_data_date, is_trading_day
 
 # Used by callers that import the watchlist helpers
 __all__ = [
@@ -71,11 +74,45 @@ def calculate_date_range(days: int) -> tuple[dt.date, dt.date]:
     Returns:
         Tuple of (start_date, end_date).
     """
-    end_date = dt.date.today()
+    end_date = get_expected_data_date(dt.datetime.now(dt.UTC))
     # Extra buffer to account for weekends/holidays
     calendar_days = int(days * 1.5)
     start_date = end_date - dt.timedelta(days=calendar_days)
     return start_date, end_date
+
+
+def _completed_trading_dates(dates: list[dt.date], max_date: dt.date) -> list[dt.date]:
+    return sorted({value for value in dates if value <= max_date and is_trading_day(value)})
+
+
+def filter_completed_trading_rows(result_df: pl.DataFrame, ingest_run_id: str) -> pl.DataFrame:
+    """Keep only rows for completed US trading days.
+
+    Some upstream daily feeds can emit weekend rows for cross-asset proxies or
+    current-session partial rows before the US market closes. Downstream
+    analytics treat `day_bars` as completed market-session bars, so reject those
+    rows at ingestion.
+    """
+    if "date" not in result_df.columns or result_df.is_empty():
+        return result_df
+
+    normalized_df = result_df.with_columns(pl.col("date").cast(pl.Date, strict=False))
+    max_date = get_expected_data_date(dt.datetime.now(dt.UTC))
+    raw_dates = normalized_df.select(pl.col("date").drop_nulls().unique()).to_series().to_list()
+    allowed_dates = _completed_trading_dates(
+        [value for value in raw_dates if isinstance(value, dt.date)],
+        max_date,
+    )
+    filtered_df = normalized_df.filter(pl.col("date").is_in(allowed_dates))
+    dropped_rows = len(normalized_df) - len(filtered_df)
+    if dropped_rows > 0:
+        logger.info(
+            "ohlcv_incomplete_or_non_trading_rows_dropped",
+            ingest_run_id=ingest_run_id,
+            dropped_rows=dropped_rows,
+            max_completed_trading_date=str(max_date),
+        )
+    return filtered_df
 
 
 def prepare_dataframe(result_df: Any, ingest_run_id: str) -> tuple[Any, list[str]]:
@@ -101,11 +138,12 @@ def prepare_dataframe(result_df: Any, ingest_run_id: str) -> tuple[Any, list[str
         raise ValueError(f"Result DataFrame missing required columns: {missing_cols}")
 
     if "vwap" not in result_df.columns:
-        result_df = result_df.with_columns(vwap=None)
+        result_df = result_df.with_columns(pl.lit(None).alias("vwap"))
 
     if "ingest_run_id" not in result_df.columns:
-        result_df = result_df.with_columns(ingest_run_id=ingest_run_id)
+        result_df = result_df.with_columns(pl.lit(ingest_run_id).alias("ingest_run_id"))
 
+    result_df = filter_completed_trading_rows(result_df, ingest_run_id)
     result_df = result_df.select(_DAY_BARS_COLUMNS)
     unique_symbols: list[str] = result_df["symbol"].unique().to_list()
     return result_df, unique_symbols

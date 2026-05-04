@@ -21,6 +21,7 @@ from app.sources.fred import FREDSource
 from app.sources.yfinance_source import YFinanceSource
 from app.storage import PortfolioStorage
 from app.storage.credential_loader import load_credentials_from_database
+from app.utils.watchlist_cache import get_watchlist_symbols_cached
 
 from ._fundamental_helpers import (
     insert_cash_flow,
@@ -57,8 +58,7 @@ def ingest_fundamental_data(
     yf_source = YFinanceSource()
 
     if symbols is None:
-        result = storage.query("SELECT DISTINCT symbol FROM watchlist WHERE is_active = TRUE")
-        symbols = [row["symbol"] for row in result.iter_rows(named=True)]
+        symbols = get_watchlist_symbols_cached(storage, account_id=None, ttl_seconds=60)
 
     if not symbols:
         logger.info("No symbols to process for fundamental ingestion")

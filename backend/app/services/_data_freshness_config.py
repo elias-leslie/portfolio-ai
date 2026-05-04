@@ -18,6 +18,14 @@ class TableFreshnessConfig(TypedDict):
     market_data: bool  # Whether to skip alerts on weekends/holidays
     availability_delay_hours: NotRequired[float]  # Post-close processing window before data is expected
     where_clause: NotRequired[str]  # Optional filter for freshness checks on shared tables
+    required_symbols_query: NotRequired[str]  # Optional SQL returning required symbol coverage rows
+
+
+REQUIRED_PORTFOLIO_SYMBOLS_QUERY = """
+    SELECT DISTINCT symbol FROM watchlist_items
+    UNION
+    SELECT DISTINCT symbol FROM portfolio_positions
+"""
 
 
 # Map tables to their refresh tasks for auto-remediation
@@ -33,6 +41,9 @@ REMEDIATION_TASKS: dict[str, str] = {
     "options_market_metrics": "portfolio-options-activity",
     "news_cache": "portfolio-refresh-news-sentiment",
     "reference_cache": "portfolio-yfinance-ref",
+    "cash_flow_metrics": "portfolio-ingest-fundamentals",
+    "financial_health_scores": "portfolio-financial-health",
+    "symbol_risk_metrics": "portfolio-risk-metrics",
     "watchlist_snapshots": "portfolio-refresh-watchlist-scores",
 }
 
@@ -44,14 +55,16 @@ TABLE_FRESHNESS_CONFIG: list[TableFreshnessConfig] = [
         "expected_hours": 24,
         "critical_hours": 48,
         "market_data": True,
+        "required_symbols_query": REQUIRED_PORTFOLIO_SYMBOLS_QUERY,
     },
     {
         "table_name": "technical_indicators",
-        "date_column": "calculated_at",
+        "date_column": "date",
         "expected_hours": 24,
         "critical_hours": 48,
         "market_data": True,
         "availability_delay_hours": 6.5,
+        "required_symbols_query": REQUIRED_PORTFOLIO_SYMBOLS_QUERY,
     },
     {
         "table_name": "fear_greed_inputs",
@@ -97,7 +110,7 @@ TABLE_FRESHNESS_CONFIG: list[TableFreshnessConfig] = [
     },
     {
         "table_name": "news_cache",
-        "date_column": "published_at",
+        "date_column": "fetched_at",
         "expected_hours": 2,
         "critical_hours": 6,
         "market_data": False,
@@ -109,5 +122,26 @@ TABLE_FRESHNESS_CONFIG: list[TableFreshnessConfig] = [
         "critical_hours": 72,
         "market_data": False,
         "where_clause": "source = 'yfinance'",
+    },
+    {
+        "table_name": "cash_flow_metrics",
+        "date_column": "updated_at",
+        "expected_hours": 168,
+        "critical_hours": 240,
+        "market_data": False,
+    },
+    {
+        "table_name": "financial_health_scores",
+        "date_column": "updated_at",
+        "expected_hours": 168,
+        "critical_hours": 240,
+        "market_data": False,
+    },
+    {
+        "table_name": "symbol_risk_metrics",
+        "date_column": "as_of_date",
+        "expected_hours": 24,
+        "critical_hours": 72,
+        "market_data": False,
     },
 ]

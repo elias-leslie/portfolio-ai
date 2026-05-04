@@ -60,6 +60,7 @@ type NewsDecisionAudit = {
   surfacedCount: number
   suppressedCount: number
   suppressionCounts: Record<SuppressionReason, number>
+  sourceStateSummary: string | null
   sourceStateReasons: string[]
 }
 
@@ -692,6 +693,23 @@ function newsSourceStateReasons(
   return Array.from(new Set(reasons))
 }
 
+function newsSourceStateSummary(
+  newsHealth: NewsHealthResponse | undefined,
+): string | null {
+  if (!newsHealth?.latestRefreshedAt) {
+    return null
+  }
+
+  const ttlHours = Number.isFinite(newsHealth.cacheTtlHours)
+    ? newsHealth.cacheTtlHours.toFixed(1)
+    : 'unknown'
+  const age =
+    newsHealth.latestRefreshAgeHours != null
+      ? `${newsHealth.latestRefreshAgeHours.toFixed(1)}h old`
+      : formatRelativeTime(newsHealth.latestRefreshedAt)
+  return `Snapshot refreshed ${formatRelativeTime(newsHealth.latestRefreshedAt)} (${age}); TTL ${ttlHours}h.`
+}
+
 function buildNewsDecisionAudit({
   groups,
   marketNews,
@@ -747,6 +765,7 @@ function buildNewsDecisionAudit({
     surfacedCount,
     suppressedCount: Math.max(0, reviews.length - surfacedCount),
     suppressionCounts,
+    sourceStateSummary: newsSourceStateSummary(newsHealth),
     sourceStateReasons: newsSourceStateReasons(newsHealth),
   }
 }
@@ -765,6 +784,11 @@ function NewsAuditSummary({ audit }: { audit: NewsDecisionAudit }) {
             {audit.reviewedCount === 1 ? '' : 's'} · shown {audit.surfacedCount}{' '}
             · suppressed {audit.suppressedCount}
           </p>
+          {audit.sourceStateSummary ? (
+            <p className="mt-1 text-xs text-text-muted">
+              {audit.sourceStateSummary}
+            </p>
+          ) : null}
         </div>
         {reasonRows.length > 0 ? (
           <div className="flex flex-wrap gap-2">

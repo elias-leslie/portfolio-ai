@@ -9,8 +9,10 @@ from datetime import date, datetime, timedelta
 from app.utils._market_calendar import NY_TZ
 from app.utils._market_status import is_market_hours
 from app.utils._market_trading_days import (
+    get_expected_data_date,
     get_last_trading_day,
     get_market_close_time,
+    get_next_trading_day,
     is_trading_day,
 )
 
@@ -99,6 +101,18 @@ def is_stale(fetched_at: datetime, now: datetime | None = None) -> bool:
     return age > STALE_THRESHOLD_AFTER_HOURS
 
 
+def _missed_trading_days(last_update_date: date, expected_data_date: date) -> int:
+    if last_update_date >= expected_data_date:
+        return 0
+
+    missed = 0
+    check_date = get_next_trading_day(last_update_date)
+    while check_date <= expected_data_date:
+        missed += 1
+        check_date = get_next_trading_day(check_date)
+    return missed
+
+
 def get_market_aware_age_hours(
     last_update: datetime,
     now: datetime,
@@ -127,15 +141,21 @@ def get_market_aware_age_hours(
 
     market_now = now.astimezone(NY_TZ)
     market_last_update = last_update.astimezone(NY_TZ)
-    last_trading = get_last_trading_day(market_now.date())
+    expected_data_date = get_expected_data_date(market_now)
     last_update_date: date = market_last_update.date()
 
-    if last_update_date >= last_trading:
-        age = market_now - market_last_update
-        return age.total_seconds() / 3600
+    if last_update_date >= expected_data_date:
+        return 0.0
 
-    hours_since_close = get_hours_since_last_close(market_now)
-    days_old = (last_trading - last_update_date).days
-    extra_hours = days_old * 24
+    expected_close_dt = datetime.combine(
+        expected_data_date,
+        get_market_close_time(expected_data_date),
+        tzinfo=NY_TZ,
+    )
+    hours_since_expected_close = max(
+        0.0,
+        (market_now - expected_close_dt).total_seconds() / 3600,
+    )
+    extra_hours = max(0, _missed_trading_days(last_update_date, expected_data_date) - 1) * 24
 
-    return hours_since_close + extra_hours
+    return hours_since_expected_close + extra_hours

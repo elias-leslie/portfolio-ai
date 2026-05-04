@@ -138,7 +138,7 @@ class TestMarketAwareAge:
     """Test get_market_aware_age_hours()."""
 
     def test_uses_market_day_instead_of_utc_day_after_hours(self) -> None:
-        """Evening ET checks should not advance to the next trading day just because UTC crossed midnight."""
+        """Evening ET checks age from the expected market close, not the UTC day."""
         last_update = datetime(2026, 3, 9, 22, 30, tzinfo=NY_TZ)
         now = datetime(2026, 3, 11, 0, 0, tzinfo=UTC)
 
@@ -148,4 +148,17 @@ class TestMarketAwareAge:
             is_market_data=True,
         )
 
-        assert age_hours == 28.0
+        assert age_hours == 4.0
+
+    def test_latest_expected_daily_bar_is_current_during_monday_market_hours(self) -> None:
+        """Friday's completed daily bar is still current before Monday closes."""
+        last_update = datetime(2026, 5, 1, 16, 0, tzinfo=NY_TZ)
+        now = datetime(2026, 5, 4, 12, 0, tzinfo=NY_TZ)
+
+        age_hours = get_market_aware_age_hours(
+            last_update=last_update,
+            now=now,
+            is_market_data=True,
+        )
+
+        assert age_hours == 0.0

@@ -176,6 +176,7 @@ class IngestionManager:
                 row_count = len(df)
                 if self.metadata_mgr:
                     self.metadata_mgr.update_table_metadata(conn, table_name)
+                    conn.commit()
 
                 logger.info("rows_upserted", table=table_name, count=row_count)
                 return row_count
@@ -191,6 +192,7 @@ class IngestionManager:
             # Update metadata if manager exists
             if self.metadata_mgr:
                 self.metadata_mgr.update_table_metadata(conn, table_name)
+                conn.commit()
 
             logger.info("rows_inserted", table=table_name, count=row_count)
             return row_count
@@ -247,6 +249,7 @@ class IngestionManager:
             # Update metadata if manager exists
             if self.metadata_mgr:
                 self.metadata_mgr.update_table_metadata(conn, table_name)
+                conn.commit()
 
             logger.info("rows_upserted", table=table_name, count=row_count)
             return row_count

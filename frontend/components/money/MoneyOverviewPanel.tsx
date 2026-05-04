@@ -28,6 +28,7 @@ import {
   formatEnumLabel,
   formatPercent,
 } from '@/lib/formatters'
+import { formatRelativeTime } from '@/lib/utils'
 
 const allocationColors = [
   'var(--color-chart-1)',
@@ -406,6 +407,9 @@ export function MoneyOverviewPanel({
   const safeSpendRepairItems = dashboard.inbox
     .filter((item) => item.detail.toLowerCase().includes('safe to spend'))
     .slice(0, 2)
+  const decisionBoardDescription = `Current household money reads. Dashboard generated ${formatRelativeTime(
+    dashboard.generatedAt,
+  )}. Drill deeper in spending, levers, accounts, and intake.`
   const safeSpendSummary = spendTrustDegraded
     ? 'Calculated from visible cash and plan, but stale account evidence blocks current safe-to-spend guidance.'
     : 'Discretionary spend room against visible cash, due-soon bills, and the current plan.'
@@ -512,7 +516,7 @@ export function MoneyOverviewPanel({
         <SectionCard
           variant="surface"
           title="Decision Board"
-          description="Current household money reads. Drill deeper in spending, levers, accounts, and intake."
+          description={decisionBoardDescription}
         >
           <div className="grid gap-4 xl:grid-cols-2">
             <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
