@@ -330,6 +330,20 @@ describe('InvestingNewsPanel', () => {
     expect(screen.getByText(/Reviewed 0 headlines/)).toBeInTheDocument()
   })
 
+  it('does not show empty-news facts while portfolio inputs are still loading', () => {
+    render(
+      <InvestingNewsPanel positions={[]} watchlistItems={[]} isInputLoading />,
+    )
+
+    expect(
+      screen.getByText('Loading portfolio and watchlist news context.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('No ingested portfolio news reached this panel.'),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText(/Reviewed 0 headlines/)).not.toBeInTheDocument()
+  })
+
   it('shows source-disabled state when no decision-useful news is available', () => {
     useNewsHealthMock.mockReturnValue({
       data: buildNewsHealth({
