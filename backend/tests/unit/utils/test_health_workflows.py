@@ -90,3 +90,36 @@ def test_get_workflow_health_uses_terminal_runs_for_success_rate(
     assert health.successful_workflows == 1
     assert health.failed_workflows == 0
     assert health.blocked_workflows == 2
+
+
+def test_get_workflow_health_includes_scheduled_data_freshness_runs(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.utils.health_workflows._query_workflow_health_data",
+        lambda _storage: (
+            pl.DataFrame(
+                [
+                    {"workflow_type": "check_all_data_freshness", "status": "complete", "count": 2},
+                    {"workflow_type": "maintain_data_freshness", "status": "complete", "count": 1},
+                ]
+            ),
+            pl.DataFrame([{"total": 3}]),
+            pl.DataFrame(
+                {
+                    "id": ["maintenance-10"],
+                    "workflow_type": ["check_all_data_freshness"],
+                    "completed_at": [datetime(2026, 5, 4, 18, 0, tzinfo=UTC)],
+                }
+            ),
+            pl.DataFrame(schema={"workflow_type": pl.String, "count": pl.Int64}),
+        ),
+    )
+
+    health = get_workflow_health(Mock())
+
+    assert health.status == "healthy"
+    assert health.total_workflows_24h == 3
+    assert health.successful_workflows == 3
+    assert health.success_rate == 100
+    assert health.last_successful_type == "check_all_data_freshness"

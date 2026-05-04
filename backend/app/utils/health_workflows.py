@@ -14,6 +14,11 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+SCHEDULED_MAINTENANCE_WORKFLOW_TASKS = (
+    "check_all_data_freshness",
+    "maintain_data_freshness",
+)
+
 
 class WorkflowHealthInfo(BaseModel):
     """Workflow health status information."""
@@ -36,27 +41,60 @@ def _query_workflow_health_data(storage: PortfolioStorage) -> tuple[object, obje
     with storage.connection() as conn:
         result = conn.execute(
             """
+            WITH workflow_rows AS (
+                SELECT workflow_type, status
+                FROM agent_workflows
+                WHERE created_at > NOW() - INTERVAL '24 hours'
+                  AND status IN ('complete', 'failed', 'blocked')
+                UNION ALL
+                SELECT
+                    task_name AS workflow_type,
+                    CASE status
+                        WHEN 'success' THEN 'complete'
+                        WHEN 'error' THEN 'failed'
+                        ELSE status
+                    END AS status
+                FROM maintenance_log
+                WHERE started_at > NOW() - INTERVAL '24 hours'
+                  AND task_name IN ('check_all_data_freshness', 'maintain_data_freshness')
+                  AND status IN ('success', 'error', 'blocked')
+            )
             SELECT workflow_type, status, COUNT(*) as count
-            FROM agent_workflows
-            WHERE created_at > NOW() - INTERVAL '24 hours'
-              AND status IN ('complete', 'failed', 'blocked')
+            FROM workflow_rows
             GROUP BY workflow_type, status
             """
         ).pl()
 
         total_result = conn.execute(
             """
-            SELECT COUNT(*) as total
-            FROM agent_workflows
-            WHERE created_at > NOW() - INTERVAL '24 hours'
+            SELECT SUM(count) AS total
+            FROM (
+                SELECT COUNT(*) AS count
+                FROM agent_workflows
+                WHERE created_at > NOW() - INTERVAL '24 hours'
+                UNION ALL
+                SELECT COUNT(*) AS count
+                FROM maintenance_log
+                WHERE started_at > NOW() - INTERVAL '24 hours'
+                  AND task_name IN ('check_all_data_freshness', 'maintain_data_freshness')
+            ) totals
             """
         ).pl()
 
         last_success = conn.execute(
             """
             SELECT id, workflow_type, completed_at
-            FROM agent_workflows
-            WHERE status = 'complete' AND completed_at IS NOT NULL
+            FROM (
+                SELECT id::text AS id, workflow_type, completed_at
+                FROM agent_workflows
+                WHERE status = 'complete' AND completed_at IS NOT NULL
+                UNION ALL
+                SELECT id::text AS id, task_name AS workflow_type, completed_at
+                FROM maintenance_log
+                WHERE status = 'success'
+                  AND completed_at IS NOT NULL
+                  AND task_name IN ('check_all_data_freshness', 'maintain_data_freshness')
+            ) successful_workflows
             ORDER BY completed_at DESC
             LIMIT 1
             """
@@ -64,11 +102,22 @@ def _query_workflow_health_data(storage: PortfolioStorage) -> tuple[object, obje
 
         stale_running = conn.execute(
             """
+            WITH stale_rows AS (
+                SELECT workflow_type
+                FROM agent_workflows
+                WHERE created_at > NOW() - INTERVAL '24 hours'
+                  AND status = 'running'
+                  AND created_at < NOW() - make_interval(secs => COALESCE(max_duration_seconds, 3600))
+                UNION ALL
+                SELECT task_name AS workflow_type
+                FROM maintenance_log
+                WHERE started_at > NOW() - INTERVAL '24 hours'
+                  AND status = 'running'
+                  AND started_at < NOW() - INTERVAL '2 hours'
+                  AND task_name IN ('check_all_data_freshness', 'maintain_data_freshness')
+            )
             SELECT workflow_type, COUNT(*) as count
-            FROM agent_workflows
-            WHERE created_at > NOW() - INTERVAL '24 hours'
-              AND status = 'running'
-              AND created_at < NOW() - make_interval(secs => COALESCE(max_duration_seconds, 3600))
+            FROM stale_rows
             GROUP BY workflow_type
             """
         ).pl()
