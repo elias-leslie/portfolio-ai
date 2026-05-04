@@ -73,6 +73,7 @@ describe('HouseholdDocumentCenter', () => {
         expect.objectContaining({
           rawText:
             'CHASE AMAZON CARD\nStatement ending 04/10/2026\nPayment due 05/05/2026',
+          filename: 'add-anything.txt',
           accountLabel: undefined,
         }),
       )

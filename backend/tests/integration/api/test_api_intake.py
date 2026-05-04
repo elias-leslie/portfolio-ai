@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -40,6 +40,22 @@ def test_evidence_upload_uses_canonical_intake_route(tmp_path: Path) -> None:
     payload = response.json()
     assert payload["filename"] == "transactions.qfx"
     assert payload["source_type"] == "credit_card"
+
+
+def test_evidence_upload_rejects_unsupported_file_before_ingest() -> None:
+    client = TestClient(app)
+
+    with patch(
+        "app.services.household_document_pipeline.HouseholdDocumentPipeline.ingest_document",
+        new_callable=AsyncMock,
+    ) as ingest_document:
+        response = client.post(
+            "/api/intake/evidence",
+            files={"file": ("payload.exe", b"binary", "application/octet-stream")},
+        )
+
+    assert response.status_code == 415
+    ingest_document.assert_not_awaited()
 
 
 def test_evidence_upload_preserves_optional_account_hint(tmp_path: Path) -> None:

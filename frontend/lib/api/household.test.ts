@@ -3,6 +3,7 @@ import {
   answerHouseholdQuestion,
   categorizeHouseholdTransaction,
   fetchHouseholdDashboard,
+  MAX_HOUSEHOLD_EVIDENCE_FILE_SIZE_BYTES,
   uploadHouseholdDocument,
 } from './household'
 
@@ -172,6 +173,33 @@ describe('household api', () => {
     const [, request] = vi.mocked(global.fetch).mock.calls[0]
     const form = request?.body as FormData
     expect(form.get('source_type')).toBe('receipt')
+  })
+
+  it('rejects unsupported document uploads before fetch', async () => {
+    global.fetch = vi.fn() as unknown as typeof fetch
+
+    const file = new File(['hello'], 'archive.zip', { type: 'application/zip' })
+
+    await expect(uploadHouseholdDocument({ file })).rejects.toThrow(
+      'not a supported evidence file',
+    )
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('rejects oversized document uploads before fetch', async () => {
+    global.fetch = vi.fn() as unknown as typeof fetch
+
+    const file = new File(['hello'], 'statement.pdf', {
+      type: 'application/pdf',
+    })
+    Object.defineProperty(file, 'size', {
+      value: MAX_HOUSEHOLD_EVIDENCE_FILE_SIZE_BYTES + 1,
+    })
+
+    await expect(uploadHouseholdDocument({ file })).rejects.toThrow(
+      'exceeds the 50 MB limit',
+    )
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 
   it('answers a household question', async () => {

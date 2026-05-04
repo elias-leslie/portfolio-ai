@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -300,6 +300,22 @@ def test_household_document_upload_persists_metadata(
     assert reviewed_document["document_type"] == "statement"
     assert reviewed_document["account_label"] == "Amex Gold"
     assert reviewed_document["review_status"] == "complete"
+
+
+def test_household_document_upload_rejects_unsupported_file_before_ingest(
+    client: TestClient,
+) -> None:
+    with patch(
+        "app.services.household_document_pipeline.HouseholdDocumentPipeline.ingest_document",
+        new_callable=AsyncMock,
+    ) as ingest_document:
+        response = client.post(
+            "/api/household/documents",
+            files={"file": ("payload.exe", b"binary", "application/octet-stream")},
+        )
+
+    assert response.status_code == 415
+    ingest_document.assert_not_awaited()
 
 
 def test_household_dashboard_uses_profile_documents_and_portfolio(

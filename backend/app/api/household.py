@@ -6,7 +6,7 @@ from functools import lru_cache
 from importlib import import_module
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
@@ -28,6 +28,10 @@ from app.models.household_finance import (
     HouseholdTransactionCategoryUpdate,
 )
 from app.models.household_planning import HouseholdPlanningSnapshot, HouseholdPlanningUpdate
+from app.services.household_upload_validation import (
+    HouseholdUploadValidationError,
+    validate_household_upload_metadata,
+)
 
 if TYPE_CHECKING:
     from app.services.household_finance_service import HouseholdFinanceService
@@ -163,6 +167,7 @@ async def answer_household_question(
 @router.post("/documents", response_model=HouseholdDocument)
 async def upload_household_document(
     background_tasks: BackgroundTasks,
+    request: Request,
     file: UploadFile = File(...),
     source_type: str | None = Form(default=None),
     document_type: str | None = Form(default=None),
@@ -171,13 +176,20 @@ async def upload_household_document(
 ) -> HouseholdDocument:
     """Stage a household document for future parsing."""
     service = _service()
-    document = await service.ingest_document(
-        upload=file,
-        source_type=source_type,
-        document_type=document_type,
-        account_label=account_label,
-        household_account_id=household_account_id,
-    )
+    try:
+        validate_household_upload_metadata(
+            file,
+            content_length=request.headers.get("content-length"),
+        )
+        document = await service.ingest_document(
+            upload=file,
+            source_type=source_type,
+            document_type=document_type,
+            account_label=account_label,
+            household_account_id=household_account_id,
+        )
+    except HouseholdUploadValidationError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
     if (
         document.metadata.get("duplicate_detected") is not True
         or document.metadata.get("duplicate_rebound") is True

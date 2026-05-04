@@ -649,6 +649,74 @@ export interface HouseholdDocumentUpload {
   householdAccountId?: string
 }
 
+export const MAX_HOUSEHOLD_EVIDENCE_FILE_SIZE_BYTES = 50 * 1024 * 1024
+
+const SUPPORTED_HOUSEHOLD_EVIDENCE_EXTENSIONS = new Set([
+  '.bmp',
+  '.csv',
+  '.heic',
+  '.htm',
+  '.html',
+  '.jpeg',
+  '.jpg',
+  '.json',
+  '.ofx',
+  '.pdf',
+  '.png',
+  '.qfx',
+  '.txt',
+  '.webp',
+  '.xml',
+])
+
+const SUPPORTED_HOUSEHOLD_EVIDENCE_TYPES = new Set([
+  'application/json',
+  'application/octet-stream',
+  'application/ofx',
+  'application/pdf',
+  'application/vnd.intu.qfx',
+  'application/vnd.ms-excel',
+  'application/x-ofx',
+  'application/xml',
+])
+
+function householdEvidenceExtension(filename: string): string {
+  const match = filename
+    .trim()
+    .toLowerCase()
+    .match(/\.[^.]+$/)
+  return match?.[0] ?? ''
+}
+
+function isSupportedHouseholdEvidenceMediaType(type: string): boolean {
+  const normalized = type.split(';', 1)[0]?.trim().toLowerCase() ?? ''
+  return (
+    !normalized ||
+    SUPPORTED_HOUSEHOLD_EVIDENCE_TYPES.has(normalized) ||
+    normalized.startsWith('image/') ||
+    normalized.startsWith('text/')
+  )
+}
+
+export function validateHouseholdEvidenceFile(file: File): void {
+  if (file.size === 0) {
+    throw new Error(`${file.name} is empty.`)
+  }
+  if (file.size > MAX_HOUSEHOLD_EVIDENCE_FILE_SIZE_BYTES) {
+    throw new Error(`${file.name} exceeds the 50 MB limit.`)
+  }
+  if (
+    !SUPPORTED_HOUSEHOLD_EVIDENCE_EXTENSIONS.has(
+      householdEvidenceExtension(file.name),
+    ) ||
+    !isSupportedHouseholdEvidenceMediaType(file.type)
+  ) {
+    throw new Error(
+      `${file.name} is not a supported evidence file. Use PDF, CSV, OFX/QFX, image, text, JSON, XML, or HTML.`,
+    )
+  }
+}
+
 export interface HouseholdQuestionAnswer {
   answerText: string
 }
@@ -773,6 +841,7 @@ export async function uploadHouseholdDocument(
   if (!file) {
     throw new Error('Upload requires a file or pasted text.')
   }
+  validateHouseholdEvidenceFile(file)
   const form = new FormData()
   form.append('file', file)
   if (payload.sourceType) {

@@ -7,9 +7,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { validateHouseholdEvidenceFile } from '@/lib/api/household'
 import { useUploadHouseholdDocument } from '@/lib/hooks/useHousehold'
 
-const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
+const HOUSEHOLD_EVIDENCE_ACCEPT =
+  '.pdf,.csv,.ofx,.qfx,.png,.jpg,.jpeg,.heic,.webp,.bmp,.txt,.json,.xml,.html,.htm,image/*,application/pdf,text/plain,text/csv'
 
 interface EvidenceUploadComposerProps {
   title: string
@@ -56,9 +58,14 @@ export function EvidenceUploadComposer({
     if (!incoming || incoming.length === 0) return []
     const valid: File[] = []
     for (const file of Array.from(incoming)) {
-      if (file.size === 0) continue
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        toast.error(`${file.name} exceeds the 50 MB limit and was skipped.`)
+      try {
+        validateHouseholdEvidenceFile(file)
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : `${file.name} could not be uploaded.`
+        toast.error(`${message} Skipped.`)
         continue
       }
       valid.push(file)
@@ -148,14 +155,14 @@ export function EvidenceUploadComposer({
         ),
       ]
       if (trimmedRawText) {
+        const rawTextFilenameBase = `${accountLabel ?? title}`
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '')
         uploads.push(
           upload.mutateAsync({
             rawText: trimmedRawText,
-            filename:
-              `${accountLabel ?? title}`
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, '-')
-                .replace(/^-+|-+$/g, '') || 'pasted-evidence' + '.txt',
+            filename: `${rawTextFilenameBase || 'pasted-evidence'}.txt`,
             accountLabel: accountLabel ?? undefined,
             householdAccountId: householdAccountId ?? undefined,
           }),
@@ -269,7 +276,7 @@ export function EvidenceUploadComposer({
             ref={inputRef}
             type="file"
             multiple
-            accept=".pdf,.csv,.ofx,.qfx,.png,.jpg,.jpeg,.heic,.webp,.txt,.json,image/*,application/pdf,text/plain,text/csv"
+            accept={HOUSEHOLD_EVIDENCE_ACCEPT}
             onChange={(event) =>
               stageIncomingFiles(pickFiles(event.target.files))
             }
