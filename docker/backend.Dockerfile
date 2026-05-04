@@ -5,9 +5,9 @@
 # Note: ML extras (torch, transformers) available via --build-arg INSTALL_ML=true
 
 # ── Stage 1: Builder ─────────────────────────────────────────────
-FROM python:3.13-slim-bookworm AS builder
+FROM python:3.13-slim-bookworm@sha256:bb73517d48bd32016e15eade0c009b2724ec3a025a9975b5cd9b251d0dcadb33 AS builder
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:latest@sha256:3b7b60a81d3c57ef471703e5c83fd4aaa33abcd403596fb22ab07db85ae91347 /uv /usr/local/bin/uv
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -43,7 +43,7 @@ COPY backend/alembic.ini ./
 COPY backend/alembic ./alembic
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────
-FROM python:3.13-slim-bookworm
+FROM python:3.13-slim-bookworm@sha256:bb73517d48bd32016e15eade0c009b2724ec3a025a9975b5cd9b251d0dcadb33
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*

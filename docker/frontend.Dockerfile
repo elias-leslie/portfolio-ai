@@ -4,9 +4,9 @@
 # No workspace package dependencies
 
 # ── Stage 0: Dev Runtime ─────────────────────────────────────────
-FROM node:20-slim AS dev
+FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS dev
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 
 WORKDIR /app
 
@@ -22,9 +22,9 @@ ENV HOSTNAME=0.0.0.0
 CMD ["pnpm", "dev", "--hostname", "0.0.0.0", "--port", "3000"]
 
 # ── Stage 1: Build ───────────────────────────────────────────────
-FROM node:20-slim AS builder
+FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS builder
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 
 WORKDIR /app
 
@@ -41,7 +41,7 @@ ENV API_URL=${API_URL}
 RUN pnpm build && pnpm store prune
 
 # ── Stage 2: Runner ──────────────────────────────────────────────
-FROM node:20-slim
+FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
 
 RUN useradd -m -s /bin/bash appuser
 
