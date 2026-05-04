@@ -1,4 +1,8 @@
-import type { EnrichedIndicator, FearGreedScore } from '@/lib/api/market-types'
+import type {
+  EnrichedIndicator,
+  FearGreedScore,
+  MarketIntelligenceResponse,
+} from '@/lib/api/market-types'
 import type { PortfolioAnalytics } from '@/lib/api/portfolio'
 import type { NewsSentimentDetail } from '@/lib/api/watchlist'
 
@@ -102,6 +106,102 @@ function simplifyMoodLabel(label: FearGreedScore['label'] | undefined) {
   return label
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function finiteNumber(value: number | null | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function intradayMoodLabel(score: number) {
+  if (score < 25) return 'Fearful'
+  if (score < 45) return 'Cautious'
+  if (score < 58) return 'Mixed'
+  if (score < 75) return 'Constructive'
+  return 'Risk-on'
+}
+
+function intradayMoodTone(score: number): OverviewTone {
+  if (score < 25) return 'loss'
+  if (score < 45) return 'warning'
+  if (score >= 70) return 'gain'
+  return 'default'
+}
+
+export function intradayMoodScore(
+  market?: MarketIntelligenceResponse | null,
+): number | null {
+  if (!market?.indicators) return null
+  const sp500Change = finiteNumber(market.indicators.sp500?.changePct)
+  const vixValue = finiteNumber(market.indicators.vix?.value)
+  const vixChange = finiteNumber(market.indicators.vix?.changePct)
+  const tnxChange = finiteNumber(market.indicators.tnx?.changePct)
+  const dxyChange = finiteNumber(market.indicators.dxy?.changePct)
+  const sectors = [
+    ...(market.sectorRotation?.leading ?? []),
+    ...(market.sectorRotation?.neutral ?? []),
+    ...(market.sectorRotation?.lagging ?? []),
+  ]
+  const sectorChanges = sectors
+    .map((sector) => finiteNumber(sector.changePct))
+    .filter((value): value is number => value != null)
+
+  let score = 50
+  if (sp500Change != null) score += clamp(sp500Change * 8, -18, 18)
+  if (vixValue != null) {
+    score += vixValue < 15 ? 12 : vixValue < 20 ? 4 : vixValue < 25 ? -8 : -18
+  }
+  if (vixChange != null) score -= clamp(vixChange * 0.8, -12, 12)
+  if (tnxChange != null) score -= clamp(tnxChange * 1.5, -8, 8)
+  if (dxyChange != null) score -= clamp(dxyChange * 0.8, -6, 6)
+  if (sectorChanges.length > 0) {
+    const average =
+      sectorChanges.reduce((sum, value) => sum + value, 0) /
+      sectorChanges.length
+    const breadth =
+      sectorChanges.reduce(
+        (sum, value) => sum + (value > 0 ? 1 : value < 0 ? -1 : 0),
+        0,
+      ) / sectorChanges.length
+    score += clamp(average * 5, -8, 8)
+    score += clamp(breadth * 10, -10, 10)
+  }
+
+  return Math.round(clamp(score, 0, 100))
+}
+
+export function describeIntradayMood(
+  market?: MarketIntelligenceResponse | null,
+): {
+  label: string
+  detail: string
+  tone: OverviewTone
+} {
+  const score = intradayMoodScore(market)
+  if (score == null) {
+    return {
+      label: 'Waiting',
+      detail: 'Live quote mood data is still loading.',
+      tone: 'default',
+    }
+  }
+  const sp500Change = finiteNumber(market?.indicators.sp500?.changePct)
+  const vixValue = finiteNumber(market?.indicators.vix?.value)
+  const parts = [`Live proxy ${score}/100`]
+  if (sp500Change != null) {
+    parts.push(`S&P ${sp500Change >= 0 ? '+' : ''}${sp500Change.toFixed(2)}%`)
+  }
+  if (vixValue != null) {
+    parts.push(`VIX ${vixValue.toFixed(1)}`)
+  }
+  return {
+    label: intradayMoodLabel(score),
+    detail: `${parts.join(' · ')}.`,
+    tone: intradayMoodTone(score),
+  }
+}
+
 export function describeMarketMood(mood?: FearGreedScore | null): {
   label: string
   detail: string
@@ -127,7 +227,7 @@ export function describeMarketMood(mood?: FearGreedScore | null): {
   if (score <= 25) {
     return {
       label,
-      detail: `Score ${score} · still defensive but ${trendDetail}.`,
+      detail: `Daily score ${score} · still defensive but ${trendDetail}.`,
       tone: 'loss',
     }
   }
@@ -135,7 +235,7 @@ export function describeMarketMood(mood?: FearGreedScore | null): {
   if (score <= 45) {
     return {
       label,
-      detail: `Score ${score} · sentiment is cautious.`,
+      detail: `Daily score ${score} · sentiment is cautious.`,
       tone: 'warning',
     }
   }
@@ -143,14 +243,14 @@ export function describeMarketMood(mood?: FearGreedScore | null): {
   if (score >= 70) {
     return {
       label,
-      detail: `Score ${score} · risk appetite is elevated.`,
+      detail: `Daily score ${score} · risk appetite is elevated.`,
       tone: 'gain',
     }
   }
 
   return {
     label,
-    detail: `Score ${score} · sentiment looks balanced.`,
+    detail: `Daily score ${score} · sentiment looks balanced.`,
     tone: 'default',
   }
 }

@@ -52,7 +52,14 @@ from app.api.health_models import (
 from app.logging_config import get_logger
 from app.middleware.cache import clear_cache
 from app.middleware.cache import get_cache_stats as get_response_cache_stats
+from app.services.data_freshness_service import (
+    check_all_tables_freshness,
+    clear_remediation_cooldown,
+    get_remediation_cooldowns,
+)
 from app.storage import get_storage
+from app.storage.connection import get_connection_manager
+from app.tasks.data_freshness_tasks import check_all_data_freshness
 from app.utils.health_service import HealthCheckService
 
 logger = get_logger(__name__)
@@ -303,6 +310,27 @@ async def get_stale_maintenance_runs(hours: int = DEFAULT_STALE_RUN_HOURS) -> li
         return []
 
 
+def _freshness_status_message(result: dict[str, Any]) -> tuple[str, str]:
+    critical_count = int(result.get("critical", 0) or 0)
+    stale_count = int(result.get("stale", 0) or 0)
+    if critical_count > 0:
+        return STATUS_CRITICAL, f"{_format_table_count(critical_count, 'overdue')}"
+    if stale_count > 0:
+        return STATUS_WARNING, f"{_format_table_count(stale_count, 'getting old')}"
+    return STATUS_SUCCESS, "All checked feeds are current"
+
+
+def _build_live_freshness_payload(result: dict[str, Any]) -> dict[str, Any]:
+    status, message = _freshness_status_message(result)
+    return {
+        **result,
+        "status": status,
+        "message": message,
+        "generated_at": datetime.now().astimezone().isoformat(),
+        "remediation_cooldowns": get_remediation_cooldowns(),
+    }
+
+
 def _set_down_status(response: Response, result: dict[str, Any]) -> None:
     if result["status"] == STATUS_DOWN:
         response.status_code = 503
@@ -357,6 +385,28 @@ async def detailed_health_check(response: Response) -> DetailedHealthCheckRespon
 @router.get("/simple")
 async def simple_health_check() -> dict[str, str]:
     return {"status": "healthy"}
+
+
+@router.get("/freshness")
+async def get_live_freshness_status() -> dict[str, Any]:
+    result = await run_in_threadpool(
+        check_all_tables_freshness,
+        get_connection_manager(),
+        False,
+    )
+    payload = _build_live_freshness_payload(result)
+    payload["recent_remediations"] = await get_recent_remediations(hours=6)
+    return payload
+
+
+@router.post("/freshness/refresh")
+async def refresh_live_freshness() -> dict[str, Any]:
+    for table_name in get_remediation_cooldowns():
+        clear_remediation_cooldown(table_name)
+    result = await run_in_threadpool(check_all_data_freshness, True)
+    payload = _build_live_freshness_payload(result)
+    payload["recent_remediations"] = await get_recent_remediations(hours=6)
+    return payload
 
 
 @router.get("/deletion-rate", response_model=DeletionRate)

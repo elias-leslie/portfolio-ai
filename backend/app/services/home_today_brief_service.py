@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from hashlib import sha1
 from importlib import import_module
+from math import isfinite
 from threading import Lock
 from typing import Any
 
@@ -17,7 +18,6 @@ from app.api.market._response_builders import (
     build_market_health_response,
     build_sector_rotation_response,
 )
-from app.api.market_data_sources import get_market_data_timestamp
 from app.api.news_responses import serialize_article
 from app.logging_config import get_logger
 from app.portfolio.fund_lookthrough import ExposureItem, build_exposure_breakdown
@@ -157,6 +157,100 @@ def _safe_float(value: Any) -> float:
         return 0.0
 
 
+def _maybe_float(value: Any) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if isfinite(parsed) else None
+
+
+def _clamp(value: float, minimum: float, maximum: float) -> float:
+    return min(maximum, max(minimum, value))
+
+
+def _intraday_mood_label(score: int) -> str:
+    if score < 25:
+        return "Fearful"
+    if score < 45:
+        return "Cautious"
+    if score < 58:
+        return "Mixed"
+    if score < 75:
+        return "Constructive"
+    return "Risk-on"
+
+
+def _intraday_mood_tone(score: int) -> str:
+    if score < 45:
+        return "warning"
+    if score >= 70:
+        return "positive"
+    return "neutral"
+
+
+def _intraday_mood_score(market: dict[str, Any]) -> int:
+    indicators = market.get("indicators", {})
+    sp500 = indicators.get("sp500", {})
+    vix = indicators.get("vix", {})
+    tnx = indicators.get("tnx", {})
+    dxy = indicators.get("dxy", {})
+    sector_rotation = market.get("sector_rotation", {})
+    sectors = [
+        *(_as_list(sector_rotation.get("leading"))),
+        *(_as_list(sector_rotation.get("neutral"))),
+        *(_as_list(sector_rotation.get("lagging"))),
+    ]
+    sector_changes = [
+        value
+        for value in (_maybe_float(sector.get("change_pct")) for sector in sectors)
+        if value is not None
+    ]
+
+    score = 50.0
+    if (sp500_change := _maybe_float(sp500.get("change_pct"))) is not None:
+        score += _clamp(sp500_change * 8, -18, 18)
+    if (vix_value := _maybe_float(vix.get("value"))) is not None:
+        score += 12 if vix_value < 15 else 4 if vix_value < 20 else -8 if vix_value < 25 else -18
+    if (vix_change := _maybe_float(vix.get("change_pct"))) is not None:
+        score -= _clamp(vix_change * 0.8, -12, 12)
+    if (tnx_change := _maybe_float(tnx.get("change_pct"))) is not None:
+        score -= _clamp(tnx_change * 1.5, -8, 8)
+    if (dxy_change := _maybe_float(dxy.get("change_pct"))) is not None:
+        score -= _clamp(dxy_change * 0.8, -6, 6)
+    if sector_changes:
+        average = sum(sector_changes) / len(sector_changes)
+        breadth = sum(1 if value > 0 else -1 if value < 0 else 0 for value in sector_changes)
+        score += _clamp(average * 5, -8, 8)
+        score += _clamp((breadth / len(sector_changes)) * 10, -10, 10)
+
+    return round(_clamp(score, 0, 100))
+
+
+def _parse_timestamp(value: Any) -> datetime | None:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
+
+
+def _format_et_timestamp(value: Any) -> str | None:
+    parsed = _parse_timestamp(value)
+    if parsed is None:
+        return None
+    local = parsed.astimezone(NY_TZ)
+    hour = local.strftime("%I").lstrip("0") or "0"
+    return f"As of {local.strftime('%b')} {local.day}, {hour}:{local.strftime('%M')} {local.strftime('%p')} ET"
+
+
 def _as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
@@ -245,7 +339,7 @@ class HomeTodayBriefService:
 
     def _market_snapshot(self) -> tuple[dict[str, Any], str, str | None]:
         market_data = fetch_core_market_data()
-        current_timestamp = get_market_data_timestamp(self.storage) or market_data.current_timestamp
+        current_timestamp = market_data.current_timestamp
         built = build_intelligence_response_data(market_data, current_timestamp)
         now = datetime.now(NY_TZ)
         snapshot = {
@@ -271,10 +365,14 @@ class HomeTodayBriefService:
 
     def _market_metrics(self, market: dict[str, Any]) -> list[dict[str, Any]]:
         indicators = market["indicators"]
-        fear_greed = market["fear_greed"]
         leading = market["sector_rotation"].get("leading", [])[:3]
         leadership = ", ".join(str(row.get("name") or "") for row in leading if row.get("name"))
         market_as_of = market.get("last_updated")
+        sp500_as_of = indicators["sp500"].get("last_updated") or market_as_of
+        vix_as_of = indicators["vix"].get("last_updated") or market_as_of
+        tnx_as_of = indicators["tnx"].get("last_updated") or market_as_of
+        leadership_as_of = leading[0].get("last_updated") if leading else market_as_of
+        mood_score = _intraday_mood_score(market)
         return [
             {
                 "key": "sp500",
@@ -282,8 +380,9 @@ class HomeTodayBriefService:
                 "value": f"{_safe_float(indicators['sp500'].get('value')):,.2f}",
                 "change_pct": indicators["sp500"].get("change_pct"),
                 "detail": "Broad market benchmark",
-                "horizon": "Latest close · 1D change",
-                "as_of": market_as_of,
+                "horizon": "Current quote · 1D vs prior close",
+                "as_of": sp500_as_of,
+                "as_of_label": _format_et_timestamp(sp500_as_of),
                 "tone": "positive"
                 if _safe_float(indicators["sp500"].get("change_pct")) > 0
                 else "negative",
@@ -294,8 +393,9 @@ class HomeTodayBriefService:
                 "value": f"{_safe_float(indicators['vix'].get('value')):.2f}",
                 "change_pct": indicators["vix"].get("change_pct"),
                 "detail": "Risk pricing",
-                "horizon": "Latest close · 1D change",
-                "as_of": market_as_of,
+                "horizon": "Current quote · 1D vs prior close",
+                "as_of": vix_as_of,
+                "as_of_label": _format_et_timestamp(vix_as_of),
                 "tone": "positive"
                 if _safe_float(indicators["vix"].get("value")) < 20
                 else "warning",
@@ -306,23 +406,23 @@ class HomeTodayBriefService:
                 "value": f"{_safe_float(indicators['tnx'].get('value')):.3f}%",
                 "change_pct": indicators["tnx"].get("change_pct"),
                 "detail": "Rate pressure",
-                "horizon": "Latest close · 1D change",
-                "as_of": market_as_of,
+                "horizon": "Current quote · 1D vs prior close",
+                "as_of": tnx_as_of,
+                "as_of_label": _format_et_timestamp(tnx_as_of),
                 "tone": "warning"
                 if _safe_float(indicators["tnx"].get("value")) >= 4.5
                 else "neutral",
             },
             {
-                "key": "fear_greed",
-                "label": "Fear & Greed",
-                "value": str(round(_safe_float(fear_greed.get("score")))),
-                "change_pct": fear_greed.get("score_change"),
-                "detail": str(fear_greed.get("label") or "Sentiment"),
-                "horizon": "Daily sentiment",
+                "key": "intraday_mood",
+                "label": "Intraday Mood",
+                "value": str(mood_score),
+                "change_pct": None,
+                "detail": _intraday_mood_label(mood_score),
+                "horizon": "Live proxy · Quote inputs",
                 "as_of": market_as_of,
-                "tone": "positive"
-                if _safe_float(fear_greed.get("score")) >= 60
-                else "neutral",
+                "as_of_label": _format_et_timestamp(market_as_of),
+                "tone": _intraday_mood_tone(mood_score),
             },
             {
                 "key": "leadership",
@@ -330,8 +430,9 @@ class HomeTodayBriefService:
                 "value": leadership or "Mixed",
                 "change_pct": leading[0].get("change_pct") if leading else None,
                 "detail": "Sectors leading today",
-                "horizon": "Latest close · 1D sectors",
-                "as_of": market_as_of,
+                "horizon": "Current quotes · 1D sectors",
+                "as_of": leadership_as_of,
+                "as_of_label": _format_et_timestamp(leadership_as_of),
                 "tone": "positive" if leading else "neutral",
             },
         ]

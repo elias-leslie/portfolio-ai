@@ -17,7 +17,6 @@ from app.api.market._response_builders import (
     build_market_health_response,
     build_sector_rotation_response,
 )
-from app.api.market_data_sources import get_market_data_timestamp
 from app.api.market_responses import (
     MarketConditionsResponse,
     MarketMoverItem,
@@ -142,7 +141,7 @@ async def get_market_intelligence(_request: Request) -> MarketIntelligenceRespon
     """Get unified market intelligence with narrative, dual scoring, and sector rotation."""
     market_data = fetch_core_market_data()
 
-    current_timestamp = get_market_data_timestamp(get_storage()) or market_data.current_timestamp
+    current_timestamp = market_data.current_timestamp
 
     data = build_intelligence_response_data(market_data, current_timestamp)
 

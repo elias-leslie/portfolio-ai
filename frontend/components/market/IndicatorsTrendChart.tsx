@@ -34,6 +34,11 @@ const INDICATOR_CONFIG = {
 }
 
 type IndicatorKey = keyof typeof INDICATOR_CONFIG
+type IndicatorPoint = { date: string; close: number; pctChange: number }
+
+function mapByDate(points: IndicatorPoint[] | undefined) {
+  return new Map((points ?? []).map((point) => [point.date, point]))
+}
 
 export function IndicatorsTrendChart() {
   const [timeframe, setTimeframe] = useState<Timeframe>(
@@ -50,17 +55,37 @@ export function IndicatorsTrendChart() {
   const chartData = useMemo(() => {
     if (!data?.sp500?.length) return []
 
-    return data.sp500.map((point, idx) => ({
-      date: point.date,
-      sp500: point.pctChange,
-      sp500Value: point.close,
-      vix: data.vix[idx]?.pctChange ?? 0,
-      vixValue: data.vix[idx]?.close ?? 0,
-      tnx: data.tnx[idx]?.pctChange ?? 0,
-      tnxValue: data.tnx[idx]?.close ?? 0,
-      dxy: data.dxy[idx]?.pctChange ?? 0,
-      dxyValue: data.dxy[idx]?.close ?? 0,
-    }))
+    const maps = {
+      sp500: mapByDate(data.sp500),
+      vix: mapByDate(data.vix),
+      tnx: mapByDate(data.tnx),
+      dxy: mapByDate(data.dxy),
+    }
+    const dates = Array.from(
+      new Set(
+        [...data.sp500, ...data.vix, ...data.tnx, ...data.dxy].map(
+          (point) => point.date,
+        ),
+      ),
+    ).sort()
+
+    return dates.map((date) => {
+      const sp500 = maps.sp500.get(date)
+      const vix = maps.vix.get(date)
+      const tnx = maps.tnx.get(date)
+      const dxy = maps.dxy.get(date)
+      return {
+        date,
+        sp500: sp500?.pctChange ?? null,
+        sp500Value: sp500?.close ?? null,
+        vix: vix?.pctChange ?? null,
+        vixValue: vix?.close ?? null,
+        tnx: tnx?.pctChange ?? null,
+        tnxValue: tnx?.close ?? null,
+        dxy: dxy?.pctChange ?? null,
+        dxyValue: dxy?.close ?? null,
+      }
+    })
   }, [data])
 
   // Get current values for summary
@@ -103,7 +128,7 @@ export function IndicatorsTrendChart() {
   const formatTooltip = (
     value: number | undefined,
     name: string | undefined,
-    props: { payload?: Record<string, number> },
+    props: { payload?: Record<string, number | null> },
   ): [string, string] => {
     if (!name) return ['', '']
     const config = INDICATOR_CONFIG[name as IndicatorKey]
@@ -143,7 +168,7 @@ export function IndicatorsTrendChart() {
             Market Benchmarks
           </h3>
           <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-text-muted">
-            Latest close values · {timeframe} change window
+            Current/latest values · {timeframe} change window
           </p>
         </div>
         <TimeframeSelector value={timeframe} onChange={setTimeframe} />

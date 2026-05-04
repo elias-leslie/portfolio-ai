@@ -149,7 +149,7 @@ describe('InvestingOverviewPanel', () => {
     expect(screen.getByText('Portfolio Health')).toBeInTheDocument()
     expect(screen.getByText('Well spread')).toBeInTheDocument()
     expect(screen.getByText('Market Mood')).toBeInTheDocument()
-    expect(screen.getByText('Greed')).toBeInTheDocument()
+    expect(screen.getAllByText('Constructive').length).toBeGreaterThan(0)
     expect(screen.getByText('S&P 500 Today')).toBeInTheDocument()
     expect(screen.getByText('+0.40%')).toBeInTheDocument()
     expect(screen.getByText('VIX Now')).toBeInTheDocument()
@@ -157,7 +157,7 @@ describe('InvestingOverviewPanel', () => {
     expect(screen.getByText('10-Year Rate Now')).toBeInTheDocument()
     expect(screen.getByText('4.31%')).toBeInTheDocument()
     expect(screen.getByText('Recent News Tone')).toBeInTheDocument()
-    expect(screen.getByText('Constructive')).toBeInTheDocument()
+    expect(screen.getAllByText('Constructive').length).toBeGreaterThan(1)
     expect(screen.queryByText('Watchlist')).not.toBeInTheDocument()
   })
 

@@ -12,6 +12,7 @@ import uuid
 from app.constants import ALL_MARKET_SYMBOLS, DEFAULT_BACKFILL_DAYS
 from app.logging_config import get_logger
 from app.storage import get_storage
+from app.tasks.indicators.technical import backfill_technical_indicators
 from app.tasks.ingestion import ingest_historical_ohlcv
 from app.utils.market_hours import get_expected_data_date
 
@@ -97,6 +98,18 @@ def _backfill_symbols(symbols_to_backfill: list[str]) -> int:
     return len(symbols_to_backfill)
 
 
+def _backfill_indicators_for_symbols(symbols_to_backfill: list[str]) -> dict[str, int]:
+    """Backfill indicators after OHLCV lands so freshness checks clear together."""
+    if not symbols_to_backfill:
+        return {"symbols_processed": 0, "indicators_created": 0, "errors": 0}
+    indicator_result = backfill_technical_indicators(symbols=symbols_to_backfill)
+    logger.info(
+        "market_data_maintenance_indicator_backfill_complete",
+        indicator_result=indicator_result,
+    )
+    return indicator_result
+
+
 def maintain_historical_market_data() -> dict[str, int | str | float]:
     """Maintain historical market data for all required indicators and sectors.
 
@@ -117,11 +130,14 @@ def maintain_historical_market_data() -> dict[str, int | str | float]:
     try:
         symbols_to_backfill, symbols_ok = _categorize_symbols(all_symbols)
         symbols_backfilled = _backfill_symbols(symbols_to_backfill)
+        indicator_result = _backfill_indicators_for_symbols(symbols_to_backfill)
         duration = (dt.datetime.now(dt.UTC) - start_time).total_seconds()
         result: dict[str, int | str | float] = {
             "task_id": task_id,
             "symbols_checked": len(all_symbols),
             "symbols_backfilled": symbols_backfilled,
+            "indicators_created": indicator_result["indicators_created"],
+            "indicator_errors": indicator_result["errors"],
             "symbols_ok": symbols_ok,
             "duration_seconds": duration,
         }

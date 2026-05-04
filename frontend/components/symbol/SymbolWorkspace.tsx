@@ -262,7 +262,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             {data?.market?.fearGreedLabel ?? '—'}
           </p>
           <p className="mt-2 text-sm text-text-muted">
-            Market mood {data?.market?.fearGreedScore ?? '—'}/100 · VIX{' '}
+            Daily Fear & Greed {data?.market?.fearGreedScore ?? '—'}/100 · VIX{' '}
             {data?.market?.vix?.toFixed(1) ?? '—'}
           </p>
           {data?.market?.sector ? (
@@ -280,7 +280,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           ) : null}
           <p className="mt-2 text-xs uppercase tracking-[0.16em] text-text-muted">
             {marketAsOfDate
-              ? `As of ${formatDate(marketAsOfDate)}`
+              ? `Latest daily close through ${formatDate(marketAsOfDate)}`
               : data?.generatedAt
                 ? `As of ${formatRelativeTime(data.generatedAt)}`
                 : 'As-of time unavailable'}

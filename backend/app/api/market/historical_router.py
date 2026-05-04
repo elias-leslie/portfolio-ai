@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
@@ -27,6 +27,7 @@ from app.repositories.market_repository import MarketRepository
 from app.sources.yfinance_source import YFinanceSource
 from app.storage import get_storage
 from app.utils.formatters import format_db_date
+from app.utils.market_hours import NY_TZ
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -39,6 +40,27 @@ def _get_market_repo() -> MarketRepository:
     if "repo" not in _state:
         _state["repo"] = MarketRepository(get_storage())
     return _state["repo"]
+
+
+def _quote_market_date(value: object) -> date | None:
+    if not isinstance(value, datetime):
+        return None
+    quote_ts = value if value.tzinfo else value.replace(tzinfo=UTC)
+    return quote_ts.astimezone(NY_TZ).date()
+
+
+def _append_current_quote_row(rows: list[tuple[Any, ...]], quote: object | None) -> list[tuple[Any, ...]]:
+    if not quote:
+        return rows
+    quote_date = _quote_market_date(getattr(quote, "cached_at", None))
+    quote_price = getattr(quote, "price", None)
+    if quote_date is None or not isinstance(quote_price, (int, float)) or quote_price <= 0:
+        return rows
+    latest_row_date = rows[-1][0] if rows else None
+    latest_date = latest_row_date.date() if isinstance(latest_row_date, datetime) else latest_row_date
+    if not isinstance(latest_date, date) or quote_date > latest_date:
+        return [*rows, (quote_date, float(quote_price))]
+    return rows
 
 # Historical data limits
 MAX_HISTORICAL_DAYS = 1825  # ~5 years
@@ -180,10 +202,14 @@ async def get_indicator_history(
     result_data: dict[str, list[dict[str, Any]]] = {}
     period_start = ""
     period_end = ""
+    from app.api.market._core_helpers import _get_price_fetcher  # noqa: PLC0415
+
+    current_prices = _get_price_fetcher().fetch_price_data(list(INDICATOR_SYMBOLS.values()))
 
     for key, symbol in INDICATOR_SYMBOLS.items():
         # Use repository for data access
         rows = _get_market_repo().get_indicator_history_data(symbol, days)
+        rows = _append_current_quote_row(rows, current_prices.get(symbol))
 
         data_points, period_start, period_end = build_indicator_data_points(
             rows, period_start, period_end
