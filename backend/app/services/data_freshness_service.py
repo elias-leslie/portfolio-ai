@@ -55,6 +55,7 @@ logger = get_logger(__name__)
 _remediation_cooldowns: dict[str, dt.datetime] = {}
 REMEDIATION_COOLDOWN_MINUTES = 30
 _MARKET_SESSION_DATE_COLUMNS = {"date", "as_of_date"}
+_FRESHNESS_REMEDIATION_PREFIX = "data_freshness_remediation_"
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +93,33 @@ def _can_remediate(table_name: str, is_market_data: bool, now: dt.datetime) -> b
     return True
 
 
+def _record_remediation_trigger(
+    *,
+    table_name: str,
+    remediation_task_name: str,
+    workflow_run_id: str | None,
+    age_hours: float | None,
+    status: str,
+    error_message: str | None = None,
+) -> None:
+    log_id = record_maintenance_start(
+        task_name=f"{_FRESHNESS_REMEDIATION_PREFIX}{table_name}",
+        dry_run=False,
+    )
+    record_maintenance_completion(
+        log_id=log_id,
+        status=status,
+        summary={
+            "table_name": table_name,
+            "age_hours": age_hours,
+            "remediation_task_name": remediation_task_name,
+            "workflow_run_id": workflow_run_id,
+            "trigger_status": "triggered" if workflow_run_id else "failed",
+        },
+        error_message=error_message,
+    )
+
+
 def trigger_remediation(
     table_name: str,
     age_hours: float | None,
@@ -114,8 +142,27 @@ def trigger_remediation(
         return None
     _remediation_cooldowns[table_name] = now
     admin = get_admin_client()
-    result = admin.run_workflow(task_name, "{}")
+    try:
+        result = admin.run_workflow(task_name, "{}")
+    except Exception as exc:
+        _record_remediation_trigger(
+            table_name=table_name,
+            remediation_task_name=task_name,
+            workflow_run_id=None,
+            age_hours=age_hours,
+            status="error",
+            error_message=str(exc),
+        )
+        raise
     task_id = str(result.workflow_run_id) if result else None
+    _record_remediation_trigger(
+        table_name=table_name,
+        remediation_task_name=task_name,
+        workflow_run_id=task_id,
+        age_hours=age_hours,
+        status="success" if task_id else "error",
+        error_message=None if task_id else "Hatchet did not return a workflow_run_id",
+    )
     logger.info("remediation_triggered", table_name=table_name, task_name=task_name, task_id=task_id, age_hours=age_hours)
     return task_id
 

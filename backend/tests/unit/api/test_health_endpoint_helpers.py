@@ -35,6 +35,18 @@ async def test_get_recent_remediations_dedupes_tables_and_counts_occurrences(
             fetchall=MagicMock(
                 return_value=[
                     (
+                        "data_freshness_remediation_technical_indicators",
+                        datetime(2026, 3, 11, 0, 1, tzinfo=UTC),
+                        "success",
+                        {
+                            "age_hours": 52.0,
+                            "remediation_task_name": "portfolio-backfill-indicators",
+                            "workflow_run_id": "run-123",
+                            "trigger_status": "triggered",
+                        },
+                        None,
+                    ),
+                    (
                         "data_freshness_alert_technical_indicators",
                         datetime(2026, 3, 11, 0, 0, tzinfo=UTC),
                         "error",
@@ -104,9 +116,13 @@ async def test_get_recent_remediations_dedupes_tables_and_counts_occurrences(
         "technical_indicators",
         "fear_greed_daily",
     ]
-    assert remediations[0]["triggered_at"] == "2026-03-11T00:00:00+00:00"
-    assert remediations[0]["occurrence_count"] == 2
-    assert remediations[0]["error_message"] == "latest failure"
+    assert remediations[0]["triggered_at"] == "2026-03-11T00:01:00+00:00"
+    assert remediations[0]["occurrence_count"] == 3
+    assert remediations[0]["event_type"] == "remediation"
+    assert remediations[0]["remediation_task_name"] == "portfolio-backfill-indicators"
+    assert remediations[0]["workflow_run_id"] == "run-123"
+    assert remediations[0]["trigger_status"] == "triggered"
+    assert remediations[0]["error_message"] is None
     assert remediations[0]["resolved"] is True
     assert remediations[0]["resolved_at"] == "2026-03-11T01:00:00+00:00"
     assert remediations[1]["occurrence_count"] == 1

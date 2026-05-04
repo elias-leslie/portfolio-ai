@@ -25,6 +25,7 @@ from app.api.health_models import (
     DELETION_RATE_QUERY,
     DELETION_RATE_WARNING_THRESHOLD,
     FRESHNESS_ALERT_PREFIX,
+    FRESHNESS_REMEDIATION_PREFIX,
     MAX_RETURNED_REMEDIATIONS,
     MESSAGE_NO_FRESHNESS_DATA,
     RECENT_REMEDIATIONS_QUERY,
@@ -167,7 +168,19 @@ def _get_remediation_resolution_state(
 
 
 def _extract_table_name(task_name: Any) -> str:
-    return task_name.replace(FRESHNESS_ALERT_PREFIX, "") if isinstance(task_name, str) else STATUS_UNKNOWN
+    if not isinstance(task_name, str):
+        return STATUS_UNKNOWN
+    if task_name.startswith(FRESHNESS_ALERT_PREFIX):
+        return task_name.removeprefix(FRESHNESS_ALERT_PREFIX)
+    if task_name.startswith(FRESHNESS_REMEDIATION_PREFIX):
+        return task_name.removeprefix(FRESHNESS_REMEDIATION_PREFIX)
+    return STATUS_UNKNOWN
+
+
+def _remediation_event_type(task_name: Any) -> str:
+    if isinstance(task_name, str) and task_name.startswith(FRESHNESS_REMEDIATION_PREFIX):
+        return "remediation"
+    return "alert"
 
 
 def _build_remediation_entry(
@@ -192,9 +205,13 @@ def _build_remediation_entry(
         "table_name": table_name,
         "triggered_at": _format_datetime(triggered_at),
         "status": _normalize_status(status_raw),
+        "event_type": _remediation_event_type(task_name),
         "age_hours": summary.get("age_hours"),
         "threshold_hours": summary.get("threshold_hours"),
         "reason": summary.get("reason"),
+        "remediation_task_name": summary.get("remediation_task_name"),
+        "workflow_run_id": summary.get("workflow_run_id"),
+        "trigger_status": summary.get("trigger_status"),
         "error_message": str(error_message) if error_message else None,
         "occurrence_count": 1,
         "resolved": resolved,
