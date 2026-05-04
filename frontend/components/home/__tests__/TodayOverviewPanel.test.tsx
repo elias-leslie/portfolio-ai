@@ -179,8 +179,9 @@ describe('TodayOverviewPanel', () => {
             changePct: 0.42,
             detail: 'Broad market benchmark',
             tone: 'positive',
-            horizon: 'Latest close · 1D change',
+            horizon: 'Current quote · 1D vs prior close',
             asOf: '2026-04-16T10:00:00Z',
+            asOfLabel: 'As of Apr 16, 6:00 AM ET',
           },
           {
             key: 'vix',
@@ -189,7 +190,7 @@ describe('TodayOverviewPanel', () => {
             changePct: null,
             detail: 'Risk pricing',
             tone: 'neutral',
-            horizon: 'Latest close · 1D change',
+            horizon: 'Current quote · 1D vs prior close',
             asOf: null,
           },
         ],
@@ -202,8 +203,129 @@ describe('TodayOverviewPanel', () => {
     render(<TodayOverviewPanel />)
 
     expect(
-      screen.getAllByText(/Latest close · 1D change · As of/).length,
+      screen.getAllByText(/Current quote · 1D vs prior close · As of/).length,
     ).toBeGreaterThan(0)
+    expect(screen.getByText(/As of Apr 16, 6:00 AM ET/)).toBeInTheDocument()
     expect(screen.getByText(/As of time unavailable/)).toBeInTheDocument()
+  })
+
+  it('prefers live market intelligence metrics over cached brief strip values', () => {
+    useMarketIntelligenceMock.mockReturnValue({
+      data: {
+        lastUpdated: '2026-05-04T19:48:56Z',
+        indicators: {
+          sp500: {
+            value: 7201.71,
+            changePct: -0.37,
+            label: 'S&P 500',
+            shortLabel: 'S&P',
+            tooltip: '',
+            signal: 'Neutral',
+            emoji: '',
+            lastUpdated: '2026-05-04T19:48:56Z',
+          },
+          vix: {
+            value: 18.25,
+            changePct: 7.59,
+            label: 'VIX',
+            shortLabel: 'VIX',
+            tooltip: '',
+            signal: 'Neutral',
+            emoji: '',
+            lastUpdated: '2026-05-04T19:48:56Z',
+          },
+          tnx: {
+            value: 4.446,
+            changePct: 1.55,
+            label: '10Y Yield',
+            shortLabel: '10Y',
+            tooltip: '',
+            signal: 'Neutral',
+            emoji: '',
+            lastUpdated: '2026-05-04T19:48:56Z',
+          },
+        },
+        fearGreed: {
+          score: 62,
+          label: 'Greed',
+          scoreChange: 0,
+          signalCount: 7,
+          lastUpdated: '2026-05-01T21:00:00Z',
+          isStale: false,
+          ageDays: 0,
+        },
+        sectorRotation: {
+          leading: [
+            {
+              symbol: 'XLK',
+              name: 'Technology',
+              description: '',
+              price: 250,
+              changePct: 1.76,
+              signal: 'Leading',
+              lastUpdated: '2026-05-04T19:48:56Z',
+            },
+          ],
+          neutral: [],
+          lagging: [],
+          leadingCount: 1,
+          neutralCount: 0,
+          laggingCount: 0,
+        },
+      },
+      isLoading: false,
+    })
+    useHomeTodayBriefMock.mockReturnValue({
+      data: {
+        generatedAt: '2026-05-01T21:00:00Z',
+        cacheTtlSeconds: 60,
+        asOf: {
+          household: '2026-05-01T21:00:00Z',
+          portfolio: '2026-05-01T21:00:00Z',
+          market: '2026-05-01T21:00:00Z',
+          news: '2026-05-01T21:00:00Z',
+        },
+        marketStatus: 'open',
+        brief: {
+          headline: 'Stable',
+          summary: 'Stable',
+          stance: 'neutral',
+          confidence: 'medium',
+          whyNow: 'Test',
+          bullets: ['Watch cash', 'Stay disciplined'],
+        },
+        catalysts: [],
+        impacts: [],
+        marketMetrics: [
+          {
+            key: 'sp500',
+            label: 'S&P 500',
+            value: '5,250.10',
+            changePct: 0.42,
+            detail: 'Broad market benchmark',
+            tone: 'positive',
+            horizon: 'Latest close',
+            asOf: '2026-05-01T21:00:00Z',
+          },
+        ],
+        sources: [],
+        stalenessNotes: [],
+      },
+      isLoading: false,
+    })
+
+    render(<TodayOverviewPanel />)
+
+    expect(screen.getByText('7,201.71')).toBeInTheDocument()
+    expect(screen.queryByText('5,250.10')).not.toBeInTheDocument()
+    expect(
+      screen.getAllByText(/Current quote · 1D vs prior close · As of May 4/)
+        .length,
+    ).toBeGreaterThan(0)
+    expect(screen.getByText('Intraday Mood')).toBeInTheDocument()
+    expect(
+      screen.getByText(/Live proxy · Quote inputs · As of May 4/),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Market data/)).toBeInTheDocument()
   })
 })

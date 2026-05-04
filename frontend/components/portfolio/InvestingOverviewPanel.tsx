@@ -9,7 +9,7 @@ import { useMarketIntelligence } from '@/lib/hooks/useMarketIntelligence'
 import { useNewsIntelligence } from '@/lib/hooks/useNews'
 import { cn } from '@/lib/utils'
 import {
-  describeMarketMood,
+  describeIntradayMood,
   describeNewsTone,
   describePortfolioHealth,
   describeTenYearRate,
@@ -170,7 +170,7 @@ export function InvestingOverviewPanel({
         tone: 'default' as const,
       }
     : describePortfolioHealth(analytics)
-  const marketMood = describeMarketMood(market?.fearGreed)
+  const marketMood = describeIntradayMood(market)
   const volatility = describeVolatility(market?.indicators.vix?.value)
   const tenYearRate = describeTenYearRate(market?.indicators.tnx?.value)
   const newsTone = describeNewsTone(marketNews?.summary)

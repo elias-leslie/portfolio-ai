@@ -26,6 +26,8 @@ _redis_client: redis.Redis[str] | None = None  # redis.Redis with decode_respons
 
 _CACHE_KEY = "fear_greed:latest"
 _CACHE_TTL = 1800  # 30 minutes (reduced from 1 hour for fresher data)
+_CACHE_SCHEMA_VERSION = 2
+_MARKET_CLOSE_UTC = dt.time(21, 0, 0)
 
 FearGreedDict = dict[str, int | float | str | bool | None]
 
@@ -51,6 +53,7 @@ class FearGreedReading:
         age_days: int = 0,
         trend: Literal["up", "down", "flat"] | None = None,
         trend_change: int | None = None,
+        date: str | None = None,
     ):
         self.score = score
         self.label = label
@@ -60,11 +63,12 @@ class FearGreedReading:
         self.age_days = age_days
         self.trend = trend
         self.trend_change = trend_change
-        self.date = dt.datetime.now(dt.UTC).isoformat()
+        self.date = date or dt.datetime.now(dt.UTC).isoformat()
 
     def to_dict(self) -> FearGreedDict:
         """Serialize to dictionary for caching."""
         return {
+            "schema_version": _CACHE_SCHEMA_VERSION,
             "score": self.score,
             "label": self.label,
             "score_change": self.score_change,
@@ -79,6 +83,8 @@ class FearGreedReading:
     @classmethod
     def from_dict(cls, data: FearGreedDict) -> FearGreedReading:
         """Deserialize from dictionary."""
+        if data.get("schema_version") != _CACHE_SCHEMA_VERSION:
+            raise ValueError("Invalid Fear & Greed cache schema version")
         score = data["score"]
         label = data["label"]
         if not isinstance(score, int):
@@ -91,6 +97,7 @@ class FearGreedReading:
         age_days = data.get("age_days", 0)
         trend_raw = data.get("trend")
         trend_change = data.get("trend_change")
+        date_value = data.get("date")
         trend: Literal["up", "down", "flat"] | None = None
         if trend_raw in ("up", "down", "flat"):
             trend = trend_raw  # type: ignore[assignment]
@@ -103,7 +110,12 @@ class FearGreedReading:
             age_days=int(age_days) if age_days is not None else 0,
             trend=trend,
             trend_change=int(trend_change) if trend_change is not None else None,
+            date=str(date_value) if date_value else None,
         )
+
+
+def _date_to_market_close_iso(as_of_date: dt.date) -> str:
+    return dt.datetime.combine(as_of_date, _MARKET_CLOSE_UTC, tzinfo=dt.UTC).isoformat()
 
 
 def invalidate_fear_greed_redis_cache() -> bool:
@@ -220,6 +232,7 @@ def _build_reading_from_row(conn: object, row: object) -> FearGreedReading:
         age_days=age_days,
         trend=trend,
         trend_change=trend_change,
+        date=_date_to_market_close_iso(as_of_date),
     )
 
 

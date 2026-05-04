@@ -12,6 +12,10 @@ vi.mock('@/components/market/MarketStatusBadge', () => ({
   MarketStatusBadge: () => <div>Market Open</div>,
 }))
 
+vi.mock('@/components/status/FreshnessStatusBadge', () => ({
+  FreshnessStatusBadge: () => <div>Live</div>,
+}))
+
 describe('Navigation', () => {
   it('highlights the investing lane for nested symbol routes', () => {
     usePathnameMock.mockReturnValue('/symbols/VTI')

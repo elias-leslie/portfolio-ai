@@ -102,3 +102,55 @@ def test_agent_payload_uses_dedicated_market_pulse_agent(monkeypatch) -> None:
     assert call.kwargs["execute_tools"] is True
     assert call.kwargs["enable_programmatic_tools"] is True
     assert "system_prompt" not in call.kwargs
+
+
+def test_market_metrics_use_per_metric_current_timestamps() -> None:
+    service = object.__new__(HomeTodayBriefService)
+    market = {
+        "last_updated": "2026-05-04T19:31:00+00:00",
+        "indicators": {
+            "sp500": {
+                "value": 7201.71,
+                "change_pct": -0.39,
+                "last_updated": "2026-05-04T19:31:00+00:00",
+            },
+            "vix": {
+                "value": 18.25,
+                "change_pct": 7.42,
+                "last_updated": "2026-05-04T19:31:05+00:00",
+            },
+            "tnx": {
+                "value": 4.446,
+                "change_pct": 1.55,
+                "last_updated": "2026-05-04T19:31:10+00:00",
+            },
+        },
+        "fear_greed": {
+            "score": 62,
+            "score_change": 0.0,
+            "label": "Greed",
+            "last_updated": "2026-05-01T21:00:00+00:00",
+        },
+        "sector_rotation": {
+            "leading": [
+                {
+                    "name": "Technology",
+                    "change_pct": 1.76,
+                    "last_updated": "2026-05-04T19:31:20+00:00",
+                }
+            ]
+        },
+    }
+
+    metrics = service._market_metrics(market)
+
+    assert metrics[0]["horizon"] == "Current quote · 1D vs prior close"
+    assert metrics[0]["as_of"] == "2026-05-04T19:31:00+00:00"
+    assert metrics[0]["as_of_label"] == "As of May 4, 3:31 PM ET"
+    assert metrics[3]["key"] == "intraday_mood"
+    assert metrics[3]["label"] == "Intraday Mood"
+    assert metrics[3]["horizon"] == "Live proxy · Quote inputs"
+    assert metrics[3]["as_of"] == "2026-05-04T19:31:00+00:00"
+    assert metrics[3]["as_of_label"] == "As of May 4, 3:31 PM ET"
+    assert metrics[4]["horizon"] == "Current quotes · 1D sectors"
+    assert metrics[4]["as_of_label"] == "As of May 4, 3:31 PM ET"

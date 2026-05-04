@@ -73,6 +73,7 @@ export interface HomeTodayBriefMetric {
   tone: string
   horizon?: string | null
   asOf?: string | null
+  asOfLabel?: string | null
 }
 
 export interface HomeTodayBriefSource {

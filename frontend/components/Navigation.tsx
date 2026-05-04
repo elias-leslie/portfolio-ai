@@ -4,6 +4,7 @@ import { Briefcase, LayoutDashboard, Radar, Wallet } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { MarketStatusBadge } from '@/components/market/MarketStatusBadge'
+import { FreshnessStatusBadge } from '@/components/status/FreshnessStatusBadge'
 import {
   PRIMARY_PRODUCT_ROUTES,
   resolveMainProductRoute,
@@ -84,6 +85,7 @@ function NavigationContent({ pathname }: { pathname: string }) {
 
           {/* Utility Items */}
           <div className="flex items-center gap-1.5 sm:gap-2">
+            <FreshnessStatusBadge />
             <div className="hidden md:block">
               <MarketStatusBadge />
             </div>

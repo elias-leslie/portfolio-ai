@@ -14,7 +14,6 @@ from app.api.market._types import (
 )
 from app.api.market_data_sources import (
     fetch_sector_data_with_changes,
-    get_actual_data_dates,
     get_options_activity_metrics,
     get_put_call_ratio_data,
 )
@@ -50,6 +49,19 @@ def _extract_price_timestamp(data: object | None) -> str | None:
     return data.cached_at.isoformat() if data else None
 
 
+def _latest_price_timestamp(*items: object | None) -> str:
+    timestamps: list[datetime] = []
+    for item in items:
+        if not item:
+            continue
+        value = getattr(item, "cached_at", None)
+        if isinstance(value, datetime):
+            timestamps.append(value if value.tzinfo else value.replace(tzinfo=UTC))
+    if not timestamps:
+        return datetime.now(UTC).isoformat()
+    return max(timestamps).isoformat()
+
+
 def fetch_core_market_data() -> CoreMarketData:
     """Fetch core market indicators used by multiple endpoints."""
     price_data = _get_price_fetcher().fetch_price_data(CORE_MARKET_SYMBOLS)
@@ -59,9 +71,7 @@ def fetch_core_market_data() -> CoreMarketData:
     tnx_data = price_data.get("^TNX")
     dxy_data = price_data.get("DX-Y.NYB")
 
-    current_timestamp = (
-        sp500_data.cached_at.isoformat() if sp500_data else datetime.now(UTC).isoformat()
-    )
+    current_timestamp = _latest_price_timestamp(sp500_data, vix_data, tnx_data, dxy_data)
 
     sector_symbols = get_sector_symbols()
     sector_price_data = _get_price_fetcher().fetch_price_data(sector_symbols)
@@ -116,7 +126,6 @@ def _enrich_putcall(
 def build_enriched_indicators(
     indicator_data: dict[str, object | None],
     health_score_data: object,
-    actual_data_dates: dict[str, object],
     putcall_data: tuple[float, str] | None,
 ) -> dict[str, object]:
     """Build enriched indicators dict with plain-language labels."""
@@ -131,7 +140,6 @@ def build_enriched_indicators(
                 INDICATOR_ENRICH_FUNCS[key],
                 get_storage(),
                 health_score_data,
-                actual_data_dates,
             )
 
     if putcall_data:
@@ -174,7 +182,6 @@ def build_intelligence_response_data(
         sector_data_list
     )
 
-    actual_data_dates = get_actual_data_dates(get_storage(), CORE_MARKET_SYMBOLS)
     indicator_data: dict[str, object | None] = {
         "vix": market_data.vix_data,
         "sp500": market_data.sp500_data,
@@ -182,7 +189,7 @@ def build_intelligence_response_data(
         "dxy": market_data.dxy_data,
     }
     enriched_indicators = build_enriched_indicators(
-        indicator_data, health_score_data, actual_data_dates, get_put_call_ratio_data(get_storage())
+        indicator_data, health_score_data, get_put_call_ratio_data(get_storage())
     )
     options_activity = validate_and_build_options_activity(get_options_activity_metrics(get_storage()))
 

@@ -28,7 +28,6 @@ from app.utils.market_hours import (
     get_expected_data_date,
     get_market_aware_age_hours,
     get_market_close_time,
-    is_market_open,
     is_trading_day,
 )
 
@@ -83,12 +82,10 @@ def _is_in_cooldown(table_name: str, now: dt.datetime) -> bool:
 
 
 def _can_remediate(table_name: str, is_market_data: bool, now: dt.datetime) -> bool:
-    """Return True if remediation should proceed (not in cooldown, market open if needed)."""
+    """Return True if remediation should proceed."""
+    del is_market_data
     if _is_in_cooldown(table_name, now):
         logger.info("remediation_skipped_cooldown", table_name=table_name, reason="in_cooldown")
-        return False
-    if is_market_data and not is_market_open(now):
-        logger.info("remediation_skipped_market_closed", table_name=table_name, reason="market_closed")
         return False
     return True
 
@@ -129,7 +126,6 @@ def trigger_remediation(
 
     Includes thrashing protection:
     - Won't retry same table within 30 minutes
-    - Won't attempt market data remediation if market is closed
 
     Returns task_id if triggered, None if skipped or no remediation available.
     """

@@ -1,4 +1,4 @@
-import { get } from './client'
+import { get, post } from './client'
 
 export type HealthStatus = 'healthy' | 'degraded' | 'down'
 export type CheckStatus = 'ok' | 'degraded' | 'down'
@@ -92,6 +92,40 @@ export interface DataFreshnessStatus {
   error?: string
 }
 
+export interface DataFreshnessCoverage {
+  requiredSymbols?: number
+  currentSymbols?: number
+  expectedDate?: string
+  staleSymbols?: string[]
+  missingSymbols?: string[]
+  staleSymbolCount?: number
+}
+
+export interface DataFreshnessDetail {
+  tableName: string
+  lastUpdate?: string | null
+  ageHours?: number | null
+  isStale: boolean
+  isCritical: boolean
+  reason?: string | null
+  coverage?: DataFreshnessCoverage | null
+}
+
+export interface LiveFreshnessResponse {
+  status: 'success' | 'warning' | 'critical' | 'error' | string
+  message: string
+  generatedAt: string
+  tablesChecked: number
+  fresh: number
+  stale: number
+  critical: number
+  alertsCreated?: number
+  remediationsTriggered?: number
+  details: DataFreshnessDetail[]
+  remediationCooldowns?: Record<string, string>
+  recentRemediations?: RecentRemediation[]
+}
+
 export type DecisionDataDomainStatus =
   | 'current'
   | 'aging'
@@ -164,4 +198,12 @@ export interface DetailedHealthCheckResponse {
 
 export async function fetchDetailedHealth(): Promise<DetailedHealthCheckResponse> {
   return get<DetailedHealthCheckResponse>('/health/detailed')
+}
+
+export async function fetchLiveFreshness(): Promise<LiveFreshnessResponse> {
+  return get<LiveFreshnessResponse>('/health/freshness')
+}
+
+export async function refreshLiveFreshness(): Promise<LiveFreshnessResponse> {
+  return post<LiveFreshnessResponse>('/health/freshness/refresh')
 }

@@ -6,6 +6,8 @@ import datetime as dt
 from datetime import date, datetime
 from typing import TYPE_CHECKING, cast
 
+from app.utils.market_hours import NY_TZ
+
 # US market close at 4:00 PM ET = 21:00 UTC
 _MARKET_CLOSE_UTC = dt.time(21, 0, 0)
 
@@ -23,6 +25,7 @@ def calculate_daily_change_pct(
     storage: Storage,
     symbol: str,
     current_price: float,
+    current_timestamp: datetime | None = None,
 ) -> float | None:
     """Calculate daily change percentage from day_bars historical data.
 
@@ -30,6 +33,7 @@ def calculate_daily_change_pct(
         storage: Storage instance for database access
         symbol: Symbol to calculate change for
         current_price: Current price
+        current_timestamp: Timestamp for the current quote.
 
     Returns:
         Daily change percentage, or None if no historical data
@@ -37,19 +41,38 @@ def calculate_daily_change_pct(
     with storage.connection() as conn:
         result = conn.execute(
             """
-            SELECT close
+            SELECT date, close
             FROM day_bars
             WHERE symbol = %s
             ORDER BY date DESC
-            LIMIT 1 OFFSET 1
+            LIMIT 2
             """,
             [symbol],
         )
-        row = result.fetchone()
-        if row and row[0]:
-            prev_close = float(row[0])
-            return ((current_price - prev_close) / prev_close) * 100
-    return None
+        rows = result.fetchall()
+
+    if not rows or rows[0][1] is None:
+        return None
+
+    latest_date = rows[0][0]
+    baseline_close = float(rows[0][1])
+    previous_close = rows[1][1] if len(rows) > 1 else None
+
+    if current_timestamp is None:
+        if previous_close is not None:
+            baseline_close = float(previous_close)
+    elif isinstance(latest_date, (date, datetime)):
+        latest_market_date = latest_date.date() if isinstance(latest_date, datetime) else latest_date
+        quote_ts = current_timestamp
+        if quote_ts.tzinfo is None:
+            quote_ts = quote_ts.replace(tzinfo=dt.UTC)
+        quote_market_date = quote_ts.astimezone(NY_TZ).date()
+        if quote_market_date <= latest_market_date and previous_close is not None:
+            baseline_close = float(previous_close)
+
+    if baseline_close == 0:
+        return None
+    return ((current_price - baseline_close) / baseline_close) * 100
 
 
 def calculate_weekly_change_pct(

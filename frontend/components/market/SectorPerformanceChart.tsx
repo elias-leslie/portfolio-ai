@@ -32,6 +32,27 @@ interface SectorPerformanceChartProps {
   error?: Error | null
 }
 
+function sectorPointsByDate(
+  sectors: SectorHistoryResponse['sectors'],
+): Map<string, Map<string, { close: number; pctChange: number }>> {
+  const maps = new Map<
+    string,
+    Map<string, { close: number; pctChange: number }>
+  >()
+  sectors.forEach((sector) => {
+    maps.set(
+      sector.symbol,
+      new Map(
+        sector.data.map((point) => [
+          point.date,
+          { close: point.close, pctChange: point.pctChange },
+        ]),
+      ),
+    )
+  })
+  return maps
+}
+
 export function SectorPerformanceChart({
   timeframe,
   onTimeframeChange,
@@ -50,16 +71,25 @@ export function SectorPerformanceChart({
   const chartData = useMemo(() => {
     if (!data?.sectors?.length) return []
 
-    // Get all unique dates from the first sector (they should all have same dates)
-    const firstSector = data.sectors[0]
-    if (!firstSector?.data?.length) return []
+    const pointsBySector = sectorPointsByDate(data.sectors)
+    const dates = Array.from(
+      new Set(
+        data.sectors.flatMap((sector) =>
+          sector.data.map((point) => point.date),
+        ),
+      ),
+    ).sort()
 
-    return firstSector.data.map((point, idx) => {
-      const entry: Record<string, number | string> = { date: point.date }
+    return dates.map((date) => {
+      const entry: Record<string, number | string | null> = { date }
       data.sectors.forEach((sector) => {
-        if (sector.data[idx]) {
-          entry[sector.symbol] = sector.data[idx].pctChange
-          entry[`${sector.symbol}_price`] = sector.data[idx].close
+        const point = pointsBySector.get(sector.symbol)?.get(date)
+        if (point) {
+          entry[sector.symbol] = point.pctChange
+          entry[`${sector.symbol}_price`] = point.close
+        } else {
+          entry[sector.symbol] = null
+          entry[`${sector.symbol}_price`] = null
         }
       })
       return entry
@@ -107,7 +137,7 @@ export function SectorPerformanceChart({
             Sector Trends
           </h3>
           <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-text-muted">
-            Latest close values · {timeframe} relative-performance window
+            Current/latest values · {timeframe} relative-performance window
           </p>
         </div>
         <TimeframeSelector value={timeframe} onChange={onTimeframeChange} />
@@ -151,7 +181,7 @@ export function SectorPerformanceChart({
                 ((
                   value: number | undefined,
                   name: string | undefined,
-                  props: { payload?: Record<string, number> },
+                  props: { payload?: Record<string, number | null> },
                 ) => {
                   if (!name) return ['', '']
                   const sector = data.sectors.find((s) => s.symbol === name)

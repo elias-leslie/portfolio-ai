@@ -90,6 +90,7 @@ class HomeTodayBriefMetricResponse(BaseModel):
     tone: str
     horizon: str | None = None
     as_of: str | None = None
+    as_of_label: str | None = None
 
 
 class HomeTodayBriefSourceResponse(BaseModel):

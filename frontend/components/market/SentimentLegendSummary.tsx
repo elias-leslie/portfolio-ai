@@ -61,7 +61,8 @@ export function SentimentLegendSummary({
         </div>
         {dataDate && freshness && (
           <span className="text-[10px]" title={freshness.tooltip}>
-            Data as of {formatDate(dataDate, false)} {freshness.indicator}
+            Latest daily sentiment through {formatDate(dataDate, false)}{' '}
+            {freshness.indicator}
           </span>
         )}
       </div>

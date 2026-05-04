@@ -137,9 +137,8 @@ def enrich_indicator_with_history(
     enrich_func: Any,
     storage: PortfolioStorage,
     health_score_data: Any,
-    actual_data_dates: dict[str, Any],
 ) -> dict[str, Any]:
-    """Enrich indicator data with historical change and actual timestamp.
+    """Enrich indicator data with daily change from the right close baseline.
 
     Args:
         indicator_data: Raw indicator data from price fetcher
@@ -147,16 +146,16 @@ def enrich_indicator_with_history(
         enrich_func: Intelligence function to enrich the indicator
         storage: Storage instance for fetching historical data
         health_score_data: Market health score data
-        actual_data_dates: Mapping of symbols to actual data timestamps
 
     Returns:
         Enriched indicator dict with history
     """
-    change_pct = calculate_daily_change_pct(storage, symbol, indicator_data.price)
-
-    actual_timestamp = actual_data_dates.get(symbol)
-    if actual_timestamp:
-        indicator_data.cached_at = actual_timestamp
+    change_pct = calculate_daily_change_pct(
+        storage,
+        symbol,
+        indicator_data.price,
+        getattr(indicator_data, "cached_at", None),
+    )
 
     return cast(
         dict[str, Any], enrich_func(indicator_data, health_score_data, change_pct=change_pct)

@@ -2,8 +2,9 @@
 
 import type { ComponentProps, ReactNode } from 'react'
 import {
-  describeMarketMood,
+  describeIntradayMood,
   describePortfolioHealth,
+  intradayMoodScore,
 } from '@/components/portfolio/investing-language'
 import { InfoBadge } from '@/components/shared/InfoBadge'
 import { SectionCard } from '@/components/shared/SectionCard'
@@ -15,6 +16,10 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import type { HomeTodayBriefMetric } from '@/lib/api/home'
+import type {
+  EnrichedIndicator,
+  MarketIntelligenceResponse,
+} from '@/lib/api/market'
 import { formatCurrencyWhole } from '@/lib/formatters'
 import { useHomeTodayBrief } from '@/lib/hooks/useHomeTodayBrief'
 import { useHouseholdDashboard } from '@/lib/hooks/useHousehold'
@@ -111,7 +116,140 @@ function formatMarketAsOf(value?: string | null) {
   if (!value) {
     return 'As of time unavailable'
   }
-  return `As of ${formatRelativeTime(value)}`
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return 'As of time unavailable'
+  }
+  return `As of ${parsed.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })}`
+}
+
+function formatEtMarketAsOf(value?: string | null) {
+  if (!value) {
+    return null
+  }
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return null
+  }
+  return `As of ${parsed.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'America/New_York',
+  })} ET`
+}
+
+function formatMetricNumber(value: number | null | undefined, digits = 2) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return 'Unavailable'
+  }
+  return value.toLocaleString('en-US', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })
+}
+
+function indicatorAsOf(
+  indicator: EnrichedIndicator | undefined,
+  fallback?: string | null,
+) {
+  return indicator?.lastUpdated ?? fallback ?? null
+}
+
+function buildLiveMarketMetrics(
+  market: MarketIntelligenceResponse | undefined,
+): HomeTodayBriefMetric[] | null {
+  if (!market?.indicators || !market.sectorRotation) {
+    return null
+  }
+  const sp500 = market.indicators.sp500
+  const vix = market.indicators.vix
+  const tnx = market.indicators.tnx
+  if (!sp500 || !vix || !tnx) {
+    return null
+  }
+
+  const leading = market.sectorRotation.leading.slice(0, 3)
+  const leadership = leading
+    .map((sector) => sector.name)
+    .filter(Boolean)
+    .join(', ')
+  const marketAsOf = market.lastUpdated
+  const sp500AsOf = indicatorAsOf(sp500, marketAsOf)
+  const vixAsOf = indicatorAsOf(vix, marketAsOf)
+  const tnxAsOf = indicatorAsOf(tnx, marketAsOf)
+  const leadershipAsOf = leading[0]?.lastUpdated ?? marketAsOf
+  const moodScore = intradayMoodScore(market)
+  const mood = describeIntradayMood(market)
+
+  return [
+    {
+      key: 'sp500',
+      label: 'S&P 500',
+      value: formatMetricNumber(sp500.value),
+      changePct: sp500.changePct,
+      detail: 'Broad market benchmark',
+      horizon: 'Current quote · 1D vs prior close',
+      asOf: sp500AsOf,
+      asOfLabel: formatEtMarketAsOf(sp500AsOf),
+      tone: (sp500.changePct ?? 0) > 0 ? 'positive' : 'negative',
+    },
+    {
+      key: 'vix',
+      label: 'VIX',
+      value: formatMetricNumber(vix.value),
+      changePct: vix.changePct,
+      detail: 'Risk pricing',
+      horizon: 'Current quote · 1D vs prior close',
+      asOf: vixAsOf,
+      asOfLabel: formatEtMarketAsOf(vixAsOf),
+      tone: vix.value < 20 ? 'positive' : 'warning',
+    },
+    {
+      key: 'tnx',
+      label: '10Y Yield',
+      value: `${formatMetricNumber(tnx.value, 3)}%`,
+      changePct: tnx.changePct,
+      detail: 'Rate pressure',
+      horizon: 'Current quote · 1D vs prior close',
+      asOf: tnxAsOf,
+      asOfLabel: formatEtMarketAsOf(tnxAsOf),
+      tone: tnx.value >= 4.5 ? 'warning' : 'neutral',
+    },
+    {
+      key: 'intraday_mood',
+      label: 'Intraday Mood',
+      value: moodScore?.toString() ?? '—',
+      changePct: null,
+      detail: mood.label,
+      horizon: 'Live proxy · Quote inputs',
+      asOf: marketAsOf,
+      asOfLabel: formatEtMarketAsOf(marketAsOf),
+      tone:
+        mood.tone === 'gain'
+          ? 'positive'
+          : mood.tone === 'warning' || mood.tone === 'loss'
+            ? 'warning'
+            : 'neutral',
+    },
+    {
+      key: 'leadership',
+      label: 'Leadership',
+      value: leadership || 'Mixed',
+      changePct: leading[0]?.changePct ?? null,
+      detail: 'Sectors leading today',
+      horizon: 'Current quotes · 1D sectors',
+      asOf: leadershipAsOf,
+      asOfLabel: formatEtMarketAsOf(leadershipAsOf),
+      tone: leading.length > 0 ? 'positive' : 'neutral',
+    },
+  ]
 }
 
 function TileLabel({ label, detail }: { label: string; detail?: ReactNode }) {
@@ -251,7 +389,7 @@ function MarketStripItem({ metric }: { metric: HomeTodayBriefMetric }) {
       </p>
       <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-text-muted/80">
         {metric.horizon ?? 'Horizon unavailable'} ·{' '}
-        {formatMarketAsOf(metric.asOf)}
+        {metric.asOfLabel ?? formatMarketAsOf(metric.asOf)}
       </p>
     </div>
   )
@@ -265,7 +403,7 @@ export function TodayOverviewPanel() {
   const { data: market, isLoading: marketLoading } = useMarketIntelligence()
   const { data: todayBrief, isLoading: briefLoading } = useHomeTodayBrief()
 
-  const marketMood = describeMarketMood(market?.fearGreed)
+  const marketMood = describeIntradayMood(market)
   const portfolioHealth = describePortfolioHealth(analytics)
   const netWorth = household?.overview.netWorth ?? null
   const investedAssets =
@@ -360,7 +498,11 @@ export function TodayOverviewPanel() {
     },
   ]
 
-  const marketMetrics = todayBrief?.marketMetrics ?? []
+  const liveMarketMetrics = buildLiveMarketMetrics(market)
+  const marketMetrics = liveMarketMetrics ?? todayBrief?.marketMetrics ?? []
+  const marketStripTimestamp = liveMarketMetrics
+    ? market?.lastUpdated
+    : todayBrief?.generatedAt
   const scanNotes = todayBrief?.brief.bullets.slice(0, 2) ?? [
     portfolioHealth.detail,
     marketMood.detail,
@@ -393,8 +535,8 @@ export function TodayOverviewPanel() {
               </h3>
             </div>
             <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">
-              {todayBrief?.generatedAt
-                ? `Generated ${formatRelativeTime(todayBrief.generatedAt)}`
+              {marketStripTimestamp
+                ? `${liveMarketMetrics ? 'Market data' : 'Generated'} ${formatRelativeTime(marketStripTimestamp)}`
                 : briefLoading
                   ? 'Loading tape'
                   : 'Update time unavailable'}
