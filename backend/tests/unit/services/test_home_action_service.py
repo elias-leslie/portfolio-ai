@@ -6,6 +6,12 @@ from types import SimpleNamespace
 
 from app.api.symbols.models import PositionInfo
 from app.models.jenny import JennyDashboard, JennyNotification, JennyTradeReview
+from app.services._home_action_sources import (
+    build_household_actions,
+    build_jenny_actions,
+    build_portfolio_health_actions,
+    build_recommendation_actions,
+)
 from app.services.home_action_service import HomeActionService
 
 
@@ -185,69 +191,65 @@ def test_get_action_queue_prefers_specific_household_follow_up_for_duplicate_tit
 
 
 def test_jenny_actions_link_into_decision_context() -> None:
-    service = object.__new__(HomeActionService)
-    service._jenny_service = lambda: SimpleNamespace(
-        get_dashboard=lambda: JennyDashboard(
-            notifications=[
-                JennyNotification(
-                    id="note-1",
-                    routine_id="routine-1",
-                    symbol="NVDA",
-                    category="position_exit",
-                    severity="critical",
-                    status="open",
-                    title="NVDA: Exit this position",
-                    detail="The thesis broke.",
-                    recommendation="Cut exposure now.",
-                    created_at="2026-03-10T16:00:00Z",
-                )
-            ],
-            trade_reviews=[
-                JennyTradeReview(
-                    id="review-1",
-                    symbol="NVDA",
-                    review_source="operator",
-                    outcome_label="win",
-                    lesson="Respect the setup.",
-                    created_at="2026-03-09T12:00:00Z",
-                    updated_at="2026-03-09T12:00:00Z",
-                )
-            ],
-        )
+    dashboard = JennyDashboard(
+        notifications=[
+            JennyNotification(
+                id="note-1",
+                routine_id="routine-1",
+                symbol="NVDA",
+                category="position_exit",
+                severity="critical",
+                status="open",
+                title="NVDA: Exit this position",
+                detail="The thesis broke.",
+                recommendation="Cut exposure now.",
+                created_at="2026-03-10T16:00:00Z",
+            )
+        ],
+        trade_reviews=[
+            JennyTradeReview(
+                id="review-1",
+                symbol="NVDA",
+                review_source="operator",
+                outcome_label="win",
+                lesson="Respect the setup.",
+                created_at="2026-03-09T12:00:00Z",
+                updated_at="2026-03-09T12:00:00Z",
+            )
+        ],
     )
 
-    actions = service._jenny_actions()
+    actions = build_jenny_actions(dashboard, None)
+    decision = actions[0]["decision"]
+    assert isinstance(decision, dict)
 
     assert actions[0]["href"] == "/symbols/NVDA?tab=decision"
     assert actions[0]["action_label"] == "Review decision"
-    assert actions[0]["decision"]["headline"] == "Exit this position"
-    assert actions[0]["decision"]["source_kind"] == "jenny_alert"
+    assert decision["headline"] == "Exit this position"
+    assert decision["source_kind"] == "jenny_alert"
     assert actions[1]["href"] == "/symbols/NVDA?tab=decision"
 
 
 def test_jenny_actions_skip_household_notifications_that_already_have_precise_household_routes() -> None:
-    service = object.__new__(HomeActionService)
-    service._jenny_service = lambda: SimpleNamespace(
-        get_dashboard=lambda: JennyDashboard(
-            notifications=[
-                JennyNotification(
-                    id="note-household",
-                    routine_id="routine-1",
-                    symbol=None,
-                    category="household_inbox:account-stale-balance",
-                    severity="critical",
-                    status="open",
-                    title="Refresh Amazon Chase (CC)",
-                    detail="Add evidence.",
-                    recommendation="Add evidence.",
-                    created_at="2026-04-14T16:00:00Z",
-                )
-            ],
-            trade_reviews=[],
-        )
+    dashboard = JennyDashboard(
+        notifications=[
+            JennyNotification(
+                id="note-household",
+                routine_id="routine-1",
+                symbol=None,
+                category="household_inbox:account-stale-balance",
+                severity="critical",
+                status="open",
+                title="Refresh Amazon Chase (CC)",
+                detail="Add evidence.",
+                recommendation="Add evidence.",
+                created_at="2026-04-14T16:00:00Z",
+            )
+        ],
+        trade_reviews=[],
     )
 
-    actions = service._jenny_actions()
+    actions = build_jenny_actions(dashboard, None)
 
     assert actions == []
 
@@ -255,36 +257,34 @@ def test_jenny_actions_skip_household_notifications_that_already_have_precise_ho
 def test_jenny_actions_rank_large_current_positions_above_small(monkeypatch) -> None:
     service = object.__new__(HomeActionService)
     service.storage = object()
-    service._jenny_service = lambda: SimpleNamespace(
-        get_dashboard=lambda: JennyDashboard(
-            notifications=[
-                JennyNotification(
-                    id="note-vti",
-                    routine_id="routine-1",
-                    symbol="VTI",
-                    category="position_trim",
-                    severity="warning",
-                    status="open",
-                    title="VTI: Trim this position",
-                    detail="Trim concentration.",
-                    recommendation="Take partial profits.",
-                    created_at="2026-03-10T16:00:00Z",
-                ),
-                JennyNotification(
-                    id="note-tsla",
-                    routine_id="routine-1",
-                    symbol="TSLA",
-                    category="position_review",
-                    severity="warning",
-                    status="open",
-                    title="TSLA: Recheck this position",
-                    detail="Review thesis.",
-                    recommendation="Review the thesis.",
-                    created_at="2026-03-10T16:00:00Z",
-                ),
-            ],
-            trade_reviews=[],
-        )
+    dashboard = JennyDashboard(
+        notifications=[
+            JennyNotification(
+                id="note-vti",
+                routine_id="routine-1",
+                symbol="VTI",
+                category="position_trim",
+                severity="warning",
+                status="open",
+                title="VTI: Trim this position",
+                detail="Trim concentration.",
+                recommendation="Take partial profits.",
+                created_at="2026-03-10T16:00:00Z",
+            ),
+            JennyNotification(
+                id="note-tsla",
+                routine_id="routine-1",
+                symbol="TSLA",
+                category="position_review",
+                severity="warning",
+                status="open",
+                title="TSLA: Recheck this position",
+                detail="Review thesis.",
+                recommendation="Review the thesis.",
+                created_at="2026-03-10T16:00:00Z",
+            ),
+        ],
+        trade_reviews=[],
     )
 
     def fake_position(_storage: object, symbol: str | None) -> PositionInfo:
@@ -307,11 +307,11 @@ def test_jenny_actions_rank_large_current_positions_above_small(monkeypatch) -> 
         )
 
     monkeypatch.setattr(
-        "app.services.home_action_service._portfolio_position_for_symbol",
+        "app.services._home_action_sources._portfolio_position_for_symbol",
         fake_position,
     )
 
-    actions = service._jenny_actions()
+    actions = build_jenny_actions(dashboard, service.storage)
     scores = {action["symbol"]: action["_rank_score"] for action in actions}
 
     assert scores["VTI"] > scores["TSLA"]
@@ -322,11 +322,11 @@ def test_recommendation_actions_use_decision_contract(monkeypatch) -> None:
     service.storage = object()
 
     monkeypatch.setattr(
-        "app.services.home_action_service.get_effective_portfolio_totals",
+        "app.services._home_action_sources.get_effective_portfolio_totals",
         lambda *_args, **_kwargs: SimpleNamespace(effective_invested_total_value=250000.0),
     )
     monkeypatch.setattr(
-        "app.services.home_action_service.fetch_recommendations",
+        "app.services._home_action_sources.fetch_recommendations",
         lambda **_kwargs: [
             SimpleNamespace(
                 symbol="NVDA",
@@ -340,13 +340,15 @@ def test_recommendation_actions_use_decision_contract(monkeypatch) -> None:
         ],
     )
 
-    actions = service._recommendation_actions()
+    actions = build_recommendation_actions(service.storage)
+    decision = actions[0]["decision"]
+    assert isinstance(decision, dict)
 
     assert actions[0]["href"] == "/symbols/NVDA?tab=decision"
     assert actions[0]["action_label"] == "Open decision"
     assert actions[0]["title"] == "NVDA: Initiate position"
     assert actions[0]["detail"] == "Strong BUY signal (8/10) Suggested size $5,000."
-    assert actions[0]["decision"]["source_kind"] == "live_signal_model"
+    assert decision["source_kind"] == "live_signal_model"
 
 
 def test_portfolio_health_actions_flag_concentration(monkeypatch) -> None:
@@ -366,11 +368,11 @@ def test_portfolio_health_actions_flag_concentration(monkeypatch) -> None:
         )
 
     monkeypatch.setattr(
-        "app.services.home_action_service.get_analytics_payload",
+        "app.services._home_action_sources.get_analytics_payload",
         fake_analytics,
     )
 
-    actions = service._portfolio_health_actions()
+    actions = build_portfolio_health_actions()
 
     assert actions[0]["title"] == "Portfolio needs a concentration check"
     assert (
@@ -407,11 +409,11 @@ def test_portfolio_health_actions_skip_false_positive_for_broad_etf_lookthrough(
         )
 
     monkeypatch.setattr(
-        "app.services.home_action_service.get_analytics_payload",
+        "app.services._home_action_sources.get_analytics_payload",
         fake_analytics,
     )
 
-    actions = service._portfolio_health_actions()
+    actions = build_portfolio_health_actions()
 
     assert actions == []
 
@@ -437,11 +439,11 @@ def test_portfolio_health_actions_supports_model_like_concentration_objects(monk
         )
 
     monkeypatch.setattr(
-        "app.services.home_action_service.get_analytics_payload",
+        "app.services._home_action_sources.get_analytics_payload",
         fake_analytics,
     )
 
-    actions = service._portfolio_health_actions()
+    actions = build_portfolio_health_actions()
 
     assert actions[0]["title"] == "Portfolio needs a concentration check"
     assert actions[0]["detail"] == (
@@ -451,35 +453,30 @@ def test_portfolio_health_actions_supports_model_like_concentration_objects(monk
 
 
 def test_household_actions_use_specific_labels_and_focused_destinations() -> None:
-    service = object.__new__(HomeActionService)
-    service._household_service = lambda: SimpleNamespace(
-        get_dashboard=lambda: SimpleNamespace(
-            inbox=[
-                SimpleNamespace(
-                    id="need_account_completeness",
-                    category="coverage",
-                    title="Are all accounts covered?",
-                    detail="Confirm account coverage.",
-                    priority="high",
-                    action_label="Review accounts",
-                    action_href="/money?tab=accounts&focus=account-coverage",
-                    related_question_id=None,
-                ),
-                SimpleNamespace(
-                    id="discover-chase-1234",
-                    category="account",
-                    title="Confirm possible account: Chase · …1234",
-                    detail="Imported transfers reference a likely Chase card ending in 1234.",
-                    priority="medium",
-                    action_label="Review accounts",
-                    action_href="/money?tab=accounts&focus=discovered-accounts",
-                    related_question_id=None,
-                ),
-            ]
-        )
+    actions = build_household_actions(
+        [
+            SimpleNamespace(
+                id="need_account_completeness",
+                category="coverage",
+                title="Are all accounts covered?",
+                detail="Confirm account coverage.",
+                priority="high",
+                action_label="Review accounts",
+                action_href="/money?tab=accounts&focus=account-coverage",
+                related_question_id=None,
+            ),
+            SimpleNamespace(
+                id="discover-chase-1234",
+                category="account",
+                title="Confirm possible account: Chase · …1234",
+                detail="Imported transfers reference a likely Chase card ending in 1234.",
+                priority="medium",
+                action_label="Review accounts",
+                action_href="/money?tab=accounts&focus=discovered-accounts",
+                related_question_id=None,
+            ),
+        ]
     )
-
-    actions = service._household_actions()
 
     assert actions[0]["action_label"] == "Review accounts"
     assert actions[0]["href"] == "/money?tab=accounts&focus=account-coverage"
