@@ -216,6 +216,7 @@ describe('MoneyAccountsPanel', () => {
         expect.objectContaining({
           rawText:
             'Available balance $25,057\nPosted transaction 04/06/2026\nVendor: Amazon',
+          filename: 'main-checking.txt',
           accountLabel: 'Main Checking',
           householdAccountId: 'household-1',
         }),

@@ -41,6 +41,10 @@ from app.services._household_document_pipeline_utils import (
 from app.services._household_finance_utils import iso, iso_or_none, to_float
 from app.services.household_finance_rows import FIELD_LABELS, row_to_document
 from app.services.household_review_agent_service import HOUSEHOLD_REVIEW_AGENT_SLUG
+from app.services.household_upload_validation import (
+    read_household_upload_limited,
+    validate_household_upload_metadata,
+)
 
 if TYPE_CHECKING:
     from app.services.household_finance_service import HouseholdFinanceService
@@ -507,7 +511,8 @@ class HouseholdDocumentPipeline:
     ) -> HouseholdDocument:
         document_id = str(uuid.uuid4())
         filename = upload.filename or f"{document_id}.bin"
-        content = await upload.read()
+        validate_household_upload_metadata(upload)
+        content = await read_household_upload_limited(upload)
         content_sha256 = hashlib.sha256(content).hexdigest()
 
         duplicate = self.find_duplicate_document_by_hash(service, content_sha256)
