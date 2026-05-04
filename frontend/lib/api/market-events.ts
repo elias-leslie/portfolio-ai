@@ -13,9 +13,11 @@ import type {
  */
 export async function fetchMarketEventsForChart(
   days: number = 365,
+  options: RequestInit = {},
 ): Promise<MarketEventsChartResponse> {
   return apiRequest<MarketEventsChartResponse>(
     `/api/market/events/chart?days=${days}`,
+    options,
   )
 }
 

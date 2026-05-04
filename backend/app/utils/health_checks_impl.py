@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
-import subprocess
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
+from subprocess import SubprocessError, TimeoutExpired
 from typing import Any, Literal
 
+import psutil
 import yaml
 from pydantic import BaseModel
 
 from app.logging_config import get_logger
 from app.storage import PortfolioStorage
+from app.utils import safe_subprocess
 
 logger = get_logger(__name__)
 
@@ -365,28 +368,32 @@ def get_watchlist_stats(storage: PortfolioStorage) -> WatchlistStats:
 def _check_systemctl_worker() -> WorkerInfo | None:
     """Return WorkerInfo if systemctl reports the worker active, else None."""
     try:
-        result = subprocess.run(
+        result = safe_subprocess.run(
             ["systemctl", "--user", "is-active", "portfolio-hatchet-worker"],
             capture_output=True, text=True, timeout=5, check=False,
         )
         if result.returncode == 0 and result.stdout.strip() == "active":
             return WorkerInfo(active=True, message="Hatchet worker active")
-    except (FileNotFoundError, Exception):
-        pass
+    except (FileNotFoundError, TimeoutExpired, SubprocessError, OSError) as e:
+        logger.debug("systemctl_worker_check_failed", error=str(e))
     return None
 
 
 def _check_pgrep_worker() -> WorkerInfo | None:
-    """Return WorkerInfo if a worker process is found via pgrep, else None."""
-    try:
-        result = subprocess.run(
-            ["pgrep", "-f", r"python.*app\.worker"],
-            capture_output=True, text=True, timeout=5, check=False,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return WorkerInfo(active=True, message="Hatchet worker active")
-    except Exception:
-        pass
+    """Return WorkerInfo if a worker process is visible in this process namespace."""
+    pattern = re.compile(r"python.*app\.worker")
+    for process in psutil.process_iter(["name", "cmdline"]):
+        try:
+            cmdline = process.info.get("cmdline")
+            if cmdline:
+                command = " ".join(str(part) for part in cmdline)
+            else:
+                command = str(process.info.get("name") or "")
+            if pattern.search(command):
+                return WorkerInfo(active=True, message="Hatchet worker active")
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess) as e:
+            logger.debug("worker_process_lookup_skipped", error=str(e))
+            continue
     return None
 
 

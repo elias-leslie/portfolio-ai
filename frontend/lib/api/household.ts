@@ -659,8 +659,10 @@ export interface HouseholdTransactionCategoryUpdate {
   applyToMerchant?: boolean
 }
 
-export async function fetchHouseholdDashboard(): Promise<HouseholdFinanceDashboard> {
-  return get<HouseholdFinanceDashboard>('/api/household/dashboard')
+export async function fetchHouseholdDashboard(
+  options: RequestInit = {},
+): Promise<HouseholdFinanceDashboard> {
+  return get<HouseholdFinanceDashboard>('/api/household/dashboard', options)
 }
 
 export async function fetchHouseholdProfile(): Promise<HouseholdProfile> {
@@ -683,15 +685,20 @@ export async function updateHouseholdPlanning(
   return post<HouseholdPlanningSnapshot>('/api/household/planning', payload)
 }
 
-export async function fetchHouseholdDocuments(): Promise<HouseholdDocumentList> {
-  return get<HouseholdDocumentList>('/api/intake/evidence')
+export async function fetchHouseholdDocuments(
+  options: RequestInit = {},
+): Promise<HouseholdDocumentList> {
+  return get<HouseholdDocumentList>('/api/intake/evidence', options)
 }
 
-export async function fetchHouseholdLedger(params?: {
-  window?: string
-  kind?: string
-  limit?: number
-}): Promise<HouseholdLedger> {
+export async function fetchHouseholdLedger(
+  params?: {
+    window?: string
+    kind?: string
+    limit?: number
+  },
+  options: RequestInit = {},
+): Promise<HouseholdLedger> {
   const search = new URLSearchParams()
   if (params?.window) {
     search.set('window', params.window)
@@ -705,12 +712,16 @@ export async function fetchHouseholdLedger(params?: {
   const query = search.toString()
   return get<HouseholdLedger>(
     query ? `/api/household/ledger?${query}` : '/api/household/ledger',
+    options,
   )
 }
 
-export async function fetchHouseholdSpending(params?: {
-  window?: string
-}): Promise<HouseholdSpendingView> {
+export async function fetchHouseholdSpending(
+  params?: {
+    window?: string
+  },
+  options: RequestInit = {},
+): Promise<HouseholdSpendingView> {
   const search = new URLSearchParams()
   if (params?.window) {
     search.set('window', params.window)
@@ -718,6 +729,7 @@ export async function fetchHouseholdSpending(params?: {
   const query = search.toString()
   return get<HouseholdSpendingView>(
     query ? `/api/household/spending?${query}` : '/api/household/spending',
+    options,
   )
 }
 

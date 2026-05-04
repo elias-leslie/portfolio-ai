@@ -122,4 +122,16 @@ describe('api client helpers', () => {
 
     expect(global.fetch).toHaveBeenCalledTimes(1)
   })
+
+  it('does not retry aborted GET requests', async () => {
+    const abortError = new Error('Request aborted')
+    abortError.name = 'AbortError'
+    global.fetch = vi
+      .fn()
+      .mockRejectedValue(abortError) as unknown as typeof fetch
+
+    await expect(get('/api/preferences')).rejects.toThrow('Request aborted')
+
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+  })
 })

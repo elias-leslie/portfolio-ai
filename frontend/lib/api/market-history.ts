@@ -15,9 +15,11 @@ import type {
  */
 export async function fetchFearGreedHistory(
   days: number = 365,
+  options: RequestInit = {},
 ): Promise<FearGreedHistoryResponse> {
   return apiRequest<FearGreedHistoryResponse>(
     `/api/market/fear-greed-history?days=${days}`,
+    options,
   )
 }
 
@@ -29,9 +31,11 @@ export async function fetchFearGreedHistory(
 export async function fetchNewsSentimentHistory(
   days: number = 30,
   granularity: 'daily' | 'hourly' = 'daily',
+  options: RequestInit = {},
 ): Promise<NewsSentimentHistoryResponse> {
   return apiRequest<NewsSentimentHistoryResponse>(
     `/api/market/news-sentiment-history?days=${days}&granularity=${granularity}`,
+    options,
   )
 }
 
@@ -40,9 +44,11 @@ export async function fetchNewsSentimentHistory(
  */
 export async function fetchIndicatorHistory(
   days: number = 365,
+  options: RequestInit = {},
 ): Promise<IndicatorHistoryResponse> {
   return apiRequest<IndicatorHistoryResponse>(
     `/api/market/indicator-history?days=${days}`,
+    options,
   )
 }
 
@@ -51,8 +57,10 @@ export async function fetchIndicatorHistory(
  */
 export async function fetchSectorHistory(
   days: number = 365,
+  options: RequestInit = {},
 ): Promise<SectorHistoryResponse> {
   return apiRequest<SectorHistoryResponse>(
     `/api/market/sector-history?days=${days}`,
+    options,
   )
 }

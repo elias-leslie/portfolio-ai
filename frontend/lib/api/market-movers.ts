@@ -10,13 +10,19 @@ import type { MarketMoversResponse, MarketStatusResponse } from './market-types'
  */
 export async function fetchMarketMovers(
   count: number = 10,
+  options: RequestInit = {},
 ): Promise<MarketMoversResponse> {
-  return apiRequest<MarketMoversResponse>(`/api/market/movers?count=${count}`)
+  return apiRequest<MarketMoversResponse>(
+    `/api/market/movers?count=${count}`,
+    options,
+  )
 }
 
 /**
  * Get current market status including expected data date for staleness detection
  */
-export async function fetchMarketStatus(): Promise<MarketStatusResponse> {
-  return apiRequest<MarketStatusResponse>('/api/market/status')
+export async function fetchMarketStatus(
+  options: RequestInit = {},
+): Promise<MarketStatusResponse> {
+  return apiRequest<MarketStatusResponse>('/api/market/status', options)
 }

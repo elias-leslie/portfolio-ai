@@ -28,7 +28,7 @@ from app.utils.git_automation import (
 class TestGetRepoRoot:
     """Tests for _get_repo_root function."""
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_returns_valid_repo_root(self, mock_run: Mock) -> None:
         """Test successful retrieval of repo root."""
         mock_run.return_value = MagicMock(
@@ -38,14 +38,14 @@ class TestGetRepoRoot:
         result = _get_repo_root()
         assert result == Path("/home/testuser/portfolio-ai")
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_returns_none_on_git_failure(self, mock_run: Mock) -> None:
         """Test returns None when git command fails."""
         mock_run.return_value = MagicMock(returncode=128)
         result = _get_repo_root()
         assert result is None
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_handles_exception(self, mock_run: Mock) -> None:
         """Test handles subprocess exceptions gracefully."""
         mock_run.side_effect = Exception("Git not installed")
@@ -56,7 +56,7 @@ class TestGetRepoRoot:
 class TestGitAdd:
     """Tests for _git_add function."""
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_successful_git_add(self, mock_run: Mock) -> None:
         """Test successful git add operation."""
         mock_run.return_value = MagicMock(returncode=0)
@@ -64,7 +64,7 @@ class TestGitAdd:
         assert result is True
         mock_run.assert_called_once()
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_git_add_failure(self, mock_run: Mock) -> None:
         """Test git add failure handling."""
         mock_run.return_value = MagicMock(
@@ -75,7 +75,7 @@ class TestGitAdd:
         result = _git_add(Path("/repo"), "/repo/file.txt")
         assert result is False
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_git_add_timeout(self, mock_run: Mock) -> None:
         """Test timeout handling in git add."""
         import subprocess
@@ -84,7 +84,7 @@ class TestGitAdd:
         result = _git_add(Path("/repo"), "/repo/file.txt")
         assert result is False
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_git_add_exception(self, mock_run: Mock) -> None:
         """Test exception handling in git add."""
         mock_run.side_effect = OSError("Pipe error")
@@ -95,14 +95,14 @@ class TestGitAdd:
 class TestGitCommit:
     """Tests for _git_commit function."""
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_successful_git_commit(self, mock_run: Mock) -> None:
         """Test successful git commit."""
         mock_run.return_value = MagicMock(returncode=0)
         result = _git_commit(Path("/repo"), "Test commit message")
         assert result is True
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_nothing_to_commit_is_success(self, mock_run: Mock) -> None:
         """Test that 'nothing to commit' is treated as success."""
         mock_run.return_value = MagicMock(
@@ -113,7 +113,7 @@ class TestGitCommit:
         result = _git_commit(Path("/repo"), "Test message")
         assert result is True
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_git_commit_failure(self, mock_run: Mock) -> None:
         """Test git commit failure handling."""
         mock_run.return_value = MagicMock(
@@ -124,7 +124,7 @@ class TestGitCommit:
         result = _git_commit(Path("/repo"), "Test message")
         assert result is False
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_git_commit_timeout(self, mock_run: Mock) -> None:
         """Test timeout handling in git commit."""
         import subprocess
@@ -133,7 +133,7 @@ class TestGitCommit:
         result = _git_commit(Path("/repo"), "Test message")
         assert result is False
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_git_commit_exception(self, mock_run: Mock) -> None:
         """Test exception handling in git commit."""
         mock_run.side_effect = RuntimeError("Unknown error")
@@ -144,14 +144,14 @@ class TestGitCommit:
 class TestGitPull:
     """Tests for _git_pull function."""
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_successful_git_pull(self, mock_run: Mock) -> None:
         """Test successful git pull."""
         mock_run.return_value = MagicMock(returncode=0)
         result = _git_pull(Path("/repo"))
         assert result is True
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_no_remote_configured(self, mock_run: Mock) -> None:
         """Test handling of 'no remote' scenario."""
         mock_run.return_value = MagicMock(
@@ -162,7 +162,7 @@ class TestGitPull:
         result = _git_pull(Path("/repo"))
         assert result is True  # Treated as success for local dev
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_merge_conflict_detected(self, mock_run: Mock) -> None:
         """Test merge conflict detection."""
         mock_run.return_value = MagicMock(
@@ -173,7 +173,7 @@ class TestGitPull:
         result = _git_pull(Path("/repo"))
         assert result is False
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_git_pull_timeout(self, mock_run: Mock) -> None:
         """Test timeout handling in git pull."""
         import subprocess
@@ -182,7 +182,7 @@ class TestGitPull:
         result = _git_pull(Path("/repo"))
         assert result is False
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_git_pull_exception(self, mock_run: Mock) -> None:
         """Test exception handling in git pull."""
         mock_run.side_effect = OSError("Network error")
@@ -193,14 +193,14 @@ class TestGitPull:
 class TestGitPush:
     """Tests for _git_push function."""
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_successful_git_push(self, mock_run: Mock) -> None:
         """Test successful git push."""
         mock_run.return_value = MagicMock(returncode=0)
         result = _git_push(Path("/repo"))
         assert result is True
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_no_remote_configured(self, mock_run: Mock) -> None:
         """Test handling of 'no remote' scenario."""
         mock_run.return_value = MagicMock(
@@ -211,7 +211,7 @@ class TestGitPush:
         result = _git_push(Path("/repo"))
         assert result is True  # Treated as success for local dev
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_git_push_failure(self, mock_run: Mock) -> None:
         """Test git push failure."""
         mock_run.return_value = MagicMock(
@@ -222,7 +222,7 @@ class TestGitPush:
         result = _git_push(Path("/repo"))
         assert result is False
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_git_push_timeout(self, mock_run: Mock) -> None:
         """Test timeout handling in git push."""
         import subprocess
@@ -231,7 +231,7 @@ class TestGitPush:
         result = _git_push(Path("/repo"))
         assert result is False
 
-    @patch("app.utils.git_automation.subprocess.run")
+    @patch("app.utils.git_automation.safe_subprocess.run")
     def test_git_push_exception(self, mock_run: Mock) -> None:
         """Test exception handling in git push."""
         mock_run.side_effect = RuntimeError("SSH key error")

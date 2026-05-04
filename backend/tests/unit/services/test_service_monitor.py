@@ -1,17 +1,28 @@
 from __future__ import annotations
 
-import subprocess
+from types import SimpleNamespace
 
 from app.services import service_monitor
 
 
-def test_get_process_by_pattern_returns_none_when_pgrep_missing(monkeypatch) -> None:
-    def fake_run(*_args, **_kwargs):
-        raise FileNotFoundError("pgrep")
-
-    monkeypatch.setattr(subprocess, "run", fake_run)
+def test_get_process_by_pattern_returns_none_when_no_process_matches(monkeypatch) -> None:
+    monkeypatch.setattr(service_monitor.psutil, "process_iter", lambda *_args, **_kwargs: [])
 
     assert service_monitor.get_process_by_pattern("redis-server") is None
+
+
+def test_get_process_by_pattern_matches_cmdline(monkeypatch) -> None:
+    fake_process = SimpleNamespace(
+        pid=1234,
+        info={"pid": 1234, "name": "python", "cmdline": ["python", "-m", "app.worker"]},
+    )
+    monkeypatch.setattr(
+        service_monitor.psutil,
+        "process_iter",
+        lambda *_args, **_kwargs: [fake_process],
+    )
+
+    assert service_monitor.get_process_by_pattern(r"python.*app\.worker") == 1234
 
 
 def test_check_backend_api_in_container_marks_backend_running(monkeypatch) -> None:

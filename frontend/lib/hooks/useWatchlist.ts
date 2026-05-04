@@ -56,7 +56,7 @@ export function useWatchlist() {
     queryFn: () => fetchWatchlistItems(),
     staleTime: 0, // Always consider data stale to enable frequent updates
     refetchInterval: refreshIntervalMs, // Refetch based on user preference
-    refetchIntervalInBackground: true, // Enable background refresh
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true, // Refetch when window regains focus
     refetchOnMount: 'always', // CRITICAL FIX: Always refetch to prevent stale cache after deletions
     structuralSharing: true, // Only update changed data, preserves UI state

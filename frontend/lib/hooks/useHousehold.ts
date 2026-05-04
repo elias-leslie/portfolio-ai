@@ -25,6 +25,7 @@ import {
 
 const DOCUMENT_REVIEW_POLL_INTERVAL_MS = 1500
 const DOCUMENT_REVIEW_POLL_ATTEMPTS = 40
+const HOUSEHOLD_WORKSPACE_STALE_MS = 1000 * 60 * 5
 
 async function refreshHouseholdQueries(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -83,21 +84,18 @@ async function watchUploadedDocument(
 export function useHouseholdDashboard() {
   return useQuery({
     queryKey: ['household', 'dashboard'],
-    queryFn: fetchHouseholdDashboard,
-    staleTime: 0,
-    refetchInterval: 1000 * 30,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
+    queryFn: ({ signal }) => fetchHouseholdDashboard({ signal }),
+    staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
+    refetchOnWindowFocus: false,
   })
 }
 
 export function useHouseholdDocuments() {
   return useQuery({
     queryKey: ['household', 'documents'],
-    queryFn: fetchHouseholdDocuments,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
+    queryFn: ({ signal }) => fetchHouseholdDocuments({ signal }),
+    staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
+    refetchOnWindowFocus: false,
   })
 }
 
@@ -105,9 +103,8 @@ export function useHouseholdFacts() {
   return useQuery({
     queryKey: ['household', 'facts'],
     queryFn: fetchConfirmedFacts,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
+    staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
+    refetchOnWindowFocus: false,
   })
 }
 
@@ -118,22 +115,18 @@ export function useHouseholdLedger(params?: {
 }) {
   return useQuery({
     queryKey: ['household', 'ledger', params ?? {}],
-    queryFn: () => fetchHouseholdLedger(params),
-    staleTime: 0,
-    refetchInterval: 1000 * 30,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
+    queryFn: ({ signal }) => fetchHouseholdLedger(params, { signal }),
+    staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
+    refetchOnWindowFocus: false,
   })
 }
 
 export function useHouseholdSpending(params?: { window?: string }) {
   return useQuery({
     queryKey: ['household', 'spending', params ?? {}],
-    queryFn: () => fetchHouseholdSpending(params),
-    staleTime: 0,
-    refetchInterval: 1000 * 30,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
+    queryFn: ({ signal }) => fetchHouseholdSpending(params, { signal }),
+    staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
+    refetchOnWindowFocus: false,
   })
 }
 
