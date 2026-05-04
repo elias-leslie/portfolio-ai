@@ -877,9 +877,11 @@ function HeadlineGroupCard({ group }: { group: HeadlineGroup }) {
 export function InvestingNewsPanel({
   watchlistItems,
   positions,
+  isInputLoading = false,
 }: {
   watchlistItems: WatchlistItem[]
   positions: PositionWithValue[]
+  isInputLoading?: boolean
 }) {
   const { data: marketNews } = useNewsIntelligence(undefined, { limit: 24 })
   const { data: newsHealth } = useNewsHealth(60000)
@@ -919,6 +921,23 @@ export function InvestingNewsPanel({
       }),
     [groups, marketNews, newsHealth, watchlistItems, watchlistNewsBySymbol],
   )
+
+  if (isInputLoading) {
+    return (
+      <SectionCard
+        title="News"
+        description="This panel stays quiet unless the news is specific to your holdings, watchlist, or market context."
+        variant="surface"
+      >
+        <div
+          aria-busy="true"
+          className="rounded-2xl border border-border/40 bg-surface-muted/15 px-5 py-8 text-sm text-text-muted"
+        >
+          Loading portfolio and watchlist news context.
+        </div>
+      </SectionCard>
+    )
+  }
 
   if (groups.length === 0) {
     return (

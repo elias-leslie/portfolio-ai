@@ -43,7 +43,7 @@ function PortfolioPageContent() {
     error: accountsError,
     refetch: refetchAccounts,
   } = useAccounts()
-  const { data: portfolio } = usePortfolio()
+  const { data: portfolio, isLoading: portfolioLoading } = usePortfolio()
   const {
     data: watchlistData,
     isLoading: watchlistLoading,
@@ -131,6 +131,7 @@ function PortfolioPageContent() {
         <InvestingNewsPanel
           watchlistItems={watchlistData?.items ?? []}
           positions={portfolio?.positions ?? []}
+          isInputLoading={portfolioLoading || watchlistLoading}
         />
       ),
     },

@@ -90,7 +90,11 @@ vi.mock('@/components/portfolio/InvestingPredictionPanel', () => ({
 }))
 
 vi.mock('@/components/portfolio/InvestingNewsPanel', () => ({
-  InvestingNewsPanel: () => <div>Investing News Panel</div>,
+  InvestingNewsPanel: ({ isInputLoading }: { isInputLoading?: boolean }) => (
+    <div>
+      Investing News Panel {isInputLoading ? 'Loading Inputs' : 'Ready Inputs'}
+    </div>
+  ),
 }))
 
 vi.mock('@/lib/hooks/usePortfolio', () => ({
@@ -183,6 +187,7 @@ describe('PortfolioPage', () => {
         totalGainPct: 10,
         cashBalanceTotal: 300,
       },
+      isLoading: false,
     })
     mockUseWatchlist.mockReturnValue({
       data: {
@@ -438,5 +443,31 @@ describe('PortfolioPage', () => {
     expect(screen.queryByText('Filter Bar')).not.toBeInTheDocument()
     expect(screen.queryByText('Search Bar')).not.toBeInTheDocument()
     expect(screen.queryByText('Watchlist Empty State')).not.toBeInTheDocument()
+  })
+
+  it('keeps news in loading state until portfolio and watchlist inputs resolve', async () => {
+    const user = userEvent.setup()
+    mockUsePortfolio.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+    })
+    mockUseWatchlist.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+      isFetching: true,
+    })
+
+    const { default: PortfolioPage } = await import('../portfolio/page')
+
+    render(<PortfolioPage />)
+
+    await user.click(screen.getByRole('button', { name: 'News' }))
+
+    expect(
+      screen.getByText(/Investing News Panel Loading Inputs/),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/Ready Inputs/)).not.toBeInTheDocument()
   })
 })
