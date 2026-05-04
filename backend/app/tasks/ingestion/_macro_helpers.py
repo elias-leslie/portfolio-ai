@@ -18,6 +18,17 @@ from ._fundamental_helpers import to_python
 logger = get_logger(__name__)
 
 YIELD_CURVE_FIELD_COUNT = 5  # yield_3m, yield_2y, yield_5y, yield_10y, yield_30y
+_YIELD_CURVE_INDICATORS = {
+    "YIELD_3M": "yield_3m",
+    "YIELD_2Y": "yield_2y",
+    "YIELD_5Y": "yield_5y",
+    "YIELD_10Y": "yield_10y",
+    "YIELD_30Y": "yield_30y",
+}
+_MACRO_INDICATOR_GROUPS = {
+    "fetch_inflation_data": ("CPI", "CORE_CPI", "PCE", "BREAKEVEN_5Y", "BREAKEVEN_10Y"),
+    "fetch_fed_funds_data": ("FEDFUNDS", "EFFR"),
+}
 
 
 def insert_yield_curve(
@@ -84,9 +95,28 @@ def fetch_and_store_yield_curve(
 ) -> None:
     """Fetch yield curve from FRED and persist; update stats in place."""
     try:
-        yield_data = fred.fetch_yield_curve()
-        if yield_data:
-            insert_yield_curve(storage, yield_data, today)
+        yield_data: dict[str, float | None] = {}
+        observation_dates: list[date] = []
+        for indicator, field_name in _YIELD_CURVE_INDICATORS.items():
+            latest = fred.get_latest_value(indicator)
+            if latest is None:
+                yield_data[field_name] = None
+                continue
+            observation_date, value = latest
+            observation_dates.append(observation_date)
+            yield_data[field_name] = value
+
+        if observation_dates:
+            y10 = yield_data.get("yield_10y")
+            y2 = yield_data.get("yield_2y")
+            y3m = yield_data.get("yield_3m")
+            yield_data["spread_10y_2y"] = (
+                y10 - y2 if isinstance(y10, float) and isinstance(y2, float) else None
+            )
+            yield_data["spread_10y_3m"] = (
+                y10 - y3m if isinstance(y10, float) and isinstance(y3m, float) else None
+            )
+            insert_yield_curve(storage, yield_data, min(observation_dates))
             stats["yield_curve_updated"] = True
             stats["indicators_inserted"] += YIELD_CURVE_FIELD_COUNT
     except Exception as e:
@@ -104,6 +134,21 @@ def fetch_and_store_indicators(
 ) -> None:
     """Fetch a named FRED indicator set and persist each value; update stats in place."""
     try:
+        indicator_names = _MACRO_INDICATOR_GROUPS.get(fetch_fn_name)
+        if indicator_names is not None:
+            inserted = 0
+            for indicator in indicator_names:
+                latest = fred.get_latest_value(indicator)
+                if latest is None:
+                    continue
+                observation_date, value = latest
+                insert_macro_indicator(storage, indicator, value, observation_date)
+                inserted += 1
+            if inserted:
+                stats["indicators_inserted"] += inserted
+                stats[stat_key] = True
+            return
+
         fetch_fn = getattr(fred, fetch_fn_name, None)
         if fetch_fn is None:
             raise AttributeError(f"FREDSource has no method '{fetch_fn_name}'")
