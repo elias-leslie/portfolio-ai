@@ -17,6 +17,11 @@ def test_trigger_remediation_uses_backfill_workflow_for_technical_indicators(
     data_freshness_service._remediation_cooldowns.clear()
     monkeypatch.setattr("app.services.data_freshness_service.get_admin_client", lambda: fake_admin)
     monkeypatch.setattr("app.services.data_freshness_service.is_market_open", lambda _: True)
+    monkeypatch.setattr("app.services.data_freshness_service.record_maintenance_start", lambda **_: 101)
+    monkeypatch.setattr(
+        "app.services.data_freshness_service.record_maintenance_completion",
+        lambda **_: None,
+    )
 
     task_id = data_freshness_service.trigger_remediation(
         table_name="technical_indicators",
@@ -26,6 +31,47 @@ def test_trigger_remediation_uses_backfill_workflow_for_technical_indicators(
 
     assert task_id == "run-123"
     fake_admin.run_workflow.assert_called_once_with("portfolio-backfill-indicators", "{}")
+
+
+def test_trigger_remediation_records_workflow_run_id(monkeypatch) -> None:
+    fake_admin = Mock()
+    fake_admin.run_workflow.return_value = SimpleNamespace(workflow_run_id="run-456")
+    completions: list[dict[str, object]] = []
+
+    data_freshness_service._remediation_cooldowns.clear()
+    monkeypatch.setattr("app.services.data_freshness_service.get_admin_client", lambda: fake_admin)
+    monkeypatch.setattr("app.services.data_freshness_service.record_maintenance_start", lambda **_: 101)
+    monkeypatch.setattr(
+        "app.services.data_freshness_service.record_maintenance_completion",
+        lambda **_: None,
+    )
+    monkeypatch.setattr("app.services.data_freshness_service.record_maintenance_start", lambda **_: 101)
+    monkeypatch.setattr(
+        "app.services.data_freshness_service.record_maintenance_completion",
+        lambda **kwargs: completions.append(kwargs),
+    )
+
+    task_id = data_freshness_service.trigger_remediation(
+        table_name="symbol_risk_metrics",
+        age_hours=200.0,
+        is_market_data=False,
+    )
+
+    assert task_id == "run-456"
+    assert completions == [
+        {
+            "log_id": 101,
+            "status": "success",
+            "summary": {
+                "table_name": "symbol_risk_metrics",
+                "age_hours": 200.0,
+                "remediation_task_name": "portfolio-risk-metrics",
+                "workflow_run_id": "run-456",
+                "trigger_status": "triggered",
+            },
+            "error_message": None,
+        }
+    ]
 
 
 def test_trigger_remediation_uses_reference_workflow_for_risk_metrics(monkeypatch) -> None:

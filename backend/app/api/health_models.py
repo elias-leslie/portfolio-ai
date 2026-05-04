@@ -24,6 +24,7 @@ from app.utils.health_workflows import WorkflowHealthInfo
 
 FRESHNESS_TASK_NAME = "check_all_data_freshness"
 FRESHNESS_ALERT_PREFIX = "data_freshness_alert_"
+FRESHNESS_REMEDIATION_PREFIX = "data_freshness_remediation_"
 DEFAULT_HOURS_WINDOW = 24
 DEFAULT_STALE_RUN_HOURS = 2
 MAX_RECENT_REMEDIATIONS = 100
@@ -53,7 +54,10 @@ DATA_FRESHNESS_QUERY = """
 RECENT_REMEDIATIONS_QUERY = """
     SELECT task_name, started_at, status, summary, error_message
     FROM maintenance_log
-    WHERE task_name LIKE 'data_freshness_alert_%%'
+    WHERE (
+        task_name LIKE 'data_freshness_alert_%%'
+        OR task_name LIKE 'data_freshness_remediation_%%'
+    )
     AND started_at > NOW() - make_interval(hours => ?)
     ORDER BY started_at DESC
     LIMIT 100
