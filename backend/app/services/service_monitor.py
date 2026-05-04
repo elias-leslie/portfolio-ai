@@ -7,7 +7,7 @@ since process-level visibility is limited to the current container.
 
 from __future__ import annotations
 
-import subprocess
+import re
 import time
 from functools import lru_cache
 from pathlib import Path
@@ -43,7 +43,7 @@ class ServiceStatus(BaseModel):
 
 
 def get_process_by_pattern(pattern: str) -> int | None:
-    """Find process ID by pattern using pgrep.
+    """Find process ID by matching process command lines.
 
     Args:
         pattern: Regex pattern to match process command line
@@ -52,27 +52,25 @@ def get_process_by_pattern(pattern: str) -> int | None:
         Process ID of the first matching process, or None if not found
     """
     try:
-        result = subprocess.run(
-            ["pgrep", "-f", pattern],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-
-        if result.returncode == 0 and result.stdout.strip():
-            # Return first PID if multiple matches
-            pids = result.stdout.strip().split("\n")
-            return int(pids[0])
-
+        compiled = re.compile(pattern)
+    except re.error as e:
+        logger.debug("process_lookup_invalid_pattern", pattern=pattern, error=str(e))
         return None
 
-    except FileNotFoundError as e:
-        logger.debug("process_lookup_tool_missing", pattern=pattern, error=str(e))
-        return None
-    except (subprocess.TimeoutExpired, ValueError, subprocess.SubprocessError) as e:
-        logger.debug("process_lookup_failed", pattern=pattern, error=str(e))
-        return None
+    for process in psutil.process_iter(["pid", "name", "cmdline"]):
+        try:
+            cmdline = process.info.get("cmdline")
+            if cmdline:
+                command = " ".join(str(part) for part in cmdline)
+            else:
+                command = str(process.info.get("name") or "")
+            if compiled.search(command):
+                return int(process.info.get("pid") or process.pid)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess) as e:
+            logger.debug("process_lookup_skipped", pattern=pattern, error=str(e))
+            continue
+
+    return None
 
 
 def get_service_status(
@@ -232,8 +230,6 @@ def check_frontend() -> ServiceStatus:
 def check_redis() -> ServiceStatus:
     """Check Redis server status.
 
-    Uses redis-cli on bare-metal, falls back to Python redis client in containers.
-
     Returns:
         ServiceStatus for Redis
     """
@@ -244,35 +240,15 @@ def check_redis() -> ServiceStatus:
         status.status = "running"  # Assume running; ping check below will correct
 
     if status.status == "running":
-        # Try redis-cli first (available on bare-metal), fall back to Python client
         try:
-            result = subprocess.run(
-                ["redis-cli", "ping"],
-                capture_output=True,
-                text=True,
-                timeout=2,
-                check=False,
-            )
-            if result.returncode != 0 or result.stdout.strip().upper() != "PONG":
+            r = redis_lib.from_url(settings.redis_url, socket_timeout=2)
+            if not r.ping():
                 status.status = "down"
                 status.message = "Redis ping failed"
-        except FileNotFoundError:
-            # redis-cli not installed (e.g. Docker container) — use Python client
-            try:
-                r = redis_lib.from_url(settings.redis_url, socket_timeout=2)
-                if not r.ping():
-                    status.status = "down"
-                    status.message = "Redis ping failed (Python client)"
-                r.close()
-            except Exception as e:
-                status.status = "down"
-                status.message = f"Redis unreachable: {e!s}"
-        except subprocess.TimeoutExpired:
-            status.status = "degraded"
-            status.message = "Redis ping timeout"
+            r.close()
         except Exception as e:
-            status.status = "degraded"
-            status.message = f"Redis check error: {e!s}"
+            status.status = "down"
+            status.message = f"Redis unreachable: {e!s}"
 
     return status
 

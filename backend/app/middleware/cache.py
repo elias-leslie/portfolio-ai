@@ -14,9 +14,10 @@ import json
 import re
 from collections.abc import Callable
 from functools import wraps
+from time import monotonic
 from typing import Any, TypedDict
 
-from cachetools import TTLCache
+from cachetools import LRUCache
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -44,8 +45,8 @@ CACHE_ENABLED = settings.cache_enabled
 CACHE_MAX_SIZE = settings.cache_max_size
 CACHE_DEFAULT_TTL = settings.cache_default_ttl
 
-_cache: TTLCache[str, tuple[Any, int, dict[str, str]]] = TTLCache(
-    maxsize=CACHE_MAX_SIZE, ttl=CACHE_DEFAULT_TTL
+_cache: LRUCache[str, tuple[Any, int, dict[str, str], float]] = LRUCache(
+    maxsize=CACHE_MAX_SIZE
 )
 
 _cache_stats: dict[str, int] = {
@@ -87,22 +88,41 @@ def _serialize_result(result: Any) -> Any:
     return result
 
 
-def _store_result_in_cache(cache_key: str, result: Any, serialized: Any) -> None:
+def _store_result_in_cache(cache_key: str, result: Any, serialized: Any, ttl: int) -> None:
     """Store a handler result in the cache."""
+    expires_at = monotonic() + ttl
     if isinstance(result, JSONResponse):
         body = result.body.decode() if isinstance(result.body, bytes) else result.body
-        _cache[cache_key] = (body, result.status_code, dict(result.headers))
+        _cache[cache_key] = (body, result.status_code, dict(result.headers), expires_at)
     elif isinstance(result, Response):
         body = result.body if hasattr(result, "body") else str(result)
         headers = dict(result.headers) if hasattr(result, "headers") else {}
-        _cache[cache_key] = (body, result.status_code, headers)
+        _cache[cache_key] = (body, result.status_code, headers, expires_at)
     else:
-        _cache[cache_key] = (serialized, 200, {})
+        _cache[cache_key] = (serialized, 200, {}, expires_at)
+
+
+def _get_cached_entry(cache_key: str) -> tuple[Any, int, dict[str, str]] | None:
+    """Return cached entry if present and unexpired."""
+    cached = _cache.get(cache_key)
+    if cached is None:
+        return None
+
+    cached_data, status_code, headers, expires_at = cached
+    if monotonic() >= expires_at:
+        del _cache[cache_key]
+        logger.debug("cache_expired", cache_key=cache_key)
+        return None
+
+    return cached_data, status_code, headers
 
 
 def _build_cached_response(cache_key: str) -> JSONResponse:
     """Return a JSONResponse from a cache hit."""
-    cached_data, status_code, headers = _cache[cache_key]
+    cached_entry = _get_cached_entry(cache_key)
+    if cached_entry is None:
+        raise KeyError(cache_key)
+    cached_data, status_code, headers = cached_entry
     _cache_stats["hits"] += 1
     logger.debug("cache_hit", cache_key=cache_key)
     return JSONResponse(
@@ -157,7 +177,7 @@ def cache_response(
             if key_prefix:
                 cache_key = f"{key_prefix}:{cache_key}"
 
-            if cache_key in _cache:
+            if _get_cached_entry(cache_key) is not None:
                 return _build_cached_response(cache_key)
 
             _cache_stats["misses"] += 1
@@ -165,7 +185,7 @@ def cache_response(
 
             result = await func(*args, **kwargs)  # type: ignore[misc]
             serialized = _serialize_result(result)
-            _store_result_in_cache(cache_key, result, serialized)
+            _store_result_in_cache(cache_key, result, serialized, ttl)
 
             if isinstance(result, Response):
                 for key, value in _CACHE_HEADERS_MISS.items():

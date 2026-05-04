@@ -16,15 +16,22 @@ import type {
 /**
  * Get current market conditions (S&P 500, VIX, 10Y yield, USD index)
  */
-export async function fetchMarketConditions(): Promise<MarketConditionsResponse> {
-  return apiRequest<MarketConditionsResponse>('/api/market/conditions')
+export async function fetchMarketConditions(
+  options: RequestInit = {},
+): Promise<MarketConditionsResponse> {
+  return apiRequest<MarketConditionsResponse>('/api/market/conditions', options)
 }
 
 /**
  * Get unified market intelligence (narrative + dual scoring + sectors)
  */
-export async function fetchMarketIntelligence(): Promise<MarketIntelligenceResponse> {
-  return apiRequest<MarketIntelligenceResponse>('/api/market/intelligence')
+export async function fetchMarketIntelligence(
+  options: RequestInit = {},
+): Promise<MarketIntelligenceResponse> {
+  return apiRequest<MarketIntelligenceResponse>(
+    '/api/market/intelligence',
+    options,
+  )
 }
 
 /**
@@ -42,8 +49,12 @@ export async function fetchPrices(symbols: string[]): Promise<PricesResponse> {
  */
 export async function fetchMarketTrends(
   days: number = 30,
+  options: RequestInit = {},
 ): Promise<MarketTrendsResponse> {
-  return apiRequest<MarketTrendsResponse>(`/api/market/trends?days=${days}`)
+  return apiRequest<MarketTrendsResponse>(
+    `/api/market/trends?days=${days}`,
+    options,
+  )
 }
 
 /**
@@ -51,9 +62,11 @@ export async function fetchMarketTrends(
  */
 export async function fetchMarketPredictionCommittee(
   windowDays: number = 3,
+  options: RequestInit = {},
 ): Promise<MarketPredictionCommitteeResponse> {
   return apiRequest<MarketPredictionCommitteeResponse>(
     `/api/market/prediction/committee?window_days=${windowDays}`,
+    options,
   )
 }
 
@@ -74,9 +87,11 @@ export async function refreshMarketPredictionCommittee(
  */
 export async function fetchMarketPredictionReview(
   windowDays: number = 3,
+  options: RequestInit = {},
 ): Promise<MarketPredictionSeatReviewResponse> {
   return apiRequest<MarketPredictionSeatReviewResponse>(
     `/api/market/prediction/review?window_days=${windowDays}`,
+    options,
   )
 }
 
@@ -87,8 +102,10 @@ export async function fetchMarketPredictionHistory(
   symbol: string,
   windowDays: number = 3,
   limit: number = 30,
+  options: RequestInit = {},
 ): Promise<MarketPredictionHistoryResponse> {
   return apiRequest<MarketPredictionHistoryResponse>(
     `/api/market/prediction/committee/history?symbol=${encodeURIComponent(symbol)}&window_days=${windowDays}&limit=${limit}`,
+    options,
   )
 }

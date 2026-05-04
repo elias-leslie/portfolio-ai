@@ -59,7 +59,7 @@ function getPredictionCommitteeRefreshMs(
 export function useMarketIntelligence(): UseQueryResult<MarketIntelligenceResponse> {
   return useQuery({
     queryKey: ['market', 'intelligence'],
-    queryFn: fetchMarketIntelligence,
+    queryFn: ({ signal }) => fetchMarketIntelligence({ signal }),
     staleTime: 1000 * 60 * 15, // 15 minutes
     refetchInterval: 1000 * 60 * 15, // Refetch every 15 minutes
     refetchOnWindowFocus: false, // Data doesn't change that fast
@@ -74,13 +74,14 @@ export function useMarketPredictionCommittee(
 ): UseQueryResult<MarketPredictionCommitteeResponse> {
   return useQuery({
     queryKey: ['market', 'prediction', 'committee', windowDays],
-    queryFn: () => fetchMarketPredictionCommittee(windowDays),
+    queryFn: ({ signal }) =>
+      fetchMarketPredictionCommittee(windowDays, { signal }),
     staleTime: 1000 * 60,
     refetchInterval: (query) =>
       getPredictionCommitteeRefreshMs(
         query.state.data as MarketPredictionCommitteeResponse | undefined,
       ),
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   })
 }
@@ -115,7 +116,8 @@ export function useMarketPredictionReview(
 ): UseQueryResult<MarketPredictionSeatReviewResponse> {
   return useQuery({
     queryKey: ['market', 'prediction', 'review', windowDays],
-    queryFn: () => fetchMarketPredictionReview(windowDays),
+    queryFn: ({ signal }) =>
+      fetchMarketPredictionReview(windowDays, { signal }),
     staleTime: 1000 * 60 * 10,
     refetchInterval: 1000 * 60 * 10,
     refetchOnWindowFocus: true,
@@ -139,7 +141,8 @@ export function useMarketPredictionHistory(
       windowDays,
       limit,
     ],
-    queryFn: () => fetchMarketPredictionHistory(symbol, windowDays, limit),
+    queryFn: ({ signal }) =>
+      fetchMarketPredictionHistory(symbol, windowDays, limit, { signal }),
     staleTime: 1000 * 60 * 10,
     refetchInterval: 1000 * 60 * 10,
     refetchOnWindowFocus: true,
@@ -156,7 +159,7 @@ export function useFearGreedHistory(
 ): UseQueryResult<FearGreedHistoryResponse> {
   return useQuery({
     queryKey: ['market', 'fear-greed-history', days],
-    queryFn: () => fetchFearGreedHistory(days),
+    queryFn: ({ signal }) => fetchFearGreedHistory(days, { signal }),
     staleTime: 1000 * 60 * 2, // 2 minutes - consider stale quickly
     refetchInterval: 1000 * 60 * 5, // Auto-refetch every 5 minutes
     refetchOnWindowFocus: true, // Refetch when user returns to tab
@@ -174,7 +177,8 @@ export function useNewsSentimentHistory(
 ): UseQueryResult<NewsSentimentHistoryResponse> {
   return useQuery({
     queryKey: ['market', 'news-sentiment-history', days, granularity],
-    queryFn: () => fetchNewsSentimentHistory(days, granularity),
+    queryFn: ({ signal }) =>
+      fetchNewsSentimentHistory(days, granularity, { signal }),
     staleTime: 1000 * 60 * 2, // 2 minutes
     refetchInterval: 1000 * 60 * 5, // Auto-refetch every 5 minutes
     refetchOnWindowFocus: true,
@@ -190,7 +194,7 @@ export function useIndicatorHistory(
 ): UseQueryResult<IndicatorHistoryResponse> {
   return useQuery({
     queryKey: ['market', 'indicator-history', days],
-    queryFn: () => fetchIndicatorHistory(days),
+    queryFn: ({ signal }) => fetchIndicatorHistory(days, { signal }),
     staleTime: 1000 * 60 * 2, // 2 minutes - consider stale quickly
     refetchInterval: 1000 * 60 * 5, // Auto-refetch every 5 minutes
     refetchOnWindowFocus: true, // Refetch when user returns to tab
@@ -206,7 +210,7 @@ export function useSectorHistory(
 ): UseQueryResult<SectorHistoryResponse> {
   return useQuery({
     queryKey: ['market', 'sector-history', days],
-    queryFn: () => fetchSectorHistory(days),
+    queryFn: ({ signal }) => fetchSectorHistory(days, { signal }),
     staleTime: 1000 * 60 * 2, // 2 minutes - consider stale quickly
     refetchInterval: 1000 * 60 * 5, // Auto-refetch every 5 minutes
     refetchOnWindowFocus: true, // Refetch when user returns to tab
@@ -222,7 +226,7 @@ export function useMarketMovers(
 ): UseQueryResult<MarketMoversResponse> {
   return useQuery({
     queryKey: ['market', 'movers', count],
-    queryFn: () => fetchMarketMovers(count),
+    queryFn: ({ signal }) => fetchMarketMovers(count, { signal }),
     staleTime: 1000 * 60 * 15, // 15 minutes
     refetchInterval: 1000 * 60 * 15, // Auto-refetch every 15 minutes
     refetchOnWindowFocus: true,
@@ -236,7 +240,7 @@ export function useMarketMovers(
 export function useMarketStatus(): UseQueryResult<MarketStatusResponse> {
   return useQuery({
     queryKey: ['market', 'status'],
-    queryFn: fetchMarketStatus,
+    queryFn: ({ signal }) => fetchMarketStatus({ signal }),
     staleTime: 1000 * 60, // 1 minute
     refetchInterval: 1000 * 60, // Auto-refetch every minute
     refetchOnWindowFocus: true,
@@ -252,7 +256,7 @@ export function useMarketEvents(
 ): UseQueryResult<MarketEventsChartResponse> {
   return useQuery({
     queryKey: ['market', 'events', days],
-    queryFn: () => fetchMarketEventsForChart(days),
+    queryFn: ({ signal }) => fetchMarketEventsForChart(days, { signal }),
     staleTime: 1000 * 60 * 5, // 5 minutes
     refetchOnWindowFocus: false, // Events rarely change
   })

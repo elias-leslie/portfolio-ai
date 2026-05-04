@@ -22,8 +22,39 @@ class ApiError extends Error {
 /**
  * Sleep helper for retry backoff
  */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+function createAbortError(signal?: AbortSignal | null): Error {
+  if (signal?.reason instanceof Error) {
+    return signal.reason
+  }
+  const error = new Error('Request aborted')
+  error.name = 'AbortError'
+  return error
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
+}
+
+function sleep(ms: number, signal?: AbortSignal | null): Promise<void> {
+  if (!signal) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
+  if (signal.aborted) {
+    return Promise.reject(createAbortError(signal))
+  }
+
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = () => {
+      clearTimeout(timeoutId)
+      reject(createAbortError(signal))
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
 function hasJsonBody(response: Response): boolean {
@@ -77,6 +108,11 @@ export async function apiRequest<T>(
   let lastError: Error | null = null
   const method = options.method?.toUpperCase() ?? 'GET'
   const shouldRetry = isRetryableMethod(method)
+  const signal = options.signal
+
+  if (signal?.aborted) {
+    throw createAbortError(signal)
+  }
 
   // Retry loop with exponential backoff
   for (let attempt = 0; attempt < retries; attempt++) {
@@ -115,6 +151,10 @@ export async function apiRequest<T>(
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error))
 
+      if (isAbortError(error) || signal?.aborted) {
+        throw isAbortError(error) ? lastError : createAbortError(signal)
+      }
+
       // Don't retry on client errors (4xx) - these won't succeed on retry
       if (
         error instanceof ApiError &&
@@ -132,7 +172,7 @@ export async function apiRequest<T>(
       if (attempt < retries - 1) {
         // Exponential backoff: 1s, 2s, 3s
         const backoffMs = (attempt + 1) * 1000
-        await sleep(backoffMs)
+        await sleep(backoffMs, signal)
       }
     }
   }

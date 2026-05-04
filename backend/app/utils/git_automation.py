@@ -10,10 +10,12 @@ Capabilities:
 from __future__ import annotations
 
 import json
-import subprocess
 from datetime import datetime
 from pathlib import Path
+from subprocess import CompletedProcess, TimeoutExpired
 from typing import Any
+
+from app.utils import safe_subprocess
 
 from ..logging_config import get_logger
 
@@ -141,17 +143,17 @@ def _run_git(
     args: list[str],
     repo_root: Path | None = None,
     timeout: int = 5,
-) -> subprocess.CompletedProcess | None:
+) -> CompletedProcess[Any] | None:
     """Run a git command, returning CompletedProcess or None on timeout/error."""
     cmd = ["git"]
     if repo_root is not None:
         cmd += ["-C", str(repo_root)]
     cmd += args
     try:
-        return subprocess.run(
+        return safe_subprocess.run(
             cmd, capture_output=True, text=True, timeout=timeout, check=False
         )
-    except subprocess.TimeoutExpired:
+    except TimeoutExpired:
         logger.error("git_timeout", args=args, timeout_seconds=timeout)
         return None
     except Exception as e:
@@ -159,7 +161,7 @@ def _run_git(
         return None
 
 
-def _no_remote(result: subprocess.CompletedProcess) -> bool:
+def _no_remote(result: CompletedProcess[Any]) -> bool:
     """Return True if the git output indicates no remote is configured."""
     output = (result.stdout + result.stderr).lower()
     return "no remote" in output or "does not appear to be a" in output
