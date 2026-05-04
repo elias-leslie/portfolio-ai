@@ -8,7 +8,22 @@ export interface SentimentSummaryData {
   latestNewsSentiment: number | null | undefined
   latestPcRatio: number | null | undefined
   latestDate: string | null
+  latestSource?: 'daily_close' | 'live_proxy'
+  latestAsOf?: string | null
   expectedDataDate?: string
+}
+
+function formatLiveAsOf(value?: string | null) {
+  if (!value) return null
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'America/New_York',
+  })
 }
 
 export function SentimentLegendSummary({
@@ -16,12 +31,17 @@ export function SentimentLegendSummary({
   latestNewsSentiment,
   latestPcRatio,
   latestDate,
+  latestSource = 'daily_close',
+  latestAsOf,
   expectedDataDate,
 }: SentimentSummaryData) {
   const dataDate = latestDate?.split('T')[0]
-  const freshness = dataDate
-    ? checkDataFreshness(dataDate, expectedDataDate)
-    : null
+  const isLiveProxy = latestSource === 'live_proxy'
+  const liveAsOf = formatLiveAsOf(latestAsOf)
+  const freshness =
+    dataDate && !isLiveProxy
+      ? checkDataFreshness(dataDate, expectedDataDate)
+      : null
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -30,7 +50,7 @@ export function SentimentLegendSummary({
           <span className="flex items-center gap-1">
             <span className="w-3 h-0.5 bg-chart-purple rounded"></span>
             <span>
-              Fear &amp; Greed:{' '}
+              {isLiveProxy ? 'Live Mood' : 'Fear & Greed'}:{' '}
               <span className="font-semibold text-text">{currentScore}</span>
             </span>
           </span>
@@ -59,12 +79,19 @@ export function SentimentLegendSummary({
             </span>
           )}
         </div>
-        {dataDate && freshness && (
+        {isLiveProxy ? (
+          <span className="text-[10px]">
+            Live mood as of{' '}
+            {liveAsOf ??
+              (dataDate ? formatDate(dataDate, false) : 'latest quote')}{' '}
+            ET
+          </span>
+        ) : dataDate && freshness ? (
           <span className="text-[10px]" title={freshness.tooltip}>
             Latest daily sentiment through {formatDate(dataDate, false)}{' '}
             {freshness.indicator}
           </span>
-        )}
+        ) : null}
       </div>
       {/* Event legend */}
       <EventLegend />

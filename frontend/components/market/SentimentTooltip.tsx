@@ -12,6 +12,7 @@ export interface TooltipPayload {
   payload: {
     newsRaw?: number
     label?: string
+    source?: 'daily_close' | 'live_proxy'
     pcRatioRaw?: number | null
   }
 }
@@ -35,6 +36,7 @@ export function SentimentTooltip({
         })
       : ''
   const fgValue = payload.find((p) => p.dataKey === 'score')
+  const moodSource = fgValue?.payload.source
   const newsValue = payload.find((p) => p.dataKey === 'newsSentiment')
   const pcValue = payload.find((p) => p.dataKey === 'pcRatioScaled')
 
@@ -43,7 +45,9 @@ export function SentimentTooltip({
       <div className="font-medium mb-1">{dateStr}</div>
       {fgValue && (
         <div className="flex justify-between gap-4">
-          <span className="text-chart-purple">Fear &amp; Greed:</span>
+          <span className="text-chart-purple">
+            {moodSource === 'live_proxy' ? 'Live Mood:' : 'Fear & Greed:'}
+          </span>
           <span className="font-semibold">
             {fgValue.value} ({fgValue.payload.label})
           </span>

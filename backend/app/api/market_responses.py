@@ -62,6 +62,15 @@ class FearGreedHistoryResponse(BaseModel):
     dates: list[str] = Field(..., description="ISO date strings")
     scores: list[float] = Field(..., description="Fear & Greed scores (0-100)")
     labels: list[str] = Field(..., description="Labels (Extreme Fear, Fear, etc.)")
+    sources: list[str] = Field(
+        default_factory=list,
+        description="Per-point source: daily_close or live_proxy",
+    )
+    latest_source: str = Field(
+        "daily_close",
+        description="Source for the latest point",
+    )
+    latest_as_of: str | None = Field(None, description="Timestamp for the latest point")
     put_call_ratios: list[float | None] = Field(
         default_factory=list,
         description="Put/Call ratios (null if not available for that date)",
