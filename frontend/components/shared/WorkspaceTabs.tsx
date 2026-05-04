@@ -63,8 +63,7 @@ export function WorkspaceTabs({
     nextUrl.search = nextParams.toString()
     window.history.replaceState(window.history.state, '', nextUrl)
   }
-  const initialValue = resolveValue(readRequestedValue())
-  const [value, setValue] = useState(initialValue)
+  const [value, setValue] = useState(fallbackValue)
 
   useEffect(() => {
     if (typeof window === 'undefined') {

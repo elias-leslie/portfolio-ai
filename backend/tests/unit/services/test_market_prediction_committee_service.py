@@ -311,6 +311,7 @@ def test_research_scoreboard_defaults_to_no_edge_for_weak_live_proof(monkeypatch
     assert result.research_scoreboard.sufficient_samples is False
     assert result.research_scoreboard.beats_baseline is False
     assert result.research_scoreboard.status_reason == "Walk-forward passed; live sample still building: 48/80."
+    assert result.lead_call.top_source_clusters[0].as_of_date == "2026-04-21"
 
 
 def test_research_scoreboard_shadows_only_after_baseline_beat_without_cost_proof(monkeypatch) -> None:
@@ -968,7 +969,7 @@ def test_generate_snapshot_uses_weighted_committee_synthesis_and_additive_review
         "_build_source_snapshot",
         lambda _: {
             "clusters": {
-                "market_regime": {"freshness": "fresh"},
+                "market_regime": {"freshness": "fresh", "latest_common_date": "2026-04-21"},
                 "macro_calendar": {"freshness": "fresh", "reason": "ok", "upcoming_event_count": 1, "next_event_date": "2026-04-22"},
             }
         },
@@ -1002,6 +1003,7 @@ def test_generate_snapshot_uses_weighted_committee_synthesis_and_additive_review
     assert repo.calls[0].metadata["active_cluster_keys"] == ["macro_calendar", "market_regime"]
     assert [cluster.cluster for cluster in repo.calls[0].top_source_clusters] == ["macro_calendar", "market_regime"]
     assert [cluster.weight for cluster in repo.calls[0].top_source_clusters] == [pytest.approx(0.40), pytest.approx(0.32)]
+    assert [cluster.as_of_date for cluster in repo.calls[0].top_source_clusters] == ["2026-04-22", "2026-04-21"]
     assert result.source_snapshot["clusters"]["macro_calendar"]["effective_weight"] == pytest.approx(0.40)
     assert result.source_snapshot["clusters"]["market_regime"]["effective_weight"] == pytest.approx(0.32)
     assert result.source_snapshot["clusters"].get("sentiment", {}).get("effective_weight") is None
