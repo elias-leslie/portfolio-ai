@@ -11,6 +11,7 @@ from datetime import date
 
 import pytest
 
+from app.agents.clients.agent_hub_client import AGENT_HUB_ENABLED
 from app.strategies.models import ResearchInsights, StrategyGenerationResult
 from app.strategies.optimizer import StrategyOptimizer
 from app.strategies.research_aggregator import ResearchAggregationService
@@ -27,10 +28,10 @@ class TestStrategyGenerationPipeline:
         """Test complete pipeline: research → generation → optimization → storage.
 
         This is an end-to-end test of the full workflow.
-        Requires: Database with test data, LLM API access.
+        Requires: Database with test data and Agent Hub/LLM access.
         """
-        # Skip if no LLM access (CI environment)
-        pytest.skip("Requires LLM API access - run manually for full integration testing")
+        if not AGENT_HUB_ENABLED:
+            pytest.skip("Requires Agent Hub/LLM access; set AGENT_HUB_ENABLED=true.")
 
         symbol = "AAPL"
 
