@@ -698,6 +698,10 @@ class MarketPredictionCommitteeService:
             raw_snapshot=response.source_snapshot,
             market_date=market_date,
         )
+        source_dates = self._source_date_index(normalized_source_snapshot)
+        calls = [self._with_call_source_dates(call, source_dates) for call in calls]
+        votes = [self._with_vote_source_dates(vote, source_dates) for vote in votes]
+        lead_call = self._with_call_source_dates(lead_call, source_dates) if lead_call else None
         metadata = self._normalize_metadata(getattr(response, "_storage_metadata", {}))
         truth_state = self._determine_truth_state(
             lead_call=lead_call,
@@ -1201,6 +1205,28 @@ class MarketPredictionCommitteeService:
         elif cluster_name == "macro_calendar":
             candidate = payload.get("next_event_date")
         return self._normalize_iso_date(candidate)
+
+    def _source_cluster_as_of_date(
+        self,
+        *,
+        cluster_name: str,
+        payload: dict[str, Any],
+    ) -> str | None:
+        explicit = self._normalize_iso_date(payload.get("as_of_date") or payload.get("asOfDate"))
+        if explicit is not None:
+            return explicit
+        freshness_date = self._freshness_cluster_as_of_date(cluster_name=cluster_name, payload=payload)
+        if freshness_date is not None:
+            return freshness_date
+        if cluster_name == "sentiment" and isinstance(fear_greed := payload.get("fear_greed"), dict):
+            sentiment_date = self._normalize_iso_date(fear_greed.get("date"))
+            if sentiment_date is not None:
+                return sentiment_date
+        for key in ("latest_observation_date", "market_date", "date", "last_updated", "updated_at"):
+            normalized = self._normalize_iso_date(payload.get(key))
+            if normalized is not None:
+                return normalized
+        return None
 
     def _freshness_cluster_detail(
         self,
@@ -2207,6 +2233,7 @@ class MarketPredictionCommitteeService:
                     cluster=normalized,
                     weight=float(effective),
                     freshness=row.get("freshness"),
+                    as_of_date=cluster.as_of_date,
                     note=cluster.note,
                 )
             )
@@ -2293,10 +2320,51 @@ class MarketPredictionCommitteeService:
                     cluster=cluster,
                     weight=self._optional_float(self._value(raw, "weight")),
                     freshness=self._normalize_attribution_freshness(self._value(raw, "freshness")),
+                    as_of_date=self._normalize_iso_date(self._value(raw, "as_of_date") or self._value(raw, "asOfDate")),
                     note=self._optional_str(self._value(raw, "note")),
                 )
             )
         return clusters
+
+    def _source_date_index(self, source_snapshot: dict[str, Any]) -> dict[str, str]:
+        return {
+            cluster["cluster"]: cluster["as_of_date"]
+            for cluster in self._ordered_snapshot_clusters(source_snapshot)
+            if cluster.get("as_of_date")
+        }
+
+    def _with_cluster_source_dates(
+        self,
+        clusters: list[PredictionSourceCluster],
+        source_dates: dict[str, str],
+    ) -> list[PredictionSourceCluster]:
+        if not source_dates:
+            return clusters
+        enriched: list[PredictionSourceCluster] = []
+        for cluster in clusters:
+            normalized = normalize_market_prediction_cluster_key(cluster.cluster)
+            as_of_date = cluster.as_of_date or (source_dates.get(normalized) if normalized else None)
+            if as_of_date != cluster.as_of_date:
+                enriched.append(cluster.model_copy(update={"as_of_date": as_of_date}))
+            else:
+                enriched.append(cluster)
+        return enriched
+
+    def _with_call_source_dates(
+        self,
+        call: MarketPredictionCall,
+        source_dates: dict[str, str],
+    ) -> MarketPredictionCall:
+        clusters = self._with_cluster_source_dates(call.top_source_clusters, source_dates)
+        return call.model_copy(update={"top_source_clusters": clusters}) if clusters != call.top_source_clusters else call
+
+    def _with_vote_source_dates(
+        self,
+        vote: CommitteeSeatVote,
+        source_dates: dict[str, str],
+    ) -> CommitteeSeatVote:
+        clusters = self._with_cluster_source_dates(vote.source_clusters, source_dates)
+        return vote.model_copy(update={"source_clusters": clusters}) if clusters != vote.source_clusters else vote
 
     def _fallback_vote_clusters(
         self,
@@ -2329,16 +2397,22 @@ class MarketPredictionCommitteeService:
     ) -> list[PredictionSourceCluster]:
         vote_clusters: list[PredictionSourceCluster] = []
         seen: set[str] = set()
+        snapshot_clusters = {
+            cluster["cluster"]: cluster for cluster in self._ordered_snapshot_clusters(source_snapshot)
+        }
         for vote in self._votes_in_raw_order(raw_votes=raw_votes, votes=votes):
             for cluster in vote.source_clusters:
                 if cluster.cluster in seen:
                     continue
                 seen.add(cluster.cluster)
+                snapshot_cluster = snapshot_clusters.get(cluster.cluster)
                 vote_clusters.append(
                     PredictionSourceCluster(
                         cluster=cluster.cluster,
                         weight=None,
                         freshness=cluster.freshness or "unknown",
+                        as_of_date=cluster.as_of_date
+                        or (snapshot_cluster.get("as_of_date") if snapshot_cluster else None),
                         note=cluster.note,
                     )
                 )
@@ -2346,9 +2420,8 @@ class MarketPredictionCommitteeService:
                     return vote_clusters
         if vote_clusters:
             return vote_clusters
-        snapshot_clusters = self._ordered_snapshot_clusters(source_snapshot)
         if snapshot_clusters:
-            return [self._build_fallback_cluster(cluster) for cluster in snapshot_clusters[:3]]
+            return [self._build_fallback_cluster(cluster) for cluster in list(snapshot_clusters.values())[:3]]
         return [
             PredictionSourceCluster(
                 cluster="unattributed",
@@ -2358,7 +2431,7 @@ class MarketPredictionCommitteeService:
             )
         ]
 
-    def _ordered_snapshot_clusters(self, source_snapshot: dict[str, Any]) -> list[dict[str, str]]:
+    def _ordered_snapshot_clusters(self, source_snapshot: dict[str, Any]) -> list[dict[str, Any]]:
         raw_clusters = self._normalize_source_snapshot_clusters(
             source_snapshot.get("clusters") if isinstance(source_snapshot, dict) else {}
         )
@@ -2368,6 +2441,10 @@ class MarketPredictionCommitteeService:
                 {
                     "cluster": cluster_name,
                     "freshness": self._normalize_source_freshness(cluster_payload.get("freshness")),
+                    "as_of_date": self._source_cluster_as_of_date(
+                        cluster_name=cluster_name,
+                        payload=cluster_payload,
+                    ),
                 }
             )
         usable.sort(
@@ -2379,11 +2456,12 @@ class MarketPredictionCommitteeService:
         )
         return usable
 
-    def _build_fallback_cluster(self, cluster: dict[str, str]) -> PredictionSourceCluster:
+    def _build_fallback_cluster(self, cluster: dict[str, Any]) -> PredictionSourceCluster:
         return PredictionSourceCluster(
             cluster=cluster["cluster"],
             weight=None,
             freshness=cluster["freshness"],
+            as_of_date=cluster.get("as_of_date"),
             note=DEFAULT_ATTRIBUTION_NOTE,
         )
 

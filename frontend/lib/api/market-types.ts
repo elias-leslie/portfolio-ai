@@ -240,6 +240,7 @@ export interface PredictionSourceCluster {
   cluster: string
   weight?: number | null
   freshness?: PredictionSourceFreshness | null
+  asOfDate?: string | null
   note?: string | null
 }
 

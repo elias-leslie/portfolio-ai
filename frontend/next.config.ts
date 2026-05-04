@@ -1,8 +1,14 @@
 import type { NextConfig } from 'next'
 import { PORTS } from './lib/api-config'
 
+const allowedDevOrigins = (process.env.NEXT_ALLOWED_DEV_ORIGINS ?? '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+
 const nextConfig: NextConfig = {
   output: 'standalone',
+  ...(allowedDevOrigins.length ? { allowedDevOrigins } : {}),
   // Don't redirect trailing slashes - let FastAPI middleware normalize them
   skipTrailingSlashRedirect: true,
   // WebSocket routing still needs a rewrite because route handlers cannot proxy

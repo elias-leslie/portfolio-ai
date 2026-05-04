@@ -46,6 +46,7 @@ class PredictionSourceCluster(BaseModel):
     cluster: str = Field(..., description="Source cluster label")
     weight: float | None = Field(None, description="Optional contribution weight")
     freshness: str | None = Field(None, description="Freshness note for the cluster")
+    as_of_date: str | None = Field(None, description="Source data date used for attribution freshness")
     note: str | None = Field(None, description="Optional plain-language attribution note")
 
 

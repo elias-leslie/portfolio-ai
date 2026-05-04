@@ -34,7 +34,9 @@ function buildCall(windowDays: number, overrides: JsonRecord = {}): JsonRecord {
     probUp: 0.453,
     expectedMovePct: -0.566,
     confidenceScore: 36,
-    topSourceClusters: [{ cluster: 'market_regime', freshness: 'fresh' }],
+    topSourceClusters: [
+      { cluster: 'market_regime', freshness: 'fresh', asOfDate: '2026-04-29' },
+    ],
     ...overrides,
   }
 }
@@ -340,5 +342,13 @@ describe('InvestingPredictionPanel', () => {
       'Walk-forward and live checks pass after costs.',
     )
     expect(screen.getAllByText('+0.18%').length).toBeGreaterThan(0)
+  })
+
+  it('renders source attribution as-of dates', () => {
+    render(<InvestingPredictionPanel />)
+
+    expect(
+      screen.getByTestId('prediction-source-attribution'),
+    ).toHaveTextContent('As of 2026-04-29')
   })
 })

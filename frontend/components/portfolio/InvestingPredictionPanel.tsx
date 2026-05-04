@@ -111,6 +111,7 @@ type NormalizedSourceRow = {
   cluster: string
   weight: number | null
   freshness: PredictionSourceFreshness | null
+  asOfDate: string | null
   note: string | null
   trackedNotRanked: boolean
 }
@@ -488,6 +489,7 @@ function normalizeSourceClusters(value: unknown): SourceRow[] {
       cluster,
       weight: isFiniteNumber(record.weight) ? record.weight : null,
       freshness: normalizeFreshness(record.freshness),
+      asOfDate: readString(record.asOfDate, record.as_of_date),
       note: readString(record.note),
     })
   }
@@ -713,6 +715,7 @@ function normalizeSourceRows(
       cluster: row.cluster,
       weight: isFiniteNumber(row.weight) ? row.weight : null,
       freshness: normalizeFreshness(row.freshness),
+      asOfDate: readString(row.asOfDate),
       note: typeof row.note === 'string' ? row.note : null,
       trackedNotRanked: !isFiniteNumber(row.weight),
     }))
@@ -1818,6 +1821,10 @@ export function InvestingPredictionPanel() {
     () => selectDisplayLeadCall(data?.leadCall, allCalls),
     [allCalls, data?.leadCall],
   )
+  const attributedLeadCall = useMemo(
+    () => selectAttributedLeadCall(data?.leadCall, allCalls),
+    [allCalls, data?.leadCall],
+  )
   const leadCall = displayLeadCall
   const leadSymbol = leadCall?.symbol ?? 'SPY'
   const historyQuery = useMarketPredictionHistory(leadSymbol, windowDays, 30)
@@ -1839,6 +1846,10 @@ export function InvestingPredictionPanel() {
   const normalizedVotes = useMemo(
     () => normalizeVotes(data?.votes, leadSymbol),
     [data?.votes, leadSymbol],
+  )
+  const sourceRows = useMemo(
+    () => normalizeSourceRows(attributedLeadCall),
+    [attributedLeadCall],
   )
   const historyState = useMemo(
     () =>
@@ -2156,6 +2167,31 @@ export function InvestingPredictionPanel() {
                 </div>
               ))}
             </div>
+            {sourceRows.length ? (
+              <div
+                data-testid="prediction-source-attribution"
+                className="mt-4 overflow-hidden rounded-md border border-border/30"
+              >
+                {sourceRows.map((row) => (
+                  <div
+                    key={row.cluster}
+                    className="grid gap-3 border-b border-border/20 px-3 py-2 last:border-b-0 sm:grid-cols-[150px_90px_minmax(0,1fr)]"
+                  >
+                    <span className="text-sm font-medium text-text">
+                      {humanizeLabel(row.cluster)}
+                    </span>
+                    <span className="font-mono text-xs uppercase text-text-muted">
+                      {row.weight != null
+                        ? `${Math.round(row.weight * 100)}%`
+                        : humanizeLabel(row.freshness ?? 'unknown')}
+                    </span>
+                    <span className="text-xs text-text-muted">
+                      As of {row.asOfDate ?? 'not published'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="rounded-lg border border-border/30 bg-black/20 p-4">
@@ -3084,6 +3120,9 @@ function _LegacyInvestingPredictionPanel() {
                           Weight {Math.round(row.weight * 100)}%
                         </p>
                       ) : null}
+                      <p className="mt-1 text-xs text-text-muted">
+                        As of {row.asOfDate ?? 'not published'}
+                      </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {row.note ? <StatusBadge label={row.note} /> : null}
