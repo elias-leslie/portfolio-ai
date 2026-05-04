@@ -1,6 +1,6 @@
 services:
   portfolio-db:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:4e6e670bb069649261c9c18031f0aded7bb249a5b6664ddec29c013a89310d50
     environment:
       POSTGRES_DB: portfolio_ai
       POSTGRES_USER: portfolio
@@ -18,7 +18,7 @@ services:
       retries: 5
 
   portfolio-redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:7aec734b2bb298a1d769fd8729f13b8514a41bf90fcdd1f38ec52267fbaa8ee6
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     ports:
       - "${PORTFOLIO_REDIS_HOST_PORT:-6379}:6379"
@@ -29,7 +29,7 @@ services:
       retries: 5
 
   hatchet-migrate:
-    image: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${HATCHET_TAG:-latest}
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${HATCHET_TAG:-latest}@${HATCHET_MIGRATE_DIGEST:-sha256:ca735ee827986bf408153ea6fbac5023c92e32e12947eceae2425e2c760e2e26}
     environment:
       DATABASE_URL: postgresql://portfolio:${POSTGRES_PASSWORD:-portfolio}@portfolio-db:5432/hatchet
     depends_on:
@@ -37,7 +37,7 @@ services:
         condition: service_healthy
 
   hatchet-setup-config:
-    image: ghcr.io/hatchet-dev/hatchet/hatchet-admin:${HATCHET_TAG:-latest}
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-admin:${HATCHET_TAG:-latest}@${HATCHET_ADMIN_DIGEST:-sha256:912ad79917a820503d2945c53ecd7c297ebcf4de766a4680e965a9885f0cf17d}
     command: /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/config --overwrite=false
     environment:
       DATABASE_URL: postgresql://portfolio:${POSTGRES_PASSWORD:-portfolio}@portfolio-db:5432/hatchet
@@ -59,7 +59,7 @@ services:
         condition: service_healthy
 
   hatchet:
-    image: ghcr.io/hatchet-dev/hatchet/hatchet-engine:${HATCHET_TAG:-latest}
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-engine:${HATCHET_TAG:-latest}@${HATCHET_ENGINE_DIGEST:-sha256:6fb976b16b20cbd6b2d388dad88371c1d7d9958dfaf1ea08f9bff489b89ab65c}
     command: /hatchet/hatchet-engine --config /hatchet/config
     environment:
       DATABASE_URL: postgresql://portfolio:${POSTGRES_PASSWORD:-portfolio}@portfolio-db:5432/hatchet
@@ -83,7 +83,7 @@ services:
       start_period: 30s
 
   hatchet-token:
-    image: ghcr.io/hatchet-dev/hatchet/hatchet-admin:${HATCHET_TAG:-latest}
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-admin:${HATCHET_TAG:-latest}@${HATCHET_ADMIN_DIGEST:-sha256:912ad79917a820503d2945c53ecd7c297ebcf4de766a4680e965a9885f0cf17d}
     profiles: ["tools"]
     environment:
       DATABASE_URL: postgresql://portfolio:${POSTGRES_PASSWORD:-portfolio}@portfolio-db:5432/hatchet
