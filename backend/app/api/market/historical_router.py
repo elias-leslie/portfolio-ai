@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Query, Request
 
+from app.api.market._core_helpers import build_intelligence_response_data, fetch_core_market_data
 from app.api.market_responses import (
     FearGreedHistoryResponse,
     IndicatorDataPoint,
@@ -22,6 +23,7 @@ from app.api.market_transformers import (
 )
 from app.constants import CACHE_TTL_MEDIUM, CACHE_TTL_SHORT, SECTOR_ETFS
 from app.logging_config import get_logger
+from app.market.intraday_mood import calculate_intraday_mood_score, label_intraday_mood
 from app.middleware.cache import cache_response
 from app.repositories.market_repository import MarketRepository
 from app.sources.yfinance_source import YFinanceSource
@@ -47,6 +49,62 @@ def _quote_market_date(value: object) -> date | None:
         return None
     quote_ts = value if value.tzinfo else value.replace(tzinfo=UTC)
     return quote_ts.astimezone(NY_TZ).date()
+
+
+def _parse_iso_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def _last_history_date(dates: list[str]) -> date | None:
+    if not dates:
+        return None
+    try:
+        return date.fromisoformat(dates[-1].split("T")[0])
+    except ValueError:
+        return None
+
+
+def _append_live_mood_point(
+    *,
+    dates: list[str],
+    scores: list[float],
+    labels: list[str],
+    put_call_ratios: list[float | None],
+) -> tuple[list[str], list[float], list[str], list[float | None], list[str], str, str | None]:
+    market_data = fetch_core_market_data()
+    current_timestamp = market_data.current_timestamp
+    quote_date = _quote_market_date(_parse_iso_datetime(current_timestamp))
+    latest_date = _last_history_date(dates)
+    if quote_date is None or latest_date is None or quote_date <= latest_date:
+        return dates, scores, labels, put_call_ratios, ["daily_close"] * len(dates), "daily_close", None
+
+    built = build_intelligence_response_data(market_data, current_timestamp)
+    sectors = [
+        *list(built["leading_sectors"]),
+        *list(built["neutral_sectors"]),
+        *list(built["lagging_sectors"]),
+    ]
+    mood_score = calculate_intraday_mood_score(built["enriched_indicators"], sectors)
+    putcall = built["enriched_indicators"].get("putcall")
+    putcall_value = getattr(putcall, "value", None)
+    return (
+        [*dates, quote_date.isoformat()],
+        [*scores, float(mood_score)],
+        [*labels, label_intraday_mood(mood_score)],
+        [
+            *put_call_ratios,
+            float(putcall_value) if isinstance(putcall_value, (int, float)) else None,
+        ],
+        [*(["daily_close"] * len(dates)), "live_proxy"],
+        "live_proxy",
+        current_timestamp,
+    )
 
 
 def _append_current_quote_row(rows: list[tuple[Any, ...]], quote: object | None) -> list[tuple[Any, ...]]:
@@ -139,9 +197,29 @@ async def get_fear_greed_history(
             labels.append(str(row[2]) if row[2] else "Unknown")
             # P/C ratio may be null for dates before we started collecting
             put_call_ratios.append(float(row[3]) if row[3] is not None else None)
+    (
+        dates,
+        scores,
+        labels,
+        put_call_ratios,
+        sources,
+        latest_source,
+        latest_as_of,
+    ) = _append_live_mood_point(
+        dates=dates,
+        scores=scores,
+        labels=labels,
+        put_call_ratios=put_call_ratios,
+    )
 
     return FearGreedHistoryResponse(
-        dates=dates, scores=scores, labels=labels, put_call_ratios=put_call_ratios
+        dates=dates,
+        scores=scores,
+        labels=labels,
+        sources=sources,
+        latest_source=latest_source,
+        latest_as_of=latest_as_of,
+        put_call_ratios=put_call_ratios,
     )
 
 

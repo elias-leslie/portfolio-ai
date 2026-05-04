@@ -57,6 +57,7 @@ export function SentimentTrendChart() {
         date,
         score: fearGreedData.scores[idx],
         label: fearGreedData.labels[idx],
+        source: fearGreedData.sources?.[idx] ?? 'daily_close',
         newsSentiment:
           newsScore !== undefined ? normalizeNewsSentiment(newsScore) : null,
         newsRaw: newsScore,
@@ -99,7 +100,7 @@ export function SentimentTrendChart() {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="font-display italic text-lg tracking-tight text-text">
-          Daily Market Mood
+          Market Mood
         </h3>
         <TimeframeSelector value={timeframe} onChange={setTimeframe} />
       </div>
@@ -121,6 +122,8 @@ export function SentimentTrendChart() {
         latestNewsSentiment={last?.newsRaw ?? null}
         latestPcRatio={last?.pcRatioRaw ?? null}
         latestDate={last?.date ?? null}
+        latestSource={last?.source ?? 'daily_close'}
+        latestAsOf={fearGreedData.latestAsOf ?? null}
         expectedDataDate={marketStatus?.expectedDataDate}
       />
     </div>

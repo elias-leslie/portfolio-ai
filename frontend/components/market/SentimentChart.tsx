@@ -18,6 +18,7 @@ export interface SentimentChartDataPoint {
   date: string
   score: number
   label: string
+  source: 'daily_close' | 'live_proxy'
   newsSentiment: number | null
   newsRaw: number | null | undefined
   pcRatioScaled: number | null
@@ -115,7 +116,7 @@ export function SentimentChart({
           stroke="var(--color-chart-purple)"
           strokeWidth={2}
           fill={`url(#${gradientId})`}
-          name="Fear & Greed"
+          name="Market Mood"
         />
         <Line
           type="monotone"

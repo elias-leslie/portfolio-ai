@@ -7,7 +7,6 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from hashlib import sha1
 from importlib import import_module
-from math import isfinite
 from threading import Lock
 from typing import Any
 
@@ -20,6 +19,11 @@ from app.api.market._response_builders import (
 )
 from app.api.news_responses import serialize_article
 from app.logging_config import get_logger
+from app.market.intraday_mood import (
+    calculate_intraday_mood_score,
+    label_intraday_mood,
+    tone_intraday_mood,
+)
 from app.portfolio.fund_lookthrough import ExposureItem, build_exposure_breakdown
 from app.services._jenny_response_cleanup import extract_json_object_text
 from app.services.household_finance_service import HouseholdFinanceService
@@ -155,76 +159,6 @@ def _safe_float(value: Any) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
-
-
-def _maybe_float(value: Any) -> float | None:
-    try:
-        parsed = float(value)
-    except (TypeError, ValueError):
-        return None
-    return parsed if isfinite(parsed) else None
-
-
-def _clamp(value: float, minimum: float, maximum: float) -> float:
-    return min(maximum, max(minimum, value))
-
-
-def _intraday_mood_label(score: int) -> str:
-    if score < 25:
-        return "Fearful"
-    if score < 45:
-        return "Cautious"
-    if score < 58:
-        return "Mixed"
-    if score < 75:
-        return "Constructive"
-    return "Risk-on"
-
-
-def _intraday_mood_tone(score: int) -> str:
-    if score < 45:
-        return "warning"
-    if score >= 70:
-        return "positive"
-    return "neutral"
-
-
-def _intraday_mood_score(market: dict[str, Any]) -> int:
-    indicators = market.get("indicators", {})
-    sp500 = indicators.get("sp500", {})
-    vix = indicators.get("vix", {})
-    tnx = indicators.get("tnx", {})
-    dxy = indicators.get("dxy", {})
-    sector_rotation = market.get("sector_rotation", {})
-    sectors = [
-        *(_as_list(sector_rotation.get("leading"))),
-        *(_as_list(sector_rotation.get("neutral"))),
-        *(_as_list(sector_rotation.get("lagging"))),
-    ]
-    sector_changes = [
-        value
-        for value in (_maybe_float(sector.get("change_pct")) for sector in sectors)
-        if value is not None
-    ]
-
-    score = 50.0
-    if (sp500_change := _maybe_float(sp500.get("change_pct"))) is not None:
-        score += _clamp(sp500_change * 8, -18, 18)
-    if (vix_value := _maybe_float(vix.get("value"))) is not None:
-        score += 12 if vix_value < 15 else 4 if vix_value < 20 else -8 if vix_value < 25 else -18
-    if (vix_change := _maybe_float(vix.get("change_pct"))) is not None:
-        score -= _clamp(vix_change * 0.8, -12, 12)
-    if (tnx_change := _maybe_float(tnx.get("change_pct"))) is not None:
-        score -= _clamp(tnx_change * 1.5, -8, 8)
-    if (dxy_change := _maybe_float(dxy.get("change_pct"))) is not None:
-        score -= _clamp(dxy_change * 0.8, -6, 6)
-    if sector_changes:
-        average = sum(sector_changes) / len(sector_changes)
-        breadth = sum(1 if value > 0 else -1 if value < 0 else 0 for value in sector_changes)
-        score += _clamp(average * 5, -8, 8)
-        score += _clamp((breadth / len(sector_changes)) * 10, -10, 10)
-
-    return round(_clamp(score, 0, 100))
 
 
 def _parse_timestamp(value: Any) -> datetime | None:
@@ -372,7 +306,15 @@ class HomeTodayBriefService:
         vix_as_of = indicators["vix"].get("last_updated") or market_as_of
         tnx_as_of = indicators["tnx"].get("last_updated") or market_as_of
         leadership_as_of = leading[0].get("last_updated") if leading else market_as_of
-        mood_score = _intraday_mood_score(market)
+        sector_rotation = market["sector_rotation"]
+        mood_score = calculate_intraday_mood_score(
+            indicators,
+            [
+                *(_as_list(sector_rotation.get("leading"))),
+                *(_as_list(sector_rotation.get("neutral"))),
+                *(_as_list(sector_rotation.get("lagging"))),
+            ],
+        )
         return [
             {
                 "key": "sp500",
@@ -418,11 +360,11 @@ class HomeTodayBriefService:
                 "label": "Intraday Mood",
                 "value": str(mood_score),
                 "change_pct": None,
-                "detail": _intraday_mood_label(mood_score),
+                "detail": label_intraday_mood(mood_score),
                 "horizon": "Live proxy · Quote inputs",
                 "as_of": market_as_of,
                 "as_of_label": _format_et_timestamp(market_as_of),
-                "tone": _intraday_mood_tone(mood_score),
+                "tone": tone_intraday_mood(mood_score),
             },
             {
                 "key": "leadership",

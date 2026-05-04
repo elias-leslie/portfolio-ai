@@ -492,6 +492,9 @@ export interface FearGreedHistoryResponse {
   dates: string[]
   scores: number[]
   labels: string[]
+  sources?: ('daily_close' | 'live_proxy')[]
+  latestSource?: 'daily_close' | 'live_proxy'
+  latestAsOf?: string | null
   putCallRatios: (number | null)[]
 }
 
