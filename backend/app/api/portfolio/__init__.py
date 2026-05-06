@@ -81,7 +81,7 @@ def _get_filtered_accounts_and_positions(
 
 def _fetch_prices(symbols: list[str]) -> dict[str, Any]:
     """Fetch price data for portfolio symbols."""
-    return _price_fetcher().fetch_price_data(symbols)
+    return _price_fetcher().fetch_cached_price_data(symbols)
 
 
 def _build_position_responses(
@@ -295,6 +295,7 @@ def _create_account_payload(account: AccountCreate) -> AccountResponse:
     invalidate_endpoint_cache("/api/portfolio", method="GET")
     invalidate_endpoint_cache("/api/portfolio/", method="GET")
     invalidate_endpoint_cache("/api/portfolio/analytics", method="GET")
+    invalidate_endpoint_cache("/api/portfolio/accounts", method="GET")
     persisted = next(
         (account for account in _portfolio_mgr().get_accounts() if account.id == created.id),
         created,
@@ -328,6 +329,7 @@ def _delete_account_payload(account_id: str) -> dict[str, str]:
     invalidate_endpoint_cache("/api/portfolio", method="GET")
     invalidate_endpoint_cache("/api/portfolio/", method="GET")
     invalidate_endpoint_cache("/api/portfolio/analytics", method="GET")
+    invalidate_endpoint_cache("/api/portfolio/accounts", method="GET")
 
     return {"status": "deleted", "account_id": account_id}
 
@@ -344,12 +346,14 @@ async def get_portfolio(request: Request, include_paper: bool = False) -> Portfo
 
 
 @router.get("/accounts", response_model=list[AccountResponse])
-async def get_accounts(include_paper: bool = False) -> list[AccountResponse]:
+@cache_response(ttl=60)
+async def get_accounts(request: Request, include_paper: bool = False) -> list[AccountResponse]:
     """Get all portfolio accounts.
 
     Args:
         include_paper: If False (default), excludes paper trading accounts.
     """
+    del request
     return await run_in_threadpool(_get_accounts_payload, include_paper)
 
 

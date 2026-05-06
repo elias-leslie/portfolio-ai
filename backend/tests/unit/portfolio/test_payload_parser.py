@@ -12,10 +12,12 @@ from app.storage import PortfolioStorage
 class _StubStorage(PortfolioStorage):
     def __init__(self, rows: list[dict[str, object]]) -> None:
         self._rows = rows
+        self.last_params: list[object] | None = None
 
     def query(self, sql: str, params: list[object] | None = None):  # type: ignore[override]
         import polars as pl
 
+        self.last_params = params
         return pl.DataFrame(self._rows)
 
 
@@ -69,3 +71,31 @@ def test_get_cached_prices_applies_sector_fallback_for_known_fund() -> None:
     cached = get_cached_prices(["VTI"], storage, cache_ttl_minutes=15)
 
     assert cached["VTI"].sector == "Broad Market Index"
+    assert storage.last_params is not None
+    assert len(storage.last_params) == 2
+
+
+def test_get_cached_prices_can_skip_age_cutoff_for_read_paths() -> None:
+    storage = _StubStorage(
+        [
+            {
+                "symbol": "NVDA",
+                "price": 177.82,
+                "beta": None,
+                "volatility": None,
+                "sector": None,
+                "bid": None,
+                "ask": None,
+                "bid_size": None,
+                "ask_size": None,
+                "cached_at": datetime.now(UTC),
+                "source": "cache",
+                "error": None,
+            }
+        ]
+    )
+
+    cached = get_cached_prices(["NVDA"], storage, cache_ttl_minutes=None)
+
+    assert cached["NVDA"].price == 177.82
+    assert storage.last_params == ["NVDA"]

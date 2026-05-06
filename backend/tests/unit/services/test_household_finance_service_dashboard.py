@@ -218,7 +218,7 @@ def test_gather_service_data_uses_dashboard_sync_gate_before_raw_registry_sync()
     service.portfolio_mgr.get_accounts.return_value = []
     service.portfolio_mgr.get_positions.return_value = []
     service.price_fetcher = Mock()
-    service.price_fetcher.fetch_price_data.return_value = {}
+    service.price_fetcher.fetch_cached_price_data.return_value = {}
 
     with patch(
         "app.services._household_dashboard_assembly.calculate_account_valuations",
@@ -230,6 +230,7 @@ def test_gather_service_data_uses_dashboard_sync_gate_before_raw_registry_sync()
     service.evidence_service.backfill_from_latest_reviews.assert_not_called()
     service._ensure_dashboard_registry_sync.assert_called_once_with(limit=1000)
     service.account_registry_service.sync_registry.assert_not_called()
+    service.price_fetcher.fetch_price_data.assert_not_called()
 
 
 def test_visibility_score_is_capped_when_account_freshness_is_degraded() -> None:

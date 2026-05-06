@@ -11,6 +11,7 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from app.api.symbols.models import DecisionSection
+from app.middleware.cache import cache_response
 
 if TYPE_CHECKING:
     from app.services.automation_center_service import AutomationCenterService
@@ -161,13 +162,16 @@ def _home_today_brief_service() -> HomeTodayBriefService:
 
 
 @router.get("/action-queue", response_model=HomeActionQueueResponse)
-async def get_home_action_queue() -> HomeActionQueueResponse:
+@cache_response(ttl=30)
+async def get_home_action_queue(request: Request) -> HomeActionQueueResponse:
     """Return the ranked cross-product action queue for the home page."""
+    del request
     payload = await run_in_threadpool(_home_action_service().get_action_queue)
     return HomeActionQueueResponse.model_validate(payload)
 
 
 @router.get("/today-brief", response_model=HomeTodayBriefResponse)
+@cache_response(ttl=30)
 async def get_home_today_brief(request: Request) -> HomeTodayBriefResponse:
     """Return catalyst, market-reaction, and personal-impact brief for Today."""
     del request

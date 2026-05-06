@@ -47,7 +47,7 @@ def get_live_portfolio_totals(
 
     price_fetcher = PriceDataFetcher(storage)
     symbols = list({position.symbol for position in positions})
-    price_data = price_fetcher.fetch_price_data(symbols)
+    price_data = price_fetcher.fetch_cached_price_data(symbols)
     analytics = PortfolioAnalytics().calculate_full_analytics(
         positions,
         price_data,

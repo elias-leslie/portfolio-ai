@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from hashlib import sha1
 from importlib import import_module
-from threading import Lock
+from threading import Lock, Thread
 from typing import Any
 
 from app.agents.clients.agent_hub_client import AgentHubAPIClient
@@ -976,12 +976,14 @@ class HomeTodayBriefService:
         upcoming_events: list[dict[str, Any]],
         research_cache_key: str,
         fallback: dict[str, Any],
+        claimed: bool = False,
     ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-        with self._narrative_lock:
-            if self._refresh_in_flight:
-                cached_narrative = self._narrative_cache or fallback
-                return cached_narrative, _merge_sources(news_sources, official_sources)
-            self._refresh_in_flight = True
+        if not claimed:
+            with self._narrative_lock:
+                if self._refresh_in_flight:
+                    cached_narrative = self._narrative_cache or fallback
+                    return cached_narrative, _merge_sources(news_sources, official_sources)
+                self._refresh_in_flight = True
 
         try:
             scout_research = self.research_service.build_research(
@@ -1022,6 +1024,43 @@ class HomeTodayBriefService:
         finally:
             with self._narrative_lock:
                 self._refresh_in_flight = False
+
+    def _start_background_narrative_refresh(
+        self,
+        *,
+        household: dict[str, Any],
+        portfolio: dict[str, Any],
+        market: dict[str, Any],
+        articles: list[dict[str, Any]],
+        news_sources: list[dict[str, Any]],
+        official_sources: list[dict[str, Any]],
+        upcoming_events: list[dict[str, Any]],
+        research_cache_key: str,
+        fallback: dict[str, Any],
+    ) -> None:
+        with self._narrative_lock:
+            if self._refresh_in_flight:
+                return
+            self._refresh_in_flight = True
+
+        thread = Thread(
+            target=self._refresh_narrative,
+            kwargs={
+                "household": household,
+                "portfolio": portfolio,
+                "market": market,
+                "articles": articles,
+                "news_sources": news_sources,
+                "official_sources": official_sources,
+                "upcoming_events": upcoming_events,
+                "research_cache_key": research_cache_key,
+                "fallback": fallback,
+                "claimed": True,
+            },
+            daemon=True,
+            name="home-today-brief-refresh",
+        )
+        thread.start()
 
     def get_today_brief(self) -> dict[str, Any]:
         cached_response = self._cached_response()
@@ -1080,7 +1119,7 @@ class HomeTodayBriefService:
             or not scout_is_fresh
         )
         if should_refresh:
-            narrative, source_stack = self._refresh_narrative(
+            self._start_background_narrative_refresh(
                 household=household,
                 portfolio=portfolio,
                 market=market,

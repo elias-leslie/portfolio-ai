@@ -10,6 +10,7 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Reque
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
+from app.middleware.cache import cache_response
 from app.models.household_finance import (
     ConfirmFactRequest,
     HouseholdConfirmedFact,
@@ -45,8 +46,10 @@ def _service() -> HouseholdFinanceService:
 
 
 @router.get("/dashboard", response_model=HouseholdFinanceDashboard)
-async def get_household_dashboard() -> HouseholdFinanceDashboard:
+@cache_response(ttl=60)
+async def get_household_dashboard(request: Request) -> HouseholdFinanceDashboard:
     """Return the household finance dashboard."""
+    del request
     return await run_in_threadpool(_service().get_dashboard)
 
 

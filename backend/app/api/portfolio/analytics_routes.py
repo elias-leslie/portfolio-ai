@@ -239,7 +239,7 @@ def get_analytics_payload(include_paper: bool) -> AnalyticsResponse:
         )
 
     symbols = list({p.symbol for p in positions})
-    price_data = _price_fetcher().fetch_price_data(symbols)
+    price_data = _price_fetcher().fetch_cached_price_data(symbols)
     account_valuations = calculate_account_valuations(
         accounts,
         positions,

@@ -282,7 +282,7 @@ async def get_indicator_history(
     period_end = ""
     from app.api.market._core_helpers import _get_price_fetcher  # noqa: PLC0415
 
-    current_prices = _get_price_fetcher().fetch_price_data(list(INDICATOR_SYMBOLS.values()))
+    current_prices = _get_price_fetcher().fetch_cached_price_data(list(INDICATOR_SYMBOLS.values()))
 
     for key, symbol in INDICATOR_SYMBOLS.items():
         # Use repository for data access

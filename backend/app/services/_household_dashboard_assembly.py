@@ -763,7 +763,7 @@ def gather_service_data(service: Any) -> dict[str, Any]:
     account_ids = {a.id for a in accounts}
     live_positions = [p for p in positions if p.account_id in account_ids]
     symbols = sorted({p.symbol for p in live_positions})
-    price_data = cast(dict[str, object], service.price_fetcher.fetch_price_data(symbols)) if symbols else {}
+    price_data = cast(dict[str, object], service.price_fetcher.fetch_cached_price_data(symbols)) if symbols else {}
     account_valuations = calculate_account_valuations(
         accounts,
         live_positions,

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
 from app.logging_config import get_logger
+from app.middleware.cache import cache_response
 
 from .models import StrategyLabDetailResponse, StrategyLabListResponse
 from .review import REVIEW_UNAVAILABLE_MESSAGE, STALE_QUOTE_MESSAGE, run_review
@@ -15,12 +16,16 @@ router = APIRouter(prefix="/api/strategy-lab", tags=["strategy-lab"])
 
 
 @router.get("", response_model=StrategyLabListResponse)
-async def get_strategy_lab() -> StrategyLabListResponse:
+@cache_response(ttl=120)
+async def get_strategy_lab(request: Request) -> StrategyLabListResponse:
+    del request
     return await run_in_threadpool(list_strategy_lab)
 
 
 @router.get("/{symbol}", response_model=StrategyLabDetailResponse)
-async def get_strategy_lab_symbol(symbol: str) -> StrategyLabDetailResponse:
+@cache_response(ttl=120)
+async def get_strategy_lab_symbol(request: Request, symbol: str) -> StrategyLabDetailResponse:
+    del request
     return await run_in_threadpool(get_strategy_lab_detail, symbol)
 
 
