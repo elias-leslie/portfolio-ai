@@ -336,6 +336,74 @@ def test_build_account_summaries_uses_live_quotes_for_linked_statement_with_quot
     assert summary.quote_freshness_label == "Latest close"
 
 
+def test_build_account_summaries_marks_closed_zero_balance_account_current() -> None:
+    document = HouseholdDocument(
+        id="doc-closed-checking",
+        filename="Wells_Fargo_Closed_Checking_Year_To_Date_4_27_26.csv",
+        source_type="bank",
+        document_type="statement",
+        status="parsed",
+        account_label="Wells Fargo closed checking",
+        file_size_bytes=10,
+        content_type="text/csv",
+        classification_confidence=0.98,
+        review_status="complete",
+        review_summary="Reviewed",
+        review_confidence=0.98,
+        statement_start=None,
+        statement_end=None,
+        uploaded_at="2026-04-27T12:00:00+00:00",
+        parsed_at="2026-04-27T12:01:00+00:00",
+        metadata={
+            "file_available": True,
+            "structured_data": {
+                "text_preview": (
+                    "DATE, DESCRIPTION, AMOUNT, CHECK #, STATUS\n"
+                    "04/03/2026, PAYOFF DEBIT, NON-INTEREST WITHOUT FEE, 0.00, , Posted"
+                )
+            },
+        },
+    )
+    evidence_account = HouseholdEvidenceAccount(
+        id="acct-closed-checking",
+        document_id="doc-closed-checking",
+        household_account_id="household-closed-checking",
+        source_type="bank",
+        asset_group="cash",
+        account_type="checking",
+        institution_name="Wells Fargo",
+        account_name="Wells Fargo closed checking",
+        account_mask=None,
+        owner_name="Elias B Leslie",
+        currency="USD",
+        balance=None,
+        holdings_value=None,
+        cash_balance=None,
+        as_of_date="2026-04-03T00:00:00+00:00",
+        confidence=0.96,
+        metadata={},
+    )
+
+    summaries = build_account_summaries(
+        evidence_accounts=[evidence_account],
+        documents=[document],
+        portfolio_accounts=[],
+        tracked_accounts=[],
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": ["1 month missing in range"]},
+    )
+
+    assert len(summaries) == 1
+    summary = summaries[0]
+    assert summary.current_value == 0.0
+    assert summary.cash_balance == 0.0
+    assert summary.money_role == "net_worth_only"
+    assert summary.balance_freshness_status == "fresh"
+    assert summary.balance_freshness_label == "Closed"
+    assert summary.transaction_freshness_status == "not_applicable"
+    assert not [gap for gap in summary.gap_flags if gap.severity in {"medium", "high"}]
+
+
 def test_build_money_inbox_prioritizes_questions_and_account_gaps() -> None:
     account_summaries = build_account_summaries(
         evidence_accounts=[],
