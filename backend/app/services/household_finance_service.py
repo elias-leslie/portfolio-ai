@@ -14,6 +14,7 @@ from app.models.household_finance import (
     HouseholdEvidenceAccount,
     HouseholdFinanceDashboard,
     HouseholdLedger,
+    HouseholdNetWorthTrend,
     HouseholdProfile,
     HouseholdProfileUpdate,
     HouseholdResolvedValue,
@@ -36,6 +37,7 @@ from app.services.household_document_review import HouseholdDocumentReviewServic
 from app.services.household_evidence_service import HouseholdEvidenceService
 from app.services.household_finance_rows import FIELD_LABELS
 from app.services.household_ledger_service import HouseholdLedgerService
+from app.services.household_net_worth_trend_service import build_net_worth_trend
 from app.services.household_planning_service import HouseholdPlanningService
 from app.services.household_portfolio_position_sync_service import (
     HouseholdPortfolioPositionSyncService,
@@ -243,6 +245,9 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
             self.transaction_service.build_spending_view(window=window),
             self.list_confirmed_facts(),
         )
+
+    def get_net_worth_trend(self, *, days: int = 180) -> HouseholdNetWorthTrend:
+        return build_net_worth_trend(self, days=days)
 
     def update_profile(self, payload: HouseholdProfileUpdate) -> HouseholdProfile:
         return self.profile_service.update_profile(self, payload)

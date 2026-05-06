@@ -22,7 +22,10 @@ import type {
 } from '@/lib/api/market'
 import { formatCurrencyWhole } from '@/lib/formatters'
 import { useHomeTodayBrief } from '@/lib/hooks/useHomeTodayBrief'
-import { useHouseholdDashboard } from '@/lib/hooks/useHousehold'
+import {
+  useHouseholdDashboard,
+  useHouseholdNetWorthTrend,
+} from '@/lib/hooks/useHousehold'
 import { useMarketIntelligence } from '@/lib/hooks/useMarketIntelligence'
 import { usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
 import { cn, formatRelativeTime } from '@/lib/utils'
@@ -69,6 +72,32 @@ function qualityLabel(status: string) {
       return 'Stale'
     default:
       return 'Unavailable'
+  }
+}
+
+function netWorthBadgeLabel(status: string | null | undefined) {
+  switch (normalizeQualityStatus(status)) {
+    case 'current':
+      return 'Current'
+    case 'estimated':
+    case 'stale':
+      return 'Known'
+    default:
+      return 'Unavailable'
+  }
+}
+
+function netWorthBadgeVariant(
+  status: string | null | undefined,
+): ComponentProps<typeof Badge>['variant'] {
+  switch (normalizeQualityStatus(status)) {
+    case 'current':
+      return 'success'
+    case 'estimated':
+    case 'stale':
+      return 'secondary'
+    default:
+      return 'outline'
   }
 }
 
@@ -153,6 +182,133 @@ function formatMetricNumber(value: number | null | undefined, digits = 2) {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   })
+}
+
+function formatTrendDate(value: string) {
+  const parsed = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) {
+    return value
+  }
+  return parsed.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function buildTrendPath(values: number[], width = 120, height = 42) {
+  if (values.length === 0) {
+    return ''
+  }
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = max - min || 1
+  const left = 2
+  const right = width - 2
+  const top = 5
+  const bottom = height - 6
+  const step = values.length > 1 ? (right - left) / (values.length - 1) : 0
+  return values
+    .map((value, index) => {
+      const x = left + index * step
+      const y = bottom - ((value - min) / range) * (bottom - top)
+      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`
+    })
+    .join(' ')
+}
+
+function trendSummary(points: { date: string; value: number }[]) {
+  if (points.length < 2) {
+    return 'History building'
+  }
+  const first = points[0]
+  const last = points[points.length - 1]
+  const change = last.value - first.value
+  const changePct =
+    first.value !== 0 ? (change / Math.abs(first.value)) * 100 : 0
+  const sign = change >= 0 ? '+' : ''
+  return `${formatTrendDate(first.date)} to ${formatTrendDate(last.date)} · ${sign}${changePct.toFixed(1)}%`
+}
+
+function NetWorthTrendLine({
+  points,
+  loading,
+}: {
+  points: { date: string; value: number }[]
+  loading: boolean
+}) {
+  if (loading && points.length === 0) {
+    return <div className="mt-2 h-12 rounded-xl skeleton" />
+  }
+  if (points.length < 2) {
+    return null
+  }
+  const values = points.map((point) => point.value)
+  const path = buildTrendPath(values)
+  const last = points[points.length - 1]
+  const first = points[0]
+  const gained = last.value >= first.value
+  return (
+    <div className="mt-2 h-14">
+      <svg
+        role="img"
+        aria-label="Net worth trend"
+        viewBox="0 0 120 42"
+        className="h-10 w-full overflow-visible"
+        preserveAspectRatio="none"
+      >
+        <defs>
+          <linearGradient
+            id="today-net-worth-trend-gradient"
+            x1="0"
+            x2="1"
+            y1="0"
+            y2="0"
+          >
+            <stop offset="0%" stopColor="var(--text-muted)" />
+            <stop
+              offset="100%"
+              stopColor={gained ? 'var(--gain)' : 'var(--loss)'}
+            />
+          </linearGradient>
+        </defs>
+        <line
+          x1="0"
+          x2="120"
+          y1="10"
+          y2="10"
+          stroke="var(--border)"
+          strokeOpacity="0.35"
+          strokeWidth="0.7"
+        />
+        <line
+          x1="0"
+          x2="120"
+          y1="30"
+          y2="30"
+          stroke="var(--border)"
+          strokeOpacity="0.25"
+          strokeWidth="0.7"
+        />
+        <path
+          d={path}
+          fill="none"
+          stroke="url(#today-net-worth-trend-gradient)"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2.4"
+        />
+        <circle
+          cx="118"
+          cy={path.split(' ').at(-1)}
+          r="2.6"
+          fill={gained ? 'var(--gain)' : 'var(--loss)'}
+        />
+      </svg>
+      <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">
+        {trendSummary(points)}
+      </p>
+    </div>
+  )
 }
 
 function indicatorAsOf(
@@ -291,6 +447,8 @@ function CompactOverviewTile({
   badge,
   badgeDetail,
   badgeVariant = 'outline',
+  trend,
+  trendLoading = false,
 }: {
   label: string
   value: string
@@ -299,6 +457,8 @@ function CompactOverviewTile({
   badge?: string | null
   badgeDetail?: ReactNode
   badgeVariant?: ComponentProps<typeof Badge>['variant']
+  trend?: { date: string; value: number }[]
+  trendLoading?: boolean
 }) {
   return (
     <article className="rounded-[22px] border border-border/35 bg-surface/45 px-3.5 py-3">
@@ -317,6 +477,9 @@ function CompactOverviewTile({
         {value}
       </p>
       <p className="mt-1 text-[11px] leading-4 text-text-muted">{detail}</p>
+      {trend ? (
+        <NetWorthTrendLine points={trend} loading={trendLoading} />
+      ) : null}
     </article>
   )
 }
@@ -398,6 +561,8 @@ function MarketStripItem({ metric }: { metric: HomeTodayBriefMetric }) {
 export function TodayOverviewPanel() {
   const { data: household, isLoading: householdLoading } =
     useHouseholdDashboard()
+  const { data: netWorthTrend, isLoading: trendLoading } =
+    useHouseholdNetWorthTrend({ days: 180 })
   const { data: analytics, isLoading: analyticsLoading } =
     usePortfolioAnalytics()
   const { data: market, isLoading: marketLoading } = useMarketIntelligence()
@@ -406,6 +571,11 @@ export function TodayOverviewPanel() {
   const marketMood = describeIntradayMood(market)
   const portfolioHealth = describePortfolioHealth(analytics)
   const netWorth = household?.overview.netWorth ?? null
+  const netWorthTrendPoints =
+    netWorthTrend?.points.map((point) => ({
+      date: point.date,
+      value: point.netWorth,
+    })) ?? []
   const investedAssets =
     household?.overview.investedAssets ??
     analytics?.householdInvestedTotalValue ??
@@ -445,14 +615,23 @@ export function TodayOverviewPanel() {
     {
       label: 'Net Worth',
       value: renderMoneyValue(netWorth, householdLoading && !household),
-      detail: 'Everything you own minus debt',
+      detail: 'Known holdings and balances minus debt',
       labelDetail:
-        'Uses tracked household accounts and subtracts known credit and loan balances.',
-      badge: household ? qualityLabel(household.overview.netWorthStatus) : null,
-      badgeDetail: household?.overview.netWorthDetail,
-      badgeVariant: qualityBadgeVariant(
-        household?.overview.netWorthStatus ?? 'unavailable',
+        'Uses actual tracked portfolio shares with latest cached prices where symbols are linked. Cash, debt, and non-symbol accounts use latest available balance evidence.',
+      badge: household
+        ? netWorthBadgeLabel(household.overview.netWorthStatus)
+        : null,
+      badgeDetail: (
+        <div className="space-y-1">
+          <p>{netWorthTrend?.detail ?? household?.overview.netWorthDetail}</p>
+          {netWorthTrend?.methodology ? (
+            <p>{netWorthTrend.methodology}</p>
+          ) : null}
+        </div>
       ),
+      badgeVariant: netWorthBadgeVariant(household?.overview.netWorthStatus),
+      trend: netWorthTrendPoints,
+      trendLoading,
     },
     {
       label: 'Invested',

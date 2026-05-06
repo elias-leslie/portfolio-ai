@@ -3,12 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TodayOverviewPanel } from '../TodayOverviewPanel'
 
 const useHouseholdDashboardMock = vi.fn()
+const useHouseholdNetWorthTrendMock = vi.fn()
 const usePortfolioAnalyticsMock = vi.fn()
 const useMarketIntelligenceMock = vi.fn()
 const useHomeTodayBriefMock = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdDashboard: () => useHouseholdDashboardMock(),
+  useHouseholdNetWorthTrend: () => useHouseholdNetWorthTrendMock(),
 }))
 
 vi.mock('@/lib/hooks/usePortfolio', () => ({
@@ -37,7 +39,7 @@ describe('TodayOverviewPanel', () => {
           netWorth: 100000,
           netWorthStatus: 'estimated',
           netWorthDetail:
-            'Net worth estimate from 3 of 4 tracked accounts. 1 account missing current balances.',
+            'Known net worth from 3 of 4 tracked accounts. 1 account missing current balances.',
           trackedAccountCount: 4,
           needsRefreshCount: 1,
           candidateAccountCount: 0,
@@ -83,6 +85,43 @@ describe('TodayOverviewPanel', () => {
           numSectors: 4,
         },
         numSymbols: 8,
+      },
+      isLoading: false,
+    })
+
+    useHouseholdNetWorthTrendMock.mockReturnValue({
+      data: {
+        generatedAt: '2026-04-16T10:00:00Z',
+        asOfDate: '2026-04-16',
+        status: 'estimated',
+        detail:
+          'Known net worth from 3 of 4 tracked accounts. Gaps: 1 missing balance.',
+        methodology:
+          'Current shares are repriced with stored daily closes. Cash, liabilities, and non-symbol accounts use latest available household balances.',
+        points: [
+          {
+            date: '2026-01-16',
+            netWorth: 90000,
+            totalAssets: 110000,
+            liabilities: 20000,
+            pricedHoldingsValue: 50000,
+            fixedAssets: 60000,
+          },
+          {
+            date: '2026-04-16',
+            netWorth: 100000,
+            totalAssets: 120000,
+            liabilities: 20000,
+            pricedHoldingsValue: 60000,
+            fixedAssets: 60000,
+          },
+        ],
+        holdingsSymbolCount: 4,
+        holdingsPositionCount: 6,
+        gapCount: 1,
+        needsRefreshCount: 1,
+        missingBalanceAccountCount: 1,
+        staleAccountCount: 0,
       },
       isLoading: false,
     })
@@ -135,11 +174,14 @@ describe('TodayOverviewPanel', () => {
     expect(screen.getByText('10.8 mo')).toBeInTheDocument()
     expect(screen.queryByText('4.0m')).not.toBeInTheDocument()
     expect(
-      screen.queryByText(/Net worth estimate from 3 of 4 tracked accounts/i),
+      screen.queryByText(/Known net worth from 3 of 4 tracked accounts/i),
     ).not.toBeInTheDocument()
     expect(screen.queryByText(/Ledger /i)).not.toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: /estimate: more detail/i }),
+      screen.getByRole('button', { name: /known: more detail/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('img', { name: /net worth trend/i }),
     ).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /10\.8 mo: more detail/i }),

@@ -332,7 +332,7 @@ def _net_worth_trust(
         return (
             "estimated",
             (
-                f"Net worth estimate from {len(visible_accounts)} of {len(account_summaries)} tracked "
+                f"Known net worth from {len(visible_accounts)} of {len(account_summaries)} tracked "
                 f"{_pluralize(len(account_summaries), 'account')}. "
                 f"{_format_issue_counts(estimate_issue_parts).capitalize()}."
                 f"{as_of_detail}"
@@ -343,7 +343,7 @@ def _net_worth_trust(
         return (
             "stale",
             (
-                f"Net worth subtotal from {len(visible_accounts)} tracked "
+                f"Known net worth subtotal from {len(visible_accounts)} tracked "
                 f"{_pluralize(len(visible_accounts), 'account')}. "
                 f"{refresh_count} {_pluralize(refresh_count, 'account')} should refresh before review."
                 f"{as_of_detail}"

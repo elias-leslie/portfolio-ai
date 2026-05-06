@@ -11,6 +11,7 @@ import {
   fetchHouseholdDashboard,
   fetchHouseholdDocuments,
   fetchHouseholdLedger,
+  fetchHouseholdNetWorthTrend,
   fetchHouseholdSpending,
   type HouseholdDocument,
   type HouseholdDocumentUpload,
@@ -125,6 +126,15 @@ export function useHouseholdSpending(params?: { window?: string }) {
   return useQuery({
     queryKey: ['household', 'spending', params ?? {}],
     queryFn: ({ signal }) => fetchHouseholdSpending(params, { signal }),
+    staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useHouseholdNetWorthTrend(params?: { days?: number }) {
+  return useQuery({
+    queryKey: ['household', 'net-worth-trend', params ?? {}],
+    queryFn: ({ signal }) => fetchHouseholdNetWorthTrend(params, { signal }),
     staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
     refetchOnWindowFocus: false,
   })

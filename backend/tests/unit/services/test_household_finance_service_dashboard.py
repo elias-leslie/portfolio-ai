@@ -275,7 +275,7 @@ def test_net_worth_trust_marks_stale_when_all_balances_are_known_but_old() -> No
 
     assert status == "stale"
     assert "should refresh before review" in detail
-    assert "Net worth subtotal from 2 tracked accounts." in detail
+    assert "Known net worth subtotal from 2 tracked accounts." in detail
 
 
 def test_net_worth_trust_marks_estimated_when_balance_is_missing() -> None:

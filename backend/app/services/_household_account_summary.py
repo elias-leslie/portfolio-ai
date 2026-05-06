@@ -1069,21 +1069,19 @@ def build_account_summaries(
             )
         )
         effective_holdings_value = (
-            float(balance_account.holdings_value)
-            if balance_account.holdings_value is not None
-            else live_priced_positions_value
-        )
-        effective_current_value = (
-            evidence_current_value
-            if evidence_current_value is not None
-            else live_priced_positions_value + float(effective_cash_balance or 0.0)
+            live_priced_positions_value
             if live_priced_positions_value is not None
+            else float(balance_account.holdings_value)
+            if balance_account.holdings_value is not None
             else None
         )
+        effective_current_value = (
+            live_priced_positions_value + float(effective_cash_balance or 0.0)
+            if live_priced_positions_value is not None
+            else evidence_current_value
+        )
         valuation_source = (
-            "evidence"
-            if evidence_current_value is not None
-            else "live_quotes"
+            "live_quotes"
             if has_live_pricing
             else "evidence"
         )

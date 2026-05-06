@@ -149,6 +149,30 @@ export interface HouseholdMonthlyTrendPoint {
   transactionCount: number
 }
 
+export interface HouseholdNetWorthTrendPoint {
+  date: string
+  netWorth: number
+  totalAssets: number
+  liabilities: number
+  pricedHoldingsValue: number
+  fixedAssets: number
+}
+
+export interface HouseholdNetWorthTrend {
+  generatedAt: string
+  asOfDate: string | null
+  status: string
+  detail: string
+  methodology: string
+  points: HouseholdNetWorthTrendPoint[]
+  holdingsSymbolCount: number
+  holdingsPositionCount: number
+  gapCount: number
+  needsRefreshCount: number
+  missingBalanceAccountCount: number
+  staleAccountCount: number
+}
+
 export interface HouseholdRecentTransaction {
   date: string
   merchant: string
@@ -797,6 +821,25 @@ export async function fetchHouseholdSpending(
   const query = search.toString()
   return get<HouseholdSpendingView>(
     query ? `/api/household/spending?${query}` : '/api/household/spending',
+    options,
+  )
+}
+
+export async function fetchHouseholdNetWorthTrend(
+  params?: {
+    days?: number
+  },
+  options: RequestInit = {},
+): Promise<HouseholdNetWorthTrend> {
+  const search = new URLSearchParams()
+  if (params?.days != null) {
+    search.set('days', String(params.days))
+  }
+  const query = search.toString()
+  return get<HouseholdNetWorthTrend>(
+    query
+      ? `/api/household/net-worth-trend?${query}`
+      : '/api/household/net-worth-trend',
     options,
   )
 }

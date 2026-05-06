@@ -258,7 +258,7 @@ def test_build_account_summaries_includes_portfolio_accounts_without_evidence() 
     assert any(gap.code == "missing_evidence" for gap in summary.gap_flags)
 
 
-def test_build_account_summaries_uses_evidence_total_for_linked_statement_with_quote_drift() -> None:
+def test_build_account_summaries_uses_live_quotes_for_linked_statement_with_quote_drift() -> None:
     document = HouseholdDocument(
         id="doc-positions",
         filename="Portfolio_Positions_May-02-2026.csv",
@@ -328,10 +328,10 @@ def test_build_account_summaries_uses_evidence_total_for_linked_statement_with_q
 
     assert len(summaries) == 1
     summary = summaries[0]
-    assert summary.current_value == 368331.51
-    assert summary.holdings_value == 368192.73
+    assert round(summary.current_value or 0.0, 5) == 368331.51966
+    assert round(summary.holdings_value or 0.0, 5) == 368192.73966
     assert summary.cash_balance == 138.78
-    assert summary.valuation_source == "evidence"
+    assert summary.valuation_source == "live_quotes"
     assert summary.priced_position_count == 4
     assert summary.quote_freshness_label == "Latest close"
 
