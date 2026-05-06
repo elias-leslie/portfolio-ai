@@ -37,7 +37,7 @@ describe('TodayOverviewPanel', () => {
           totalTrackedAssets: 120000,
           liabilitiesTotal: 20000,
           netWorth: 100000,
-          netWorthStatus: 'estimated',
+          netWorthStatus: 'known',
           netWorthDetail:
             'Known net worth from 3 of 4 tracked accounts. 1 account missing current balances.',
           trackedAccountCount: 4,
@@ -93,7 +93,7 @@ describe('TodayOverviewPanel', () => {
       data: {
         generatedAt: '2026-04-16T10:00:00Z',
         asOfDate: '2026-04-16',
-        status: 'estimated',
+        status: 'known',
         detail:
           'Known net worth from 3 of 4 tracked accounts. Gaps: 1 missing balance.',
         methodology:

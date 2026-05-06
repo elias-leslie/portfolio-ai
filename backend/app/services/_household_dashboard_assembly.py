@@ -330,7 +330,7 @@ def _net_worth_trust(
         )
     if estimate_issue_parts and (missing_balance_count > 0 or candidate_count > 0):
         return (
-            "estimated",
+            "known",
             (
                 f"Known net worth from {len(visible_accounts)} of {len(account_summaries)} tracked "
                 f"{_pluralize(len(account_summaries), 'account')}. "

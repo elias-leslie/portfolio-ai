@@ -68,6 +68,8 @@ function qualityLabel(status: string) {
       return 'Current'
     case 'estimated':
       return 'Estimate'
+    case 'known':
+      return 'Known'
     case 'stale':
       return 'Stale'
     default:
@@ -80,6 +82,7 @@ function netWorthBadgeLabel(status: string | null | undefined) {
     case 'current':
       return 'Current'
     case 'estimated':
+    case 'known':
     case 'stale':
       return 'Known'
     default:
@@ -94,6 +97,7 @@ function netWorthBadgeVariant(
     case 'current':
       return 'success'
     case 'estimated':
+    case 'known':
     case 'stale':
       return 'secondary'
     default:

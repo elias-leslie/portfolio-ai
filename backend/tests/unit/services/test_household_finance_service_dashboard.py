@@ -278,7 +278,7 @@ def test_net_worth_trust_marks_stale_when_all_balances_are_known_but_old() -> No
     assert "Known net worth subtotal from 2 tracked accounts." in detail
 
 
-def test_net_worth_trust_marks_estimated_when_balance_is_missing() -> None:
+def test_net_worth_trust_marks_known_when_balance_is_missing() -> None:
     status, detail = _net_worth_trust(
         [
             Mock(
@@ -296,7 +296,7 @@ def test_net_worth_trust_marks_estimated_when_balance_is_missing() -> None:
         ]
     )
 
-    assert status == "estimated"
+    assert status == "known"
     assert "1 account missing current balances" in detail
 
 

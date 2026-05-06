@@ -254,6 +254,8 @@ function trustStatusLabel(status: string) {
       return 'Current'
     case 'estimated':
       return 'Estimate'
+    case 'known':
+      return 'Known'
     case 'stale':
       return 'Stale'
     default:
@@ -267,6 +269,8 @@ function trustBadgeVariant(status: string) {
       return 'success' as const
     case 'estimated':
       return 'warning' as const
+    case 'known':
+      return 'secondary' as const
     case 'stale':
       return 'secondary' as const
     default:
