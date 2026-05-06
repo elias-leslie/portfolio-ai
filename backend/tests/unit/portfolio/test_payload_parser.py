@@ -47,6 +47,18 @@ def test_parse_payload_row_uses_category_fallback_for_known_fund() -> None:
     assert parsed.sector == "Broad Market Index"
 
 
+def test_parse_payload_row_stamps_cache_time_as_utc() -> None:
+    parsed = parse_payload_row(
+        {
+            "symbol": "VTI",
+            "source": "test",
+            "payload": {"price": 331.41},
+        }
+    )
+
+    assert parsed.cached_at.tzinfo is UTC
+
+
 def test_get_cached_prices_applies_sector_fallback_for_known_fund() -> None:
     """Cache hits should use the same sector/category fallback as fresh fetches."""
     storage = _StubStorage(

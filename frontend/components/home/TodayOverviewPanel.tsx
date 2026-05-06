@@ -40,8 +40,6 @@ function normalizeQualityStatus(status: string | null | undefined) {
       return 'unavailable'
     case 'fresh':
       return 'current'
-    case 'aging':
-      return 'stale'
     default:
       return status ?? 'unavailable'
   }
@@ -53,6 +51,7 @@ function qualityBadgeVariant(
   switch (normalizeQualityStatus(status)) {
     case 'current':
       return 'success'
+    case 'aging':
     case 'estimated':
       return 'warning'
     case 'stale':
@@ -68,6 +67,8 @@ function qualityLabel(status: string) {
       return 'Current'
     case 'estimated':
       return 'Estimate'
+    case 'aging':
+      return 'Recent'
     case 'known':
       return 'Known'
     case 'stale':
@@ -574,12 +575,18 @@ export function TodayOverviewPanel() {
 
   const marketMood = describeIntradayMood(market)
   const portfolioHealth = describePortfolioHealth(analytics)
-  const netWorth = household?.overview.netWorth ?? null
   const netWorthTrendPoints =
     netWorthTrend?.points.map((point) => ({
       date: point.date,
       value: point.netWorth,
     })) ?? []
+  const netWorthTrendLatest =
+    netWorthTrendPoints.length > 0
+      ? netWorthTrendPoints[netWorthTrendPoints.length - 1]?.value
+      : null
+  const netWorth = netWorthTrendLatest ?? household?.overview.netWorth ?? null
+  const netWorthStatus =
+    netWorthTrend?.status ?? household?.overview.netWorthStatus ?? null
   const investedAssets =
     household?.overview.investedAssets ??
     analytics?.householdInvestedTotalValue ??
@@ -622,9 +629,7 @@ export function TodayOverviewPanel() {
       detail: 'Known holdings and balances minus debt',
       labelDetail:
         'Uses actual tracked portfolio shares with latest cached prices where symbols are linked. Cash, debt, and non-symbol accounts use latest available balance evidence.',
-      badge: household
-        ? netWorthBadgeLabel(household.overview.netWorthStatus)
-        : null,
+      badge: netWorthStatus ? netWorthBadgeLabel(netWorthStatus) : null,
       badgeDetail: (
         <div className="space-y-1">
           <p>{netWorthTrend?.detail ?? household?.overview.netWorthDetail}</p>
@@ -633,7 +638,7 @@ export function TodayOverviewPanel() {
           ) : null}
         </div>
       ),
-      badgeVariant: netWorthBadgeVariant(household?.overview.netWorthStatus),
+      badgeVariant: netWorthBadgeVariant(netWorthStatus),
       trend: netWorthTrendPoints,
       trendLoading,
     },
