@@ -1,7 +1,7 @@
 """Agent Hub API client.
 
 Implements LLMClient interface for Agent Hub service.
-Uses either explicit model overrides or the agent's configured defaults.
+Routes through Agent Hub agents; Agent Hub owns model selection and fallbacks.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ class AgentHubAPIClient(LLMClient):
     """Agent Hub API client.
 
     Uses Agent Hub service for LLM completions.
-    Supports both Claude and Gemini models via unified API.
+    Uses Agent Hub agent slugs via the canonical SDK.
     """
 
     def __init__(
@@ -51,9 +51,8 @@ class AgentHubAPIClient(LLMClient):
         """Initialize Agent Hub client.
 
         Args:
-            agent_slug: Preferred Agent Hub agent slug for routed completions
-            model: Optional explicit model override. If omitted, Agent Hub
-                chooses the agent's configured primary/fallback models.
+            agent_slug: Preferred Agent Hub agent slug for routed completions.
+            model: Deprecated. Direct model overrides are rejected; use agent_slug.
             base_url: Agent Hub API base URL
             api_key: Optional API key for authentication
             timeout: Optional HTTP request timeout in seconds. Leave unset for
@@ -68,10 +67,11 @@ class AgentHubAPIClient(LLMClient):
             raise RuntimeError(
                 "Agent Hub is disabled. Set AGENT_HUB_ENABLED=true to enable agentic calls."
             )
+        if model is not None:
+            raise ValueError("Direct model overrides are not allowed; use agent_slug.")
 
         self.agent_slug = agent_slug or DEFAULT_AGENT_SLUG
         self._preferred_agent_slug = agent_slug
-        self.model = model
         self.base_url = base_url
         self.timeout = timeout
         self.use_memory = use_memory
@@ -84,20 +84,11 @@ class AgentHubAPIClient(LLMClient):
             request_source=PORTFOLIO_REQUEST_SOURCE,
         )
 
-        # Determine provider from model name when explicitly overridden.
-        if model is None:
-            self.provider = "agent_hub"
-        elif "claude" in model.lower():
-            self.provider = "claude"
-        elif "gemini" in model.lower():
-            self.provider = "gemini"
-        else:
-            self.provider = "claude"  # Default to claude
+        self.provider = "agent_hub"
 
         logger.info(
             "agent_hub_client_initialized",
             base_url=base_url,
-            model=model,
             agent_slug=self.agent_slug,
             provider=self.provider,
         )
@@ -117,12 +108,12 @@ class AgentHubAPIClient(LLMClient):
             return False
 
     def get_model_name(self) -> str:
-        """Get model name.
+        """Get the Agent Hub route name.
 
         Returns:
-            Model identifier
+            Agent slug used for routing.
         """
-        return self._preferred_agent_slug or self.model or DEFAULT_AGENT_SLUG
+        return self.agent_slug
 
     def generate(
         self,
@@ -155,7 +146,7 @@ class AgentHubAPIClient(LLMClient):
 
         logger.info(
             "agent_hub_calling",
-            model=self.model,
+            agent_slug=self.agent_slug,
             prompt_length=len(prompt),
             has_system=system is not None,
             has_tools=tools is not None,
@@ -246,8 +237,6 @@ class AgentHubAPIClient(LLMClient):
             "project_id": "portfolio-ai",
             "purpose": purpose,
         }
-        if self.model is not None:
-            request_kwargs["model"] = self.model
         if tools is not None:
             request_kwargs["tools"] = tools
         resolved_memory = self.use_memory if use_memory is None else use_memory

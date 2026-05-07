@@ -130,13 +130,26 @@ class JennyPredictionReviewSeatWeight(BaseModel):
     recommended_action: str = "hold"
 
 
+class JennyPredictionReviewClusterWeight(BaseModel):
+    cluster: str
+    prior_weight: float
+    effective_weight: float
+    sample_size: int = 0
+    freshness: str = "unknown"
+    gate_state: str = "off"
+    recommended_action: str = "hold"
+
+
 class JennyPredictionReviewSummary(BaseModel):
     window_days: int
     review_state: str
     generated_at: str
     as_of_ts: str
     seat_weights: list[JennyPredictionReviewSeatWeight] = Field(default_factory=list)
+    cluster_weights: list[JennyPredictionReviewClusterWeight] = Field(default_factory=list)
     drift_callouts: list[str] = Field(default_factory=list)
+    gap_callouts: list[str] = Field(default_factory=list)
+    agent_actions: list[str] = Field(default_factory=list)
     top_upweighted: list[JennyPredictionReviewChange] = Field(default_factory=list)
     top_downweighted: list[JennyPredictionReviewChange] = Field(default_factory=list)
 

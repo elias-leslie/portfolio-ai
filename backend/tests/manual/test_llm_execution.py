@@ -27,7 +27,7 @@ def test_agent_hub_availability() -> dict[str, str]:
     """
     print("\n=== TESTING AGENT HUB ===")
     try:
-        client = AgentHubAPIClient(model="claude-sonnet-4-5-20250514")
+        client = AgentHubAPIClient(agent_slug="chat")
         is_available = client.is_available()
         print(f"  Model: {client.get_model_name()}")
         print(f"  Available: {is_available}")
@@ -53,15 +53,15 @@ def test_agent_hub_availability() -> dict[str, str]:
         return {"status": "ERROR", "provider": "agent_hub", "error": str(e)}
 
 
-def test_agent_hub_gemini() -> dict[str, str]:
-    """Test Agent Hub with Gemini model.
+def test_agent_hub_market_pulse_scout() -> dict[str, str]:
+    """Test Agent Hub with market-pulse-scout agent.
 
     Returns:
         Dictionary with status and details
     """
-    print("\n=== TESTING AGENT HUB (GEMINI) ===")
+    print("\n=== TESTING AGENT HUB (MARKET PULSE SCOUT) ===")
     try:
-        client = AgentHubAPIClient(model="gemini-3-flash-preview")
+        client = AgentHubAPIClient(agent_slug="market-pulse-scout")
         is_available = client.is_available()
         print(f"  Model: {client.get_model_name()}")
         print(f"  Available: {is_available}")
@@ -73,12 +73,12 @@ def test_agent_hub_gemini() -> dict[str, str]:
                 print(f"  Response: {response.content[:100]}")
                 return {"status": "WORKS", "provider": response.provider, "model": response.model}
             except RuntimeError as e:
-                return {"status": "ERROR", "provider": "gemini", "error": str(e)}
+                return {"status": "ERROR", "provider": "agent_hub", "error": str(e)}
         else:
-            return {"status": "UNAVAILABLE", "provider": "gemini", "error": "Service not reachable"}
+            return {"status": "UNAVAILABLE", "provider": "agent_hub", "error": "Service not reachable"}
 
     except Exception as e:
-        return {"status": "ERROR", "provider": "gemini", "error": str(e)}
+        return {"status": "ERROR", "provider": "agent_hub", "error": str(e)}
 
 
 def print_summary(results: list[dict[str, object]]) -> None:
@@ -126,10 +126,10 @@ if __name__ == "__main__":
         {"name": "Agent Hub (Claude)", "status": claude_result["status"], **claude_result}
     )
 
-    # Test Agent Hub with Gemini
-    gemini_result = test_agent_hub_gemini()
+    # Test Agent Hub with market-pulse-scout
+    gemini_result = test_agent_hub_market_pulse_scout()
     results.append(
-        {"name": "Agent Hub (Gemini)", "status": gemini_result["status"], **gemini_result}
+        {"name": "Agent Hub (Market Pulse Scout)", "status": gemini_result["status"], **gemini_result}
     )
 
     # Print summary

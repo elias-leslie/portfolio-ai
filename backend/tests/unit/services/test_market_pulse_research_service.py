@@ -28,8 +28,8 @@ def test_build_research_uses_scout_agent_slug_and_hub_tools(monkeypatch) -> None
           ]
         }
         """,
-        provider="xai",
-        model="xai/grok-4.20-reasoning",
+        provider="served-provider",
+        model="served-scout-model",
         usage=SimpleNamespace(
             input_tokens=42,
             output_tokens=24,

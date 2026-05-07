@@ -79,6 +79,9 @@ type PredictionCall = MarketPredictionCommitteeResponse['calls'][number]
 type PredictionVote = MarketPredictionCommitteeResponse['votes'][number]
 type PredictionReviewSeat =
   MarketPredictionSeatReviewResponse['seatScorecards'][number]
+type PredictionReviewCluster = NonNullable<
+  MarketPredictionSeatReviewResponse['clusterScorecards']
+>[number]
 type SourceRow = PredictionSourceCluster
 
 type NormalizedPredictionCall = Omit<
@@ -203,7 +206,7 @@ type ReviewStateDescriptor = {
 }
 
 type ReviewChangeRow = {
-  kind: 'seat'
+  kind: 'seat' | 'cluster'
   key: string
   priorWeight: number
   effectiveWeight: number
@@ -214,7 +217,10 @@ type NormalizedReviewState = {
   generatedAt: string | null
   asOfTs: string | null
   seatScorecards: PredictionReviewSeat[]
+  clusterScorecards: PredictionReviewCluster[]
   driftCallouts: string[]
+  gapCallouts: string[]
+  agentActions: string[]
   topUpweighted: ReviewChangeRow[]
   topDownweighted: ReviewChangeRow[]
 }
@@ -311,6 +317,16 @@ function ageSecondsFromTimestamp(
 function formatWeightShare(value?: number | null) {
   if (value == null || Number.isNaN(value)) return '—'
   return `${Math.round(value * 100)}%`
+}
+
+function formatClusterWeight(value?: number | null) {
+  if (value == null || Number.isNaN(value)) return '—'
+  return `${Math.round(value)}%`
+}
+
+function formatSourceClusterWeight(value?: number | null) {
+  if (value == null || Number.isNaN(value)) return '—'
+  return value > 1 ? `${Math.round(value)}%` : `${Math.round(value * 100)}%`
 }
 
 function directionIcon(direction: 'bullish' | 'neutral' | 'bearish') {
@@ -433,8 +449,9 @@ function normalizeReviewChangeRows(value: unknown): ReviewChangeRow[] {
     const key = readString(record.key)
     const priorWeight = record.priorWeight ?? record.prior_weight
     const effectiveWeight = record.effectiveWeight ?? record.effective_weight
+    const kind = record.kind === 'cluster' ? 'cluster' : 'seat'
     if (
-      record.kind !== 'seat' ||
+      (record.kind !== 'seat' && record.kind !== 'cluster') ||
       !key ||
       !isFiniteNumber(priorWeight) ||
       !isFiniteNumber(effectiveWeight)
@@ -442,7 +459,7 @@ function normalizeReviewChangeRows(value: unknown): ReviewChangeRow[] {
       continue
     }
     rows.push({
-      kind: 'seat',
+      kind,
       key,
       priorWeight,
       effectiveWeight,
@@ -464,9 +481,18 @@ function normalizeReviewPanel(
     ),
     asOfTs: readString(review?.asOfTs),
     seatScorecards: review?.seatScorecards ?? [],
+    clusterScorecards: review?.clusterScorecards ?? [],
     driftCallouts: [
       ...readStringArray(reviewSummary.driftCallouts),
       ...readStringArray(reviewSummary.drift_callouts),
+    ].filter((value, index, array) => array.indexOf(value) === index),
+    gapCallouts: [
+      ...readStringArray(reviewSummary.gapCallouts),
+      ...readStringArray(reviewSummary.gap_callouts),
+    ].filter((value, index, array) => array.indexOf(value) === index),
+    agentActions: [
+      ...readStringArray(reviewSummary.agentActions),
+      ...readStringArray(reviewSummary.agent_actions),
     ].filter((value, index, array) => array.indexOf(value) === index),
     topUpweighted: normalizeReviewChangeRows(
       reviewSummary.topUpweighted ?? reviewSummary.top_upweighted,
@@ -2182,7 +2208,7 @@ export function InvestingPredictionPanel() {
                     </span>
                     <span className="font-mono text-xs uppercase text-text-muted">
                       {row.weight != null
-                        ? `${Math.round(row.weight * 100)}%`
+                        ? formatSourceClusterWeight(row.weight)
                         : humanizeLabel(row.freshness ?? 'unknown')}
                     </span>
                     <span className="text-xs text-text-muted">
@@ -3117,7 +3143,7 @@ function _LegacyInvestingPredictionPanel() {
                       </p>
                       {row.weight != null ? (
                         <p className="mt-1 text-xs text-text-muted">
-                          Weight {Math.round(row.weight * 100)}%
+                          Weight {formatSourceClusterWeight(row.weight)}
                         </p>
                       ) : null}
                       <p className="mt-1 text-xs text-text-muted">
@@ -3280,9 +3306,61 @@ function _LegacyInvestingPredictionPanel() {
                   ))}
                 </div>
 
-                {reviewState.driftCallouts.length > 0 ? (
+                {reviewState.clusterScorecards.length > 0 ? (
+                  <div
+                    data-testid="prediction-review-cluster-weights"
+                    className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3"
+                  >
+                    {reviewState.clusterScorecards.map((cluster) => (
+                      <div
+                        key={cluster.cluster}
+                        className="rounded-[18px] border border-border/30 bg-white/[0.03] p-3"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-text">
+                              {humanizeLabel(cluster.cluster)}
+                            </p>
+                            <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-text-muted">
+                              Prior {formatClusterWeight(cluster.priorWeight)} ·{' '}
+                              {cluster.sampleSize} matured call
+                              {cluster.sampleSize === 1 ? '' : 's'}
+                            </p>
+                          </div>
+                          <StatusBadge
+                            label={humanizeLabel(cluster.gateState)}
+                            tone={
+                              cluster.gateState === 'active'
+                                ? 'success'
+                                : cluster.gateState === 'downweighted'
+                                  ? 'warning'
+                                  : 'neutral'
+                            }
+                          />
+                        </div>
+                        <p className="mt-3 text-2xl font-semibold text-text">
+                          {formatClusterWeight(cluster.effectiveWeight)}
+                        </p>
+                        <p className="mt-1 text-xs text-text-muted">
+                          {humanizeLabel(cluster.recommendedAction)} ·{' '}
+                          {humanizeLabel(cluster.freshness)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {[
+                  ...reviewState.driftCallouts,
+                  ...reviewState.gapCallouts,
+                  ...reviewState.agentActions,
+                ].length > 0 ? (
                   <div className="mt-4 space-y-2">
-                    {reviewState.driftCallouts.map((callout) => (
+                    {[
+                      ...reviewState.driftCallouts,
+                      ...reviewState.gapCallouts,
+                      ...reviewState.agentActions,
+                    ].map((callout) => (
                       <div
                         key={callout}
                         className="rounded-[16px] border border-border/30 bg-white/[0.03] px-3 py-2 text-xs text-text-muted"

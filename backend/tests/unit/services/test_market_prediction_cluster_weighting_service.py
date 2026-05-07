@@ -90,38 +90,77 @@ def test_get_review_returns_synthetic_warmup_before_first_persisted_row() -> Non
     assert review.id == "cluster-review:3:2026-04-23T22:15:00+00:00"
     assert review.review_state == "warmup"
     assert [row.cluster for row in review.cluster_scorecards] == [
-        "market_regime",
-        "sentiment",
+        "price_structure_market_regime_breadth",
+        "overnight_premarket_afterhours_futures_news",
+        "mag7_sector_leadership",
         "options_positioning",
         "macro_calendar",
+        "news_filings_earnings_analyst",
+        "sentiment_fear_greed",
+        "oil_shock_overlay",
+        "holiday_turn_of_month",
+        "day_of_week",
+        "freight_transport_event",
     ]
-    assert [row.sample_size for row in review.cluster_scorecards] == [0, 0, 0, 0]
-    assert [row.freshness for row in review.cluster_scorecards] == [
-        "fresh",
-        "fresh",
-        "fresh",
-        "fresh",
-    ]
-    assert all(row.prior_weight == pytest.approx(0.25) for row in review.cluster_scorecards)
-    assert all(row.effective_weight == pytest.approx(0.25) for row in review.cluster_scorecards)
-    assert review.review_summary == {
-        "generated_at": "2026-04-23T22:15:00+00:00",
-        "review_state": "warmup",
-        "drift_callouts": [],
-        "top_upweighted": [],
-        "top_downweighted": [],
-    }
-    assert review.metadata == {
-        "weighting_half_life_days": 20,
-        "trailing_window_trading_days": 60,
-        "freshness_factors": {
-            "fresh": 1.0,
-            "stale": 0.5,
-            "missing": 0.0,
-            "unknown": 0.25,
-        },
-        "supported_windows": [1, 3, 7, 14],
-    }
+    assert [row.sample_size for row in review.cluster_scorecards] == [0] * 11
+    scorecards = {row.cluster: row for row in review.cluster_scorecards}
+    assert scorecards["price_structure_market_regime_breadth"].prior_weight == pytest.approx(24.0)
+    assert scorecards["price_structure_market_regime_breadth"].effective_weight == pytest.approx(44.4444444)
+    assert scorecards["macro_calendar"].prior_weight == pytest.approx(12.0)
+    assert scorecards["macro_calendar"].effective_weight == pytest.approx(22.2222222)
+    assert scorecards["day_of_week"].gate_state == "tracked_only"
+    assert scorecards["freight_transport_event"].recommended_action == "track_only"
+    assert review.review_summary["review_state"] == "warmup"
+    assert review.review_summary["gap_callouts"]
+    assert review.metadata["cluster_priors_1d_3d"]["macro_calendar"] == 12.0
+    assert review.metadata["min_cluster_sample_size"] == 8
+
+
+def test_get_review_ignores_legacy_zero_to_one_cluster_weight_rows() -> None:
+    service = MarketPredictionClusterWeightingService(
+        repository=_FakeRepo(
+            latest_rows=[
+                {
+                    "id": "cluster-review:3:2026-04-22T22:15:00+00:00",
+                    "generated_at": datetime(2026, 4, 22, 22, 15, tzinfo=UTC),
+                    "as_of_ts": datetime(2026, 4, 22, 22, 15, tzinfo=UTC),
+                    "window_days": 3,
+                    "review_state": "live",
+                    "cluster_scorecards": [
+                        {
+                            "cluster": "market_regime",
+                            "prior_weight": 0.25,
+                            "effective_weight": 0.25,
+                            "sample_size": 24,
+                            "direction_hit_rate": 0.5,
+                            "move_mae_pct": 1.0,
+                            "brier_score": 0.25,
+                            "skill_score": 0.62,
+                            "freshness": "fresh",
+                            "recommended_action": "hold",
+                        }
+                    ],
+                    "review_summary": {
+                        "generated_at": "2026-04-22T22:15:00+00:00",
+                        "review_state": "live",
+                        "drift_callouts": [],
+                        "top_upweighted": [],
+                        "top_downweighted": [],
+                    },
+                    "metadata": {},
+                }
+            ]
+        )
+    )
+    as_of_ts = datetime(2026, 4, 23, 22, 15, tzinfo=UTC)
+
+    review = service.get_review(window_days=3, as_of_ts=as_of_ts, source_snapshot=_source_snapshot())
+
+    assert review.id == "cluster-review:3:2026-04-23T22:15:00+00:00"
+    assert review.review_state == "warmup"
+    scorecards = {row.cluster: row for row in review.cluster_scorecards}
+    assert scorecards["price_structure_market_regime_breadth"].prior_weight == pytest.approx(24.0)
+    assert scorecards["price_structure_market_regime_breadth"].effective_weight == pytest.approx(44.4444444)
 
 
 
@@ -206,36 +245,26 @@ def test_resolve_and_persist_review_computes_live_weights_and_summary() -> None:
     assert review.id == "cluster-review:3:2026-04-23T22:15:00+00:00"
     assert review.review_state == "live"
     scorecards = {row.cluster: row for row in review.cluster_scorecards}
-    assert scorecards["macro_calendar"].effective_weight == pytest.approx(0.3263577312)
-    assert scorecards["options_positioning"].effective_weight == pytest.approx(0.3056987879)
-    assert scorecards["market_regime"].effective_weight == pytest.approx(0.2486104601)
-    assert scorecards["sentiment"].effective_weight == pytest.approx(0.1193330208)
+    assert scorecards["macro_calendar"].effective_weight == pytest.approx(26.5738865231)
+    assert scorecards["options_positioning"].effective_weight == pytest.approx(29.1934872361)
+    assert scorecards["price_structure_market_regime_breadth"].effective_weight == pytest.approx(41.4745675020)
+    assert scorecards["sentiment_fear_greed"].effective_weight == pytest.approx(2.7580587389)
     assert scorecards["macro_calendar"].recommended_action == "upweight"
-    assert scorecards["sentiment"].recommended_action == "downweight"
-    assert scorecards["market_regime"].recommended_action == "hold"
+    assert scorecards["sentiment_fear_greed"].recommended_action == "hold"
+    assert scorecards["price_structure_market_regime_breadth"].recommended_action == "upweight"
     assert scorecards["options_positioning"].recommended_action == "upweight"
-    assert review.review_summary["top_upweighted"] == [
-        {
-            "kind": "cluster",
-            "key": "options_positioning",
-            "prior_weight": pytest.approx(0.25),
-            "effective_weight": pytest.approx(0.3056987879),
-        },
-        {
-            "kind": "cluster",
-            "key": "macro_calendar",
-            "prior_weight": pytest.approx(0.25),
-            "effective_weight": pytest.approx(0.3263577312),
-        },
-    ]
-    assert review.review_summary["top_downweighted"] == [
-        {
-            "kind": "cluster",
-            "key": "sentiment",
-            "prior_weight": pytest.approx(0.25),
-            "effective_weight": pytest.approx(0.1193330208),
-        }
-    ]
+    assert {row["key"] for row in review.review_summary["top_upweighted"]} >= {
+        "price_structure_market_regime_breadth",
+        "options_positioning",
+        "macro_calendar",
+    }
+    assert "overnight_premarket_afterhours_futures_news" in {
+        row["key"] for row in review.review_summary["top_downweighted"]
+    }
+    assert any(
+        action.startswith("Jenny/risk-manager:")
+        for action in review.review_summary["agent_actions"]
+    )
     assert repo.persisted[0] == review
 
 
@@ -306,51 +335,55 @@ def test_get_review_ignores_malformed_latest_row_and_falls_back_to_next_valid_re
             review_state="live",
             cluster_scorecards=[
                 {
-                    "cluster": "market_regime",
-                    "prior_weight": 0.25,
-                    "effective_weight": 0.24,
+                    "cluster": "price_structure_market_regime_breadth",
+                    "prior_weight": 24.0,
+                    "effective_weight": 24.0,
                     "sample_size": 24,
                     "direction_hit_rate": 0.5,
                     "move_mae_pct": 1.0,
                     "brier_score": 0.25,
                     "skill_score": 0.625,
                     "freshness": "fresh",
+                    "gate_state": "active",
                     "recommended_action": "hold",
                 },
                 {
-                    "cluster": "sentiment",
-                    "prior_weight": 0.25,
-                    "effective_weight": 0.12,
+                    "cluster": "sentiment_fear_greed",
+                    "prior_weight": 4.0,
+                    "effective_weight": 2.0,
                     "sample_size": 24,
                     "direction_hit_rate": 0.0,
                     "move_mae_pct": 4.0,
                     "brier_score": 1.0,
                     "skill_score": 0.04,
                     "freshness": "fresh",
+                    "gate_state": "downweighted",
                     "recommended_action": "downweight",
                 },
                 {
                     "cluster": "options_positioning",
-                    "prior_weight": 0.25,
-                    "effective_weight": 0.31,
+                    "prior_weight": 14.0,
+                    "effective_weight": 18.0,
                     "sample_size": 24,
                     "direction_hit_rate": 1.0,
                     "move_mae_pct": 0.5,
                     "brier_score": 0.1,
                     "skill_score": 0.8833333333,
                     "freshness": "fresh",
+                    "gate_state": "active",
                     "recommended_action": "upweight",
                 },
                 {
                     "cluster": "macro_calendar",
-                    "prior_weight": 0.25,
-                    "effective_weight": 0.33,
+                    "prior_weight": 12.0,
+                    "effective_weight": 16.0,
                     "sample_size": 24,
                     "direction_hit_rate": 1.0,
                     "move_mae_pct": 0.1,
                     "brier_score": 0.01,
                     "skill_score": 0.9768181818,
                     "freshness": "fresh",
+                    "gate_state": "active",
                     "recommended_action": "upweight",
                 },
             ],
@@ -362,16 +395,16 @@ def test_get_review_ignores_malformed_latest_row_and_falls_back_to_next_valid_re
                     {
                         "kind": "cluster",
                         "key": "macro_calendar",
-                        "prior_weight": 0.25,
-                        "effective_weight": 0.33,
+                        "prior_weight": 12.0,
+                        "effective_weight": 16.0,
                     }
                 ],
                 "top_downweighted": [
                     {
                         "kind": "cluster",
-                        "key": "sentiment",
-                        "prior_weight": 0.25,
-                        "effective_weight": 0.12,
+                        "key": "sentiment_fear_greed",
+                        "prior_weight": 4.0,
+                        "effective_weight": 2.0,
                     }
                 ],
             },
@@ -399,16 +432,23 @@ def test_get_review_ignores_malformed_latest_row_and_falls_back_to_next_valid_re
     assert review.as_of_ts == datetime(2026, 4, 23, 22, 15, tzinfo=UTC)
     assert review.review_state == "live"
     assert [row.cluster for row in review.cluster_scorecards] == [
-        "market_regime",
-        "sentiment",
+        "price_structure_market_regime_breadth",
+        "overnight_premarket_afterhours_futures_news",
+        "mag7_sector_leadership",
         "options_positioning",
         "macro_calendar",
+        "news_filings_earnings_analyst",
+        "sentiment_fear_greed",
+        "oil_shock_overlay",
+        "holiday_turn_of_month",
+        "day_of_week",
+        "freight_transport_event",
     ]
     assert review.review_summary["top_downweighted"][0] == {
         "kind": "cluster",
-        "key": "sentiment",
-        "prior_weight": 0.25,
-        "effective_weight": 0.12,
+        "key": "sentiment_fear_greed",
+        "prior_weight": 4.0,
+        "effective_weight": 2.0,
     }
 
 
@@ -425,5 +465,8 @@ def test_resolve_and_persist_review_returns_priors_only_degraded_when_persist_fa
     )
 
     assert review.review_state == "degraded"
-    assert all(row.effective_weight == pytest.approx(0.25) for row in review.cluster_scorecards)
+    scorecards = {row.cluster: row for row in review.cluster_scorecards}
+    assert scorecards["price_structure_market_regime_breadth"].effective_weight == pytest.approx(44.4444444)
+    assert scorecards["day_of_week"].effective_weight == pytest.approx(0.0)
+    assert scorecards["day_of_week"].recommended_action == "track_only"
     assert review.metadata["_persisted"] is False

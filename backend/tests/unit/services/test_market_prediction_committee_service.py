@@ -942,10 +942,10 @@ def test_generate_snapshot_uses_weighted_committee_synthesis_and_additive_review
         window_days=3,
         review_state="live",
         cluster_scorecards=[
-            {"cluster": "market_regime", "prior_weight": 0.25, "effective_weight": 0.32, "sample_size": 24, "direction_hit_rate": 0.6, "move_mae_pct": 0.9, "brier_score": 0.2, "skill_score": 0.7, "freshness": "fresh", "recommended_action": "upweight"},
-            {"cluster": "sentiment", "prior_weight": 0.25, "effective_weight": 0.0, "sample_size": 0, "direction_hit_rate": None, "move_mae_pct": None, "brier_score": None, "skill_score": None, "freshness": "missing", "recommended_action": "downweight"},
-            {"cluster": "options_positioning", "prior_weight": 0.25, "effective_weight": 0.28, "sample_size": 18, "direction_hit_rate": 0.7, "move_mae_pct": 0.5, "brier_score": 0.12, "skill_score": 0.83, "freshness": "fresh", "recommended_action": "hold"},
-            {"cluster": "macro_calendar", "prior_weight": 0.25, "effective_weight": 0.40, "sample_size": 24, "direction_hit_rate": 1.0, "move_mae_pct": 0.1, "brier_score": 0.01, "skill_score": 0.98, "freshness": "fresh", "recommended_action": "upweight"},
+            {"cluster": "price_structure_market_regime_breadth", "prior_weight": 24.0, "effective_weight": 32.0, "sample_size": 24, "direction_hit_rate": 0.6, "move_mae_pct": 0.9, "brier_score": 0.2, "skill_score": 0.7, "freshness": "fresh", "gate_state": "active", "recommended_action": "upweight"},
+            {"cluster": "sentiment_fear_greed", "prior_weight": 4.0, "effective_weight": 0.0, "sample_size": 0, "direction_hit_rate": None, "move_mae_pct": None, "brier_score": None, "skill_score": None, "freshness": "missing", "gate_state": "off", "recommended_action": "downweight"},
+            {"cluster": "options_positioning", "prior_weight": 14.0, "effective_weight": 28.0, "sample_size": 18, "direction_hit_rate": 0.7, "move_mae_pct": 0.5, "brier_score": 0.12, "skill_score": 0.83, "freshness": "fresh", "gate_state": "active", "recommended_action": "upweight"},
+            {"cluster": "macro_calendar", "prior_weight": 12.0, "effective_weight": 40.0, "sample_size": 24, "direction_hit_rate": 1.0, "move_mae_pct": 0.1, "brier_score": 0.01, "skill_score": 0.98, "freshness": "fresh", "gate_state": "active", "recommended_action": "upweight"},
         ],
         review_summary={"generated_at": "2026-04-21T22:15:00+00:00", "review_state": "live", "drift_callouts": [], "top_upweighted": [], "top_downweighted": []},
         metadata={
@@ -1000,13 +1000,13 @@ def test_generate_snapshot_uses_weighted_committee_synthesis_and_additive_review
     assert repo.calls[0].committee_disagreement_score == pytest.approx(0.4)
     assert repo.calls[0].metadata["aggregation_mode"] == "weighted_committee"
     assert repo.calls[0].metadata["active_seat_keys"] == ["macro", "risk"]
-    assert repo.calls[0].metadata["active_cluster_keys"] == ["macro_calendar", "market_regime"]
-    assert [cluster.cluster for cluster in repo.calls[0].top_source_clusters] == ["macro_calendar", "market_regime"]
-    assert [cluster.weight for cluster in repo.calls[0].top_source_clusters] == [pytest.approx(0.40), pytest.approx(0.32)]
+    assert repo.calls[0].metadata["active_cluster_keys"] == ["macro_calendar", "price_structure_market_regime_breadth"]
+    assert [cluster.cluster for cluster in repo.calls[0].top_source_clusters] == ["macro_calendar", "price_structure_market_regime_breadth"]
+    assert [cluster.weight for cluster in repo.calls[0].top_source_clusters] == [pytest.approx(40.0), pytest.approx(32.0)]
     assert [cluster.as_of_date for cluster in repo.calls[0].top_source_clusters] == ["2026-04-22", "2026-04-21"]
-    assert result.source_snapshot["clusters"]["macro_calendar"]["effective_weight"] == pytest.approx(0.40)
-    assert result.source_snapshot["clusters"]["market_regime"]["effective_weight"] == pytest.approx(0.32)
-    assert result.source_snapshot["clusters"].get("sentiment", {}).get("effective_weight") is None
+    assert result.source_snapshot["clusters"]["macro_calendar"]["effective_weight"] == pytest.approx(40.0)
+    assert result.source_snapshot["clusters"]["price_structure_market_regime_breadth"]["effective_weight"] == pytest.approx(32.0)
+    assert result.source_snapshot["clusters"].get("sentiment_fear_greed", {}).get("effective_weight") == pytest.approx(0.0)
     assert result.committee_summary["resolved_seat_weights"] == [
         {"seat_key": "cross_asset", "prior_weight": pytest.approx(1 / 3), "effective_weight": 0.2, "sample_size": 6, "skill_score": 0.6},
         {"seat_key": "macro", "prior_weight": pytest.approx(1 / 3), "effective_weight": 0.5, "sample_size": 12, "skill_score": 0.82},
@@ -1015,14 +1015,20 @@ def test_generate_snapshot_uses_weighted_committee_synthesis_and_additive_review
     assert result.committee_summary["review_state"] == "live"
     assert result.committee_summary["review_as_of_ts"] == "2026-04-21T22:15:00+00:00"
     assert result.committee_summary["review_row_id"] == "seat-review:3:2026-04-21T22:15:00+00:00"
-    assert repo.runs[0].metadata["adaptive_weighting_version"] == "seat-v1"
+    assert result.committee_summary["cluster_review_state"] == "live"
+    assert result.committee_summary["cluster_review_row_id"] == "cluster-review:3:2026-04-21T22:15:00+00:00"
+    assert result.committee_summary["resolved_cluster_weights"][0]["cluster"] == "price_structure_market_regime_breadth"
+    assert result.committee_summary["resolved_cluster_weights"][0]["prior_weight"] == pytest.approx(24.0)
+    assert result.committee_summary["resolved_cluster_weights"][4]["cluster"] == "macro_calendar"
+    assert result.committee_summary["resolved_cluster_weights"][4]["effective_weight"] == pytest.approx(40.0)
+    assert repo.runs[0].metadata["adaptive_weighting_version"] == "v1"
     assert repo.runs[0].metadata["review_state"] == "live"
     assert repo.runs[0].metadata["review_row_id"] == "seat-review:3:2026-04-21T22:15:00+00:00"
     assert repo.runs[0].metadata["adaptive_cluster_weighting_version"] == "cluster-v1"
     assert repo.runs[0].metadata["cluster_review_state"] == "live"
     assert repo.runs[0].metadata["cluster_review_row_id"] == "cluster-review:3:2026-04-21T22:15:00+00:00"
-    assert repo.runs[0].metadata["resolved_cluster_weights"][0]["cluster"] == "market_regime"
-    assert repo.runs[0].metadata["resolved_cluster_weights"][3]["cluster"] == "macro_calendar"
+    assert repo.runs[0].metadata["resolved_cluster_weights"][0]["cluster"] == "price_structure_market_regime_breadth"
+    assert repo.runs[0].metadata["resolved_cluster_weights"][4]["cluster"] == "macro_calendar"
 
 
 
@@ -1080,10 +1086,10 @@ def test_generate_snapshot_filters_zero_weight_supported_clusters_from_new_weigh
         window_days=3,
         review_state="live",
         cluster_scorecards=[
-            {"cluster": "market_regime", "prior_weight": 0.25, "effective_weight": 0.32, "sample_size": 24, "direction_hit_rate": 0.6, "move_mae_pct": 0.9, "brier_score": 0.2, "skill_score": 0.7, "freshness": "fresh", "recommended_action": "upweight"},
-            {"cluster": "sentiment", "prior_weight": 0.25, "effective_weight": 0.0, "sample_size": 4, "direction_hit_rate": None, "move_mae_pct": None, "brier_score": None, "skill_score": None, "freshness": "missing", "recommended_action": "downweight"},
-            {"cluster": "options_positioning", "prior_weight": 0.25, "effective_weight": 0.0, "sample_size": 0, "direction_hit_rate": None, "move_mae_pct": None, "brier_score": None, "skill_score": None, "freshness": "missing", "recommended_action": "downweight"},
-            {"cluster": "macro_calendar", "prior_weight": 0.25, "effective_weight": 0.40, "sample_size": 24, "direction_hit_rate": 1.0, "move_mae_pct": 0.1, "brier_score": 0.01, "skill_score": 0.98, "freshness": "fresh", "recommended_action": "upweight"},
+            {"cluster": "price_structure_market_regime_breadth", "prior_weight": 24.0, "effective_weight": 32.0, "sample_size": 24, "direction_hit_rate": 0.6, "move_mae_pct": 0.9, "brier_score": 0.2, "skill_score": 0.7, "freshness": "fresh", "gate_state": "active", "recommended_action": "upweight"},
+            {"cluster": "sentiment_fear_greed", "prior_weight": 4.0, "effective_weight": 0.0, "sample_size": 4, "direction_hit_rate": None, "move_mae_pct": None, "brier_score": None, "skill_score": None, "freshness": "missing", "gate_state": "off", "recommended_action": "downweight"},
+            {"cluster": "options_positioning", "prior_weight": 14.0, "effective_weight": 0.0, "sample_size": 0, "direction_hit_rate": None, "move_mae_pct": None, "brier_score": None, "skill_score": None, "freshness": "missing", "gate_state": "off", "recommended_action": "downweight"},
+            {"cluster": "macro_calendar", "prior_weight": 12.0, "effective_weight": 40.0, "sample_size": 24, "direction_hit_rate": 1.0, "move_mae_pct": 0.1, "brier_score": 0.01, "skill_score": 0.98, "freshness": "fresh", "gate_state": "active", "recommended_action": "upweight"},
         ],
         review_summary={"generated_at": "2026-04-21T22:15:00+00:00", "review_state": "live", "drift_callouts": [], "top_upweighted": [], "top_downweighted": []},
         metadata={"weighting_half_life_days": 20, "trailing_window_trading_days": 60, "freshness_factors": {"fresh": 1.0, "stale": 0.5, "missing": 0.0, "unknown": 0.25}, "supported_windows": [1, 3, 7, 14]},
@@ -1102,10 +1108,10 @@ def test_generate_snapshot_filters_zero_weight_supported_clusters_from_new_weigh
         cluster_review=cluster_review,
     )
 
-    assert result.calls[0].metadata["active_cluster_keys"] == ["macro_calendar", "market_regime"]
-    assert [cluster.cluster for cluster in result.calls[0].top_source_clusters] == ["macro_calendar", "market_regime"]
-    assert result.source_snapshot["clusters"]["sentiment"]["effective_weight"] is None
-    assert result.source_snapshot["clusters"]["macro_calendar"]["effective_weight"] == pytest.approx(0.4)
+    assert result.calls[0].metadata["active_cluster_keys"] == ["macro_calendar", "price_structure_market_regime_breadth"]
+    assert [cluster.cluster for cluster in result.calls[0].top_source_clusters] == ["macro_calendar", "price_structure_market_regime_breadth"]
+    assert result.source_snapshot["clusters"]["sentiment_fear_greed"]["effective_weight"] == pytest.approx(0.0)
+    assert result.source_snapshot["clusters"]["macro_calendar"]["effective_weight"] == pytest.approx(40.0)
 
 
 
@@ -1330,7 +1336,7 @@ def test_generate_snapshot_persists_root_provenance_and_generation_time_fallback
             {
                 "seat_key": " Macro ",
                 "agent_slug": "market-pulse-analyst",
-                "model_id": "gpt-5.4",
+                "model_id": "served-committee-model",
                 "provider": "codex",
                 "symbol": "SPY",
                 "prob_up": 0.64,
@@ -1383,7 +1389,7 @@ def test_generate_snapshot_persists_root_provenance_and_generation_time_fallback
         {
             "seat_key": "macro",
             "agent_slug": "market-pulse-analyst",
-            "model_id": "gpt-5.4",
+            "model_id": "served-committee-model",
             "provider": "codex",
         }
     ]

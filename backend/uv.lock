@@ -7,14 +7,14 @@ constraints = [{ name = "pygments", specifier = ">=2.20.0" }]
 
 [[package]]
 name = "agent-hub-client"
-version = "0.3.0"
-source = { path = "../docker/workspace-packages/agent_hub_client-0.3.0-py3-none-any.whl" }
+version = "0.4.0"
+source = { path = "../docker/workspace-packages/agent_hub_client-0.4.0-py3-none-any.whl" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
 ]
 wheels = [
-    { filename = "agent_hub_client-0.3.0-py3-none-any.whl", hash = "sha256:02c789e9f0f215e1fde900956b18d72db2bade3d73497beb816a110f426f8edb" },
+    { filename = "agent_hub_client-0.4.0-py3-none-any.whl", hash = "sha256:99f178082a114172c88d58e295d1d31b3e78d80c71533c380d1e831d5cf58397" },
 ]
 
 [package.metadata]
@@ -1470,7 +1470,7 @@ ml = [
 
 [package.metadata]
 requires-dist = [
-    { name = "agent-hub-client", path = "../docker/workspace-packages/agent_hub_client-0.3.0-py3-none-any.whl" },
+    { name = "agent-hub-client", path = "../docker/workspace-packages/agent_hub_client-0.4.0-py3-none-any.whl" },
     { name = "alembic", specifier = ">=1.13.0" },
     { name = "cachetools", specifier = "==5.5.0" },
     { name = "coverage", marker = "extra == 'dev'", specifier = "==7.13.0" },

@@ -19,8 +19,8 @@ def _mock_response(content: str = '{"verdict":"buy"}') -> SimpleNamespace:
     )
     return SimpleNamespace(
         content=content,
-        provider="anthropic",
-        model="claude-sonnet-4-5",
+        provider="served-provider",
+        model="served-model",
         usage=usage,
         finish_reason="end_turn",
         tool_calls=None,
@@ -50,19 +50,14 @@ def test_agent_hub_client_uses_agent_slug_when_present(mock_sdk: Mock) -> None:
 
 
 @patch("app.agents.clients.agent_hub_client.SDKClient")
-def test_agent_hub_client_defaults_to_chat_agent_for_generic_calls(mock_sdk: Mock) -> None:
-    mock_sdk.return_value.complete.return_value = _mock_response()
+def test_agent_hub_client_rejects_direct_model_override(mock_sdk: Mock) -> None:
+    with (
+        patch("app.agents.clients.agent_hub_client.AGENT_HUB_ENABLED", True),
+        pytest.raises(ValueError, match="agent_slug"),
+    ):
+        AgentHubAPIClient(model="legacy-direct-model")
 
-    with patch("app.agents.clients.agent_hub_client.AGENT_HUB_ENABLED", True):
-        client = AgentHubAPIClient(model="gemini-3-flash-preview")
-        response = client.generate(prompt="Review NVDA")
-
-    call_kwargs = mock_sdk.return_value.complete.call_args.kwargs
-    assert call_kwargs["agent_slug"] == "chat"
-    assert call_kwargs["model"] == "gemini-3-flash-preview"
-    assert "use_memory" not in call_kwargs
-    assert response.raw_response["session_id"] == "session-123"
-    assert client.get_model_name() == "gemini-3-flash-preview"
+    mock_sdk.assert_not_called()
 
 
 @patch("app.agents.clients.agent_hub_client.SDKClient")
