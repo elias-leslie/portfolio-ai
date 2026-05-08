@@ -195,6 +195,31 @@ def _account_value(account: HouseholdEvidenceAccount) -> float | None:
     return None
 
 
+def _is_closed_zero_balance_account(
+    account: HouseholdEvidenceAccount,
+    *documents: HouseholdDocument | None,
+) -> bool:
+    fields = [
+        account.account_name,
+        account.institution_name,
+        account.account_type,
+        account.asset_group,
+        account.owner_name,
+        *(document.account_label for document in documents if document is not None),
+    ]
+    normalized = _normalize_text(" ".join(field for field in fields if field))
+    if "closed" not in normalized or account.asset_group not in {"cash", "credit", "debt"}:
+        return False
+
+    for document in documents:
+        metadata = document.metadata if document is not None else {}
+        structured = metadata.get("structured_data") if isinstance(metadata, dict) else None
+        preview = structured.get("text_preview") if isinstance(structured, dict) else None
+        if preview and "payoff debit" in _normalize_text(preview) and "0.00" in str(preview):
+            return True
+    return False
+
+
 def _identity_completeness_score(account: HouseholdEvidenceAccount) -> int:
     score = 0
     if account.institution_name:
@@ -904,6 +929,12 @@ def build_account_summaries(
         latest_document = documents_by_id.get(latest.document_id)
         display_document = documents_by_id.get(display_account.document_id)
         balance_document = documents_by_id.get(balance_account.document_id)
+        closed_zero_balance_account = _is_closed_zero_balance_account(
+            balance_account,
+            balance_document,
+            latest_document,
+            display_document,
+        )
         account_label = _account_label(display_account)
         money_role = _money_role(display_account.asset_group, display_account.account_type, account_label)
         last_balance_dt = _latest_evidence_timestamp(balance_account, balance_document)
@@ -917,6 +948,8 @@ def build_account_summaries(
             display_account.asset_group,
             days_since=days_since_balance,
         )
+        if closed_zero_balance_account:
+            balance_freshness_status, balance_freshness_label = ("fresh", "Closed")
         hint_label = (
             display_document.account_label
             if display_document is not None and display_document.account_label
@@ -1020,6 +1053,8 @@ def build_account_summaries(
             effective_account_type,
             effective_label,
         )
+        if closed_zero_balance_account:
+            effective_money_role = "net_worth_only"
         if effective_money_role == "spend_driver":
             transaction_freshness_status, transaction_freshness_label = (
                 _freshness_state_from_thresholds(
@@ -1054,13 +1089,17 @@ def build_account_summaries(
             and getattr(portfolio_valuation, "priced_position_count", 0) > 0
         )
         evidence_current_value = _account_value(balance_account)
+        if evidence_current_value is None and closed_zero_balance_account:
+            evidence_current_value = 0.0
         live_priced_positions_value = (
             float(getattr(portfolio_valuation, "priced_positions_value", 0.0) or 0.0)
             if has_live_pricing
             else None
         )
         effective_cash_balance = (
-            float(balance_account.cash_balance)
+            0.0
+            if closed_zero_balance_account
+            else float(balance_account.cash_balance)
             if balance_account.cash_balance is not None
             else (
                 float(getattr(portfolio_valuation, "effective_cash_balance", 0.0) or 0.0)
@@ -1069,21 +1108,19 @@ def build_account_summaries(
             )
         )
         effective_holdings_value = (
-            float(balance_account.holdings_value)
-            if balance_account.holdings_value is not None
-            else live_priced_positions_value
-        )
-        effective_current_value = (
-            evidence_current_value
-            if evidence_current_value is not None
-            else live_priced_positions_value + float(effective_cash_balance or 0.0)
+            live_priced_positions_value
             if live_priced_positions_value is not None
+            else float(balance_account.holdings_value)
+            if balance_account.holdings_value is not None
             else None
         )
+        effective_current_value = (
+            live_priced_positions_value + float(effective_cash_balance or 0.0)
+            if live_priced_positions_value is not None
+            else evidence_current_value
+        )
         valuation_source = (
-            "evidence"
-            if evidence_current_value is not None
-            else "live_quotes"
+            "live_quotes"
             if has_live_pricing
             else "evidence"
         )

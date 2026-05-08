@@ -389,7 +389,7 @@ def test_household_dashboard_uses_profile_documents_and_portfolio(
             },
         ),
         patch(
-            "app.services.household_finance_service.PriceDataFetcher.fetch_price_data",
+            "app.services.household_finance_service.PriceDataFetcher.fetch_cached_price_data",
             return_value={
                 "VTI": PriceData(symbol="VTI", price=275),
                 "VXUS": PriceData(symbol="VXUS", price=62),

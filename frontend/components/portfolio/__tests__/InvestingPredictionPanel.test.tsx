@@ -66,7 +66,7 @@ function buildCommitteeResponse(
       {
         seatKey: 'macro',
         agentSlug: 'market-pulse-analyst',
-        modelId: 'openai/gpt-5.4',
+        modelId: null,
         symbol: 'SPY',
         windowDays,
         directionLabel: 'neutral',

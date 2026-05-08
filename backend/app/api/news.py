@@ -113,7 +113,7 @@ def _get_watchlist_news_payload(
     force_refresh: bool,
 ) -> WatchlistNewsResponse:
     watchlist_service = _watchlist_service()
-    items = watchlist_service.get_items_with_scores()
+    items = watchlist_service.get_items_with_scores(include_decision=False)
     if not items:
         return WatchlistNewsResponse(account_id=account_id, items=[])
 
@@ -181,7 +181,9 @@ async def get_news_intelligence(
 
 
 @router.get("/watchlist", response_model=WatchlistNewsResponse)
+@cache_response(ttl=120)
 async def get_watchlist_news(
+    request: Request,
     account_id: str = Query(
         "default",
         description="DEPRECATED: Account ID (watchlist is now user-level, not account-specific)",
@@ -196,6 +198,7 @@ async def get_watchlist_news(
     Note: Watchlist is now user-level (not account-specific). The account_id parameter
     is kept for backward compatibility but is ignored.
     """
+    del request
     return await run_in_threadpool(
         _get_watchlist_news_payload,
         account_id,

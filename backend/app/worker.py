@@ -25,7 +25,11 @@ from app.workflows.data_refresh import (
     update_technical_indicators_wf,
 )
 from app.workflows.events import cross_validate_insight_wf
-from app.workflows.jenny import jenny_daily_operator_wf, jenny_weekly_learning_wf
+from app.workflows.jenny import (
+    jenny_daily_household_maintenance_wf,
+    jenny_daily_operator_wf,
+    jenny_weekly_learning_wf,
+)
 from app.workflows.maintenance import (
     check_all_data_freshness_wf,
     check_data_source_health_wf,
@@ -164,9 +168,10 @@ def main() -> None:
             schedule_new_symbol_wf,
             # Monitoring (1)
             monitor_theses_wf,
-            # Jenny (2)
+            # Jenny (3)
             jenny_daily_operator_wf,
             jenny_weekly_learning_wf,
+            jenny_daily_household_maintenance_wf,
             # Market Prediction (4)
             market_macro_calendar_ingestion_wf,
             market_prediction_morning_prep_wf,

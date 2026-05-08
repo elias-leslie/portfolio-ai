@@ -245,7 +245,7 @@ def _latest_watchlist_quote(symbol: str, item_id: str, *, now_utc: datetime) -> 
 
 
 def _held_quote(symbol: str, *, now_utc: datetime) -> QuoteInfo:
-    price_data = _price_fetcher().fetch_price_data([symbol])
+    price_data = _price_fetcher().fetch_cached_price_data([symbol])
     info = price_data.get(symbol)
     updated_at = _normalize_timestamp(getattr(info, "cached_at", None) if info is not None else None)
     price = float(getattr(info, "price", None)) if info is not None and getattr(info, "price", None) is not None else None

@@ -85,20 +85,46 @@ SESSION_FRESHNESS_THRESHOLDS_SECONDS = {
     "closed": (3 * 60 * 60, 12 * 60 * 60, 24 * 60 * 60),
 }
 DEFAULT_ROSTER = [
-    {"seat_key": "cross_asset", "agent_slug": "equity-analyst", "model_id": "grok-4.20-reasoning"},
-    {"seat_key": "macro", "agent_slug": "market-pulse-analyst", "model_id": "gpt-5.4"},
-    {"seat_key": "risk", "agent_slug": "risk-manager", "model_id": "claude-opus-4-7"},
+    {"seat_key": "cross_asset", "agent_slug": "equity-analyst"},
+    {"seat_key": "macro", "agent_slug": "market-pulse-analyst"},
+    {"seat_key": "risk", "agent_slug": "risk-manager"},
 ]
 MAG7_TICKERS = MAG7_COMPONENT_SYMBOLS
 MAG7_SECTOR_PROXIES = ["XLK", "XLC", "XLY"]
 WTI_SERIES_ID = "DCOILWTICO"
 SEAT_CLUSTER_PREFERENCES = {
-    "macro": ["macro_calendar", "sentiment", "market_regime"],
-    "macro_risk": ["macro_calendar", "options_positioning", "market_regime"],
-    "cross_asset": ["market_regime", "sentiment", "macro_calendar"],
-    "technical_regime": ["market_regime", "sentiment", "options_positioning"],
-    "positioning": ["options_positioning", "market_regime", "macro_calendar"],
-    "risk": ["options_positioning", "macro_calendar", "market_regime"],
+    "macro": ["macro_calendar", "sentiment_fear_greed", "price_structure_market_regime_breadth"],
+    "macro_risk": ["macro_calendar", "options_positioning", "price_structure_market_regime_breadth"],
+    "cross_asset": ["price_structure_market_regime_breadth", "sentiment_fear_greed", "macro_calendar"],
+    "technical_regime": ["price_structure_market_regime_breadth", "sentiment_fear_greed", "options_positioning"],
+    "positioning": ["options_positioning", "price_structure_market_regime_breadth", "macro_calendar"],
+    "risk": ["options_positioning", "macro_calendar", "price_structure_market_regime_breadth"],
+}
+CLUSTER_PRIORS_1D_3D = {
+    "price_structure_market_regime_breadth": 24.0,
+    "overnight_premarket_afterhours_futures_news": 18.0,
+    "mag7_sector_leadership": 15.0,
+    "options_positioning": 14.0,
+    "macro_calendar": 12.0,
+    "news_filings_earnings_analyst": 10.0,
+    "sentiment_fear_greed": 4.0,
+    "oil_shock_overlay": 2.0,
+    "holiday_turn_of_month": 1.0,
+    "day_of_week": 0.0,
+    "freight_transport_event": 0.0,
+}
+CLUSTER_PRIORS_7D_14D = {
+    "price_structure_market_regime_breadth": 26.0,
+    "overnight_premarket_afterhours_futures_news": 10.0,
+    "mag7_sector_leadership": 16.0,
+    "options_positioning": 10.0,
+    "macro_calendar": 16.0,
+    "news_filings_earnings_analyst": 14.0,
+    "sentiment_fear_greed": 5.0,
+    "oil_shock_overlay": 2.0,
+    "holiday_turn_of_month": 1.0,
+    "day_of_week": 0.0,
+    "freight_transport_event": 0.0,
 }
 
 
@@ -321,8 +347,17 @@ class MarketPredictionCommitteeService:
             logger.warning("market_prediction_macro_calendar_helper_failed", exc_info=True)
             macro_calendar = build_default_macro_calendar_cluster({"upcoming_events": []})
 
+        market_regime_cluster = {
+            "freshness": "fresh" if latest_closes else "missing",
+            "latest_closes": latest_closes,
+        }
+        sentiment_cluster = {
+            "freshness": "fresh" if fear_greed else "missing",
+            "fear_greed": fear_greed,
+        }
         clusters = {
-            "market_regime": {
+            "market_regime": market_regime_cluster,
+            "price_structure_market_regime_breadth": {
                 "freshness": "fresh" if latest_closes else "missing",
                 "latest_closes": latest_closes,
             },
@@ -330,12 +365,11 @@ class MarketPredictionCommitteeService:
                 "freshness": "fresh" if driver_closes else "missing",
                 "latest_closes": driver_closes,
             },
-            "sentiment": {
-                "freshness": "fresh" if fear_greed else "missing",
-                "fear_greed": fear_greed,
-            },
+            "sentiment": sentiment_cluster,
+            "sentiment_fear_greed": dict(sentiment_cluster),
             "options_positioning": options_summary,
             "macro_calendar": macro_calendar,
+            "news_filings_earnings_analyst": self._build_news_filings_earnings_analyst_cluster(as_of_ts=as_of_ts),
             "mag7_sector_leadership": self._build_mag7_sector_leadership_cluster(as_of_ts=as_of_ts),
             "overnight_premarket_afterhours_futures_news": self._build_overnight_premarket_afterhours_futures_news_cluster(as_of_ts=as_of_ts),
             "oil_shock_overlay": self._build_oil_shock_overlay_cluster(as_of_ts=as_of_ts),
@@ -514,6 +548,30 @@ class MarketPredictionCommitteeService:
             "note": None,
         }
 
+    def _build_news_filings_earnings_analyst_cluster(self, *, as_of_ts: datetime) -> dict[str, Any]:
+        effective_market_date = get_expected_data_date(as_of_ts.astimezone(NY_TZ))
+        news_stats = self._load_market_news_stats(as_of_ts=as_of_ts)
+        latest_news_iso = news_stats["latest_published_at"]
+        latest_news_date = None
+        if latest_news_iso is not None:
+            try:
+                latest_news_date = datetime.fromisoformat(latest_news_iso.replace("Z", "+00:00")).date()
+            except ValueError:
+                latest_news_date = None
+        if latest_news_date is None:
+            freshness = "missing"
+        elif latest_news_date >= effective_market_date:
+            freshness = "fresh"
+        else:
+            freshness = "stale"
+        return {
+            "freshness": freshness,
+            "latest_market_news_at": latest_news_iso,
+            "recent_market_news_count_24h": news_stats["recent_count"],
+            "as_of_date": latest_news_date.isoformat() if latest_news_date else None,
+            "note": None,
+        }
+
     def _load_oil_observations(self, *, market_date: date) -> list[tuple[date, float]]:
         rows = self.storage.query(
             """
@@ -647,8 +705,9 @@ class MarketPredictionCommitteeService:
             "Forecast SPY plus the 11 SPDR sector ETFs for the requested trading-day window. "
             "Each call should include symbol, direction_label, prob_up, expected_move_pct, "
             "confidence_band_low_pct, confidence_band_high_pct, confidence_score, rationale_summary, and top_source_clusters. "
-            "Each vote should include seat_key, agent_slug, model_id, provider, symbol, direction_label, prob_up, "
+            "Each vote should include seat_key, agent_slug, provider, symbol, direction_label, prob_up, "
             "expected_move_pct, confidence_score, rationale_summary, and source_clusters. "
+            "Do not invent model_id; omit or null it unless runtime telemetry supplies it. "
             f"Base date: {base_date}. Target date: {target_date}."
         )
         snapshot_json = json.dumps(source_snapshot, default=str, sort_keys=True)
@@ -718,6 +777,7 @@ class MarketPredictionCommitteeService:
             truth_state=truth_state,
             scorecard_status_note=scorecard_status_note,
             as_of_ts=response.as_of_ts,
+            window_days=response.window_days,
         )
         research_scoreboard = self._build_research_scoreboard(
             lead_call=lead_call,
@@ -761,10 +821,16 @@ class MarketPredictionCommitteeService:
             normalized_clusters.get("market_regime"),
             market_date=market_date,
         )
+        normalized_clusters["price_structure_market_regime_breadth"] = self._normalize_market_regime_cluster(
+            normalized_clusters.get("price_structure_market_regime_breadth") or normalized_clusters.get("market_regime"),
+            market_date=market_date,
+        )
         normalized_clusters["driver_bars"] = self._normalize_market_regime_cluster(
             normalized_clusters.get("driver_bars"),
             market_date=market_date,
         )
+        if "sentiment_fear_greed" not in normalized_clusters and "sentiment" in normalized_clusters:
+            normalized_clusters["sentiment_fear_greed"] = dict(normalized_clusters["sentiment"])
         normalized_clusters["options_positioning"] = self._normalize_options_positioning_cluster(
             normalized_clusters.get("options_positioning"),
             market_date=market_date,
@@ -861,12 +927,18 @@ class MarketPredictionCommitteeService:
         truth_state: str,
         scorecard_status_note: str | None,
         as_of_ts: datetime,
+        window_days: int,
     ) -> dict[str, Any]:
         summary = dict(raw_summary) if isinstance(raw_summary, dict) else {}
         summary.pop("_portfolio_execution_path", None)
         executed_seats = self._normalize_executed_seats(metadata.get("executed_seats"))
         resolved_seat_weights = self._normalize_resolved_seat_weights(metadata.get("resolved_seat_weights"))
+        resolved_cluster_weights = self._normalize_resolved_cluster_weights(
+            metadata.get("resolved_cluster_weights"),
+            window_days=window_days,
+        )
         review_state = self._optional_str(metadata.get("review_state"))
+        cluster_review_state = self._optional_str(metadata.get("cluster_review_state"))
         summary.update(
             {
                 "committee_roster_mode": self._normalize_roster_mode(metadata.get("committee_roster_mode")),
@@ -878,6 +950,10 @@ class MarketPredictionCommitteeService:
                 "review_state": review_state,
                 "review_as_of_ts": as_of_ts.isoformat() if review_state is not None or resolved_seat_weights else None,
                 "review_row_id": self._optional_str(metadata.get("review_row_id")),
+                "resolved_cluster_weights": resolved_cluster_weights,
+                "cluster_review_state": cluster_review_state,
+                "cluster_review_generated_at": self._optional_str(metadata.get("cluster_review_generated_at")),
+                "cluster_review_row_id": self._optional_str(metadata.get("cluster_review_row_id")),
             }
         )
         return summary
@@ -1198,7 +1274,7 @@ class MarketPredictionCommitteeService:
         payload: dict[str, Any],
     ) -> str | None:
         candidate: Any = None
-        if cluster_name in {"market_regime", "driver_bars"}:
+        if cluster_name in {"market_regime", "driver_bars", "price_structure_market_regime_breadth"}:
             candidate = payload.get("latest_common_date")
         elif cluster_name == "options_positioning":
             candidate = payload.get("as_of_date")
@@ -1677,7 +1753,7 @@ class MarketPredictionCommitteeService:
                 "committee_fingerprint": self._compute_committee_fingerprint(executed_seats),
                 "committee_execution_path": committee_execution_path,
                 "executed_seats": executed_seats,
-                "adaptive_weighting_version": "seat-v1",
+                "adaptive_weighting_version": "v1",
                 "review_row_id": review.id if review_persisted else None,
                 "review_generated_at": review.generated_at.isoformat(),
                 "review_state": review.review_state,
@@ -1700,6 +1776,10 @@ class MarketPredictionCommitteeService:
 
     def _normalize_metadata(self, raw_metadata: Any) -> dict[str, Any]:
         return dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
+
+    def _cluster_prior_weight(self, *, window_days: int, cluster: str) -> float:
+        priors = CLUSTER_PRIORS_7D_14D if window_days in {7, 14} else CLUSTER_PRIORS_1D_3D
+        return priors.get(cluster, 0.0)
 
     def _coerce_review(
         self,
@@ -1778,7 +1858,6 @@ class MarketPredictionCommitteeService:
                 )
             except Exception:
                 logger.warning("market_prediction_cluster_review_coercion_failed", exc_info=True)
-        prior = 1.0 / len(SUPPORTED_ADAPTIVE_CLUSTER_KEYS)
         return MarketPredictionClusterReview(
             id=f"cluster-review:{window_days}:{as_of_ts.isoformat()}",
             generated_at=as_of_ts,
@@ -1788,14 +1867,15 @@ class MarketPredictionCommitteeService:
             cluster_scorecards=[
                 {
                     "cluster": cluster,
-                    "prior_weight": prior,
-                    "effective_weight": prior,
+                    "prior_weight": self._cluster_prior_weight(window_days=window_days, cluster=cluster),
+                    "effective_weight": self._cluster_prior_weight(window_days=window_days, cluster=cluster),
                     "sample_size": 0,
                     "direction_hit_rate": None,
                     "move_mae_pct": None,
                     "brier_score": None,
                     "skill_score": None,
                     "freshness": "unknown",
+                    "gate_state": "tracked_only" if cluster in {"day_of_week", "freight_transport_event"} else "off",
                     "recommended_action": "hold",
                 }
                 for cluster in SUPPORTED_ADAPTIVE_CLUSTER_KEYS
@@ -1918,7 +1998,6 @@ class MarketPredictionCommitteeService:
         review_state: str,
         source_snapshot: dict[str, Any],
     ) -> MarketPredictionClusterReview:
-        prior = 1.0 / len(SUPPORTED_ADAPTIVE_CLUSTER_KEYS)
         return MarketPredictionClusterReview(
             id=f"cluster-review:{window_days}:{as_of_ts.isoformat()}",
             generated_at=as_of_ts,
@@ -1928,14 +2007,15 @@ class MarketPredictionCommitteeService:
             cluster_scorecards=[
                 {
                     "cluster": cluster,
-                    "prior_weight": prior,
-                    "effective_weight": prior,
+                    "prior_weight": self._cluster_prior_weight(window_days=window_days, cluster=cluster),
+                    "effective_weight": self._cluster_prior_weight(window_days=window_days, cluster=cluster),
                     "sample_size": 0,
                     "direction_hit_rate": None,
                     "move_mae_pct": None,
                     "brier_score": None,
                     "skill_score": None,
                     "freshness": self._source_cluster_freshness(cluster, source_snapshot),
+                    "gate_state": "tracked_only" if cluster in {"day_of_week", "freight_transport_event"} else "off",
                     "recommended_action": "hold",
                 }
                 for cluster in SUPPORTED_ADAPTIVE_CLUSTER_KEYS
@@ -1951,7 +2031,6 @@ class MarketPredictionCommitteeService:
         )
 
     def _build_degraded_cluster_review(self, review: MarketPredictionClusterReview) -> MarketPredictionClusterReview:
-        prior = 1.0 / len(SUPPORTED_ADAPTIVE_CLUSTER_KEYS)
         return MarketPredictionClusterReview(
             id=review.id,
             generated_at=review.generated_at,
@@ -1961,15 +2040,16 @@ class MarketPredictionCommitteeService:
             cluster_scorecards=[
                 {
                     "cluster": cluster,
-                    "prior_weight": prior,
-                    "effective_weight": prior,
+                    "prior_weight": self._cluster_prior_weight(window_days=review.window_days, cluster=cluster),
+                    "effective_weight": 0.0,
                     "sample_size": 0,
                     "direction_hit_rate": None,
                     "move_mae_pct": None,
                     "brier_score": None,
                     "skill_score": None,
                     "freshness": self._cluster_row_freshness(review, cluster),
-                    "recommended_action": "hold",
+                    "gate_state": "tracked_only" if cluster in {"day_of_week", "freight_transport_event"} else "off",
+                    "recommended_action": "track_only" if cluster in {"day_of_week", "freight_transport_event"} else "downweight",
                 }
                 for cluster in SUPPORTED_ADAPTIVE_CLUSTER_KEYS
             ],
@@ -1988,7 +2068,6 @@ class MarketPredictionCommitteeService:
 
     def _resolved_cluster_weight_rows(self, review: MarketPredictionClusterReview) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
-        prior = 1.0 / len(SUPPORTED_ADAPTIVE_CLUSTER_KEYS)
         for cluster in SUPPORTED_ADAPTIVE_CLUSTER_KEYS:
             raw_row = next(
                 (
@@ -1998,14 +2077,16 @@ class MarketPredictionCommitteeService:
                 ),
                 None,
             )
+            prior = self._cluster_prior_weight(window_days=review.window_days, cluster=cluster)
             rows.append(
                 {
                     "cluster": cluster,
-                    "prior_weight": self._clamp(self._value(raw_row, "prior_weight"), prior, low=0.0, high=1.0),
-                    "effective_weight": self._clamp(self._value(raw_row, "effective_weight"), prior, low=0.0, high=1.0),
+                    "prior_weight": self._clamp(self._value(raw_row, "prior_weight"), prior, low=0.0, high=100.0),
+                    "effective_weight": self._clamp(self._value(raw_row, "effective_weight"), prior, low=0.0, high=100.0),
                     "sample_size": self._int(self._value(raw_row, "sample_size"), 0),
                     "skill_score": self._optional_float(self._value(raw_row, "skill_score")),
                     "freshness": self._normalize_source_freshness(self._value(raw_row, "freshness")),
+                    "gate_state": self._normalize_cluster_gate_state(self._value(raw_row, "gate_state")),
                 }
             )
         return rows
@@ -2126,6 +2207,38 @@ class MarketPredictionCommitteeService:
             )
         return normalized
 
+    def _normalize_resolved_cluster_weights(self, raw_rows: Any, *, window_days: int) -> list[dict[str, Any]]:
+        if not isinstance(raw_rows, list):
+            return []
+        normalized: list[dict[str, Any]] = []
+        for cluster in SUPPORTED_ADAPTIVE_CLUSTER_KEYS:
+            raw_row = next(
+                (
+                    row
+                    for row in raw_rows
+                    if normalize_market_prediction_cluster_key(self._value(row, "cluster")) == cluster
+                ),
+                None,
+            )
+            if raw_row is None:
+                continue
+            prior = self._cluster_prior_weight(window_days=window_days, cluster=cluster)
+            raw_prior = self._optional_float(self._value(raw_row, "prior_weight"))
+            if prior > 1.0 and raw_prior is not None and 0.0 < raw_prior <= 1.0:
+                continue
+            normalized.append(
+                {
+                    "cluster": cluster,
+                    "prior_weight": self._clamp(raw_prior, prior, low=0.0, high=100.0),
+                    "effective_weight": self._clamp(self._value(raw_row, "effective_weight"), 0.0, low=0.0, high=100.0),
+                    "sample_size": self._int(self._value(raw_row, "sample_size"), 0),
+                    "skill_score": self._optional_float(self._value(raw_row, "skill_score")),
+                    "freshness": self._normalize_source_freshness(self._value(raw_row, "freshness")),
+                    "gate_state": self._normalize_cluster_gate_state(self._value(raw_row, "gate_state")),
+                }
+            )
+        return normalized
+
     def _review_weight_map(self, review: MarketPredictionSeatReview) -> dict[str, float]:
         return {
             row.seat_key: row.effective_weight
@@ -2186,14 +2299,16 @@ class MarketPredictionCommitteeService:
                 ),
                 None,
             )
+            prior = self._cluster_prior_weight(window_days=review.window_days, cluster=cluster)
             rows.append(
                 {
                     "cluster": cluster,
-                    "prior_weight": self._clamp(self._value(raw_row, "prior_weight"), 1.0 / len(SUPPORTED_ADAPTIVE_CLUSTER_KEYS), low=0.0, high=1.0),
-                    "effective_weight": self._clamp(self._value(raw_row, "effective_weight"), 1.0 / len(SUPPORTED_ADAPTIVE_CLUSTER_KEYS), low=0.0, high=1.0),
+                    "prior_weight": self._clamp(self._value(raw_row, "prior_weight"), prior, low=0.0, high=100.0),
+                    "effective_weight": self._clamp(self._value(raw_row, "effective_weight"), 0.0, low=0.0, high=100.0),
                     "sample_size": self._int(self._value(raw_row, "sample_size"), 0),
                     "skill_score": self._optional_float(self._value(raw_row, "skill_score")),
                     "freshness": self._normalize_source_freshness(self._value(raw_row, "freshness")),
+                    "gate_state": self._normalize_cluster_gate_state(self._value(raw_row, "gate_state")),
                 }
             )
         return rows
@@ -2253,14 +2368,19 @@ class MarketPredictionCommitteeService:
         for row in self._resolved_cluster_weight_rows(cluster_review):
             cluster = row["cluster"]
             payload = normalized_clusters.get(cluster)
+            if not isinstance(payload, dict) and cluster == "price_structure_market_regime_breadth":
+                payload = normalized_clusters.get("market_regime")
+            if not isinstance(payload, dict) and cluster == "sentiment_fear_greed":
+                payload = normalized_clusters.get("sentiment")
             if not isinstance(payload, dict):
-                continue
+                payload = {}
             normalized_clusters[cluster] = {
                 **payload,
                 "prior_weight": row["prior_weight"],
-                "effective_weight": row["effective_weight"] if row["effective_weight"] > 1e-9 else None,
+                "effective_weight": row["effective_weight"],
                 "sample_size": row["sample_size"] if row["sample_size"] > 0 else None,
                 "skill_score": row["skill_score"],
+                "gate_state": row["gate_state"],
             }
         snapshot["clusters"] = normalized_clusters
         return snapshot
@@ -2283,7 +2403,6 @@ class MarketPredictionCommitteeService:
             {
                 "seat_key": seat["seat_key"],
                 "agent_slug": seat.get("agent_slug"),
-                "model_id": seat.get("model_id"),
             }
             for seat in sorted(executed_seats, key=lambda item: item["seat_key"])
         ]
@@ -2740,6 +2859,12 @@ class MarketPredictionCommitteeService:
         if not normalized:
             return "unknown"
         return normalized if normalized in ALLOWED_CLUSTER_FRESHNESS else "unknown"
+
+    def _normalize_cluster_gate_state(self, value: Any) -> str:
+        normalized = str(value or "").strip().lower()
+        if normalized in {"active", "downweighted", "off", "tracked_only"}:
+            return normalized
+        return "off"
 
     @staticmethod
     def _value(source: Any, key: str) -> Any:

@@ -7,10 +7,11 @@ from functools import lru_cache
 from importlib import import_module
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.concurrency import run_in_threadpool
 
 from app.logging_config import get_logger
+from app.middleware.cache import cache_response, invalidate_endpoint_cache
 from app.models.symbol_workflow import (
     SymbolWorkflow,
     SymbolWorkflowOutcomeRequest,
@@ -33,8 +34,17 @@ def _workflow_service() -> SymbolWorkflowService:
     return import_module("app.services.symbol_workflow_service").SymbolWorkflowService()
 
 
+def _invalidate_symbol_read_cache(symbol: str) -> None:
+    variants = {symbol, symbol.upper(), symbol.lower()}
+    for candidate in variants:
+        invalidate_endpoint_cache(f"/api/symbols/{candidate}/workflow", method="GET")
+        invalidate_endpoint_cache(f"/api/symbols/{candidate}/intelligence", method="GET")
+
+
 @router.get("/{symbol}/intelligence", response_model=SymbolIntelligenceResponse)
+@cache_response(ttl=120)
 async def get_symbol_intelligence(
+    request: Request,
     symbol: str,
     include_market: bool = True,
     include_strategies: bool = True,
@@ -50,8 +60,14 @@ async def get_symbol_intelligence(
     - Market context
     - Personalized recommendation
     """
+    del request
     try:
-        return await run_in_threadpool(build_symbol_intelligence, symbol, include_market, include_strategies)
+        return await run_in_threadpool(
+            build_symbol_intelligence,
+            symbol,
+            include_market,
+            include_strategies,
+        )
     except Exception as e:
         logger.exception("symbol_intelligence_failed", symbol=symbol)
         return SymbolIntelligenceResponse(
@@ -60,8 +76,10 @@ async def get_symbol_intelligence(
 
 
 @router.get("/{symbol}/workflow", response_model=SymbolWorkflow)
-async def get_symbol_workflow(symbol: str) -> SymbolWorkflow:
+@cache_response(ttl=30)
+async def get_symbol_workflow(request: Request, symbol: str) -> SymbolWorkflow:
     """Return the persisted operating workflow for a symbol."""
+    del request
     payload = await run_in_threadpool(_workflow_service().get_workflow, symbol)
     return SymbolWorkflow.model_validate(payload)
 
@@ -79,6 +97,7 @@ async def transition_symbol_workflow(
         payload.stage,
         payload.note,
     )
+    _invalidate_symbol_read_cache(symbol)
     return SymbolWorkflow.model_validate(result)
 
 
@@ -98,4 +117,5 @@ async def record_symbol_workflow_outcome(
             management_action=payload.management_action,
         )
     )
+    _invalidate_symbol_read_cache(symbol)
     return SymbolWorkflow.model_validate(result)

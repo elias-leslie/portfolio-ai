@@ -230,7 +230,9 @@ describe('SymbolWorkspace', () => {
     expect(
       screen.getByText(/S&P 500 latest close · 1D \+0.6%/i),
     ).toBeInTheDocument()
-    expect(screen.getByText('As of Mar 10, 2026')).toBeInTheDocument()
+    expect(
+      screen.getByText('Latest daily close through Mar 10, 2026'),
+    ).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Track' }))
 

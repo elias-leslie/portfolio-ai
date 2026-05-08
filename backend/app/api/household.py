@@ -6,10 +6,20 @@ from functools import lru_cache
 from importlib import import_module
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+)
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
+from app.middleware.cache import cache_response
 from app.models.household_finance import (
     ConfirmFactRequest,
     HouseholdConfirmedFact,
@@ -17,6 +27,7 @@ from app.models.household_finance import (
     HouseholdDocumentList,
     HouseholdFinanceDashboard,
     HouseholdLedger,
+    HouseholdNetWorthTrend,
     HouseholdProfile,
     HouseholdProfileUpdate,
     HouseholdQuestion,
@@ -45,9 +56,22 @@ def _service() -> HouseholdFinanceService:
 
 
 @router.get("/dashboard", response_model=HouseholdFinanceDashboard)
-async def get_household_dashboard() -> HouseholdFinanceDashboard:
+@cache_response(ttl=60)
+async def get_household_dashboard(request: Request) -> HouseholdFinanceDashboard:
     """Return the household finance dashboard."""
+    del request
     return await run_in_threadpool(_service().get_dashboard)
+
+
+@router.get("/net-worth-trend", response_model=HouseholdNetWorthTrend)
+@cache_response(ttl=60)
+async def get_household_net_worth_trend(
+    request: Request,
+    days: int = Query(180, ge=7, le=1825),
+) -> HouseholdNetWorthTrend:
+    """Return known net-worth trend from current holdings and latest balances."""
+    del request
+    return await run_in_threadpool(_service().get_net_worth_trend, days=days)
 
 
 @router.get("/ledger", response_model=HouseholdLedger)

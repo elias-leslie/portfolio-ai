@@ -19,8 +19,10 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
+  applicationName: 'Portfolio AI',
   title: 'Portfolio AI Platform',
   description: 'AI-powered portfolio intelligence and market insights',
+  manifest: '/manifest.json',
 }
 
 export const viewport: Viewport = {
@@ -43,7 +45,9 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta
           name="apple-mobile-web-app-status-bar-style"
@@ -69,30 +73,36 @@ export default function RootLayout({
           />
         </Providers>
         <Script
-          id="sw-cleanup"
+          id="sw-register"
           strategy="afterInteractive"
-          // biome-ignore lint/security/noDangerouslySetInnerHtml: cleanup script is static, no user input
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: registration script is static, no user input
           dangerouslySetInnerHTML={{
             __html: `
               if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                    registrations.forEach(function(registration) {
-                      registration.unregister();
-                    });
-                  });
-                  if ('caches' in window) {
-                    caches.keys().then(function(keys) {
-                      keys
-                        .filter(function(key) {
-                          return key.startsWith('portfolio-ai-');
-                        })
-                        .forEach(function(key) {
-                          caches.delete(key);
+                var registerPortfolioAiServiceWorker = function() {
+                  navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(function(registration) {
+                    if (registration.waiting) {
+                      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                    registration.addEventListener('updatefound', function() {
+                      var worker = registration.installing;
+                      if (worker) {
+                        worker.addEventListener('statechange', function() {
+                          if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+                            worker.postMessage({ type: 'SKIP_WAITING' });
+                          }
                         });
+                      }
                     });
-                  }
-                });
+                  }).catch(function(error) {
+                    console.warn('portfolio_ai_service_worker_registration_failed', error);
+                  });
+                };
+                if (document.readyState === 'loading') {
+                  window.addEventListener('load', registerPortfolioAiServiceWorker);
+                } else {
+                  registerPortfolioAiServiceWorker();
+                }
               }
             `,
           }}

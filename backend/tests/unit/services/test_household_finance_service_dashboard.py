@@ -218,7 +218,7 @@ def test_gather_service_data_uses_dashboard_sync_gate_before_raw_registry_sync()
     service.portfolio_mgr.get_accounts.return_value = []
     service.portfolio_mgr.get_positions.return_value = []
     service.price_fetcher = Mock()
-    service.price_fetcher.fetch_price_data.return_value = {}
+    service.price_fetcher.fetch_cached_price_data.return_value = {}
 
     with patch(
         "app.services._household_dashboard_assembly.calculate_account_valuations",
@@ -230,6 +230,7 @@ def test_gather_service_data_uses_dashboard_sync_gate_before_raw_registry_sync()
     service.evidence_service.backfill_from_latest_reviews.assert_not_called()
     service._ensure_dashboard_registry_sync.assert_called_once_with(limit=1000)
     service.account_registry_service.sync_registry.assert_not_called()
+    service.price_fetcher.fetch_price_data.assert_not_called()
 
 
 def test_visibility_score_is_capped_when_account_freshness_is_degraded() -> None:
@@ -274,10 +275,10 @@ def test_net_worth_trust_marks_stale_when_all_balances_are_known_but_old() -> No
 
     assert status == "stale"
     assert "should refresh before review" in detail
-    assert "Net worth subtotal from 2 tracked accounts." in detail
+    assert "Known net worth subtotal from 2 tracked accounts." in detail
 
 
-def test_net_worth_trust_marks_estimated_when_balance_is_missing() -> None:
+def test_net_worth_trust_marks_known_when_balance_is_missing() -> None:
     status, detail = _net_worth_trust(
         [
             Mock(
@@ -295,7 +296,7 @@ def test_net_worth_trust_marks_estimated_when_balance_is_missing() -> None:
         ]
     )
 
-    assert status == "estimated"
+    assert status == "known"
     assert "1 account missing current balances" in detail
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from datetime import UTC, date, datetime
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,8 +14,10 @@ from app.main import app
 from app.middleware.cache import clear_cache
 from app.models.market_prediction import (
     MarketPredictionCall,
+    MarketPredictionClusterReview,
     MarketPredictionCommitteeResponse,
     MarketPredictionResearchScoreboard,
+    MarketPredictionSeatReview,
     PredictionSourceCluster,
 )
 
@@ -121,7 +124,27 @@ class _FakePredictionService:
         assert generate_if_missing is False
         return self._build_response(window_days)
 
-    def generate_snapshot(self, *, window_days: int) -> MarketPredictionCommitteeResponse:
+    def build_source_snapshot(self, as_of_ts: datetime) -> dict[str, Any]:
+        return {
+            "as_of_ts": as_of_ts.isoformat(),
+            "clusters": {
+                "macro_calendar": {"freshness": "fresh"},
+            },
+        }
+
+    def generate_snapshot(
+        self,
+        *,
+        window_days: int,
+        as_of_ts: datetime | None = None,
+        review: MarketPredictionSeatReview | None = None,
+        cluster_review: MarketPredictionClusterReview | None = None,
+        source_snapshot: dict[str, Any] | None = None,
+    ) -> MarketPredictionCommitteeResponse:
+        assert as_of_ts is not None
+        assert review is not None
+        assert cluster_review is not None
+        assert source_snapshot is not None
         return self._build_response(window_days, generated_at=datetime(2026, 4, 21, 22, 30, tzinfo=UTC))
 
     def get_history(self, symbol: str, window_days: int, limit: int = 30) -> list[MarketPredictionCall]:
@@ -222,6 +245,62 @@ def _degraded_prediction_service() -> _DegradedPredictionService:
     return _DegradedPredictionService()
 
 
+class _FakeEvaluationService:
+    def __init__(self) -> None:
+        self.evaluated_dates: list[date] = []
+        self.backfilled: list[tuple[int, datetime]] = []
+
+    def evaluate_due_predictions(self, *, as_of_date: date) -> list[object]:
+        self.evaluated_dates.append(as_of_date)
+        return []
+
+    def backfill_vote_evaluations(self, *, window_days: int, as_of_ts: datetime) -> list[object]:
+        self.backfilled.append((window_days, as_of_ts))
+        return []
+
+
+class _FakeReviewService:
+    def __init__(self) -> None:
+        self.resolved: list[tuple[int, datetime]] = []
+
+    def resolve_and_persist_review(self, *, window_days: int, as_of_ts: datetime) -> MarketPredictionSeatReview:
+        self.resolved.append((window_days, as_of_ts))
+        return MarketPredictionSeatReview(
+            id=f"seat-review:{window_days}:{as_of_ts.isoformat()}",
+            generated_at=as_of_ts,
+            as_of_ts=as_of_ts,
+            window_days=window_days,
+            review_state="warmup",
+            seat_scorecards=[],
+            review_summary={},
+            metadata={},
+        )
+
+
+class _FakeClusterReviewService:
+    def __init__(self) -> None:
+        self.resolved: list[tuple[int, datetime, dict[str, Any]]] = []
+
+    def resolve_and_persist_review(
+        self,
+        *,
+        window_days: int,
+        as_of_ts: datetime,
+        source_snapshot: dict[str, Any],
+    ) -> MarketPredictionClusterReview:
+        self.resolved.append((window_days, as_of_ts, source_snapshot))
+        return MarketPredictionClusterReview(
+            id=f"cluster-review:{window_days}:{as_of_ts.isoformat()}",
+            generated_at=as_of_ts,
+            as_of_ts=as_of_ts,
+            window_days=window_days,
+            review_state="warmup",
+            cluster_scorecards=[],
+            review_summary={},
+            metadata={},
+        )
+
+
 def test_get_prediction_committee_snapshot_serializes_additive_summary_and_macro_contract(client: TestClient, monkeypatch) -> None:
     monkeypatch.setattr(
         "app.api.market.prediction_router._get_prediction_service",
@@ -280,9 +359,24 @@ def test_get_prediction_committee_allows_degraded_fetch_error_200_shape(client: 
 
 
 def test_refresh_prediction_committee_forces_new_snapshot_and_clears_cached_get(client: TestClient, monkeypatch) -> None:
+    evaluation_service = _FakeEvaluationService()
+    review_service = _FakeReviewService()
+    cluster_review_service = _FakeClusterReviewService()
     monkeypatch.setattr(
         "app.api.market.prediction_router._get_prediction_service",
         _fake_prediction_service,
+    )
+    monkeypatch.setattr(
+        "app.api.market.prediction_router._get_evaluation_service",
+        lambda: evaluation_service,
+    )
+    monkeypatch.setattr(
+        "app.api.market.prediction_router._get_review_service",
+        lambda: review_service,
+    )
+    monkeypatch.setattr(
+        "app.api.market.prediction_router._get_cluster_review_service",
+        lambda: cluster_review_service,
     )
     monkeypatch.setattr(
         "app.api.market.prediction_router.ingest_macro_calendar_events",
@@ -300,6 +394,11 @@ def test_refresh_prediction_committee_forces_new_snapshot_and_clears_cached_get(
     refresh_response = client.post("/api/market/prediction/committee/refresh?window_days=3")
     assert refresh_response.status_code == 200
     assert refresh_response.json()["generated_at"] == "2026-04-21T22:30:00Z"
+    assert evaluation_service.evaluated_dates
+    assert evaluation_service.backfilled[0][0] == 3
+    assert review_service.resolved[0][0] == 3
+    assert cluster_review_service.resolved[0][0] == 3
+    assert cluster_review_service.resolved[0][2]["clusters"]["macro_calendar"]["freshness"] == "fresh"
 
     fresh_get_response = client.get("/api/market/prediction/committee?window_days=3")
     assert fresh_get_response.status_code == 200

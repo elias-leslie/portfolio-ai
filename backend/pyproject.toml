@@ -29,7 +29,7 @@ dependencies = [
     "feedparser==6.0.12",
     "httpx==0.28.1",
     "python-multipart>=0.0.20",
-    "agent-hub-client==0.3.0",
+    "agent-hub-client==0.4.0",
     "cachetools==5.5.0",
 
     # Caching & message broker
@@ -100,7 +100,7 @@ ml = [
 constraint-dependencies = ["pygments>=2.20.0"]
 
 [tool.uv.sources]
-agent-hub-client = { path = "../docker/workspace-packages/agent_hub_client-0.3.0-py3-none-any.whl" }
+agent-hub-client = { path = "../docker/workspace-packages/agent_hub_client-0.4.0-py3-none-any.whl" }
 
 [build-system]
 requires = ["hatchling"]

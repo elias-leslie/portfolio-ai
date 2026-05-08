@@ -78,6 +78,20 @@ class PriceDataFetcher:
 
         return result
 
+    def fetch_cached_price_data(
+        self,
+        symbols: list[str],
+        *,
+        max_age_minutes: int | None = 24 * 60,
+    ) -> dict[str, PriceData]:
+        """Return cached prices only.
+
+        Read APIs use this to keep page loads bounded. Background refresh jobs
+        own external quote fetching; if cache is empty, callers surface missing
+        or stale data instead of blocking on vendor fallbacks.
+        """
+        return get_cached_prices(symbols, self.storage, max_age_minutes)
+
     def _cache_ttl_minutes(self) -> int:
         market_status = get_market_status()
         if market_status == "open":

@@ -144,10 +144,81 @@ class MarketPulseResearchService:
 
     def get_cached_research(self, cache_key: str) -> tuple[dict[str, Any] | None, bool]:
         with self._lock:
-            if self._cache is None or self._cache_key != cache_key or self._cached_at is None:
-                return None, False
-            age = (datetime.now(UTC) - self._cached_at).total_seconds()
-            return self._cache, age <= _SCOUT_CACHE_SECONDS
+            should_load_persisted = (
+                self._cache is None
+                or self._cache_key != cache_key
+                or self._cached_at is None
+            )
+            if not should_load_persisted:
+                age = (datetime.now(UTC) - self._cached_at).total_seconds()
+                return self._cache, age <= _SCOUT_CACHE_SECONDS
+        persisted = self._load_persisted_research(cache_key)
+        if persisted is None:
+            return None, self._has_recent_success(cache_key)
+        return persisted, True
+
+    def _load_persisted_research(self, cache_key: str) -> dict[str, Any] | None:
+        try:
+            with self.storage.connection() as conn:
+                row = conn.execute(
+                    """
+                    SELECT metadata
+                    FROM market_pulse_research_runs
+                    WHERE request_kind = 'today_market_pulse'
+                      AND status = 'success'
+                      AND cache_key = %s
+                      AND completed_at >= %s
+                    ORDER BY completed_at DESC
+                    LIMIT 1
+                    """,
+                    [
+                        cache_key,
+                        datetime.now(UTC) - timedelta(seconds=_SCOUT_CACHE_SECONDS),
+                    ],
+                ).fetchone()
+        except Exception as exc:
+            logger.warning("market_pulse_research_cache_load_failed", error=str(exc))
+            return None
+
+        if row is None:
+            return None
+        metadata = row[0]
+        if isinstance(metadata, str):
+            try:
+                metadata = json.loads(metadata)
+            except json.JSONDecodeError:
+                return None
+        payload = metadata.get("payload") if isinstance(metadata, dict) else None
+        if not isinstance(payload, dict):
+            return None
+        with self._lock:
+            self._cache = payload
+            self._cache_key = cache_key
+            self._cached_at = datetime.now(UTC)
+        return payload
+
+    def _has_recent_success(self, cache_key: str) -> bool:
+        try:
+            with self.storage.connection() as conn:
+                row = conn.execute(
+                    """
+                    SELECT 1
+                    FROM market_pulse_research_runs
+                    WHERE request_kind = 'today_market_pulse'
+                      AND status = 'success'
+                      AND cache_key = %s
+                      AND completed_at >= %s
+                    LIMIT 1
+                    """,
+                    [
+                        cache_key,
+                        datetime.now(UTC) - timedelta(seconds=_SCOUT_CACHE_SECONDS),
+                    ],
+                ).fetchone()
+        except Exception as exc:
+            logger.warning("market_pulse_research_recent_success_check_failed", error=str(exc))
+            return False
+        return row is not None
 
     def _trusted_source_seed(self, *, limit: int = 6) -> list[dict[str, Any]]:
         try:
@@ -269,6 +340,7 @@ class MarketPulseResearchService:
             response=response,
             source_count=len(normalized["sources"]),
             cache_key=cache_key,
+            payload=normalized,
         )
         with self._lock:
             self._cache = normalized
@@ -375,6 +447,7 @@ class MarketPulseResearchService:
         response: Any,
         source_count: int,
         cache_key: str,
+        payload: dict[str, Any],
     ) -> None:
         usage = getattr(response, "usage", None)
         input_tokens = int(getattr(usage, "input_tokens", 0) or 0)
@@ -392,6 +465,7 @@ class MarketPulseResearchService:
             reasoning_tokens=reasoning_tokens,
             source_count=source_count,
             error_detail=None,
+            metadata={"agent_slug": _SCOUT_AGENT_SLUG, "payload": payload},
             started_at=started_at,
             completed_at=datetime.now(UTC),
             fallback_used=False,
@@ -422,6 +496,7 @@ class MarketPulseResearchService:
             reasoning_tokens=0,
             source_count=0,
             error_detail=error[:500],
+            metadata={"agent_slug": _SCOUT_AGENT_SLUG},
             started_at=started_at,
             completed_at=datetime.now(UTC),
             fallback_used=fallback_used,
@@ -440,11 +515,12 @@ class MarketPulseResearchService:
         reasoning_tokens: int,
         source_count: int,
         error_detail: str | None,
+        metadata: dict[str, Any],
         started_at: datetime,
         completed_at: datetime,
         fallback_used: bool,
     ) -> None:
-        payload = json.dumps({"agent_slug": _SCOUT_AGENT_SLUG})
+        payload = json.dumps(metadata)
         try:
             with self.storage.connection() as conn:
                 conn.execute(

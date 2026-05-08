@@ -9,16 +9,6 @@ from __future__ import annotations
 import os
 
 from app.config import DATABASE_URL  # re-exported for backward compatibility
-from app.constants.models import (
-    CLAUDE_HAIKU,
-    CLAUDE_OPUS,
-    CLAUDE_SONNET,
-    DEFAULT_CLAUDE_MODEL,
-    DEFAULT_GEMINI_MODEL,
-    DEFAULT_OPENAI_MODEL,
-    GEMINI_FLASH,
-    GEMINI_PRO,
-)
 from app.constants.services import SERVICE_PROCESS_PATTERNS
 from app.constants.symbols import (
     ALL_MARKET_SYMBOLS,
@@ -107,24 +97,16 @@ __all__ = [
     "CACHE_TTL_LONG",
     "CACHE_TTL_MEDIUM",
     "CACHE_TTL_SHORT",
-    "CLAUDE_HAIKU",
-    "CLAUDE_OPUS",
-    "CLAUDE_SONNET",
     "CYCLICAL_SECTOR_SYMBOLS",
     "DATABASE_URL",
     "DEFAULT_BACKFILL_DAYS",
-    "DEFAULT_CLAUDE_MODEL",
     "DEFAULT_DAILY_REFRESH_DAYS",
-    "DEFAULT_GEMINI_MODEL",
     "DEFAULT_HTTP_TIMEOUT",
-    "DEFAULT_OPENAI_MODEL",
     "DEFAULT_PRICE_CACHE_TTL_MINUTES",
     "DEFENSIVE_SECTOR_SYMBOLS",
     "ERROR_MESSAGE_TRUNCATE",
     "ETF_GROWTH",
     "ETF_TOTAL_MARKET",
-    "GEMINI_FLASH",
-    "GEMINI_PRO",
     "INDEX_DXY",
     "INDEX_SP500",
     "INDEX_TNX",

@@ -222,44 +222,47 @@ def _cluster_review(*, review_id: str, generated_at: datetime, as_of_ts: datetim
         review_state=review_state,
         cluster_scorecards=[
             {
-                "cluster": "market_regime",
-                "prior_weight": 0.25,
-                "effective_weight": round((1.0 - macro_weight - 0.25 - 0.12), 12),
+                "cluster": "price_structure_market_regime_breadth",
+                "prior_weight": 24.0,
+                "effective_weight": round((100.0 - macro_weight - 25.0 - 2.0), 12),
                 "sample_size": 24,
                 "direction_hit_rate": 0.5,
                 "move_mae_pct": 1.0,
                 "brier_score": 0.25,
                 "skill_score": 0.625,
                 "freshness": "fresh",
+                "gate_state": "active",
                 "recommended_action": "hold",
             },
             {
-                "cluster": "sentiment",
-                "prior_weight": 0.25,
-                "effective_weight": 0.12,
+                "cluster": "sentiment_fear_greed",
+                "prior_weight": 4.0,
+                "effective_weight": 2.0,
                 "sample_size": 24,
                 "direction_hit_rate": 0.0,
                 "move_mae_pct": 4.0,
                 "brier_score": 1.0,
                 "skill_score": 0.04,
                 "freshness": "fresh",
+                "gate_state": "downweighted",
                 "recommended_action": "downweight",
             },
             {
                 "cluster": "options_positioning",
-                "prior_weight": 0.25,
-                "effective_weight": 0.25,
+                "prior_weight": 14.0,
+                "effective_weight": 25.0,
                 "sample_size": 24,
                 "direction_hit_rate": 0.8,
                 "move_mae_pct": 0.5,
                 "brier_score": 0.12,
                 "skill_score": 0.88,
                 "freshness": "fresh",
+                "gate_state": "active",
                 "recommended_action": "hold",
             },
             {
                 "cluster": "macro_calendar",
-                "prior_weight": 0.25,
+                "prior_weight": 12.0,
                 "effective_weight": macro_weight,
                 "sample_size": 24,
                 "direction_hit_rate": 1.0,
@@ -267,6 +270,7 @@ def _cluster_review(*, review_id: str, generated_at: datetime, as_of_ts: datetim
                 "brier_score": 0.01,
                 "skill_score": 0.9768,
                 "freshness": "fresh",
+                "gate_state": "active",
                 "recommended_action": "upweight",
             },
         ],
@@ -704,28 +708,28 @@ def test_upsert_cluster_review_preserves_stable_id_and_precedence(storage: Portf
         generated_at=datetime(2026, 4, 23, 22, 15, tzinfo=UTC),
         as_of_ts=as_of_ts,
         review_state="warmup",
-        macro_weight=0.25,
+        macro_weight=25.0,
     )
     lower_precedence_retry = _cluster_review(
         review_id="ignored-id",
         generated_at=datetime(2026, 4, 23, 22, 20, tzinfo=UTC),
         as_of_ts=as_of_ts,
         review_state="degraded",
-        macro_weight=0.2,
+        macro_weight=20.0,
     )
     same_precedence_same_ts = _cluster_review(
         review_id="different-but-ignored",
         generated_at=datetime(2026, 4, 23, 22, 15, tzinfo=UTC),
         as_of_ts=as_of_ts,
         review_state="warmup",
-        macro_weight=0.4,
+        macro_weight=40.0,
     )
     higher_precedence_retry = _cluster_review(
         review_id="replacement-id",
         generated_at=datetime(2026, 4, 23, 22, 25, tzinfo=UTC),
         as_of_ts=as_of_ts,
         review_state="live",
-        macro_weight=0.41,
+        macro_weight=41.0,
     )
 
     persisted_first = repo.upsert_cluster_review(first)
@@ -750,7 +754,7 @@ def test_upsert_cluster_review_preserves_stable_id_and_precedence(storage: Portf
     assert row["id"] == persisted_first.id
     assert row["review_state"] == "live"
     assert row["cluster_scorecards"][3]["cluster"] == "macro_calendar"
-    assert row["cluster_scorecards"][3]["effective_weight"] == pytest.approx(0.41)
+    assert row["cluster_scorecards"][3]["effective_weight"] == pytest.approx(41.0)
 
 
 
@@ -761,14 +765,14 @@ def test_list_latest_cluster_reviews_prefers_newest_asof_even_if_degraded(storag
         generated_at=datetime(2026, 4, 23, 22, 15, tzinfo=UTC),
         as_of_ts=datetime(2026, 4, 23, 22, 15, tzinfo=UTC),
         review_state="live",
-        macro_weight=0.41,
+        macro_weight=41.0,
     )
     newer = _cluster_review(
         review_id="cluster-review:3:2026-04-24T22:15:00+00:00",
         generated_at=datetime(2026, 4, 24, 22, 15, tzinfo=UTC),
         as_of_ts=datetime(2026, 4, 24, 22, 15, tzinfo=UTC),
         review_state="degraded",
-        macro_weight=0.25,
+        macro_weight=25.0,
     )
 
     repo.upsert_cluster_review(older)
@@ -869,8 +873,11 @@ def test_list_cluster_evaluation_samples_prefers_active_cluster_keys_then_top_so
     samples = repo.list_cluster_evaluation_samples(window_days=3, effective_market_date=date(2026, 4, 24))
     by_call = {sample.call_id: sample for sample in samples}
 
-    assert by_call["call-metadata"].active_cluster_keys == ["macro_calendar", "market_regime"]
-    assert by_call["call-fallback"].active_cluster_keys == ["sentiment", "macro_calendar"]
+    assert by_call["call-metadata"].active_cluster_keys == [
+        "macro_calendar",
+        "price_structure_market_regime_breadth",
+    ]
+    assert by_call["call-fallback"].active_cluster_keys == ["sentiment_fear_greed", "macro_calendar"]
 
 
 

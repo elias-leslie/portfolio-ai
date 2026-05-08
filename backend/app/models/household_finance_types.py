@@ -129,6 +129,30 @@ class HouseholdMonthlyTrendPoint(BaseModel):
     transaction_count: int
 
 
+class HouseholdNetWorthTrendPoint(BaseModel):
+    date: str
+    net_worth: float
+    total_assets: float
+    liabilities: float
+    priced_holdings_value: float
+    fixed_assets: float
+
+
+class HouseholdNetWorthTrend(BaseModel):
+    generated_at: str
+    as_of_date: str | None = None
+    status: str
+    detail: str
+    methodology: str
+    points: list[HouseholdNetWorthTrendPoint] = Field(default_factory=list)
+    holdings_symbol_count: int = 0
+    holdings_position_count: int = 0
+    gap_count: int = 0
+    needs_refresh_count: int = 0
+    missing_balance_account_count: int = 0
+    stale_account_count: int = 0
+
+
 class HouseholdRecentTransaction(BaseModel):
     date: str
     merchant: str

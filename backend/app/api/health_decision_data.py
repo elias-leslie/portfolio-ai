@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Callable
 from datetime import UTC, datetime
+from time import monotonic
 from typing import Any, Literal
 
 from fastapi.concurrency import run_in_threadpool
@@ -29,6 +32,7 @@ from .health_models import (
 )
 
 logger = get_logger(__name__)
+_DOMAIN_CACHE_TTL_SECONDS = 30
 
 DecisionDomainStatus = Literal[
     "current",
@@ -57,6 +61,9 @@ class DecisionDataHealth(BaseModel):
     status: Literal["healthy", "degraded", "critical", "unknown"]
     message: str
     domains: list[DecisionDataDomain] = Field(default_factory=list)
+
+
+_domain_cache: dict[str, tuple[float, DecisionDataDomain]] = {}
 
 
 def _decision_domain(
@@ -477,6 +484,33 @@ def _household_domain_from_service() -> DecisionDataDomain:
     return _build_household_decision_domain(HouseholdFinanceService().get_dashboard())
 
 
+def _cached_domain_from_service(
+    cache_key: str,
+    builder: Callable[[], DecisionDataDomain],
+) -> DecisionDataDomain:
+    cached = _domain_cache.get(cache_key)
+    now = monotonic()
+    if cached is not None and cached[0] > now:
+        return cached[1]
+    domain = builder()
+    _domain_cache[cache_key] = (now + _DOMAIN_CACHE_TTL_SECONDS, domain)
+    return domain
+
+
+def _cached_prediction_macro_domain_from_service() -> DecisionDataDomain:
+    return _cached_domain_from_service(
+        "prediction_macro",
+        _prediction_macro_domain_from_service,
+    )
+
+
+def _cached_household_domain_from_service() -> DecisionDataDomain:
+    return _cached_domain_from_service(
+        "household_evidence",
+        _household_domain_from_service,
+    )
+
+
 async def get_decision_data_health(
     *,
     health_result: dict[str, Any],
@@ -490,9 +524,13 @@ async def get_decision_data_health(
             health_result.get("api_quotas"),
         ),
     ]
-    try:
-        domains.append(await run_in_threadpool(_prediction_macro_domain_from_service))
-    except Exception as exc:
+    prediction_result, household_result = await asyncio.gather(
+        run_in_threadpool(_cached_prediction_macro_domain_from_service),
+        run_in_threadpool(_cached_household_domain_from_service),
+        return_exceptions=True,
+    )
+    if isinstance(prediction_result, Exception):
+        exc = prediction_result
         logger.warning("prediction_macro_health_failed", error=str(exc), exc_info=True)
         domains.append(
             _decision_domain(
@@ -504,9 +542,10 @@ async def get_decision_data_health(
                 evidence={"error": str(exc)},
             )
         )
-    try:
-        domains.append(await run_in_threadpool(_household_domain_from_service))
-    except Exception as exc:
+    else:
+        domains.append(prediction_result)
+    if isinstance(household_result, Exception):
+        exc = household_result
         logger.warning("household_health_failed", error=str(exc), exc_info=True)
         domains.append(
             _decision_domain(
@@ -518,5 +557,7 @@ async def get_decision_data_health(
                 evidence={"error": str(exc)},
             )
         )
+    else:
+        domains.append(household_result)
     domains.sort(key=lambda domain: domain.key)
     return _summarize_decision_data_domains(domains).model_dump(mode="json")

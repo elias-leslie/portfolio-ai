@@ -119,7 +119,7 @@ async def get_prices(
 
     from app.api.market._core_helpers import _get_price_fetcher  # noqa: PLC0415
 
-    price_data = _get_price_fetcher().fetch_price_data(symbol_list)
+    price_data = _get_price_fetcher().fetch_cached_price_data(symbol_list)
 
     prices = {
         symbol: PriceResponse(

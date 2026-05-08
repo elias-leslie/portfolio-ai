@@ -444,7 +444,7 @@ export interface MarketPredictionCommitteeResponse {
 }
 
 export interface MarketPredictionReviewChangeItem {
-  kind: 'seat'
+  kind: 'seat' | 'cluster'
   key: string
   priorWeight: number
   effectiveWeight: number
@@ -462,10 +462,26 @@ export interface MarketPredictionSeatScorecard {
   recommendedAction: 'upweight' | 'downweight' | 'hold'
 }
 
+export interface MarketPredictionClusterScorecard {
+  cluster: string
+  priorWeight: number
+  effectiveWeight: number
+  sampleSize: number
+  directionHitRate?: number | null
+  moveMaePct?: number | null
+  brierScore?: number | null
+  skillScore?: number | null
+  freshness: 'fresh' | 'stale' | 'missing' | 'unknown'
+  gateState: 'active' | 'downweighted' | 'off' | 'tracked_only'
+  recommendedAction: 'upweight' | 'downweight' | 'hold' | 'track_only'
+}
+
 export interface MarketPredictionReviewSummary {
   generatedAt: string
   reviewState: 'live' | 'warmup' | 'degraded'
   driftCallouts: string[]
+  gapCallouts?: string[]
+  agentActions?: string[]
   topUpweighted: MarketPredictionReviewChangeItem[]
   topDownweighted: MarketPredictionReviewChangeItem[]
 }
@@ -475,6 +491,9 @@ export interface MarketPredictionSeatReviewResponse {
   windowDays: number
   reviewState: 'live' | 'warmup' | 'degraded'
   seatScorecards: MarketPredictionSeatScorecard[]
+  clusterScorecards?: MarketPredictionClusterScorecard[]
+  clusterReviewState?: 'live' | 'warmup' | 'degraded' | null
+  clusterAsOfTs?: string | null
   reviewSummary: MarketPredictionReviewSummary
 }
 

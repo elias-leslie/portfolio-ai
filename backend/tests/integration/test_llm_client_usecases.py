@@ -25,10 +25,10 @@ from app.agents.clients.base_client import LLMResponse
 def mock_llm_response() -> Callable[..., LLMResponse]:
     """Factory fixture for creating mock LLM responses."""
 
-    def _create_response(content: str, model: str = "claude-sonnet-4-5-20250514") -> LLMResponse:
+    def _create_response(content: str, model: str = "served-model") -> LLMResponse:
         return LLMResponse(
             content=content,
-            provider="claude" if "claude" in model else "gemini",
+            provider="served-provider",
             model=model,
             usage={"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110},
         )
@@ -67,15 +67,15 @@ Reply with just the number."""
 
         with patch.object(AgentHubAPIClient, "generate") as mock_generate:
             mock_generate.return_value = mock_llm_response("7")
-            client = AgentHubAPIClient(model="claude-sonnet-4-5-20250514")
+            client = AgentHubAPIClient(agent_slug="equity-analyst")
             response = client.generate(prompt)
 
             assert response.content.strip().isdigit()
             assert 1 <= int(response.content.strip()) <= 10
             mock_generate.assert_called_once()
 
-    def test_gemini_gap_analysis_small(self, mock_llm_response: Callable[..., LLMResponse]) -> None:
-        """Test Gemini via Agent Hub with small gap analysis dataset."""
+    def test_scout_gap_analysis_small(self, mock_llm_response: Callable[..., LLMResponse]) -> None:
+        """Test cheap scout routing with small gap analysis dataset."""
         gap_data = {
             "symbol": "TSLA",
             "data_quality": {"completeness": 75, "freshness": 90},
@@ -89,8 +89,8 @@ Reply with just the number."""
 Reply with just the severity level."""
 
         with patch.object(AgentHubAPIClient, "generate") as mock_generate:
-            mock_generate.return_value = mock_llm_response("MEDIUM", "gemini-3-flash-preview")
-            client = AgentHubAPIClient(model="gemini-3-flash-preview")
+            mock_generate.return_value = mock_llm_response("MEDIUM")
+            client = AgentHubAPIClient(agent_slug="market-pulse-scout")
             response = client.generate(prompt)
 
             assert response.content.strip().upper() in ["LOW", "MEDIUM", "HIGH"]
@@ -118,7 +118,7 @@ class TestPaperTradingUseCase:
 
         with patch.object(AgentHubAPIClient, "generate") as mock_generate:
             mock_generate.return_value = mock_llm_response("YES")
-            client = AgentHubAPIClient(model="claude-sonnet-4-5-20250514")
+            client = AgentHubAPIClient(agent_slug="trade-manager")
             response = client.generate(prompt)
 
             assert response.content.strip().upper() in ["YES", "NO"]
@@ -145,7 +145,7 @@ Reply with just the rating."""
 
         with patch.object(AgentHubAPIClient, "generate") as mock_generate:
             mock_generate.return_value = mock_llm_response("GOOD")
-            client = AgentHubAPIClient(model="claude-sonnet-4-5-20250514")
+            client = AgentHubAPIClient(agent_slug="risk-manager")
             response = client.generate(prompt)
 
             assert response.content.strip().upper() in ["POOR", "FAIR", "GOOD", "EXCELLENT"]
@@ -169,7 +169,7 @@ class TestSentimentUseCase:
 
         with patch.object(AgentHubAPIClient, "generate") as mock_generate:
             mock_generate.return_value = mock_llm_response("POSITIVE")
-            client = AgentHubAPIClient(model="claude-sonnet-4-5-20250514")
+            client = AgentHubAPIClient(agent_slug="market-pulse-scout")
             response = client.generate(prompt)
 
             assert response.content.strip().upper() in ["POSITIVE", "NEGATIVE", "NEUTRAL"]

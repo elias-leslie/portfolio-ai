@@ -231,7 +231,7 @@ export interface JennyAgentScorecard {
 }
 
 export interface JennyPredictionReviewChange {
-  kind: 'seat'
+  kind: 'seat' | 'cluster'
   key: string
   priorWeight: number
   effectiveWeight: number
@@ -245,13 +245,26 @@ export interface JennyPredictionReviewSeatWeight {
   recommendedAction: 'upweight' | 'downweight' | 'hold'
 }
 
+export interface JennyPredictionReviewClusterWeight {
+  cluster: string
+  priorWeight: number
+  effectiveWeight: number
+  sampleSize: number
+  freshness: 'fresh' | 'stale' | 'missing' | 'unknown'
+  gateState: 'active' | 'downweighted' | 'off' | 'tracked_only'
+  recommendedAction: 'upweight' | 'downweight' | 'hold' | 'track_only'
+}
+
 export interface JennyPredictionReviewSummary {
   windowDays: number
   reviewState: 'live' | 'warmup' | 'degraded'
   generatedAt: string
   asOfTs: string
   seatWeights: JennyPredictionReviewSeatWeight[]
+  clusterWeights?: JennyPredictionReviewClusterWeight[]
   driftCallouts: string[]
+  gapCallouts?: string[]
+  agentActions?: string[]
   topUpweighted: JennyPredictionReviewChange[]
   topDownweighted: JennyPredictionReviewChange[]
 }

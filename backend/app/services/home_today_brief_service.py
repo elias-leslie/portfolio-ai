@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha1
 from importlib import import_module
-from threading import Lock
+from math import isfinite
+from threading import Lock, Thread
 from typing import Any
 
 from app.agents.clients.agent_hub_client import AgentHubAPIClient
@@ -36,6 +38,7 @@ logger = get_logger(__name__)
 _NARRATIVE_CACHE_SECONDS = 60 * 60
 _RESPONSE_CACHE_SECONDS = 60
 _MARKET_PULSE_AGENT_SLUG = "market-pulse-analyst"
+_NARRATIVE_REQUEST_KIND = "today_market_pulse_narrative"
 
 _SOURCE_SIGNAL_RANK = {
     "primary": 3,
@@ -159,6 +162,27 @@ def _safe_float(value: Any) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _optional_float(value: Any) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if isfinite(parsed) else None
+
+
+def _indicator_payload(indicators: dict[str, Any], key: str) -> dict[str, Any]:
+    value = indicators.get(key)
+    return value if isinstance(value, dict) else {}
+
+
+def _metric_value(value: Any, *, precision: int, suffix: str = "", grouped: bool = False) -> str:
+    number = _optional_float(value)
+    if number is None:
+        return "Unavailable"
+    format_spec = f",.{precision}f" if grouped else f".{precision}f"
+    return f"{number:{format_spec}}{suffix}"
 
 
 def _parse_timestamp(value: Any) -> datetime | None:
@@ -298,15 +322,25 @@ class HomeTodayBriefService:
         return snapshot, snapshot["status"], _iso(current_timestamp)
 
     def _market_metrics(self, market: dict[str, Any]) -> list[dict[str, Any]]:
-        indicators = market["indicators"]
-        leading = market["sector_rotation"].get("leading", [])[:3]
+        indicators = market.get("indicators", {})
+        if not isinstance(indicators, dict):
+            indicators = {}
+        sp500 = _indicator_payload(indicators, "sp500")
+        vix = _indicator_payload(indicators, "vix")
+        tnx = _indicator_payload(indicators, "tnx")
+        sector_rotation = market.get("sector_rotation", {})
+        if not isinstance(sector_rotation, dict):
+            sector_rotation = {}
+        leading = sector_rotation.get("leading", [])[:3]
         leadership = ", ".join(str(row.get("name") or "") for row in leading if row.get("name"))
         market_as_of = market.get("last_updated")
-        sp500_as_of = indicators["sp500"].get("last_updated") or market_as_of
-        vix_as_of = indicators["vix"].get("last_updated") or market_as_of
-        tnx_as_of = indicators["tnx"].get("last_updated") or market_as_of
+        sp500_as_of = sp500.get("last_updated") or market_as_of
+        vix_as_of = vix.get("last_updated") or market_as_of
+        tnx_as_of = tnx.get("last_updated") or market_as_of
         leadership_as_of = leading[0].get("last_updated") if leading else market_as_of
-        sector_rotation = market["sector_rotation"]
+        sp500_change = _optional_float(sp500.get("change_pct"))
+        vix_value = _optional_float(vix.get("value"))
+        tnx_value = _optional_float(tnx.get("value"))
         mood_score = calculate_intraday_mood_score(
             indicators,
             [
@@ -319,41 +353,43 @@ class HomeTodayBriefService:
             {
                 "key": "sp500",
                 "label": "S&P 500",
-                "value": f"{_safe_float(indicators['sp500'].get('value')):,.2f}",
-                "change_pct": indicators["sp500"].get("change_pct"),
+                "value": _metric_value(sp500.get("value"), precision=2, grouped=True),
+                "change_pct": sp500.get("change_pct"),
                 "detail": "Broad market benchmark",
                 "horizon": "Current quote · 1D vs prior close",
                 "as_of": sp500_as_of,
                 "as_of_label": _format_et_timestamp(sp500_as_of),
-                "tone": "positive"
-                if _safe_float(indicators["sp500"].get("change_pct")) > 0
+                "tone": "neutral"
+                if sp500_change is None
+                else "positive"
+                if sp500_change > 0
                 else "negative",
             },
             {
                 "key": "vix",
                 "label": "VIX",
-                "value": f"{_safe_float(indicators['vix'].get('value')):.2f}",
-                "change_pct": indicators["vix"].get("change_pct"),
+                "value": _metric_value(vix.get("value"), precision=2),
+                "change_pct": vix.get("change_pct"),
                 "detail": "Risk pricing",
                 "horizon": "Current quote · 1D vs prior close",
                 "as_of": vix_as_of,
                 "as_of_label": _format_et_timestamp(vix_as_of),
-                "tone": "positive"
-                if _safe_float(indicators["vix"].get("value")) < 20
+                "tone": "neutral"
+                if vix_value is None
+                else "positive"
+                if vix_value < 20
                 else "warning",
             },
             {
                 "key": "tnx",
                 "label": "10Y Yield",
-                "value": f"{_safe_float(indicators['tnx'].get('value')):.3f}%",
-                "change_pct": indicators["tnx"].get("change_pct"),
+                "value": _metric_value(tnx.get("value"), precision=3, suffix="%"),
+                "change_pct": tnx.get("change_pct"),
                 "detail": "Rate pressure",
                 "horizon": "Current quote · 1D vs prior close",
                 "as_of": tnx_as_of,
                 "as_of_label": _format_et_timestamp(tnx_as_of),
-                "tone": "warning"
-                if _safe_float(indicators["tnx"].get("value")) >= 4.5
-                else "neutral",
+                "tone": "warning" if tnx_value is not None and tnx_value >= 4.5 else "neutral",
             },
             {
                 "key": "intraday_mood",
@@ -906,6 +942,60 @@ class HomeTodayBriefService:
             return fallback
         return self._normalize_payload(parsed, fallback, source_ids)
 
+    def _market_cache_basis(self, market: dict[str, Any]) -> dict[str, Any]:
+        indicators = market.get("indicators", {})
+        sp500 = _indicator_payload(indicators, "sp500")
+        vix = _indicator_payload(indicators, "vix")
+        tnx = _indicator_payload(indicators, "tnx")
+        leading = [
+            row.get("name")
+            for row in _as_list(market.get("sector_rotation", {}).get("leading"))[:3]
+            if isinstance(row, dict) and row.get("name")
+        ]
+        fear_greed = market.get("fear_greed", {})
+        if not isinstance(fear_greed, dict):
+            fear_greed = {}
+
+        def rounded(value: Any, digits: int = 1) -> float | None:
+            number = _optional_float(value)
+            return round(number, digits) if number is not None else None
+
+        return {
+            "status": market.get("status"),
+            "sp500_change_pct": rounded(sp500.get("change_pct")),
+            "vix_bucket": rounded(vix.get("value"), 0),
+            "tnx_bucket": rounded(tnx.get("value")),
+            "fear_greed_label": fear_greed.get("label"),
+            "fear_greed_score_bucket": rounded(fear_greed.get("score"), 0),
+            "leading_sectors": leading,
+        }
+
+    def _household_cache_basis(self, household: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "net_worth_status": household.get("net_worth_status"),
+            "monthly_spend_status": household.get("monthly_spend_status"),
+            "needs_refresh_count": household.get("needs_refresh_count"),
+            "future_dated_transactions": household.get("future_dated_transactions"),
+            "pace_status": household.get("pace_status"),
+        }
+
+    def _portfolio_cache_basis(self, portfolio: dict[str, Any]) -> dict[str, Any]:
+        concentration = portfolio.get("concentration", {})
+        if not isinstance(concentration, dict):
+            concentration = {}
+        return {
+            "quote_freshness_status": portfolio.get("quote_freshness_status"),
+            "top_symbols": [
+                row.get("symbol")
+                for row in _as_list(portfolio.get("positions"))[:5]
+                if isinstance(row, dict) and row.get("symbol")
+            ],
+            "concentration_method": concentration.get("method"),
+            "top_holding_name": concentration.get("top_holding_name"),
+            "top_holding_pct": round(_safe_float(concentration.get("top_holding_pct")), 1),
+            "top_3_pct": round(_safe_float(concentration.get("top_3_pct")), 1),
+        }
+
     def _research_cache_key(
         self,
         household: dict[str, Any],
@@ -915,37 +1005,28 @@ class HomeTodayBriefService:
         upcoming_events: list[dict[str, Any]],
     ) -> str:
         compact = {
-            "household_generated_at": household.get("generated_at"),
-            "portfolio_quotes_updated_at": portfolio.get("quotes_updated_at"),
-            "market_last_updated": market.get("last_updated"),
+            "household": self._household_cache_basis(household),
+            "portfolio": self._portfolio_cache_basis(portfolio),
+            "market": self._market_cache_basis(market),
             "headlines": [article.get("headline") for article in articles[:4]],
-            "top_symbols": [row.get("symbol") for row in portfolio.get("positions", [])[:3]],
             "events": [event.get("label") for event in upcoming_events[:5]],
         }
         return sha1(_json_block(compact).encode("utf-8")).hexdigest()
 
     def _narrative_cache_key_for_context(self, context: dict[str, Any]) -> str:
+        external_research = context.get("external_research")
+        if not isinstance(external_research, dict):
+            external_research = {}
         compact = {
-            "household_generated_at": context["household_snapshot"].get("generated_at"),
-            "portfolio_quotes_updated_at": context["portfolio_snapshot"].get("quotes_updated_at"),
-            "market_last_updated": context["market_snapshot"].get("last_updated"),
+            "household": self._household_cache_basis(context["household_snapshot"]),
+            "portfolio": self._portfolio_cache_basis(context["portfolio_snapshot"]),
+            "market": self._market_cache_basis(context["market_snapshot"]),
             "headlines": [article.get("headline") for article in context.get("news_evidence", [])],
-            "top_symbols": [
-                row.get("symbol")
-                for row in context["portfolio_snapshot"].get("positions", [])[:3]
-            ],
-            "external_summary": _trim_text(
-                context.get("external_research", {}).get("summary")
-                if isinstance(context.get("external_research"), dict)
-                else None
-            ),
+            "external_summary": _trim_text(external_research.get("summary")),
             "external_sources": [
                 source.get("url")
-                for source in _as_list(
-                    context.get("external_research", {}).get("sources")
-                    if isinstance(context.get("external_research"), dict)
-                    else []
-                )
+                for source in _as_list(external_research.get("sources"))
+                if isinstance(source, dict)
             ][:8],
         }
         return sha1(_json_block(compact).encode("utf-8")).hexdigest()
@@ -956,6 +1037,96 @@ class HomeTodayBriefService:
                 return None, False
             age = (datetime.now(UTC) - self._narrative_cached_at).total_seconds()
             return self._narrative_cache, age <= _NARRATIVE_CACHE_SECONDS
+
+    def _load_persisted_narrative(self, cache_key: str) -> dict[str, Any] | None:
+        try:
+            with self.storage.connection() as conn:
+                row = conn.execute(
+                    """
+                    SELECT metadata
+                    FROM market_pulse_research_runs
+                    WHERE request_kind = %s
+                      AND status = 'success'
+                      AND cache_key = %s
+                      AND completed_at >= %s
+                    ORDER BY completed_at DESC
+                    LIMIT 1
+                    """,
+                    [
+                        _NARRATIVE_REQUEST_KIND,
+                        cache_key,
+                        datetime.now(UTC) - timedelta(seconds=_NARRATIVE_CACHE_SECONDS),
+                    ],
+                ).fetchone()
+        except Exception as exc:
+            logger.warning("home_today_brief_narrative_cache_load_failed", error=str(exc))
+            return None
+
+        if row is None:
+            return None
+        metadata = row[0]
+        if isinstance(metadata, str):
+            try:
+                metadata = json.loads(metadata)
+            except json.JSONDecodeError:
+                return None
+        payload = metadata.get("payload") if isinstance(metadata, dict) else None
+        if not isinstance(payload, dict) or not isinstance(payload.get("brief"), dict):
+            return None
+        with self._narrative_lock:
+            self._narrative_cache = payload
+            self._narrative_cache_key = cache_key
+            self._narrative_cached_at = datetime.now(UTC)
+        return payload
+
+    def _record_narrative_success(self, *, cache_key: str, payload: dict[str, Any]) -> None:
+        metadata = json.dumps({"agent_slug": _MARKET_PULSE_AGENT_SLUG, "payload": payload})
+        now = datetime.now(UTC)
+        try:
+            with self.storage.connection() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO market_pulse_research_runs (
+                        id,
+                        provider,
+                        model,
+                        status,
+                        request_kind,
+                        cache_key,
+                        fallback_used,
+                        input_tokens,
+                        output_tokens,
+                        reasoning_tokens,
+                        source_count,
+                        error_detail,
+                        metadata,
+                        created_at,
+                        completed_at
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s
+                    )
+                    """,
+                    [
+                        str(uuid.uuid4()),
+                        "agent_hub",
+                        _MARKET_PULSE_AGENT_SLUG,
+                        "success",
+                        _NARRATIVE_REQUEST_KIND,
+                        cache_key,
+                        False,
+                        0,
+                        0,
+                        0,
+                        len(_as_list(payload.get("catalysts"))),
+                        None,
+                        metadata,
+                        now,
+                        now,
+                    ],
+                )
+                conn.commit()
+        except Exception as exc:
+            logger.warning("home_today_brief_narrative_cache_write_failed", error=str(exc))
 
     def _cached_response(self) -> dict[str, Any] | None:
         with self._narrative_lock:
@@ -976,12 +1147,14 @@ class HomeTodayBriefService:
         upcoming_events: list[dict[str, Any]],
         research_cache_key: str,
         fallback: dict[str, Any],
+        claimed: bool = False,
     ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-        with self._narrative_lock:
-            if self._refresh_in_flight:
-                cached_narrative = self._narrative_cache or fallback
-                return cached_narrative, _merge_sources(news_sources, official_sources)
-            self._refresh_in_flight = True
+        if not claimed:
+            with self._narrative_lock:
+                if self._refresh_in_flight:
+                    cached_narrative = self._narrative_cache or fallback
+                    return cached_narrative, _merge_sources(news_sources, official_sources)
+                self._refresh_in_flight = True
 
         try:
             scout_research = self.research_service.build_research(
@@ -1014,6 +1187,7 @@ class HomeTodayBriefService:
                 self._narrative_cache = generated
                 self._narrative_cache_key = cache_key
                 self._narrative_cached_at = datetime.now(UTC)
+            self._record_narrative_success(cache_key=cache_key, payload=generated)
             return generated, source_stack
         except Exception as exc:
             logger.warning("home_today_brief_agent_failed", error=str(exc))
@@ -1022,6 +1196,43 @@ class HomeTodayBriefService:
         finally:
             with self._narrative_lock:
                 self._refresh_in_flight = False
+
+    def _start_background_narrative_refresh(
+        self,
+        *,
+        household: dict[str, Any],
+        portfolio: dict[str, Any],
+        market: dict[str, Any],
+        articles: list[dict[str, Any]],
+        news_sources: list[dict[str, Any]],
+        official_sources: list[dict[str, Any]],
+        upcoming_events: list[dict[str, Any]],
+        research_cache_key: str,
+        fallback: dict[str, Any],
+    ) -> None:
+        with self._narrative_lock:
+            if self._refresh_in_flight:
+                return
+            self._refresh_in_flight = True
+
+        thread = Thread(
+            target=self._refresh_narrative,
+            kwargs={
+                "household": household,
+                "portfolio": portfolio,
+                "market": market,
+                "articles": articles,
+                "news_sources": news_sources,
+                "official_sources": official_sources,
+                "upcoming_events": upcoming_events,
+                "research_cache_key": research_cache_key,
+                "fallback": fallback,
+                "claimed": True,
+            },
+            daemon=True,
+            name="home-today-brief-refresh",
+        )
+        thread.start()
 
     def get_today_brief(self) -> dict[str, Any]:
         cached_response = self._cached_response()
@@ -1072,15 +1283,27 @@ class HomeTodayBriefService:
         cache_key = self._narrative_cache_key_for_context(context)
         cached_narrative, cache_is_fresh = self._cached_narrative()
         cached_key = self._narrative_cache_key
-        narrative = cached_narrative or fallback
-        should_refresh = (
+        if (
             cached_narrative is None
             or not cache_is_fresh
             or cached_key != cache_key
-            or not scout_is_fresh
+        ):
+            persisted_narrative = self._load_persisted_narrative(cache_key)
+            if persisted_narrative is not None:
+                cached_narrative = persisted_narrative
+                cache_is_fresh = True
+                cached_key = cache_key
+        narrative = cached_narrative or fallback
+        should_refresh = (
+            cached_narrative is not None
+            and (
+                not cache_is_fresh
+                or cached_key != cache_key
+                or not scout_is_fresh
+            )
         )
         if should_refresh:
-            narrative, source_stack = self._refresh_narrative(
+            self._start_background_narrative_refresh(
                 household=household,
                 portfolio=portfolio,
                 market=market,

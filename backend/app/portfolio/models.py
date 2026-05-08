@@ -5,7 +5,7 @@ This module defines data models for portfolio entities and analytics.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -58,7 +58,7 @@ class PriceData(BaseModel):
     ask: float | None = None  # Best ask price (GAP-029)
     bid_size: int | None = None  # Size at bid
     ask_size: int | None = None  # Size at ask
-    cached_at: datetime = Field(default_factory=datetime.now)
+    cached_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     source: str = "yfinance"
     error: str | None = None
 

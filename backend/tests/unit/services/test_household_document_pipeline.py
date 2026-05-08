@@ -247,7 +247,7 @@ async def test_duplicate_upload_rebinds_existing_document_to_selected_account() 
     upload = SimpleNamespace(
         filename="positions.csv",
         content_type="text/csv",
-        read=AsyncMock(return_value=b"same bytes"),
+        read=AsyncMock(side_effect=[b"same bytes", b""]),
     )
 
     result = await pipeline.ingest_document(

@@ -17,14 +17,15 @@ logger = get_logger(__name__)
 def get_cached_prices(
     symbols: list[str],
     storage: PortfolioStorage,
-    cache_ttl_minutes: int,
+    cache_ttl_minutes: int | None,
 ) -> dict[str, PriceData]:
     """Get cached prices that are still within the TTL window.
 
     Args:
         symbols: List of symbols to look up
         storage: PortfolioStorage instance
-        cache_ttl_minutes: Cache TTL in minutes
+        cache_ttl_minutes: Cache TTL in minutes. When None, return latest row
+            per symbol without an age cutoff.
 
     Returns:
         Dictionary of valid cached PriceData entries
@@ -32,8 +33,13 @@ def get_cached_prices(
     if not symbols:
         return {}
 
-    cutoff_time = datetime.now(UTC) - timedelta(minutes=cache_ttl_minutes)
     placeholders = ",".join(["?" for _ in symbols])
+    cutoff_clause = ""
+    params: list[object] = list(symbols)
+    if cache_ttl_minutes is not None:
+        cutoff_time = datetime.now(UTC) - timedelta(minutes=cache_ttl_minutes)
+        cutoff_clause = "AND cached_at >= ?"
+        params.append(cutoff_time)
 
     df = storage.query(
         f"""
@@ -41,10 +47,10 @@ def get_cached_prices(
                cached_at, source, error
         FROM price_cache
         WHERE symbol IN ({placeholders})
-          AND cached_at >= ?
+          {cutoff_clause}
         ORDER BY symbol, cached_at DESC
         """,
-        [*symbols, cutoff_time],
+        params,
     )
 
     if df.is_empty():

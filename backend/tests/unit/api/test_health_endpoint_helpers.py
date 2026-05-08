@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import Response
 
+from app.api import health_decision_data
 from app.api.health import (
     STALE_MAINTENANCE_RUNS_QUERY,
     _build_automation_decision_domain,
@@ -508,6 +509,87 @@ def test_decision_data_summary_reports_mixed_degraded_and_critical_domains() -> 
 
     assert health.status == "critical"
     assert health.message == "2 of 2 decision-data domains need review."
+
+
+@pytest.mark.asyncio
+async def test_decision_data_health_caches_expensive_service_domains(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"prediction": 0, "household": 0}
+    health_decision_data._domain_cache.clear()
+
+    async def fake_run_in_threadpool(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    def fake_prediction_domain():
+        calls["prediction"] += 1
+        return health_decision_data._decision_domain(
+            key="prediction_macro",
+            label="Prediction Macro",
+            status="current",
+            severity="healthy",
+            message="Prediction current.",
+        )
+
+    def fake_household_domain():
+        calls["household"] += 1
+        return health_decision_data._decision_domain(
+            key="household_evidence",
+            label="Household Evidence",
+            status="current",
+            severity="healthy",
+            message="Household current.",
+        )
+
+    workflow_health = SimpleNamespace(
+        status="ok",
+        total_workflows_24h=1,
+        successful_workflows=1,
+        failed_workflows=0,
+        blocked_workflows=0,
+        last_successful_workflow=datetime.now(UTC),
+    )
+    health_result = {
+        "workflow_health": workflow_health,
+        "sources": {
+            "yfinance": SimpleNamespace(
+                status="ok",
+                status_reason="",
+                rate_limit_hits=0,
+                in_cooldown=False,
+                last_success=datetime(2026, 5, 6, 12, 0, tzinfo=UTC),
+            )
+        },
+        "api_quotas": [SimpleNamespace(source_name="YFinance", configured=True)],
+    }
+
+    monkeypatch.setattr(health_decision_data, "run_in_threadpool", fake_run_in_threadpool)
+    monkeypatch.setattr(
+        health_decision_data,
+        "_prediction_macro_domain_from_service",
+        fake_prediction_domain,
+    )
+    monkeypatch.setattr(
+        health_decision_data,
+        "_household_domain_from_service",
+        fake_household_domain,
+    )
+
+    try:
+        first = await health_decision_data.get_decision_data_health(
+            health_result=health_result,
+            data_freshness_status={"status": "success", "message": "Fresh."},
+        )
+        second = await health_decision_data.get_decision_data_health(
+            health_result=health_result,
+            data_freshness_status={"status": "success", "message": "Fresh."},
+        )
+
+        assert first["status"] == "healthy"
+        assert second["status"] == "healthy"
+        assert calls == {"prediction": 1, "household": 1}
+    finally:
+        health_decision_data._domain_cache.clear()
 
 
 @pytest.mark.asyncio
