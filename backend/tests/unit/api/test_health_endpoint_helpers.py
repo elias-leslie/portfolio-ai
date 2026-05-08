@@ -547,7 +547,7 @@ async def test_decision_data_health_caches_expensive_service_domains(
         successful_workflows=1,
         failed_workflows=0,
         blocked_workflows=0,
-        last_successful_workflow=datetime(2026, 5, 6, 12, 0, tzinfo=UTC),
+        last_successful_workflow=datetime.now(UTC),
     )
     health_result = {
         "workflow_health": workflow_health,
