@@ -9,6 +9,63 @@ from unittest.mock import Mock
 from app.services.market_pulse_research_service import MarketPulseResearchService
 
 
+class _PersistedCursor:
+    def __init__(self, row):
+        self.row = row
+
+    def fetchone(self):
+        return self.row
+
+
+class _PersistedConnection:
+    def __init__(self, row):
+        self.row = row
+        self.params = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def execute(self, _query, params):
+        self.params = params
+        return _PersistedCursor(self.row)
+
+
+class _PersistedStorage:
+    def __init__(self, row):
+        self.connection_instance = _PersistedConnection(row)
+
+    def connection(self):
+        return self.connection_instance
+
+
+def test_get_cached_research_loads_persisted_success() -> None:
+    payload = {
+        "summary": "Cached scout read",
+        "catalysts": [],
+        "watch_items": [],
+        "sources": [{"id": "source-1"}],
+    }
+    service = object.__new__(MarketPulseResearchService)
+    service.storage = _PersistedStorage(({"payload": payload},))
+    service._lock = Lock()
+    service._cache = None
+    service._cache_key = None
+    service._cached_at = None
+    service._cooldown_until = None
+
+    result, fresh = service.get_cached_research("cache-key")
+
+    assert fresh is True
+    assert result == payload
+    assert service._cache == payload
+    params = service.storage.connection_instance.params
+    assert params is not None
+    assert params[0] == "cache-key"
+
+
 def test_build_research_uses_scout_agent_slug_and_hub_tools(monkeypatch) -> None:
     client = Mock()
     client.complete_messages.return_value = SimpleNamespace(
