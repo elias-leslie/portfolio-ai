@@ -1,0 +1,68 @@
+# TLH replacement-security lookup table.
+#
+# Used by TLHAnalyzer.suggest_replacement to recommend a "not
+# substantially identical" buy after harvesting a loss. Pairs marked
+# confidence=close are in the IRS's grey zone — same index, different
+# fund family. We surface them but flag substantially_identical=true on
+# the wash-sale verdict so the user makes the final call.
+#
+# Format:
+# - from_symbol: The ticker being sold
+#   to_symbol: The replacement
+#   asset_class: Coarse bucket; matches the F3 asset-class taxonomy
+#   name: Human label
+#   rationale: One sentence on why the swap is reasonable
+#   confidence:
+#     "exact"       — same fund family, no overlap (rare; mostly unused)
+#     "close"       — same index, different family; flag as substantially identical
+#     "approximate" — different index, similar exposure; safer choice
+#
+# Pairs are bidirectional: if A->B is listed, B->A is auto-derived.
+
+pairs:
+  # US total market
+  - from_symbol: VTI
+    to_symbol: ITOT
+    asset_class: us_equity
+    name: iShares Core S&P Total US Stock Market
+    rationale: Same total-market exposure, different index provider
+    confidence: close
+
+  # S&P 500
+  - from_symbol: VOO
+    to_symbol: IVV
+    asset_class: us_equity
+    name: iShares Core S&P 500
+    rationale: Both track the S&P 500 — IRS may treat as substantially identical
+    confidence: close
+
+  - from_symbol: SPY
+    to_symbol: IVV
+    asset_class: us_equity
+    name: iShares Core S&P 500
+    rationale: Both track the S&P 500 — IRS may treat as substantially identical
+    confidence: close
+
+  # International developed
+  - from_symbol: VEA
+    to_symbol: IXUS
+    asset_class: intl_equity
+    name: iShares Core MSCI Total International Stock
+    rationale: Broader ex-US exposure (incl. emerging) vs developed-only
+    confidence: approximate
+
+  # Emerging markets
+  - from_symbol: VWO
+    to_symbol: IEMG
+    asset_class: intl_equity
+    name: iShares Core MSCI Emerging Markets
+    rationale: Different EM index methodology; avoids substantial-identity risk
+    confidence: approximate
+
+  # Aggregate bonds
+  - from_symbol: BND
+    to_symbol: AGG
+    asset_class: bonds
+    name: iShares Core US Aggregate Bond
+    rationale: Both track the Bloomberg US Aggregate — IRS may treat as substantially identical
+    confidence: close

@@ -86,6 +86,7 @@ from app.workflows.strategy import (
     weekly_optimization_wf,
     weekly_strategy_gen_wf,
 )
+from app.workflows.tlh import portfolio_tlh_scan_wf
 from app.workflows.watchlist import (
     discover_candidates_wf,
     refresh_news_sentiment_wf,
@@ -179,6 +180,8 @@ def main() -> None:
             market_prediction_sunday_prep_wf,
             # Events (1)
             cross_validate_insight_wf,
+            # Portfolio TLH (1)
+            portfolio_tlh_scan_wf,
         ],
     )
     worker.handle_kill = False

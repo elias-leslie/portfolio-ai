@@ -34,3 +34,7 @@ MARKET_PREDICTION_MORNING_CRONS = ["15 13 * * 1-5"]
 MARKET_PREDICTION_AFTER_CLOSE_CRONS = ["10 22 * * 1-5"]
 MARKET_PREDICTION_SUNDAY_CRONS = ["0 22 * * 0"]
 MACRO_CALENDAR_INGESTION_CRONS = ["5 11 * * *"]
+# F2: post-market TLH scan that snapshots tlh_scan_results so CLI reads
+# stay O(1). 13:00 UTC ~ 9:00 ET, weekdays only; the scan reads the
+# most recent cached close so timing is robust to weekends/holidays.
+TLH_SCAN_CRONS = ["0 13 * * 1-5"]
