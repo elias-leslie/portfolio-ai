@@ -38,3 +38,9 @@ MACRO_CALENDAR_INGESTION_CRONS = ["5 11 * * *"]
 # stay O(1). 13:00 UTC ~ 9:00 ET, weekdays only; the scan reads the
 # most recent cached close so timing is robust to weekends/holidays.
 TLH_SCAN_CRONS = ["0 13 * * 1-5"]
+
+# F3: daily IPS drift snapshot. 18:00 UTC ~ 1pm ET — well after the
+# US market close so the close prices the drift calculation uses are
+# stable. Re-runs are idempotent thanks to the composite PK on
+# ips_drift_history.
+IPS_DRIFT_SNAPSHOT_CRONS = ["0 18 * * *"]
