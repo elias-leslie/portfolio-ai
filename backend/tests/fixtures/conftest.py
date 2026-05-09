@@ -113,6 +113,9 @@ TABLES_TO_CLEAN = [
     "agent_runs",
     # Idea outcomes
     "idea_outcomes",
+    # Portfolio ledger (references portfolio_accounts and portfolio_transactions)
+    "portfolio_tax_lots",
+    "portfolio_transactions",
     # Portfolio positions (references portfolio_accounts)
     "portfolio_positions",
     "portfolio_accounts",

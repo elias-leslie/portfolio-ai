@@ -11,16 +11,19 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from .account_types import AccountType
+
 
 class Account(BaseModel):
     """Portfolio account model."""
 
     id: str
     name: str
-    account_type: Literal["IRA", "Taxable", "401k", "Roth", "HSA", "paper"]
+    account_type: AccountType
     household_account_id: str | None = None
     cash_balance: float = 0.0
     initial_cash: float = 0.0
+    is_spouse: bool = False
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 

@@ -15,6 +15,7 @@ from app.api.portfolio.__init__ import (
 )
 from app.backtest.replay import InsufficientDataError, replay_backtest
 from app.logging_config import get_logger
+from app.portfolio.account_types import ACCOUNT_TYPES, is_paper
 from app.utils.market_hours import NY_TZ, get_last_trading_day, is_market_hours
 from app.watchlist.watchlist_repository import WatchlistRepository
 
@@ -51,14 +52,7 @@ STALE_WHY_BULLETS = [
 ]
 STALE_WATCH_ITEM = "Refresh and re-check this symbol during market hours."
 
-_ALLOWED_ACCOUNT_TYPES = {
-    "roth": "Roth",
-    "ira": "IRA",
-    "hsa": "HSA",
-    "taxable": "Taxable",
-    "401k": "401k",
-    "paper": "paper",
-}
+_ALLOWED_ACCOUNT_TYPES = {value.lower(): value for value in ACCOUNT_TYPES}
 _ACCOUNT_PRIORITY = {"Roth": 0, "IRA": 1, "HSA": 2, "Taxable": 3, "401k": 4}
 
 
@@ -113,7 +107,7 @@ def _eligible_accounts() -> list[Any]:
     result = []
     for account in accounts:
         account_type = _normalize_account_type(getattr(account, "account_type", None))
-        if account_type in {"Roth", "IRA", "HSA", "Taxable", "401k"}:
+        if account_type and not is_paper(account_type):
             result.append(account)
     return result
 

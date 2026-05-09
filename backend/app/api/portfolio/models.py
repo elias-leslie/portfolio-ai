@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.portfolio.account_linkage import HouseholdLinkageState
+from app.portfolio.account_types import AccountType
 
 
 # Request models
@@ -14,9 +15,7 @@ class AccountCreate(BaseModel):
     """Request model for creating an account."""
 
     name: str = Field(..., description="Account name")
-    account_type: Literal["IRA", "Taxable", "401k", "Roth", "HSA", "paper"] = Field(
-        ..., description="Account type"
-    )
+    account_type: AccountType = Field(..., description="Account type")
 
 
 class PositionCreate(BaseModel):
@@ -47,6 +46,7 @@ class AccountResponse(BaseModel):
     household_linkage_candidate_count: int = 0
     household_linkage_candidate_ids: list[str] = Field(default_factory=list)
     cash_balance: float
+    is_spouse: bool = False
     created_at: str
     updated_at: str
 
