@@ -29,6 +29,7 @@ from .analytics_routes import router as analytics_router
 from .jenny_routes import router as jenny_router
 from .models import AccountCreate, AccountResponse, PortfolioResponse, PositionResponse
 from .position_routes import router as position_router
+from .tlh_routes import router as tlh_router
 
 # Create main router
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
@@ -374,3 +375,4 @@ async def delete_account(account_id: str) -> dict[str, str]:
 router.include_router(position_router)
 router.include_router(analytics_router)
 router.include_router(jenny_router)
+router.include_router(tlh_router)
