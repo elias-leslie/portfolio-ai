@@ -845,6 +845,170 @@ def _extract_fidelity_positions_accounts(
     return source_type, document_type, 0.95, summary, structured_data
 
 
+def _extract_fidelity_activity_history_accounts(
+    *,
+    extracted_text: str | None,
+) -> tuple[str, str, float, str, _StructuredData] | None:
+    """Detect a Fidelity Activity History CSV and pull trade rows.
+
+    Fidelity exports trade history with one row per (settled or pending)
+    action. Header signature: ``run_date, account, account_number,
+    action, symbol, ..., quantity, ..., amount, settlement_date``.
+    Action strings start with ``YOU BOUGHT`` / ``YOU SOLD`` /
+    ``REINVESTMENT`` / ``DIVIDEND RECEIVED`` / ``YOU REDEEMED`` etc.
+
+    Returns one financial_account entry per distinct ``Account Number``
+    in the file, each carrying a ``transactions`` list ready for
+    :class:`HouseholdPortfolioTransactionSyncService` to consume. The
+    ``transaction_source`` marker mirrors the ``position_source`` flag
+    on positions snapshots so the pipeline can route the right
+    sub-service.
+    """
+    headers, rows = _csv_rows_from_text(extracted_text)
+    required = {"run_date", "account", "account_number", "action", "symbol", "quantity"}
+    if not required.issubset(set(headers)):
+        return None
+
+    grouped: dict[str, dict[str, object]] = {}
+    for row in rows:
+        action_raw = row.get("action", "").strip()
+        action_upper = action_raw.upper()
+        txn_type = _classify_fidelity_action(action_upper)
+        if txn_type is None:
+            continue
+        account_number = row.get("account_number", "").strip()
+        account_name = row.get("account", "").strip()
+        if not account_number or not account_name:
+            continue
+        symbol = row.get("symbol", "").strip().upper()
+        if not symbol:
+            continue
+        run_date = _parse_natural_date(row.get("run_date"))
+        settlement_date = _parse_natural_date(row.get("settlement_date"))
+        quantity = _float_value(row.get("quantity"))
+        price = _float_value(row.get("price"))
+        commission = _float_value(row.get("commission")) or 0.0
+        fees = _float_value(row.get("fees")) or 0.0
+        amount = _float_value(row.get("amount"))
+        if quantity is None or price is None or run_date is None:
+            continue
+        # Quantity is signed in Fidelity's export (negative for sells).
+        # The ledger contract is ``shares`` always positive with a
+        # ``transaction_type`` discriminator, so absolute-value here.
+        shares_abs = abs(quantity)
+        if shares_abs <= 0:
+            continue
+
+        asset_group, account_type, source_type = _fidelity_account_type(account_name)
+        group = grouped.setdefault(
+            account_number,
+            {
+                "account_number": account_number,
+                "account_name": account_name,
+                "asset_group": asset_group,
+                "account_type": account_type,
+                "source_type": source_type,
+                "transactions": [],
+            },
+        )
+        transactions = group["transactions"]
+        if isinstance(transactions, list):
+            transactions.append(
+                {
+                    "transaction_type": txn_type,
+                    "trade_date": run_date,
+                    "settlement_date": settlement_date,
+                    "symbol": symbol,
+                    "shares": shares_abs,
+                    "price": price,
+                    "fees": commission + fees,
+                    "amount": amount,
+                    "raw_action": action_raw,
+                }
+            )
+
+    if not grouped:
+        return None
+
+    observed_dates = [
+        parsed
+        for group in grouped.values()
+        for transactions in [group.get("transactions")]
+        if isinstance(transactions, list)
+        for txn in transactions
+        for parsed in (txn.get("trade_date"),)
+        if isinstance(parsed, str)
+    ]
+    as_of_date = max(observed_dates) if observed_dates else None
+
+    financial_accounts: list[dict[str, object]] = []
+    source_types: set[str] = set()
+    txn_count = 0
+    for account_number, group in grouped.items():
+        transactions = group.get("transactions") or []
+        if not isinstance(transactions, list):
+            continue
+        txn_count += len(transactions)
+        source_types.add(str(group["source_type"]))
+        financial_accounts.append(
+            {
+                "source_type": str(group["source_type"]),
+                "asset_group": str(group["asset_group"]),
+                "account_type": str(group["account_type"]),
+                "institution_name": "Fidelity",
+                "account_name": str(group["account_name"]),
+                "account_hint": str(group["account_name"]),
+                "account_mask": account_number,
+                "currency": "USD",
+                "as_of_date": as_of_date,
+                "transactions": transactions,
+                "transaction_source": "fidelity_activity_history_csv",
+            }
+        )
+
+    source_type = "retirement" if source_types == {"retirement"} else "brokerage"
+    document_type = "retirement_statement" if source_type == "retirement" else "brokerage_statement"
+    structured_data: _StructuredData = {
+        "provider_name": "Fidelity",
+        "currency": "USD",
+        "financial_accounts": financial_accounts,
+        "account_count": len(financial_accounts),
+    }
+    if as_of_date is not None:
+        structured_data["statement_period"] = f"As of {as_of_date}"
+    if len(financial_accounts) == 1:
+        structured_data["account_hint"] = str(financial_accounts[0]["account_name"])
+    else:
+        structured_data["account_hint"] = (
+            f"Fidelity activity history ({len(financial_accounts)} accounts, {txn_count} transactions)"
+        )
+    summary = (
+        f"Fidelity activity-history export covering {len(financial_accounts)} "
+        f"{'account' if len(financial_accounts) == 1 else 'accounts'} with {txn_count} "
+        f"transaction{'s' if txn_count != 1 else ''}."
+    )
+    return source_type, document_type, 0.92, summary, structured_data
+
+
+def _classify_fidelity_action(action_upper: str) -> str | None:
+    """Map a Fidelity action string to a ledger transaction_type.
+
+    Returns ``None`` for actions that do not change tax-lot state
+    (cash transfers, journal entries, fee debits, etc.) — those rows
+    are passed through to the cash-flow ledger via the existing
+    statement_csv path; we deliberately do not double-count them.
+    """
+    if action_upper.startswith("YOU BOUGHT") or action_upper.startswith("REINVESTMENT"):
+        return "buy"
+    if action_upper.startswith("YOU SOLD") or action_upper.startswith("YOU REDEEMED"):
+        return "sell"
+    if "DIVIDEND" in action_upper and "REINVEST" not in action_upper:
+        return "dividend"
+    if "STOCK SPLIT" in action_upper or "STOCK SPINOFF" in action_upper:
+        return "split"
+    return None
+
+
 def _parse_filename_statement_date(filename: str) -> str | None:
     for run in re.findall(r"\d{7,8}", filename):
         year = int(run[-4:])
@@ -1092,10 +1256,24 @@ def _classify_by_content(
     if is_amazon_order:
         inferred_source, inferred_document, confidence, summary = _classify_amazon(text_lower, structured_data)
     elif filename_lower.endswith(".csv"):
-        fidelity_positions = _extract_fidelity_positions_accounts(
+        fidelity_activity = _extract_fidelity_activity_history_accounts(
             extracted_text=extracted_text,
         )
-        if fidelity_positions is not None:
+        fidelity_positions = (
+            None
+            if fidelity_activity is not None
+            else _extract_fidelity_positions_accounts(extracted_text=extracted_text)
+        )
+        if fidelity_activity is not None:
+            (
+                inferred_source,
+                inferred_document,
+                confidence,
+                summary,
+                activity_structured_data,
+            ) = fidelity_activity
+            structured_data.update(activity_structured_data)
+        elif fidelity_positions is not None:
             (
                 inferred_source,
                 inferred_document,

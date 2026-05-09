@@ -964,6 +964,20 @@ class HouseholdDocumentPipeline:
                     reviewed=reviewed,
                 )
             )
+        portfolio_transaction_summary: dict[str, int] = {}
+        portfolio_transaction_sync_service = getattr(
+            service,
+            "portfolio_transaction_sync_service",
+            None,
+        )
+        if portfolio_transaction_sync_service is not None:
+            portfolio_transaction_summary = (
+                portfolio_transaction_sync_service.sync_from_reviewed_accounts(
+                    service,
+                    document=document,
+                    reviewed=reviewed,
+                )
+            )
         planning_items = reviewed.get("planning_items")
         planning_count = 0
         planning_skipped = 0
@@ -1035,6 +1049,7 @@ class HouseholdDocumentPipeline:
             "evidence_accounts": evidence_account_count,
             "account_registry": registry_summary,
             "portfolio_positions": portfolio_position_summary,
+            "portfolio_transactions": portfolio_transaction_summary,
             "planning_items": planning_count,
             "planning_items_skipped": planning_skipped,
             "planning_error": planning_error,
