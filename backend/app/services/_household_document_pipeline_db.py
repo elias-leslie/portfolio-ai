@@ -377,6 +377,56 @@ def upsert_import_row(
     return result is not None and bool(result[0])
 
 
+def upsert_receipt_line_item_row(
+    conn: DatabaseConnection,
+    *,
+    row: dict[str, str | None],
+    document_id: str,
+    now: str,
+) -> bool | None:
+    """Upsert one itemized receipt row. Returns True=inserted, False=duplicate, None=skipped."""
+    dataset_type = "receipt_line_items"
+    row_hash = build_import_row_hash(dataset_type=dataset_type, row=row)
+    if row_hash is None:
+        return None
+    result = conn.execute(
+        """
+        INSERT INTO household_import_rows (
+            id, document_id, dataset_type, row_hash, external_row_id,
+            row_date, merchant, description, amount, currency, row_metadata,
+            created_at, updated_at
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+        ON CONFLICT (row_hash) DO UPDATE SET
+            document_id = EXCLUDED.document_id,
+            external_row_id = COALESCE(EXCLUDED.external_row_id, household_import_rows.external_row_id),
+            row_date = COALESCE(EXCLUDED.row_date, household_import_rows.row_date),
+            merchant = COALESCE(EXCLUDED.merchant, household_import_rows.merchant),
+            description = COALESCE(EXCLUDED.description, household_import_rows.description),
+            amount = COALESCE(EXCLUDED.amount, household_import_rows.amount),
+            currency = COALESCE(EXCLUDED.currency, household_import_rows.currency),
+            row_metadata = household_import_rows.row_metadata || EXCLUDED.row_metadata,
+            updated_at = EXCLUDED.updated_at
+        RETURNING (xmax = 0) AS was_inserted
+        """,
+        [
+            str(uuid.uuid4()),
+            document_id,
+            dataset_type,
+            row_hash,
+            row.get("External Row ID"),
+            parse_row_date(row.get("Order Date")),
+            row.get("Merchant"),
+            row.get("Product Name") or row.get("Description"),
+            parse_decimal(row.get("Total Amount") or row.get("Unit Price")),
+            row.get("Currency"),
+            json.dumps(row),
+            now,
+            now,
+        ],
+    ).fetchone()
+    return result is not None and bool(result[0])
+
+
 _DUPLICATE_LOOKUP_SQL = """
     SELECT
         id, filename, source_type, document_type, status, account_label,

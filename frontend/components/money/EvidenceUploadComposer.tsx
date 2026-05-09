@@ -7,8 +7,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { validateHouseholdEvidenceFile } from '@/lib/api/household'
-import { useUploadHouseholdDocument } from '@/lib/hooks/useHousehold'
+import {
+  type HouseholdDocumentUpload,
+  validateHouseholdEvidenceFile,
+} from '@/lib/api/household'
+import {
+  useUploadHouseholdDocument,
+  useUploadHouseholdDocuments,
+} from '@/lib/hooks/useHousehold'
 
 const HOUSEHOLD_EVIDENCE_ACCEPT =
   '.pdf,.csv,.ofx,.qfx,.png,.jpg,.jpeg,.heic,.webp,.bmp,.txt,.json,.xml,.html,.htm,image/*,application/pdf,text/plain,text/csv'
@@ -31,6 +37,7 @@ export function EvidenceUploadComposer({
   highlighted = false,
 }: EvidenceUploadComposerProps) {
   const upload = useUploadHouseholdDocument()
+  const batchUpload = useUploadHouseholdDocuments()
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [files, setFiles] = useState<File[]>([])
   const [rawText, setRawText] = useState('')
@@ -145,30 +152,34 @@ export function EvidenceUploadComposer({
   const handleUpload = async () => {
     if (files.length === 0 && !trimmedRawText) return
     try {
-      const uploads = [
-        ...files.map((file) =>
-          upload.mutateAsync({
-            file,
-            accountLabel: accountLabel ?? undefined,
-            householdAccountId: householdAccountId ?? undefined,
-          }),
-        ),
-      ]
+      const rawTextFilenameBase = `${accountLabel ?? title}`
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+      const reviewSessionId =
+        files.length + (trimmedRawText ? 1 : 0) > 1
+          ? globalThis.crypto?.randomUUID()
+          : undefined
+      const payloads: HouseholdDocumentUpload[] = files.map((file) => ({
+        file,
+        accountLabel: accountLabel ?? undefined,
+        householdAccountId: householdAccountId ?? undefined,
+        reviewSessionId,
+      }))
       if (trimmedRawText) {
-        const rawTextFilenameBase = `${accountLabel ?? title}`
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-+|-+$/g, '')
-        uploads.push(
-          upload.mutateAsync({
-            rawText: trimmedRawText,
-            filename: `${rawTextFilenameBase || 'pasted-evidence'}.txt`,
-            accountLabel: accountLabel ?? undefined,
-            householdAccountId: householdAccountId ?? undefined,
-          }),
-        )
+        payloads.push({
+          rawText: trimmedRawText,
+          filename: `${rawTextFilenameBase || 'pasted-evidence'}.txt`,
+          accountLabel: accountLabel ?? undefined,
+          householdAccountId: householdAccountId ?? undefined,
+          reviewSessionId,
+        })
       }
-      await Promise.all(uploads)
+      if (payloads.length > 1) {
+        await batchUpload.mutateAsync(payloads)
+      } else {
+        await upload.mutateAsync(payloads[0])
+      }
       resetComposer()
     } catch {
       // Upload hook already surfaces the error toast.
@@ -314,11 +325,13 @@ export function EvidenceUploadComposer({
             type="button"
             onClick={() => void handleUpload()}
             disabled={
-              (files.length === 0 && !trimmedRawText) || upload.isPending
+              (files.length === 0 && !trimmedRawText) ||
+              upload.isPending ||
+              batchUpload.isPending
             }
-            aria-busy={upload.isPending}
+            aria-busy={upload.isPending || batchUpload.isPending}
           >
-            {upload.isPending
+            {upload.isPending || batchUpload.isPending
               ? 'Uploading...'
               : files.length > 1 && !trimmedRawText
                 ? 'Upload files'
@@ -333,9 +346,11 @@ export function EvidenceUploadComposer({
             variant="outline"
             onClick={resetComposer}
             disabled={
-              (files.length === 0 && !trimmedRawText) || upload.isPending
+              (files.length === 0 && !trimmedRawText) ||
+              upload.isPending ||
+              batchUpload.isPending
             }
-            aria-busy={upload.isPending}
+            aria-busy={upload.isPending || batchUpload.isPending}
           >
             Clear
           </Button>

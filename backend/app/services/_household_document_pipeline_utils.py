@@ -34,6 +34,8 @@ _TRANSACTION_ACTIVITY_TERMS = (
     "transaction",
     "transactions",
 )
+_RECEIPT_SOURCE_TYPES = frozenset({"receipt"})
+_RECEIPT_DOCUMENT_TYPES = frozenset({"receipt"})
 
 
 def _clean_text(value: object) -> str | None:
@@ -118,6 +120,21 @@ def normalize_financial_document_classification(
     )
     structured_data = reviewed.get("structured_data")
     structured = structured_data if isinstance(structured_data, dict) else {}
+    structured_transactions = structured.get("transactions")
+    looks_like_receipt = (
+        current_source in _RECEIPT_SOURCE_TYPES
+        or current_document in _RECEIPT_DOCUMENT_TYPES
+    ) and (
+        bool(str(structured.get("merchant") or "").strip())
+        or bool(str(structured.get("total_amount") or "").strip())
+        or (
+            isinstance(structured_transactions, list)
+            and any(isinstance(item, dict) for item in structured_transactions)
+        )
+    )
+    if looks_like_receipt:
+        return "receipt", "receipt"
+
     raw_accounts = structured.get("financial_accounts")
     accounts = (
         [account for account in raw_accounts if isinstance(account, dict)]
@@ -296,6 +313,28 @@ def build_import_row_hash(
     row: dict[str, str | None],
 ) -> str | None:
     """Compute a dedup hash for a CSV import row; return None if key fields are missing."""
+    if dataset_type == "receipt_line_items":
+        document_id = (row.get("Document ID") or "").strip()
+        receipt_index = (row.get("Receipt Index") or "").strip()
+        line_index = (row.get("Line Index") or "").strip()
+        merchant = (row.get("Merchant") or "").strip()
+        description = (row.get("Product Name") or row.get("Description") or "").strip()
+        amount = (row.get("Total Amount") or row.get("Unit Price") or "").strip()
+        row_date = (row.get("Order Date") or "").strip()
+        if not document_id or not line_index or not description or not amount or not row_date:
+            return None
+        fingerprint = "|".join([
+            dataset_type,
+            document_id,
+            receipt_index,
+            line_index,
+            merchant,
+            description,
+            amount,
+            row_date,
+        ])
+        return hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
+
     if dataset_type != "amazon_order_history":
         return None
     order_id = (row.get("Order ID") or "").strip()

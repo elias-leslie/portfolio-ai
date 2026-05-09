@@ -28,6 +28,19 @@ import {
 import { cn, formatRelativeTime } from '@/lib/utils'
 
 const FIRST_OPEN_REFRESH_KEY = 'portfolio-ai:first-open-freshness-refresh'
+const FIRST_OPEN_MIN_SECONDS = 15 * 60
+const POLL_OPTIONS = [
+  { value: 0, label: 'Manual' },
+  { value: 10, label: '10 sec' },
+  { value: 30, label: '30 sec' },
+  { value: 60, label: '1 min' },
+  { value: 300, label: '5 min' },
+  { value: 900, label: '15 min' },
+  { value: 1800, label: '30 min' },
+  { value: 3600, label: '1 hr' },
+  { value: 7200, label: '2 hr' },
+  { value: 14400, label: '4 hr' },
+]
 
 function statusTone(status: string | undefined) {
   switch (status) {
@@ -76,11 +89,22 @@ function sortDetails(details: DataFreshnessDetail[]) {
   })
 }
 
-function shouldKickFirstOpenRefresh(status: string | undefined) {
+function shouldKickFirstOpenRefresh(
+  status: string | undefined,
+  intervalSeconds: number,
+) {
   if (status !== 'warning' && status !== 'critical') return false
+  if (intervalSeconds <= 0) return false
   try {
-    const last = Number(sessionStorage.getItem(FIRST_OPEN_REFRESH_KEY) ?? '0')
-    return Date.now() - last > 15 * 60 * 1000
+    const last = Number(
+      localStorage.getItem(FIRST_OPEN_REFRESH_KEY) ??
+        sessionStorage.getItem(FIRST_OPEN_REFRESH_KEY) ??
+        '0',
+    )
+    return (
+      Date.now() - last >
+      Math.max(intervalSeconds, FIRST_OPEN_MIN_SECONDS) * 1000
+    )
   } catch {
     return true
   }
@@ -88,7 +112,9 @@ function shouldKickFirstOpenRefresh(status: string | undefined) {
 
 function rememberFirstOpenRefresh() {
   try {
-    sessionStorage.setItem(FIRST_OPEN_REFRESH_KEY, String(Date.now()))
+    const now = String(Date.now())
+    localStorage.setItem(FIRST_OPEN_REFRESH_KEY, now)
+    sessionStorage.setItem(FIRST_OPEN_REFRESH_KEY, now)
   } catch {
     // Ignore private-mode storage failures.
   }
@@ -109,14 +135,14 @@ export function FreshnessStatusBadge() {
     [freshness.data?.details],
   )
   const pollSeconds = preferences?.frontendPollInterval ?? 30
-  const pollOption = [10, 30, 60, 300].includes(pollSeconds)
+  const pollOption = POLL_OPTIONS.some((option) => option.value === pollSeconds)
     ? String(pollSeconds)
-    : '30'
-  const autoRefreshEnabled = pollSeconds < 300
+    : '300'
+  const autoRefreshEnabled = pollSeconds > 0
 
   useEffect(() => {
-    if (!freshness.data || refreshAll.isPending) return
-    if (!shouldKickFirstOpenRefresh(freshness.data.status)) return
+    if (!preferences || !freshness.data || refreshAll.isPending) return
+    if (!shouldKickFirstOpenRefresh(freshness.data.status, pollSeconds)) return
     rememberFirstOpenRefresh()
     refreshAll.mutate(undefined, {
       onSuccess: (result) => {
@@ -126,7 +152,7 @@ export function FreshnessStatusBadge() {
         toast.error(error.message)
       },
     })
-  }, [freshness.data, refreshAll])
+  }, [freshness.data, pollSeconds, preferences, refreshAll])
 
   const runRefreshAll = () => {
     refreshAll.mutate(undefined, {
@@ -269,13 +295,15 @@ export function FreshnessStatusBadge() {
                 checked={autoRefreshEnabled}
                 onCheckedChange={(checked) =>
                   updatePreferences.mutate({
-                    frontendPollInterval: checked ? 30 : 300,
+                    frontendPollInterval: checked ? 300 : 0,
                   })
                 }
               />
             </div>
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-medium text-text">Open UI cadence</p>
+              <p className="text-xs font-medium text-text">
+                Open/focus cadence
+              </p>
               <Select
                 value={pollOption}
                 onValueChange={(value) =>
@@ -284,14 +312,15 @@ export function FreshnessStatusBadge() {
                   })
                 }
               >
-                <SelectTrigger size="sm" className="w-28">
+                <SelectTrigger size="sm" className="w-32">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="10">10 sec</SelectItem>
-                  <SelectItem value="30">30 sec</SelectItem>
-                  <SelectItem value="60">1 min</SelectItem>
-                  <SelectItem value="300">5 min</SelectItem>
+                  {POLL_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={String(option.value)}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

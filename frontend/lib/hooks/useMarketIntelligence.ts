@@ -39,15 +39,22 @@ import { fetchPreferences } from '../api/preferences'
 const DEFAULT_PREDICTION_REFRESH_MS = 1000 * 60 * 10
 const MIN_PREDICTION_REFRESH_MS = 1000 * 60
 
-function useMarketPollMs(defaultSeconds: number = 30) {
+type PollMs = number | false
+
+function useMarketPollMs(defaultSeconds: number = 30): PollMs {
   const { data: preferences } = useQuery({
     queryKey: ['preferences'],
     queryFn: fetchPreferences,
     staleTime: 1000 * 60 * 5,
   })
+  if (preferences?.frontendPollInterval === 0) return false
   return (
     Math.max(10, preferences?.frontendPollInterval ?? defaultSeconds) * 1000
   )
+}
+
+function staleTimeForPoll(pollMs: PollMs) {
+  return pollMs === false ? Number.POSITIVE_INFINITY : pollMs
 }
 
 function getPredictionCommitteeRefreshMs(
@@ -73,9 +80,9 @@ export function useMarketIntelligence(): UseQueryResult<MarketIntelligenceRespon
   return useQuery({
     queryKey: ['market', 'intelligence'],
     queryFn: ({ signal }) => fetchMarketIntelligence({ signal }),
-    staleTime: pollMs,
+    staleTime: staleTimeForPoll(pollMs),
     refetchInterval: pollMs,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: pollMs !== false,
   })
 }
 
@@ -174,9 +181,9 @@ export function useFearGreedHistory(
   return useQuery({
     queryKey: ['market', 'fear-greed-history', days],
     queryFn: ({ signal }) => fetchFearGreedHistory(days, { signal }),
-    staleTime: pollMs,
+    staleTime: staleTimeForPoll(pollMs),
     refetchInterval: pollMs,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: pollMs !== false,
   })
 }
 
@@ -194,9 +201,9 @@ export function useNewsSentimentHistory(
     queryKey: ['market', 'news-sentiment-history', days, granularity],
     queryFn: ({ signal }) =>
       fetchNewsSentimentHistory(days, granularity, { signal }),
-    staleTime: pollMs,
+    staleTime: staleTimeForPoll(pollMs),
     refetchInterval: pollMs,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: pollMs !== false,
   })
 }
 
@@ -211,9 +218,9 @@ export function useIndicatorHistory(
   return useQuery({
     queryKey: ['market', 'indicator-history', days],
     queryFn: ({ signal }) => fetchIndicatorHistory(days, { signal }),
-    staleTime: pollMs,
+    staleTime: staleTimeForPoll(pollMs),
     refetchInterval: pollMs,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: pollMs !== false,
   })
 }
 
@@ -228,9 +235,9 @@ export function useSectorHistory(
   return useQuery({
     queryKey: ['market', 'sector-history', days],
     queryFn: ({ signal }) => fetchSectorHistory(days, { signal }),
-    staleTime: pollMs,
+    staleTime: staleTimeForPoll(pollMs),
     refetchInterval: pollMs,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: pollMs !== false,
   })
 }
 
@@ -245,9 +252,9 @@ export function useMarketMovers(
   return useQuery({
     queryKey: ['market', 'movers', count],
     queryFn: ({ signal }) => fetchMarketMovers(count, { signal }),
-    staleTime: pollMs,
+    staleTime: staleTimeForPoll(pollMs),
     refetchInterval: pollMs,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: pollMs !== false,
   })
 }
 
@@ -260,9 +267,9 @@ export function useMarketStatus(): UseQueryResult<MarketStatusResponse> {
   return useQuery({
     queryKey: ['market', 'status'],
     queryFn: ({ signal }) => fetchMarketStatus({ signal }),
-    staleTime: pollMs,
+    staleTime: staleTimeForPoll(pollMs),
     refetchInterval: pollMs,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: pollMs !== false,
   })
 }
 

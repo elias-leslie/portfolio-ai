@@ -7,6 +7,7 @@ import json
 import uuid
 from csv import DictReader
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -28,6 +29,7 @@ from app.services._household_document_pipeline_db import (
     update_document_application_summary,
     update_import_summary,
     upsert_import_row,
+    upsert_receipt_line_item_row,
     upsert_signature_record,
 )
 from app.services._household_document_pipeline_utils import (
@@ -36,6 +38,7 @@ from app.services._household_document_pipeline_utils import (
     detect_import_dataset,
     normalize_financial_document_classification,
     parse_decimal,
+    parse_decimal_value,
     parse_row_date,
 )
 from app.services._household_finance_utils import iso, iso_or_none, to_float
@@ -84,6 +87,7 @@ _MONEY_SIGNATURE_ACCOUNT_VOLATILE_FIELDS = frozenset(
         "holdings_value",
     }
 )
+_RECEIPT_RECONCILIATION_TOLERANCE = Decimal("0.05")
 
 
 def _structured_data_dict(reviewed: dict[str, object]) -> dict[str, object]:
@@ -115,6 +119,239 @@ def _int_value(value: object) -> int:
         return int(value or 0)
     except (TypeError, ValueError):
         return 0
+
+
+def _string_value(value: object) -> str | None:
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _first_present_value(raw: dict[str, object], keys: tuple[str, ...]) -> object:
+    for key in keys:
+        value = raw.get(key)
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _decimal_value(value: object) -> Decimal | None:
+    return parse_decimal_value(_string_value(value))
+
+
+def _close_money(left: Decimal, right: Decimal) -> bool:
+    return abs(left - right) <= _RECEIPT_RECONCILIATION_TOLERANCE
+
+
+def _receipt_line_item_amounts(line_items: object) -> list[Decimal]:
+    if not isinstance(line_items, list):
+        return []
+    amounts: list[Decimal] = []
+    for raw_item in line_items:
+        if not isinstance(raw_item, dict):
+            continue
+        description = _string_value(raw_item.get("description") or raw_item.get("name"))
+        if not description:
+            continue
+        amount = _decimal_value(_first_present_value(raw_item, ("amount", "total", "price")))
+        if amount is not None:
+            amounts.append(amount)
+    return amounts
+
+
+def _receipt_line_item_quantity_total(line_items: object) -> Decimal:
+    if not isinstance(line_items, list):
+        return Decimal("0")
+    total = Decimal("0")
+    for raw_item in line_items:
+        if not isinstance(raw_item, dict):
+            continue
+        description = _string_value(raw_item.get("description") or raw_item.get("name"))
+        amount = _decimal_value(_first_present_value(raw_item, ("amount", "total", "price")))
+        if not description or amount is None:
+            continue
+        quantity = _decimal_value(raw_item.get("quantity")) or Decimal("1")
+        total += quantity
+    return total
+
+
+def _declared_item_count(value: object) -> Decimal | None:
+    parsed = _decimal_value(value)
+    if parsed is None or parsed <= 0:
+        return None
+    return parsed
+
+
+def _receipt_items_cover_declared_count(*, line_items: object, declared_items_sold: object) -> bool:
+    declared = _declared_item_count(declared_items_sold)
+    if declared is None:
+        return True
+    return _receipt_line_item_quantity_total(line_items) >= declared
+
+
+def _receipt_line_items_reconcile(
+    *,
+    line_items: object,
+    receipt_total: object,
+    subtotal: object,
+    tax_amount: object,
+    declared_items_sold: object = None,
+) -> bool:
+    if not _receipt_items_cover_declared_count(
+        line_items=line_items,
+        declared_items_sold=declared_items_sold,
+    ):
+        return False
+    amounts = _receipt_line_item_amounts(line_items)
+    if not amounts:
+        return False
+    line_total = sum(amounts, Decimal("0"))
+    total = _decimal_value(receipt_total)
+    subtotal_amount = _decimal_value(subtotal)
+    tax = _decimal_value(tax_amount)
+    candidates = [candidate for candidate in (total, subtotal_amount) if candidate is not None]
+    if subtotal_amount is not None and tax is not None:
+        candidates.append(subtotal_amount + tax)
+    return any(_close_money(line_total, candidate) for candidate in candidates)
+
+
+def _receipt_line_item_rows(
+    *,
+    document: HouseholdDocument,
+    reviewed: dict[str, object],
+) -> list[dict[str, str | None]]:
+    structured_data = _structured_data_dict(reviewed)
+    if str(reviewed.get("source_type") or document.source_type) != "receipt":
+        return []
+
+    rows: list[dict[str, str | None]] = []
+
+    def append_items(
+        *,
+        receipt_index: int,
+        merchant: str | None,
+        receipt_date: str | None,
+        receipt_total: str | None,
+        currency: str | None,
+        payment_method: str | None,
+        account_mask: str | None,
+        account_label: str | None,
+        subtotal: str | None,
+        tax_amount: str | None,
+        declared_items_sold: str | None,
+        line_items: object,
+    ) -> None:
+        if not isinstance(line_items, list):
+            return
+        if not _receipt_line_items_reconcile(
+            line_items=line_items,
+            receipt_total=receipt_total,
+            subtotal=subtotal,
+            tax_amount=tax_amount,
+            declared_items_sold=declared_items_sold,
+        ):
+            return
+        for line_index, raw_item in enumerate(line_items):
+            if not isinstance(raw_item, dict):
+                continue
+            description = _string_value(raw_item.get("description") or raw_item.get("name"))
+            amount = _string_value(_first_present_value(raw_item, ("amount", "total", "price")))
+            if not description or not amount or not receipt_date:
+                continue
+            rows.append(
+                {
+                    "Document ID": document.id,
+                    "External Row ID": f"{document.id}:{receipt_index}:{line_index}",
+                    "Receipt Index": str(receipt_index),
+                    "Line Index": str(line_index),
+                    "Order Date": receipt_date,
+                    "Merchant": merchant,
+                    "Product Name": description,
+                    "Description": description,
+                    "Total Amount": amount,
+                    "Unit Price": _string_value(raw_item.get("unit_price")) or amount,
+                    "Original Quantity": _string_value(raw_item.get("quantity")) or "1",
+                    "Currency": currency or "USD",
+                    "Payment Method": payment_method,
+                    "Account Mask": account_mask,
+                    "Account Label": account_label,
+                    "Receipt Total": receipt_total,
+                    "Source": "receipt_line_item",
+                }
+            )
+
+    raw_transactions = structured_data.get("transactions")
+    review_checks = _review_checks_dict(reviewed)
+    itemization_checks = review_checks.get("itemization")
+    itemization_checks = itemization_checks if isinstance(itemization_checks, dict) else {}
+    structured_declared_items_sold = _first_present_value(
+        structured_data,
+        ("declared_items_sold", "items_sold"),
+    )
+    review_declared_items_sold = _first_present_value(
+        itemization_checks,
+        ("declared_items_sold", "items_sold"),
+    )
+    if isinstance(raw_transactions, list):
+        for receipt_index, raw_transaction in enumerate(raw_transactions):
+            if not isinstance(raw_transaction, dict):
+                continue
+            merchant = _string_value(raw_transaction.get("merchant")) or _string_value(
+                structured_data.get("merchant")
+            )
+            account_mask = _string_value(raw_transaction.get("account_mask"))
+            payment_method = _string_value(raw_transaction.get("payment_method"))
+            account_label = (
+                _string_value(structured_data.get("upload_account_label"))
+                or _string_value(structured_data.get("account_hint"))
+                or " ".join(
+                    part
+                    for part in (payment_method, account_mask)
+                    if part
+                )
+                or None
+            )
+            append_items(
+                receipt_index=receipt_index,
+                merchant=merchant,
+                receipt_date=_string_value(raw_transaction.get("date")),
+                receipt_total=_string_value(raw_transaction.get("amount")),
+                currency=_string_value(raw_transaction.get("currency"))
+                or _string_value(structured_data.get("currency")),
+                payment_method=payment_method,
+                account_mask=account_mask,
+                account_label=account_label,
+                subtotal=_string_value(
+                    _first_present_value(raw_transaction, ("subtotal", "subtotal_amount", "pre_tax_total"))
+                ),
+                tax_amount=_string_value(
+                    _first_present_value(raw_transaction, ("tax_amount", "sales_tax", "tax", "total_tax"))
+                ),
+                declared_items_sold=_string_value(
+                    _first_present_value(raw_transaction, ("declared_items_sold", "items_sold"))
+                    or review_declared_items_sold
+                    or structured_declared_items_sold
+                ),
+                line_items=raw_transaction.get("line_items"),
+            )
+
+    append_items(
+        receipt_index=0,
+        merchant=_string_value(structured_data.get("merchant")),
+        receipt_date=_string_value(structured_data.get("statement_period")),
+        receipt_total=_string_value(structured_data.get("total_amount")),
+        currency=_string_value(structured_data.get("currency")),
+        payment_method=_string_value(structured_data.get("payment_method")),
+        account_mask=_string_value(structured_data.get("account_mask")),
+        account_label=_string_value(structured_data.get("upload_account_label"))
+        or _string_value(structured_data.get("account_hint")),
+        subtotal=_string_value(_first_present_value(structured_data, ("subtotal", "subtotal_amount", "pre_tax_total"))),
+        tax_amount=_string_value(_first_present_value(structured_data, ("tax_amount", "sales_tax", "tax", "total_tax"))),
+        declared_items_sold=_string_value(review_declared_items_sold or structured_declared_items_sold),
+        line_items=structured_data.get("line_items"),
+    )
+    return rows
 
 
 def _reviewed_financial_accounts(reviewed: dict[str, object]) -> list[dict[str, object]]:
@@ -508,6 +745,7 @@ class HouseholdDocumentPipeline:
         document_type: str | None = None,
         account_label: str | None = None,
         household_account_id: str | None = None,
+        review_session_id: str | None = None,
     ) -> HouseholdDocument:
         document_id = str(uuid.uuid4())
         filename = upload.filename or f"{document_id}.bin"
@@ -524,6 +762,8 @@ class HouseholdDocumentPipeline:
                 }
                 if household_account_id:
                     rebound_metadata["upload_household_account_id"] = household_account_id
+                if review_session_id:
+                    rebound_metadata["review_session_id"] = review_session_id
                 with service.storage.connection() as conn:
                     conn.execute(
                         """
@@ -565,6 +805,8 @@ class HouseholdDocumentPipeline:
         }
         if household_account_id:
             metadata["upload_household_account_id"] = household_account_id
+        if review_session_id:
+            metadata["review_session_id"] = review_session_id
         with service.storage.connection() as conn:
             insert_document_db(
                 conn,
@@ -595,7 +837,12 @@ class HouseholdDocumentPipeline:
             iso_or_none=iso_or_none,
         )
 
-    def review_document(self, service: HouseholdFinanceService, document_id: str) -> None:
+    def review_document(
+        self,
+        service: HouseholdFinanceService,
+        document_id: str,
+        review_session_id: str | None = None,
+    ) -> None:
         document = service.get_document(document_id)
         if document is None:
             logger.warning(
@@ -603,7 +850,11 @@ class HouseholdDocumentPipeline:
             )
             return
         try:
-            self.process_document_review(service, document)
+            self.process_document_review(
+                service,
+                document,
+                review_session_id=review_session_id,
+            )
         except Exception as exc:
             logger.exception(
                 "household_document_review_failed", document_id=document_id, error=str(exc)
@@ -611,8 +862,24 @@ class HouseholdDocumentPipeline:
             with service.storage.connection() as conn:
                 mark_review_failed(conn, document_id=document_id, now=datetime.now(UTC).isoformat())
 
+    def review_documents(
+        self,
+        service: HouseholdFinanceService,
+        document_ids: list[str],
+        review_session_id: str | None = None,
+    ) -> None:
+        for document_id in document_ids:
+            self.review_document(
+                service,
+                document_id,
+                review_session_id=review_session_id,
+            )
+
     def process_document_review(
-        self, service: HouseholdFinanceService, document: HouseholdDocument
+        self,
+        service: HouseholdFinanceService,
+        document: HouseholdDocument,
+        review_session_id: str | None = None,
     ) -> None:
         stored_path = document.metadata.get("stored_path")
         if not isinstance(stored_path, str) or not stored_path:
@@ -632,6 +899,16 @@ class HouseholdDocumentPipeline:
         max_attempts = 2
         prior_review: dict[str, object] | None = None
         reconciliation_summary: dict[str, object] | None = None
+        metadata_session_id = document.metadata.get("review_session_id")
+        resolved_review_session_id = (
+            review_session_id
+            if isinstance(review_session_id, str) and review_session_id.strip()
+            else (
+                metadata_session_id
+                if isinstance(metadata_session_id, str) and metadata_session_id.strip()
+                else None
+            )
+        )
         while True:
             now = datetime.now(UTC).isoformat()
             reviewed = service.review_service.review(
@@ -643,6 +920,7 @@ class HouseholdDocumentPipeline:
                 document_type=document.document_type,
                 prior_review=prior_review,
                 reconciliation_summary=reconciliation_summary,
+                review_session_id=resolved_review_session_id,
             )
             reviewed = _apply_upload_account_binding(
                 service,
@@ -663,6 +941,7 @@ class HouseholdDocumentPipeline:
             if (
                 attempts + 1 < max_attempts
                 and reconciliation_summary.get("retry_recommended") is True
+                and str(reviewed.get("_review_strategy") or "") != "agent_vision"
             ):
                 attempts += 1
                 prior_review = reviewed
@@ -875,7 +1154,41 @@ class HouseholdDocumentPipeline:
     ) -> dict[str, object]:
         dataset_type = detect_import_dataset(document=document, reviewed=reviewed)
         if dataset_type is None:
-            return {"dataset_type": None, "inserted": 0, "duplicates": 0}
+            rows = _receipt_line_item_rows(document=document, reviewed=reviewed)
+            if not rows:
+                return {"dataset_type": None, "inserted": 0, "duplicates": 0}
+            dataset_type = "receipt_line_items"
+            inserted = duplicates = 0
+            now = datetime.now(UTC).isoformat()
+            with service.storage.connection() as conn:
+                for row in rows:
+                    result = upsert_receipt_line_item_row(
+                        conn,
+                        row=row,
+                        document_id=document.id,
+                        now=now,
+                    )
+                    inserted += result is True
+                    duplicates += result is False
+                update_import_summary(
+                    conn,
+                    document_id=document.id,
+                    dataset_type=dataset_type,
+                    inserted=inserted,
+                    duplicates=duplicates,
+                )
+                conn.commit()
+            enrichment_summary = service.product_enrichment_service.enrich_import_rows(
+                service,
+                document_id=document.id,
+                dataset_type=dataset_type,
+            )
+            return {
+                "dataset_type": dataset_type,
+                "inserted": inserted,
+                "duplicates": duplicates,
+                "enrichment": enrichment_summary,
+            }
         stored_path = document.metadata.get("stored_path")
         if not isinstance(stored_path, str) or not stored_path:
             return {"dataset_type": dataset_type, "inserted": 0, "duplicates": 0}

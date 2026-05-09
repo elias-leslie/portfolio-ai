@@ -110,6 +110,51 @@ def test_dict_to_preferences_response_exposes_effective_automation_values(monkey
     assert response.scheduled_strategy_research_enabled is False
 
 
+def test_frontend_poll_interval_allows_manual_mode(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.preferences_service.get_rules",
+        lambda: SimpleNamespace(
+            thesis_management=SimpleNamespace(
+                thesis_generation_enabled=False,
+                auto_remove_on_invalidation=True,
+            ),
+            watchlist_management=SimpleNamespace(auto_trim_enabled=True),
+        ),
+    )
+
+    update = PreferencesUpdate(frontend_poll_interval=0)
+
+    response = dict_to_preferences_response(
+        {
+            "risk_tolerance": 5,
+            "allow_long": True,
+            "allow_short": False,
+            "allow_options": False,
+            "allow_crypto": False,
+            "allow_futures": False,
+            "max_position_size_pct": 10.0,
+            "default_refresh_minutes": 15,
+            "watchlist_refresh_override": None,
+            "portfolio_refresh_override": None,
+            "news_refresh_override": None,
+            "news_lookback_hours": 6,
+            "news_max_articles": 10,
+            "frontend_poll_interval": update.frontend_poll_interval,
+            "watchlist_refresh_minutes": 15,
+            "watchlist_auto_expand": False,
+            "watchlist_price_weight": 50.0,
+            "watchlist_technical_weight": 50.0,
+            "display_timezone": "America/New_York",
+            "watchlist_show_news": True,
+        }
+    )
+
+    assert response.frontend_poll_interval == 0
+    assert PreferencesUpdate(frontend_poll_interval=14400).frontend_poll_interval == 14400
+    with pytest.raises(ValidationError):
+        PreferencesUpdate(frontend_poll_interval=14401)
+
+
 def test_update_preferences_allows_clearing_refresh_overrides(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.services.preferences_service.get_or_create_preferences",

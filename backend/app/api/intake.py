@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from functools import lru_cache
 from importlib import import_module
 from typing import TYPE_CHECKING
@@ -41,6 +42,7 @@ async def upload_evidence(
     document_type: str | None = Form(default=None),
     account_label: str | None = Form(default=None),
     household_account_id: str | None = Form(default=None),
+    review_session_id: str | None = Form(default=None),
 ) -> HouseholdDocument:
     """Ingest a financial evidence file through the canonical intake path."""
     service = _service()
@@ -55,6 +57,7 @@ async def upload_evidence(
             document_type=document_type,
             account_label=account_label,
             household_account_id=household_account_id,
+            review_session_id=review_session_id,
         )
     except HouseholdUploadValidationError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
@@ -64,3 +67,52 @@ async def upload_evidence(
     ):
         background_tasks.add_task(service.review_document, document.id)
     return document
+
+
+@router.post("/evidence/batch", response_model=list[HouseholdDocument])
+async def upload_evidence_batch(
+    background_tasks: BackgroundTasks,
+    files: list[UploadFile] = File(...),
+    source_type: str | None = Form(default=None),
+    document_type: str | None = Form(default=None),
+    account_label: str | None = Form(default=None),
+    household_account_id: str | None = Form(default=None),
+    review_session_id: str | None = Form(default=None),
+) -> list[HouseholdDocument]:
+    """Ingest related evidence files and review them in one Agent Hub session."""
+    if not files:
+        raise HTTPException(status_code=422, detail="At least one evidence file is required.")
+    service = _service()
+    resolved_review_session_id = (review_session_id or "").strip() or str(uuid.uuid4())
+    documents: list[HouseholdDocument] = []
+    try:
+        for file in files:
+            validate_household_upload_metadata(file)
+            documents.append(
+                await service.ingest_document(
+                    upload=file,
+                    source_type=source_type,
+                    document_type=document_type,
+                    account_label=account_label,
+                    household_account_id=household_account_id,
+                    review_session_id=resolved_review_session_id,
+                )
+            )
+    except HouseholdUploadValidationError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+    review_document_ids = [
+        document.id
+        for document in documents
+        if (
+            document.metadata.get("duplicate_detected") is not True
+            or document.metadata.get("duplicate_rebound") is True
+        )
+    ]
+    if review_document_ids:
+        background_tasks.add_task(
+            service.review_documents,
+            review_document_ids,
+            resolved_review_session_id,
+        )
+    return documents

@@ -160,7 +160,10 @@ class PreferencesUpdate(BaseModel):
         description="Maximum headlines returned per symbol bundle (allowed: 5, 10, 15, 20)",
     )
     frontend_poll_interval: int | None = Field(
-        None, ge=10, le=300, description="Frontend polling interval (10-300 seconds)"
+        None,
+        ge=0,
+        le=14400,
+        description="Frontend polling interval in seconds (0 = manual, max 4 hours)",
     )
     watchlist_refresh_minutes: int | None = Field(
         None,

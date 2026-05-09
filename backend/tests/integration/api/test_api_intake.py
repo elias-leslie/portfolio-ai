@@ -125,6 +125,35 @@ def test_evidence_upload_preserves_selected_household_account_id(tmp_path: Path)
     assert payload["metadata"]["upload_household_account_id"] == "5deacc73-4aa5-4910-aa12-bb00d0fe3b51"
 
 
+def test_evidence_batch_upload_reuses_one_review_session(tmp_path: Path) -> None:
+    client = TestClient(app)
+
+    with (
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+            return_value=tmp_path,
+        ),
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService.review_documents",
+        ) as review_documents,
+    ):
+        response = client.post(
+            "/api/intake/evidence/batch",
+            files=[
+                ("files", ("receipt-1.jpg", b"receipt one", "image/jpeg")),
+                ("files", ("receipt-2.jpg", b"receipt two", "image/jpeg")),
+            ],
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [item["filename"] for item in payload] == ["receipt-1.jpg", "receipt-2.jpg"]
+    review_session_ids = {item["metadata"]["review_session_id"] for item in payload}
+    assert len(review_session_ids) == 1
+    review_documents.assert_called_once()
+    assert review_documents.call_args.args[-1] == next(iter(review_session_ids))
+
+
 def test_evidence_list_reads_existing_intake_items(tmp_path: Path) -> None:
     client = TestClient(app)
 

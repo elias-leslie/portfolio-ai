@@ -14,8 +14,13 @@ import {
 } from '@/lib/api/health'
 import { fetchPreferences } from '@/lib/api/preferences'
 
-function pollIntervalMs(seconds?: number | null) {
+function pollIntervalMs(seconds?: number | null): number | false {
+  if (seconds === 0) return false
   return Math.max(10, seconds ?? 30) * 1000
+}
+
+function staleTimeForPoll(interval: number | false) {
+  return interval === false ? Number.POSITIVE_INFINITY : interval
 }
 
 export function useDetailedHealth(): UseQueryResult<DetailedHealthCheckResponse> {
@@ -39,9 +44,9 @@ export function useLiveFreshness(): UseQueryResult<LiveFreshnessResponse> {
   return useQuery({
     queryKey: ['health', 'freshness'],
     queryFn: fetchLiveFreshness,
-    staleTime: interval,
+    staleTime: staleTimeForPoll(interval),
     refetchInterval: interval,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: interval !== false,
   })
 }
 

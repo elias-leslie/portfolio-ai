@@ -216,7 +216,7 @@ class AgentHubAPIClient(LLMClient):
     def complete_messages(
         self,
         *,
-        messages: list[dict[str, str]],
+        messages: list[Any],
         tools: list[dict[str, Any]] | None = None,
         temperature: float = 1.0,
         purpose: str | None = None,

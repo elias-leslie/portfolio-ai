@@ -50,6 +50,90 @@ def _parse_date_value(raw_value: str) -> date | None:
     return None
 
 
+def _receipt_account_label(
+    *,
+    account_label: str | None,
+    structured_data: dict[str, Any],
+    transaction: dict[str, Any] | None = None,
+) -> str | None:
+    if account_label:
+        return account_label
+    if transaction is not None:
+        payment_method = transaction.get("payment_method")
+        account_mask = transaction.get("account_mask")
+        if payment_method or account_mask:
+            return " ".join(str(part) for part in (payment_method, account_mask) if part)
+    hint = structured_data.get("account_hint")
+    return str(hint) if hint else None
+
+
+def _receipt_transaction_metadata(transaction: dict[str, Any]) -> dict[str, object]:
+    metadata: dict[str, object] = {"source": "receipt_transaction"}
+    for key in (
+        "auth_code",
+        "auth_time",
+        "line_items",
+        "payment_method",
+        "trace_number",
+        "transaction_type",
+    ):
+        value = transaction.get(key)
+        if value not in (None, "", []):
+            metadata[key] = value
+    return metadata
+
+
+def _extract_structured_receipt_transactions(
+    *,
+    transactions: object,
+    structured_data: dict[str, Any],
+    account_label: str | None,
+    review_summary: str,
+    filename: str,
+) -> list[ExtractedTransaction]:
+    if not isinstance(transactions, list):
+        return []
+
+    extracted: list[ExtractedTransaction] = []
+    for raw_transaction in transactions:
+        if not isinstance(raw_transaction, dict):
+            continue
+        merchant = str(raw_transaction.get("merchant") or structured_data.get("merchant") or "").strip()
+        raw_date = raw_transaction.get("date")
+        raw_amount = raw_transaction.get("amount")
+        parsed_date = _parse_date_value(str(raw_date)) if raw_date is not None else None
+        parsed_amount = parse_decimal_value(str(raw_amount)) if raw_amount is not None else None
+        if not merchant or parsed_date is None or parsed_amount is None:
+            continue
+        description = str(raw_transaction.get("description") or review_summary or f"{merchant} receipt" or filename)
+        category, essentiality = _classification_for_flow(
+            raw_merchant=merchant,
+            description=description,
+            amount=float(parsed_amount),
+            flow_type="expense",
+        )
+        extracted.append(
+            ExtractedTransaction(
+                transaction_date=parsed_date,
+                description=description,
+                raw_merchant=merchant,
+                amount=parsed_amount,
+                flow_type="expense",
+                category=category,
+                essentiality=essentiality,
+                confidence=RECEIPT_CONFIDENCE,
+                currency=str(raw_transaction.get("currency") or structured_data.get("currency") or "USD"),
+                account_label=_receipt_account_label(
+                    account_label=account_label,
+                    structured_data=structured_data,
+                    transaction=raw_transaction,
+                ),
+                metadata=_receipt_transaction_metadata(raw_transaction),
+            )
+        )
+    return extracted
+
+
 def _extract_statement_date(extracted_text: str) -> date | None:
     match = re.search(
         r"Statement Date:\s*(\d{2}/\d{2}/\d{2,4})",
@@ -621,8 +705,22 @@ def extract_transactions(
     if (
         source_type == "receipt"
         and isinstance(structured_data.get("merchant"), str)
-        and isinstance(structured_data.get("total_amount"), str)
+        and (
+            isinstance(structured_data.get("total_amount"), str)
+            or isinstance(structured_data.get("transactions"), list)
+        )
     ):
+        structured_transactions = _extract_structured_receipt_transactions(
+            transactions=structured_data.get("transactions"),
+            structured_data=structured_data,
+            account_label=account_label,
+            review_summary=review_summary,
+            filename=filename,
+        )
+        if structured_transactions:
+            transactions.extend(structured_transactions)
+            return transactions
+
         candidate = structured_data.get("statement_period")
         parsed_date = _parse_date_value(str(candidate)) if isinstance(candidate, str) else None
         if parsed_date is None:

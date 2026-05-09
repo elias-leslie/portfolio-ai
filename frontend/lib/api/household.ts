@@ -671,6 +671,7 @@ export interface HouseholdDocumentUpload {
   documentType?: string
   accountLabel?: string
   householdAccountId?: string
+  reviewSessionId?: string
 }
 
 export const MAX_HOUSEHOLD_EVIDENCE_FILE_SIZE_BYTES = 50 * 1024 * 1024
@@ -899,7 +900,56 @@ export async function uploadHouseholdDocument(
   if (payload.householdAccountId) {
     form.append('household_account_id', payload.householdAccountId)
   }
+  if (payload.reviewSessionId) {
+    form.append('review_session_id', payload.reviewSessionId)
+  }
   return postForm<HouseholdDocument>('/api/intake/evidence', form)
+}
+
+export async function uploadHouseholdDocuments(
+  payloads: HouseholdDocumentUpload[],
+): Promise<HouseholdDocument[]> {
+  if (payloads.length === 0) {
+    throw new Error('Upload requires at least one file or pasted text.')
+  }
+
+  const form = new FormData()
+  const first = payloads[0]
+  for (const payload of payloads) {
+    const rawText = payload.rawText?.trim()
+    const file =
+      payload.file ??
+      (rawText
+        ? new File(
+            [rawText],
+            payload.filename?.trim() || 'pasted-evidence.txt',
+            {
+              type: 'text/plain',
+            },
+          )
+        : null)
+    if (!file) {
+      throw new Error('Upload requires a file or pasted text.')
+    }
+    validateHouseholdEvidenceFile(file)
+    form.append('files', file)
+  }
+  if (first.sourceType) {
+    form.append('source_type', first.sourceType)
+  }
+  if (first.documentType) {
+    form.append('document_type', first.documentType)
+  }
+  if (first.accountLabel) {
+    form.append('account_label', first.accountLabel)
+  }
+  if (first.householdAccountId) {
+    form.append('household_account_id', first.householdAccountId)
+  }
+  if (first.reviewSessionId) {
+    form.append('review_session_id', first.reviewSessionId)
+  }
+  return postForm<HouseholdDocument[]>('/api/intake/evidence/batch', form)
 }
 
 export async function answerHouseholdQuestion(

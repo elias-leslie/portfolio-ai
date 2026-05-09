@@ -81,6 +81,45 @@ def test_baseline_review_detects_amazon_order_history_csv() -> None:
     assert structured_data["merchant"] == "Amazon"
 
 
+def test_receipt_review_keeps_receipt_type_with_payment_account_match() -> None:
+    service = HouseholdDocumentReviewService(agent_service=MagicMock())
+
+    payload = service._finalize_review(
+        reviewed={
+            "summary": "Target receipt paid with Chase Visa ending 9728.",
+            "document_type": "receipt",
+            "source_type": "receipt",
+            "confidence": 0.9,
+            "structured_data": {
+                "merchant": "Target",
+                "total_amount": "72.89",
+                "financial_accounts": [
+                    {
+                        "institution_name": "Chase",
+                        "account_name": "Chase Prime Visa",
+                        "account_type": "credit_card",
+                        "asset_group": "credit",
+                    }
+                ],
+            },
+        },
+        baseline={
+            "summary": "Uploaded household evidence.",
+            "document_type": "other",
+            "source_type": "other",
+            "confidence": 0.55,
+            "structured_data": {},
+        },
+        household_context=None,
+        filename="receipt.jpg",
+        extracted_text="Target receipt total $72.89",
+        review_strategy="agent",
+    )
+
+    assert payload["source_type"] == "receipt"
+    assert payload["document_type"] == "receipt"
+
+
 def test_baseline_review_detects_chase_activity_csv() -> None:
     payload = _baseline_review(
         filename="Chase9728_Activity20260101_20260416_20260416.CSV",
@@ -1145,6 +1184,81 @@ def test_build_messages_uses_single_text_message() -> None:
     assert isinstance(messages[0].content, str)
     assert "Document metadata:" in messages[0].content
     assert "Extracted text preview:" in messages[0].content
+    assert "structured_data.transactions[].line_items" in messages[0].content
+
+
+def test_build_messages_can_attach_image_content(tmp_path: Path) -> None:
+    from PIL import Image
+
+    image_path = tmp_path / "receipt.jpg"
+    Image.new("RGB", (120, 240), "white").save(image_path)
+
+    messages = _build_messages(
+        payload={
+            "document_id": "doc-1",
+            "filename": "receipt.jpg",
+            "source_type": "receipt",
+            "document_type": "receipt",
+            "content_type": "image/jpeg",
+        },
+        stored_path=image_path,
+        content_type="image/jpeg",
+        extracted_text="ITEMS SOLD 2\nTOTAL 10.00",
+        baseline_review={
+            "summary": "Receipt",
+            "document_type": "receipt",
+            "source_type": "receipt",
+            "confidence": 0.8,
+            "structured_data": {},
+            "inferred_values": [],
+            "questions": [],
+        },
+        include_image=True,
+    )
+
+    content = messages[0].content
+    assert isinstance(content, list)
+    assert content[0].text is not None
+    assert "Use image pixels as source of truth" in content[0].text
+    assert content[1].type == "image"
+    assert content[1].source["media_type"] == "image/jpeg"
+    assert content[1].source["data"]
+
+
+def test_build_messages_crops_receipt_image_before_attach(tmp_path: Path) -> None:
+    import base64
+    import io
+
+    from PIL import Image
+
+    image_path = tmp_path / "receipt.jpg"
+    image = Image.new("RGB", (400, 300), "black")
+    receipt = Image.new("RGB", (180, 240), "white")
+    image.paste(receipt, (110, 30))
+    image.save(image_path)
+
+    messages = _build_messages(
+        payload={"document_id": "doc-1", "filename": "receipt.jpg"},
+        stored_path=image_path,
+        content_type="image/jpeg",
+        extracted_text="TOTAL 10.00",
+        baseline_review={
+            "summary": "Receipt",
+            "document_type": "receipt",
+            "source_type": "receipt",
+            "confidence": 0.8,
+            "structured_data": {},
+            "inferred_values": [],
+            "questions": [],
+        },
+        include_image=True,
+    )
+
+    content = messages[0].content
+    assert isinstance(content, list)
+    decoded = Image.open(io.BytesIO(base64.b64decode(content[1].source["data"])))
+    assert decoded.size[0] < 260
+    assert decoded.size[1] < 300
 
 
 def test_build_messages_includes_context_and_prior_attempt_when_present() -> None:
@@ -1166,6 +1280,22 @@ def test_build_messages_includes_context_and_prior_attempt_when_present() -> Non
     assert "Current canonical household context:" in messages[0].content
     assert "Prior review attempt:" in messages[0].content
     assert "Post-apply reconciliation issues from prior attempt:" in messages[0].content
+
+
+def test_build_messages_compacts_large_prior_attempt_text() -> None:
+    messages = _build_messages(
+        payload={"document_id": "doc-2", "filename": "receipt.jpg"},
+        stored_path=Path("/tmp/receipt.jpg"),
+        content_type="image/jpeg",
+        extracted_text="Receipt text",
+        baseline_review={"summary": "Receipt", "structured_data": {}},
+        prior_review={"summary": "Prior attempt", "extracted_text": "x" * 3000},
+    )
+
+    content = messages[0].content
+    assert isinstance(content, str)
+    assert "[truncated]" in content
+    assert "x" * 2500 not in content
 
 
 @patch("app.services.household_document_review.AGENT_HUB_ENABLED", True)
@@ -1201,6 +1331,7 @@ def test_review_with_llm_uses_dedicated_financial_document_agent(mock_client_cla
             "inferred_values": [],
             "questions": [],
         },
+        review_session_id="session-batch",
     )
 
     assert payload is not None
@@ -1209,6 +1340,185 @@ def test_review_with_llm_uses_dedicated_financial_document_agent(mock_client_cla
     kwargs = mock_sdk_client.complete_messages.call_args.kwargs
     assert kwargs["response_format"] == {"type": "json_object"}
     assert kwargs["use_memory"] is True
+    assert kwargs["session_id"] == "session-batch"
+
+
+@patch("app.services.household_document_review.AGENT_HUB_ENABLED", True)
+@patch("app.services.household_document_review._extract_text", return_value="ITEMS SOLD 2\nTOTAL 10.00")
+@patch.object(HouseholdDocumentReviewService, "_build_household_context", return_value=None)
+@patch.object(HouseholdDocumentReviewService, "_signature_result", return_value=None)
+@patch("app.services.household_document_review.AgentHubAPIClient")
+def test_review_retries_receipt_image_with_vision_when_itemization_missing(
+    mock_client_class: MagicMock,
+    signature_result: MagicMock,
+    build_household_context: MagicMock,
+    extract_text: MagicMock,
+    tmp_path: Path,
+) -> None:
+    from PIL import Image
+
+    image_path = tmp_path / "receipt.jpg"
+    Image.new("RGB", (120, 240), "white").save(image_path)
+    agent_service = MagicMock()
+    service = HouseholdDocumentReviewService(agent_service=agent_service)
+
+    mock_sdk_client = MagicMock()
+    mock_sdk_client.complete_messages.side_effect = [
+        MagicMock(
+            content=(
+                '{"summary":"Walmart receipt","document_type":"receipt","source_type":"receipt",'
+                '"confidence":0.9,"structured_data":{"merchant":"Walmart","transactions":[{'
+                '"date":"2026-05-06","merchant":"Walmart","amount":"10.00","line_items":[]}]},'
+                '"review_checks":{"itemization":{"line_item_count":0,"reconciles":false}},'
+                '"inferred_values":[],"questions":[]}'
+            )
+        ),
+        MagicMock(
+            content=(
+                '{"summary":"Walmart receipt","document_type":"receipt","source_type":"receipt",'
+                '"confidence":0.92,"structured_data":{"merchant":"Walmart","transactions":[{'
+                '"date":"2026-05-06","merchant":"Walmart","amount":"10.00","line_items":['
+                '{"description":"Apples","amount":"4.00"},{"description":"Bread","amount":"6.00"}]}]},'
+                '"review_checks":{"itemization":{"line_item_count":2,"declared_items_sold":2,'
+                '"line_item_total":"10.00","total":"10.00","reconciles":true}},'
+                '"inferred_values":[],"questions":[]}'
+            )
+        ),
+    ]
+    mock_client_class.return_value = mock_sdk_client
+
+    payload = service.review(
+        document_id="doc-vision",
+        filename="receipt.jpg",
+        stored_path=image_path,
+        content_type="image/jpeg",
+        source_type="receipt",
+        document_type="receipt",
+        review_session_id="session-batch",
+    )
+
+    transactions = cast(list[dict[str, Any]], cast(dict[str, Any], payload["structured_data"])["transactions"])
+    assert transactions[0]["line_items"] == [
+        {"description": "Apples", "amount": "4.00"},
+        {"description": "Bread", "amount": "6.00"},
+    ]
+    assert payload["_review_strategy"] == "agent_vision"
+    assert mock_sdk_client.complete_messages.call_count == 2
+    second_call_messages = mock_sdk_client.complete_messages.call_args_list[1].kwargs["messages"]
+    assert isinstance(second_call_messages[0].content, list)
+    assert second_call_messages[0].content[1].type == "image"
+    assert mock_sdk_client.complete_messages.call_args_list[1].kwargs["thinking_level"] == "high"
+    signature_result.assert_called_once()
+    build_household_context.assert_called_once()
+    extract_text.assert_called_once()
+
+
+@patch("app.services.household_document_review.AGENT_HUB_ENABLED", True)
+@patch("app.services.household_document_review._extract_text", return_value="ITEMS SOLD 2\nTOTAL 10.00")
+@patch.object(HouseholdDocumentReviewService, "_build_household_context", return_value=None)
+@patch.object(HouseholdDocumentReviewService, "_signature_result", return_value=None)
+@patch("app.services.household_document_review.AgentHubAPIClient")
+def test_review_preserves_text_total_when_vision_cannot_itemize(
+    mock_client_class: MagicMock,
+    signature_result: MagicMock,
+    build_household_context: MagicMock,
+    extract_text: MagicMock,
+    tmp_path: Path,
+) -> None:
+    from PIL import Image
+
+    image_path = tmp_path / "receipt.jpg"
+    Image.new("RGB", (120, 240), "white").save(image_path)
+    service = HouseholdDocumentReviewService(agent_service=MagicMock())
+
+    mock_sdk_client = MagicMock()
+    mock_sdk_client.complete_messages.side_effect = [
+        MagicMock(
+            content=(
+                '{"summary":"Walmart receipt","document_type":"receipt","source_type":"receipt",'
+                '"confidence":0.9,"structured_data":{"merchant":"Walmart","transactions":[{'
+                '"date":"2026-05-06","merchant":"Walmart","amount":"10.00","line_items":[]}]},'
+                '"review_checks":{"itemization":{"line_item_count":0,"reconciles":false}},'
+                '"inferred_values":[],"questions":[]}'
+            )
+        ),
+        MagicMock(
+            content=(
+                '{"summary":"Walmart receipt","document_type":"receipt","source_type":"receipt",'
+                '"confidence":0.92,"structured_data":{"merchant":"Walmart"},'
+                '"review_checks":{"itemization":{"line_item_count":0,"declared_items_sold":2,'
+                '"reconciles":false,"itemization_incomplete_reason":"Image not legible enough."}},'
+                '"inferred_values":[],"questions":[]}'
+            )
+        ),
+    ]
+    mock_client_class.return_value = mock_sdk_client
+
+    payload = service.review(
+        document_id="doc-vision",
+        filename="receipt.jpg",
+        stored_path=image_path,
+        content_type="image/jpeg",
+        source_type="receipt",
+        document_type="receipt",
+    )
+
+    structured_data = cast(dict[str, Any], payload["structured_data"])
+    transactions = cast(list[dict[str, Any]], structured_data["transactions"])
+    assert transactions[0]["amount"] == "10.00"
+    assert payload["_review_strategy"] == "agent_vision"
+    itemization = cast(dict[str, Any], cast(dict[str, Any], payload["review_checks"])["itemization"])
+    assert itemization["itemization_incomplete_reason"] == "Image not legible enough."
+    signature_result.assert_called_once()
+    build_household_context.assert_called_once()
+    extract_text.assert_called_once()
+
+
+@patch("app.services.household_document_review.AGENT_HUB_ENABLED", True)
+@patch("app.services.household_document_review._extract_text", return_value="TOTAL 10.00")
+@patch.object(HouseholdDocumentReviewService, "_build_household_context", return_value=None)
+@patch.object(HouseholdDocumentReviewService, "_signature_result", return_value=None)
+@patch.object(HouseholdDocumentReviewService, "_review_with_llm", return_value=None)
+def test_review_returns_prior_attempt_when_retry_llm_fails(
+    review_with_llm: MagicMock,
+    signature_result: MagicMock,
+    build_household_context: MagicMock,
+    extract_text: MagicMock,
+) -> None:
+    service = HouseholdDocumentReviewService(agent_service=MagicMock())
+    prior_review = {
+        "summary": "Prior reviewed receipt",
+        "document_type": "receipt",
+        "source_type": "receipt",
+        "confidence": 0.9,
+        "_review_strategy": "agent_vision",
+        "structured_data": {
+            "transactions": [{"date": "2026-05-06", "merchant": "Walmart", "amount": "10.00"}]
+        },
+        "review_checks": {"itemization": {"itemization_incomplete_reason": "Image not legible."}},
+        "inferred_values": [],
+        "questions": [],
+    }
+
+    payload = service.review(
+        document_id="doc-retry",
+        filename="receipt.jpg",
+        stored_path=Path("/tmp/receipt.jpg"),
+        content_type="image/jpeg",
+        source_type="receipt",
+        document_type="receipt",
+        prior_review=prior_review,
+        reconciliation_summary={"status": "needs_retry"},
+    )
+
+    assert payload["summary"] == "Prior reviewed receipt"
+    assert payload["_review_strategy"] == "agent_vision"
+    transactions = cast(list[dict[str, Any]], cast(dict[str, Any], payload["structured_data"])["transactions"])
+    assert transactions[0]["amount"] == "10.00"
+    review_with_llm.assert_called_once()
+    signature_result.assert_called_once()
+    build_household_context.assert_called_once()
+    extract_text.assert_called_once()
 
 
 def test_baseline_review_detects_defined_contribution_retirement_plan_from_raw_text() -> None:

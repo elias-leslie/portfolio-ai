@@ -22,6 +22,7 @@ import {
   updateHouseholdProfile,
   updateHouseholdTrackedAccount,
   uploadHouseholdDocument,
+  uploadHouseholdDocuments,
 } from '@/lib/api/household'
 
 const DOCUMENT_REVIEW_POLL_INTERVAL_MS = 1500
@@ -218,6 +219,53 @@ export function useUploadHouseholdDocument() {
     onError: (error) => {
       toast.error(
         error instanceof Error ? error.message : 'Failed to upload document',
+      )
+    },
+  })
+}
+
+export function useUploadHouseholdDocuments() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (payloads: HouseholdDocumentUpload[]) =>
+      uploadHouseholdDocuments(payloads),
+    onSuccess: async (documents) => {
+      await refreshHouseholdQueries(queryClient)
+      const staged = documents.filter(
+        (document) =>
+          document.metadata?.duplicate_detected !== true ||
+          document.metadata?.duplicate_rebound === true,
+      )
+      if (staged.length === 0) {
+        toast.info('Evidence files already exist in intake.')
+        return
+      }
+      toast.success(
+        `${staged.length} evidence file${staged.length === 1 ? '' : 's'} staged for intake.`,
+      )
+      for (const document of staged) {
+        void watchUploadedDocument(queryClient, document)
+          .then((latest) => {
+            if (
+              latest.status === 'failed' ||
+              latest.reviewStatus === 'failed'
+            ) {
+              toast.error(`${latest.filename} evidence review failed.`)
+              return
+            }
+            if (applicationStatus(latest) === 'applied') {
+              toast.success(`${latest.filename} applied to money views.`)
+            }
+          })
+          .catch(() => {
+            void refreshHouseholdQueries(queryClient)
+          })
+      }
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to upload documents',
       )
     },
   })

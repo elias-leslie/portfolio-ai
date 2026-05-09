@@ -337,6 +337,61 @@ def test_import_document_transactions_holds_future_dated_receipts_for_review() -
     assert '"held_for_date_review": 1' in metadata_update[0]
 
 
+def test_extract_transactions_uses_structured_multi_receipt_rows() -> None:
+    transactions = extract_transactions(
+        filename="receipts.jpg",
+        source_type="receipt",
+        document_type="receipt",
+        extracted_text="Ulta 05/04/2026 Target 05/04/2026",
+        structured_data={
+            "merchant": "Ulta Beauty; Target",
+            "account_hint": "Visa ending 9728",
+            "transactions": [
+                {
+                    "date": "2026-05-04",
+                    "merchant": "Ulta Beauty",
+                    "amount": "34.96",
+                    "currency": "USD",
+                    "payment_method": "Visa credit",
+                    "account_mask": "9728",
+                    "line_items": [
+                        {"description": "Tarte XL Tubing Mascara Black", "amount": "28.00"},
+                    ],
+                },
+                {
+                    "date": "2026-05-04",
+                    "merchant": "Target",
+                    "amount": "72.89",
+                    "currency": "USD",
+                    "payment_method": "Visa credit",
+                    "account_mask": "9728",
+                },
+            ],
+        },
+        account_label=None,
+        review_summary="Receipt image contains Ulta and Target purchases.",
+        stored_path=None,
+    )
+
+    assert [transaction.raw_merchant for transaction in transactions] == [
+        "Ulta Beauty",
+        "Target",
+    ]
+    assert [transaction.amount for transaction in transactions] == [
+        Decimal("34.96"),
+        Decimal("72.89"),
+    ]
+    assert all(
+        transaction.metadata is not None
+        and transaction.metadata["source"] == "receipt_transaction"
+        for transaction in transactions
+    )
+    assert transactions[0].metadata is not None
+    assert transactions[0].metadata["line_items"] == [
+        {"description": "Tarte XL Tubing Mascara Black", "amount": "28.00"},
+    ]
+
+
 def test_import_document_transactions_keeps_transfer_categories_even_with_old_merchant_rule() -> None:
     service = HouseholdTransactionService()
     service.storage = _MerchantOverrideStorage()

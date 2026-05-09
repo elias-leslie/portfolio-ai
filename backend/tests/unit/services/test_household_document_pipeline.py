@@ -11,7 +11,9 @@ from app.services.household_document_pipeline import (
     HouseholdDocumentPipeline,
     _apply_upload_account_binding,
     _is_duplicate_import_validation,
+    _receipt_line_item_rows,
     _signature_structured_data,
+    build_import_row_hash,
 )
 
 
@@ -47,6 +49,180 @@ def test_parse_decimal_handles_parenthetical_negatives() -> None:
     parsed = pipeline.parse_decimal("($123.45)")
 
     assert parsed == "-123.45"
+
+
+def test_receipt_line_item_rows_preserve_product_detail() -> None:
+    document = HouseholdDocument(
+        id="doc-receipt",
+        filename="receipt.jpg",
+        source_type="receipt",
+        document_type="receipt",
+        status="parsed",
+        account_label=None,
+        content_type="image/jpeg",
+        file_size_bytes=10,
+        classification_confidence=0.9,
+        uploaded_at="2026-05-04T00:00:00+00:00",
+        metadata={},
+    )
+
+    rows = _receipt_line_item_rows(
+        document=document,
+        reviewed={
+            "source_type": "receipt",
+            "structured_data": {
+                "account_hint": "Visa ending 9728",
+                "transactions": [
+                    {
+                        "date": "2026-05-04",
+                        "merchant": "Target",
+                        "amount": "19.99",
+                        "currency": "USD",
+                        "payment_method": "Visa credit",
+                        "account_mask": "9728",
+                        "line_items": [
+                            {"description": "Crest 3D White", "amount": "19.99"},
+                        ],
+                    }
+                ],
+            },
+        },
+    )
+
+    assert rows == [
+        {
+            "Document ID": "doc-receipt",
+            "External Row ID": "doc-receipt:0:0",
+            "Receipt Index": "0",
+            "Line Index": "0",
+            "Order Date": "2026-05-04",
+            "Merchant": "Target",
+            "Product Name": "Crest 3D White",
+            "Description": "Crest 3D White",
+            "Total Amount": "19.99",
+            "Unit Price": "19.99",
+            "Original Quantity": "1",
+            "Currency": "USD",
+            "Payment Method": "Visa credit",
+            "Account Mask": "9728",
+            "Account Label": "Visa ending 9728",
+            "Receipt Total": "19.99",
+            "Source": "receipt_line_item",
+        }
+    ]
+    assert build_import_row_hash(dataset_type="receipt_line_items", row=rows[0]) is not None
+
+
+def test_receipt_line_item_rows_reject_unreconciled_product_detail() -> None:
+    document = HouseholdDocument(
+        id="doc-receipt",
+        filename="receipt.jpg",
+        source_type="receipt",
+        document_type="receipt",
+        status="parsed",
+        account_label=None,
+        content_type="image/jpeg",
+        file_size_bytes=10,
+        classification_confidence=0.9,
+        uploaded_at="2026-05-04T00:00:00+00:00",
+        metadata={},
+    )
+
+    rows = _receipt_line_item_rows(
+        document=document,
+        reviewed={
+            "source_type": "receipt",
+            "structured_data": {
+                "transactions": [
+                    {
+                        "date": "2026-05-04",
+                        "merchant": "Target",
+                        "amount": "72.89",
+                        "line_items": [{"description": "Crest 3D White", "amount": "19.99"}],
+                    }
+                ],
+            },
+        },
+    )
+
+    assert rows == []
+
+
+def test_receipt_line_item_rows_accept_subtotal_reconciliation() -> None:
+    document = HouseholdDocument(
+        id="doc-receipt",
+        filename="receipt.jpg",
+        source_type="receipt",
+        document_type="receipt",
+        status="parsed",
+        account_label=None,
+        content_type="image/jpeg",
+        file_size_bytes=10,
+        classification_confidence=0.9,
+        uploaded_at="2026-05-04T00:00:00+00:00",
+        metadata={},
+    )
+
+    rows = _receipt_line_item_rows(
+        document=document,
+        reviewed={
+            "source_type": "receipt",
+            "structured_data": {
+                "transactions": [
+                    {
+                        "date": "2026-05-04",
+                        "merchant": "Target",
+                        "amount": "21.39",
+                        "subtotal": "19.99",
+                        "tax_amount": "1.40",
+                        "line_items": [{"description": "Crest 3D White", "amount": "19.99"}],
+                    }
+                ],
+            },
+        },
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["Product Name"] == "Crest 3D White"
+
+
+def test_receipt_line_item_rows_reject_declared_item_count_mismatch() -> None:
+    document = HouseholdDocument(
+        id="doc-receipt",
+        filename="receipt.jpg",
+        source_type="receipt",
+        document_type="receipt",
+        status="parsed",
+        account_label=None,
+        content_type="image/jpeg",
+        file_size_bytes=10,
+        classification_confidence=0.9,
+        uploaded_at="2026-05-04T00:00:00+00:00",
+        metadata={},
+    )
+
+    rows = _receipt_line_item_rows(
+        document=document,
+        reviewed={
+            "source_type": "receipt",
+            "review_checks": {"itemization": {"declared_items_sold": 3}},
+            "structured_data": {
+                "transactions": [
+                    {
+                        "date": "2026-05-04",
+                        "merchant": "Target",
+                        "amount": "10.00",
+                        "line_items": [
+                            {"description": "Apples", "amount": "4.00"},
+                            {"description": "Bread", "amount": "6.00"},
+                        ],
+                    }
+                ],
+            },
+        },
+    )
+
+    assert rows == []
 
 
 def test_signature_structured_data_strips_volatile_money_fields() -> None:

@@ -37,11 +37,13 @@ class _HFDocumentMethods:
         document_type: str | None = None,
         account_label: str | None = None,
         household_account_id: str | None = None,
+        review_session_id: str | None = None,
     ) -> HouseholdDocument:
         return await self.document_pipeline.ingest_document(
             self, upload=upload, source_type=source_type,
             document_type=document_type, account_label=account_label,
             household_account_id=household_account_id,
+            review_session_id=review_session_id,
         )
 
     def _annotate_document(self, document: HouseholdDocument) -> HouseholdDocument:
@@ -84,3 +86,14 @@ class _HFDocumentMethods:
 
     def review_document(self, document_id: str) -> None:
         self.document_pipeline.review_document(self, document_id)
+
+    def review_documents(
+        self,
+        document_ids: list[str],
+        review_session_id: str | None = None,
+    ) -> None:
+        self.document_pipeline.review_documents(
+            self,
+            document_ids,
+            review_session_id=review_session_id,
+        )

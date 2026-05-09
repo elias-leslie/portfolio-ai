@@ -149,7 +149,11 @@ def dict_to_preferences_response(prefs: dict[str, Any]) -> PreferencesResponse:
         news_refresh_override=normalized.get("news_refresh_override"),
         news_lookback_hours=int(normalized.get("news_lookback_hours") or DEFAULT_NEWS_LOOKBACK_HOURS),
         news_max_articles=int(normalized.get("news_max_articles") or DEFAULT_NEWS_MAX_ARTICLES),
-        frontend_poll_interval=int(normalized.get("frontend_poll_interval") or 30),
+        frontend_poll_interval=int(
+            normalized["frontend_poll_interval"]
+            if normalized.get("frontend_poll_interval") is not None
+            else 30
+        ),
         watchlist_refresh_minutes=int(normalized["watchlist_refresh_minutes"]),
         watchlist_auto_expand=_bool_or("watchlist_auto_expand", False),
         watchlist_price_weight=float(normalized.get("watchlist_price_weight") or 50.0),
