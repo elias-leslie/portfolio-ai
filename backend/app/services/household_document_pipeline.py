@@ -1079,8 +1079,10 @@ class HouseholdDocumentPipeline:
             review_checks.get("expects_transaction_activity")
         )
         if expects_transaction_activity is None:
+            is_image_snapshot = str(document.content_type or "").lower().startswith("image/")
             expects_transaction_activity = (
-                str(reviewed.get("source_type") or "") in {"bank", "credit_card"}
+                not is_image_snapshot
+                and str(reviewed.get("source_type") or "") in {"bank", "credit_card"}
                 and str(reviewed.get("document_type") or "") == "statement"
             )
         ambiguity_remaining = _bool_value(review_checks.get("ambiguity_remaining")) or False

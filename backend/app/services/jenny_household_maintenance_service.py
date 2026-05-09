@@ -121,53 +121,29 @@ class JennyHouseholdMaintenanceService:
                    OR (
                         source_type IN ('bank', 'credit_card', 'brokerage', 'retirement')
                         AND (
-                            review_confidence IS NULL
-                           OR review_confidence < 0.95
-                           OR source_type = 'other'
-                           OR document_type = 'other'
-                           OR (
-                                metadata->'structured_data'->'financial_accounts' IS NULL
-                                OR jsonb_typeof(metadata->'structured_data'->'financial_accounts') <> 'array'
-                                OR jsonb_array_length(
-                                    CASE
-                                        WHEN jsonb_typeof(metadata->'structured_data'->'financial_accounts') = 'array'
-                                        THEN metadata->'structured_data'->'financial_accounts'
-                                        ELSE '[]'::jsonb
-                                    END
-                                ) = 0
-                           )
+                            document_type = 'other'
                            OR COALESCE(metadata->'application_summary'->>'status', '') <> 'applied'
                            OR COALESCE((metadata->'application_summary'->>'needs_follow_up')::boolean, false)
                            OR COALESCE(metadata->'reconciliation_summary'->>'status', '') = ''
-                           OR COALESCE(metadata->'reconciliation_summary'->>'status', '') = 'needs_retry'
+                           OR (
+                                COALESCE(metadata->'reconciliation_summary'->>'status', '') = 'needs_retry'
+                                AND COALESCE((metadata->'reconciliation_summary'->>'retry_recommended')::boolean, false)
+                           )
                            {_SUSPICIOUS_TRANSACTION_REPLAY_SQL}
                         )
                    )
                    OR (
                         uploaded_at >= %s
                         AND (
-                            review_confidence IS NULL
-                           OR review_confidence < 0.95
-                           OR source_type = 'other'
+                            source_type = 'other'
                            OR document_type = 'other'
-                           OR (
-                                source_type IN ('bank', 'credit_card', 'brokerage', 'retirement')
-                                AND (
-                                    metadata->'structured_data'->'financial_accounts' IS NULL
-                                    OR jsonb_typeof(metadata->'structured_data'->'financial_accounts') <> 'array'
-                                    OR jsonb_array_length(
-                                        CASE
-                                            WHEN jsonb_typeof(metadata->'structured_data'->'financial_accounts') = 'array'
-                                            THEN metadata->'structured_data'->'financial_accounts'
-                                            ELSE '[]'::jsonb
-                                        END
-                                    ) = 0
-                                )
-                           )
                            OR COALESCE(metadata->'application_summary'->>'status', '') <> 'applied'
                            OR COALESCE((metadata->'application_summary'->>'needs_follow_up')::boolean, false)
                            OR COALESCE(metadata->'reconciliation_summary'->>'status', '') = ''
-                           OR COALESCE(metadata->'reconciliation_summary'->>'status', '') = 'needs_retry'
+                           OR (
+                                COALESCE(metadata->'reconciliation_summary'->>'status', '') = 'needs_retry'
+                                AND COALESCE((metadata->'reconciliation_summary'->>'retry_recommended')::boolean, false)
+                           )
                            {_SUSPICIOUS_TRANSACTION_REPLAY_SQL}
                         )
                    )

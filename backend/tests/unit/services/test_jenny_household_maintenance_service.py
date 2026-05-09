@@ -21,9 +21,11 @@ def test_replay_candidate_documents_targets_weak_docs_not_all_add_anything() -> 
     assert "filename = 'add-anything'" not in query
     assert "application_summary" in query
     assert "reconciliation_summary" in query
-    assert "financial_accounts" in query
     assert "source_type IN ('bank', 'credit_card', 'brokerage', 'retirement')" in query
     assert "COALESCE(metadata->'reconciliation_summary'->>'status', '') = ''" in query
+    assert "review_confidence" not in query
+    assert "retry_recommended" in query
+    assert "financial_accounts" not in query
 
 
 def test_run_daily_maintenance_pass_reads_dashboard_from_household_service() -> None:

@@ -824,3 +824,68 @@ def test_process_document_review_retries_once_for_retryable_reconciliation(
     assert second_call["reconciliation_summary"]["status"] == "needs_retry"
     assert connection.commit.called
     update_application_summary.assert_called_once()
+
+
+def _reconciliation_document(content_type: str) -> HouseholdDocument:
+    return HouseholdDocument(
+        id="doc-recon",
+        filename="snapshot",
+        source_type="credit_card",
+        document_type="statement",
+        status="parsed",
+        account_label=None,
+        content_type=content_type,
+        file_size_bytes=10,
+        classification_confidence=0.9,
+        uploaded_at="2026-05-08T00:00:00+00:00",
+        metadata={},
+    )
+
+
+def _reconciliation_application_summary() -> dict[str, object]:
+    return {
+        "status": "applied",
+        "impacts": ["accounts"],
+        "imports": {"inserted": 0, "duplicates": 0},
+        "transactions": {"inserted": 0, "updated": 0, "held_for_date_review": 0},
+        "evidence_accounts": 1,
+    }
+
+
+def _reconciliation_review_payload() -> dict[str, object]:
+    return {
+        "source_type": "credit_card",
+        "document_type": "statement",
+        "structured_data": {"financial_accounts": [{"account_name": "Chase Prime Visa"}]},
+    }
+
+
+def test_reconciliation_image_statement_does_not_flag_missing_transactions() -> None:
+    pipeline = HouseholdDocumentPipeline()
+
+    summary = pipeline._build_reconciliation_summary(
+        document=_reconciliation_document("image/jpeg"),
+        reviewed=_reconciliation_review_payload(),
+        application_summary=_reconciliation_application_summary(),
+    )
+
+    assert summary["status"] == "clear"
+    assert summary["issues"] == []
+
+
+def test_reconciliation_text_statement_still_flags_missing_transactions() -> None:
+    pipeline = HouseholdDocumentPipeline()
+
+    summary = pipeline._build_reconciliation_summary(
+        document=_reconciliation_document("application/pdf"),
+        reviewed=_reconciliation_review_payload(),
+        application_summary=_reconciliation_application_summary(),
+    )
+
+    assert summary["status"] == "needs_retry"
+    issues = summary["issues"]
+    assert isinstance(issues, list)
+    assert any(
+        isinstance(issue, dict) and issue.get("code") == "missing_transactions"
+        for issue in issues
+    )
