@@ -26,6 +26,7 @@ from app.portfolio.current_facts import calculate_current_position_fact
 from app.services.household_portfolio_totals import get_effective_portfolio_totals
 
 from .analytics_routes import router as analytics_router
+from .ips_routes import router as ips_router
 from .jenny_routes import router as jenny_router
 from .models import AccountCreate, AccountResponse, PortfolioResponse, PositionResponse
 from .position_routes import router as position_router
@@ -376,3 +377,4 @@ router.include_router(position_router)
 router.include_router(analytics_router)
 router.include_router(jenny_router)
 router.include_router(tlh_router)
+router.include_router(ips_router)

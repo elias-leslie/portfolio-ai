@@ -25,6 +25,7 @@ from app.workflows.data_refresh import (
     update_technical_indicators_wf,
 )
 from app.workflows.events import cross_validate_insight_wf
+from app.workflows.ips_drift import portfolio_drift_snapshot_wf
 from app.workflows.jenny import (
     jenny_daily_household_maintenance_wf,
     jenny_daily_operator_wf,
@@ -182,6 +183,8 @@ def main() -> None:
             cross_validate_insight_wf,
             # Portfolio TLH (1)
             portfolio_tlh_scan_wf,
+            # Portfolio IPS drift (1)
+            portfolio_drift_snapshot_wf,
         ],
     )
     worker.handle_kill = False
