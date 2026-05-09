@@ -42,6 +42,9 @@ from app.services.household_planning_service import HouseholdPlanningService
 from app.services.household_portfolio_position_sync_service import (
     HouseholdPortfolioPositionSyncService,
 )
+from app.services.household_portfolio_transaction_sync_service import (
+    HouseholdPortfolioTransactionSyncService,
+)
 from app.services.household_product_enrichment_service import HouseholdProductEnrichmentService
 from app.services.household_profile_service import HouseholdProfileService
 from app.services.household_question_command_service import HouseholdQuestionCommandService
@@ -193,6 +196,7 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         self.evidence_service = HouseholdEvidenceService()
         self.account_registry_service = HouseholdAccountRegistryService()
         self.portfolio_position_sync_service = HouseholdPortfolioPositionSyncService()
+        self.portfolio_transaction_sync_service = HouseholdPortfolioTransactionSyncService()
         self.product_enrichment_service = HouseholdProductEnrichmentService()
         self.dashboard_composer = HouseholdDashboardComposer()
         self.ledger_service = HouseholdLedgerService()
