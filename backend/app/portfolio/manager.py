@@ -13,7 +13,9 @@ import polars as pl
 
 from ..logging_config import get_logger
 from ..storage import PortfolioStorage
+from .account_types import AccountType
 from .models import Account, Position
+from .transactions import TransactionLedger
 from .watchlist_sync import ensure_symbols_in_watchlist
 
 logger = get_logger(__name__)
@@ -32,11 +34,12 @@ class PortfolioManager:
             storage: PortfolioStorage instance for database access
         """
         self.storage = storage
+        self.ledger = TransactionLedger(storage)
 
     def add_account(
         self,
         name: str,
-        account_type: Literal["IRA", "Taxable", "401k", "Roth", "HSA", "paper"],
+        account_type: AccountType,
     ) -> Account:
         """Create a new portfolio account.
 
@@ -159,6 +162,16 @@ class PortfolioManager:
         )
         self.sync_portfolio_to_watchlist([position.symbol])
 
+        self._record_legacy_aggregate(
+            account_id=account_id,
+            symbol=position.symbol,
+            shares_delta=shares,
+            cost_basis=cost_basis,
+            reason="add_position",
+            prior_shares=0.0,
+            prior_cost_basis=0.0,
+        )
+
         logger.info("position_created", position_id=position_id, shares=shares, symbol=symbol, cost_basis=cost_basis)
         return position
 
@@ -199,6 +212,11 @@ class PortfolioManager:
         position_data = df.to_dicts()[0]
         position = Position(**position_data)
 
+        prior_shares = position.shares
+        prior_cost_basis = position.cost_basis
+        prior_account_id = position.account_id
+        prior_symbol = position.symbol
+
         # Update fields
         if account_id is not None:
             position.account_id = account_id
@@ -217,6 +235,27 @@ class PortfolioManager:
         df_update = pl.DataFrame([position.model_dump()])
         self.storage.upsert_by_id("portfolio_positions", df_update, "id")
         self.sync_portfolio_to_watchlist([position.symbol])
+
+        shares_changed = position.shares != prior_shares
+        cost_changed = position.cost_basis != prior_cost_basis
+        identity_changed = (
+            position.account_id != prior_account_id
+            or position.symbol != prior_symbol
+        )
+        if shares_changed or cost_changed or identity_changed:
+            self._record_legacy_aggregate(
+                account_id=position.account_id,
+                symbol=position.symbol,
+                shares_delta=position.shares - (
+                    prior_shares if not identity_changed else 0.0
+                ),
+                cost_basis=position.cost_basis,
+                reason="update_position",
+                prior_shares=prior_shares if not identity_changed else 0.0,
+                prior_cost_basis=prior_cost_basis if not identity_changed else 0.0,
+                prior_account_id=prior_account_id if identity_changed else None,
+                prior_symbol=prior_symbol if identity_changed else None,
+            )
 
         logger.info("position_updated", position_id=position_id)
         return position
@@ -275,6 +314,61 @@ class PortfolioManager:
             positions.append(Position(**row_dict))
 
         return positions
+
+    def _record_legacy_aggregate(
+        self,
+        *,
+        account_id: str,
+        symbol: str,
+        shares_delta: float,
+        cost_basis: float,
+        reason: str,
+        prior_shares: float,
+        prior_cost_basis: float,
+        prior_account_id: str | None = None,
+        prior_symbol: str | None = None,
+    ) -> None:
+        """Mirror an aggregate position write into the transaction ledger.
+
+        Lots are intentionally not created from these synthetic rows —
+        only real broker/manual transactions populate ``portfolio_tax_lots``.
+        Downstream services fall back to ``portfolio_positions.cost_basis``
+        when no lots exist for an (account, symbol).
+        """
+        if shares_delta == 0 and prior_account_id is None and prior_symbol is None:
+            return
+        txn_type = "buy" if shares_delta >= 0 else "sell"
+        metadata: dict[str, object] = {
+            "reason": reason,
+            "prior_shares": prior_shares,
+            "prior_cost_basis": prior_cost_basis,
+            "new_cost_basis": cost_basis,
+        }
+        if prior_account_id is not None:
+            metadata["prior_account_id"] = prior_account_id
+        if prior_symbol is not None:
+            metadata["prior_symbol"] = prior_symbol
+
+        try:
+            self.ledger.record_transaction(
+                account_id=account_id,
+                symbol=symbol,
+                transaction_type=txn_type,
+                trade_date=datetime.now(UTC).date(),
+                shares=abs(shares_delta) if shares_delta != 0 else 0.0,
+                price=cost_basis,
+                source="legacy_aggregate",
+                metadata=metadata,
+            )
+        except Exception:
+            # Aggregate ledger writes are observability — do not fail
+            # the user's CRUD on a ledger error.
+            logger.exception(
+                "legacy_aggregate_ledger_write_failed",
+                account_id=account_id,
+                symbol=symbol,
+                reason=reason,
+            )
 
     def sync_portfolio_to_watchlist(self, symbols: list[str]) -> None:
         """Sync portfolio symbols to watchlist.

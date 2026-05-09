@@ -261,6 +261,7 @@ def _build_account_response(acc: Any, linkage: AccountLinkage | None = None) -> 
         household_linkage_candidate_count=resolved_linkage.candidate_count,
         household_linkage_candidate_ids=resolved_linkage.candidate_ids,
         cash_balance=acc.cash_balance,
+        is_spouse=getattr(acc, "is_spouse", False),
         created_at=acc.created_at.isoformat(),
         updated_at=acc.updated_at.isoformat(),
     )
