@@ -74,6 +74,8 @@ export interface HomeTodayBriefMetric {
   horizon?: string | null
   asOf?: string | null
   asOfLabel?: string | null
+  /** Layout hint: 'wide' makes the tile span two columns when the grid splits. */
+  span?: 'wide' | null
 }
 
 export interface HomeTodayBriefSource {

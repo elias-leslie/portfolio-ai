@@ -122,7 +122,7 @@ function ImpactCard({
         </div>
       </div>
       {impact.affectedSymbols.length > 0 ? (
-        <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
+        <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">
           {impact.affectedSymbols.join(' · ')}
         </p>
       ) : null}
@@ -152,7 +152,7 @@ function CatalystCard({
   linkedSources: HomeTodayBriefSource[]
 }) {
   return (
-    <article className="rounded-[24px] border border-border/35 bg-surface/50 p-4">
+    <article className="rounded-2xl border border-border/35 bg-surface/50 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -164,7 +164,7 @@ function CatalystCard({
             >
               {(index + 1).toString().padStart(2, '0')}
             </div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
               Catalyst
             </p>
           </div>
@@ -182,7 +182,7 @@ function CatalystCard({
 
       <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
         <div className="rounded-2xl border border-border/30 bg-background/20 p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
             Market reaction
           </p>
           <p className="mt-1.5 text-[12px] leading-5 text-text">
@@ -191,7 +191,7 @@ function CatalystCard({
         </div>
         <div className="grid gap-3">
           <div className="rounded-2xl border border-border/30 bg-background/20 p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
               Portfolio
             </p>
             <p className="mt-1.5 text-[12px] leading-5 text-text">
@@ -199,7 +199,7 @@ function CatalystCard({
             </p>
           </div>
           <div className="rounded-2xl border border-border/30 bg-background/20 p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
               Money
             </p>
             <p className="mt-1.5 text-[12px] leading-5 text-text">
@@ -341,28 +341,28 @@ export function TodayMarketPulsePanel() {
       padding="none"
       headerClassName="px-5 py-4"
       contentClassName="overflow-hidden"
-      className="h-full xl:h-[calc(100vh-11rem)]"
+      className="h-full"
     >
       {isLoading || !data ? (
         <div
-          className="grid gap-px bg-border/40 xl:h-full xl:grid-cols-[minmax(0,1.18fr)_minmax(20rem,0.82fr)]"
+          className="grid gap-px bg-border/40 xl:grid-cols-[minmax(0,1.18fr)_minmax(20rem,0.82fr)]"
           role="status"
         >
           <div className="space-y-4 bg-surface/55 p-4">
-            <div className="h-44 rounded-[28px] skeleton" />
-            <div className="h-64 rounded-[26px] skeleton" />
+            <div className="h-44 rounded-2xl skeleton" />
+            <div className="h-64 rounded-2xl skeleton" />
           </div>
           <div className="space-y-4 bg-surface/35 p-4">
-            <div className="h-48 rounded-[26px] skeleton" />
-            <div className="h-40 rounded-[26px] skeleton" />
+            <div className="h-48 rounded-2xl skeleton" />
+            <div className="h-40 rounded-2xl skeleton" />
           </div>
         </div>
       ) : (
-        <div className="grid gap-px bg-border/40 xl:h-full xl:grid-cols-[minmax(0,1.18fr)_minmax(20rem,0.82fr)]">
-          <div className="space-y-4 bg-surface/55 p-4 xl:overflow-y-auto xl:pr-3">
+        <div className="grid gap-px bg-border/40 xl:grid-cols-[minmax(0,1.18fr)_minmax(20rem,0.82fr)]">
+          <div className="space-y-4 bg-surface/55 p-4">
             <section
               className={cn(
-                'relative overflow-hidden rounded-[28px] border p-4',
+                'relative overflow-hidden rounded-3xl border p-4',
                 directionSurfaceClasses(data.brief.stance),
               )}
             >
@@ -371,7 +371,7 @@ export function TodayMarketPulsePanel() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2.5">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-text-muted">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
                         Lead call
                       </p>
                       <div className="h-px w-8 bg-border/45" />
@@ -397,7 +397,7 @@ export function TodayMarketPulsePanel() {
 
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
                   <div className="rounded-2xl border border-border/30 bg-background/20 p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
                       Why now
                     </p>
                     <p className="mt-1.5 text-[12px] leading-5 text-text">
@@ -406,7 +406,7 @@ export function TodayMarketPulsePanel() {
                   </div>
                   <div className="rounded-2xl border border-border/30 bg-background/20 p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
                         Desk notes
                       </p>
                       <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted">
@@ -419,7 +419,7 @@ export function TodayMarketPulsePanel() {
                           key={bullet}
                           className="flex gap-2 rounded-2xl border border-border/25 bg-surface/25 px-2.5 py-2"
                         >
-                          <span className="pt-0.5 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
+                          <span className="pt-0.5 font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">
                             {(index + 1).toString().padStart(2, '0')}
                           </span>
                           <p className="text-[12px] leading-5 text-text">
@@ -433,13 +433,13 @@ export function TodayMarketPulsePanel() {
               </div>
             </section>
 
-            <section className="rounded-[26px] border border-border/40 bg-surface/45 p-4">
+            <section className="rounded-2xl border border-border/40 bg-surface/45 p-4">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-text-muted">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
                     Catalyst tape
                   </p>
-                  <h4 className="mt-1 font-display text-lg italic tracking-tight text-text">
+                  <h4 className="mt-1 font-display text-lg tracking-tight text-text">
                     What moved tape and why it matters
                   </h4>
                 </div>
@@ -467,14 +467,14 @@ export function TodayMarketPulsePanel() {
             </section>
           </div>
 
-          <div className="space-y-4 bg-surface/35 p-4 xl:overflow-y-auto xl:pr-3">
-            <section className="rounded-[26px] border border-border/40 bg-surface/50 p-4">
+          <div className="space-y-4 bg-surface/35 p-4">
+            <section className="rounded-2xl border border-border/40 bg-surface/50 p-4">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-text-muted">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
                     Transmission
                   </p>
-                  <h4 className="mt-1 font-display text-lg italic tracking-tight text-text">
+                  <h4 className="mt-1 font-display text-lg tracking-tight text-text">
                     What it means for us
                   </h4>
                 </div>
@@ -506,11 +506,11 @@ export function TodayMarketPulsePanel() {
             </section>
 
             {data.stalenessNotes.length > 0 ? (
-              <section className="rounded-[26px] border border-warning/25 bg-warning/8 p-4">
+              <section className="rounded-2xl border border-warning/25 bg-warning/8 p-4">
                 <div className="flex items-start gap-3">
                   <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-warning">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-warning">
                       Confidence drag
                     </p>
                     <div className="mt-2 space-y-2">
@@ -528,13 +528,13 @@ export function TodayMarketPulsePanel() {
               </section>
             ) : null}
 
-            <section className="rounded-[26px] border border-border/40 bg-surface/50 p-4">
+            <section className="rounded-2xl border border-border/40 bg-surface/50 p-4">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-text-muted">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
                     Source stack
                   </p>
-                  <h4 className="mt-1 font-display text-lg italic tracking-tight text-text">
+                  <h4 className="mt-1 font-display text-lg tracking-tight text-text">
                     Evidence behind the read
                   </h4>
                 </div>

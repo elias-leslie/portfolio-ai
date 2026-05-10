@@ -179,30 +179,31 @@ export function HomeActionQueue() {
       ) : null}
 
       {!isLoading && !error && visibleActions.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border/40 bg-gradient-to-br from-surface-muted/10 to-surface/30 px-6 py-12 text-center">
-          <div className="relative mx-auto mb-5">
-            <div className="absolute inset-0 mx-auto h-12 w-12 rounded-full bg-gain/10 blur-xl" />
-            <div className="relative mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-gain/20 bg-gain/10">
-              <CheckCircle2 className="h-6 w-6 text-gain" />
+        <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/10 px-5 py-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gain/20 bg-gain/10">
+              <CheckCircle2 className="h-4 w-4 text-gain" />
             </div>
-          </div>
-          <p className="font-display italic text-xl text-text">All clear</p>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-text-muted">
-            No urgent cross-workspace actions are open right now.
-          </p>
-          <div className="mt-5 flex flex-wrap justify-center gap-2">
-            <Button asChild size="sm" variant="outline">
-              <Link href="/portfolio">Review Investing</Link>
-            </Button>
-            <Button asChild size="sm" variant="outline">
-              <Link href="/money?tab=intake">Add Evidence</Link>
-            </Button>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-semibold text-text">All clear</p>
+              <p className="mt-0.5 text-[12px] leading-5 text-text-muted">
+                No urgent cross-workspace actions are open right now.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/portfolio">Review Investing</Link>
+                </Button>
+                <Button asChild size="sm" variant="outline">
+                  <Link href="/money?tab=intake">Add Evidence</Link>
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
 
       {!isLoading && !error && visibleActions.length > 0 ? (
-        <div className="grid gap-3 animate-stagger xl:max-h-[22rem] xl:overflow-y-auto xl:pr-1">
+        <div className="grid gap-3 animate-stagger">
           {visibleActions.map((action) => {
             const Icon =
               categoryIcons[action.category as keyof typeof categoryIcons] ??
@@ -227,7 +228,7 @@ export function HomeActionQueue() {
               <div
                 key={action.id}
                 className={cn(
-                  'group rounded-2xl border p-3.5 card-interactive transition-all duration-300 hover:border-primary/30',
+                  'rounded-2xl border p-3.5 transition-all duration-300',
                   tone,
                   isClearing &&
                     'pointer-events-none -translate-y-1 scale-[0.98] opacity-0',
