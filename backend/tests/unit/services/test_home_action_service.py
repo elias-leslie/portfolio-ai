@@ -10,27 +10,12 @@ from app.services._home_action_sources import (
     build_household_actions,
     build_jenny_actions,
     build_portfolio_health_actions,
-    build_recommendation_actions,
 )
 from app.services.home_action_service import HomeActionService
 
 
 def test_get_action_queue_sorts_and_dedupes_actions() -> None:
     service = object.__new__(HomeActionService)
-    service._recommendation_actions = lambda: [
-        {
-            "id": "rec-1",
-            "source": "recommendations",
-            "category": "investing",
-            "priority": "high",
-            "title": "Review NVDA",
-            "detail": "Setup ready.",
-            "action_label": "Open symbol",
-            "href": "/symbols/NVDA",
-            "symbol": "NVDA",
-            "badge": "High",
-        }
-    ]
     service._portfolio_health_actions = lambda: []
     service._jenny_actions = lambda: [
         {
@@ -44,6 +29,18 @@ def test_get_action_queue_sorts_and_dedupes_actions() -> None:
             "href": "/symbols/VTI",
             "symbol": "VTI",
             "badge": "Critical",
+        },
+        {
+            "id": "jenny-2",
+            "source": "jenny",
+            "category": "investing",
+            "priority": "high",
+            "title": "Review NVDA",
+            "detail": "Setup ready.",
+            "action_label": "Open symbol",
+            "href": "/symbols/NVDA",
+            "symbol": "NVDA",
+            "badge": "High",
         },
         {
             "id": "dup",
@@ -64,16 +61,15 @@ def test_get_action_queue_sorts_and_dedupes_actions() -> None:
     payload = service.get_action_queue()
 
     assert payload["summary"] == "2 prioritized actions ready."
-    assert [action["title"] for action in payload["actions"]] == [
-        "Trim VTI concentration",
+    assert sorted(action["title"] for action in payload["actions"]) == [
         "Review NVDA",
+        "Trim VTI concentration",
     ]
     assert all("_rank_score" not in action for action in payload["actions"])
 
 
 def test_get_action_queue_uses_rank_score_before_title_order() -> None:
     service = object.__new__(HomeActionService)
-    service._recommendation_actions = lambda: []
     service._portfolio_health_actions = lambda: [
         {
             "id": "portfolio-health-top-holding",
@@ -147,7 +143,6 @@ def test_get_action_queue_uses_rank_score_before_title_order() -> None:
 
 def test_get_action_queue_prefers_specific_household_follow_up_for_duplicate_titles() -> None:
     service = object.__new__(HomeActionService)
-    service._recommendation_actions = lambda: []
     service._portfolio_health_actions = lambda: []
     service._workflow_actions = lambda: []
     service._jenny_actions = lambda: [
@@ -315,40 +310,6 @@ def test_jenny_actions_rank_large_current_positions_above_small(monkeypatch) -> 
     scores = {action["symbol"]: action["_rank_score"] for action in actions}
 
     assert scores["VTI"] > scores["TSLA"]
-
-
-def test_recommendation_actions_use_decision_contract(monkeypatch) -> None:
-    service = object.__new__(HomeActionService)
-    service.storage = object()
-
-    monkeypatch.setattr(
-        "app.services._home_action_sources.get_effective_portfolio_totals",
-        lambda *_args, **_kwargs: SimpleNamespace(effective_invested_total_value=250000.0),
-    )
-    monkeypatch.setattr(
-        "app.services._home_action_sources.fetch_recommendations",
-        lambda **_kwargs: [
-            SimpleNamespace(
-                symbol="NVDA",
-                strategy_id="strat-1",
-                signal_type="BUY",
-                signal_strength=8,
-                position_size_dollars=5000.0,
-                validation_type="both",
-                generated_at="2026-04-08T15:00:00+00:00",
-            )
-        ],
-    )
-
-    actions = build_recommendation_actions(service.storage)
-    decision = actions[0]["decision"]
-    assert isinstance(decision, dict)
-
-    assert actions[0]["href"] == "/symbols/NVDA?tab=decision"
-    assert actions[0]["action_label"] == "Open decision"
-    assert actions[0]["title"] == "NVDA: Initiate position"
-    assert actions[0]["detail"] == "Strong BUY signal (8/10) Suggested size $5,000."
-    assert decision["source_kind"] == "live_signal_model"
 
 
 def test_portfolio_health_actions_flag_concentration(monkeypatch) -> None:

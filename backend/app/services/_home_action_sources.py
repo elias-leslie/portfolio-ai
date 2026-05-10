@@ -5,8 +5,6 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from app.api.portfolio.analytics_routes import get_analytics_payload
-from app.api.recommendations.logic import DEFAULT_POSITION_PCT
-from app.api.recommendations.queries import fetch_recommendations
 from app.api.symbols.builders import build_portfolio_section
 from app.api.symbols.data_fetchers import get_portfolio_data
 from app.api.symbols.decisions import build_symbol_decision
@@ -14,10 +12,8 @@ from app.logging_config import get_logger
 from app.services._home_action_ranking import (
     action_rank_score,
     household_rank_score,
-    numeric_value,
     position_impact_score,
 )
-from app.services.household_portfolio_totals import get_effective_portfolio_totals
 
 logger = get_logger(__name__)
 
@@ -181,70 +177,6 @@ def build_portfolio_health_actions() -> list[dict[str, object]]:
         ]
 
     return []
-
-
-def build_recommendation_actions(storage: object) -> list[dict[str, object]]:
-    try:
-        portfolio_size = get_effective_portfolio_totals(
-            storage,
-            include_paper=False,
-        ).effective_invested_total_value
-        recommendations = fetch_recommendations(
-            min_strength=6,
-            limit=3,
-            signal_type="BUY",
-            portfolio_size=portfolio_size,
-            position_pct=DEFAULT_POSITION_PCT,
-            validation_filter=None,
-        )
-    except Exception as exc:
-        logger.warning("home_action_recommendations_failed", error=str(exc))
-        return []
-
-    actions: list[dict[str, object]] = []
-    for recommendation in recommendations:
-        decision = build_symbol_decision(
-            symbol=recommendation.symbol,
-            recommendation={
-                "action": "INITIATE_POSITION",
-                "reasoning": [f"Strong BUY signal ({recommendation.signal_strength}/10)"],
-            },
-            generated_at=recommendation.generated_at or recommendation.signal_date,
-        ).model_dump(mode="json")
-        confidence_badge = "High" if recommendation.validation_type == "both" else "Medium"
-        actions.append(
-            {
-                "id": f"recommendation-{recommendation.symbol}-{recommendation.strategy_id}",
-                "source": "recommendations",
-                "category": "investing",
-                "priority": "high",
-                "title": _title_with_symbol(recommendation.symbol, decision["headline"]),
-                "detail": (
-                    f"{decision['summary']} "
-                    f"Suggested size ${recommendation.position_size_dollars:,.0f}."
-                ),
-                "action_label": "Open decision",
-                "href": f"/symbols/{recommendation.symbol}?tab=decision",
-                "symbol": recommendation.symbol,
-                "badge": confidence_badge,
-                "decision": decision,
-                "execution": {
-                    "kind": "workflow_transition",
-                    "symbol": recommendation.symbol,
-                    "stage": "thesis_ready",
-                },
-                "_rank_score": action_rank_score(
-                    "high",
-                    impact=min(
-                        numeric_value(recommendation.position_size_dollars) / 1000,
-                        300.0,
-                    ),
-                    confidence=120.0 if recommendation.validation_type == "both" else 60.0,
-                    effort=80.0,
-                ),
-            }
-        )
-    return actions
 
 
 def build_jenny_actions(dashboard: object, storage: object | None) -> list[dict[str, object]]:

@@ -15,7 +15,6 @@ from app.services._home_action_sources import (
     build_household_actions_from_service,
     build_jenny_actions_from_service,
     build_portfolio_health_actions,
-    build_recommendation_actions,
     build_workflow_actions_from_service,
 )
 from app.services.household_finance_service import HouseholdFinanceService
@@ -117,13 +116,6 @@ class HomeActionService:
 
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = [
-                executor.submit(
-                    getattr(
-                        self,
-                        "_recommendation_actions",
-                        lambda: build_recommendation_actions(self.storage),
-                    )
-                ),
                 executor.submit(
                     getattr(self, "_portfolio_health_actions", build_portfolio_health_actions)
                 ),

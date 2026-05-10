@@ -21,7 +21,6 @@ from app.api import (
     news_profiling,
     portfolio,
     preferences,
-    recommendations,
     rules,
     symbols,
     thesis,
@@ -147,7 +146,6 @@ app.include_router(news.router)
 app.include_router(news_profiling.router)
 app.include_router(preferences.router)
 app.include_router(watchlist.router, prefix="/api/watchlist")
-app.include_router(recommendations.router)
 app.include_router(rules.router)
 app.include_router(symbols.router)
 app.include_router(thesis.router)
