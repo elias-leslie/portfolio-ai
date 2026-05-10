@@ -1,7 +1,8 @@
+import { RelativeTime } from '@/components/shared/RelativeTime'
 import { Badge } from '@/components/ui/badge'
 import type { HouseholdDocument } from '@/lib/api/household'
 import { formatEnumLabel, formatFileSize } from '@/lib/formatters'
-import { formatDate, formatRelativeTime } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
 
 export function DocumentCard({ document }: { document: HouseholdDocument }) {
   const metadata =
@@ -68,10 +69,13 @@ export function DocumentCard({ document }: { document: HouseholdDocument }) {
             </p>
           ) : null}
           <p className="mt-2 text-xs text-text-muted">
-            Uploaded {formatRelativeTime(document.uploadedAt)}
-            {document.parsedAt
-              ? ` · Parsed ${formatRelativeTime(document.parsedAt)}`
-              : ''}
+            Uploaded <RelativeTime value={document.uploadedAt} />
+            {document.parsedAt ? (
+              <>
+                {' · Parsed '}
+                <RelativeTime value={document.parsedAt} />
+              </>
+            ) : null}
           </p>
           <StatementDates document={document} />
         </div>

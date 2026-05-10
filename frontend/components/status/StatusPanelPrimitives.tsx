@@ -1,5 +1,7 @@
 'use client'
 
+import type { ReactNode } from 'react'
+
 export type SummaryStatTone = 'default' | 'positive' | 'warning' | 'negative'
 
 const toneBorder: Record<SummaryStatTone, string> = {
@@ -23,8 +25,8 @@ export function SummaryStat({
   tone = 'default',
 }: {
   label: string
-  value: string
-  detail: string
+  value: ReactNode
+  detail: ReactNode
   tone?: SummaryStatTone
 }) {
   return (

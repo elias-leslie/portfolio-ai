@@ -2,6 +2,8 @@
 
 import { ArrowRight } from 'lucide-react'
 import Link from 'next/link'
+import type React from 'react'
+import { RelativeTime } from '@/components/shared/RelativeTime'
 import { SectionCard } from '@/components/shared/SectionCard'
 import {
   CurrentExposure,
@@ -20,7 +22,6 @@ import type {
 } from '@/lib/api/symbols'
 import { formatDecisionMeta, formatDecisionSeverity } from '@/lib/decision'
 import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
-import { formatRelativeTime } from '@/lib/utils'
 import {
   formatIfNotHeldReasoning,
   formatTenPointConfidence,
@@ -103,30 +104,46 @@ function shouldShowTradingSetup(data?: SymbolIntelligence | null) {
 
 function formatEntrySignalEvidence(data?: SymbolIntelligence | null) {
   const ifNotHeld = data?.recommendation?.ifNotHeld
-  const parts = [
-    ifNotHeld?.action
-      ? formatEnumLabel(ifNotHeld.action, 'Review')
-      : data?.signal?.type
-        ? formatEnumLabel(data.signal.type, 'Signal unavailable')
-        : null,
-    data?.scores?.overall != null
-      ? `Score ${data.scores.overall.toFixed(0)}`
-      : null,
-    ifNotHeld && data?.signal?.type
-      ? `${formatEnumLabel(data.signal.type)} signal`
-      : null,
-    data?.signal?.strength != null
-      ? `setup strength ${data.signal.strength}/10`
-      : null,
-    data?.generatedAt
-      ? `Updated ${formatRelativeTime(data.generatedAt)}`
-      : null,
-  ].filter((part): part is string => Boolean(part))
+  const parts: React.ReactNode[] = []
+  if (ifNotHeld?.action) {
+    parts.push(formatEnumLabel(ifNotHeld.action, 'Review'))
+  } else if (data?.signal?.type) {
+    parts.push(formatEnumLabel(data.signal.type, 'Signal unavailable'))
+  }
+  if (data?.scores?.overall != null) {
+    parts.push(`Score ${data.scores.overall.toFixed(0)}`)
+  }
+  if (ifNotHeld && data?.signal?.type) {
+    parts.push(`${formatEnumLabel(data.signal.type)} signal`)
+  }
+  if (data?.signal?.strength != null) {
+    parts.push(`setup strength ${data.signal.strength}/10`)
+  }
+  if (data?.generatedAt) {
+    parts.push(
+      <>
+        Updated <RelativeTime value={data.generatedAt} />
+      </>,
+    )
+  }
 
   if (parts.length === 0) {
     return null
   }
-  return `${data?.portfolio?.held ? 'Entry signal if not held' : 'Live entry signal'}: ${parts.join(' · ')}`
+  const prefix = data?.portfolio?.held
+    ? 'Entry signal if not held'
+    : 'Live entry signal'
+  return (
+    <>
+      {prefix}:{' '}
+      {parts.map((part, idx) => (
+        <span key={idx}>
+          {idx > 0 ? ' · ' : null}
+          {part}
+        </span>
+      ))}
+    </>
+  )
 }
 
 function DecisionReasonList({ reasons }: { reasons: string[] }) {

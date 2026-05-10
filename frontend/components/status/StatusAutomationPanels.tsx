@@ -1,10 +1,11 @@
 'use client'
 
+import { RelativeTime } from '@/components/shared/RelativeTime'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import type { RecentRemediation, StaleMaintenanceRun } from '@/lib/api/health'
 import { formatHours, formatInteger } from '@/lib/formatters'
-import { formatDateTime, formatRelativeTime } from '@/lib/utils'
+import { formatDateTime } from '@/lib/utils'
 import { formatLabel, remediationPresentation } from './statusUtils'
 
 export function RecentRemediationsPanel({
@@ -90,7 +91,7 @@ export function StaleMaintenancePanel({
                 {formatLabel(run.taskName)}
               </p>
               <p className="mt-1 text-sm text-text-muted">
-                Started {formatRelativeTime(run.startedAt)}
+                Started <RelativeTime value={run.startedAt} />
                 {run.dryRun ? ' (dry run)' : ''}
               </p>
             </div>

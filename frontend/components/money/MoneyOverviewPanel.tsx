@@ -18,6 +18,7 @@ import {
   YAxis,
 } from 'recharts'
 import { InfoBadge } from '@/components/shared/InfoBadge'
+import { RelativeTime } from '@/components/shared/RelativeTime'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -28,7 +29,6 @@ import {
   formatEnumLabel,
   formatPercent,
 } from '@/lib/formatters'
-import { formatRelativeTime } from '@/lib/utils'
 
 const allocationColors = [
   'var(--color-chart-1)',
@@ -411,9 +411,13 @@ export function MoneyOverviewPanel({
   const safeSpendRepairItems = dashboard.inbox
     .filter((item) => item.detail.toLowerCase().includes('safe to spend'))
     .slice(0, 2)
-  const decisionBoardDescription = `Current household money reads. Dashboard generated ${formatRelativeTime(
-    dashboard.generatedAt,
-  )}. Drill deeper in spending, levers, accounts, and intake.`
+  const decisionBoardDescription = (
+    <>
+      Current household money reads. Dashboard generated{' '}
+      <RelativeTime value={dashboard.generatedAt} />. Drill deeper in spending,
+      levers, accounts, and intake.
+    </>
+  )
   const safeSpendSummary = spendTrustDegraded
     ? 'Calculated from visible cash and plan, but stale account evidence blocks current safe-to-spend guidance.'
     : 'Discretionary spend room against visible cash, due-soon bills, and the current plan.'

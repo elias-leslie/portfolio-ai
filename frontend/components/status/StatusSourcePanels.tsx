@@ -1,11 +1,11 @@
 'use client'
 
+import { RelativeTime } from '@/components/shared/RelativeTime'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import type { ApiQuotaInfo } from '@/lib/api/health'
 import type { NewsHealthResponse } from '@/lib/api/news'
 import { formatInteger } from '@/lib/formatters'
-import { formatRelativeTime } from '@/lib/utils'
 import { EmptyPanelMessage } from './StatusPanelPrimitives'
 import {
   formatLabel,
@@ -49,11 +49,11 @@ export function NewsVendorsPanel({
                 <p>Connected: {vendor.configured ? 'Yes' : 'No'}</p>
                 <p>
                   Last activity:{' '}
-                  {formatRelativeTime(getVendorActivityTimestamp(vendor))}
+                  <RelativeTime value={getVendorActivityTimestamp(vendor)} />
                 </p>
                 {vendor.lastSuccessAt ? (
                   <p>
-                    Last success: {formatRelativeTime(vendor.lastSuccessAt)}
+                    Last success: <RelativeTime value={vendor.lastSuccessAt} />
                   </p>
                 ) : null}
                 <p>Articles in 24h: {formatInteger(vendor.articlesLast24H)}</p>

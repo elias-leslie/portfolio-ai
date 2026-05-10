@@ -2,7 +2,8 @@
 
 import { ExternalLink, Newspaper, Target } from 'lucide-react'
 import Link from 'next/link'
-import { useMemo } from 'react'
+import { type ReactNode, useMemo } from 'react'
+import { RelativeTime } from '@/components/shared/RelativeTime'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import type { NewsBundle, NewsHealthResponse } from '@/lib/api/news'
@@ -10,7 +11,7 @@ import type { PositionWithValue } from '@/lib/api/portfolio'
 import type { SentimentArticle, WatchlistItem } from '@/lib/api/watchlist'
 import { useNewsIntelligence, useWatchlistNews } from '@/lib/hooks/useNews'
 import { useNewsHealth } from '@/lib/hooks/useNewsHealth'
-import { cn, formatRelativeTime } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 
 type HeadlineTone = 'positive' | 'neutral' | 'negative'
 
@@ -60,7 +61,7 @@ type NewsDecisionAudit = {
   surfacedCount: number
   suppressedCount: number
   suppressionCounts: Record<SuppressionReason, number>
-  sourceStateSummary: string | null
+  sourceStateSummary: ReactNode | null
   sourceStateReasons: string[]
 }
 
@@ -695,7 +696,7 @@ function newsSourceStateReasons(
 
 function newsSourceStateSummary(
   newsHealth: NewsHealthResponse | undefined,
-): string | null {
+): ReactNode | null {
   if (!newsHealth?.latestRefreshedAt) {
     return null
   }
@@ -703,11 +704,19 @@ function newsSourceStateSummary(
   const ttlHours = Number.isFinite(newsHealth.cacheTtlHours)
     ? newsHealth.cacheTtlHours.toFixed(1)
     : 'unknown'
+  const refreshedAt = newsHealth.latestRefreshedAt
   const age =
-    newsHealth.latestRefreshAgeHours != null
-      ? `${newsHealth.latestRefreshAgeHours.toFixed(1)}h old`
-      : formatRelativeTime(newsHealth.latestRefreshedAt)
-  return `Snapshot refreshed ${formatRelativeTime(newsHealth.latestRefreshedAt)} (${age}); TTL ${ttlHours}h.`
+    newsHealth.latestRefreshAgeHours != null ? (
+      `${newsHealth.latestRefreshAgeHours.toFixed(1)}h old`
+    ) : (
+      <RelativeTime value={refreshedAt} />
+    )
+  return (
+    <>
+      Snapshot refreshed <RelativeTime value={refreshedAt} /> ({age}); TTL{' '}
+      {ttlHours}h.
+    </>
+  )
 }
 
 function buildNewsDecisionAudit({
@@ -881,14 +890,13 @@ function HeadlineGroupCard({ group }: { group: HeadlineGroup }) {
               </div>
 
               <p className="mt-2 text-xs text-text-muted">
-                {[
-                  headline.source,
-                  headline.publishedAt
-                    ? formatRelativeTime(headline.publishedAt)
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
+                {headline.source}
+                {headline.publishedAt ? (
+                  <>
+                    {headline.source ? ' · ' : null}
+                    <RelativeTime value={headline.publishedAt} />
+                  </>
+                ) : null}
               </p>
             </div>
           )

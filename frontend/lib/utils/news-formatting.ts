@@ -3,8 +3,6 @@
  * Used across Market News, Watchlist News Intelligence, and Watchlist Sentiment sections
  */
 
-import { formatRelativeTime } from '@/lib/utils'
-
 /**
  * Standard vendor labels for news sources
  */
@@ -86,17 +84,6 @@ export function formatConfidence(
     return '—'
   }
   return `${Math.round(confidence * 100)}%`
-}
-
-/**
- * Format relative date for news articles
- * @param dateString ISO date string
- * @returns Relative date string (e.g., "5 hours ago", "2 days ago")
- */
-export function formatNewsDate(dateString: string | null | undefined): string {
-  if (!dateString) return ''
-  const result = formatRelativeTime(dateString)
-  return result === 'Never' || result === 'Unknown' ? '' : result
 }
 
 /**

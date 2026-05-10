@@ -2,6 +2,7 @@
 
 import type { ComponentProps, ReactNode } from 'react'
 import { InfoBadge } from '@/components/shared/InfoBadge'
+import { RelativeTime } from '@/components/shared/RelativeTime'
 import type { Badge } from '@/components/ui/badge'
 import type {
   HouseholdFinanceDashboard,
@@ -16,7 +17,6 @@ import {
   spendPaceBadgeVariant,
 } from '@/lib/dataQuality'
 import { formatCurrencyWhole } from '@/lib/formatters'
-import { formatRelativeTime } from '@/lib/utils'
 import { NetWorthTrendLine, type TrendPoint } from './NetWorthTrendLine'
 import { TileLabel } from './TileLabel'
 
@@ -144,11 +144,16 @@ export function PrimaryTilesGrid({
     analyticsLoading && !analytics
       ? 'Loading'
       : qualityLabel(investedFreshnessStatus)
-  const investedFreshnessDetail = analytics?.quotesUpdatedAt
-    ? `Market prices refreshed ${formatRelativeTime(analytics.quotesUpdatedAt)}.`
-    : analyticsLoading
-      ? 'Checking the latest market prices now.'
-      : 'Uses the latest available market prices for invested balances.'
+  const investedFreshnessDetail: ReactNode = analytics?.quotesUpdatedAt ? (
+    <>
+      Market prices refreshed <RelativeTime value={analytics.quotesUpdatedAt} />
+      .
+    </>
+  ) : analyticsLoading ? (
+    'Checking the latest market prices now.'
+  ) : (
+    'Uses the latest available market prices for invested balances.'
+  )
 
   const tiles: CompactTileProps[] = [
     {

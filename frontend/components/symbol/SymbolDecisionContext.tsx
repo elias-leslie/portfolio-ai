@@ -1,5 +1,6 @@
 'use client'
 
+import { RelativeTime } from '@/components/shared/RelativeTime'
 import { SectionCard } from '@/components/shared/SectionCard'
 import type {
   JennyNotification,
@@ -13,7 +14,6 @@ import {
   formatPercent,
   formatPnlDollars,
 } from '@/lib/formatters'
-import { formatRelativeTime } from '@/lib/utils'
 import { formatShareCount, stripSymbolPrefix } from './symbol-formatters'
 
 export function CurrentExposure({
@@ -105,7 +105,7 @@ export function SourceAuditTrail({
             </p>
             <p className="mt-3 text-xs uppercase tracking-[0.18em] text-text-muted">
               {formatEnumLabel(activeNotification.severity, 'Info')} ·{' '}
-              {formatRelativeTime(activeNotification.createdAt)}
+              <RelativeTime value={activeNotification.createdAt} />
             </p>
           </div>
         ) : null}

@@ -1,6 +1,7 @@
 'use client'
 
 import { ExternalLink, Loader2, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { RelativeTime } from '@/components/shared/RelativeTime'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -9,7 +10,6 @@ import {
 } from '@/lib/hooks/useNews'
 import {
   formatConfidence,
-  formatNewsDate,
   formatSentimentScore,
   formatVendorLabel,
   getSentimentBadgeVariant,
@@ -33,7 +33,7 @@ export function NewsArticleCard({ article, index }: NewsArticleCardProps) {
   const sentimentConfidence = article.sentiment?.confidence
   const sentimentModel = article.sentiment?.model
 
-  const timeAgo = formatNewsDate(article.publishedAt)
+  const hasPublishedAt = Boolean(article.publishedAt)
   const source =
     article.source && article.source.trim().length > 0
       ? article.source.trim()
@@ -88,7 +88,11 @@ export function NewsArticleCard({ article, index }: NewsArticleCardProps) {
               </Badge>
             )}
             {source && <span className="text-text">Publisher: {source}</span>}
-            {timeAgo && <span>{timeAgo}</span>}
+            {hasPublishedAt && article.publishedAt ? (
+              <span>
+                <RelativeTime value={article.publishedAt} />
+              </span>
+            ) : null}
           </div>
         </div>
         <div className="flex flex-col items-end gap-2 text-xs">

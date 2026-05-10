@@ -1,5 +1,6 @@
 'use client'
 
+import { RelativeTime } from '@/components/shared/RelativeTime'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import type {
@@ -9,7 +10,6 @@ import type {
   WorkflowHealthInfo,
 } from '@/lib/api/health'
 import { formatEnumLabel, formatInteger, formatPercent } from '@/lib/formatters'
-import { formatRelativeTime } from '@/lib/utils'
 import { EmptyPanelMessage } from './StatusPanelPrimitives'
 import { formatLabel, getWorkflowCount } from './statusUtils'
 
@@ -165,7 +165,7 @@ export function DecisionDataHealthPanel({
                   </p>
                   {domain.lastUpdated ? (
                     <p className="mt-2 text-sm text-text-muted">
-                      Last updated {formatRelativeTime(domain.lastUpdated)}
+                      Last updated <RelativeTime value={domain.lastUpdated} />
                     </p>
                   ) : null}
                   {evidenceLine ? (
@@ -222,9 +222,16 @@ export function DecisionDataHealthPanel({
                 {formatInteger(workflowHealth.blockedWorkflows)} stuck
               </p>
               <p>
-                {workflowHealth.lastSuccessfulWorkflow
-                  ? `Last success ${formatRelativeTime(workflowHealth.lastSuccessfulWorkflow)}`
-                  : 'No successful automation run recorded yet.'}
+                {workflowHealth.lastSuccessfulWorkflow ? (
+                  <>
+                    Last success{' '}
+                    <RelativeTime
+                      value={workflowHealth.lastSuccessfulWorkflow}
+                    />
+                  </>
+                ) : (
+                  'No successful automation run recorded yet.'
+                )}
               </p>
               {workflowHealth.lastSuccessfulType ? (
                 <p>

@@ -1,9 +1,9 @@
 'use client'
 
+import { RelativeTime } from '@/components/shared/RelativeTime'
 import { SectionCard } from '@/components/shared/SectionCard'
 import type { MarketStatusResponse } from '@/lib/api/market'
 import type { NewsHealthResponse } from '@/lib/api/news'
-import { formatRelativeTime } from '@/lib/utils'
 import { EmptyPanelMessage, SummaryStat } from './StatusPanelPrimitives'
 import { marketLabel } from './statusUtils'
 
@@ -22,9 +22,13 @@ export function MarketTimingPanel({
         : newsHealth?.status === 'down'
           ? 'Down'
           : 'Idle'
-  const newsFeedDetail = newsHealth?.latestRefreshedAt
-    ? `Last news refresh ${formatRelativeTime(newsHealth.latestRefreshedAt)}`
-    : 'No successful news refresh recorded'
+  const newsFeedDetail = newsHealth?.latestRefreshedAt ? (
+    <>
+      Last news refresh <RelativeTime value={newsHealth.latestRefreshedAt} />
+    </>
+  ) : (
+    'No successful news refresh recorded'
+  )
 
   return (
     <SectionCard

@@ -1,9 +1,10 @@
 'use client'
 
 import { AlertCircle, Loader2, RefreshCw } from 'lucide-react'
-import { useMemo } from 'react'
+import { type ReactNode, useMemo } from 'react'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { RelativeTime } from '@/components/shared/RelativeTime'
 import { SectionCard } from '@/components/shared/SectionCard'
 import type { WorkspaceTab } from '@/components/shared/WorkspaceTabs'
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
@@ -18,7 +19,7 @@ import {
 import { useDetailedHealth } from '@/lib/hooks/useHealth'
 import { useMarketStatus } from '@/lib/hooks/useMarketIntelligence'
 import { useNewsHealth } from '@/lib/hooks/useNewsHealth'
-import { cn, formatRelativeTime } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import {
   DecisionDataHealthPanel,
   MarketTimingPanel,
@@ -177,12 +178,17 @@ export function StatusWorkspace() {
     watchlistTotalItems > 0
       ? (watchlistItemsWithScores / watchlistTotalItems) * 100
       : null
-  const watchlistCoverageDetail =
-    watchlistItemsWithScores !== null && watchlistTotalItems !== null
-      ? `${formatInteger(watchlistItemsWithScores)} of ${formatInteger(watchlistTotalItems)} symbols scored`
-      : healthQuery.data?.watchlistStats?.lastRefresh
-        ? `Last refresh ${formatRelativeTime(healthQuery.data.watchlistStats.lastRefresh)}`
-        : 'No refresh timestamp yet'
+  const watchlistCoverageDetail: ReactNode =
+    watchlistItemsWithScores !== null && watchlistTotalItems !== null ? (
+      `${formatInteger(watchlistItemsWithScores)} of ${formatInteger(watchlistTotalItems)} symbols scored`
+    ) : healthQuery.data?.watchlistStats?.lastRefresh ? (
+      <>
+        Last refresh{' '}
+        <RelativeTime value={healthQuery.data.watchlistStats.lastRefresh} />
+      </>
+    ) : (
+      'No refresh timestamp yet'
+    )
 
   const cacheStats = healthQuery.data?.cacheStats
   const decisionDataHealth = healthQuery.data?.decisionDataHealth
@@ -428,11 +434,15 @@ export function StatusWorkspace() {
                   : formatEnumLabel(healthQuery.data?.status, 'Unknown')
               }
               detail={
-                healthPending
-                  ? 'Loading system health...'
-                  : healthQuery.data?.timestamp
-                    ? `Updated ${formatRelativeTime(healthQuery.data.timestamp)}`
-                    : 'Update time unavailable'
+                healthPending ? (
+                  'Loading system health...'
+                ) : healthQuery.data?.timestamp ? (
+                  <>
+                    Updated <RelativeTime value={healthQuery.data.timestamp} />
+                  </>
+                ) : (
+                  'Update time unavailable'
+                )
               }
               tone={systemTone(healthQuery.data?.status)}
             />

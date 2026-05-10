@@ -1,4 +1,5 @@
 import { Pencil, Trash2 } from 'lucide-react'
+import { RelativeTime } from '@/components/shared/RelativeTime'
 import { Button } from '@/components/ui/button'
 import { TableCell, TableRow } from '@/components/ui/table'
 import type { PositionWithValue } from '@/lib/api/portfolio'
@@ -7,7 +8,7 @@ import {
   formatPercent,
   formatPnlDollars,
 } from '@/lib/formatters'
-import { cn, formatRelativeTime } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 
 interface PositionTableRowProps {
   position: PositionWithValue
@@ -34,7 +35,7 @@ export function PositionTableRow({
       <TableCell>
         <div className="font-medium">{position.symbol}</div>
         <div className="text-xs text-text-muted">
-          Manual lot · updated {formatRelativeTime(position.updatedAt)}
+          Manual lot · updated <RelativeTime value={position.updatedAt} />
         </div>
       </TableCell>
       <TableCell className="text-right tabular-nums">

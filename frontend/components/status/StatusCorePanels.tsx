@@ -1,5 +1,6 @@
 'use client'
 
+import { RelativeTime } from '@/components/shared/RelativeTime'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import type {
@@ -8,7 +9,6 @@ import type {
   SourceHealthCheck,
 } from '@/lib/api/health'
 import { formatInteger, formatPercent, formatSeconds } from '@/lib/formatters'
-import { formatRelativeTime } from '@/lib/utils'
 import { EmptyPanelMessage } from './StatusPanelPrimitives'
 import {
   checkVariant,
@@ -174,9 +174,11 @@ export function SourceHealthPanel({
                   <p>Response time: {formatInteger(source.avgLatencyMs)}ms</p>
                   <p>
                     Last good update:{' '}
-                    {source.lastSuccess
-                      ? formatRelativeTime(source.lastSuccess)
-                      : 'No successful fetch recorded'}
+                    {source.lastSuccess ? (
+                      <RelativeTime value={source.lastSuccess} />
+                    ) : (
+                      'No successful fetch recorded'
+                    )}
                   </p>
                 </div>
                 {source.statusReason ? (

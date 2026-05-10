@@ -4,6 +4,7 @@ import { ArrowRight, Brain, CheckCircle2, House, Target } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
+import { RelativeTime } from '@/components/shared/RelativeTime'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,7 +13,7 @@ import { formatDecisionMeta, formatDecisionSeverity } from '@/lib/decision'
 import { useHomeActionQueue } from '@/lib/hooks/useHomeActionQueue'
 import { useAcknowledgeJennyNotification } from '@/lib/hooks/usePortfolio'
 import { useTransitionSymbolWorkflow } from '@/lib/hooks/useSymbolIntelligence'
-import { cn, formatRelativeTime } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 
 const categoryIcons = {
   household: House,
@@ -147,11 +148,15 @@ export function HomeActionQueue() {
       variant="surface"
       title="Action Queue"
       description={
-        !isLoading && !error
-          ? data?.generatedAt
-            ? `${data.summary} Updated ${formatRelativeTime(data.generatedAt)}.`
-            : 'Update time unavailable'
-          : undefined
+        !isLoading && !error ? (
+          data?.generatedAt ? (
+            <>
+              {data.summary} Updated <RelativeTime value={data.generatedAt} />.
+            </>
+          ) : (
+            'Update time unavailable'
+          )
+        ) : undefined
       }
       padding="sm"
       headerClassName="px-5 py-4"
@@ -216,9 +221,7 @@ export function HomeActionQueue() {
             const decisionMeta = formatDecisionMeta(action.decision, {
               includeTimestamp: false,
             })
-            const decisionTimestamp = action.decision?.sourceTimestamp
-              ? formatRelativeTime(action.decision.sourceTimestamp)
-              : null
+            const decisionTimestamp = action.decision?.sourceTimestamp ?? null
             const badgeLabel = action.decision?.severity
               ? formatDecisionSeverity(action.decision.severity)
               : action.badge
@@ -258,7 +261,12 @@ export function HomeActionQueue() {
                     {decisionMeta ? (
                       <p className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
                         {decisionMeta}
-                        {decisionTimestamp ? ` · ${decisionTimestamp}` : ''}
+                        {decisionTimestamp ? (
+                          <>
+                            {' · '}
+                            <RelativeTime value={decisionTimestamp} />
+                          </>
+                        ) : null}
                       </p>
                     ) : null}
                     <p className="line-clamp-3 text-[12px] leading-5 text-text-muted">

@@ -4,13 +4,14 @@ import {
   describeIntradayMood,
   intradayMoodScore,
 } from '@/components/portfolio/investing-language'
+import { RelativeTime } from '@/components/shared/RelativeTime'
 import type { HomeTodayBriefMetric } from '@/lib/api/home'
 import type {
   EnrichedIndicator,
   MarketIntelligenceResponse,
 } from '@/lib/api/market'
 import { metricToneClasses } from '@/lib/dataQuality'
-import { cn, formatRelativeTime } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 
 function formatMetricNumber(value: number | null | undefined, digits = 2) {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
@@ -211,11 +212,16 @@ export function MarketStripGrid({
           </h3>
         </div>
         <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">
-          {timestamp
-            ? `${isLive ? 'Market data' : 'Generated'} ${formatRelativeTime(timestamp)}`
-            : loading
-              ? 'Loading tape'
-              : 'Update time unavailable'}
+          {timestamp ? (
+            <>
+              {isLive ? 'Market data' : 'Generated'}{' '}
+              <RelativeTime value={timestamp} />
+            </>
+          ) : loading ? (
+            'Loading tape'
+          ) : (
+            'Update time unavailable'
+          )}
         </p>
       </div>
 

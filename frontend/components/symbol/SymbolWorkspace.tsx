@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { RelativeTime } from '@/components/shared/RelativeTime'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
 import { SymbolDecisionPanel } from '@/components/symbol/SymbolDecisionPanel'
@@ -19,7 +20,7 @@ import {
 import { useJennyDashboard } from '@/lib/hooks/usePortfolio'
 import { usePreferences } from '@/lib/hooks/usePreferences'
 import { useSymbolIntelligence } from '@/lib/hooks/useSymbolIntelligence'
-import { cn, formatDate, formatRelativeTime } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 import {
   compareNotifications,
   formatCountLabel,
@@ -200,9 +201,13 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
 
       <div className="flex flex-wrap gap-2 text-xs text-text-muted">
         <span className="rounded-full border border-border/40 bg-surface-muted/20 px-3 py-1">
-          {data?.generatedAt
-            ? `Updated ${formatRelativeTime(data.generatedAt)}`
-            : 'Update time unavailable'}
+          {data?.generatedAt ? (
+            <>
+              Updated <RelativeTime value={data.generatedAt} />
+            </>
+          ) : (
+            'Update time unavailable'
+          )}
         </span>
         <span className="rounded-full border border-border/40 bg-surface-muted/20 px-3 py-1">
           {formatCountLabel(alertCount, 'alert')}
@@ -226,9 +231,12 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           </p>
           <p className="mt-2 text-sm text-text-muted">
             {currentDecision?.sourceLabel ?? 'Decision source unavailable'}
-            {currentDecision?.sourceTimestamp
-              ? ` · ${formatRelativeTime(currentDecision.sourceTimestamp)}`
-              : ''}
+            {currentDecision?.sourceTimestamp ? (
+              <>
+                {' · '}
+                <RelativeTime value={currentDecision.sourceTimestamp} />
+              </>
+            ) : null}
           </p>
           {entrySignalSummary ? (
             <p className="mt-3 text-sm text-text">{entrySignalSummary}</p>
@@ -279,11 +287,15 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             </p>
           ) : null}
           <p className="mt-2 text-xs uppercase tracking-[0.16em] text-text-muted">
-            {marketAsOfDate
-              ? `Latest daily close through ${formatDate(marketAsOfDate)}`
-              : data?.generatedAt
-                ? `As of ${formatRelativeTime(data.generatedAt)}`
-                : 'As-of time unavailable'}
+            {marketAsOfDate ? (
+              `Latest daily close through ${formatDate(marketAsOfDate)}`
+            ) : data?.generatedAt ? (
+              <>
+                As of <RelativeTime value={data.generatedAt} />
+              </>
+            ) : (
+              'As-of time unavailable'
+            )}
           </p>
         </SectionCard>
       </div>
@@ -329,12 +341,24 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                           {predictionReviewLabel}
                         </p>
                         <p className="mt-2 text-sm text-text-muted">
-                          {predictionReviewSummary.generatedAt
-                            ? `Updated ${formatRelativeTime(predictionReviewSummary.generatedAt)}`
-                            : 'Update time unavailable'}
-                          {predictionReviewSummary.asOfTs
-                            ? ` · As of ${formatRelativeTime(predictionReviewSummary.asOfTs)}`
-                            : ''}
+                          {predictionReviewSummary.generatedAt ? (
+                            <>
+                              Updated{' '}
+                              <RelativeTime
+                                value={predictionReviewSummary.generatedAt}
+                              />
+                            </>
+                          ) : (
+                            'Update time unavailable'
+                          )}
+                          {predictionReviewSummary.asOfTs ? (
+                            <>
+                              {' · As of '}
+                              <RelativeTime
+                                value={predictionReviewSummary.asOfTs}
+                              />
+                            </>
+                          ) : null}
                         </p>
                         <p className="mt-2 text-sm text-text-muted">
                           {predictionReviewSummary.topUpweighted.length ||
@@ -412,9 +436,14 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                         </p>
                         <p className="mt-3 text-xs uppercase tracking-[0.18em] text-text-muted">
                           {formatEnumLabel(activeNotification.severity, 'Info')}
-                          {activeNotification.createdAt
-                            ? ` · ${formatRelativeTime(activeNotification.createdAt)}`
-                            : ''}
+                          {activeNotification.createdAt ? (
+                            <>
+                              {' · '}
+                              <RelativeTime
+                                value={activeNotification.createdAt}
+                              />
+                            </>
+                          ) : null}
                         </p>
                       </div>
                     ) : null}

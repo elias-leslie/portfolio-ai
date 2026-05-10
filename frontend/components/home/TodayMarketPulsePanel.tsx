@@ -2,6 +2,7 @@
 
 import { ExternalLink, TriangleAlert } from 'lucide-react'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
+import { RelativeTime } from '@/components/shared/RelativeTime'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import type {
@@ -10,7 +11,7 @@ import type {
   HomeTodayBriefSource,
 } from '@/lib/api/home'
 import { useHomeTodayBrief } from '@/lib/hooks/useHomeTodayBrief'
-import { cn, formatRelativeTime } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 
 function directionBadge(direction: string) {
   switch (direction) {
@@ -84,8 +85,14 @@ function sourceTierClasses(sourceSignalTier: string | null) {
   }
 }
 
-function relativeLabel(value: string | null, fallback: string) {
-  return value ? formatRelativeTime(value) : fallback
+function RelativeLabelOrFallback({
+  value,
+  fallback,
+}: {
+  value: string | null
+  fallback: string
+}) {
+  return value ? <RelativeTime value={value} /> : fallback
 }
 
 function ImpactCard({
@@ -250,7 +257,7 @@ function SourceChip({ source }: { source: HomeTodayBriefSource }) {
       <span className="truncate">{source.label}</span>
       {source.publishedAt ? (
         <span className="shrink-0 text-text-muted">
-          {formatRelativeTime(source.publishedAt)}
+          <RelativeTime value={source.publishedAt} />
         </span>
       ) : null}
       {source.url ? <ExternalLink className="h-3 w-3 shrink-0" /> : null}
@@ -314,11 +321,15 @@ export function TodayMarketPulsePanel() {
       variant="surface"
       title="Market Pulse"
       description={
-        isLoading || !data
-          ? 'Loading catalyst and market-impact brief.'
-          : data.generatedAt
-            ? `Updated ${formatRelativeTime(data.generatedAt)}`
-            : 'Update time unavailable'
+        isLoading || !data ? (
+          'Loading catalyst and market-impact brief.'
+        ) : data.generatedAt ? (
+          <>
+            Updated <RelativeTime value={data.generatedAt} />
+          </>
+        ) : (
+          'Update time unavailable'
+        )
       }
       actions={
         !isLoading && data ? (
@@ -376,7 +387,10 @@ export function TodayMarketPulsePanel() {
                       </p>
                       <div className="h-px w-8 bg-border/45" />
                       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">
-                        {relativeLabel(data.asOf.market, 'Market time missing')}
+                        <RelativeLabelOrFallback
+                          value={data.asOf.market}
+                          fallback="Market time missing"
+                        />
                       </p>
                     </div>
                     <h3 className="max-w-4xl font-display text-[1.55rem] italic leading-tight tracking-tight text-text sm:text-[1.9rem]">
@@ -482,9 +496,13 @@ export function TodayMarketPulsePanel() {
                   variant="outline"
                   className="h-5 px-2 text-[10px] uppercase tracking-[0.16em]"
                 >
-                  {data.asOf.portfolio
-                    ? `Quotes ${formatRelativeTime(data.asOf.portfolio)}`
-                    : 'Quote time unavailable'}
+                  {data.asOf.portfolio ? (
+                    <>
+                      Quotes <RelativeTime value={data.asOf.portfolio} />
+                    </>
+                  ) : (
+                    'Quote time unavailable'
+                  )}
                 </Badge>
               </div>
 
