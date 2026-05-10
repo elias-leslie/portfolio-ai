@@ -23,35 +23,6 @@ function formatMetricNumber(value: number | null | undefined, digits = 2) {
   })
 }
 
-function formatMarketAsOf(value?: string | null) {
-  if (!value) {
-    return 'As of time unavailable'
-  }
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) {
-    return 'As of time unavailable'
-  }
-  return `As of ${parsed.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })}`
-}
-
-function formatEtMarketAsOf(value?: string | null) {
-  if (!value) return null
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return null
-  return `As of ${parsed.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: 'America/New_York',
-  })} ET`
-}
-
 function indicatorAsOf(
   indicator: EnrichedIndicator | undefined,
   fallback?: string | null,
@@ -91,7 +62,7 @@ export function buildLiveMarketMetrics(
       detail: 'Broad market benchmark',
       horizon: 'Current quote · 1D vs prior close',
       asOf: sp500AsOf,
-      asOfLabel: formatEtMarketAsOf(sp500AsOf),
+      asOfLabel: null,
       tone: (sp500.changePct ?? 0) > 0 ? 'positive' : 'negative',
     },
     {
@@ -102,7 +73,7 @@ export function buildLiveMarketMetrics(
       detail: 'Risk pricing',
       horizon: 'Current quote · 1D vs prior close',
       asOf: vixAsOf,
-      asOfLabel: formatEtMarketAsOf(vixAsOf),
+      asOfLabel: null,
       tone: vix.value < 20 ? 'positive' : 'warning',
     },
     {
@@ -113,7 +84,7 @@ export function buildLiveMarketMetrics(
       detail: 'Rate pressure',
       horizon: 'Current quote · 1D vs prior close',
       asOf: tnxAsOf,
-      asOfLabel: formatEtMarketAsOf(tnxAsOf),
+      asOfLabel: null,
       tone: tnx.value >= 4.5 ? 'warning' : 'neutral',
     },
     {
@@ -124,7 +95,7 @@ export function buildLiveMarketMetrics(
       detail: mood.label,
       horizon: 'Live proxy · Quote inputs',
       asOf: marketAsOf,
-      asOfLabel: formatEtMarketAsOf(marketAsOf),
+      asOfLabel: null,
       tone:
         mood.tone === 'gain'
           ? 'positive'
@@ -140,7 +111,7 @@ export function buildLiveMarketMetrics(
       detail: 'Sectors leading today',
       horizon: 'Current quotes · 1D sectors',
       asOf: leadershipAsOf,
-      asOfLabel: formatEtMarketAsOf(leadershipAsOf),
+      asOfLabel: null,
       tone: leading.length > 0 ? 'positive' : 'neutral',
       span: 'wide',
     },
@@ -154,7 +125,7 @@ function MarketStripItem({ metric }: { metric: HomeTodayBriefMetric }) {
       className={cn(
         'rounded-2xl border px-3 py-3',
         metricToneClasses(metric.tone),
-        wide && '@[28rem]:col-span-2',
+        wide && '@[36rem]:col-span-2',
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -178,10 +149,6 @@ function MarketStripItem({ metric }: { metric: HomeTodayBriefMetric }) {
       </p>
       <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-text-muted">
         {metric.detail}
-      </p>
-      <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-text-muted/80">
-        {metric.horizon ?? 'Horizon unavailable'} ·{' '}
-        {metric.asOfLabel ?? formatMarketAsOf(metric.asOf)}
       </p>
     </div>
   )
@@ -225,14 +192,14 @@ export function MarketStripGrid({
         </p>
       </div>
 
-      <div className="mt-3 grid gap-2 @[28rem]:grid-cols-2">
+      <div className="mt-3 grid gap-2 @[36rem]:grid-cols-2">
         {loading && metrics.length === 0
           ? [...Array(5)].map((_, index) => (
               <div
                 key={`overview-market-strip-skeleton-${index}`}
                 className={cn(
                   'h-[4.75rem] rounded-2xl skeleton',
-                  index === 4 && '@[28rem]:col-span-2',
+                  index === 4 && '@[36rem]:col-span-2',
                 )}
               />
             ))

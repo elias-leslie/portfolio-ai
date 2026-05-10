@@ -221,7 +221,7 @@ export function PrimaryTilesGrid({
 
   return (
     <div className="@container">
-      <div className="grid gap-3 @[28rem]:grid-cols-2">
+      <div className="grid gap-3 @[36rem]:grid-cols-2">
         {tiles.map((tile) => (
           <CompactOverviewTile key={tile.label} {...tile} />
         ))}

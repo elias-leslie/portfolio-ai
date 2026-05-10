@@ -191,7 +191,7 @@ describe('TodayOverviewPanel', () => {
     ).toBeInTheDocument()
   })
 
-  it('labels home market metrics with horizon and as-of freshness', () => {
+  it('omits per-card horizon/as-of meta in favor of the section-level timestamp', () => {
     useHomeTodayBriefMock.mockReturnValue({
       data: {
         generatedAt: '2026-04-16T10:00:00Z',
@@ -245,10 +245,14 @@ describe('TodayOverviewPanel', () => {
     render(<TodayOverviewPanel />)
 
     expect(
-      screen.getAllByText(/Current quote · 1D vs prior close · As of/).length,
-    ).toBeGreaterThan(0)
-    expect(screen.getByText(/As of Apr 16, 6:00 AM ET/)).toBeInTheDocument()
-    expect(screen.getByText(/As of time unavailable/)).toBeInTheDocument()
+      screen.queryByText(/Current quote · 1D vs prior close · As of/),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/As of Apr 16, 6:00 AM ET/),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText(/As of time unavailable/)).not.toBeInTheDocument()
+    expect(screen.getByText('Broad market benchmark')).toBeInTheDocument()
+    expect(screen.getByText('Risk pricing')).toBeInTheDocument()
   })
 
   it('prefers live market intelligence metrics over cached brief strip values', () => {
@@ -361,13 +365,12 @@ describe('TodayOverviewPanel', () => {
     expect(screen.getByText('7,201.71')).toBeInTheDocument()
     expect(screen.queryByText('5,250.10')).not.toBeInTheDocument()
     expect(
-      screen.getAllByText(/Current quote · 1D vs prior close · As of May 4/)
-        .length,
-    ).toBeGreaterThan(0)
+      screen.queryByText(/Current quote · 1D vs prior close · As of May 4/),
+    ).not.toBeInTheDocument()
     expect(screen.getByText('Intraday Mood')).toBeInTheDocument()
     expect(
-      screen.getByText(/Live proxy · Quote inputs · As of May 4/),
-    ).toBeInTheDocument()
+      screen.queryByText(/Live proxy · Quote inputs · As of May 4/),
+    ).not.toBeInTheDocument()
     expect(screen.getByText(/Market data/)).toBeInTheDocument()
   })
 })

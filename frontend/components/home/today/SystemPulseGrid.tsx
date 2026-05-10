@@ -68,7 +68,7 @@ export function SystemPulseGrid({
       <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
         System Pulse
       </p>
-      <div className="mt-3 grid gap-2 @[28rem]:grid-cols-2">
+      <div className="mt-3 grid gap-2 @[36rem]:grid-cols-2">
         <StatusChip
           label="Portfolio"
           value={analyticsLoading ? 'Loading' : portfolioHealth.label}
