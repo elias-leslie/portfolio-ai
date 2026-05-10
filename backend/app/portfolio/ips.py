@@ -538,16 +538,32 @@ class RebalancePlanner:
         if symbol is None:
             return None
         amount = -row.drift_value  # underweight → drift_value negative → amount positive
+        # Quote the representative symbol so trade.shares is populated even
+        # when the household holds none of it yet — agents and the human
+        # rebalance UI both read shares directly to size the order.
+        approx_shares = self._approximate_shares(symbol, amount)
         return RebalanceTrade(
             action="buy",
             account_id=chosen["id"],
             account_type=chosen["account_type"],
             symbol=symbol,
             asset_class=row.asset_class,
-            shares=0.0,
+            shares=approx_shares,
             estimated_value=round(amount, 4),
             rationale=rationale,
         )
+
+    def _approximate_shares(self, symbol: str, dollar_amount: float) -> float:
+        if dollar_amount <= 0:
+            return 0.0
+        prices = self.drift_calc.price_fetcher.fetch_cached_price_data([symbol])
+        info = prices.get(symbol)
+        if info is None or getattr(info, "error", None):
+            return 0.0
+        price = float(getattr(info, "price", 0.0) or 0.0)
+        if price <= 0:
+            return 0.0
+        return round(dollar_amount / price, 6)
 
     @staticmethod
     def _pick_buy_account(

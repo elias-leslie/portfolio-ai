@@ -288,6 +288,42 @@ def test_wash_sale_conflict_flags_when_no_reroute_target() -> None:
     assert plan.wash_sale_conflicts == 1
 
 
+def test_buy_populates_shares_from_quoted_price_when_unheld() -> None:
+    planner = _build_planner(
+        accounts=[("roth", "Roth"), ("tax", "Taxable")],
+        targets=[("us_equity", 0.5, 0.05), ("bonds", 0.5, 0.05)],
+        # 100% bonds at $10k — half should be bought as VTI, $5k worth.
+        positions=[("tax", "BND", 100.0, 100.0)],
+        # VTI is *not* held; price is published so the planner can size shares.
+        prices={"BND": 100.0, "VTI": 200.0},
+    )
+    plan = planner.propose_trades("household", "hh1", snapshot_date=date(2026, 5, 9))
+    buys = [t for t in plan.trades if t.action == "buy"]
+    assert len(buys) == 1
+    assert buys[0].symbol == "VTI"
+    assert buys[0].estimated_value == 5000.0
+    # 5000 / 200 = 25.0 shares.
+    assert buys[0].shares == 25.0
+
+
+def test_buy_falls_back_to_zero_shares_when_quote_missing() -> None:
+    planner = _build_planner(
+        accounts=[("roth", "Roth"), ("tax", "Taxable")],
+        targets=[("us_equity", 0.5, 0.05), ("bonds", 0.5, 0.05)],
+        positions=[("tax", "BND", 100.0, 100.0)],
+        # No VTI price — planner should still emit the trade with the
+        # estimated_value populated and fall back to shares=0 so the
+        # contract stays stable.
+        prices={"BND": 100.0},
+    )
+    plan = planner.propose_trades("household", "hh1", snapshot_date=date(2026, 5, 9))
+    buys = [t for t in plan.trades if t.action == "buy"]
+    assert len(buys) == 1
+    assert buys[0].symbol == "VTI"
+    assert buys[0].shares == 0.0
+    assert buys[0].estimated_value == 5000.0
+
+
 def test_balanced_portfolio_proposes_no_trades() -> None:
     planner = _build_planner(
         accounts=[("tax", "Taxable")],
