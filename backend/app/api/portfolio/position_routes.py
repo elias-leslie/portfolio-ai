@@ -11,7 +11,6 @@ from starlette.concurrency import run_in_threadpool
 from app.logging_config import get_logger
 from app.middleware.cache import invalidate_endpoint_cache
 from app.portfolio.models import Position
-from app.strategies.storage import get_strategy_storage
 
 from .models import PositionCreate, PositionResponse
 
@@ -62,12 +61,7 @@ def _build_position_response(
         gain = None
         gain_pct = None
 
-    # Get strategy name if linked
     strategy_name = None
-    if include_strategy_name and position.strategy_id:
-        strategy_storage = get_strategy_storage()
-        strategy = strategy_storage.get_strategy_by_id(position.strategy_id)
-        strategy_name = strategy.name if strategy else None
 
     return PositionResponse(
         id=position.id,

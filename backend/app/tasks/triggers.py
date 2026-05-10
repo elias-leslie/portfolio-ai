@@ -44,11 +44,7 @@ def emit_event(event_type: str, payload: dict[str, Any]) -> bool:
     )
 
     # Route event to appropriate handler
-    if event_type == "strategy_performance_updated":
-        _on_strategy_performance_updated(payload)
-    elif event_type == "seed_created":
-        _on_seed_created(payload)
-    elif event_type == "price_alert_triggered":
+    if event_type == "price_alert_triggered":
         _on_price_alert_triggered(payload)
     elif event_type == "earnings_released":
         _on_earnings_released(payload)
@@ -61,94 +57,23 @@ def emit_event(event_type: str, payload: dict[str, Any]) -> bool:
     return True
 
 
-def _on_strategy_performance_updated(payload: dict[str, Any]) -> None:
-    """Handle strategy performance update event.
-
-    Triggers:
-    - Watchlist score refresh for the symbol (performance_factor pillar update)
-    """
-    symbol = payload.get("symbol")
-    strategy_id = payload.get("strategy_id")
-
-    if not symbol:
-        logger.warning("strategy_performance_event_missing_symbol", payload=payload)
-        return
-
-    # Trigger watchlist refresh for the specific symbol
-    from app.tasks.watchlist_tasks import refresh_single_symbol_scores_task
-
-    refresh_single_symbol_scores_task(symbol)
-    logger.info(
-        "triggered_watchlist_refresh_from_performance",
-        symbol=symbol,
-        strategy_id=strategy_id,
-    )
-
-
-def _on_seed_created(payload: dict[str, Any]) -> None:
-    """Handle new strategy seed creation event.
-
-    Triggers:
-    - Strategy generation if confidence >= 7
-    """
-    seed_id = payload.get("seed_id")
-    symbol = payload.get("symbol")
-    confidence = payload.get("confidence", 0)
-
-    if not seed_id or not symbol:
-        logger.warning("seed_created_event_missing_fields", payload=payload)
-        return
-
-    # Only trigger for high-confidence seeds
-    if confidence >= 7:
-        from app.tasks.strategy.generation_tasks import (
-            trigger_strategy_from_seed,
-        )
-
-        trigger_strategy_from_seed(seed_id, symbol)
-        logger.info(
-            "triggered_strategy_from_seed_event",
-            seed_id=seed_id,
-            symbol=symbol,
-            confidence=confidence,
-        )
-    else:
-        logger.debug(
-            "seed_confidence_too_low",
-            seed_id=seed_id,
-            symbol=symbol,
-            confidence=confidence,
-        )
-
-
 def _on_price_alert_triggered(payload: dict[str, Any]) -> None:
     """Handle price alert trigger event.
 
     Triggers:
     - Immediate watchlist refresh for the symbol
-    - Generate signal for symbol's active strategy
     """
     symbol = payload.get("symbol")
-    alert_type = payload.get("alert_type")  # "above_threshold" or "below_threshold"
+    alert_type = payload.get("alert_type")
     price = payload.get("price")
 
     if not symbol:
         logger.warning("price_alert_event_missing_symbol", payload=payload)
         return
 
-    # Trigger watchlist refresh
     from app.tasks.watchlist_tasks import refresh_single_symbol_scores_task
 
     refresh_single_symbol_scores_task(symbol)
-
-    # Also trigger signal generation for active strategies on this symbol
-    from app.strategies.storage import get_strategy_storage
-    from app.tasks.strategy_signal_tasks import generate_signal_for_strategy_task
-
-    strategy_storage = get_strategy_storage()
-    strategies = strategy_storage.list_strategies(symbol=symbol, status="active")
-    for strategy in strategies:
-        generate_signal_for_strategy_task(str(strategy.id), symbol)
 
     logger.info(
         "triggered_from_price_alert",
@@ -162,7 +87,6 @@ def _on_earnings_released(payload: dict[str, Any]) -> None:
     """Handle earnings release event.
 
     Triggers:
-    - Strategy signal generation for the symbol
     - Watchlist refresh to update catalyst scores
     """
     symbol = payload.get("symbol")
@@ -172,19 +96,9 @@ def _on_earnings_released(payload: dict[str, Any]) -> None:
         logger.warning("earnings_released_event_missing_symbol", payload=payload)
         return
 
-    # Trigger watchlist refresh (catalyst scores may change)
     from app.tasks.watchlist_tasks import refresh_single_symbol_scores_task
 
     refresh_single_symbol_scores_task(symbol)
-
-    # Trigger signal generation for active strategies on this symbol
-    from app.strategies.storage import get_strategy_storage
-    from app.tasks.strategy_signal_tasks import generate_signal_for_strategy_task
-
-    strategy_storage = get_strategy_storage()
-    strategies = strategy_storage.list_strategies(symbol=symbol, status="active")
-    for strategy in strategies:
-        generate_signal_for_strategy_task(str(strategy.id), symbol)
 
     logger.info(
         "triggered_from_earnings_release",

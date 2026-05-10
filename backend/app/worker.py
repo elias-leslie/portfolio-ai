@@ -59,7 +59,6 @@ from app.workflows.market_prediction import (
     market_prediction_morning_prep_wf,
     market_prediction_sunday_prep_wf,
 )
-from app.workflows.monitoring import monitor_theses_wf
 from app.workflows.reference import (
     corporate_actions_wf,
     earnings_surprises_wf,
@@ -72,21 +71,11 @@ from app.workflows.reference import (
     yfinance_ref_wf,
 )
 from app.workflows.strategy import (
-    auto_paper_trade_wf,
-    auto_promote_wf,
     covariance_wf,
-    daily_signals_wf,
-    daily_strategy_refresh_wf,
-    eval_strategy_wf,
-    generate_signal_wf,
     portfolio_snapshots_wf,
+    research_universe_refresh_wf,
     rules_validation_wf,
-    strategy_metrics_wf,
-    trigger_from_seed_wf,
-    trigger_top_strategies_wf,
-    weekly_evolution_wf,
     weekly_optimization_wf,
-    weekly_strategy_gen_wf,
 )
 from app.workflows.tlh import portfolio_tlh_scan_wf
 from app.workflows.watchlist import (
@@ -145,22 +134,12 @@ def main() -> None:
             corporate_actions_wf,
             refresh_sec_cik_wf,
             retrain_ml_wf,
-            # Strategy (15)
-            eval_strategy_wf,
-            auto_promote_wf,
-            daily_strategy_refresh_wf,
-            weekly_strategy_gen_wf,
-            weekly_evolution_wf,
-            daily_signals_wf,
-            auto_paper_trade_wf,
+            # Portfolio + universe maintenance (5)
             portfolio_snapshots_wf,
             covariance_wf,
             rules_validation_wf,
             weekly_optimization_wf,
-            trigger_from_seed_wf,
-            trigger_top_strategies_wf,
-            generate_signal_wf,
-            strategy_metrics_wf,
+            research_universe_refresh_wf,
             # Watchlist (5)
             refresh_watchlist_scores_wf,
             refresh_single_symbol_wf,
@@ -169,8 +148,6 @@ def main() -> None:
             trim_underperforming_wf,
             # Agents (1)
             schedule_new_symbol_wf,
-            # Monitoring (1)
-            monitor_theses_wf,
             # Jenny (3)
             jenny_daily_operator_wf,
             jenny_weekly_learning_wf,
