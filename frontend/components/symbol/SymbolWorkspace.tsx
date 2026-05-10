@@ -170,13 +170,6 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             <Button asChild variant="outline">
               <Link href="/portfolio?tab=symbols">Back to Investing</Link>
             </Button>
-            <Button asChild variant="outline">
-              <Link
-                href={`/strategy-lab?symbol=${encodeURIComponent(uppercaseSymbol)}`}
-              >
-                Strategy Lab
-              </Link>
-            </Button>
             <Button
               variant="outline"
               onClick={() => refetch()}
