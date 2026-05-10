@@ -18,10 +18,20 @@ logger = get_logger(__name__)
 
 
 PERFORMANCE_RATIO_THRESHOLD = 0.7
+MIN_TRADES_FOR_ARCHIVAL = 10
 
 
-def _should_archive_strategy(performance_ratio: float, days_since_activation: int) -> bool:
-    """Return True if strategy should be archived based on performance."""
+def _should_archive_strategy(
+    performance_ratio: float, days_since_activation: int, trades_30d: int
+) -> bool:
+    """Return True if strategy should be archived based on performance.
+
+    Archival requires a meaningful trade sample. A strategy that has not been
+    traded enough times to produce a statistically meaningful Sharpe is not
+    "underperforming" — it is unmeasured.
+    """
+    if trades_30d < MIN_TRADES_FOR_ARCHIVAL:
+        return False
     return (
         performance_ratio < PERFORMANCE_RATIO_THRESHOLD
         and days_since_activation > StrategyStorage.PERFORMANCE_WINDOW_DAYS
@@ -55,8 +65,9 @@ def _determine_archive_decision(
     days_since_activation = (
         (datetime.now(UTC) - strategy.activation_date).days if strategy.activation_date else 0
     )
+    trades_30d = int(metrics.get("trades_30d", 0))
 
-    if not _should_archive_strategy(performance_ratio, days_since_activation):
+    if not _should_archive_strategy(performance_ratio, days_since_activation, trades_30d):
         return False, None
 
     reason = (

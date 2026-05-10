@@ -27,7 +27,11 @@ logger = get_logger(__name__)
 
 # Strategy performance thresholds (re-exported for external callers)
 PERFORMANCE_RATIO_THRESHOLD = 0.7
-MIN_SHARPE_FOR_PROMOTION = 1.0
+# Retail-realistic Sharpe bar. Net-of-cost retail Sharpe of 0.5-0.8 is normal
+# and respectable; >1.0 is genuinely good and rare to sustain (per QuantConnect/
+# Composer practitioner data). Lower bar surfaces more candidates for the user
+# to evaluate; the catalog UI lets them filter by Sharpe themselves.
+MIN_SHARPE_FOR_PROMOTION = 0.5
 
 
 def _process_active_strategy(
