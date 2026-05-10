@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Geist_Mono, Plus_Jakarta_Sans } from 'next/font/google'
 import Script from 'next/script'
 import './globals.css'
 import './globals-watchlist.css'
@@ -8,14 +8,16 @@ import { Navigation } from '@/components/Navigation'
 import { cn } from '@/lib/utils'
 import { Providers } from './providers'
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
+const bodySans = Plus_Jakarta_Sans({
+  variable: '--font-sans-body',
   subsets: ['latin'],
+  display: 'swap',
 })
 
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
+  display: 'swap',
 })
 
 export const metadata: Metadata = {
@@ -57,7 +59,7 @@ export default function RootLayout({
       </head>
       <body
         className={cn(
-          geistSans.variable,
+          bodySans.variable,
           geistMono.variable,
           'bg-bg text-text antialiased h-screen overflow-hidden flex flex-col',
         )}

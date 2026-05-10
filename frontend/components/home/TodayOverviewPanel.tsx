@@ -40,7 +40,7 @@ export function TodayOverviewPanel() {
       headerClassName="px-5 py-4"
       className="h-full"
     >
-      <div className="flex h-full flex-col gap-3">
+      <div className="flex h-full flex-col gap-3 animate-stagger">
         <PrimaryTilesGrid
           household={household}
           householdLoading={householdLoading}
