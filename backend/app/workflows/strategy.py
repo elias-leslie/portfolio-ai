@@ -365,3 +365,48 @@ async def strategy_metrics_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]
     from ..tasks.strategy_metrics_tasks import collect_daily_strategy_metrics
 
     return await asyncio.to_thread(collect_daily_strategy_metrics)
+
+
+@hatchet.task(
+    name="portfolio-research-universe-refresh",
+    input_validator=EmptyInput,
+    execution_timeout="1800s",
+    retries=1,
+    on_crons=["0 6 * * 0"],
+    concurrency=ConcurrencyExpression(
+        expression="'portfolio-research-universe-refresh'",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+    ),
+)
+async def research_universe_refresh_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    """Sunday 06:00 UTC: pull current S&P 500 from iShares IVV, diff against
+    research_universe_symbols, INSERT new arrivals (and backfill their OHLCV
+    history), UPDATE removed_at on departures, bump last_seen_at on continuing.
+    """
+    from ..tasks.ingestion.research_universe import refresh_research_universe
+
+    return await asyncio.to_thread(refresh_research_universe, backfill_new_symbols=True)
+
+
+@hatchet.task(
+    name="portfolio-universe-screen",
+    input_validator=EmptyInput,
+    execution_timeout="14400s",  # 4h cap; 503 symbols x ~14s = ~2h typical
+    retries=1,
+    on_crons=["30 6 * * 0"],
+    concurrency=ConcurrencyExpression(
+        expression="'portfolio-universe-screen'",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+    ),
+)
+async def universe_screen_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    """Sunday 06:30 UTC: walk-forward sweep across the active research
+    universe, persist results in strategy_screening_results, recompute
+    edge_score. Runs after research_universe_refresh_wf so newly-added
+    symbols are picked up.
+    """
+    from ..tasks.strategy.universe_screening import screen_universe
+
+    return await asyncio.to_thread(screen_universe)
