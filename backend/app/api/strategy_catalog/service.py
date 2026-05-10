@@ -17,8 +17,22 @@ from fastapi import HTTPException
 
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
+from app.strategies.benchmark_service import get_benchmark_comparisons
 
-from .models import CatalogItem, CatalogResponse, FollowResponse
+from .labels import (
+    beat_count,
+    benchmark_verdict,
+    risk_tier_from_drawdown,
+    verdict_for_strategy,
+)
+from .models import (
+    BenchmarkComparison,
+    CatalogDetail,
+    CatalogDetailResponse,
+    CatalogItem,
+    CatalogResponse,
+    FollowResponse,
+)
 
 logger = get_logger(__name__)
 
@@ -28,24 +42,30 @@ FOLLOW_NAME_PREFIX = "Universe Follow"
 
 
 def _row_to_item(row: Any, followed_set: set[str]) -> CatalogItem:
+    edge = float(row[3]) if row[3] is not None else None
+    pct_beat = float(row[8]) if row[8] is not None else None
+    sig = bool(row[10])
+    max_dd = float(row[6]) if row[6] is not None else None
     return CatalogItem(
         symbol=str(row[0]),
         strategy_type=str(row[1]),
         run_date=row[2],
-        edge_score=float(row[3]) if row[3] is not None else None,
+        edge_score=edge,
         mean_sharpe=float(row[4]) if row[4] is not None else None,
         mean_win_rate=float(row[5]) if row[5] is not None else None,
-        max_drawdown_pct=float(row[6]) if row[6] is not None else None,
+        max_drawdown_pct=max_dd,
         mean_excess_vs_bh=float(row[7]) if row[7] is not None else None,
-        pct_folds_beat_bh=float(row[8]) if row[8] is not None else None,
+        pct_folds_beat_bh=pct_beat,
         wilcoxon_p_value=float(row[9]) if row[9] is not None else None,
-        statistically_significant=bool(row[10]),
+        statistically_significant=sig,
         significance_level=str(row[11]) if row[11] is not None else None,
         num_folds=int(row[12]),
         total_trades=int(row[13]),
         backtest_start_date=row[14],
         backtest_end_date=row[15],
         is_followed=str(row[0]) in followed_set,
+        risk_tier=risk_tier_from_drawdown(max_dd),
+        verdict=verdict_for_strategy(edge, pct_beat, sig),
     )
 
 
@@ -238,6 +258,62 @@ def follow_symbol(symbol: str) -> FollowResponse:
 
     logger.info("catalog_follow", symbol=sym, strategy_id=strategy_id)
     return FollowResponse(symbol=sym, is_followed=True, strategy_id=strategy_id)
+
+
+def get_catalog_detail(symbol: str) -> CatalogDetailResponse:
+    """Single-symbol detail with full benchmark grid attached."""
+    sym = symbol.upper()
+    conn_mgr = get_connection_manager()
+    with conn_mgr.connection() as conn:
+        followed = _load_followed_symbols(conn)
+        row = conn.execute(
+            """
+            SELECT symbol, strategy_type, run_date,
+                   edge_score, mean_sharpe, mean_win_rate, max_drawdown_pct,
+                   mean_excess_vs_bh, pct_folds_beat_bh, wilcoxon_p_value,
+                   statistically_significant, significance_level,
+                   num_folds, total_trades,
+                   backtest_start_date, backtest_end_date
+            FROM strategy_screening_results
+            WHERE symbol = %s
+            ORDER BY run_date DESC
+            LIMIT 1
+            """,
+            (sym,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No screening result available for {sym}.",
+        )
+
+    base_item = _row_to_item(row, followed)
+    raw_benchmarks = get_benchmark_comparisons(sym, base_item.run_date)
+    benchmarks = [
+        BenchmarkComparison(
+            benchmark_key=str(b["benchmark_key"]),
+            label=str(b["label"]),
+            description=str(b["description"]),
+            kind=str(b["kind"]),
+            risk_tier=str(b["risk_tier"]),
+            benchmark_return_pct=b.get("benchmark_return_pct"),
+            excess_return_pct=b.get("excess_return_pct"),
+            max_drawdown_pct=b.get("max_drawdown_pct"),
+            volatility_pct=b.get("volatility_pct"),
+            beats_benchmark=bool(b.get("beats_benchmark", False)),
+            verdict=benchmark_verdict(b.get("excess_return_pct")),
+        )
+        for b in raw_benchmarks
+    ]
+    beats, total = beat_count(raw_benchmarks)
+
+    detail = CatalogDetail(
+        **base_item.model_dump(),
+        benchmarks=benchmarks,
+    )
+    detail.benchmarks_beat_count = beats
+    detail.benchmarks_total_count = total
+    return CatalogDetailResponse(item=detail)
 
 
 def unfollow_symbol(symbol: str) -> FollowResponse:

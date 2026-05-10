@@ -13,8 +13,8 @@ from fastapi.concurrency import run_in_threadpool
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response
 
-from .models import CatalogResponse, FollowResponse
-from .service import follow_symbol, list_catalog, unfollow_symbol
+from .models import CatalogDetailResponse, CatalogResponse, FollowResponse
+from .service import follow_symbol, get_catalog_detail, list_catalog, unfollow_symbol
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/strategy-catalog", tags=["strategy-catalog"])
@@ -33,6 +33,12 @@ async def get_catalog(
         only_significant=only_significant,
         min_total_trades=min_total_trades,
     )
+
+
+@router.get("/{symbol}", response_model=CatalogDetailResponse)
+@cache_response(ttl=60)
+async def get_catalog_symbol(symbol: str) -> CatalogDetailResponse:
+    return await run_in_threadpool(get_catalog_detail, symbol)
 
 
 @router.post("/{symbol}/follow", response_model=FollowResponse)
