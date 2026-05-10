@@ -1,0 +1,55 @@
+# Long-term return estimates ("CMA" — capital market assumptions) for the
+# retirement Monte Carlo simulator (F5).
+#
+# Versioned via the `version` key. The service stamps `cma_source` on every
+# scenario row as ``yaml-vN`` so v2 (FRED-derived) runs are easy to filter.
+# Returns and vols are nominal annual; correlations are pairwise Pearson
+# coefficients used by the diagonal-Gaussian sampler in
+# ``_retirement_simulation.py``.
+version: "yaml-v1"
+notes: >-
+  Conservative long-term assumptions for an amateur retiree. Sourced from
+  Vanguard 10-year capital market expectations (Sep 2025 publication) and
+  J.P. Morgan LTCMA 2026; rounded to 0.5%. Inflation set to the Fed's 2.0%
+  target plus a 0.5% wedge for amateur amplifier risk.
+inflation_rate: 0.025
+asset_classes:
+  us_equity:
+    expected_return: 0.065
+    volatility: 0.16
+  intl_equity:
+    expected_return: 0.055
+    volatility: 0.18
+  bonds:
+    expected_return: 0.045
+    volatility: 0.06
+  cash:
+    expected_return: 0.02
+    volatility: 0.005
+  alts:
+    expected_return: 0.05
+    volatility: 0.12
+  real_estate:
+    expected_return: 0.055
+    volatility: 0.14
+correlations:
+  us_equity:
+    intl_equity: 0.85
+    bonds: 0.10
+    cash: 0.0
+    alts: 0.50
+    real_estate: 0.65
+  intl_equity:
+    bonds: 0.05
+    cash: 0.0
+    alts: 0.50
+    real_estate: 0.60
+  bonds:
+    cash: 0.30
+    alts: 0.10
+    real_estate: 0.20
+  cash:
+    alts: 0.0
+    real_estate: 0.0
+  alts:
+    real_estate: 0.30
