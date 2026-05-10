@@ -110,16 +110,15 @@ describe('InvestingMarketPanel', () => {
     render(<InvestingMarketPanel />)
 
     expect(
-      screen.getByText(/strongest relative performers over the past month/i),
-    ).toBeInTheDocument()
-    expect(screen.getAllByText(/1M default/i).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/As of Apr 10, 2026/i).length).toBeGreaterThan(0)
+      screen.queryByText(/strongest relative performers/i),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText(/1M default/i)).not.toBeInTheDocument()
     expect(
       screen.getByText(/Intraday\/current as of Apr 10/i),
     ).toBeInTheDocument()
     expect(
-      screen.getByText(/weakest relative performers over the past month/i),
-    ).toBeInTheDocument()
+      screen.queryByText(/weakest relative performers/i),
+    ).not.toBeInTheDocument()
     expect(
       screen.getByText(
         /Technology \+6\.8% · Financials \+5\.4% · Utilities \+4\.3%/i,
@@ -134,12 +133,6 @@ describe('InvestingMarketPanel', () => {
 
     await user.click(screen.getByRole('button', { name: 'Switch to 1Y' }))
 
-    expect(
-      screen.getByText(/strongest relative performers over the past year/i),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(/weakest relative performers over the past year/i),
-    ).toBeInTheDocument()
     expect(
       screen.getByText(
         /Technology \+18\.4% · Communication Services \+12\.1% · Industrials \+9\.2%/i,

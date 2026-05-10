@@ -13,7 +13,6 @@ import { SentimentChart } from './SentimentChart'
 import { SentimentLegendSummary } from './SentimentLegendSummary'
 import { normalizeNewsSentiment } from './SentimentTooltip'
 import {
-  calculateTickInterval,
   DEFAULT_MARKET_TIMEFRAME,
   formatChartDate,
   type Timeframe,
@@ -74,10 +73,6 @@ export function SentimentTrendChart() {
 
   const last = chartData.length > 0 ? chartData[chartData.length - 1] : null
   const formatXAxis = (date: string) => formatChartDate(date, days)
-  const tickInterval = useMemo(
-    () => calculateTickInterval(chartData.length),
-    [chartData.length],
-  )
 
   if (isLoading) {
     return (
@@ -106,11 +101,7 @@ export function SentimentTrendChart() {
       </div>
 
       <div className="h-40 relative">
-        <SentimentChart
-          data={chartData}
-          formatXAxis={formatXAxis}
-          tickInterval={tickInterval}
-        />
+        <SentimentChart data={chartData} formatXAxis={formatXAxis} />
         <EventTimeline
           days={days}
           className="left-[30px] right-[10px] top-[10px] bottom-[25px]"

@@ -17,7 +17,6 @@ import { checkDataFreshness, cn, formatDate } from '@/lib/utils'
 import { MarketPanelMessage } from './MarketPanelMessage'
 import { SECTOR_COLORS } from './sector-colors'
 import {
-  calculateTickInterval,
   formatChartDate,
   type Timeframe,
   TimeframeSelector,
@@ -96,12 +95,7 @@ export function SectorPerformanceChart({
     })
   }, [data])
 
-  // Use shared date formatting and tick calculation
   const formatXAxis = (date: string) => formatChartDate(date, days)
-  const tickInterval = useMemo(
-    () => calculateTickInterval(chartData.length),
-    [chartData.length],
-  )
 
   if (isLoading) {
     return (
@@ -155,7 +149,8 @@ export function SectorPerformanceChart({
               tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }}
               axisLine={{ stroke: 'var(--color-border)' }}
               tickLine={false}
-              interval={tickInterval}
+              interval="preserveStartEnd"
+              minTickGap={36}
             />
             <YAxis
               tickFormatter={(v) => `${v}%`}

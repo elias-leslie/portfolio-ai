@@ -12,30 +12,11 @@ import {
 } from '@/components/market/TimeframeSelector'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
-import { MARKET_DATA_HORIZON_LABELS } from '@/lib/api/market-types'
 import {
   useMarketIntelligence,
   useSectorHistory,
 } from '@/lib/hooks/useMarketIntelligence'
-import { formatDate } from '@/lib/utils'
 import { describeMarketPositioning } from './investing-language'
-
-function timeframeLabel(timeframe: Timeframe) {
-  switch (timeframe) {
-    case '1M':
-      return 'past month'
-    case '3M':
-      return 'past 3 months'
-    case '6M':
-      return 'past 6 months'
-    case '3Y':
-      return 'past 3 years'
-    case '5Y':
-      return 'past 5 years'
-    default:
-      return 'past year'
-  }
-}
 
 function formatAsOfTimestamp(value?: string | null) {
   if (!value) return 'Market update time unavailable'
@@ -60,10 +41,6 @@ export function InvestingMarketPanel() {
     error: sectorHistoryError,
   } = useSectorHistory(timeframeToDays(sectorTimeframe))
   const positioning = describeMarketPositioning(market?.indicators.putcall)
-  const sectorWindowLabel = timeframeLabel(sectorTimeframe)
-  const sectorAsOfLabel = sectorHistory?.periodEnd
-    ? `As of ${formatDate(sectorHistory.periodEnd)}`
-    : 'As-of date unavailable'
   const marketUpdatedLabel = formatAsOfTimestamp(market?.lastUpdated)
   const leadingAreas = useMemo(() => {
     const sectors = sectorHistory?.sectors?.slice(0, 3) ?? []
@@ -114,11 +91,6 @@ export function InvestingMarketPanel() {
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">
               Leading Areas
             </p>
-            <p className="mt-2 text-[11px] uppercase tracking-[0.16em] text-text-muted">
-              {MARKET_DATA_HORIZON_LABELS.one_month} default · strongest
-              relative performers over the {sectorWindowLabel} ·{' '}
-              {sectorAsOfLabel}
-            </p>
             <p className="mt-2 text-sm font-medium leading-relaxed text-text">
               {leadingAreas}
             </p>
@@ -126,10 +98,6 @@ export function InvestingMarketPanel() {
           <div className="rounded-2xl border border-border/30 bg-surface-muted/20 px-4 py-4">
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">
               Lagging Areas
-            </p>
-            <p className="mt-2 text-[11px] uppercase tracking-[0.16em] text-text-muted">
-              {MARKET_DATA_HORIZON_LABELS.one_month} default · weakest relative
-              performers over the {sectorWindowLabel} · {sectorAsOfLabel}
             </p>
             <p className="mt-2 text-sm font-medium leading-relaxed text-text">
               {laggingAreas}

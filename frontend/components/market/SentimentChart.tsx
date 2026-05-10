@@ -28,14 +28,9 @@ export interface SentimentChartDataPoint {
 interface SentimentChartProps {
   data: SentimentChartDataPoint[]
   formatXAxis: (date: string) => string
-  tickInterval: number
 }
 
-export function SentimentChart({
-  data,
-  formatXAxis,
-  tickInterval,
-}: SentimentChartProps) {
+export function SentimentChart({ data, formatXAxis }: SentimentChartProps) {
   const id = useId()
   const gradientId = `${id}-sentimentGradient`
   return (
@@ -80,7 +75,8 @@ export function SentimentChart({
           tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }}
           axisLine={{ stroke: 'var(--color-border)' }}
           tickLine={false}
-          interval={tickInterval}
+          interval="preserveStartEnd"
+          minTickGap={36}
         />
         <YAxis
           domain={[0, 100]}
