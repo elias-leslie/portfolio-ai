@@ -1,8 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  decideStrategyLabSymbol,
   fetchStrategyLabDetail,
   fetchStrategyLabList,
   reviewStrategyLabSymbol,
+  type StrategyLabDecisionRequest,
+  type StrategyLabDecisionResponse,
   type StrategyLabDetail,
   type StrategyLabListResponse,
   type StrategyLabReviewError,
@@ -48,6 +51,31 @@ export function useStrategyLabReview(symbol: string | null) {
           refetchType: 'active',
         })
       }
+    },
+  })
+}
+
+export function useStrategyLabDecision(symbol: string | null) {
+  const queryClient = useQueryClient()
+  return useMutation<
+    StrategyLabDecisionResponse,
+    Error,
+    StrategyLabDecisionRequest
+  >({
+    mutationFn: (payload) => decideStrategyLabSymbol(symbol ?? '', payload),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: strategyLabKeys.list(),
+          refetchType: 'active',
+        }),
+        symbol
+          ? queryClient.invalidateQueries({
+              queryKey: strategyLabKeys.detail(symbol),
+              refetchType: 'active',
+            })
+          : Promise.resolve(),
+      ])
     },
   })
 }

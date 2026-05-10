@@ -124,7 +124,7 @@ async def calculate_buy_hold_sharpe(symbol: str, days: int) -> float:
             SELECT close
             FROM day_bars
             WHERE symbol = %s
-              AND date >= CURRENT_DATE - INTERVAL '%s days'
+              AND date >= CURRENT_DATE - (%s * INTERVAL '1 day')
             ORDER BY date
             """,
             (benchmark_symbol, days),

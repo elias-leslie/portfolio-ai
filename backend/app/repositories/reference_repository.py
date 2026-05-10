@@ -322,7 +322,7 @@ class ReferenceRepository:
                     GROUP BY symbol
                 ) rc ON wi.symbol = rc.symbol
                 WHERE rc.symbol IS NULL
-                   OR rc.latest_date < CURRENT_DATE - INTERVAL '%s days'
+                   OR rc.latest_date < CURRENT_DATE - (%s * INTERVAL '1 day')
                 """,
                 [days_threshold],
             )

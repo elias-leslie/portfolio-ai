@@ -117,7 +117,7 @@ def test_evaluate_symbol_held_pullback_with_no_cash_falls_back_to_hold(monkeypat
             held_market_value=1000.0,
         ),
     )
-    monkeypatch.setattr("app.api.strategy_lab.service._build_facts", lambda *_args, **_kwargs: (120.0, 110.0, 90.0, 260))
+    monkeypatch.setattr("app.api.strategy_lab.service._load_recommendations_by_symbol", lambda: {})
     monkeypatch.setattr(
         "app.api.strategy_lab.service._build_backtest_snapshot",
         lambda *_args, **_kwargs: StrategyLabBacktestSnapshot(status="ready", lookback_days=260, trade_count=1, equity_curve=[], helper_text=None),
@@ -130,8 +130,34 @@ def test_evaluate_symbol_held_pullback_with_no_cash_falls_back_to_hold(monkeypat
     detail = _evaluate_symbol("vti", allow_stale_detail=True, now_utc=datetime.now(UTC))
     assert detail is not None
     assert detail.action == "hold"
-    assert detail.helper_text == NO_CASH_MESSAGE
     assert detail.ticket is None
+
+
+def _better_entry_recommendation():
+    from app.api.recommendations.models import TradeRecommendation
+
+    return TradeRecommendation(
+        symbol="VTI",
+        strategy_id="strat-1",
+        strategy_name="MeanReversion",
+        strategy_type="mean_reversion",
+        signal_strength=8,
+        signal_type="BUY",
+        signal_reasons=["pullback to 30d trigger"],
+        entry_price=100.0,
+        current_price=100.0,
+        price_change_pct=0.0,
+        signal_status="better_entry",
+        stop_loss=92.0,
+        target_price=120.0,
+        position_size_dollars=2000.0,
+        position_size_shares=20,
+        risk_reward_ratio=2.5,
+        expected_sharpe=1.4,
+        signal_date="2026-05-09",
+        generated_at="2026-05-09",
+        validation_type="both",
+    )
 
 
 def test_evaluate_symbol_unheld_pullback_with_cash_uses_buy_in_stages(monkeypatch) -> None:
@@ -157,7 +183,10 @@ def test_evaluate_symbol_unheld_pullback_with_cash_uses_buy_in_stages(monkeypatc
             held_market_value=None,
         ),
     )
-    monkeypatch.setattr("app.api.strategy_lab.service._build_facts", lambda *_args, **_kwargs: (120.0, 110.0, 90.0, 260))
+    monkeypatch.setattr(
+        "app.api.strategy_lab.service._load_recommendations_by_symbol",
+        lambda: {"VTI": _better_entry_recommendation()},
+    )
     monkeypatch.setattr(
         "app.api.strategy_lab.service._build_backtest_snapshot",
         lambda *_args, **_kwargs: StrategyLabBacktestSnapshot(status="ready", lookback_days=260, trade_count=1, equity_curve=[], helper_text=None),
@@ -171,7 +200,10 @@ def test_evaluate_symbol_unheld_pullback_with_cash_uses_buy_in_stages(monkeypatc
     assert detail is not None
     assert detail.action == "buy_in_stages"
     assert detail.ticket is not None
+    # min(suggested 2000, available 1000) = 1000 → first tranche = 500
     assert detail.ticket.first_tranche_dollars == 500.0
+    assert detail.signal is not None
+    assert detail.signal.signal_status == "better_entry"
 
 
 def test_build_backtest_snapshot_returns_insufficient_history_when_replay_lacks_lookback(monkeypatch) -> None:

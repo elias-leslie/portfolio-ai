@@ -7,9 +7,18 @@ from fastapi.responses import JSONResponse
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response
 
-from .models import StrategyLabDetailResponse, StrategyLabListResponse
+from .models import (
+    StrategyLabDecisionRequest,
+    StrategyLabDecisionResponse,
+    StrategyLabDetailResponse,
+    StrategyLabListResponse,
+)
 from .review import REVIEW_UNAVAILABLE_MESSAGE, STALE_QUOTE_MESSAGE, run_review
-from .service import get_strategy_lab_detail, list_strategy_lab
+from .service import (
+    get_strategy_lab_detail,
+    list_strategy_lab,
+    record_strategy_lab_decision,
+)
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/strategy-lab", tags=["strategy-lab"])
@@ -50,3 +59,17 @@ async def review_strategy_lab_symbol(symbol: str):
         logger.warning("strategy_lab_review_unavailable", symbol=symbol.upper(), error=str(exc))
         return JSONResponse(status_code=503, content={"status": "unavailable", "message": REVIEW_UNAVAILABLE_MESSAGE})
     return review.model_dump(mode="json")
+
+
+@router.post("/{symbol}/decision", response_model=StrategyLabDecisionResponse)
+async def post_strategy_lab_decision(
+    symbol: str,
+    payload: StrategyLabDecisionRequest,
+) -> StrategyLabDecisionResponse:
+    result = await run_in_threadpool(
+        record_strategy_lab_decision,
+        symbol,
+        payload.action,
+        payload.note,
+    )
+    return StrategyLabDecisionResponse.model_validate(result)

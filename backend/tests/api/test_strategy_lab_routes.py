@@ -80,7 +80,12 @@ def test_strategy_lab_list_route_returns_wrapper(monkeypatch) -> None:
     response = client.get("/api/strategy-lab")
     assert response.status_code == 200
     body = response.json()
-    assert set(body.keys()) == {"items", "total_count", "unavailable_items"}
+    assert set(body.keys()) == {
+        "items",
+        "total_count",
+        "unavailable_items",
+        "discoveries",
+    }
     assert body["total_count"] == 1
     assert body["items"][0]["symbol"] == "VTI"
     assert body["unavailable_items"][0]["symbol"] == "AMZN"

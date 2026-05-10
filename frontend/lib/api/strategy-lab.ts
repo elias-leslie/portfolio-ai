@@ -12,6 +12,68 @@ export type StrategyLabBacktestStatus =
 export type StrategyLabUnavailableReason =
   | 'insufficient_history'
   | 'evaluation_error'
+export type StrategyLabSignalStatus =
+  | 'valid'
+  | 'better_entry'
+  | 'caution'
+  | 'invalidated'
+export type StrategyLabValidation = 'thesis' | 'backtest' | 'both'
+export type StrategyLabDecisionAction =
+  | 'act_now'
+  | 'stage'
+  | 'dismiss'
+  | 'snooze'
+
+export interface StrategyLabRiskFrame {
+  entryPrice: number
+  currentPrice: number
+  priceChangePct: number
+  stopLoss: number
+  targetPrice: number
+  riskRewardRatio: number
+}
+
+export interface StrategyLabSignalSnapshot {
+  strategyId: string
+  strategyName: string
+  strategyType: string
+  signalStrength: number
+  signalStatus: StrategyLabSignalStatus
+  signalReasons: string[]
+  signalDate: string
+  expectedSharpe: number | null
+  validationType: StrategyLabValidation
+  risk: StrategyLabRiskFrame
+  suggestedSizeDollars: number
+  suggestedSizeShares: number
+}
+
+export interface StrategyLabDiscoveryItem {
+  symbol: string
+  strategyName: string
+  strategyType: string
+  signalStrength: number
+  signalStatus: StrategyLabSignalStatus
+  validationType: StrategyLabValidation
+  expectedSharpe: number | null
+  risk: StrategyLabRiskFrame
+  backtestSnapshot?: StrategyLabBacktestSnapshot | null
+}
+
+export interface StrategyLabDecisionRequest {
+  action: StrategyLabDecisionAction
+  note?: string | null
+}
+
+export interface StrategyLabDecisionResponse {
+  symbol: string
+  action: StrategyLabDecisionAction
+  recordedAt: string
+  workflowStage: string | null
+  notificationId: string | null
+  summary: string
+  nextStep: string | null
+}
 
 export interface StrategyLabPrimaryAccountTarget {
   accountId: string
@@ -49,6 +111,7 @@ export interface StrategyLabBacktestSnapshot {
   maxDrawdownPct: number | null
   tradeCount: number
   equityCurve: StrategyLabBacktestPoint[]
+  buyHoldCurve: StrategyLabBacktestPoint[]
   helperText: string | null
 }
 
@@ -64,6 +127,7 @@ export interface StrategyLabBaseEvaluation {
   primaryAccountTarget: StrategyLabPrimaryAccountTarget | null
   updatedAt: string
   helperText: string | null
+  signal: StrategyLabSignalSnapshot | null
 }
 
 export interface StrategyLabListItem extends StrategyLabBaseEvaluation {
@@ -86,6 +150,7 @@ export interface StrategyLabUnavailableItem {
 export interface StrategyLabListResponse {
   items: StrategyLabListItem[]
   unavailableItems: StrategyLabUnavailableItem[]
+  discoveries: StrategyLabDiscoveryItem[]
   totalCount: number
 }
 
@@ -129,5 +194,15 @@ export async function reviewStrategyLabSymbol(
 ): Promise<StrategyLabReviewSuccess | StrategyLabReviewError> {
   return post<StrategyLabReviewSuccess | StrategyLabReviewError>(
     `/api/strategy-lab/${encodeURIComponent(symbol)}/review`,
+  )
+}
+
+export async function decideStrategyLabSymbol(
+  symbol: string,
+  payload: StrategyLabDecisionRequest,
+): Promise<StrategyLabDecisionResponse> {
+  return post<StrategyLabDecisionResponse>(
+    `/api/strategy-lab/${encodeURIComponent(symbol)}/decision`,
+    payload,
   )
 }

@@ -63,8 +63,14 @@ def _latest_price_timestamp(*items: object | None) -> str:
 
 
 def fetch_core_market_data() -> CoreMarketData:
-    """Fetch core market indicators used by multiple endpoints."""
-    price_data = _get_price_fetcher().fetch_cached_price_data(CORE_MARKET_SYMBOLS)
+    """Fetch core market indicators used by multiple endpoints.
+
+    Uses fetch_price_data (cache + on-miss vendor fetch) for the small
+    indicator + sector ETF universe. No background job warms these
+    symbols, so a pure cache read silently goes stale.
+    """
+    fetcher = _get_price_fetcher()
+    price_data = fetcher.fetch_price_data(CORE_MARKET_SYMBOLS)
 
     sp500_data = price_data.get("^GSPC")
     vix_data = price_data.get("^VIX")
@@ -74,7 +80,7 @@ def fetch_core_market_data() -> CoreMarketData:
     current_timestamp = _latest_price_timestamp(sp500_data, vix_data, tnx_data, dxy_data)
 
     sector_symbols = get_sector_symbols()
-    sector_price_data = _get_price_fetcher().fetch_cached_price_data(sector_symbols)
+    sector_price_data = fetcher.fetch_price_data(sector_symbols)
     sector_data = fetch_sector_data_with_changes(get_storage(), sector_symbols, sector_price_data)
 
     return CoreMarketData(

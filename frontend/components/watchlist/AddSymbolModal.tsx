@@ -2,7 +2,7 @@
 
 import { useQueryClient } from '@tanstack/react-query'
 import { AlertCircle } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -23,6 +23,7 @@ interface AddSymbolModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   currentCount?: number
+  initialSymbols?: string
 }
 
 const DEFAULT_MAX_SYMBOLS = 50
@@ -32,12 +33,19 @@ export function AddSymbolModal({
   open,
   onOpenChange,
   currentCount = 0,
+  initialSymbols,
 }: AddSymbolModalProps) {
   const queryClient = useQueryClient()
   const { data: tradingRules } = useTradingRules({ enabled: open })
-  const [input, setInput] = useState('')
+  const [input, setInput] = useState(initialSymbols ?? '')
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState({ current: 0, total: 0 })
+
+  useEffect(() => {
+    if (open) {
+      setInput(initialSymbols ?? '')
+    }
+  }, [open, initialSymbols])
 
   /**
    * Parse input into array of symbols

@@ -9,6 +9,33 @@ ActionLiteral = Literal["buy_now", "buy_in_stages", "hold", "wait"]
 StrategyTemplateLiteral = Literal["pullback_accumulator", "breakout_confirmation"]
 BacktestStatusLiteral = Literal["ready", "insufficient_history", "no_trades", "quote_unavailable"]
 StrategyLabUnavailableReason = Literal["insufficient_history", "evaluation_error"]
+SignalStatusLiteral = Literal["valid", "better_entry", "caution", "invalidated"]
+ValidationLiteral = Literal["thesis", "backtest", "both"]
+DecisionActionLiteral = Literal["act_now", "stage", "dismiss", "snooze"]
+
+
+class StrategyLabRiskFrame(BaseModel):
+    entry_price: float
+    current_price: float
+    price_change_pct: float
+    stop_loss: float
+    target_price: float
+    risk_reward_ratio: float
+
+
+class StrategyLabSignalSnapshot(BaseModel):
+    strategy_id: str
+    strategy_name: str
+    strategy_type: str
+    signal_strength: int = Field(ge=0, le=10)
+    signal_status: SignalStatusLiteral
+    signal_reasons: list[str] = Field(default_factory=list)
+    signal_date: str
+    expected_sharpe: float | None = None
+    validation_type: ValidationLiteral
+    risk: StrategyLabRiskFrame
+    suggested_size_dollars: float
+    suggested_size_shares: int
 
 
 class StrategyLabPrimaryAccountTarget(BaseModel):
@@ -47,6 +74,7 @@ class StrategyLabBacktestSnapshot(BaseModel):
     max_drawdown_pct: float | None = None
     trade_count: int = 0
     equity_curve: list[StrategyLabBacktestPoint] = Field(default_factory=list)
+    buy_hold_curve: list[StrategyLabBacktestPoint] = Field(default_factory=list)
     helper_text: str | None = None
 
 
@@ -62,6 +90,7 @@ class StrategyLabBaseEvaluation(BaseModel):
     primary_account_target: StrategyLabPrimaryAccountTarget | None = None
     updated_at: datetime
     helper_text: str | None = None
+    signal: StrategyLabSignalSnapshot | None = None
 
 
 class StrategyLabListItem(StrategyLabBaseEvaluation):
@@ -84,6 +113,7 @@ class StrategyLabUnavailableItem(BaseModel):
 class StrategyLabListResponse(BaseModel):
     items: list[StrategyLabListItem] = Field(default_factory=list)
     unavailable_items: list[StrategyLabUnavailableItem] = Field(default_factory=list)
+    discoveries: list[StrategyLabDiscoveryItem] = Field(default_factory=list)
     total_count: int = 0
 
 
@@ -108,3 +138,38 @@ class StrategyLabReviewSuccess(BaseModel):
 class StrategyLabReviewError(BaseModel):
     status: Literal["unavailable", "timeout", "stale_quote"]
     message: str
+
+
+class StrategyLabDecisionRequest(BaseModel):
+    action: DecisionActionLiteral
+    note: str | None = None
+
+
+class StrategyLabDecisionResponse(BaseModel):
+    symbol: str
+    action: DecisionActionLiteral
+    recorded_at: datetime
+    workflow_stage: str | None = None
+    notification_id: str | None = None
+    summary: str
+    next_step: str | None = None
+
+
+class StrategyLabDiscoveryItem(BaseModel):
+    """A live recommendation for a symbol the user does not yet track.
+
+    Surfaced in the empty-state path so users can promote validated calls
+    into the Strategy Lab universe with one click. The top-ranked discovery
+    carries a backtest_snapshot so the cold-start hero can show the
+    walk-forward proof curve without an extra round trip.
+    """
+
+    symbol: str
+    strategy_name: str
+    strategy_type: str
+    signal_strength: int
+    signal_status: SignalStatusLiteral
+    validation_type: ValidationLiteral
+    expected_sharpe: float | None = None
+    risk: StrategyLabRiskFrame
+    backtest_snapshot: StrategyLabBacktestSnapshot | None = None

@@ -132,3 +132,53 @@ def _buy_hold_return(symbol: str, start_date: date, end_date: date) -> float | N
     if start <= 0:
         return None
     return round(((end - start) / start) * 100, 2)
+
+
+def _buy_hold_curve(
+    symbol: str,
+    start_date: date,
+    end_date: date,
+    initial_capital: float,
+    target_dates: list[date] | None = None,
+) -> list[StrategyLabBacktestPoint]:
+    """Reuse day_bars to render a buy-and-hold equity curve aligned to strategy points.
+
+    target_dates lets us downsample to the same x-axis as the strategy's equity
+    curve so the frontend can overlay them without resampling.
+    """
+    df = _storage().query(
+        """
+        SELECT date, close
+        FROM day_bars
+        WHERE symbol = ?
+          AND date >= ?
+          AND date <= ?
+        ORDER BY date ASC
+        """,
+        [symbol, start_date.isoformat(), end_date.isoformat()],
+    )
+    if df.is_empty() or len(df) < 2:
+        return []
+    rows = df.to_dicts()
+    start_close = float(rows[0]["close"])
+    if start_close <= 0:
+        return []
+    raw_points: dict[date, float] = {}
+    for row in rows:
+        close = float(row["close"])
+        if close <= 0:
+            continue
+        equity = initial_capital * (close / start_close)
+        raw_points[row["date"]] = round(equity, 2)
+    if target_dates is None:
+        return [
+            StrategyLabBacktestPoint(date=d.isoformat(), equity=raw_points[d])
+            for d in sorted(raw_points)
+        ]
+    points: list[StrategyLabBacktestPoint] = []
+    last_equity = float(initial_capital)
+    for d in target_dates:
+        if d in raw_points:
+            last_equity = raw_points[d]
+        points.append(StrategyLabBacktestPoint(date=d.isoformat(), equity=last_equity))
+    return points

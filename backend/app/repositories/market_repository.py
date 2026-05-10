@@ -47,7 +47,7 @@ class MarketRepository:
                     SUM(article_count) as total_count
                 FROM news_summary_log
                 WHERE symbol = %s
-                  AND window_end >= NOW() - INTERVAL '%s days'
+                  AND window_end >= NOW() - (%s * INTERVAL '1 day')
                 GROUP BY DATE_TRUNC('hour', window_end)
                 ORDER BY period ASC
                 """,
@@ -75,7 +75,7 @@ class MarketRepository:
                     article_count as total_count
                 FROM news_summary_log
                 WHERE symbol = %s
-                  AND window_end >= NOW() - INTERVAL '%s days'
+                  AND window_end >= NOW() - (%s * INTERVAL '1 day')
                 ORDER BY DATE(window_end), window_end DESC
                 """,
                 [MARKET_SYMBOL, days],

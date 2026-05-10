@@ -57,7 +57,7 @@ class StrategyQueries:
                     FROM strategy_definitions sd
                     JOIN strategy_performance sp ON sd.id = sp.strategy_id
                     WHERE sd.status = 'active'
-                      AND sp.date >= CURRENT_DATE - INTERVAL '%s days'
+                      AND sp.date >= CURRENT_DATE - (%s * INTERVAL '1 day')
                     GROUP BY sd.symbol
                     HAVING AVG(sp.sharpe_ratio_30d) < %s
                 )
@@ -108,7 +108,7 @@ class StrategyQueries:
                 FROM strategy_definitions sd
                 JOIN strategy_performance sp ON sd.id = sp.strategy_id
                 WHERE sd.status = 'active'
-                  AND sp.date >= CURRENT_DATE - INTERVAL '%s days'
+                  AND sp.date >= CURRENT_DATE - (%s * INTERVAL '1 day')
                   AND sd.expected_sharpe > 0
                 GROUP BY sd.id, sd.symbol, sd.name, sd.expected_sharpe
                 HAVING AVG(sp.sharpe_ratio_30d) / NULLIF(sd.expected_sharpe, 0) < %s
