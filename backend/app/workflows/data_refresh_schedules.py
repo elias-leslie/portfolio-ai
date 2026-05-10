@@ -44,3 +44,8 @@ TLH_SCAN_CRONS = ["0 13 * * 1-5"]
 # stable. Re-runs are idempotent thanks to the composite PK on
 # ips_drift_history.
 IPS_DRIFT_SNAPSHOT_CRONS = ["0 18 * * *"]
+
+# F4: pre-warm earnings + ex-dividend cache and refresh fomc_meetings
+# every morning before the open so /api/catalysts/upcoming is fast
+# during the trading day.
+CATALYST_PREWARM_CRONS = ["0 6 * * *"]

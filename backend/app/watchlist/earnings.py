@@ -138,3 +138,84 @@ def fetch_earnings_date_cached(
     fresh_data = fetch_earnings_date(symbol)
     _write_cache_row(conn, symbol, fresh_data)
     return fresh_data
+
+
+def _read_cache_row_for(
+    conn: DatabaseConnection, symbol: str, source: str, cache_cutoff: date
+) -> object:
+    """Generic reference_cache reader keyed on ``source``.
+
+    Mirrors :func:`_read_cache_row` but lets callers (ex-div, future
+    catalyst kinds) reuse the same TTL/payload semantics without
+    duplicating the SELECT.
+    """
+    row = conn.execute(
+        "SELECT payload FROM reference_cache"
+        " WHERE symbol = %s AND source = %s AND as_of_date >= %s"
+        " ORDER BY as_of_date DESC LIMIT 1",
+        [symbol, source, cache_cutoff.isoformat()],
+    ).fetchone()
+    if row is None:
+        return _CACHE_MISS
+    payload = row[0]
+    return payload if isinstance(payload, dict) else None
+
+
+def _write_cache_row_for(
+    conn: DatabaseConnection,
+    symbol: str,
+    source: str,
+    payload: dict[str, object],
+) -> None:
+    """Generic reference_cache writer keyed on ``source``."""
+    conn.execute(
+        "INSERT INTO reference_cache (symbol, as_of_date, payload, source)"
+        " VALUES (%s, %s, %s, %s)"
+        " ON CONFLICT (symbol, as_of_date, source) DO UPDATE SET payload = EXCLUDED.payload",
+        [symbol, date.today().isoformat(), json.dumps(payload), source],
+    )
+    conn.commit()
+
+
+def _fetch_ex_dividend_date(symbol: str) -> datetime | None:
+    """Fetch the next ex-dividend date from yfinance, falling back to None."""
+    if not YFINANCE_AVAILABLE:
+        return None
+    try:
+        info = yf.Ticker(symbol).info or {}
+        ts = info.get("exDividendDate")
+        if not ts:
+            return None
+        # yfinance returns a unix timestamp (seconds) for exDividendDate.
+        return datetime.fromtimestamp(int(ts), tz=UTC).replace(tzinfo=None)
+    except Exception as e:
+        logger.debug("yfinance_exdiv_fetch_failed", symbol=symbol, error=str(e))
+    return None
+
+
+def fetch_ex_dividend_date_cached(
+    conn: DatabaseConnection, symbol: str, ttl_days: int = 30
+) -> datetime | None:
+    """Fetch the next ex-dividend date with the same 30-day cache pattern.
+
+    Uses ``source = 'ex_dividend'`` in ``reference_cache`` so it
+    coexists with the existing earnings entries. Returns ``None`` when
+    yfinance has no upcoming dividend for the symbol; the negative
+    answer is cached to avoid repeated lookups.
+    """
+    cache_cutoff = date.today() - timedelta(days=ttl_days)
+    cached = _read_cache_row_for(conn, symbol, "ex_dividend", cache_cutoff)
+    if cached is not _CACHE_MISS:
+        if isinstance(cached, dict):
+            ex_div_str = cached.get("ex_dividend_date")
+            if ex_div_str:
+                return datetime.fromisoformat(ex_div_str)
+        return None
+    fresh = _fetch_ex_dividend_date(symbol)
+    _write_cache_row_for(
+        conn,
+        symbol,
+        "ex_dividend",
+        {"ex_dividend_date": fresh.isoformat() if fresh else None},
+    )
+    return fresh

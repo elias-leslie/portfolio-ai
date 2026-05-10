@@ -10,6 +10,7 @@ import os
 
 from app.hatchet_app import hatchet
 from app.workflows.agents import schedule_new_symbol_wf
+from app.workflows.catalysts import portfolio_catalyst_prewarm_wf
 from app.workflows.data_refresh import (
     backfill_indicators_wf,
     calculate_fear_greed_wf,
@@ -185,6 +186,8 @@ def main() -> None:
             portfolio_tlh_scan_wf,
             # Portfolio IPS drift (1)
             portfolio_drift_snapshot_wf,
+            # Portfolio catalyst calendar (1)
+            portfolio_catalyst_prewarm_wf,
         ],
     )
     worker.handle_kill = False

@@ -28,6 +28,7 @@ from app.api import (
     thesis,
     watchlist,
 )
+from app.api.catalyst_routes import router as catalyst_router
 from app.api.market import router as market_router
 from app.config import settings
 from app.config.cors import build_cors_origins
@@ -139,6 +140,7 @@ app.include_router(home.router)
 app.include_router(intake.router)
 app.include_router(household.router)
 app.include_router(portfolio.router)
+app.include_router(catalyst_router)
 app.include_router(market_router)
 app.include_router(news.router)
 app.include_router(news_profiling.router)
