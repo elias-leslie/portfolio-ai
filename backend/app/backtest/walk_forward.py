@@ -19,7 +19,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal, Protocol
 
 from scipy import stats
 
@@ -28,11 +28,67 @@ from app.backtest.enhanced_strategy import EnhancedSignalStrategy
 from app.backtest.models import BacktestEquity
 from app.backtest.replay import BacktestState, replay_backtest
 from app.backtest.strategies import SignalStrategy
+from app.backtest.strategies_extra import (
+    MeanReversionStrategy,
+    MomentumWithRegimeStrategy,
+    VolatilityBreakoutStrategy,
+)
 from app.constants import TRADING_DAYS_PER_YEAR
 from app.logging_config import get_logger
 from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
+
+
+class _StrategyFactory(Protocol):
+    def __call__(
+        self,
+        *,
+        min_confirmations: int,
+        stop_loss_atr_multiplier: float,
+        max_holding_days: int,
+    ) -> Any: ...
+
+
+def _make_enhanced(
+    *, min_confirmations: int, stop_loss_atr_multiplier: float, max_holding_days: int
+) -> EnhancedSignalStrategy:
+    return EnhancedSignalStrategy(
+        min_confirmations=min_confirmations,
+        stop_loss_atr_multiplier=Decimal(str(stop_loss_atr_multiplier)),
+        max_holding_days=max_holding_days,
+    )
+
+
+def _make_signal_classifier(
+    *, min_confirmations: int, stop_loss_atr_multiplier: float, max_holding_days: int
+) -> SignalStrategy:
+    return SignalStrategy(
+        min_signal_strength=min_confirmations,
+        max_holding_days=max_holding_days,
+        stop_loss_atr_multiplier=Decimal(str(stop_loss_atr_multiplier)),
+    )
+
+
+def _make_mean_reversion(**_: Any) -> MeanReversionStrategy:
+    return MeanReversionStrategy()
+
+
+def _make_vol_breakout(**_: Any) -> VolatilityBreakoutStrategy:
+    return VolatilityBreakoutStrategy()
+
+
+def _make_momentum_regime(**_: Any) -> MomentumWithRegimeStrategy:
+    return MomentumWithRegimeStrategy()
+
+
+STRATEGY_REGISTRY: dict[str, _StrategyFactory] = {
+    "enhanced": _make_enhanced,
+    "signal_classifier": _make_signal_classifier,
+    "mean_reversion": _make_mean_reversion,
+    "vol_breakout": _make_vol_breakout,
+    "momentum_regime": _make_momentum_regime,
+}
 
 
 @dataclass
@@ -193,7 +249,7 @@ class WalkForwardEngine:
         symbol: str,
         start_date: date,
         end_date: date,
-        strategy_type: Literal["signal_classifier", "enhanced"] = "enhanced",
+        strategy_type: str = "enhanced",
         initial_capital: Decimal = Decimal("100000.00"),
         benchmark_symbol: str = "SPY",
         min_confirmations: int = 5,
@@ -206,16 +262,23 @@ class WalkForwardEngine:
             symbol: Stock symbol to backtest
             start_date: Start of historical period
             end_date: End of historical period
-            strategy_type: Strategy to use
+            strategy_type: Registered strategy key (see STRATEGY_REGISTRY)
             initial_capital: Starting capital per fold
             benchmark_symbol: Benchmark for comparison (default SPY)
-            min_confirmations: Min confirmations for entry
-            stop_loss_atr_multiplier: Stop loss ATR multiplier
-            max_holding_days: Max holding period
+            min_confirmations: Min confirmations for entry (legacy strategies only)
+            stop_loss_atr_multiplier: Stop loss ATR multiplier (legacy strategies only)
+            max_holding_days: Max holding period (legacy strategies only)
 
         Returns:
             WalkForwardResult with per-fold and aggregated metrics
         """
+        factory = STRATEGY_REGISTRY.get(strategy_type)
+        if factory is None:
+            raise ValueError(
+                f"unknown strategy_type: {strategy_type!r}; "
+                f"known: {sorted(STRATEGY_REGISTRY.keys())}"
+            )
+
         windows = self.create_windows(start_date, end_date)
 
         if not windows:
@@ -224,7 +287,16 @@ class WalkForwardEngine:
             )
             return self._empty_result()
 
-        logger.info("walk_forward_running", symbol=symbol, folds=len(windows))
+        # Build strategy once per call. Window-independent for all registered
+        # types; MomentumWithRegimeStrategy precomputes regime dates at init
+        # so we keep that out of the per-fold hot path.
+        strategy = factory(
+            min_confirmations=min_confirmations,
+            stop_loss_atr_multiplier=stop_loss_atr_multiplier,
+            max_holding_days=max_holding_days,
+        )
+
+        logger.info("walk_forward_running", symbol=symbol, folds=len(windows), strategy_type=strategy_type)
 
         fold_metrics: list[FoldMetrics] = []
 
@@ -233,12 +305,9 @@ class WalkForwardEngine:
                 metrics = self._run_single_fold(
                     symbol=symbol,
                     window=window,
-                    strategy_type=strategy_type,
+                    strategy=strategy,
                     initial_capital=initial_capital,
                     benchmark_symbol=benchmark_symbol,
-                    min_confirmations=min_confirmations,
-                    stop_loss_atr_multiplier=stop_loss_atr_multiplier,
-                    max_holding_days=max_holding_days,
                 )
                 fold_metrics.append(metrics)
             except Exception as e:
@@ -255,32 +324,15 @@ class WalkForwardEngine:
         self,
         symbol: str,
         window: WalkForwardWindow,
-        strategy_type: str,
+        strategy: Any,
         initial_capital: Decimal,
         benchmark_symbol: str,
-        min_confirmations: int,
-        stop_loss_atr_multiplier: float,
-        max_holding_days: int,
     ) -> FoldMetrics:
         """Run backtest for a single fold on TEST period only.
 
         Training/validation periods are used for parameter fitting (future work).
         Currently we run the backtest on test period with fixed parameters.
         """
-        # Create strategy
-        if strategy_type == "enhanced":
-            strategy: SignalStrategy | EnhancedSignalStrategy = EnhancedSignalStrategy(
-                min_confirmations=min_confirmations,
-                stop_loss_atr_multiplier=Decimal(str(stop_loss_atr_multiplier)),
-                max_holding_days=max_holding_days,
-            )
-        else:
-            strategy = SignalStrategy(
-                min_signal_strength=min_confirmations,
-                max_holding_days=max_holding_days,
-                stop_loss_atr_multiplier=Decimal(str(stop_loss_atr_multiplier)),
-            )
-
         # Run backtest on TEST period
         run_id = f"wf-{window.fold_number}-{uuid.uuid4().hex[:8]}"
         state = replay_backtest(

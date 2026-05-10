@@ -28,7 +28,12 @@ logger = get_logger(__name__)
 DEFAULT_BACKTEST_YEARS = 6
 MIN_TRADES_FOR_RANKING = 10
 MIN_FOLDS_FOR_RANKING = 3
-DEFAULT_STRATEGY_TYPE = "enhanced"
+DEFAULT_STRATEGY_TYPES = [
+    "enhanced",
+    "mean_reversion",
+    "vol_breakout",
+    "momentum_regime",
+]
 
 
 def compute_edge_score(result: WalkForwardResult) -> float | None:
@@ -181,7 +186,7 @@ def screen_universe(
     *,
     symbols: list[str] | None = None,
     years: int = DEFAULT_BACKTEST_YEARS,
-    strategy_type: str = DEFAULT_STRATEGY_TYPE,
+    strategy_types: list[str] | None = None,
     benchmark_symbol: str = "SPY",
     limit: int | None = None,
 ) -> dict[str, Any]:
@@ -191,19 +196,26 @@ def screen_universe(
         symbols: Override the default universe (mainly for tests / one-shot
             screens of a small list).
         years: Backtest history window in years.
-        strategy_type: WalkForwardEngine strategy_type ('enhanced' or
-            'signal_classifier').
+        strategy_types: WalkForwardEngine strategy keys to sweep. Defaults to
+            DEFAULT_STRATEGY_TYPES (all currently registered strategies).
         benchmark_symbol: Symbol used for buy-and-hold comparison.
         limit: Cap symbols processed per call (None = all). Useful when
             partitioning across worker invocations.
 
     Returns:
-        Summary dict with counts, errors, and the run_date used.
+        Summary dict with counts, errors, the run_date used, and per-strategy
+        processed counts.
     """
     task_id = str(uuid.uuid4())
     started_at = dt.datetime.now(dt.UTC)
     run_date = started_at.date()
-    logger.info("screen_universe_started", task_id=task_id, run_date=str(run_date))
+    target_strategies = strategy_types if strategy_types else list(DEFAULT_STRATEGY_TYPES)
+    logger.info(
+        "screen_universe_started",
+        task_id=task_id,
+        run_date=str(run_date),
+        strategy_types=target_strategies,
+    )
 
     conn_mgr = get_connection_manager()
     engine = WalkForwardEngine()
@@ -217,6 +229,7 @@ def screen_universe(
     skipped_no_history = 0
     failed = 0
     errors: list[dict[str, str]] = []
+    processed_by_strategy: dict[str, int] = dict.fromkeys(target_strategies, 0)
 
     for symbol in target_symbols:
         with conn_mgr.connection() as conn:
@@ -226,54 +239,68 @@ def screen_universe(
                 continue
             start_date, end_date = window
 
-            try:
-                result = engine.run_walk_forward(
-                    symbol=symbol,
-                    start_date=start_date,
-                    end_date=end_date,
-                    strategy_type=strategy_type,
-                    benchmark_symbol=benchmark_symbol,
-                )
-            except Exception as exc:  # individual symbol failure shouldn't kill the sweep
-                failed += 1
-                errors.append({"symbol": symbol, "error": str(exc)[:240]})
-                logger.warning(
-                    "screen_universe_symbol_failed",
-                    task_id=task_id,
-                    symbol=symbol,
-                    error=str(exc),
-                )
-                continue
+            for strategy_type in target_strategies:
+                try:
+                    result = engine.run_walk_forward(
+                        symbol=symbol,
+                        start_date=start_date,
+                        end_date=end_date,
+                        strategy_type=strategy_type,
+                        benchmark_symbol=benchmark_symbol,
+                    )
+                except Exception as exc:  # individual (symbol, strategy) failure shouldn't kill the sweep
+                    failed += 1
+                    errors.append(
+                        {"symbol": symbol, "strategy_type": strategy_type, "error": str(exc)[:240]}
+                    )
+                    logger.warning(
+                        "screen_universe_symbol_failed",
+                        task_id=task_id,
+                        symbol=symbol,
+                        strategy_type=strategy_type,
+                        error=str(exc),
+                    )
+                    continue
 
-            edge_score = compute_edge_score(result)
-            try:
-                _upsert_screening_row(
-                    conn,
-                    symbol=symbol,
-                    strategy_type=strategy_type,
-                    run_date=run_date,
-                    backtest_start=start_date,
-                    backtest_end=end_date,
-                    result=result,
-                    edge_score=edge_score,
-                )
-                conn.commit()
-                processed += 1
-            except Exception as exc:
-                failed += 1
-                errors.append({"symbol": symbol, "error": f"persist: {exc}"[:240]})
-                logger.exception(
-                    "screen_universe_persist_failed",
-                    task_id=task_id,
-                    symbol=symbol,
-                )
+                edge_score = compute_edge_score(result)
+                try:
+                    _upsert_screening_row(
+                        conn,
+                        symbol=symbol,
+                        strategy_type=strategy_type,
+                        run_date=run_date,
+                        backtest_start=start_date,
+                        backtest_end=end_date,
+                        result=result,
+                        edge_score=edge_score,
+                    )
+                    conn.commit()
+                    processed += 1
+                    processed_by_strategy[strategy_type] = processed_by_strategy.get(strategy_type, 0) + 1
+                except Exception as exc:
+                    failed += 1
+                    errors.append(
+                        {
+                            "symbol": symbol,
+                            "strategy_type": strategy_type,
+                            "error": f"persist: {exc}"[:240],
+                        }
+                    )
+                    logger.exception(
+                        "screen_universe_persist_failed",
+                        task_id=task_id,
+                        symbol=symbol,
+                        strategy_type=strategy_type,
+                    )
 
     duration = (dt.datetime.now(dt.UTC) - started_at).total_seconds()
     summary = {
         "task_id": task_id,
         "status": "completed",
         "run_date": run_date.isoformat(),
+        "strategy_types": target_strategies,
         "processed": processed,
+        "processed_by_strategy": processed_by_strategy,
         "skipped_no_history": skipped_no_history,
         "failed": failed,
         "duration_seconds": duration,
@@ -283,6 +310,7 @@ def screen_universe(
         "screen_universe_completed",
         task_id=task_id,
         processed=processed,
+        processed_by_strategy=processed_by_strategy,
         skipped_no_history=skipped_no_history,
         failed=failed,
         duration_seconds=duration,
