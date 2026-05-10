@@ -23,8 +23,6 @@ from app.api import (
     preferences,
     recommendations,
     rules,
-    strategy_catalog,
-    strategy_lab,
     symbols,
     thesis,
     watchlist,
@@ -151,8 +149,6 @@ app.include_router(preferences.router)
 app.include_router(watchlist.router, prefix="/api/watchlist")
 app.include_router(recommendations.router)
 app.include_router(rules.router)
-app.include_router(strategy_catalog.router.router)
-app.include_router(strategy_lab.router)
 app.include_router(symbols.router)
 app.include_router(thesis.router)
 

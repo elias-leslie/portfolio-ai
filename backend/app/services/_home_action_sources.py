@@ -7,18 +7,6 @@ from collections.abc import Iterable
 from app.api.portfolio.analytics_routes import get_analytics_payload
 from app.api.recommendations.logic import DEFAULT_POSITION_PCT
 from app.api.recommendations.queries import fetch_recommendations
-from app.api.strategy_lab.service import (
-    _eligible_accounts as _strategy_lab_eligible_accounts,
-)
-from app.api.strategy_lab.service import (
-    _eligible_positions as _strategy_lab_eligible_positions,
-)
-from app.api.strategy_lab.service import (
-    _held_positions_by_symbol as _strategy_lab_held_by_symbol,
-)
-from app.api.strategy_lab.service import (
-    _watchlist_membership as _strategy_lab_watchlist_membership,
-)
 from app.api.symbols.builders import build_portfolio_section
 from app.api.symbols.data_fetchers import get_portfolio_data
 from app.api.symbols.decisions import build_symbol_decision
@@ -195,24 +183,6 @@ def build_portfolio_health_actions() -> list[dict[str, object]]:
     return []
 
 
-def _strategy_lab_universe() -> set[str]:
-    """Symbols Strategy Lab can render (watchlist + held).
-
-    Used to route Today actions into Strategy Lab when there's full account
-    context, and to /symbols otherwise. No new tables — both pieces are just
-    references to existing watchlist + portfolio state.
-    """
-    try:
-        accounts = _strategy_lab_eligible_accounts()
-        positions = _strategy_lab_eligible_positions(accounts)
-        held = set(_strategy_lab_held_by_symbol(positions).keys())
-        watchlist = set(_strategy_lab_watchlist_membership().keys())
-        return {s.upper() for s in watchlist} | {s.upper() for s in held}
-    except Exception as exc:
-        logger.warning("home_action_strategy_lab_universe_failed", error=str(exc))
-        return set()
-
-
 def build_recommendation_actions(storage: object) -> list[dict[str, object]]:
     try:
         portfolio_size = get_effective_portfolio_totals(
@@ -231,11 +201,8 @@ def build_recommendation_actions(storage: object) -> list[dict[str, object]]:
         logger.warning("home_action_recommendations_failed", error=str(exc))
         return []
 
-    strategy_lab_universe = _strategy_lab_universe()
     actions: list[dict[str, object]] = []
     for recommendation in recommendations:
-        symbol_key = recommendation.symbol.upper()
-        in_strategy_lab = symbol_key in strategy_lab_universe
         decision = build_symbol_decision(
             symbol=recommendation.symbol,
             recommendation={
@@ -245,17 +212,6 @@ def build_recommendation_actions(storage: object) -> list[dict[str, object]]:
             generated_at=recommendation.generated_at or recommendation.signal_date,
         ).model_dump(mode="json")
         confidence_badge = "High" if recommendation.validation_type == "both" else "Medium"
-        href = (
-            f"/strategy-lab?symbol={recommendation.symbol}"
-            if in_strategy_lab
-            else f"/symbols/{recommendation.symbol}?tab=decision"
-        )
-        action_label = "Open Strategy Lab" if in_strategy_lab else "Open decision"
-        detail_suffix = (
-            " Strategy Lab has the account-aware ticket."
-            if in_strategy_lab
-            else ""
-        )
         actions.append(
             {
                 "id": f"recommendation-{recommendation.symbol}-{recommendation.strategy_id}",
@@ -266,17 +222,16 @@ def build_recommendation_actions(storage: object) -> list[dict[str, object]]:
                 "detail": (
                     f"{decision['summary']} "
                     f"Suggested size ${recommendation.position_size_dollars:,.0f}."
-                    f"{detail_suffix}"
                 ),
-                "action_label": action_label,
-                "href": href,
+                "action_label": "Open decision",
+                "href": f"/symbols/{recommendation.symbol}?tab=decision",
                 "symbol": recommendation.symbol,
                 "badge": confidence_badge,
                 "decision": decision,
                 "execution": {
                     "kind": "workflow_transition",
                     "symbol": recommendation.symbol,
-                    "stage": "tracked" if in_strategy_lab else "thesis_ready",
+                    "stage": "thesis_ready",
                 },
                 "_rank_score": action_rank_score(
                     "high",
