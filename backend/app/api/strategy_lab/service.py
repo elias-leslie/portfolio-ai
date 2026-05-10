@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
-from decimal import ROUND_DOWN, Decimal
-from functools import lru_cache
-from importlib import import_module
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -16,11 +12,38 @@ from app.api.portfolio.__init__ import (
 from app.backtest.replay import InsufficientDataError, replay_backtest
 from app.logging_config import get_logger
 from app.portfolio.account_types import ACCOUNT_TYPES, is_paper
-from app.utils.market_hours import NY_TZ, get_last_trading_day, is_market_hours
-from app.watchlist.watchlist_repository import WatchlistRepository
 
+from ._backtest import (
+    _backtest_insufficient_history,
+    _backtest_quote_unavailable,
+    _build_signal_dates,
+    _buy_hold_return,
+    _sample_equity_curve,
+    _unavailable_from_error,
+    _unavailable_from_snapshot,
+)
+from ._facts import (
+    _completed_day,
+    _fetch_day_bars,
+    _float_or_none,
+    _floor_dollars,
+    _rolling_high,
+    _round_money,
+    _storage,
+    _watchlist_repo,
+)
+from ._quotes import QuoteInfo, _resolve_quote
+from ._text import (
+    INSUFFICIENT_HISTORY_TEXT,
+    NO_TRADES_TEXT,
+    STALE_HELPER_TEXT,
+    STALE_WATCH_ITEM,
+    STALE_WHY_BULLETS,
+    _healthy_why_bullets,
+    _stale_template,
+    _watch_item,
+)
 from .models import (
-    StrategyLabBacktestPoint,
     StrategyLabBacktestSnapshot,
     StrategyLabDetailResponse,
     StrategyLabListItem,
@@ -42,57 +65,9 @@ from .review import REVIEW_UNAVAILABLE_MESSAGE, STALE_QUOTE_MESSAGE, get_review_
 logger = get_logger(__name__)
 
 NO_CASH_MESSAGE = "Not enough cash for a first buy right now."
-STALE_HELPER_TEXT = "Quote is stale. Refresh market data before acting."
-INSUFFICIENT_HISTORY_TEXT = "Not enough daily history to judge this strategy yet."
-NO_TRADES_TEXT = "This strategy produced no trades over the test window."
-STALE_WHY_BULLETS = [
-    "Quote is stale.",
-    "Refresh market data before acting.",
-    "Strategy details are unavailable until fresh pricing returns.",
-]
-STALE_WATCH_ITEM = "Refresh and re-check this symbol during market hours."
 
 _ALLOWED_ACCOUNT_TYPES = {value.lower(): value for value in ACCOUNT_TYPES}
 _ACCOUNT_PRIORITY = {"Roth": 0, "IRA": 1, "HSA": 2, "Taxable": 3, "401k": 4}
-
-
-@dataclass(slots=True)
-class QuoteInfo:
-    price: float | None
-    updated_at: datetime | None
-    is_fresh: bool
-    tracked: bool
-    is_held_symbol: bool
-
-
-@dataclass(slots=True)
-class DecisionContext:
-    symbol: str
-    held: bool
-    primary_account_target: StrategyLabPrimaryAccountTarget | None
-    action: str
-    strategy_template: str
-    helper_text: str | None
-    quote_price: float | None
-    stale: bool
-    rolling_30_high: float | None
-    sma_50: float | None
-    sma_200: float | None
-
-
-@lru_cache(maxsize=1)
-def _storage():
-    return import_module("app.storage").get_storage()
-
-
-@lru_cache(maxsize=1)
-def _watchlist_repo() -> WatchlistRepository:
-    return WatchlistRepository(_storage())
-
-
-@lru_cache(maxsize=1)
-def _price_fetcher():
-    return import_module("app.portfolio.price_fetcher").PriceDataFetcher(_storage())
 
 
 def _normalize_account_type(raw: Any) -> str | None:
@@ -132,30 +107,6 @@ def _watchlist_membership() -> dict[str, str]:
     if df.is_empty():
         return {}
     return {str(row["symbol"]).upper(): str(row["id"]) for row in df.to_dicts()}
-
-
-def _normalize_timestamp(value: datetime | None) -> datetime | None:
-    if value is None:
-        return None
-    if value.tzinfo is None:
-        return value.replace(tzinfo=UTC)
-    return value.astimezone(UTC)
-
-
-def _quote_local_date(value: datetime) -> date:
-    return value.astimezone(NY_TZ).date()
-
-
-def _is_fresh_timestamp(value: datetime | None, *, now_utc: datetime) -> bool:
-    if value is None:
-        return False
-    normalized = _normalize_timestamp(value)
-    if normalized is None:
-        return False
-    if is_market_hours(now_utc):
-        return (now_utc - normalized) <= timedelta(minutes=30)
-    completed_day = get_last_trading_day(now_utc.astimezone(NY_TZ).date())
-    return _quote_local_date(normalized) == completed_day
 
 
 def _held_positions_by_symbol(positions: list[Any]) -> dict[str, list[Any]]:
@@ -222,85 +173,6 @@ def _select_primary_account_target(
     return candidates[0][3]
 
 
-def _latest_watchlist_quote(symbol: str, item_id: str, *, now_utc: datetime) -> QuoteInfo:
-    df = _watchlist_repo().get_latest_snapshot_for_review(item_id)
-    if df.is_empty():
-        return QuoteInfo(price=None, updated_at=None, is_fresh=False, tracked=True, is_held_symbol=False)
-    row = df.to_dicts()[0]
-    fetched_at = row.get("fetched_at")
-    updated_at = _normalize_timestamp(fetched_at)
-    return QuoteInfo(
-        price=float(row.get("price")) if row.get("price") is not None else None,
-        updated_at=updated_at,
-        is_fresh=_is_fresh_timestamp(updated_at, now_utc=now_utc),
-        tracked=True,
-        is_held_symbol=False,
-    )
-
-
-def _held_quote(symbol: str, *, now_utc: datetime) -> QuoteInfo:
-    price_data = _price_fetcher().fetch_cached_price_data([symbol])
-    info = price_data.get(symbol)
-    updated_at = _normalize_timestamp(getattr(info, "cached_at", None) if info is not None else None)
-    price = float(getattr(info, "price", None)) if info is not None and getattr(info, "price", None) is not None else None
-    return QuoteInfo(
-        price=price,
-        updated_at=updated_at,
-        is_fresh=_is_fresh_timestamp(updated_at, now_utc=now_utc),
-        tracked=True,
-        is_held_symbol=True,
-    )
-
-
-def _resolve_quote(
-    symbol: str,
-    watchlist_map: dict[str, str],
-    positions_by_symbol: dict[str, list[Any]],
-    *,
-    now_utc: datetime,
-) -> QuoteInfo:
-    held = symbol in positions_by_symbol and sum(float(getattr(p, "shares", 0.0) or 0.0) for p in positions_by_symbol[symbol]) > 0.01
-    if held:
-        return _held_quote(symbol, now_utc=now_utc)
-    item_id = watchlist_map.get(symbol)
-    if item_id is None:
-        return QuoteInfo(price=None, updated_at=None, is_fresh=False, tracked=False, is_held_symbol=False)
-    return _latest_watchlist_quote(symbol, item_id, now_utc=now_utc)
-
-
-def _completed_day(now_utc: datetime) -> date:
-    return get_last_trading_day(now_utc.astimezone(NY_TZ).date())
-
-
-def _fetch_day_bars(symbol: str, end_date: date, limit: int = 1500) -> list[dict[str, Any]]:
-    df = _storage().query(
-        """
-        SELECT date, close
-        FROM day_bars
-        WHERE symbol = ?
-          AND date <= ?
-        ORDER BY date DESC
-        LIMIT ?
-        """,
-        [symbol, end_date.isoformat(), limit],
-    )
-    rows = df.to_dicts()
-    rows.reverse()
-    return rows
-
-
-def _float_or_none(values: list[float], needed: int) -> float | None:
-    if len(values) < needed:
-        return None
-    return float(sum(values[-needed:]) / needed)
-
-
-def _rolling_high(values: list[float], needed: int) -> float | None:
-    if len(values) < needed:
-        return None
-    return float(max(values[-needed:]))
-
-
 def _build_facts(symbol: str, quote_price: float | None, now_utc: datetime) -> tuple[float | None, float | None, float | None, int]:
     rows = _fetch_day_bars(symbol, _completed_day(now_utc), limit=260)
     closes = [float(row["close"]) for row in rows if row.get("close") is not None]
@@ -310,18 +182,6 @@ def _build_facts(symbol: str, quote_price: float | None, now_utc: datetime) -> t
         _float_or_none(closes, 200),
         len(closes),
     )
-
-
-def _round_money(value: float | None) -> float | None:
-    if value is None:
-        return None
-    return round(float(value), 2)
-
-
-def _floor_dollars(value: float | None) -> float:
-    if value is None or value <= 0:
-        return 0.0
-    return float(Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_DOWN))
 
 
 def _ticket(
@@ -352,168 +212,6 @@ def _ticket(
         ),
         None,
     )
-
-
-def _healthy_why_bullets(action: str, held: bool, account: StrategyLabPrimaryAccountTarget | None, pullback: bool, breakout: bool, sma_200: float | None) -> list[str]:
-    if pullback:
-        price = "Price setup: pullback trigger is active."
-    elif breakout and not held:
-        price = "Price setup: breakout trigger is active."
-    else:
-        price = "Price setup: no entry trigger is active."
-
-    if sma_200 is None:
-        market = "Market context: unavailable."
-    elif pullback:
-        market = "Market context: price is still above the 200-day trend."
-    elif breakout and not held:
-        market = "Market context: price is above the 50-day and 200-day trend filters."
-    else:
-        market = "Market context: trend filters are not confirming a new entry."
-
-    if account is None:
-        account_text = "Account context: unavailable."
-    elif held:
-        account_text = f"Account context: already held in {account.account_name}."
-    elif action in {"buy_now", "buy_in_stages"}:
-        account_text = f"Account context: {account.account_name} is the current target account."
-    else:
-        account_text = "Account context: unavailable."
-
-    return [price, market, account_text]
-
-
-def _watch_item(action: str, held: bool, pullback: bool, breakout: bool) -> str:
-    if pullback and action == "buy_in_stages":
-        return "Watch: if the pullback deepens, reassess the next staged buy."
-    if breakout and action == "buy_now":
-        return "Watch: if the breakout fails, stand aside and reassess."
-    if held:
-        return "Watch: wait for the pullback trigger to reactivate."
-    return "Watch: wait for a qualifying pullback or breakout."
-
-
-def _stale_template(held: bool) -> str:
-    return "pullback_accumulator" if held else "breakout_confirmation"
-
-
-def _backtest_quote_unavailable() -> StrategyLabBacktestSnapshot:
-    return StrategyLabBacktestSnapshot(
-        status="quote_unavailable",
-        lookback_days=None,
-        total_return_pct=None,
-        buy_hold_return_pct=None,
-        excess_return_pct=None,
-        max_drawdown_pct=None,
-        trade_count=0,
-        equity_curve=[],
-        helper_text=STALE_HELPER_TEXT,
-    )
-
-
-def _backtest_insufficient_history(
-    *,
-    lookback_days: int | None,
-    error: InsufficientDataError | None = None,
-) -> StrategyLabBacktestSnapshot:
-    return StrategyLabBacktestSnapshot(
-        status="insufficient_history",
-        lookback_days=lookback_days,
-        requested_start_date=error.requested_start.isoformat() if error else None,
-        requested_end_date=error.requested_end.isoformat() if error else None,
-        available_start_date=error.available_start.isoformat() if error and error.available_start else None,
-        available_end_date=error.available_end.isoformat() if error and error.available_end else None,
-        trade_count=0,
-        equity_curve=[],
-        helper_text=INSUFFICIENT_HISTORY_TEXT,
-    )
-
-
-def _unavailable_from_snapshot(symbol: str, snapshot: StrategyLabBacktestSnapshot) -> StrategyLabUnavailableItem:
-    return StrategyLabUnavailableItem(
-        symbol=symbol,
-        reason="insufficient_history",
-        message=snapshot.helper_text or INSUFFICIENT_HISTORY_TEXT,
-        requested_start_date=snapshot.requested_start_date,
-        requested_end_date=snapshot.requested_end_date,
-        available_start_date=snapshot.available_start_date,
-        available_end_date=snapshot.available_end_date,
-        lookback_days=snapshot.lookback_days,
-    )
-
-
-def _unavailable_from_error(symbol: str, error: Exception) -> StrategyLabUnavailableItem:
-    if isinstance(error, InsufficientDataError):
-        return StrategyLabUnavailableItem(
-            symbol=symbol,
-            reason="insufficient_history",
-            message=INSUFFICIENT_HISTORY_TEXT,
-            requested_start_date=error.requested_start.isoformat(),
-            requested_end_date=error.requested_end.isoformat(),
-            available_start_date=error.available_start.isoformat() if error.available_start else None,
-            available_end_date=error.available_end.isoformat() if error.available_end else None,
-            lookback_days=None,
-        )
-    return StrategyLabUnavailableItem(
-        symbol=symbol,
-        reason="evaluation_error",
-        message="Strategy Lab could not evaluate this symbol right now.",
-    )
-
-
-def _sample_equity_curve(points: list[Any]) -> list[StrategyLabBacktestPoint]:
-    if len(points) <= 200:
-        selected = points
-    else:
-        step = (len(points) - 1) / 199
-        indexes = sorted({round(i * step) for i in range(200)})
-        selected = [points[i] for i in indexes]
-    return [
-        StrategyLabBacktestPoint(date=point.date.isoformat(), equity=round(float(point.equity), 2))
-        for point in selected
-    ]
-
-
-def _build_signal_dates(symbol: str, template: str, end_date: date) -> tuple[set[date], int]:
-    rows = _fetch_day_bars(symbol, end_date, limit=1500)
-    closes = [float(row["close"]) for row in rows if row.get("close") is not None]
-    if len(closes) < 252:
-        return set(), len(closes)
-    signal_dates: set[date] = set()
-    for idx, row in enumerate(rows):
-        current_price = float(row["close"])
-        prefix = closes[: idx + 1]
-        rolling_30 = _rolling_high(prefix, 30)
-        sma_50 = _float_or_none(prefix, 50)
-        sma_200 = _float_or_none(prefix, 200)
-        if template == "pullback_accumulator":
-            if compute_pullback_signal(current_price, rolling_30, sma_200):
-                signal_dates.add(row["date"])
-        elif compute_breakout_signal(current_price, rolling_30, sma_50, sma_200):
-            signal_dates.add(row["date"])
-    return signal_dates, len(closes)
-
-
-def _buy_hold_return(symbol: str, start_date: date, end_date: date) -> float | None:
-    df = _storage().query(
-        """
-        SELECT date, close
-        FROM day_bars
-        WHERE symbol = ?
-          AND date >= ?
-          AND date <= ?
-        ORDER BY date ASC
-        """,
-        [symbol, start_date.isoformat(), end_date.isoformat()],
-    )
-    if df.is_empty() or len(df) < 2:
-        return None
-    rows = df.to_dicts()
-    start = float(rows[0]["close"])
-    end = float(rows[-1]["close"])
-    if start <= 0:
-        return None
-    return round(((end - start) / start) * 100, 2)
 
 
 def _build_backtest_snapshot(symbol: str, template: str, *, now_utc: datetime) -> StrategyLabBacktestSnapshot:
@@ -701,3 +399,27 @@ def get_strategy_lab_detail(symbol: str) -> StrategyLabDetailResponse:
     if detail is None:
         raise HTTPException(status_code=404, detail="Strategy Lab symbol not found")
     return detail
+
+
+__all__ = [
+    "INSUFFICIENT_HISTORY_TEXT",
+    "NO_CASH_MESSAGE",
+    "STALE_HELPER_TEXT",
+    "STALE_WATCH_ITEM",
+    "STALE_WHY_BULLETS",
+    "QuoteInfo",
+    "_build_backtest_snapshot",
+    "_build_facts",
+    "_eligible_accounts",
+    "_eligible_positions",
+    "_evaluate_symbol",
+    "_held_positions_by_symbol",
+    "_normalize_account_type",
+    "_resolve_quote",
+    "_round_money",
+    "_select_primary_account_target",
+    "_ticket",
+    "_watchlist_membership",
+    "get_strategy_lab_detail",
+    "list_strategy_lab",
+]
