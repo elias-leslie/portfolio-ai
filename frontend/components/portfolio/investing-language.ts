@@ -67,11 +67,11 @@ export function describePortfolioHealth(
     diversificationScore >= 75 &&
     topHoldingPct < 20
   ) {
+    const symbolCount = analytics.numSymbols
+    const sectorCount = analytics.diversificationScore?.numSectors ?? 0
     return {
       label: 'Well spread',
-      detail: `${analytics.numSymbols} symbols across ${
-        analytics.diversificationScore?.numSectors ?? 0
-      } sectors.`,
+      detail: `${symbolCount} symbol${symbolCount === 1 ? '' : 's'} across ${sectorCount} sector${sectorCount === 1 ? '' : 's'}.`,
       tone: 'gain',
     }
   }
