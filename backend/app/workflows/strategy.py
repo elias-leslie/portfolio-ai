@@ -101,23 +101,3 @@ async def weekly_optimization_wf(input: EmptyInput, ctx: Context) -> dict[str, A
     return await asyncio.to_thread(weekly_optimization_review)
 
 
-@hatchet.task(
-    name="portfolio-research-universe-refresh",
-    input_validator=EmptyInput,
-    execution_timeout="1800s",
-    retries=1,
-    on_crons=["0 6 * * 0"],
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-research-universe-refresh'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
-)
-async def research_universe_refresh_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    """Sunday 06:00 UTC: pull current S&P 500 from iShares IVV, diff against
-    research_universe_symbols, INSERT new arrivals (and backfill their OHLCV
-    history), UPDATE removed_at on departures, bump last_seen_at on continuing.
-    """
-    from ..tasks.ingestion.research_universe import refresh_research_universe
-
-    return await asyncio.to_thread(refresh_research_universe, backfill_new_symbols=True)

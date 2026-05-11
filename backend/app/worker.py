@@ -73,7 +73,6 @@ from app.workflows.reference import (
 from app.workflows.strategy import (
     covariance_wf,
     portfolio_snapshots_wf,
-    research_universe_refresh_wf,
     rules_validation_wf,
     weekly_optimization_wf,
 )
@@ -134,12 +133,11 @@ def main() -> None:
             corporate_actions_wf,
             refresh_sec_cik_wf,
             retrain_ml_wf,
-            # Portfolio + universe maintenance (5)
+            # Portfolio maintenance (4)
             portfolio_snapshots_wf,
             covariance_wf,
             rules_validation_wf,
             weekly_optimization_wf,
-            research_universe_refresh_wf,
             # Watchlist (5)
             refresh_watchlist_scores_wf,
             refresh_single_symbol_wf,
