@@ -21,6 +21,16 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
     mutateAsync: uploadMutateAsync,
     isPending: false,
   }),
+  useUploadHouseholdDocuments: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useDeleteHouseholdDocument: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
   useCreateHouseholdTrackedAccount: () => ({
     mutateAsync: createMutateAsync,
     isPending: false,

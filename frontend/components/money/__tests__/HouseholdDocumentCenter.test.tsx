@@ -7,6 +7,10 @@ import { HouseholdDocumentCenter } from '../HouseholdDocumentCenter'
 
 const mutate = vi.fn()
 const mutateAsync = vi.fn()
+const batchMutate = vi.fn()
+const batchMutateAsync = vi.fn()
+const deleteMutate = vi.fn()
+const deleteMutateAsync = vi.fn()
 const useUploadHouseholdDocumentMock = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
@@ -16,12 +20,26 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
       mutateAsync,
       isPending: false,
     },
+  useUploadHouseholdDocuments: () => ({
+    mutate: batchMutate,
+    mutateAsync: batchMutateAsync,
+    isPending: false,
+  }),
+  useDeleteHouseholdDocument: () => ({
+    mutate: deleteMutate,
+    mutateAsync: deleteMutateAsync,
+    isPending: false,
+  }),
 }))
 
 describe('HouseholdDocumentCenter', () => {
   beforeEach(() => {
     mutate.mockReset()
     mutateAsync.mockReset()
+    batchMutate.mockReset()
+    batchMutateAsync.mockReset()
+    deleteMutate.mockReset()
+    deleteMutateAsync.mockReset()
     useUploadHouseholdDocumentMock.mockReset()
   })
 
@@ -80,8 +98,8 @@ describe('HouseholdDocumentCenter', () => {
     })
   })
 
-  it('stages multiple selected files and uploads them together', async () => {
-    mutateAsync.mockResolvedValue(undefined)
+  it('stages multiple selected files and uploads them together via the batch path', async () => {
+    batchMutateAsync.mockResolvedValue([])
     render(<HouseholdDocumentCenter documents={[]} />)
 
     const january = new File(['jan'], 'january.pdf', {
@@ -106,16 +124,15 @@ describe('HouseholdDocumentCenter', () => {
     fireEvent.click(screen.getByRole('button', { name: /upload files/i }))
 
     await waitFor(() => {
-      expect(mutateAsync).toHaveBeenCalledTimes(2)
-      expect(mutateAsync).toHaveBeenNthCalledWith(
-        1,
-        expect.objectContaining({ file: january }),
-      )
-      expect(mutateAsync).toHaveBeenNthCalledWith(
-        2,
-        expect.objectContaining({ file: february }),
-      )
+      expect(batchMutateAsync).toHaveBeenCalledTimes(1)
     })
+    const [payloads] = batchMutateAsync.mock.calls[0]
+    expect(payloads).toHaveLength(2)
+    expect(payloads[0]).toMatchObject({ file: january })
+    expect(payloads[1]).toMatchObject({ file: february })
+    expect(payloads[0].reviewSessionId).toBeTruthy()
+    expect(payloads[0].reviewSessionId).toBe(payloads[1].reviewSessionId)
+    expect(mutateAsync).not.toHaveBeenCalled()
   })
 
   it('renders documents with missing classification fields without crashing', () => {
@@ -152,6 +169,45 @@ describe('HouseholdDocumentCenter', () => {
     expect(
       screen.getByText(/older document awaiting re-review/i),
     ).toBeInTheDocument()
+  })
+
+  it('discards an evidence document after confirmation', async () => {
+    const user = userEvent.setup()
+    render(
+      <HouseholdDocumentCenter
+        documents={[
+          {
+            id: 'doc-discard',
+            filename: 'mistake.pdf',
+            sourceType: 'other',
+            documentType: 'other',
+            status: 'staged',
+            accountLabel: null,
+            fileSizeBytes: 1024,
+            contentType: 'application/pdf',
+            classificationConfidence: null,
+            reviewStatus: null,
+            reviewSummary: null,
+            reviewConfidence: null,
+            statementStart: null,
+            statementEnd: null,
+            uploadedAt: '2026-05-10T00:00:00Z',
+            parsedAt: null,
+            metadata: {},
+          },
+        ]}
+      />,
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: /discard mistake\.pdf/i }),
+    )
+    await user.click(screen.getByRole('button', { name: /^discard$/i }))
+
+    expect(deleteMutate).toHaveBeenCalledWith(
+      'doc-discard',
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    )
   })
 
   it('clears the staged file queue without uploading', async () => {

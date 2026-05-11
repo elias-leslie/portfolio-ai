@@ -33,6 +33,14 @@ async def list_evidence() -> HouseholdDocumentList:
     return await run_in_threadpool(_service().list_documents)
 
 
+@router.delete("/evidence/{document_id}", status_code=204)
+async def delete_evidence(document_id: str) -> None:
+    """Remove a household evidence document and its cascading rows."""
+    deleted = await run_in_threadpool(_service().delete_document, document_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Evidence document not found.")
+
+
 @router.post("/evidence", response_model=HouseholdDocument)
 async def upload_evidence(
     background_tasks: BackgroundTasks,

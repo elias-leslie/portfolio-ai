@@ -154,6 +154,45 @@ def test_evidence_batch_upload_reuses_one_review_session(tmp_path: Path) -> None
     assert review_documents.call_args.args[-1] == next(iter(review_session_ids))
 
 
+def test_evidence_delete_removes_document_and_stored_file(tmp_path: Path) -> None:
+    client = TestClient(app)
+
+    with (
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+            return_value=tmp_path,
+        ),
+        patch(
+            "app.services.household_document_review.HouseholdDocumentReviewService.review",
+            return_value={
+                "summary": "Plain-text upload.",
+                "document_type": "other",
+                "source_type": "other",
+                "confidence": 0.55,
+                "structured_data": {},
+                "inferred_values": [],
+                "questions": [],
+            },
+        ),
+    ):
+        upload = client.post(
+            "/api/intake/evidence",
+            files={"file": ("disposable.txt", b"to be removed", "text/plain")},
+        )
+        assert upload.status_code == 200
+        document = upload.json()
+        document_id = document["id"]
+        stored_path = document["metadata"].get("stored_path")
+        assert isinstance(stored_path, str) and Path(stored_path).exists()
+
+    response = client.delete(f"/api/intake/evidence/{document_id}")
+    assert response.status_code == 204
+    assert not Path(stored_path).exists()
+
+    second = client.delete(f"/api/intake/evidence/{document_id}")
+    assert second.status_code == 404
+
+
 def test_evidence_list_reads_existing_intake_items(tmp_path: Path) -> None:
     client = TestClient(app)
 

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from fastapi import UploadFile
 
 from app.models.household_finance import HouseholdDocument, HouseholdDocumentList
+from app.services._household_document_pipeline_db import delete_document_row
 from app.services._household_finance_utils import iso, iso_or_none, to_float
 from app.services.household_finance_rows import row_to_document
 
@@ -83,6 +85,16 @@ class _HFDocumentMethods:
         return self._annotate_document(
             row_to_document(row, to_float=to_float, iso=iso, iso_or_none=iso_or_none)
         )
+
+    def delete_document(self, document_id: str) -> bool:
+        """Remove a household document by id, including its stored file."""
+        with self.storage.connection() as conn:
+            deleted, stored_path = delete_document_row(conn, document_id=document_id)
+            conn.commit()
+        if deleted and stored_path:
+            with suppress(OSError):
+                Path(stored_path).unlink(missing_ok=True)
+        return deleted
 
     def review_document(self, document_id: str) -> None:
         self.document_pipeline.review_document(self, document_id)

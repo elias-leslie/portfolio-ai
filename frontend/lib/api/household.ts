@@ -871,6 +871,12 @@ export async function deleteHouseholdTrackedAccount(
   return del<{ ok: boolean }>(`/api/household/accounts/${accountId}`)
 }
 
+export async function deleteHouseholdDocument(
+  documentId: string,
+): Promise<void> {
+  await del<void>(`/api/intake/evidence/${documentId}`)
+}
+
 export async function uploadHouseholdDocument(
   payload: HouseholdDocumentUpload,
 ): Promise<HouseholdDocument> {

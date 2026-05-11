@@ -448,6 +448,41 @@ def fetch_duplicate_document_row(
     return conn.execute(_DUPLICATE_LOOKUP_SQL, [content_sha256]).fetchone()
 
 
+def delete_document_row(
+    conn: DatabaseConnection,
+    *,
+    document_id: str,
+) -> tuple[bool, str | None]:
+    """Delete a household document row by id.
+
+    Related rows in household_evidence_accounts, household_import_rows, and
+    household_document_reviews cascade-delete via FK constraints. References
+    from household_inferred_values, household_questions, and
+    household_document_signatures are set to NULL by their FK definitions.
+
+    Returns (deleted, stored_path) where stored_path is the on-disk upload
+    location pulled from the deleted row's metadata, or None.
+    """
+    result = conn.execute(
+        "DELETE FROM household_documents WHERE id = %s RETURNING metadata",
+        [document_id],
+    ).fetchone()
+    if result is None:
+        return False, None
+    metadata = result[0]
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except (TypeError, ValueError):
+            metadata = None
+    stored_path: str | None = None
+    if isinstance(metadata, dict):
+        candidate = metadata.get("stored_path")
+        if isinstance(candidate, str) and candidate:
+            stored_path = candidate
+    return True, stored_path
+
+
 def mark_review_failed(
     conn: DatabaseConnection,
     *,

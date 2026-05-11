@@ -6,6 +6,7 @@ import {
   categorizeHouseholdTransaction,
   confirmFact,
   createHouseholdTrackedAccount,
+  deleteHouseholdDocument,
   deleteHouseholdTrackedAccount,
   fetchConfirmedFacts,
   fetchHouseholdDashboard,
@@ -307,6 +308,25 @@ export function useUpdateHouseholdTrackedAccount() {
     onError: (error) => {
       toast.error(
         error instanceof Error ? error.message : 'Failed to update account',
+      )
+    },
+  })
+}
+
+export function useDeleteHouseholdDocument() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (documentId: string) => deleteHouseholdDocument(documentId),
+    onSuccess: async () => {
+      await refreshHouseholdQueries(queryClient)
+      toast.success('Evidence document removed.')
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to remove evidence document',
       )
     },
   })

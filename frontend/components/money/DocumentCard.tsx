@@ -1,10 +1,24 @@
+import { Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { RelativeTime } from '@/components/shared/RelativeTime'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import type { HouseholdDocument } from '@/lib/api/household'
 import { formatEnumLabel, formatFileSize } from '@/lib/formatters'
+import { useDeleteHouseholdDocument } from '@/lib/hooks/useHousehold'
 import { formatDate } from '@/lib/utils'
 
 export function DocumentCard({ document }: { document: HouseholdDocument }) {
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const deleteDocument = useDeleteHouseholdDocument()
   const metadata =
     document.metadata && typeof document.metadata === 'object'
       ? document.metadata
@@ -79,21 +93,70 @@ export function DocumentCard({ document }: { document: HouseholdDocument }) {
           </p>
           <StatementDates document={document} />
         </div>
-        <div className="text-right text-xs text-text-muted">
+        <div className="flex flex-col items-end gap-1 text-right text-xs text-text-muted">
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7 text-text-muted hover:text-destructive"
+            aria-label={`Discard ${document.filename}`}
+            onClick={() => setConfirmOpen(true)}
+            disabled={deleteDocument.isPending}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
           {document.reviewStatus ? (
-            <p className="mt-1">
+            <p>
               Jenny: {formatEnumLabel(document.reviewStatus)}
               {document.reviewConfidence != null
                 ? ` (${Math.round(document.reviewConfidence * 100)}%)`
                 : ''}
             </p>
           ) : null}
-          <p className="mt-1">{formatFileSize(document.fileSizeBytes)}</p>
-          {document.contentType ? (
-            <p className="mt-1">{document.contentType}</p>
-          ) : null}
+          <p>{formatFileSize(document.fileSizeBytes)}</p>
+          {document.contentType ? <p>{document.contentType}</p> : null}
         </div>
       </div>
+      <Dialog
+        open={confirmOpen}
+        onOpenChange={(open) => {
+          if (!deleteDocument.isPending) setConfirmOpen(open)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Discard evidence document</DialogTitle>
+            <DialogDescription>
+              Remove{' '}
+              <span className="font-medium text-text">{document.filename}</span>{' '}
+              from intake history. Imported rows tied to this document are
+              removed; ledger transactions already written stay in place.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmOpen(false)}
+              disabled={deleteDocument.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                deleteDocument.mutate(document.id, {
+                  onSuccess: () => setConfirmOpen(false),
+                })
+              }}
+              disabled={deleteDocument.isPending}
+              aria-busy={deleteDocument.isPending}
+            >
+              {deleteDocument.isPending ? 'Discarding...' : 'Discard'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
