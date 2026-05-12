@@ -234,7 +234,11 @@ async def submit_feedback(run_id: str, payload: FeedbackRequest) -> dict[str, An
     return {"input_id": input_id, "round": round_idx, "enqueued": enqueued}
 
 
-@router.post("/runs/{run_id}/retro", response_model=StartRunResponse)
+@router.post(
+    "/runs/{run_id}/retro",
+    response_model=StartRunResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def start_retro(run_id: str, background_tasks: BackgroundTasks) -> StartRunResponse:
     """Start a retro review run with parent_run_id = run_id."""
     _validate_uuid(run_id)
