@@ -35,6 +35,17 @@ function renderLine(event: CommitteeEvent): {
           </>
         ),
       }
+    case 'run.resume':
+      return {
+        glyph: '↻',
+        glyphClass: 'text-primary',
+        body: (
+          <>
+            resumed from=
+            <b className="text-text">{String(content.resume_from ?? '')}</b>
+          </>
+        ),
+      }
     case 'stage.enter':
       return {
         glyph: '⤴',

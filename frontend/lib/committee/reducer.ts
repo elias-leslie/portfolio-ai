@@ -107,6 +107,13 @@ export function reduceCommitteeEvent(
       next.started_at = event.ts || state.started_at
       return next
     }
+    case 'run.resume': {
+      next.status = 'running'
+      next.symbol = String(event.content.symbol ?? '') || state.symbol
+      next.graph_version =
+        String(event.content.graph_version ?? '') || state.graph_version
+      return next
+    }
     case 'stage.enter': {
       next.stage = (event.stage ?? null) as CommitteeStage | null
       return next

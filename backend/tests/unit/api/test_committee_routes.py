@@ -443,6 +443,73 @@ def test_pause_resume_abort_call_stream_helpers(
     ]
 
 
+def test_resume_schedules_persisted_running_run_when_registry_missing(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient
+) -> None:
+    """POST /resume re-attaches a DB-running run if the in-memory runner was lost."""
+    run_id = "11111111-1111-1111-1111-111111111111"
+    scheduled: dict[str, Any] = {}
+
+    monkeypatch.setattr(committee_stream, "resume", lambda _rid: False)
+    monkeypatch.setattr(
+        committee_store,
+        "get_run_summary",
+        lambda _rid: {
+            "id": run_id,
+            "symbol": "NVDA",
+            "household_id": None,
+            "parent_run_id": None,
+            "status": "running",
+        },
+    )
+
+    async def fake_schedule(run: dict[str, Any], **kw: Any) -> bool:
+        scheduled.update(run)
+        return True
+
+    monkeypatch.setattr(routes, "_schedule_run", fake_schedule)
+
+    response = client.post(f"/api/committee/runs/{run_id}/resume")
+
+    assert response.status_code == 200
+    assert response.json() == {"resumed": True}
+    assert scheduled["id"] == run_id
+    assert scheduled["symbol"] == "NVDA"
+
+
+def test_abort_marks_persisted_running_run_when_registry_missing(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient
+) -> None:
+    """POST /abort records a terminal event even if the live queue is gone."""
+    run_id = "11111111-1111-1111-1111-111111111111"
+    calls: list[dict[str, Any]] = []
+
+    monkeypatch.setattr(committee_stream, "abort", lambda _rid: False)
+    monkeypatch.setattr(
+        committee_store,
+        "get_run_summary",
+        lambda _rid: {"id": run_id, "status": "running"},
+    )
+
+    def fake_mark_aborted(rid: str, *, reason: str) -> None:
+        calls.append({"kind": "mark", "run_id": rid, "reason": reason})
+
+    def fake_persist_event(rid: str, **kw: Any) -> tuple[int, int]:
+        calls.append({"kind": "event", "run_id": rid, **kw})
+        return 1, 7
+
+    monkeypatch.setattr(committee_store, "mark_aborted", fake_mark_aborted)
+    monkeypatch.setattr(committee_store, "persist_event", fake_persist_event)
+
+    response = client.post(f"/api/committee/runs/{run_id}/abort")
+
+    assert response.status_code == 200
+    assert response.json() == {"aborted": True}
+    assert calls[0] == {"kind": "mark", "run_id": run_id, "reason": "user_abort"}
+    assert calls[1]["kind"] == "event"
+    assert calls[1]["type"] == "run.aborted"
+
+
 # ---------- POST /runs/{id}/retro ----------
 
 

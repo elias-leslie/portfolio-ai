@@ -137,6 +137,160 @@ def _ips_pass() -> IpsResult:
     )
 
 
+def _event(
+    seq: int,
+    type: str,
+    *,
+    stage: str | None = None,
+    agent_slug: str | None = None,
+    role: str | None = None,
+    content: dict[str, Any] | None = None,
+    score: float | None = None,
+    tokens: int | None = None,
+    latency_ms: int | None = None,
+) -> dict[str, Any]:
+    return {
+        "seq": seq,
+        "ts": f"2026-05-12T00:00:{seq % 60:02d}+00:00",
+        "run_id": "run-uuid",
+        "type": type,
+        "stage": stage,
+        "agent_slug": agent_slug,
+        "role": role,
+        "content": content or {},
+        "score": score,
+        "tokens": tokens,
+        "latency_ms": latency_ms,
+    }
+
+
+def _seed_events_through_analysts() -> list[dict[str, Any]]:
+    events = [
+        _event(
+            0,
+            "run.start",
+            stage="system",
+            content={"symbol": "NVDA", "graph_version": "committee.v0.3.1"},
+        ),
+        _event(1, "stage.enter", stage="analysts", content={"stage": "analysts"}),
+    ]
+    for idx, slug in enumerate(graph_mod.stages.ANALYST_SLUGS, start=2):
+        output = _analyst(slug)
+        events.append(
+            _event(
+                idx,
+                "agent.output",
+                stage="analysts",
+                agent_slug=slug,
+                role="analyst",
+                content={
+                    "content_md": output.content_md,
+                    "evidence": [e.model_dump(mode="json") for e in output.evidence],
+                },
+                score=output.score,
+                tokens=output.tokens,
+                latency_ms=output.latency_ms,
+            )
+        )
+    return events
+
+
+def _seed_events_through_first_risk_vote() -> list[dict[str, Any]]:
+    events = _seed_events_through_analysts()
+    seq = len(events)
+    events.append(
+        _event(seq, "stage.enter", stage="researchers", content={"stage": "researchers"})
+    )
+    seq += 1
+    for round_idx in range(3):
+        events.append(
+            _event(
+                seq,
+                "debate.round.start",
+                stage="researchers",
+                content={"round": round_idx},
+            )
+        )
+        seq += 1
+        for side in ("bull", "bear"):
+            slug = "bull-researcher-v1" if side == "bull" else "bear-researcher-v1"
+            output = _researcher(slug, role=side, score=0.6 if side == "bull" else 0.4)
+            events.append(
+                _event(
+                    seq,
+                    "agent.output",
+                    stage="researchers",
+                    agent_slug=slug,
+                    role=side,
+                    content={
+                        "argument_md": output.argument_md,
+                        "rebuttals_md": output.rebuttals_md,
+                        "evidence": [e.model_dump(mode="json") for e in output.evidence],
+                    },
+                    score=output.score,
+                    tokens=output.tokens,
+                    latency_ms=output.latency_ms,
+                )
+            )
+            seq += 1
+        events.append(
+            _event(
+                seq,
+                "debate.round.end",
+                stage="researchers",
+                content={"round": round_idx, "bull_score": 0.6, "bear_score": 0.4},
+            )
+        )
+        seq += 1
+    proposal = _proposal()
+    events.extend(
+        [
+            _event(seq, "stage.enter", stage="trader", content={"stage": "trader"}),
+            _event(
+                seq + 1,
+                "trader.proposal",
+                stage="trader",
+                agent_slug=graph_mod.stages.SLUG_TRADER,
+                role="trader",
+                content=proposal.model_dump(mode="json"),
+                tokens=proposal.tokens,
+                latency_ms=proposal.latency_ms,
+            ),
+            _event(seq + 2, "stage.enter", stage="ips", content={"stage": "ips"}),
+        ]
+    )
+    seq += 3
+    for check in _ips_pass().checks:
+        events.append(
+            _event(seq, "ips.check", stage="ips", content=check.model_dump(mode="json"))
+        )
+        seq += 1
+    first_vote = _risk_vote(graph_mod.stages.SLUG_RISK_AGGRESSIVE)
+    events.extend(
+        [
+            _event(seq, "stage.enter", stage="risk", content={"stage": "risk"}),
+            _event(
+                seq + 1,
+                "risk.vote",
+                stage="risk",
+                agent_slug=first_vote.agent_slug,
+                role="risk",
+                content={
+                    "vote": first_vote.vote,
+                    "narrative_md": first_vote.narrative_md,
+                    "objections": [
+                        o.model_dump(mode="json") for o in first_vote.objections
+                    ],
+                },
+                score=first_vote.score,
+                tokens=first_vote.tokens,
+                latency_ms=first_vote.latency_ms,
+            ),
+        ]
+    )
+    return events
+
+
 @pytest.fixture(autouse=True)
 def _reset_stream_registry():
     """Clear the module-level stream registry between tests.
@@ -201,7 +355,12 @@ def captured_events(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
     monkeypatch.setattr(graph_mod.store, "mark_aborted", fake_mark)
     monkeypatch.setattr(graph_mod.store, "mark_failed", fake_mark)
     monkeypatch.setattr(graph_mod.store, "persist_event", fake_persist_event)
+    monkeypatch.setattr(graph_mod.store, "load_events", lambda _run_id: [])
+    monkeypatch.setattr(graph_mod.store, "get_run_summary", lambda _run_id: None)
     monkeypatch.setattr(graph_mod.store, "load_past_decisions", fake_load_past_decisions)
+    monkeypatch.setattr(
+        graph_mod.store, "load_unresolved_feedback_inputs", lambda _run_id: []
+    )
     monkeypatch.setattr(committee_stream, "emit", fake_stream_emit)
 
     # Skip the symbol-intelligence build (it tries real HTTP).
@@ -348,6 +507,113 @@ async def test_risk_voters_receive_prior_risk_arguments(
     assert calls[0]["risk_history"] == []
     assert calls[1]["risk_history"] == [graph_mod.stages.RISK_SLUGS[0]]
     assert calls[2]["risk_history"] == list(graph_mod.stages.RISK_SLUGS[:2])
+
+
+@pytest.mark.asyncio
+async def test_resume_skips_completed_analyst_stage(
+    monkeypatch: pytest.MonkeyPatch,
+    captured_events: list[dict[str, Any]],
+) -> None:
+    """A restarted runner rebuilds analysts from persisted events instead of re-running them."""
+    monkeypatch.setattr(
+        graph_mod.store, "load_events", lambda _run_id: _seed_events_through_analysts()
+    )
+
+    async def fail_if_called(slug: str, **kw: Any) -> AnalystOutput:
+        raise AssertionError(f"analyst should not be re-run on resume: {slug}")
+
+    monkeypatch.setattr(graph_mod.stages, "run_analyst", fail_if_called)
+
+    await committee_stream.register("run-uuid")
+    await graph_mod.run_committee(
+        run_id="run-uuid",
+        symbol="NVDA",
+        household_id=None,
+    )
+
+    assert any(e.get("type") == "run.resume" for e in captured_events)
+    replayed = [
+        e
+        for e in captured_events
+        if e.get("type") == "agent.output" and e.get("stage") == "analysts"
+    ]
+    assert replayed == []
+
+
+@pytest.mark.asyncio
+async def test_resume_continues_risk_stage_without_replaying_prior_vote(
+    monkeypatch: pytest.MonkeyPatch,
+    captured_events: list[dict[str, Any]],
+) -> None:
+    """Risk resume keeps the persisted aggressive vote and continues with later voters."""
+    monkeypatch.setattr(
+        graph_mod.store,
+        "load_events",
+        lambda _run_id: _seed_events_through_first_risk_vote(),
+    )
+
+    await committee_stream.register("run-uuid")
+    await graph_mod.run_committee(
+        run_id="run-uuid",
+        symbol="NVDA",
+        household_id=None,
+    )
+
+    calls = [e for e in captured_events if e.get("type") == "__risk_call__"]
+    assert [c["slug"] for c in calls] == [
+        graph_mod.stages.SLUG_RISK_CONSERVATIVE,
+        graph_mod.stages.SLUG_RISK_NEUTRAL,
+    ]
+    assert calls[0]["risk_history"] == [graph_mod.stages.SLUG_RISK_AGGRESSIVE]
+    assert calls[1]["risk_history"] == [
+        graph_mod.stages.SLUG_RISK_AGGRESSIVE,
+        graph_mod.stages.SLUG_RISK_CONSERVATIVE,
+    ]
+    new_trader_events = [
+        e for e in captured_events if e.get("type") == "trader.proposal"
+    ]
+    assert new_trader_events == []
+
+
+@pytest.mark.asyncio
+async def test_corrupt_checkpoint_marks_run_failed(
+    monkeypatch: pytest.MonkeyPatch,
+    captured_events: list[dict[str, Any]],
+) -> None:
+    """Unrecoverable persisted event shape becomes a terminal failed run."""
+    monkeypatch.setattr(
+        graph_mod.store,
+        "load_events",
+        lambda _run_id: [
+            _event(0, "run.start", stage="system", content={"symbol": "NVDA"}),
+            _event(
+                1,
+                "agent.output",
+                stage="analysts",
+                agent_slug=None,
+                role="analyst",
+                content={"content_md": "bad", "evidence": []},
+                score=0.1,
+            ),
+        ],
+    )
+    failures: list[dict[str, str]] = []
+
+    def fake_mark_failed(run_id: str, *, error: str) -> None:
+        failures.append({"run_id": run_id, "error": error})
+
+    monkeypatch.setattr(graph_mod.store, "mark_failed", fake_mark_failed)
+
+    await committee_stream.register("run-uuid")
+    await graph_mod.run_committee(
+        run_id="run-uuid",
+        symbol="NVDA",
+        household_id=None,
+    )
+
+    assert failures and failures[0]["run_id"] == "run-uuid"
+    assert "missing agent_slug" in failures[0]["error"]
+    assert any(e.get("type") == "run.failed" for e in captured_events)
 
 
 @pytest.mark.asyncio

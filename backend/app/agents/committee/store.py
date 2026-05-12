@@ -133,6 +133,33 @@ def mark_failed(run_id: str, *, error: str) -> None:
         conn.commit()
 
 
+def list_resumable_runs(*, limit: int = 25) -> list[dict[str, Any]]:
+    """Return non-terminal runs that should be attached to a runner on startup."""
+    cm = get_connection_manager()
+    with cm.connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, symbol, household_id, parent_run_id, graph_version, status
+            FROM committee_runs
+            WHERE status IN ('pending', 'running')
+            ORDER BY started_at ASC
+            LIMIT %s
+            """,
+            (limit,),
+        ).fetchall()
+    return [
+        {
+            "id": str(row[0]),
+            "symbol": row[1],
+            "household_id": row[2],
+            "parent_run_id": str(row[3]) if row[3] is not None else None,
+            "graph_version": row[4],
+            "status": row[5],
+        }
+        for row in rows
+    ]
+
+
 def mark_approved(run_id: str) -> None:
     cm = get_connection_manager()
     with cm.connection() as conn:
@@ -265,6 +292,30 @@ def mark_feedback_resolved(input_id: str, *, decision_shifted: bool) -> None:
             (decision_shifted, input_id),
         )
         conn.commit()
+
+
+def load_unresolved_feedback_inputs(run_id: str) -> list[dict[str, Any]]:
+    """Load persisted feedback claims that have not been resolved by a runner."""
+    cm = get_connection_manager()
+    with cm.connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, round, user_input
+            FROM committee_inputs
+            WHERE run_id=%s
+              AND decision_shifted IS NULL
+            ORDER BY round ASC, created_at ASC
+            """,
+            (run_id,),
+        ).fetchall()
+    return [
+        {
+            "input_id": str(row[0]),
+            "round": int(row[1]),
+            "user_input": row[2],
+        }
+        for row in rows
+    ]
 
 
 def load_events(run_id: str) -> list[dict[str, Any]]:
