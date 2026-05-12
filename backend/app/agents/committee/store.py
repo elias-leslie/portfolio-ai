@@ -12,6 +12,7 @@ symbol).
 from __future__ import annotations
 
 import json
+import threading
 import uuid
 from datetime import datetime
 from typing import Any
@@ -26,6 +27,14 @@ from .schemas import (
 )
 
 logger = get_logger(__name__)
+
+# Serializes persist_event calls across the process so the route handler
+# (running in a threadpool) and the runner (running in the event loop)
+# cannot both compute the same MAX(seq)+1 and collide on the
+# (run_id, seq) unique constraint. A single global lock is plenty —
+# committee_events writes are LLM-paced (seconds per event), so
+# contention is negligible.
+_PERSIST_EVENT_LOCK = threading.Lock()
 
 
 def create_run(
@@ -153,7 +162,6 @@ def next_seq(run_id: str) -> int:
 def persist_event(
     run_id: str,
     *,
-    seq: int,
     type: str,
     stage: str | None = None,
     agent_slug: str | None = None,
@@ -162,34 +170,50 @@ def persist_event(
     score: float | None = None,
     tokens: int | None = None,
     latency_ms: int | None = None,
-) -> int:
-    """Insert one committee_events row. Returns the event id."""
-    cm = get_connection_manager()
-    with cm.connection() as conn:
-        row = conn.execute(
-            """
-            INSERT INTO committee_events
-                (run_id, seq, type, stage, agent_slug, role, content, score, tokens, latency_ms)
-            VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s)
-            RETURNING id
-            """,
-            (
-                run_id,
-                seq,
-                type,
-                stage,
-                agent_slug,
-                role,
-                json.dumps(content or {}, default=_json_default),
-                score,
-                tokens,
-                latency_ms,
-            ),
-        ).fetchone()
-        conn.commit()
-        if row is None:
-            raise RuntimeError(f"committee_events insert returned no id for run_id={run_id}")
-        return int(row[0])
+) -> tuple[int, int]:
+    """Insert one committee_events row with an atomically-computed seq.
+
+    Returns ``(event_id, seq)``. The single process-level lock prevents
+    the route handler (running in a threadpool) and the runner
+    (running in the event loop) from both computing the same
+    ``MAX(seq) + 1`` and colliding on the ``(run_id, seq)`` unique
+    constraint — the bug that surfaced when a user submitted feedback
+    mid-run before the runner reached ``pm.decision``.
+    """
+    with _PERSIST_EVENT_LOCK:
+        cm = get_connection_manager()
+        with cm.connection() as conn:
+            seq_row = conn.execute(
+                "SELECT COALESCE(MAX(seq), -1) + 1 FROM committee_events WHERE run_id=%s",
+                (run_id,),
+            ).fetchone()
+            assigned_seq = int(seq_row[0]) if seq_row else 0
+            row = conn.execute(
+                """
+                INSERT INTO committee_events
+                    (run_id, seq, type, stage, agent_slug, role, content, score, tokens, latency_ms)
+                VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    run_id,
+                    assigned_seq,
+                    type,
+                    stage,
+                    agent_slug,
+                    role,
+                    json.dumps(content or {}, default=_json_default),
+                    score,
+                    tokens,
+                    latency_ms,
+                ),
+            ).fetchone()
+            conn.commit()
+            if row is None:
+                raise RuntimeError(
+                    f"committee_events insert returned no id for run_id={run_id}"
+                )
+            return int(row[0]), assigned_seq
 
 
 def persist_evidence(run_id: str, evidence: list[Evidence], *, event_id: int | None = None) -> None:

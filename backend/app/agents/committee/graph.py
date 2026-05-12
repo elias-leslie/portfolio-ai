@@ -96,7 +96,6 @@ async def run_committee(
     """Drive a single committee run from start to terminal event."""
     started_at = time.monotonic()
     counters: dict[str, float] = {"tokens": 0.0, "cost_usd": 0.0}
-    seq_state = _SeqState()
     ticker_task: asyncio.Task[None] | None = None
 
     async def emit(
@@ -110,10 +109,8 @@ async def run_committee(
         tokens: int | None = None,
         latency_ms: int | None = None,
     ) -> int:
-        seq = next(seq_state)
-        event_id = store.persist_event(
+        event_id, seq = store.persist_event(
             run_id,
-            seq=seq,
             type=type,
             stage=stage_name,
             agent_slug=agent_slug,
@@ -757,18 +754,6 @@ async def _cancel_ticker(task: asyncio.Task[None] | None) -> None:
     task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await task
-
-
-def _SeqState():  # noqa: N802 — sentinel-style factory
-    """Generator that yields 0, 1, 2, ... — one per ``next()`` call."""
-
-    def _gen():
-        i = 0
-        while True:
-            yield i
-            i += 1
-
-    return _gen()
 
 
 # IpsCheck used only for type hints; re-export to keep imports tidy.

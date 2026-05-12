@@ -159,10 +159,10 @@ def captured_events(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
     counters = {"seq": 0}
 
-    def fake_persist_event(run_id: str, **kw: Any) -> int:
+    def fake_persist_event(run_id: str, **kw: Any) -> tuple[int, int]:
         counters["seq"] += 1
         events.append({"run_id": run_id, **kw})
-        return counters["seq"]
+        return counters["seq"], counters["seq"]
 
     async def fake_stream_emit(run_id: str, event: dict[str, Any]) -> None:
         return None

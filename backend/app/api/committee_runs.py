@@ -191,11 +191,9 @@ async def submit_feedback(run_id: str, payload: FeedbackRequest) -> dict[str, An
     round_idx = (
         sum(1 for e in existing_events if e.get("type") == "run.feedback.received") + 1
     )
-    seq = await run_in_threadpool(store.next_seq, run_id)
-    event_id = await run_in_threadpool(
+    event_id, seq = await run_in_threadpool(
         store.persist_event,
         run_id,
-        seq=seq,
         type="run.feedback.received",
         stage="feedback",
         role="user",

@@ -358,11 +358,10 @@ def test_post_feedback_persists_input_and_emits_event(
         lambda rid: {"id": rid, "status": "running"},
     )
     monkeypatch.setattr(committee_store, "load_events", lambda _rid: [])
-    monkeypatch.setattr(committee_store, "next_seq", lambda _rid: 17)
 
-    def fake_persist_event(rid: str, **kwargs: Any) -> int:
+    def fake_persist_event(rid: str, **kwargs: Any) -> tuple[int, int]:
         persist_event_calls.append({"run_id": rid, **kwargs})
-        return 12345
+        return 12345, 17
 
     def fake_persist_user_input(rid: str, **kwargs: Any) -> str:
         persist_user_input_calls.append({"run_id": rid, **kwargs})
