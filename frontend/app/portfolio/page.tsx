@@ -8,7 +8,6 @@ import { toast } from 'sonner'
 import { AccountsWithPositionsContent } from '@/components/portfolio/AccountsWithPositions'
 import { AddAccountDialog } from '@/components/portfolio/AddAccountDialog'
 import { AddPositionDialog } from '@/components/portfolio/AddPositionDialog'
-import { InvestingMarketPanel } from '@/components/portfolio/InvestingMarketPanel'
 import { InvestingNewsPanel } from '@/components/portfolio/InvestingNewsPanel'
 import { InvestingPredictionPanel } from '@/components/portfolio/InvestingPredictionPanel'
 import { PageContainer } from '@/components/shared/PageContainer'
@@ -117,11 +116,6 @@ function PortfolioPageContent() {
       value: 'prediction',
       label: 'Prediction',
       content: <InvestingPredictionPanel />,
-    },
-    {
-      value: 'market',
-      label: 'Market',
-      content: <InvestingMarketPanel />,
     },
     {
       value: 'news',
@@ -257,7 +251,7 @@ function PortfolioPageContent() {
       />
 
       <WorkspaceTabs
-        defaultValue="market"
+        defaultValue="symbols"
         ariaLabel="Investing workspace sections"
         tabs={tabs}
       />

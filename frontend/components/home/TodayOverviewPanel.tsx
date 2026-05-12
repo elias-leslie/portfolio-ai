@@ -1,7 +1,6 @@
 'use client'
 
 import { SectionCard } from '@/components/shared/SectionCard'
-import { useHomeTodayBrief } from '@/lib/hooks/useHomeTodayBrief'
 import {
   useHouseholdDashboard,
   useHouseholdNetWorthTrend,
@@ -23,13 +22,9 @@ export function TodayOverviewPanel() {
   const { data: analytics, isLoading: analyticsLoading } =
     usePortfolioAnalytics()
   const { data: market, isLoading: marketLoading } = useMarketIntelligence()
-  const { data: todayBrief, isLoading: briefLoading } = useHomeTodayBrief()
 
-  const liveMarketMetrics = buildLiveMarketMetrics(market)
-  const marketMetrics = liveMarketMetrics ?? todayBrief?.marketMetrics ?? []
-  const marketStripTimestamp = liveMarketMetrics
-    ? market?.lastUpdated
-    : todayBrief?.generatedAt
+  const marketMetrics = buildLiveMarketMetrics(market) ?? []
+  const marketStripTimestamp = market?.lastUpdated
 
   return (
     <SectionCard
@@ -52,9 +47,9 @@ export function TodayOverviewPanel() {
 
         <MarketStripGrid
           metrics={marketMetrics}
-          isLive={Boolean(liveMarketMetrics)}
+          isLive={marketMetrics.length > 0}
           timestamp={marketStripTimestamp}
-          loading={briefLoading}
+          loading={marketLoading}
         />
 
         <SystemPulseGrid

@@ -3,8 +3,8 @@
 export const dynamic = 'force-dynamic'
 
 import { HomeActionQueue } from '@/components/home/HomeActionQueue'
-import { TodayMarketPulsePanel } from '@/components/home/TodayMarketPulsePanel'
 import { TodayOverviewPanel } from '@/components/home/TodayOverviewPanel'
+import { InvestingMarketPanel } from '@/components/portfolio/InvestingMarketPanel'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 
@@ -23,7 +23,7 @@ export default function Dashboard() {
           <TodayOverviewPanel />
           <HomeActionQueue />
         </div>
-        <TodayMarketPulsePanel />
+        <InvestingMarketPanel />
       </div>
     </PageContainer>
   )
