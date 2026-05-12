@@ -25,6 +25,7 @@ from datetime import date
 from typing import Any
 
 from app.logging_config import get_logger
+from app.services.sector_targets import get_cap as get_sector_cap
 from app.storage.connection import get_connection_manager
 
 from .schemas import IpsCheck, IpsResult, TradeProposal
@@ -35,7 +36,6 @@ logger = get_logger(__name__)
 # happen post-migration since 'default' is seeded). These match the
 # YAML rules.position_sizing.max_sector_exposure_pct hard fallback.
 _MAX_POSITION_PCT_FALLBACK = 0.25
-_MAX_SECTOR_PCT_FALLBACK = 0.20
 
 # Synonym normalization for noisy sector taxonomies (Yahoo's "Information
 # Technology" vs our "Technology", etc.). The table is intentionally
@@ -130,7 +130,7 @@ def _check_sector_exposure(
 ) -> IpsCheck:
     """Sector cap: proposed sector exposure vs sector_targets.max_pct."""
     sector = _resolve_symbol_sector(symbol)
-    cap = _lookup_sector_cap(sector, household_id)
+    cap = get_sector_cap(sector, household_id)
     current_pct_fraction = _current_sector_exposure_fraction(sector, household_id)
     delta = proposal.qty_pct if proposal.action in {"buy", "add"} else 0.0
     projected = current_pct_fraction + delta
@@ -210,44 +210,6 @@ def _resolve_symbol_sector(symbol: str) -> str | None:
     raw = str(row[0]).strip()
     key = raw.lower()
     return _SECTOR_SYNONYMS.get(key, raw)
-
-
-def _lookup_sector_cap(sector: str | None, household_id: str | None) -> float:
-    """Resolve the cap precedence: household → global → 'default' → fallback."""
-    cm = get_connection_manager()
-    with cm.connection() as conn:
-        # Try household-scoped row first
-        if sector and household_id:
-            row = conn.execute(
-                """
-                SELECT max_pct FROM sector_targets
-                WHERE sector = %s AND household_id = %s
-                """,
-                (sector, household_id),
-            ).fetchone()
-            if row and row[0] is not None:
-                return float(row[0])
-        # Fall back to global sector row
-        if sector:
-            row = conn.execute(
-                """
-                SELECT max_pct FROM sector_targets
-                WHERE sector = %s AND household_id IS NULL
-                """,
-                (sector,),
-            ).fetchone()
-            if row and row[0] is not None:
-                return float(row[0])
-        # Fall back to global 'default' row
-        row = conn.execute(
-            """
-            SELECT max_pct FROM sector_targets
-            WHERE sector = 'default' AND household_id IS NULL
-            """,
-        ).fetchone()
-        if row and row[0] is not None:
-            return float(row[0])
-    return _MAX_SECTOR_PCT_FALLBACK
 
 
 def _current_sector_exposure_fraction(
