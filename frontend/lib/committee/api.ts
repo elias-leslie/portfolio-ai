@@ -1,4 +1,4 @@
-import { get, post } from '@/lib/api/client'
+import { getApiBaseUrl } from '@/lib/api-config'
 import type { CommitteeEvent, PmDecisionEvent } from './events'
 
 export interface CommitteeRunRow {
@@ -46,58 +46,111 @@ export interface ApproveResponse {
   price: number
 }
 
+// Committee endpoints stream and return events that must preserve their
+// exact snake_case wire shape — the reducer keys off `agent_slug`,
+// `content_md`, `qty_pct`, `tokens_total`, etc. The shared api client
+// recursively camelCases every response, which would silently break the
+// snapshot/replay path while the live SSE path (raw EventSource) stays
+// snake_case. We use a thin raw fetch here to keep both paths identical.
+
+async function rawJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const base = path.startsWith('http') ? '' : getApiBaseUrl()
+  const headers = new Headers(init.headers)
+  if (!headers.has('Content-Type') && init.body) {
+    headers.set('Content-Type', 'application/json')
+  }
+  const response = await fetch(`${base}${path}`, {
+    cache: 'no-store',
+    ...init,
+    headers,
+  })
+  if (!response.ok) {
+    let message = `HTTP ${response.status}: ${response.statusText}`
+    try {
+      const data = (await response.json()) as { detail?: string }
+      if (data?.detail) message = data.detail
+    } catch {
+      // keep default message
+    }
+    throw new Error(message)
+  }
+  if (response.status === 204) return undefined as T
+  return (await response.json()) as T
+}
+
 export async function startCommitteeRun(input: {
   symbol: string
   parentRunId?: string
 }): Promise<StartRunResponse> {
-  return post<StartRunResponse>('/api/committee/runs', {
-    symbol: input.symbol,
-    parent_run_id: input.parentRunId ?? null,
+  return rawJson<StartRunResponse>('/api/committee/runs', {
+    method: 'POST',
+    body: JSON.stringify({
+      symbol: input.symbol,
+      parent_run_id: input.parentRunId ?? null,
+    }),
   })
 }
 
 export async function fetchCommitteeRun(
   runId: string,
 ): Promise<CommitteeRunSnapshot> {
-  return get<CommitteeRunSnapshot>(`/api/committee/runs/${runId}`)
+  return rawJson<CommitteeRunSnapshot>(`/api/committee/runs/${runId}`)
 }
 
 export async function approveCommitteeRun(
   runId: string,
 ): Promise<ApproveResponse> {
-  return post<ApproveResponse>(`/api/committee/runs/${runId}/approve`, {})
+  return rawJson<ApproveResponse>(`/api/committee/runs/${runId}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
 }
 
 export async function submitCommitteeFeedback(
   runId: string,
   userInput: string,
 ): Promise<{ input_id: string; round: number }> {
-  return post<{ input_id: string; round: number }>(
+  return rawJson<{ input_id: string; round: number }>(
     `/api/committee/runs/${runId}/feedback`,
-    { user_input: userInput },
+    {
+      method: 'POST',
+      body: JSON.stringify({ user_input: userInput }),
+    },
   )
 }
 
 export async function pauseCommitteeRun(
   runId: string,
 ): Promise<{ paused: boolean }> {
-  return post<{ paused: boolean }>(`/api/committee/runs/${runId}/pause`, {})
+  return rawJson<{ paused: boolean }>(`/api/committee/runs/${runId}/pause`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
 }
 
 export async function resumeCommitteeRun(
   runId: string,
 ): Promise<{ resumed: boolean }> {
-  return post<{ resumed: boolean }>(`/api/committee/runs/${runId}/resume`, {})
+  return rawJson<{ resumed: boolean }>(`/api/committee/runs/${runId}/resume`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
 }
 
 export async function abortCommitteeRun(
   runId: string,
 ): Promise<{ aborted: boolean }> {
-  return post<{ aborted: boolean }>(`/api/committee/runs/${runId}/abort`, {})
+  return rawJson<{ aborted: boolean }>(`/api/committee/runs/${runId}/abort`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
 }
 
 export async function startRetroRun(runId: string): Promise<StartRunResponse> {
-  return post<StartRunResponse>(`/api/committee/runs/${runId}/retro`, {})
+  return rawJson<StartRunResponse>(`/api/committee/runs/${runId}/retro`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
 }
 
 export interface DecisionView extends PmDecisionEvent {
