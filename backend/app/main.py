@@ -101,6 +101,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Load API credentials from database into environment variables
     load_credentials_from_database()
 
+    if not os.getenv("PYTEST_RUNNING"):
+        await committee_runs.resume_incomplete_runs()
+
     yield
 
     # Shutdown (placeholder for future cleanup logic)

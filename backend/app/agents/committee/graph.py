@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from importlib import import_module
 from typing import Any
@@ -32,6 +33,7 @@ from . import ips as ips_mod
 from .schemas import (
     AnalystOutput,
     DebateRound,
+    Evidence,
     FeedbackAgentResponse,
     IpsCheck,
     IpsResult,
@@ -53,6 +55,34 @@ _DEBATE_ROUNDS = 3
 _FEEDBACK_WAIT_SECONDS = 30.0
 _FEEDBACK_POLL_INTERVAL = 0.5
 _KPI_TICK_INTERVAL = 1.0
+_TERMINAL_EVENT_TYPES = {"run.complete", "run.aborted", "run.failed"}
+_IPS_CHECK_ORDER = ("concentration", "tax_bill", "sector_exposure", "wash_sale")
+
+
+class CommitteeRunRecoveryError(RuntimeError):
+    """Raised when persisted events cannot be rebuilt into a runnable checkpoint."""
+
+
+@dataclass
+class _PartialDebateRound:
+    round_idx: int
+    started: bool = False
+    ended: bool = False
+    bull: ResearcherOutput | None = None
+    bear: ResearcherOutput | None = None
+
+
+@dataclass
+class _RunCheckpoint:
+    started: bool = False
+    terminal_event_type: str | None = None
+    stage_enters: set[str] = field(default_factory=set)
+    analyst_outputs: dict[str, AnalystOutput] = field(default_factory=dict)
+    debate_rounds: dict[int, _PartialDebateRound] = field(default_factory=dict)
+    proposal: TradeProposal | None = None
+    ips_checks: dict[str, IpsCheck] = field(default_factory=dict)
+    risk_votes: dict[str, RiskVoteOutput] = field(default_factory=dict)
+    decision: PmDecision | None = None
 
 
 async def _kpi_ticker(
@@ -94,8 +124,41 @@ async def run_committee(
     parent_run_id: str | None = None,
 ) -> None:
     """Drive a single committee run from start to terminal event."""
-    started_at = time.monotonic()
+    try:
+        prior_events = store.load_events(run_id)
+        checkpoint = _rebuild_checkpoint(prior_events)
+        run_summary = store.get_run_summary(run_id)
+    except Exception as exc:
+        logger.exception("committee_run_recovery_failed", run_id=run_id)
+        failed_seq = _mark_recovery_failed(run_id, error=str(exc))
+        await stream.emit(
+            run_id,
+            {
+                "seq": failed_seq,
+                "ts": datetime.now(tz=UTC).isoformat(),
+                "run_id": run_id,
+                "type": "run.failed",
+                "stage": "system",
+                "agent_slug": None,
+                "role": None,
+                "content": {"error": str(exc)},
+                "score": None,
+                "tokens": None,
+                "latency_ms": None,
+            },
+        )
+        return
+    if checkpoint.terminal_event_type is not None:
+        logger.info(
+            "committee_run_already_terminal",
+            run_id=run_id,
+            terminal_event_type=checkpoint.terminal_event_type,
+        )
+        return
+
+    started_at = _monotonic_anchor_for_run(run_summary)
     counters: dict[str, float] = {"tokens": 0.0, "cost_usd": 0.0}
+    counters["tokens"] = float(_sum_event_tokens(prior_events))
     ticker_task: asyncio.Task[None] | None = None
 
     async def emit(
@@ -140,11 +203,23 @@ async def run_committee(
 
     try:
         store.mark_running(run_id)
-        await emit(
-            "run.start",
-            stage_name="system",
-            content={"symbol": symbol, "parent_run_id": parent_run_id, "graph_version": GRAPH_VERSION},
-        )
+        if checkpoint.started:
+            await emit(
+                "run.resume",
+                stage_name="system",
+                content={
+                    "symbol": symbol,
+                    "parent_run_id": parent_run_id,
+                    "graph_version": GRAPH_VERSION,
+                    "resume_from": _next_stage_name(checkpoint),
+                },
+            )
+        else:
+            await emit(
+                "run.start",
+                stage_name="system",
+                content={"symbol": symbol, "parent_run_id": parent_run_id, "graph_version": GRAPH_VERSION},
+            )
         ticker_task = asyncio.create_task(
             _kpi_ticker(run_id=run_id, counters=counters, started_at=started_at, emit=emit)
         )
@@ -156,99 +231,130 @@ async def run_committee(
         past_decisions = store.load_past_decisions(symbol, household_id, limit=5)
 
         # Stage 1: Analysts (concurrent — independent data slices).
-        await emit("stage.enter", stage_name="analysts", content={"stage": "analysts"})
+        await _emit_stage_enter_once(checkpoint, "analysts", emit)
         await stream.check_control(run_id)
-        analyst_outputs = await _run_analyst_stage(symbol, context, emit)
-        counters["tokens"] += sum(a.tokens for a in analyst_outputs)
+        analyst_outputs = await _run_analyst_stage(
+            symbol,
+            context,
+            emit,
+            existing=checkpoint.analyst_outputs,
+        )
+        counters["tokens"] += sum(
+            a.tokens for a in analyst_outputs if a.agent_slug not in checkpoint.analyst_outputs
+        )
 
         # Stage 2: 3-round bull/bear debate.
-        await emit("stage.enter", stage_name="researchers", content={"stage": "researchers"})
+        await _emit_stage_enter_once(checkpoint, "researchers", emit)
         debate_history: list[DebateRound] = []
         for round_idx in range(_DEBATE_ROUNDS):
+            partial_round = checkpoint.debate_rounds.get(round_idx)
             await stream.check_control(run_id)
-            await emit(
-                "debate.round.start",
-                stage_name="researchers",
-                content={"round": round_idx},
+            if partial_round is None or not partial_round.started:
+                await emit(
+                    "debate.round.start",
+                    stage_name="researchers",
+                    content={"round": round_idx},
+                )
+            bull, bear = await _run_debate_round(
+                symbol,
+                analyst_outputs,
+                debate_history,
+                emit,
+                existing_bull=partial_round.bull if partial_round else None,
+                existing_bear=partial_round.bear if partial_round else None,
             )
-            bull, bear = await _run_debate_round(symbol, analyst_outputs, debate_history, emit)
-            counters["tokens"] += bull.tokens + bear.tokens
+            if partial_round is None or partial_round.bull is None:
+                counters["tokens"] += bull.tokens
+            if partial_round is None or partial_round.bear is None:
+                counters["tokens"] += bear.tokens
             debate_history.append(DebateRound(round_idx=round_idx, bull=bull, bear=bear))
-            await emit(
-                "debate.round.end",
-                stage_name="researchers",
-                content={
-                    "round": round_idx,
-                    "bull_score": bull.score,
-                    "bear_score": bear.score,
-                },
-            )
+            if partial_round is None or not partial_round.ended:
+                await emit(
+                    "debate.round.end",
+                    stage_name="researchers",
+                    content={
+                        "round": round_idx,
+                        "bull_score": bull.score,
+                        "bear_score": bear.score,
+                    },
+                )
 
         # Stage 3: Trader proposal.
-        await emit("stage.enter", stage_name="trader", content={"stage": "trader"})
+        await _emit_stage_enter_once(checkpoint, "trader", emit)
         await stream.check_control(run_id)
         portfolio_value = _portfolio_value_estimate(household_id)
         current_price = float(context.get("current_price") or 0.0)
-        proposal = await stages.run_trader(
-            symbol=symbol,
-            analyst_outputs=analyst_outputs,
-            debate_history=debate_history,
-            portfolio_value=portfolio_value,
-            current_price=current_price,
-            past_decisions=past_decisions,
-        )
-        counters["tokens"] += proposal.tokens
-        await emit(
-            "trader.proposal",
-            stage_name="trader",
-            agent_slug=stages.SLUG_TRADER,
-            role="trader",
-            content=proposal.model_dump(mode="json"),
-            tokens=proposal.tokens,
-            latency_ms=proposal.latency_ms,
-        )
-
-        # Stage 4: IPS checks (deterministic, no LLM).
-        await emit("stage.enter", stage_name="ips", content={"stage": "ips"})
-        await stream.check_control(run_id)
-        ips_result = await asyncio.to_thread(
-            ips_mod.ips_evaluate, proposal, symbol=symbol, household_id=household_id
-        )
-        for check in ips_result.checks:
+        proposal = checkpoint.proposal
+        if proposal is None:
+            proposal = await stages.run_trader(
+                symbol=symbol,
+                analyst_outputs=analyst_outputs,
+                debate_history=debate_history,
+                portfolio_value=portfolio_value,
+                current_price=current_price,
+                past_decisions=past_decisions,
+            )
+            counters["tokens"] += proposal.tokens
             await emit(
-                "ips.check",
-                stage_name="ips",
-                content=check.model_dump(mode="json"),
+                "trader.proposal",
+                stage_name="trader",
+                agent_slug=stages.SLUG_TRADER,
+                role="trader",
+                content=proposal.model_dump(mode="json"),
+                tokens=proposal.tokens,
+                latency_ms=proposal.latency_ms,
             )
 
-        # Stage 5: Risk vote (ordered so later voters can rebut prior risk stances).
-        await emit("stage.enter", stage_name="risk", content={"stage": "risk"})
+        # Stage 4: IPS checks (deterministic, no LLM).
+        await _emit_stage_enter_once(checkpoint, "ips", emit)
         await stream.check_control(run_id)
-        risk_votes = await _run_risk_stage(proposal, analyst_outputs, debate_history, ips_result, emit)
-        counters["tokens"] += sum(v.tokens for v in risk_votes)
+        ips_result = await _run_ips_stage(
+            proposal,
+            symbol=symbol,
+            household_id=household_id,
+            emit=emit,
+            existing=checkpoint.ips_checks,
+        )
+
+        # Stage 5: Risk vote (ordered so later voters can rebut prior risk stances).
+        await _emit_stage_enter_once(checkpoint, "risk", emit)
+        await stream.check_control(run_id)
+        risk_votes = await _run_risk_stage(
+            proposal,
+            analyst_outputs,
+            debate_history,
+            ips_result,
+            emit,
+            existing=checkpoint.risk_votes,
+        )
+        counters["tokens"] += sum(
+            v.tokens for v in risk_votes if v.agent_slug not in checkpoint.risk_votes
+        )
 
         # Stage 6: PM final decision.
-        await emit("stage.enter", stage_name="pm", content={"stage": "pm"})
+        await _emit_stage_enter_once(checkpoint, "pm", emit)
         await stream.check_control(run_id)
-        decision = await stages.run_pm(
-            proposal=proposal,
-            debate_history=debate_history,
-            risk_votes=risk_votes,
-            ips_result=ips_result,
-            past_decisions=past_decisions,
-        )
-        counters["tokens"] += decision.tokens
-        decision = _enforce_ips_compliance(decision, ips_result)
-        await emit(
-            "pm.decision",
-            stage_name="pm",
-            agent_slug=stages.SLUG_PM,
-            role="pm",
-            content=decision.model_dump(mode="json"),
-            score=decision.confidence,
-            tokens=decision.tokens,
-            latency_ms=decision.latency_ms,
-        )
+        decision = checkpoint.decision
+        if decision is None:
+            decision = await stages.run_pm(
+                proposal=proposal,
+                debate_history=debate_history,
+                risk_votes=risk_votes,
+                ips_result=ips_result,
+                past_decisions=past_decisions,
+            )
+            counters["tokens"] += decision.tokens
+            decision = _enforce_ips_compliance(decision, ips_result)
+            await emit(
+                "pm.decision",
+                stage_name="pm",
+                agent_slug=stages.SLUG_PM,
+                role="pm",
+                content=decision.model_dump(mode="json"),
+                score=decision.confidence,
+                tokens=decision.tokens,
+                latency_ms=decision.latency_ms,
+            )
 
         store.mark_complete(
             run_id,
@@ -256,6 +362,9 @@ async def run_committee(
             tokens_total=int(counters["tokens"]),
             cost_usd=counters["cost_usd"],
         )
+        if checkpoint.started:
+            for claim in store.load_unresolved_feedback_inputs(run_id):
+                stream.enqueue_feedback(run_id, claim)
 
         # Post-decision feedback loop: drain queued claims, run the
         # consensus-shift round, persist any revised decision. Re-arm the
@@ -310,15 +419,22 @@ async def _run_analyst_stage(
     symbol: str,
     context: dict[str, Any],
     emit,
+    *,
+    existing: dict[str, AnalystOutput] | None = None,
 ) -> list[AnalystOutput]:
     """Fan-out the four analysts concurrently and emit their outputs."""
+    existing = existing or {}
     tasks = [
         stages.run_analyst(slug, symbol=symbol, context=context)
         for slug in stages.ANALYST_SLUGS
+        if slug not in existing
     ]
-    outputs = await asyncio.gather(*tasks, return_exceptions=True)
-    parsed: list[AnalystOutput] = []
-    for slug, result in zip(stages.ANALYST_SLUGS, outputs, strict=True):
+    missing_slugs = [slug for slug in stages.ANALYST_SLUGS if slug not in existing]
+    outputs = await asyncio.gather(*tasks, return_exceptions=True) if tasks else []
+    parsed: list[AnalystOutput] = [
+        existing[slug] for slug in stages.ANALYST_SLUGS if slug in existing
+    ]
+    for slug, result in zip(missing_slugs, outputs, strict=True):
         if isinstance(result, BaseException):
             await emit(
                 "agent.error",
@@ -349,22 +465,37 @@ async def _run_debate_round(
     analyst_outputs: list[AnalystOutput],
     debate_history: list[DebateRound],
     emit,
+    *,
+    existing_bull: ResearcherOutput | None = None,
+    existing_bear: ResearcherOutput | None = None,
 ) -> tuple[ResearcherOutput, ResearcherOutput]:
     """Run one bull/bear pair concurrently."""
-    bull_task = stages.run_researcher(
-        "bull",
-        symbol=symbol,
-        analyst_outputs=analyst_outputs,
-        debate_history=debate_history,
-    )
-    bear_task = stages.run_researcher(
-        "bear",
-        symbol=symbol,
-        analyst_outputs=analyst_outputs,
-        debate_history=debate_history,
-    )
-    bull, bear = await asyncio.gather(bull_task, bear_task)
+    tasks: dict[str, Any] = {}
+    if existing_bull is None:
+        tasks["bull"] = stages.run_researcher(
+            "bull",
+            symbol=symbol,
+            analyst_outputs=analyst_outputs,
+            debate_history=debate_history,
+        )
+    if existing_bear is None:
+        tasks["bear"] = stages.run_researcher(
+            "bear",
+            symbol=symbol,
+            analyst_outputs=analyst_outputs,
+            debate_history=debate_history,
+        )
+    results = await asyncio.gather(*tasks.values()) if tasks else []
+    generated = dict(zip(tasks.keys(), results, strict=True))
+    bull = existing_bull or generated.get("bull")
+    bear = existing_bear or generated.get("bear")
+    if bull is None or bear is None:
+        raise CommitteeRunRecoveryError("debate round cannot resume without bull and bear outputs")
     for side, output in (("bull", bull), ("bear", bear)):
+        if (side == "bull" and existing_bull is not None) or (
+            side == "bear" and existing_bear is not None
+        ):
+            continue
         await emit(
             "agent.output",
             stage_name="researchers",
@@ -382,15 +513,54 @@ async def _run_debate_round(
     return bull, bear
 
 
+async def _run_ips_stage(
+    proposal: TradeProposal,
+    *,
+    symbol: str,
+    household_id: str | None,
+    emit,
+    existing: dict[str, IpsCheck] | None = None,
+) -> IpsResult:
+    existing = existing or {}
+    if all(name in existing for name in _IPS_CHECK_ORDER):
+        checks = [existing[name] for name in _IPS_CHECK_ORDER]
+        return IpsResult(checks=checks, all_passed=all(check.passed for check in checks))
+
+    ips_result = await asyncio.to_thread(
+        ips_mod.ips_evaluate, proposal, symbol=symbol, household_id=household_id
+    )
+    merged = dict(existing)
+    for check in ips_result.checks:
+        if check.name in merged:
+            continue
+        merged[check.name] = check
+        await emit(
+            "ips.check",
+            stage_name="ips",
+            content=check.model_dump(mode="json"),
+        )
+    missing = [name for name in _IPS_CHECK_ORDER if name not in merged]
+    if missing:
+        raise CommitteeRunRecoveryError(f"IPS resume missing checks: {', '.join(missing)}")
+    checks = [merged[name] for name in _IPS_CHECK_ORDER]
+    return IpsResult(checks=checks, all_passed=all(check.passed for check in checks))
+
+
 async def _run_risk_stage(
     proposal: TradeProposal,
     analyst_outputs: list[AnalystOutput],
     debate_history: list[DebateRound],
     ips_result: IpsResult,
     emit,
+    *,
+    existing: dict[str, RiskVoteOutput] | None = None,
 ) -> list[RiskVoteOutput]:
+    existing = existing or {}
     votes: list[RiskVoteOutput] = []
     for slug in stages.RISK_SLUGS:
+        if slug in existing:
+            votes.append(existing[slug])
+            continue
         vote = await stages.run_risk(
             slug,
             proposal=proposal,
@@ -415,6 +585,189 @@ async def _run_risk_stage(
             latency_ms=vote.latency_ms,
         )
     return votes
+
+
+def _rebuild_checkpoint(events: list[dict[str, Any]]) -> _RunCheckpoint:
+    """Fold persisted events into typed outputs the runner can resume from."""
+    checkpoint = _RunCheckpoint()
+    current_round: int | None = None
+
+    for event in events:
+        event_type = str(event.get("type") or "")
+        stage = event.get("stage")
+        content = event.get("content") if isinstance(event.get("content"), dict) else {}
+
+        if event_type == "run.start":
+            checkpoint.started = True
+        elif event_type in _TERMINAL_EVENT_TYPES:
+            checkpoint.terminal_event_type = event_type
+        elif event_type == "stage.enter" and isinstance(stage, str):
+            checkpoint.stage_enters.add(stage)
+        elif event_type == "agent.output" and stage == "analysts":
+            output = _analyst_from_event(event)
+            checkpoint.analyst_outputs[output.agent_slug] = output
+        elif event_type == "debate.round.start":
+            round_idx = int(content.get("round") or 0)
+            checkpoint.debate_rounds.setdefault(
+                round_idx, _PartialDebateRound(round_idx=round_idx)
+            ).started = True
+            current_round = round_idx
+        elif event_type == "agent.output" and stage == "researchers":
+            round_idx = current_round
+            if round_idx is None:
+                round_idx = max(checkpoint.debate_rounds.keys(), default=0)
+            partial = checkpoint.debate_rounds.setdefault(
+                round_idx, _PartialDebateRound(round_idx=round_idx, started=True)
+            )
+            output = _researcher_from_event(event)
+            if output.role == "bull":
+                partial.bull = output
+            else:
+                partial.bear = output
+        elif event_type == "debate.round.end":
+            round_idx = int(content.get("round") or 0)
+            checkpoint.debate_rounds.setdefault(
+                round_idx, _PartialDebateRound(round_idx=round_idx, started=True)
+            ).ended = True
+            current_round = None
+        elif event_type == "trader.proposal":
+            checkpoint.proposal = _proposal_from_event(event)
+        elif event_type == "ips.check":
+            check = IpsCheck.model_validate(content)
+            checkpoint.ips_checks[check.name] = check
+        elif event_type == "risk.vote":
+            vote = _risk_vote_from_event(event)
+            checkpoint.risk_votes[vote.agent_slug] = vote
+        elif event_type == "pm.decision":
+            checkpoint.decision = _pm_decision_from_event(event)
+
+    return checkpoint
+
+
+def _analyst_from_event(event: dict[str, Any]) -> AnalystOutput:
+    content = event.get("content") if isinstance(event.get("content"), dict) else {}
+    agent_slug = str(event.get("agent_slug") or "")
+    if not agent_slug:
+        raise CommitteeRunRecoveryError("analyst event missing agent_slug")
+    return AnalystOutput(
+        agent_slug=agent_slug,
+        content_md=str(content.get("content_md") or ""),
+        score=float(event.get("score") or 0.0),
+        evidence=[
+            Evidence.model_validate(item)
+            for item in content.get("evidence", [])
+            if isinstance(item, dict)
+        ],
+        tokens=int(event.get("tokens") or 0),
+        latency_ms=int(event.get("latency_ms") or 0),
+    )
+
+
+def _researcher_from_event(event: dict[str, Any]) -> ResearcherOutput:
+    content = event.get("content") if isinstance(event.get("content"), dict) else {}
+    role = str(event.get("role") or "")
+    if role not in {"bull", "bear"}:
+        raise CommitteeRunRecoveryError(f"researcher event has invalid role={role!r}")
+    return ResearcherOutput(
+        agent_slug=str(event.get("agent_slug") or ""),
+        role=role,
+        argument_md=str(content.get("argument_md") or ""),
+        rebuttals_md=str(content.get("rebuttals_md") or ""),
+        score=float(event.get("score") or 0.0),
+        evidence=[
+            Evidence.model_validate(item)
+            for item in content.get("evidence", [])
+            if isinstance(item, dict)
+        ],
+        tokens=int(event.get("tokens") or 0),
+        latency_ms=int(event.get("latency_ms") or 0),
+    )
+
+
+def _proposal_from_event(event: dict[str, Any]) -> TradeProposal:
+    content = dict(event.get("content") if isinstance(event.get("content"), dict) else {})
+    content["tokens"] = int(event.get("tokens") or content.get("tokens") or 0)
+    content["latency_ms"] = int(event.get("latency_ms") or content.get("latency_ms") or 0)
+    return TradeProposal.model_validate(content)
+
+
+def _risk_vote_from_event(event: dict[str, Any]) -> RiskVoteOutput:
+    content = dict(event.get("content") if isinstance(event.get("content"), dict) else {})
+    content["agent_slug"] = str(event.get("agent_slug") or content.get("agent_slug") or "")
+    content["score"] = float(event.get("score") or content.get("score") or 0.0)
+    content["tokens"] = int(event.get("tokens") or content.get("tokens") or 0)
+    content["latency_ms"] = int(event.get("latency_ms") or content.get("latency_ms") or 0)
+    return RiskVoteOutput.model_validate(content)
+
+
+def _pm_decision_from_event(event: dict[str, Any]) -> PmDecision:
+    content = dict(event.get("content") if isinstance(event.get("content"), dict) else {})
+    content["tokens"] = int(event.get("tokens") or content.get("tokens") or 0)
+    content["latency_ms"] = int(event.get("latency_ms") or content.get("latency_ms") or 0)
+    return PmDecision.model_validate(content)
+
+
+def _sum_event_tokens(events: list[dict[str, Any]]) -> int:
+    return sum(
+        int(event.get("tokens") or 0)
+        for event in events
+        if event.get("type") not in {"kpi.tick", "run.complete"}
+    )
+
+
+def _mark_recovery_failed(run_id: str, *, error: str) -> int:
+    store.mark_failed(run_id, error=error)
+    _event_id, seq = store.persist_event(
+        run_id,
+        type="run.failed",
+        stage="system",
+        content={"error": error},
+    )
+    return seq
+
+
+def _monotonic_anchor_for_run(summary: dict[str, Any] | None) -> float:
+    if summary is None:
+        return time.monotonic()
+    started_at = summary.get("started_at")
+    if isinstance(started_at, datetime):
+        started_dt = started_at
+    elif isinstance(started_at, str) and started_at:
+        try:
+            started_dt = datetime.fromisoformat(started_at)
+        except ValueError:
+            return time.monotonic()
+    else:
+        return time.monotonic()
+    if started_dt.tzinfo is None:
+        started_dt = started_dt.replace(tzinfo=UTC)
+    elapsed_seconds = max(0.0, (datetime.now(tz=UTC) - started_dt).total_seconds())
+    return time.monotonic() - elapsed_seconds
+
+
+async def _emit_stage_enter_once(checkpoint: _RunCheckpoint, stage: str, emit) -> None:
+    if stage in checkpoint.stage_enters:
+        return
+    await emit("stage.enter", stage_name=stage, content={"stage": stage})
+    checkpoint.stage_enters.add(stage)
+
+
+def _next_stage_name(checkpoint: _RunCheckpoint) -> str:
+    if any(slug not in checkpoint.analyst_outputs for slug in stages.ANALYST_SLUGS):
+        return "analysts"
+    for round_idx in range(_DEBATE_ROUNDS):
+        partial = checkpoint.debate_rounds.get(round_idx)
+        if partial is None or not partial.ended or partial.bull is None or partial.bear is None:
+            return "researchers"
+    if checkpoint.proposal is None:
+        return "trader"
+    if any(name not in checkpoint.ips_checks for name in _IPS_CHECK_ORDER):
+        return "ips"
+    if any(slug not in checkpoint.risk_votes for slug in stages.RISK_SLUGS):
+        return "risk"
+    if checkpoint.decision is None:
+        return "pm"
+    return "feedback"
 
 
 async def _ensure_ohlcv(symbol: str) -> None:

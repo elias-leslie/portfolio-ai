@@ -37,6 +37,7 @@ from app.services import paper_trades as paper_trades_svc
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/committee", tags=["committee"])
+_RUNNER_TASKS: set[asyncio.Task[None]] = set()
 
 
 class StartRunRequest(BaseModel):
@@ -103,13 +104,14 @@ async def start_run(
         parent_run_id=payload.parent_run_id,
         graph_version=GRAPH_VERSION,
     )
-    await stream.register(run_id)
-    background_tasks.add_task(
-        _run_committee_safely,
-        run_id=run_id,
-        symbol=payload.symbol,
-        household_id=household_id,
-        parent_run_id=payload.parent_run_id,
+    await _schedule_run(
+        {
+            "id": run_id,
+            "symbol": payload.symbol,
+            "household_id": household_id,
+            "parent_run_id": payload.parent_run_id,
+        },
+        background_tasks=background_tasks,
     )
     return StartRunResponse(
         run_id=run_id,
@@ -259,15 +261,38 @@ async def pause_run(run_id: str) -> dict[str, Any]:
 
 
 @router.post("/runs/{run_id}/resume")
-async def resume_run(run_id: str) -> dict[str, Any]:
+async def resume_run(run_id: str, background_tasks: BackgroundTasks) -> dict[str, Any]:
     _validate_uuid(run_id)
-    return {"resumed": stream.resume(run_id)}
+    if stream.resume(run_id):
+        return {"resumed": True}
+    run = await run_in_threadpool(store.get_run_summary, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"committee_run {run_id} not found")
+    if run["status"] not in {"pending", "running"}:
+        return {"resumed": False}
+    scheduled = await _schedule_run(run, background_tasks=background_tasks)
+    return {"resumed": scheduled}
 
 
 @router.post("/runs/{run_id}/abort")
 async def abort_run(run_id: str) -> dict[str, Any]:
     _validate_uuid(run_id)
-    return {"aborted": stream.abort(run_id)}
+    if stream.abort(run_id):
+        return {"aborted": True}
+    run = await run_in_threadpool(store.get_run_summary, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"committee_run {run_id} not found")
+    if run["status"] not in {"pending", "running"}:
+        return {"aborted": False}
+    await run_in_threadpool(store.mark_aborted, run_id, reason="user_abort")
+    await run_in_threadpool(
+        store.persist_event,
+        run_id,
+        type="run.aborted",
+        stage="system",
+        content={"reason": "user"},
+    )
+    return {"aborted": True}
 
 
 # ---------- helpers ----------
@@ -312,3 +337,40 @@ async def _run_committee_safely(
         raise
     except Exception:
         logger.exception("committee_background_task_crashed", run_id=run_id)
+
+
+async def _schedule_run(
+    run: dict[str, Any],
+    *,
+    background_tasks: BackgroundTasks | None = None,
+) -> bool:
+    """Register a run queue and attach graph execution in this process."""
+    run_id = str(run["id"])
+    if stream.get(run_id) is not None:
+        return False
+    await stream.register(run_id)
+    kwargs = {
+        "run_id": run_id,
+        "symbol": str(run["symbol"]).upper(),
+        "household_id": run.get("household_id"),
+        "parent_run_id": run.get("parent_run_id"),
+    }
+    if background_tasks is not None:
+        background_tasks.add_task(_run_committee_safely, **kwargs)
+    else:
+        task = asyncio.create_task(_run_committee_safely(**kwargs))
+        _RUNNER_TASKS.add(task)
+        task.add_done_callback(_RUNNER_TASKS.discard)
+    return True
+
+
+async def resume_incomplete_runs(*, limit: int = 25) -> list[str]:
+    """Attach pending/running persisted committee runs after process restart."""
+    rows = await run_in_threadpool(store.list_resumable_runs, limit=limit)
+    resumed: list[str] = []
+    for row in rows:
+        if await _schedule_run(row):
+            resumed.append(str(row["id"]))
+    if resumed:
+        logger.info("committee_resumed_incomplete_runs", run_ids=resumed)
+    return resumed

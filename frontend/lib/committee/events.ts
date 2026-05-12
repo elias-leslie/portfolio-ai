@@ -16,6 +16,7 @@ export type CommitteeStage =
 
 export type CommitteeEventType =
   | 'run.start'
+  | 'run.resume'
   | 'stage.enter'
   | 'agent.start'
   | 'agent.output'
@@ -32,6 +33,27 @@ export type CommitteeEventType =
   | 'run.aborted'
   | 'run.failed'
   | 'kpi.tick'
+
+export const COMMITTEE_EVENT_TYPES = [
+  'run.start',
+  'run.resume',
+  'stage.enter',
+  'agent.start',
+  'agent.output',
+  'agent.error',
+  'debate.round.start',
+  'debate.round.end',
+  'ips.check',
+  'trader.proposal',
+  'risk.vote',
+  'pm.decision',
+  'run.feedback.received',
+  'run.feedback.resolved',
+  'run.complete',
+  'run.aborted',
+  'run.failed',
+  'kpi.tick',
+] as const
 
 export type Side = 'bull' | 'bear' | 'neutral'
 

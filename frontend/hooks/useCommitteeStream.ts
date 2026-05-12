@@ -10,7 +10,10 @@ import {
   startRetroRun,
   submitCommitteeFeedback,
 } from '@/lib/committee/api'
-import type { CommitteeEvent } from '@/lib/committee/events'
+import {
+  COMMITTEE_EVENT_TYPES,
+  type CommitteeEvent,
+} from '@/lib/committee/events'
 import {
   type CommitteeUiState,
   INITIAL_COMMITTEE_STATE,
@@ -79,6 +82,23 @@ export function useCommitteeStream(
         // Phase 2: open SSE.
         const source = new EventSource(`/api/committee/runs/${runId}/stream`)
         sourceRef.current = source
+        const handleMessage = (e: MessageEvent) => {
+          if (cancelled || !e.data) return
+          try {
+            const payload = JSON.parse(e.data) as CommitteeEvent
+            dispatch({ kind: 'event', event: payload })
+            if (
+              payload.type === 'run.complete' ||
+              payload.type === 'run.aborted' ||
+              payload.type === 'run.failed'
+            ) {
+              source.close()
+              if (!cancelled) setConnection('closed')
+            }
+          } catch {
+            // Drop malformed payloads silently — the connection stays open.
+          }
+        }
         source.onopen = () => {
           if (!cancelled) setConnection('open')
         }
@@ -86,14 +106,8 @@ export function useCommitteeStream(
           if (!cancelled) setConnection('error')
         }
         source.onmessage = (e) => handleMessage(e)
-        const handleMessage = (e: MessageEvent) => {
-          if (cancelled || !e.data) return
-          try {
-            const payload = JSON.parse(e.data) as CommitteeEvent
-            dispatch({ kind: 'event', event: payload })
-          } catch {
-            // Drop malformed payloads silently — the connection stays open.
-          }
+        for (const eventType of COMMITTEE_EVENT_TYPES) {
+          source.addEventListener(eventType, handleMessage as EventListener)
         }
       })
       .catch(() => {
