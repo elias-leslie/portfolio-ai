@@ -27,12 +27,15 @@ from typing import Any
 from app.logging_config import get_logger
 
 from . import GRAPH_VERSION, stages, store, stream
+from . import feedback as feedback_mod
 from . import ips as ips_mod
 from .schemas import (
     AnalystOutput,
     DebateRound,
+    FeedbackAgentResponse,
     IpsCheck,
     IpsResult,
+    PastDecisionEntry,
     PmDecision,
     ResearcherOutput,
     RiskVoteOutput,
@@ -43,6 +46,12 @@ logger = get_logger(__name__)
 
 
 _DEBATE_ROUNDS = 3
+# After pm.decision the runner stays alive briefly so user feedback
+# submitted within this window is processed by the consensus-shift
+# round. Reset every time a claim lands so the user can submit a
+# follow-up. Capped to keep idle runs from holding background slots.
+_FEEDBACK_WAIT_SECONDS = 30.0
+_FEEDBACK_POLL_INTERVAL = 0.5
 
 
 async def run_committee(
@@ -214,6 +223,27 @@ async def run_committee(
             tokens_total=tokens_total,
             cost_usd=0.0,  # cost tracking deferred; Agent Hub owns billing
         )
+
+        # Post-decision feedback loop: drain queued claims, run the
+        # consensus-shift round, persist any revised decision. Re-arm the
+        # wait window every time a claim lands so a follow-up gets a
+        # chance.
+        decision, tokens_total = await _drain_feedback_loop(
+            run_id=run_id,
+            symbol=symbol,
+            household_id=household_id,
+            context=context,
+            analyst_outputs=analyst_outputs,
+            debate_history=debate_history,
+            ips_result=ips_result,
+            proposal=proposal,
+            risk_votes=risk_votes,
+            past_decisions=past_decisions,
+            decision=decision,
+            tokens_total=tokens_total,
+            emit=emit,
+        )
+
         elapsed_ms = int((time.monotonic() - started_at) * 1000)
         await emit(
             "run.complete",
@@ -466,6 +496,211 @@ def _enforce_ips_compliance(decision: PmDecision, ips_result: IpsResult) -> PmDe
             ),
         }
     )
+
+
+async def _drain_feedback_loop(
+    *,
+    run_id: str,
+    symbol: str,
+    household_id: str | None,
+    context: dict[str, Any],
+    analyst_outputs: list[AnalystOutput],
+    debate_history: list[DebateRound],
+    ips_result: IpsResult,
+    proposal: TradeProposal,
+    risk_votes: list[RiskVoteOutput],
+    past_decisions: list[PastDecisionEntry],
+    decision: PmDecision,
+    tokens_total: int,
+    emit,
+) -> tuple[PmDecision, int]:
+    """Wait for + process user feedback claims for ~``_FEEDBACK_WAIT_SECONDS``.
+
+    Each claim triggers a consensus-shift round: re-invoke analysts +
+    risk voters with the new claim, run ``should_revise_decision``,
+    either re-invoke PM (decision shifted) or emit a rebuttal-only
+    ``run.feedback.resolved``. Re-arms the wait window on every claim
+    so the user can follow up.
+
+    Returns the (possibly updated) decision and token total.
+    """
+    deadline = time.monotonic() + _FEEDBACK_WAIT_SECONDS
+    debate_summary = [stages._summarize_round(r) for r in debate_history]
+    while time.monotonic() < deadline:
+        try:
+            await stream.check_control(run_id)
+        except asyncio.CancelledError:
+            raise
+        claims = stream.drain_feedback(run_id)
+        if not claims:
+            await asyncio.sleep(_FEEDBACK_POLL_INTERVAL)
+            continue
+        for claim in claims:
+            decision, tokens_total = await _process_feedback_claim(
+                run_id=run_id,
+                symbol=symbol,
+                household_id=household_id,
+                context=context,
+                analyst_outputs=analyst_outputs,
+                debate_summary=debate_summary,
+                ips_result=ips_result,
+                proposal=proposal,
+                risk_votes_prior=risk_votes,
+                past_decisions=past_decisions,
+                decision=decision,
+                tokens_total=tokens_total,
+                claim=claim,
+                emit=emit,
+            )
+        deadline = time.monotonic() + _FEEDBACK_WAIT_SECONDS
+    return decision, tokens_total
+
+
+async def _process_feedback_claim(
+    *,
+    run_id: str,
+    symbol: str,
+    household_id: str | None,
+    context: dict[str, Any],
+    analyst_outputs: list[AnalystOutput],
+    debate_summary: list[dict[str, Any]],
+    ips_result: IpsResult,
+    proposal: TradeProposal,
+    risk_votes_prior: list[RiskVoteOutput],
+    past_decisions: list[PastDecisionEntry],
+    decision: PmDecision,
+    tokens_total: int,
+    claim: dict[str, Any],
+    emit,
+) -> tuple[PmDecision, int]:
+    """Run one feedback round: analysts + risk voters + (maybe) PM."""
+    new_claim = str(claim.get("user_input") or "").strip()
+    round_num = int(claim.get("round") or 0)
+    input_id = claim.get("input_id")
+    if not new_claim:
+        return decision, tokens_total
+
+    analyst_responses = await _run_analyst_feedback_stage(
+        symbol=symbol,
+        context=context,
+        analyst_outputs=analyst_outputs,
+        debate_summary=debate_summary,
+        new_claim=new_claim,
+    )
+    new_risk_votes = await _run_risk_feedback_stage(
+        proposal=proposal,
+        ips_result=ips_result,
+        prior_votes=risk_votes_prior,
+        debate_summary=debate_summary,
+        new_claim=new_claim,
+    )
+    tokens_total += sum(v.tokens for v in new_risk_votes)
+
+    should_revise, telemetry = feedback_mod.should_revise_decision(
+        analyst_responses=analyst_responses,
+        prior_risk_votes=risk_votes_prior,
+        new_risk_votes=new_risk_votes,
+    )
+
+    if should_revise:
+        revised = await stages.run_pm(
+            proposal=proposal,
+            debate_history=[],  # debate is summarized inside the feedback payload
+            risk_votes=new_risk_votes,
+            ips_result=ips_result,
+            past_decisions=past_decisions,
+            feedback_round={"new_claim": new_claim, "prior_decision": decision.model_dump(mode="json")},
+        )
+        tokens_total += revised.tokens
+        revised = _enforce_ips_compliance(revised, ips_result)
+        store.mark_complete(
+            run_id,
+            decision=revised,
+            tokens_total=tokens_total,
+            cost_usd=0.0,
+        )
+        await emit(
+            "pm.decision",
+            stage_name="pm",
+            agent_slug=stages.SLUG_PM,
+            role="pm",
+            content=revised.model_dump(mode="json"),
+            score=revised.confidence,
+            tokens=revised.tokens,
+            latency_ms=revised.latency_ms,
+        )
+        decision = revised
+        rebuttal_md: str | None = None
+    else:
+        rebuttal_md = feedback_mod.compose_rebuttal_md(analyst_responses) or None
+
+    if input_id:
+        try:
+            store.mark_feedback_resolved(str(input_id), decision_shifted=should_revise)
+        except Exception as exc:
+            logger.warning(
+                "committee_feedback_resolved_persist_failed",
+                run_id=run_id,
+                input_id=input_id,
+                error=str(exc),
+            )
+
+    await emit(
+        "run.feedback.resolved",
+        stage_name="feedback",
+        content={
+            "round": round_num,
+            "decision_shifted": should_revise,
+            "rebuttal_md": rebuttal_md,
+            "telemetry": telemetry,
+        },
+    )
+    _ = household_id  # household scoping handled by store layer today
+    return decision, tokens_total
+
+
+async def _run_analyst_feedback_stage(
+    *,
+    symbol: str,
+    context: dict[str, Any],
+    analyst_outputs: list[AnalystOutput],
+    debate_summary: list[dict[str, Any]],
+    new_claim: str,
+) -> list[FeedbackAgentResponse]:
+    tasks = [
+        stages.run_analyst_feedback(
+            output.agent_slug,
+            symbol=symbol,
+            context=context,
+            prior_output=output,
+            debate_summary=debate_summary,
+            new_claim=new_claim,
+        )
+        for output in analyst_outputs
+    ]
+    return list(await asyncio.gather(*tasks))
+
+
+async def _run_risk_feedback_stage(
+    *,
+    proposal: TradeProposal,
+    ips_result: IpsResult,
+    prior_votes: list[RiskVoteOutput],
+    debate_summary: list[dict[str, Any]],
+    new_claim: str,
+) -> list[RiskVoteOutput]:
+    tasks = [
+        stages.run_risk_feedback(
+            vote.agent_slug,
+            proposal=proposal,
+            ips_result=ips_result,
+            prior_vote=vote,
+            debate_summary=debate_summary,
+            new_claim=new_claim,
+        )
+        for vote in prior_votes
+    ]
+    return list(await asyncio.gather(*tasks))
 
 
 def _SeqState():  # noqa: N802 — sentinel-style factory

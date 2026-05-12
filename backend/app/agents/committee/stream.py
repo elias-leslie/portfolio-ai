@@ -36,6 +36,7 @@ class RunControl:
 class _RunRegistry:
     queue: asyncio.Queue[dict[str, Any]]
     control: RunControl
+    feedback: asyncio.Queue[dict[str, Any]] = field(default_factory=asyncio.Queue)
     subscribers: int = 0
     terminated: bool = False
 
@@ -122,6 +123,34 @@ def abort(run_id: str) -> bool:
     entry.control.state = "aborted"
     entry.control.event.set()
     return True
+
+
+def enqueue_feedback(run_id: str, payload: dict[str, Any]) -> bool:
+    """Enqueue a user feedback claim for the running graph to consume.
+
+    Returns False if the run is unknown (terminated + cleaned up); the
+    API layer still persists the input for the audit trail in that
+    case but the live re-evaluation can't fire.
+    """
+    entry = _registry.get(run_id)
+    if entry is None:
+        return False
+    entry.feedback.put_nowait(payload)
+    return True
+
+
+def drain_feedback(run_id: str) -> list[dict[str, Any]]:
+    """Pop every queued feedback claim. Non-blocking; returns ``[]`` if none."""
+    entry = _registry.get(run_id)
+    if entry is None:
+        return []
+    drained: list[dict[str, Any]] = []
+    while not entry.feedback.empty():
+        try:
+            drained.append(entry.feedback.get_nowait())
+        except asyncio.QueueEmpty:
+            break
+    return drained
 
 
 async def subscribe(run_id: str):

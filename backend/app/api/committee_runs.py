@@ -134,19 +134,24 @@ async def approve_run(run_id: str) -> ApproveResponse:
 
 @router.post("/runs/{run_id}/feedback")
 async def submit_feedback(run_id: str, payload: FeedbackRequest) -> dict[str, Any]:
-    """Persist a user feedback claim against an in-progress run.
+    """Persist a user feedback claim and enqueue it for the runner.
 
-    The actual feedback round (re-scoring by analysts + risk + PM
-    revise check) is enqueued for the running graph to consume — for
-    this initial cut we persist the claim and emit a
-    ``run.feedback.received`` event; the consensus-shift round is the
-    next iteration's scope.
+    Persists ``committee_inputs`` + ``run.feedback.received`` event so
+    the retro/audit trail is intact, then drops the claim into the
+    runner's per-run feedback queue. The runner's post-decision wait
+    window picks it up and runs the consensus-shift round (analysts +
+    risk voters + maybe PM, per ``feedback.should_revise_decision``),
+    emitting ``run.feedback.resolved`` when done.
+
+    If the runner has already terminated and the queue is gone, the
+    audit trail is still updated; the response signals
+    ``enqueued=false`` so callers can surface that to the user.
     """
     _validate_uuid(run_id)
     run = await run_in_threadpool(store.get_run_summary, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail=f"committee_run {run_id} not found")
-    if run["status"] in {"complete", "approved", "aborted", "failed"}:
+    if run["status"] in {"approved", "aborted", "failed"}:
         # We still accept feedback so the user's claim is logged for the
         # retro/audit trail, but warn that the live re-evaluation won't fire.
         logger.info("committee_feedback_post_terminal", run_id=run_id, status=run["status"])
@@ -173,6 +178,14 @@ async def submit_feedback(run_id: str, payload: FeedbackRequest) -> dict[str, An
         user_input=payload.user_input,
         triggered_event_id=event_id,
     )
+    enqueued = stream.enqueue_feedback(
+        run_id,
+        {
+            "round": round_idx,
+            "user_input": payload.user_input,
+            "input_id": input_id,
+        },
+    )
     await stream.emit(
         run_id,
         {
@@ -188,7 +201,7 @@ async def submit_feedback(run_id: str, payload: FeedbackRequest) -> dict[str, An
             },
         },
     )
-    return {"input_id": input_id, "round": round_idx}
+    return {"input_id": input_id, "round": round_idx, "enqueued": enqueued}
 
 
 @router.post("/runs/{run_id}/retro", response_model=StartRunResponse)

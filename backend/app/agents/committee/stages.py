@@ -23,12 +23,14 @@ from .schemas import (
     AnalystOutput,
     DebateRound,
     Evidence,
+    FeedbackAgentResponse,
     IpsResult,
     PastDecisionEntry,
     PmDecision,
     ResearcherOutput,
     RiskObjection,
     RiskVoteOutput,
+    Side,
     TradeProposal,
 )
 
@@ -200,6 +202,83 @@ async def run_risk(
     )
 
 
+async def run_analyst_feedback(
+    slug: str,
+    *,
+    symbol: str,
+    context: dict[str, Any],
+    prior_output: AnalystOutput,
+    debate_summary: list[dict[str, Any]],
+    new_claim: str,
+) -> FeedbackAgentResponse:
+    """Re-invoke an analyst with a user claim and parse the feedback-shape response.
+
+    The system prompt for each analyst slug includes the feedback-round
+    clause (DB-resident, see plan §Anti-sycophancy). When ``feedback_round``
+    is set in the payload the model returns ``{score, revised_stance,
+    rebuttal_or_concession}`` instead of the regular thesis shape.
+    """
+    payload: dict[str, Any] = {
+        "symbol": symbol,
+        "context_slice": _context_slice_for(slug, context),
+        "feedback_round": True,
+        "feedback_input": {
+            "prior_output": _summarize_analyst(prior_output),
+            "debate_summary": debate_summary,
+            "new_claim": new_claim,
+        },
+    }
+    raw = await _complete(slug, payload, purpose=f"committee.analyst.{slug}.feedback")
+    parsed = _parse_json_content(raw)
+    return _parse_feedback_response(parsed, slug=slug, prior_score=prior_output.score)
+
+
+async def run_risk_feedback(
+    slug: str,
+    *,
+    proposal: TradeProposal,
+    ips_result: IpsResult,
+    prior_vote: RiskVoteOutput,
+    debate_summary: list[dict[str, Any]],
+    new_claim: str,
+) -> RiskVoteOutput:
+    """Re-invoke a risk voter with the feedback claim, return the new full vote.
+
+    The runner needs the new ``score`` to compute the consensus-shift
+    risk-median delta, so we keep the full ``RiskVoteOutput`` shape.
+    """
+    payload: dict[str, Any] = {
+        "proposal": proposal.model_dump(mode="json"),
+        "ips_result": ips_result.model_dump(mode="json"),
+        "feedback_round": True,
+        "feedback_input": {
+            "prior_vote": prior_vote.model_dump(mode="json"),
+            "debate_summary": debate_summary,
+            "new_claim": new_claim,
+        },
+    }
+    start = time.monotonic()
+    raw = await _complete(slug, payload, purpose=f"committee.risk.{slug}.feedback")
+    latency_ms = int((time.monotonic() - start) * 1000)
+    parsed = _parse_json_content(raw)
+    return RiskVoteOutput(
+        agent_slug=slug,
+        vote=str(parsed.get("vote") or prior_vote.vote),
+        score=_coerce_score(parsed.get("score"), low=-1.0, high=1.0),
+        narrative_md=str(parsed.get("narrative_md") or "").strip(),
+        objections=[
+            RiskObjection(
+                claim=str(item.get("claim", "")),
+                severity=str(item.get("severity", "low")),
+            )
+            for item in parsed.get("objections") or []
+            if isinstance(item, dict)
+        ],
+        tokens=_tokens(raw),
+        latency_ms=latency_ms,
+    )
+
+
 async def run_pm(
     *,
     proposal: TradeProposal,
@@ -303,6 +382,42 @@ def _optional_float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _stance_from_score(score: float) -> Side:
+    """Map a numeric analyst score to bull/bear/neutral. Threshold: ±0.2."""
+    if score >= 0.2:
+        return "bull"
+    if score <= -0.2:
+        return "bear"
+    return "neutral"
+
+
+def _parse_feedback_response(
+    parsed: dict[str, Any],
+    *,
+    slug: str,
+    prior_score: float,
+) -> FeedbackAgentResponse:
+    """Coerce a feedback-round LLM response into FeedbackAgentResponse.
+
+    Falls back to ``weak`` + unchanged stance on missing/invalid fields
+    so a single misbehaving agent can't crash the consensus rule.
+    """
+    raw_score = str(parsed.get("score") or "weak").strip().lower()
+    if raw_score not in {"weak", "mistaken", "partial", "decisive"}:
+        raw_score = "weak"
+    raw_stance = str(parsed.get("revised_stance") or "").strip().lower()
+    prior_stance = _stance_from_score(prior_score)
+    if raw_stance not in {"bull", "bear", "neutral"}:
+        raw_stance = prior_stance
+    return FeedbackAgentResponse(
+        agent_slug=slug,
+        score=raw_score,
+        revised_stance=raw_stance,
+        rebuttal_or_concession=str(parsed.get("rebuttal_or_concession") or "").strip(),
+        prior_stance=prior_stance,
+    )
 
 
 def _coerce_evidence(raw: Any, *, default_side: str) -> list[Evidence]:

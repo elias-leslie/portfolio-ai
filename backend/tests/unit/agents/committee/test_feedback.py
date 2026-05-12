@@ -4,11 +4,20 @@ from __future__ import annotations
 
 import pytest
 
+from app.agents.committee import graph as graph_mod
 from app.agents.committee.feedback import (
     compose_rebuttal_md,
     should_revise_decision,
 )
-from app.agents.committee.schemas import FeedbackAgentResponse, RiskVoteOutput
+from app.agents.committee.schemas import (
+    AnalystOutput,
+    FeedbackAgentResponse,
+    IpsCheck,
+    IpsResult,
+    PmDecision,
+    RiskVoteOutput,
+    TradeProposal,
+)
 
 
 def _analyst_response(
@@ -21,10 +30,10 @@ def _analyst_response(
 ) -> FeedbackAgentResponse:
     return FeedbackAgentResponse(
         agent_slug=slug,
-        score=score,  # type: ignore[arg-type]
-        revised_stance=revised,  # type: ignore[arg-type]
+        score=score,
+        revised_stance=revised,
         rebuttal_or_concession=rebuttal,
-        prior_stance=prior,  # type: ignore[arg-type]
+        prior_stance=prior,
     )
 
 
@@ -92,6 +101,99 @@ def test_risk_median_swing_alone_triggers_revise() -> None:
     )
     assert should is True
     assert telemetry["risk_delta"] == pytest.approx(0.3)
+
+
+@pytest.mark.asyncio
+async def test_process_feedback_claim_with_unanimous_weak_keeps_decision_and_emits_rebuttal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Integration: unanimous weak input must NOT shift decision AND must emit non-empty rebuttal_md.
+
+    Mocks ``run_analyst_feedback`` and ``run_risk_feedback`` so the test
+    runs offline (no Agent Hub I/O). Verifies the runner's
+    ``_process_feedback_claim`` honors the consensus-shift rule and the
+    composed rebuttal arrives via the emit callback.
+    """
+    analyst_outputs = [
+        AnalystOutput(agent_slug=f"a{i}-v1", content_md="bull thesis", score=0.6, evidence=[])
+        for i in range(4)
+    ]
+    risk_votes_prior = [
+        RiskVoteOutput(agent_slug=f"r{i}", vote="approve", score=0.4, narrative_md="")
+        for i in range(3)
+    ]
+    proposal = TradeProposal(
+        action="buy",
+        qty_pct=0.05,
+        entry_price=100.0,
+        horizon="3mo",
+        rationale_md="reasoned buy",
+    )
+    decision = PmDecision(
+        action="buy",
+        qty_pct=0.05,
+        confidence=0.7,
+        horizon="3mo",
+        rationale_md="initial decision",
+        signers=["fundamentals-v1"],
+    )
+    ips_result = IpsResult(
+        checks=[IpsCheck(name="concentration", passed=True, severity="info", detail="ok")],
+        all_passed=True,
+    )
+
+    async def fake_analyst_feedback(slug: str, **kwargs):
+        return FeedbackAgentResponse(
+            agent_slug=slug,
+            score="weak",
+            revised_stance="bull",
+            rebuttal_or_concession=f"{slug}: claim does not shift the read.",
+            prior_stance="bull",
+        )
+
+    async def fake_risk_feedback(slug: str, *, prior_vote: RiskVoteOutput, **kwargs):
+        return prior_vote.model_copy(update={"score": prior_vote.score + 0.01})
+
+    monkeypatch.setattr(graph_mod.stages, "run_analyst_feedback", fake_analyst_feedback)
+    monkeypatch.setattr(graph_mod.stages, "run_risk_feedback", fake_risk_feedback)
+
+    emitted: list[dict] = []
+
+    async def emit(type, *, stage_name=None, agent_slug=None, role=None,
+                   content=None, score=None, tokens=None, latency_ms=None):
+        emitted.append({"type": type, "stage": stage_name, "content": content or {}})
+        return 1
+
+    revised_decision, _ = await graph_mod._process_feedback_claim(
+        run_id="run-test",
+        symbol="NVDA",
+        household_id=None,
+        context={},
+        analyst_outputs=analyst_outputs,
+        debate_summary=[],
+        ips_result=ips_result,
+        proposal=proposal,
+        risk_votes_prior=risk_votes_prior,
+        past_decisions=[],
+        decision=decision,
+        tokens_total=0,
+        claim={"user_input": "What about the China tariff news?", "round": 1, "input_id": None},
+        emit=emit,
+    )
+
+    assert revised_decision == decision, "decision must be unchanged when claim is unanimously weak"
+
+    resolved = [e for e in emitted if e["type"] == "run.feedback.resolved"]
+    assert len(resolved) == 1
+    payload = resolved[0]["content"]
+    assert payload["decision_shifted"] is False
+    assert payload["rebuttal_md"], "rebuttal_md must be non-empty when decision does not shift"
+    # Each analyst's rebuttal line should be present in the composed markdown.
+    for output in analyst_outputs:
+        assert output.agent_slug in payload["rebuttal_md"]
+
+    # No new pm.decision event should have fired.
+    assert not [e for e in emitted if e["type"] == "pm.decision"]
 
 
 def test_compose_rebuttal_includes_per_agent_lines() -> None:
