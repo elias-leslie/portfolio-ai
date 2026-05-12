@@ -6,7 +6,6 @@ Routes through Agent Hub agents; Agent Hub owns model selection and fallbacks.
 
 from __future__ import annotations
 
-import json
 import time
 from typing import Any
 
@@ -16,7 +15,6 @@ from agent_hub.exceptions import AgentHubError
 
 from ...config import settings
 from ...logging_config import get_logger
-from ...services._jenny_response_cleanup import extract_json_object_text
 from .base_client import LLMClient, LLMResponse
 
 logger = get_logger(__name__)
@@ -260,62 +258,6 @@ class AgentHubAPIClient(LLMClient):
         if enable_programmatic_tools:
             request_kwargs["enable_programmatic_tools"] = True
         return self._client.complete(**request_kwargs)
-
-    def run_committee_roundtable(
-        self,
-        *,
-        prompt: str,
-        window_days: int,
-        source_snapshot_json: str,
-        purpose: str = "market_prediction_committee",
-        max_turns: int = 4,
-    ) -> dict[str, Any]:
-        http_client = self._client._get_client()
-        try:
-            response = http_client.post(
-                "/api/orchestration/committee",
-                json={
-                    "prompt": prompt,
-                    "window_days": window_days,
-                    "source_snapshot": json.loads(source_snapshot_json),
-                    "project_id": "portfolio-ai",
-                    "agent_slug": "investment-committee",
-                    "trace_id": purpose,
-                },
-            )
-            if getattr(response, "is_success", False):
-                payload = response.json()
-                if (
-                    isinstance(payload, dict)
-                    and isinstance(payload.get("calls"), list)
-                    and isinstance(payload.get("votes"), list)
-                ):
-                    return {**payload, "_portfolio_execution_path": "committee_endpoint"}
-        except Exception:
-            logger.warning("committee_endpoint_request_failed", exc_info=True)
-
-        message = (
-            f"Committee forecast window: {window_days} trading days.\n\n"
-            f"Source snapshot JSON:\n{source_snapshot_json}\n\n"
-            f"Task:\n{prompt}"
-        )
-        response = self.complete_messages(
-            agent_slug="investment-committee",
-            messages=[{"role": "user", "content": message}],
-            purpose=purpose,
-            response_format={"type": "json_object"},
-            max_turns=max_turns,
-        )
-        payload_text = extract_json_object_text(str(getattr(response, "content", "") or ""))
-        if payload_text is None:
-            raise RuntimeError("Committee roundtable returned no JSON payload")
-        try:
-            payload = json.loads(payload_text)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(f"Committee roundtable returned invalid JSON: {exc}") from exc
-        if not isinstance(payload, dict):
-            raise RuntimeError("Committee roundtable returned non-object payload")
-        return {**payload, "_portfolio_execution_path": "fallback_completion"}
 
     def _get_async_client(self) -> AsyncSDKClient:
         """Return a lazily-constructed async SDK client.
