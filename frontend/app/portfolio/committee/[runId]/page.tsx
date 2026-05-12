@@ -1,7 +1,9 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import { use, useState } from 'react'
+export const dynamic = 'force-dynamic'
+
+import { useParams, useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { AnalystColumn } from '@/components/committee/AnalystColumn'
 import { ChatComposer } from '@/components/committee/ChatComposer'
@@ -16,13 +18,10 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { useCommitteeStream } from '@/hooks/useCommitteeStream'
 
-export default function CommitteeRunPage({
-  params,
-}: {
-  params: Promise<{ runId: string }>
-}) {
-  const { runId } = use(params)
+export default function CommitteeRunPage() {
+  const params = useParams<{ runId: string }>()
   const router = useRouter()
+  const runId = params?.runId ?? null
   const {
     state,
     connection,
