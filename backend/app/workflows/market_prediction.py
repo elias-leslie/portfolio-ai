@@ -21,6 +21,7 @@ from app.services.market_prediction_evaluation_service import MarketPredictionEv
 from app.services.market_prediction_seat_weighting_service import (
     MarketPredictionSeatWeightingService,
 )
+from app.services.paper_trades import update_pnl_for_open as update_paper_trade_pnl
 from app.tasks.ingestion.price_ingestion import refresh_daily_ohlcv
 from app.tasks.market_data.macro_calendar_pipeline import ingest_macro_calendar_events
 from app.tasks.market_data.options_pipeline import fetch_options_activity_metrics
@@ -67,6 +68,19 @@ def run_market_prediction_cycle(
         except Exception as exc:
             logger.warning("ohlcv_refresh_for_prediction_failed", error=str(exc), exc_info=True)
             ohlcv_refresh = {"status": "failed", "error": str(exc)}
+    # After fresh OHLCV lands, update P/L for every open Investment Committee
+    # paper trade. Skip on OHLCV failure since prices are stale.
+    paper_trade_pnl: dict[str, Any]
+    if ohlcv_refresh.get("status") == "failed":
+        paper_trade_pnl = {"status": "skipped", "reason": "ohlcv_refresh_failed"}
+    else:
+        try:
+            paper_trade_pnl = update_paper_trade_pnl()
+        except Exception as exc:
+            logger.warning(
+                "paper_trade_pnl_update_failed", error=str(exc), exc_info=True
+            )
+            paper_trade_pnl = {"status": "failed", "error": str(exc)}
     macro_calendar_ingestion: dict[str, Any]
     if macro_calendar_ingestion_fn is None:
         macro_calendar_ingestion = {"status": "skipped"}
@@ -117,6 +131,7 @@ def run_market_prediction_cycle(
         "generated_windows": generated_windows,
         "evaluations_completed": len(evaluations),
         "ohlcv_refresh": ohlcv_refresh,
+        "paper_trade_pnl": paper_trade_pnl,
         "macro_calendar_ingestion": macro_calendar_ingestion,
         "options_activity": options_activity,
     }
