@@ -2,13 +2,7 @@
  * React Query hooks for Market Intelligence API
  */
 
-import {
-  type UseMutationResult,
-  type UseQueryResult,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query'
+import { type UseQueryResult, useQuery } from '@tanstack/react-query'
 import {
   type FearGreedHistoryResponse,
   fetchFearGreedHistory,
@@ -16,9 +10,6 @@ import {
   fetchMarketEventsForChart,
   fetchMarketIntelligence,
   fetchMarketMovers,
-  fetchMarketPredictionCommittee,
-  fetchMarketPredictionHistory,
-  fetchMarketPredictionReview,
   fetchMarketStatus,
   fetchNewsSentimentHistory,
   fetchSectorHistory,
@@ -26,18 +17,11 @@ import {
   type MarketEventsChartResponse,
   type MarketIntelligenceResponse,
   type MarketMoversResponse,
-  type MarketPredictionCommitteeResponse,
-  type MarketPredictionHistoryResponse,
-  type MarketPredictionSeatReviewResponse,
   type MarketStatusResponse,
   type NewsSentimentHistoryResponse,
-  refreshMarketPredictionCommittee,
   type SectorHistoryResponse,
 } from '../api/market'
 import { fetchPreferences } from '../api/preferences'
-
-const DEFAULT_PREDICTION_REFRESH_MS = 1000 * 60 * 10
-const MIN_PREDICTION_REFRESH_MS = 1000 * 60
 
 type PollMs = number | false
 
@@ -57,20 +41,6 @@ function staleTimeForPoll(pollMs: PollMs) {
   return pollMs === false ? Number.POSITIVE_INFINITY : pollMs
 }
 
-function getPredictionCommitteeRefreshMs(
-  data: MarketPredictionCommitteeResponse | undefined,
-) {
-  const seconds = data?.freshnessSummary?.refreshAfterSeconds
-  if (
-    typeof seconds !== 'number' ||
-    !Number.isFinite(seconds) ||
-    seconds <= 0
-  ) {
-    return DEFAULT_PREDICTION_REFRESH_MS
-  }
-  return Math.max(MIN_PREDICTION_REFRESH_MS, Math.round(seconds * 1000))
-}
-
 /**
  * Hook to fetch unified market intelligence
  * (narrative + dual scoring + sector rotation)
@@ -83,90 +53,6 @@ export function useMarketIntelligence(): UseQueryResult<MarketIntelligenceRespon
     staleTime: staleTimeForPoll(pollMs),
     refetchInterval: pollMs,
     refetchOnWindowFocus: pollMs !== false,
-  })
-}
-
-/**
- * Hook to fetch the latest market prediction committee snapshot for a selected trading-day window
- */
-export function useMarketPredictionCommittee(
-  windowDays: number = 3,
-): UseQueryResult<MarketPredictionCommitteeResponse> {
-  return useQuery({
-    queryKey: ['market', 'prediction', 'committee', windowDays],
-    queryFn: ({ signal }) =>
-      fetchMarketPredictionCommittee(windowDays, { signal }),
-    staleTime: 1000 * 60,
-    refetchInterval: (query) =>
-      getPredictionCommitteeRefreshMs(
-        query.state.data as MarketPredictionCommitteeResponse | undefined,
-      ),
-    refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
-  })
-}
-
-export function useRefreshMarketPredictionCommittee(): UseMutationResult<
-  MarketPredictionCommitteeResponse,
-  Error,
-  number
-> {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: (windowDays: number) =>
-      refreshMarketPredictionCommittee(windowDays),
-    onSuccess: (data, windowDays) => {
-      queryClient.setQueryData(
-        ['market', 'prediction', 'committee', windowDays],
-        data,
-      )
-      void queryClient.invalidateQueries({
-        queryKey: ['market', 'prediction', 'committee-history'],
-      })
-      void queryClient.invalidateQueries({
-        queryKey: ['market', 'prediction', 'review', windowDays],
-      })
-    },
-  })
-}
-
-export function useMarketPredictionReview(
-  windowDays: number = 3,
-): UseQueryResult<MarketPredictionSeatReviewResponse> {
-  return useQuery({
-    queryKey: ['market', 'prediction', 'review', windowDays],
-    queryFn: ({ signal }) =>
-      fetchMarketPredictionReview(windowDays, { signal }),
-    staleTime: 1000 * 60 * 10,
-    refetchInterval: 1000 * 60 * 10,
-    refetchOnWindowFocus: true,
-  })
-}
-
-/**
- * Hook to fetch market prediction history for a symbol/window pair
- */
-export function useMarketPredictionHistory(
-  symbol: string,
-  windowDays: number = 3,
-  limit: number = 30,
-): UseQueryResult<MarketPredictionHistoryResponse> {
-  return useQuery({
-    queryKey: [
-      'market',
-      'prediction',
-      'committee-history',
-      symbol,
-      windowDays,
-      limit,
-    ],
-    queryFn: ({ signal }) =>
-      fetchMarketPredictionHistory(symbol, windowDays, limit, { signal }),
-    staleTime: 1000 * 60 * 10,
-    refetchInterval: 1000 * 60 * 10,
-    refetchOnWindowFocus: true,
-    enabled: Boolean(symbol),
   })
 }
 

@@ -9,7 +9,6 @@ import { AccountsWithPositionsContent } from '@/components/portfolio/AccountsWit
 import { AddAccountDialog } from '@/components/portfolio/AddAccountDialog'
 import { AddPositionDialog } from '@/components/portfolio/AddPositionDialog'
 import { InvestingNewsPanel } from '@/components/portfolio/InvestingNewsPanel'
-import { InvestingPredictionPanel } from '@/components/portfolio/InvestingPredictionPanel'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import type { WorkspaceTab } from '@/components/shared/WorkspaceTabs'
@@ -112,11 +111,6 @@ function PortfolioPageContent() {
   }
 
   const tabs: WorkspaceTab[] = [
-    {
-      value: 'prediction',
-      label: 'Prediction',
-      content: <InvestingPredictionPanel />,
-    },
     {
       value: 'news',
       label: 'News',
