@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Callable
 from datetime import UTC, datetime
 from time import monotonic
@@ -13,7 +12,6 @@ from pydantic import BaseModel, Field
 
 from app.logging_config import get_logger
 from app.services.household_finance_service import HouseholdFinanceService
-from app.services.market_prediction_committee_service import MarketPredictionCommitteeService
 
 from .health_models import (
     DEFAULT_HOURS_WINDOW,
@@ -140,90 +138,6 @@ def _build_market_data_decision_domain(
             or "Market data freshness check is unavailable."
         ),
         last_updated=freshness_status.get("last_check"),
-        evidence=evidence,
-    )
-
-
-def _find_prediction_macro_cluster(freshness_summary: Any) -> Any:
-    clusters = _read_field(freshness_summary, "critical_clusters", "criticalClusters", default=[]) or []
-    for cluster in clusters:
-        if str(_read_field(cluster, "cluster", default="")).lower() == "macro_calendar":
-            return cluster
-    return None
-
-
-def _build_prediction_macro_decision_domain(snapshot: Any | None) -> DecisionDataDomain:
-    label = "Prediction Macro"
-    if snapshot is None:
-        return _decision_domain(
-            key="prediction_macro",
-            label=label,
-            status="missing",
-            severity="critical",
-            message="No market-prediction committee snapshot is available.",
-        )
-
-    freshness_summary = _read_field(snapshot, "freshness_summary", "freshnessSummary")
-    generated_at = _read_field(snapshot, "generated_at", "generatedAt")
-    if freshness_summary is None:
-        return _decision_domain(
-            key="prediction_macro",
-            label=label,
-            status="unknown",
-            severity="unknown",
-            message="Committee snapshot has no freshness summary.",
-            last_updated=generated_at,
-        )
-
-    macro_cluster = _find_prediction_macro_cluster(freshness_summary)
-    macro_freshness = str(_read_field(macro_cluster, "freshness", default="unknown") or "unknown")
-    macro_detail = _read_field(macro_cluster, "detail")
-    state = str(_read_field(freshness_summary, "state", default="unknown") or "unknown")
-    invalidated = bool(_read_field(freshness_summary, "invalidated", default=False))
-    summary = str(_read_field(freshness_summary, "summary", default="") or "")
-    evidence = {
-        "state": state,
-        "invalidated": invalidated,
-        "macro_freshness": macro_freshness,
-        "reason_codes": _read_field(freshness_summary, "reason_codes", "reasonCodes", default=[]),
-    }
-
-    if macro_freshness == "missing":
-        domain_status: DecisionDomainStatus = "missing"
-        severity: DecisionDomainSeverity = "critical"
-        message = str(macro_detail or "Macro calendar evidence is missing.")
-    elif macro_freshness == "stale":
-        domain_status = "stale"
-        severity = "warning"
-        message = str(macro_detail or "Macro calendar evidence is stale.")
-    elif invalidated or state == "invalid":
-        domain_status = "stale"
-        severity = "critical"
-        message = summary or "Prediction snapshot is outside its valid refresh window."
-    elif state in {"stale", "aging"}:
-        domain_status = "stale" if state == "stale" else "aging"
-        severity = "warning"
-        message = summary or "Prediction snapshot needs review soon."
-    elif state == "degraded":
-        domain_status = "degraded"
-        severity = "critical"
-        message = summary or "Prediction snapshot is degraded."
-    elif state == "fresh" and macro_freshness == "fresh":
-        domain_status = "current"
-        severity = "healthy"
-        message = summary or "Prediction macro evidence is current."
-    else:
-        domain_status = "unknown"
-        severity = "unknown"
-        message = summary or "Prediction macro freshness is unknown."
-
-    return _decision_domain(
-        key="prediction_macro",
-        label=label,
-        status=domain_status,
-        severity=severity,
-        message=message,
-        last_updated=generated_at,
         evidence=evidence,
     )
 
@@ -472,14 +386,6 @@ def _summarize_decision_data_domains(domains: list[DecisionDataDomain]) -> Decis
     return DecisionDataHealth(status=status, message=message, domains=domains)
 
 
-def _prediction_macro_domain_from_service() -> DecisionDataDomain:
-    snapshot = MarketPredictionCommitteeService().get_committee_snapshot(
-        window_days=3,
-        generate_if_missing=False,
-    )
-    return _build_prediction_macro_decision_domain(snapshot)
-
-
 def _household_domain_from_service() -> DecisionDataDomain:
     return _build_household_decision_domain(HouseholdFinanceService().get_dashboard())
 
@@ -495,13 +401,6 @@ def _cached_domain_from_service(
     domain = builder()
     _domain_cache[cache_key] = (now + _DOMAIN_CACHE_TTL_SECONDS, domain)
     return domain
-
-
-def _cached_prediction_macro_domain_from_service() -> DecisionDataDomain:
-    return _cached_domain_from_service(
-        "prediction_macro",
-        _prediction_macro_domain_from_service,
-    )
 
 
 def _cached_household_domain_from_service() -> DecisionDataDomain:
@@ -524,29 +423,14 @@ async def get_decision_data_health(
             health_result.get("api_quotas"),
         ),
     ]
-    prediction_result, household_result = await asyncio.gather(
-        run_in_threadpool(_cached_prediction_macro_domain_from_service),
-        run_in_threadpool(_cached_household_domain_from_service),
-        return_exceptions=True,
-    )
-    if isinstance(prediction_result, Exception):
-        exc = prediction_result
-        logger.warning("prediction_macro_health_failed", error=str(exc), exc_info=True)
-        domains.append(
-            _decision_domain(
-                key="prediction_macro",
-                label="Prediction Macro",
-                status="degraded",
-                severity="critical",
-                message="Prediction macro health check failed.",
-                evidence={"error": str(exc)},
-            )
+    try:
+        household_result: DecisionDataDomain | Exception = await run_in_threadpool(
+            _cached_household_domain_from_service
         )
-    else:
-        domains.append(prediction_result)
+    except Exception as exc:
+        household_result = exc
     if isinstance(household_result, Exception):
-        exc = household_result
-        logger.warning("household_health_failed", error=str(exc), exc_info=True)
+        logger.warning("household_health_failed", error=str(household_result), exc_info=True)
         domains.append(
             _decision_domain(
                 key="household_evidence",
@@ -554,7 +438,7 @@ async def get_decision_data_health(
                 status="degraded",
                 severity="critical",
                 message="Household evidence health check failed.",
-                evidence={"error": str(exc)},
+                evidence={"error": str(household_result)},
             )
         )
     else:

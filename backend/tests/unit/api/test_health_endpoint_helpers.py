@@ -15,7 +15,6 @@ from app.api.health import (
     _build_freshness_summary_payload,
     _build_household_decision_domain,
     _build_market_data_decision_domain,
-    _build_prediction_macro_decision_domain,
     _build_source_decision_domain,
     _summarize_decision_data_domains,
     detailed_health_check,
@@ -352,20 +351,6 @@ def test_decision_data_domains_are_healthy_when_all_current() -> None:
     market = _build_market_data_decision_domain(
         {"status": "success", "message": "All checked tables are current", "fresh": 5, "stale": 0, "critical": 0}
     )
-    prediction = _build_prediction_macro_decision_domain(
-        SimpleNamespace(
-            generated_at=datetime(2026, 4, 24, 13, 0, tzinfo=UTC),
-            freshness_summary=SimpleNamespace(
-                state="fresh",
-                summary="Snapshot aligned with current market session.",
-                invalidated=False,
-                reason_codes=[],
-                critical_clusters=[
-                    SimpleNamespace(cluster="macro_calendar", freshness="fresh", detail=None),
-                ],
-            ),
-        )
-    )
     household = _build_household_decision_domain(
         SimpleNamespace(
             generated_at="2026-04-24T13:00:00+00:00",
@@ -399,35 +384,10 @@ def test_decision_data_domains_are_healthy_when_all_current() -> None:
         [SimpleNamespace(source_name="Polygon", configured=True)],
     )
 
-    health = _summarize_decision_data_domains([market, prediction, household, automation, sources])
+    health = _summarize_decision_data_domains([market, household, automation, sources])
 
     assert health.status == "healthy"
     assert health.message == "All decision-data domains are current."
-
-
-def test_decision_data_prediction_macro_marks_stale_macro_calendar() -> None:
-    domain = _build_prediction_macro_decision_domain(
-        SimpleNamespace(
-            generated_at=datetime(2026, 4, 24, 13, 0, tzinfo=UTC),
-            freshness_summary=SimpleNamespace(
-                state="aging",
-                summary="Snapshot still usable.",
-                invalidated=False,
-                reason_codes=["macro_calendar_stale"],
-                critical_clusters=[
-                    SimpleNamespace(
-                        cluster="macro_calendar",
-                        freshness="stale",
-                        detail="Macro calendar table stale.",
-                    ),
-                ],
-            ),
-        )
-    )
-
-    assert domain.status == "stale"
-    assert domain.severity == "warning"
-    assert domain.message == "Macro calendar table stale."
 
 
 def test_decision_data_household_marks_stale_spend_evidence() -> None:
@@ -515,21 +475,11 @@ def test_decision_data_summary_reports_mixed_degraded_and_critical_domains() -> 
 async def test_decision_data_health_caches_expensive_service_domains(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls = {"prediction": 0, "household": 0}
+    calls = {"household": 0}
     health_decision_data._domain_cache.clear()
 
     async def fake_run_in_threadpool(func, *args, **kwargs):
         return func(*args, **kwargs)
-
-    def fake_prediction_domain():
-        calls["prediction"] += 1
-        return health_decision_data._decision_domain(
-            key="prediction_macro",
-            label="Prediction Macro",
-            status="current",
-            severity="healthy",
-            message="Prediction current.",
-        )
 
     def fake_household_domain():
         calls["household"] += 1
@@ -566,11 +516,6 @@ async def test_decision_data_health_caches_expensive_service_domains(
     monkeypatch.setattr(health_decision_data, "run_in_threadpool", fake_run_in_threadpool)
     monkeypatch.setattr(
         health_decision_data,
-        "_prediction_macro_domain_from_service",
-        fake_prediction_domain,
-    )
-    monkeypatch.setattr(
-        health_decision_data,
         "_household_domain_from_service",
         fake_household_domain,
     )
@@ -587,7 +532,7 @@ async def test_decision_data_health_caches_expensive_service_domains(
 
         assert first["status"] == "healthy"
         assert second["status"] == "healthy"
-        assert calls == {"prediction": 1, "household": 1}
+        assert calls == {"household": 1}
     finally:
         health_decision_data._domain_cache.clear()
 

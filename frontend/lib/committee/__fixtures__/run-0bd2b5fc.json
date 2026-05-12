@@ -1,0 +1,779 @@
+{
+  "run": {
+    "id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8",
+    "symbol": "NVDA",
+    "household_id": null,
+    "status": "complete",
+    "decision_action": "hold",
+    "decision_qty": 0.0,
+    "decision_pct_portfolio": 0.0,
+    "decision_price": null,
+    "decision_horizon": "1-3 months",
+    "confidence": 0.72,
+    "bull_score": null,
+    "bear_score": null,
+    "parent_run_id": null,
+    "graph_version": "committee.v0.3.1",
+    "started_at": "2026-05-12T02:17:21.900075+00:00",
+    "completed_at": "2026-05-12T02:34:32.563702+00:00",
+    "approved_at": null,
+    "aborted_at": null,
+    "error": null,
+    "tokens_total": 64255,
+    "cost_usd": 0.0
+  },
+  "events": [
+    {
+      "seq": 0,
+      "ts": "2026-05-12T02:17:21.905258+00:00",
+      "type": "run.start",
+      "stage": "system",
+      "agent_slug": null,
+      "role": null,
+      "content": {
+        "symbol": "NVDA",
+        "graph_version": "committee.v0.3.1",
+        "parent_run_id": null
+      },
+      "score": null,
+      "tokens": null,
+      "latency_ms": null,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 1,
+      "ts": "2026-05-12T02:17:24.105770+00:00",
+      "type": "stage.enter",
+      "stage": "analysts",
+      "agent_slug": null,
+      "role": null,
+      "content": { "stage": "analysts" },
+      "score": null,
+      "tokens": null,
+      "latency_ms": null,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 2,
+      "ts": "2026-05-12T02:19:05.888084+00:00",
+      "type": "agent.output",
+      "stage": "analysts",
+      "agent_slug": "fundamentals-v1",
+      "role": "analyst",
+      "content": {
+        "evidence": [
+          {
+            "side": "bull",
+            "claim": "FY25 revenue $130.5B (+114% YoY), Data Center $115.4B (+142%)",
+            "source": "NVDA FY25 earnings release Q4 FY2025: revenue $130.497B vs $60.922B prior year; Data Center $115.4B",
+            "weight": 1.0
+          },
+          {
+            "side": "bull",
+            "claim": "GAAP gross margin 75.0% FY25, up from 72.7% FY24; operating margin 62.1%",
+            "source": "NVDA FY25 10-K / earnings release: gross margin expansion 72.7% to 75.0%",
+            "weight": 1.0
+          },
+          {
+            "side": "neutral",
+            "claim": "Fwd P/E ~25-30x FY26E, down from 60x+ peak 2024; multiple compression already occurred",
+            "source": "Market data FY25: market cap ~$2.9T, FY26E EPS ~$5.00-5.50 implies ~25-30x forward",
+            "weight": 1.0
+          },
+          {
+            "side": "bear",
+            "claim": "Blackwell supply-constrained in FY25; FY26 guide dependent on ramp execution",
+            "source": "NVDA Q4 FY2025 call: Blackwell ramping, supply constraints noted",
+            "weight": 1.0
+          },
+          {
+            "side": "bear",
+            "claim": "Gaming revenue $10.7B FY25, down 8% YoY; Auto $1.7B flat. DC = 88% of revenue, extreme concentration",
+            "source": "NVDA FY25 segment data: Gaming $10.674B vs $11.486B prior; Auto $1.682B",
+            "weight": 1.0
+          },
+          {
+            "side": "bull",
+            "claim": "FCF $64.6B FY25; $50B buyback authorization. Capital return disciplined, not growth-y",
+            "source": "NVDA FY25 cash flow statement: operating cash flow $67.7B, capex $3.1B, FCF $64.6B",
+            "weight": 1.0
+          }
+        ],
+        "content_md": "**Business**: GPU monopoly in AI training/inference. FY25 revenue $130.5B (+114% YoY), Data Center $115.4B (+142%). Gross margin expanded to 75.0% (GAAP). **Valuation**: Fwd P/E ~25-30x on FY26E, P/S ~20x. Multiple compression from 60x+ peak. **Tension**: hyperscaler capex cyclicality vs. inference demand durability. Blackwell ramp (supply-constrained in FY25) key to FY26 guide. Gaming/Auto flat; DC carries all growth. FCF $64.6B FY25. $50B buyback authorization active. **Read**: priced for AI infrastructure persistence, not expansion. Margin at ceiling; upside from mix shift to Blackwell (higher ASP). Downside if capex cuts materialize 2H25."
+      },
+      "score": 0.15,
+      "tokens": 2456,
+      "latency_ms": 76198,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 3,
+      "ts": "2026-05-12T02:19:05.890256+00:00",
+      "type": "agent.output",
+      "stage": "analysts",
+      "agent_slug": "news-grounded-v1",
+      "role": "analyst",
+      "content": {
+        "evidence": [
+          {
+            "side": "bull",
+            "claim": "NVDA closed at record high; AI chip stocks resilient despite oil/Trump macro noise",
+            "source": "Barron's (2026-05-12): https://www.barrons.com/articles/nvidia-stock-record-high ; Investor's Business Daily (2026-05-12): https://www.investors.com/market-trend/stock-market-today/dow-jones-futures-ai-chip-stocks-oil-prices-trump-comments-cpi-inflation-due/",
+            "weight": 1.0
+          },
+          {
+            "side": "bear",
+            "claim": "CPI inflation data due; macro event risk could pressure risk assets including NVDA",
+            "source": "Investor's Business Daily (2026-05-12): https://www.investors.com/market-trend/stock-market-today/dow-jones-futures-ai-chip-stocks-oil-prices-trump-comments-cpi-inflation-due/",
+            "weight": 1.0
+          },
+          {
+            "side": "neutral",
+            "claim": "NVDA among 4 key earnings to watch this week; guidance revision catalyst pending",
+            "source": "Nasdaq (2026-05-12): https://www.nasdaq.com/articles/4-company-earnings-to-watch-this-week-may-11-15",
+            "weight": 1.0
+          }
+        ],
+        "content_md": "- **Record close + AI chip momentum**: NVDA closed at record high (Barron's, 2026-05-12), with broad AI/chip sector resilience despite macro noise (IBD, 2026-05-12). Near-term price driver: continuation of AI capex demand.\n- **CPI inflation due**: May CPI print imminent (IBD, 2026-05-12). Macro cross-asset event; risk-off spike could override sector strength.\n- **Earnings watch week**: NVDA among 4 key earnings this week (Nasdaq, 2026-05-12). Guidance revision risk / upside surprise on deck."
+      },
+      "score": 0.35,
+      "tokens": 2416,
+      "latency_ms": 42721,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 4,
+      "ts": "2026-05-12T02:19:05.892247+00:00",
+      "type": "agent.output",
+      "stage": "analysts",
+      "agent_slug": "sentiment-grounded-v1",
+      "role": "analyst",
+      "content": { "evidence": [], "content_md": "" },
+      "score": 0.0,
+      "tokens": 1682,
+      "latency_ms": 101660,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 5,
+      "ts": "2026-05-12T02:19:05.894463+00:00",
+      "type": "agent.output",
+      "stage": "analysts",
+      "agent_slug": "technical-v1",
+      "role": "analyst",
+      "content": { "evidence": [], "content_md": "" },
+      "score": 0.0,
+      "tokens": 1633,
+      "latency_ms": 31533,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 6,
+      "ts": "2026-05-12T02:19:05.896789+00:00",
+      "type": "stage.enter",
+      "stage": "researchers",
+      "agent_slug": null,
+      "role": null,
+      "content": { "stage": "researchers" },
+      "score": null,
+      "tokens": null,
+      "latency_ms": null,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 7,
+      "ts": "2026-05-12T02:19:05.899218+00:00",
+      "type": "debate.round.start",
+      "stage": "researchers",
+      "agent_slug": null,
+      "role": null,
+      "content": { "round": 0 },
+      "score": null,
+      "tokens": null,
+      "latency_ms": null,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 8,
+      "ts": "2026-05-12T02:19:32.338731+00:00",
+      "type": "agent.output",
+      "stage": "researchers",
+      "agent_slug": "bull-researcher-v1",
+      "role": "bull",
+      "content": {
+        "evidence": [
+          {
+            "side": "bull",
+            "claim": "FY25 revenue $130.5B (+114% YoY), Data Center $115.4B (+142%)",
+            "source": "NVDA FY25 earnings release Q4 FY2025: revenue $130.497B vs $60.922B prior year; Data Center $115.4B",
+            "weight": 1.0
+          },
+          {
+            "side": "bull",
+            "claim": "GAAP gross margin 75.0% FY25, up from 72.7% FY24; operating margin 62.1%",
+            "source": "NVDA FY25 10-K / earnings release: gross margin expansion 72.7% to 75.0%",
+            "weight": 1.0
+          },
+          {
+            "side": "neutral",
+            "claim": "Fwd P/E ~25-30x FY26E, down from 60x+ peak 2024; multiple compression already occurred",
+            "source": "Market data FY25: market cap ~$2.9T, FY26E EPS ~$5.00-5.50 implies ~25-30x forward",
+            "weight": 1.0
+          }
+        ],
+        "argument_md": "**NVDA bull case, Round 1**\n\nData Center $115.4B (+142% YoY), 88% revenue share. GPU monopoly in AI training/inference with no credible challenger at scale. Gross margin expanded to 75.0% GAAP (from 72.7% FY24), operating margin 62.1%. FCF $64.6B on $67.7B operating cash flow; $50B buyback authorization active. Fwd P/E compressed to ~25-30x FY26E from 60x+ peak—multiple reset already priced. Blackwell ramp (supply-constrained FY25) drives FY26 guide upside via higher ASP mix. Gaming/Auto flat but immaterial; DC growth durability the only metric that matters. Record close (Barron's 2026-05-12) with AI chip sector resilience. Earnings catalyst week with guidance revision potential. Bear's cyclicality fear assumes capex cuts materialize 2H25—no evidence in FY25 guide or order books. Margin at ceiling is a quality problem, not a growth ceiling; Blackwell mix shift sustains or expands it.",
+        "rebuttals_md": ""
+      },
+      "score": 0.72,
+      "tokens": 3350,
+      "latency_ms": 26437,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 9,
+      "ts": "2026-05-12T02:19:32.340763+00:00",
+      "type": "agent.output",
+      "stage": "researchers",
+      "agent_slug": "bear-researcher-v1",
+      "role": "bear",
+      "content": {
+        "evidence": [
+          {
+            "side": "bear",
+            "claim": "Data Center $115.4B FY25, Gaming down 8% YoY, Auto flat—extreme revenue concentration",
+            "source": "NVDA FY25 segment data: DC $115.4B, Gaming $10.674B vs $11.486B prior, Auto $1.682B",
+            "weight": 1.0
+          },
+          {
+            "side": "bear",
+            "claim": "GAAP gross margin 75.0% FY25, up from 72.7% FY24—ceiling risk, limited expansion runway",
+            "source": "NVDA FY25 10-K / earnings release",
+            "weight": 1.0
+          },
+          {
+            "side": "bear",
+            "claim": "Blackwell supply-constrained in FY25; FY26 guide dependent on ramp execution",
+            "source": "NVDA Q4 FY2025 call",
+            "weight": 1.0
+          }
+        ],
+        "argument_md": "NVDA's FY25 revenue $130.5B (+114% YoY) is impressive, but concentration is extreme: Data Center is 88% of revenue, with Gaming down 8% YoY and Auto flat. The bull cites gross margin expansion to 75.0% GAAP as strength—I acknowledge this, but margins are at ceiling; further expansion is structurally limited. The bull's forward P/E of 25-30x claims 'multiple compression already occurred,' yet this still prices in AI infrastructure persistence, not expansion. Blackwell ramp remains supply-constrained per FY25 guidance, making FY26 execution a binary risk. The $50B buyback and $64.6B FCF are capital return discipline, not growth signals. Record close and AI momentum are priced; the CPI print this week is a live macro cross-asset event that could override sector resilience. NVDA is a one-product story at peak margins with hyperscaler capex cyclicality as the unresolved tension. Downside materializes if capex cuts hit 2H25.",
+        "rebuttals_md": ""
+      },
+      "score": 0.35,
+      "tokens": 3306,
+      "latency_ms": 24322,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 10,
+      "ts": "2026-05-12T02:19:32.342736+00:00",
+      "type": "debate.round.end",
+      "stage": "researchers",
+      "agent_slug": null,
+      "role": null,
+      "content": { "round": 0, "bear_score": 0.35, "bull_score": 0.72 },
+      "score": null,
+      "tokens": null,
+      "latency_ms": null,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 11,
+      "ts": "2026-05-12T02:19:32.344666+00:00",
+      "type": "debate.round.start",
+      "stage": "researchers",
+      "agent_slug": null,
+      "role": null,
+      "content": { "round": 1 },
+      "score": null,
+      "tokens": null,
+      "latency_ms": null,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 12,
+      "ts": "2026-05-12T02:25:05.112927+00:00",
+      "type": "agent.output",
+      "stage": "researchers",
+      "agent_slug": "bull-researcher-v1",
+      "role": "bull",
+      "content": {
+        "evidence": [
+          {
+            "side": "bull",
+            "claim": "FY25 Data Center $115.4B (+142%) on supply-constrained Blackwell; FY26 guide unlocks when constraints ease",
+            "source": "NVDA FY25 earnings release: Data Center $115.4B; Q4 FY2025 call notes Blackwell ramping, supply constraints",
+            "weight": 1.0
+          },
+          {
+            "side": "bull",
+            "claim": "FCF $64.6B; $50B buyback authorization active at ~25-30x fwd P/E",
+            "source": "NVDA FY25 cash flow statement; market data FY26E EPS ~$5.00-5.50",
+            "weight": 1.0
+          },
+          {
+            "side": "bull",
+            "claim": "Record close with AI chip sector resilience despite macro noise",
+            "source": "Barron's (2026-05-12): https://www.barrons.com/articles/nvidia-stock-record-high",
+            "weight": 1.0
+          }
+        ],
+        "argument_md": "**NVDA bull case, Round 2**\n\nBear concedes margin ceiling but mischaracterizes it: 75.0% GAAP gross margin with Blackwell ASP uplift *is* the expansion vector. FY25 Data Center $115.4B (+142%) on supply-constrained Blackwell; FY26 guide unlocks when constraints ease. Bear's \"binary risk\" ignores FY25 FCF $64.6B and $50B buyback as downside protection at ~25-30x fwd P/E—this is valuation floor, not ceiling.\n\nBear's cyclicality fear rests on hypothetical 2H25 capex cuts. No evidence: hyperscaler AI infra spend is strategic, not cyclical. Gaming/Auto flat is noise at 9% combined; DC concentration is *earnings quality*, not risk.\n\nCPI macro event is non-differentiable NVDA-specific risk. Record close with sector resilience (Barron's 2026-05-12) shows AI demand absorbing macro noise. Earnings catalyst week offers guidance revision upside; bear has no rebuttal to order book durability.\n\nBear's \"one-product story\" framing ignores that the product (GPU AI compute) has no credible challenger at scale. Monopoly pricing power + Blackwell mix shift = margin sustainability, not compression.",
+        "rebuttals_md": "On margin ceiling: Blackwell ASP mix shift directly rebuts bear's structural limit claim. On capex cyclicality: bear offers no evidence of 2H25 cuts; I weigh FY25 order books higher. On concentration: DC 88% is quality, not risk, given no challenger at scale. On macro/CPI: non-differentiable; NVDA-specific AI demand signal (record close, sector resilience) outweighs cross-asset noise."
+      },
+      "score": 0.68,
+      "tokens": 3963,
+      "latency_ms": 25719,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 13,
+      "ts": "2026-05-12T02:25:05.115474+00:00",
+      "type": "agent.output",
+      "stage": "researchers",
+      "agent_slug": "bear-researcher-v1",
+      "role": "bear",
+      "content": { "evidence": [], "argument_md": "", "rebuttals_md": "" },
+      "score": 0.0,
+      "tokens": 4123,
+      "latency_ms": 332761,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 14,
+      "ts": "2026-05-12T02:25:05.117691+00:00",
+      "type": "debate.round.end",
+      "stage": "researchers",
+      "agent_slug": null,
+      "role": null,
+      "content": { "round": 1, "bear_score": 0.0, "bull_score": 0.68 },
+      "score": null,
+      "tokens": null,
+      "latency_ms": null,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 15,
+      "ts": "2026-05-12T02:25:05.119994+00:00",
+      "type": "debate.round.start",
+      "stage": "researchers",
+      "agent_slug": null,
+      "role": null,
+      "content": { "round": 2 },
+      "score": null,
+      "tokens": null,
+      "latency_ms": null,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 16,
+      "ts": "2026-05-12T02:29:39.199022+00:00",
+      "type": "agent.output",
+      "stage": "researchers",
+      "agent_slug": "bull-researcher-v1",
+      "role": "bull",
+      "content": {
+        "evidence": [],
+        "argument_md": "Blackwell mix shift to higher-ASP SKUs sustains 75.0% GAAP margin floor; bear's \"ceiling\" claim (FY25 gross margin 75.0% vs 72.7% FY24) ignores product-cycle dynamics where supply-constrained demand enables premium pricing. FY25 Data Center $115.4B (+142%) with Blackwell supply-constrained through 1H25 confirms demand outstrips supply, not cyclical exhaustion. Gaming/Auto at 9% combined is immaterial to thesis when core TAM expands triple-digit. Hyperscaler capex cuts in 2H25 remain speculative—no order book evidence, and FY26 guide embeds ramp durability. $50B buyback + $64.6B FCF is capital return discipline alongside growth, not instead of it. Fwd P/E 25-30x on FY26E already absorbed 60x+ peak compression. CPI print this week is macro noise, non-differentiable for AI infrastructure demand. Record close with sector resilience shows AI chip momentum absorbs cross-asset volatility.",
+        "rebuttals_md": "Bear's margin ceiling (FY25 GAAP 75.0%): Blackwell ASP uplift and mix shift sustain margin; 75% is floor during ramp, not peak. Cyclicality fear: no 2H25 order book evidence in FY25 $130.5B revenue (+114% YoY); FY26 guide assumes persistence. Concentration (DC 88%): quality at 142% growth with no credible GPU challenger. Gaming/Auto flat (9% combined): immaterial. FCF/buyback: $64.6B FCF funds $50B return alongside $31B capex; discipline, not stagnation."
+      },
+      "score": 0.7,
+      "tokens": 10277,
+      "latency_ms": 274076,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 17,
+      "ts": "2026-05-12T02:29:39.201118+00:00",
+      "type": "agent.output",
+      "stage": "researchers",
+      "agent_slug": "bear-researcher-v1",
+      "role": "bear",
+      "content": {
+        "evidence": [
+          {
+            "side": "bull",
+            "claim": "NVDA FY25 revenue $130.5B (+114% YoY), Data Center $115.4B (+142%). Gross margin expanded to 75.0% GAAP (from 72.7% FY24); operating margin 62.1%. FCF $64.6B. $50B buyback authorization active.",
+            "source": "NVDA FY25 earnings release / 10-K",
+            "weight": 1.0
+          },
+          {
+            "side": "bull",
+            "claim": "Fwd P/E ~25-30x FY26E, down from 60x+ peak 2024; multiple compression already occurred.",
+            "source": "Market data FY25; NVDA FY26E EPS ~$5.00-5.50 implies ~25-30x forward",
+            "weight": 1.0
+          },
+          {
+            "side": "bear",
+            "claim": "Blackwell supply-constrained in FY25; FY26 guide dependent on ramp execution.",
+            "source": "NVDA Q4 FY2025 call: Blackwell ramping, supply constraints noted",
+            "weight": 1.0
+          },
+          {
+            "side": "bear",
+            "claim": "Gaming revenue $10.7B FY25, down 8% YoY; Auto $1.7B flat. DC = 88% of revenue, extreme concentration.",
+            "source": "NVDA FY25 segment data: Gaming $10.674B vs $11.486B prior; Auto $1.682B",
+            "weight": 1.0
+          },
+          {
+            "side": "bull",
+            "claim": "Record close + AI chip momentum: NVDA closed at record high (Barron's, 2026-05-12), with broad AI/chip sector resilience despite macro noise.",
+            "source": "Barron's (2026-05-12): https://www.barrons.com/articles/nvidia-stock-record-high-ai-chip-stocks-oil-prices-trump-tariffs-cpi-inflation-dow-jones-futures-5164fdb4",
+            "weight": 1.0
+          },
+          {
+            "side": "neutral",
+            "claim": "CPI inflation data due; macro event risk could pressure risk assets including NVDA.",
+            "source": "Investor's Business Daily (2026-05-12): https://www.investors.com/market-trend/stock-market-today/dow-jones-futures-ai-chip-stocks-oil-prices-trump-tariffs-cpi-inflation/",
+            "weight": 1.0
+          },
+          {
+            "side": "neutral",
+            "claim": "NVDA among 4 key earnings this week; guidance revision catalyst pending.",
+            "source": "Nasdaq (2026-05-12): https://www.nasdaq.com/articles/4-company-earnings-to-watch-this-week-may-11-15",
+            "weight": 1.0
+          }
+        ],
+        "argument_md": "Bear concedes margin ceiling but mischaracterizes it: 75.0% GAAP gross margin with Blackwell ASP uplift *is* the expansion vector. FY25 Data Center $115.4B (+142%) on supply-constrained Blackwell; FY26 guide unlocks when constraints ease. Bear's \"cyclicality fear\" rests on hypothetical 2H25 capex cuts. No evidence: hyperscaler AI infra spend is structural, not cyclical. Gaming/Auto flat is noise at <9% combined; DC concentration is *earnings quality*, not risk. CPI macro event is non-differentiable NVDA-specific risk. Record close with sector resilience (Barron's 2026-05-12) shows AI demand absorbing macro noise. Earnings catalyst week offers guidance revision upside; bear has no rebuttal to order book durability.",
+        "rebuttals_md": "On margin ceiling: Blackwell ASP mix shift directly rebuts bear's structural limit claim. On capex cyclicality: bear offers no evidence of 2H25 cuts; hyperscaler AI demand signal (record close, sector resilience) outweighs cross-asset noise. On concentration: DC 88% is quality, not risk, given no credible challenger at scale. On macro/CPI: non-differentiable; NVDA-specific AI demand signal (record close, sector resilience) outweighs cross-asset noise."
+      },
+      "score": 0.68,
+      "tokens": 4791,
+      "latency_ms": 68785,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 18,
+      "ts": "2026-05-12T02:29:39.203428+00:00",
+      "type": "debate.round.end",
+      "stage": "researchers",
+      "agent_slug": null,
+      "role": null,
+      "content": { "round": 2, "bear_score": 0.68, "bull_score": 0.7 },
+      "score": null,
+      "tokens": null,
+      "latency_ms": null,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 19,
+      "ts": "2026-05-12T02:29:39.205489+00:00",
+      "type": "stage.enter",
+      "stage": "trader",
+      "agent_slug": null,
+      "role": null,
+      "content": { "stage": "trader" },
+      "score": null,
+      "tokens": null,
+      "latency_ms": null,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 20,
+      "ts": "2026-05-12T02:30:05.551124+00:00",
+      "type": "trader.proposal",
+      "stage": "trader",
+      "agent_slug": "trader-v1",
+      "role": "trader",
+      "content": {
+        "action": "buy",
+        "tokens": 4816,
+        "horizon": "1-3 months",
+        "qty_pct": 0.04,
+        "signers": ["fundamentals-v1", "news-grounded-v1"],
+        "latency_ms": 26342,
+        "stop_price": null,
+        "entry_price": 0.0,
+        "rationale_md": "Bull wins debate 0.70 vs 0.35/0.68. Key: DC $115.4B (+142%) with Blackwell supply-constrained through 1H25, demand > supply. Fwd P/E 25-30x already absorbed 60x+ compression. Bear's margin ceiling rebutted by Blackwell ASP mix shift; 75.0% GAAP is floor, not peak. No past decisions to contradict. CPI macro event is non-differentiable; record close with sector resilience (Barron's 2026-05-12) shows AI demand absorbing noise. Earnings catalyst week offers guidance revision upside. 4% size reflects: high bull confidence but single-name concentration risk, no technical stop named, and macro event live. No stop set—technical analyst provided no level."
+      },
+      "score": null,
+      "tokens": 4816,
+      "latency_ms": 26342,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 21,
+      "ts": "2026-05-12T02:30:05.553440+00:00",
+      "type": "stage.enter",
+      "stage": "ips",
+      "agent_slug": null,
+      "role": null,
+      "content": { "stage": "ips" },
+      "score": null,
+      "tokens": null,
+      "latency_ms": null,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 22,
+      "ts": "2026-05-12T02:30:05.557299+00:00",
+      "type": "ips.check",
+      "stage": "ips",
+      "agent_slug": null,
+      "role": null,
+      "content": {
+        "name": "concentration",
+        "value": 0.04,
+        "detail": "Proposed 4.0% of portfolio within 25% cap",
+        "passed": true,
+        "severity": "info",
+        "threshold": 0.25
+      },
+      "score": null,
+      "tokens": null,
+      "latency_ms": null,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 23,
+      "ts": "2026-05-12T02:30:05.559481+00:00",
+      "type": "ips.check",
+      "stage": "ips",
+      "agent_slug": null,
+      "role": null,
+      "content": {
+        "name": "tax_bill",
+        "value": 0.0,
+        "detail": "buy does not realize a gain or loss",
+        "passed": true,
+        "severity": "info",
+        "threshold": null
+      },
+      "score": null,
+      "tokens": null,
+      "latency_ms": null,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 24,
+      "ts": "2026-05-12T02:30:05.561568+00:00",
+      "type": "ips.check",
+      "stage": "ips",
+      "agent_slug": null,
+      "role": null,
+      "content": {
+        "name": "sector_exposure",
+        "value": 0.04,
+        "detail": "Unknown projected 4.0% within cap 20%",
+        "passed": true,
+        "severity": "info",
+        "threshold": 0.2
+      },
+      "score": null,
+      "tokens": null,
+      "latency_ms": null,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 25,
+      "ts": "2026-05-12T02:30:05.563854+00:00",
+      "type": "ips.check",
+      "stage": "ips",
+      "agent_slug": null,
+      "role": null,
+      "content": {
+        "name": "wash_sale",
+        "value": 0.0,
+        "detail": "buy does not trigger wash-sale rules",
+        "passed": true,
+        "severity": "info",
+        "threshold": null
+      },
+      "score": null,
+      "tokens": null,
+      "latency_ms": null,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 26,
+      "ts": "2026-05-12T02:30:05.566040+00:00",
+      "type": "stage.enter",
+      "stage": "risk",
+      "agent_slug": null,
+      "role": null,
+      "content": { "stage": "risk" },
+      "score": null,
+      "tokens": null,
+      "latency_ms": null,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 27,
+      "ts": "2026-05-12T02:32:31.360020+00:00",
+      "type": "risk.vote",
+      "stage": "risk",
+      "agent_slug": "risk-aggressive-v1",
+      "role": "risk",
+      "content": {
+        "vote": "downgrade",
+        "objections": [
+          {
+            "claim": "4% size reflects high bull confidence",
+            "severity": "high"
+          },
+          {
+            "claim": "No stop set—technical analyst provided no level, so absence is acceptable",
+            "severity": "high"
+          },
+          {
+            "claim": "75.0% GAAP gross margin is floor, not peak, due to Blackwell ASP mix shift",
+            "severity": "medium"
+          },
+          {
+            "claim": "Gaming/Auto flat at 9% combined is 'noise' immaterial to thesis",
+            "severity": "medium"
+          },
+          {
+            "claim": "Fwd P/E 25-30x 'already absorbed 60x+ compression' implies valuation support",
+            "severity": "medium"
+          }
+        ],
+        "narrative_md": "Bull thesis on Blackwell ASP mix and DC durability is *partial*, not decisive. I downgrade from approve because: (1) **4% size is timid for a monopoly with 142% DC growth and no credible challenger**—growth-tolerant view wants 10-25% on high-conviction setups, not 4% with no stop; (2) **no stop named** is acceptable for multi-month thesis *only* if entry timing is clean, but CPI macro event this week is live and non-differentiable—absence of stop here is lazy, not conviction; (3) **margin ceiling at 75.0% GAAP** is real: bull rebuts with Blackwell ASP mix shift, but FY25 already saw 75.0% and bear correctly notes expansion is structurally limited from here—bull has not shown *expansion* vector, only *sustained* floor; (4) **Gaming/Auto flat at 9% combined** is not \"noise\" when DC is 88% and hyperscaler capex cyclicality is the unresolved tension—bull dismisses without rebutting the concentration risk itself; (5) **Fwd P/E 25-30x** is \"already compressed\" from 60x+ but still prices AI infrastructure persistence, not expansion—bull conflates \"not 60x\" with \"cheap.\"\n\nIPS checks pass mechanically but are weak signal: 4% under 25% cap is trivial compliance, not sizing confidence. Record close + sector resilience (Barron's 2026-05-12) is momentum, not edge. Earnings catalyst week offers *revision* upside but also *downside*—bull weights only one side.\n\nI do not reject because DC $115.4B (+142%), FCF $64.6B, and Blackwell supply-constrained demand are real. But 4% with no stop, margin ceiling unaddressed, and macro event live = insufficient aggression for growth-tolerant mandate. Size up or define stop/horizon more precisely."
+      },
+      "score": 0.15,
+      "tokens": 5538,
+      "latency_ms": 145791,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 28,
+      "ts": "2026-05-12T02:32:31.362226+00:00",
+      "type": "risk.vote",
+      "stage": "risk",
+      "agent_slug": "risk-neutral-v1",
+      "role": "risk",
+      "content": {
+        "vote": "downgrade",
+        "objections": [
+          {
+            "claim": "CPI macro event is non-differentiable; record close with sector resilience shows AI demand absorbing noise",
+            "severity": "medium"
+          },
+          { "claim": "75.0% GAAP is floor, not peak", "severity": "medium" },
+          {
+            "claim": "4% size reflects high bull confidence but single-name concentration risk, no technical stop named, and macro event live",
+            "severity": "high"
+          }
+        ],
+        "narrative_md": "Bull thesis is coherent but trader overstates conviction. Blackwell supply-constrained through 1H25 is a *constraint*, not a guide-up guarantee. Bear's cyclicality fear is speculative, yet trader dismisses CPI macro event as 'non-differentiable' while simultaneously citing record close as signal—selective weighting. 4% size with no stop and live macro event is sizing-mismatch: high single-name risk without downside discipline. Fwd P/E 25-30x is reasonable, not cheap; '60x compression' framing is anchoring bias. Margin floor claim unproven—Blackwell ramp has execution risk. Approve smaller size with defined stop; reject this as-is."
+      },
+      "score": 0.15,
+      "tokens": 5183,
+      "latency_ms": 23106,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 29,
+      "ts": "2026-05-12T02:32:31.364236+00:00",
+      "type": "risk.vote",
+      "stage": "risk",
+      "agent_slug": "risk-conservative-v1",
+      "role": "risk",
+      "content": {
+        "vote": "downgrade",
+        "objections": [
+          {
+            "claim": "No stop set; technical analyst provided no level",
+            "severity": "high"
+          },
+          {
+            "claim": "CPI macro event is 'non-differentiable' and therefore ignorable",
+            "severity": "high"
+          },
+          {
+            "claim": "75.0% GAAP gross margin is a floor, not peak",
+            "severity": "medium"
+          },
+          {
+            "claim": "Record close with sector resilience shows AI demand absorbing macro noise",
+            "severity": "medium"
+          },
+          {
+            "claim": "Blackwell supply-constrained through 1H25 is a bull point",
+            "severity": "medium"
+          }
+        ],
+        "narrative_md": "4% buy with no stop and live CPI event is reckless. Bull's 'non-differentiable' macro dismissal ignores that NVDA dropped 30%+ in prior rate-scare episodes. No technical stop provided—trader admits this. 'Record close' is momentum chasing, not risk management. Blackwell supply constraints are a *bear* point (execution risk), not bull. Margin 'floor' claim unproven; 75% GAAP is ceiling until demonstrated otherwise. Fwd P/E 25-30x is not cheap if growth decelerates. Earnings week = binary event; buying before guidance with no stop violates preservation. Downgrade to 2% max or require stop below recent swing low."
+      },
+      "score": -0.35,
+      "tokens": 5241,
+      "latency_ms": 104270,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 30,
+      "ts": "2026-05-12T02:32:31.366315+00:00",
+      "type": "stage.enter",
+      "stage": "pm",
+      "agent_slug": null,
+      "role": null,
+      "content": { "stage": "pm" },
+      "score": null,
+      "tokens": null,
+      "latency_ms": null,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 31,
+      "ts": "2026-05-12T02:34:32.561612+00:00",
+      "type": "pm.decision",
+      "stage": "pm",
+      "agent_slug": "portfolio-mgr-v1",
+      "role": "pm",
+      "content": {
+        "qty": 0.0,
+        "action": "hold",
+        "tokens": 5480,
+        "horizon": "1-3 months",
+        "qty_pct": 0.0,
+        "signers": [
+          "risk-aggressive-v1",
+          "risk-neutral-v1",
+          "risk-conservative-v1"
+        ],
+        "confidence": 0.72,
+        "latency_ms": 121193,
+        "rebuttal_md": null,
+        "rationale_md": "Risk median score = 0.15 (aggressive 0.15, neutral 0.15, conservative -0.35). Median ≤ -0.4? No. But all three risk agents voted **downgrade**, with two scoring ≤ 0.15 and conservative at -0.35. This is unanimous rejection of the proposed 4% size.\n\nKey objections sustained:\n- **No stop**: trader admits technical analyst provided no level. Aggressive and conservative both flag this as high severity. Buying into live CPI week without downside discipline is not risk-managed.\n- **Margin ceiling unproven**: bull claims 75.0% GAAP is \"floor, not peak\" via Blackwell ASP mix shift. Risk panel notes this is unproven—FY25 already hit 75.0%, and expansion from here is speculative, not demonstrated.\n- **Macro dismissal**: trader calls CPI \"non-differentiable\" while citing record close as signal—selective weighting (neutral objection). Conservative notes NVDA dropped 30%+ in prior rate-scare episodes.\n- **Fwd P/E framing**: \"60x compression\" is anchoring bias; 25-30x prices persistence, not expansion (aggressive + neutral).\n\nIPS passes mechanically but is weak signal—4% under 25% cap is trivial compliance, not sizing confidence.\n\nNo past decisions to contradict, but no edge demonstrated either. Bull thesis on DC growth and Blackwell demand is real, but execution risk (supply constraints, earnings binary, macro event) without stop = insufficient risk/reward. Hold until technical stop defined or macro event clears."
+      },
+      "score": 0.72,
+      "tokens": 5480,
+      "latency_ms": 121193,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    },
+    {
+      "seq": 32,
+      "ts": "2026-05-12T02:34:32.565825+00:00",
+      "type": "run.complete",
+      "stage": "system",
+      "agent_slug": null,
+      "role": null,
+      "content": {
+        "cost_usd": 0.0,
+        "decision": {
+          "qty": 0.0,
+          "action": "hold",
+          "tokens": 5480,
+          "horizon": "1-3 months",
+          "qty_pct": 0.0,
+          "signers": [
+            "risk-aggressive-v1",
+            "risk-neutral-v1",
+            "risk-conservative-v1"
+          ],
+          "confidence": 0.72,
+          "latency_ms": 121193,
+          "rebuttal_md": null,
+          "rationale_md": "Risk median score = 0.15 (aggressive 0.15, neutral 0.15, conservative -0.35). Median ≤ -0.4? No. But all three risk agents voted **downgrade**, with two scoring ≤ 0.15 and conservative at -0.35. This is unanimous rejection of the proposed 4% size.\n\nKey objections sustained:\n- **No stop**: trader admits technical analyst provided no level. Aggressive and conservative both flag this as high severity. Buying into live CPI week without downside discipline is not risk-managed.\n- **Margin ceiling unproven**: bull claims 75.0% GAAP is \"floor, not peak\" via Blackwell ASP mix shift. Risk panel notes this is unproven—FY25 already hit 75.0%, and expansion from here is speculative, not demonstrated.\n- **Macro dismissal**: trader calls CPI \"non-differentiable\" while citing record close as signal—selective weighting (neutral objection). Conservative notes NVDA dropped 30%+ in prior rate-scare episodes.\n- **Fwd P/E framing**: \"60x compression\" is anchoring bias; 25-30x prices persistence, not expansion (aggressive + neutral).\n\nIPS passes mechanically but is weak signal—4% under 25% cap is trivial compliance, not sizing confidence.\n\nNo past decisions to contradict, but no edge demonstrated either. Bull thesis on DC growth and Blackwell demand is real, but execution risk (supply constraints, earnings binary, macro event) without stop = insufficient risk/reward. Hold until technical stop defined or macro event clears."
+        },
+        "elapsed_ms": 1030662,
+        "tokens_total": 64255
+      },
+      "score": null,
+      "tokens": null,
+      "latency_ms": null,
+      "run_id": "0bd2b5fc-fce3-44e9-acbc-bc7f4ea997e8"
+    }
+  ]
+}

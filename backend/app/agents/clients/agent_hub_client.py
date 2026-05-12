@@ -6,16 +6,15 @@ Routes through Agent Hub agents; Agent Hub owns model selection and fallbacks.
 
 from __future__ import annotations
 
-import json
 import time
 from typing import Any
 
 from agent_hub import AgentHubClient as SDKClient
+from agent_hub import AsyncAgentHubClient as AsyncSDKClient
 from agent_hub.exceptions import AgentHubError
 
 from ...config import settings
 from ...logging_config import get_logger
-from ...services._jenny_response_cleanup import extract_json_object_text
 from .base_client import LLMClient, LLMResponse
 
 logger = get_logger(__name__)
@@ -75,14 +74,16 @@ class AgentHubAPIClient(LLMClient):
         self.base_url = base_url
         self.timeout = timeout
         self.use_memory = use_memory
-        self._client = SDKClient(
-            base_url=base_url,
-            api_key=api_key,
-            timeout=timeout,
-            client_name="portfolio-ai",  # Usage tracking
-            client_id=PORTFOLIO_CLIENT_ID,
-            request_source=PORTFOLIO_REQUEST_SOURCE,
-        )
+        self._sdk_kwargs: dict[str, Any] = {
+            "base_url": base_url,
+            "api_key": api_key,
+            "timeout": timeout,
+            "client_name": "portfolio-ai",
+            "client_id": PORTFOLIO_CLIENT_ID,
+            "request_source": PORTFOLIO_REQUEST_SOURCE,
+        }
+        self._client = SDKClient(**self._sdk_kwargs)
+        self._async_client: AsyncSDKClient | None = None
 
         self.provider = "agent_hub"
 
@@ -258,65 +259,77 @@ class AgentHubAPIClient(LLMClient):
             request_kwargs["enable_programmatic_tools"] = True
         return self._client.complete(**request_kwargs)
 
-    def run_committee_roundtable(
+    def _get_async_client(self) -> AsyncSDKClient:
+        """Return a lazily-constructed async SDK client.
+
+        Used by the Investment Committee runner so analyst/researcher/risk
+        stages can call ``asyncio.gather`` and actually parallelize. The sync
+        client and async client share the same configuration but maintain
+        independent ``httpx`` connection pools.
+        """
+        if self._async_client is None:
+            self._async_client = AsyncSDKClient(**self._sdk_kwargs)
+        return self._async_client
+
+    async def complete_messages_async(
         self,
         *,
-        prompt: str,
-        window_days: int,
-        source_snapshot_json: str,
-        purpose: str = "market_prediction_committee",
-        max_turns: int = 4,
-    ) -> dict[str, Any]:
-        http_client = self._client._get_client()
-        try:
-            response = http_client.post(
-                "/api/orchestration/committee",
-                json={
-                    "prompt": prompt,
-                    "window_days": window_days,
-                    "source_snapshot": json.loads(source_snapshot_json),
-                    "project_id": "portfolio-ai",
-                    "agent_slug": "investment-committee",
-                    "trace_id": purpose,
-                },
-            )
-            if getattr(response, "is_success", False):
-                payload = response.json()
-                if (
-                    isinstance(payload, dict)
-                    and isinstance(payload.get("calls"), list)
-                    and isinstance(payload.get("votes"), list)
-                ):
-                    return {**payload, "_portfolio_execution_path": "committee_endpoint"}
-        except Exception:
-            logger.warning("committee_endpoint_request_failed", exc_info=True)
+        messages: list[Any],
+        tools: list[dict[str, Any]] | None = None,
+        temperature: float = 1.0,
+        purpose: str | None = None,
+        session_id: str | None = None,
+        max_turns: int = 1,
+        thinking_level: str | None = None,
+        response_format: dict[str, Any] | None = None,
+        system_prompt: str | None = None,
+        use_memory: bool | None = None,
+        execute_tools: bool = False,
+        enable_programmatic_tools: bool = False,
+        agent_slug: str | None = None,
+    ) -> Any:
+        """Async counterpart to ``complete_messages``.
 
-        message = (
-            f"Committee forecast window: {window_days} trading days.\n\n"
-            f"Source snapshot JSON:\n{source_snapshot_json}\n\n"
-            f"Task:\n{prompt}"
-        )
-        response = self.complete_messages(
-            agent_slug="investment-committee",
-            messages=[{"role": "user", "content": message}],
-            purpose=purpose,
-            response_format={"type": "json_object"},
-            max_turns=max_turns,
-        )
-        payload_text = extract_json_object_text(str(getattr(response, "content", "") or ""))
-        if payload_text is None:
-            raise RuntimeError("Committee roundtable returned no JSON payload")
-        try:
-            payload = json.loads(payload_text)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(f"Committee roundtable returned invalid JSON: {exc}") from exc
-        if not isinstance(payload, dict):
-            raise RuntimeError("Committee roundtable returned non-object payload")
-        return {**payload, "_portfolio_execution_path": "fallback_completion"}
+        Mirrors the sync signature; routes through ``AsyncAgentHubClient``
+        so callers using ``asyncio.gather`` see real I/O parallelism.
+        """
+        request_kwargs: dict[str, Any] = {
+            "agent_slug": agent_slug or self.agent_slug,
+            "messages": messages,
+            "temperature": temperature,
+            "project_id": "portfolio-ai",
+            "purpose": purpose,
+        }
+        if tools is not None:
+            request_kwargs["tools"] = tools
+        resolved_memory = self.use_memory if use_memory is None else use_memory
+        if resolved_memory is not None:
+            request_kwargs["use_memory"] = resolved_memory
+        if session_id is not None:
+            request_kwargs["session_id"] = session_id
+        if max_turns != 1:
+            request_kwargs["max_turns"] = max_turns
+        if thinking_level is not None:
+            request_kwargs["thinking_level"] = thinking_level
+        if response_format is not None:
+            request_kwargs["response_format"] = response_format
+        if system_prompt is not None:
+            request_kwargs["system_prompt"] = system_prompt
+        if execute_tools:
+            request_kwargs["execute_tools"] = True
+        if enable_programmatic_tools:
+            request_kwargs["enable_programmatic_tools"] = True
+        return await self._get_async_client().complete(**request_kwargs)
 
     def close(self) -> None:
         """Close the underlying HTTP client."""
         self._client.close()
+
+    async def aclose(self) -> None:
+        """Close async SDK client if one was lazily created."""
+        if self._async_client is not None:
+            await self._async_client.close()
+            self._async_client = None
 
     def __enter__(self) -> AgentHubAPIClient:
         return self

@@ -5,13 +5,25 @@ import {
   intradayMoodScore,
 } from '@/components/portfolio/investing-language'
 import { RelativeTime } from '@/components/shared/RelativeTime'
-import type { HomeTodayBriefMetric } from '@/lib/api/home'
 import type {
   EnrichedIndicator,
   MarketIntelligenceResponse,
 } from '@/lib/api/market'
 import { metricToneClasses } from '@/lib/dataQuality'
 import { cn } from '@/lib/utils'
+
+export interface MarketStripMetric {
+  key: string
+  label: string
+  value: string
+  changePct: number | null
+  detail: string
+  tone: string
+  horizon?: string | null
+  asOf?: string | null
+  asOfLabel?: string | null
+  span?: 'wide' | null
+}
 
 function formatMetricNumber(value: number | null | undefined, digits = 2) {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
@@ -32,7 +44,7 @@ function indicatorAsOf(
 
 export function buildLiveMarketMetrics(
   market: MarketIntelligenceResponse | undefined,
-): HomeTodayBriefMetric[] | null {
+): MarketStripMetric[] | null {
   if (!market?.indicators || !market.sectorRotation) return null
 
   const sp500 = market.indicators.sp500
@@ -118,7 +130,7 @@ export function buildLiveMarketMetrics(
   ]
 }
 
-function MarketStripItem({ metric }: { metric: HomeTodayBriefMetric }) {
+function MarketStripItem({ metric }: { metric: MarketStripMetric }) {
   const wide = metric.span === 'wide'
   return (
     <div
@@ -155,7 +167,7 @@ function MarketStripItem({ metric }: { metric: HomeTodayBriefMetric }) {
 }
 
 export interface MarketStripGridProps {
-  metrics: HomeTodayBriefMetric[]
+  metrics: MarketStripMetric[]
   isLive: boolean
   timestamp: string | null | undefined
   loading: boolean

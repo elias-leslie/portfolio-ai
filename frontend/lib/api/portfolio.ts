@@ -230,52 +230,12 @@ export interface JennyAgentScorecard {
   updatedAt: string
 }
 
-export interface JennyPredictionReviewChange {
-  kind: 'seat' | 'cluster'
-  key: string
-  priorWeight: number
-  effectiveWeight: number
-}
-
-export interface JennyPredictionReviewSeatWeight {
-  seatKey: string
-  priorWeight: number
-  effectiveWeight: number
-  sampleSize: number
-  recommendedAction: 'upweight' | 'downweight' | 'hold'
-}
-
-export interface JennyPredictionReviewClusterWeight {
-  cluster: string
-  priorWeight: number
-  effectiveWeight: number
-  sampleSize: number
-  freshness: 'fresh' | 'stale' | 'missing' | 'unknown'
-  gateState: 'active' | 'downweighted' | 'off' | 'tracked_only'
-  recommendedAction: 'upweight' | 'downweight' | 'hold' | 'track_only'
-}
-
-export interface JennyPredictionReviewSummary {
-  windowDays: number
-  reviewState: 'live' | 'warmup' | 'degraded'
-  generatedAt: string
-  asOfTs: string
-  seatWeights: JennyPredictionReviewSeatWeight[]
-  clusterWeights?: JennyPredictionReviewClusterWeight[]
-  driftCallouts: string[]
-  gapCallouts?: string[]
-  agentActions?: string[]
-  topUpweighted: JennyPredictionReviewChange[]
-  topDownweighted: JennyPredictionReviewChange[]
-}
-
 export interface JennyDashboard {
   routines: JennyRoutine[]
   notifications: JennyNotification[]
   symbolReviews: JennySymbolReview[]
   tradeReviews: JennyTradeReview[]
   scorecards: JennyAgentScorecard[]
-  predictionReviewSummary?: JennyPredictionReviewSummary | null
 }
 
 export interface JennyRunResponse {

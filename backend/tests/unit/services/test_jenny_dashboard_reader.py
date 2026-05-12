@@ -2,114 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock, Mock
 
-from pytest_mock import MockerFixture
-
 from app.models.jenny import JennyAgentEvaluation
-from app.models.market_prediction import (
-    MarketPredictionClusterReview,
-    MarketPredictionSeatReview,
-)
 from app.services.jenny_dashboard_reader import JennyDashboardReader
 from app.services.jenny_operator_service import JennyOperatorService
 
 
 def _service() -> JennyOperatorService:
     return JennyOperatorService()
-
-
-def _seat_review(
-    *,
-    review_id: str,
-    window_days: int,
-    as_of_ts: datetime,
-    generated_at: datetime,
-    review_state: str,
-) -> MarketPredictionSeatReview:
-    return MarketPredictionSeatReview.model_construct(
-        id=review_id,
-        generated_at=generated_at,
-        as_of_ts=as_of_ts,
-        window_days=window_days,
-        review_state=review_state,
-        seat_scorecards=[
-            {
-                "seat_key": "macro",
-                "prior_weight": 1 / 3,
-                "effective_weight": 0.39,
-                "sample_size": 8,
-                "direction_hit_rate": 0.7,
-                "move_mae_pct": 0.6,
-                "brier_score": 0.18,
-                "skill_score": 0.74,
-                "recommended_action": "upweight",
-            }
-        ],
-        review_summary={
-            "generated_at": generated_at.isoformat(),
-            "review_state": review_state,
-            "drift_callouts": ["macro upweighted from 0.3333 to 0.3900"],
-            "top_upweighted": [
-                {
-                    "kind": "seat",
-                    "key": "macro",
-                    "prior_weight": 1 / 3,
-                    "effective_weight": 0.39,
-                }
-            ],
-            "top_downweighted": [],
-        },
-        metadata={},
-    )
-
-
-def _cluster_review(
-    *,
-    review_id: str,
-    window_days: int,
-    as_of_ts: datetime,
-    generated_at: datetime,
-    review_state: str,
-) -> MarketPredictionClusterReview:
-    return MarketPredictionClusterReview.model_construct(
-        id=review_id,
-        generated_at=generated_at,
-        as_of_ts=as_of_ts,
-        window_days=window_days,
-        review_state=review_state,
-        cluster_scorecards=[
-            {
-                "cluster": "price_structure_market_regime_breadth",
-                "prior_weight": 26.0,
-                "effective_weight": 38.0,
-                "sample_size": 12,
-                "freshness": "fresh",
-                "gate_state": "active",
-                "recommended_action": "upweight",
-            }
-        ],
-        review_summary={
-            "generated_at": generated_at.isoformat(),
-            "review_state": review_state,
-            "drift_callouts": [],
-            "gap_callouts": ["cluster sample still thin"],
-            "agent_actions": ["Jenny/investment-committee: inspect cluster gap."],
-            "top_upweighted": [
-                {
-                    "kind": "cluster",
-                    "key": "price_structure_market_regime_breadth",
-                    "prior_weight": 26.0,
-                    "effective_weight": 38.0,
-                }
-            ],
-            "top_downweighted": [],
-        },
-        metadata={},
-    )
 
 
 def test_get_latest_symbol_reviews_uses_newest_routine_per_symbol() -> None:
@@ -314,60 +216,3 @@ def test_get_latest_symbol_review_uses_newest_routine_for_symbol() -> None:
     assert result.management_detail == "Cut back size."
 
 
-def test_get_latest_prediction_review_summary_prefers_newest_persisted_review(
-    mocker: MockerFixture,
-) -> None:
-    older = _seat_review(
-        review_id="seat-review:1",
-        window_days=1,
-        as_of_ts=datetime(2026, 4, 22, 21, 0, tzinfo=UTC),
-        generated_at=datetime(2026, 4, 22, 21, 0, tzinfo=UTC),
-        review_state="live",
-    )
-    newer = _seat_review(
-        review_id="seat-review:7",
-        window_days=7,
-        as_of_ts=datetime(2026, 4, 23, 15, 40, tzinfo=UTC),
-        generated_at=datetime(2026, 4, 23, 15, 41, tzinfo=UTC),
-        review_state="warmup",
-    )
-
-    repository = mocker.Mock()
-    repository.list_latest_seat_reviews.side_effect = [[older], [], [newer], []]
-    mocker.patch(
-        "app.services.jenny_dashboard_reader.MarketPredictionRepository",
-        return_value=repository,
-    )
-    cluster_review = _cluster_review(
-        review_id="cluster-review:7",
-        window_days=7,
-        as_of_ts=newer.as_of_ts,
-        generated_at=newer.generated_at,
-        review_state="warmup",
-    )
-    cluster_weighting = mocker.Mock()
-    cluster_weighting.get_review.return_value = cluster_review
-    cluster_weighting_cls = mocker.patch(
-        "app.services.jenny_dashboard_reader.MarketPredictionClusterWeightingService",
-        return_value=cluster_weighting,
-    )
-
-    storage = object()
-    reader = JennyDashboardReader()
-    summary = reader.get_latest_prediction_review_summary(
-        SimpleNamespace(storage=storage)
-    )
-
-    assert summary is not None
-    assert summary.window_days == 7
-    assert summary.review_state == "warmup"
-    assert summary.generated_at == newer.generated_at.isoformat()
-    assert summary.seat_weights[0].seat_key == "macro"
-    assert summary.cluster_weights[0].cluster == "price_structure_market_regime_breadth"
-    assert summary.cluster_weights[0].prior_weight == 26.0
-    assert summary.gap_callouts == ["cluster sample still thin"]
-    assert summary.agent_actions == ["Jenny/investment-committee: inspect cluster gap."]
-    assert summary.top_upweighted[0].key == "macro"
-    assert summary.top_upweighted[1].kind == "cluster"
-    cluster_weighting_cls.assert_called_once_with(repository=repository, storage=storage)
-    cluster_weighting.get_review.assert_called_once_with(window_days=7, as_of_ts=newer.as_of_ts)

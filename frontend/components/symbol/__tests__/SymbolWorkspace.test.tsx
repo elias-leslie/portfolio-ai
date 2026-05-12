@@ -139,38 +139,6 @@ describe('SymbolWorkspace', () => {
         ],
         tradeReviews: [],
         scorecards: [],
-        predictionReviewSummary: {
-          windowDays: 3,
-          reviewState: 'warmup',
-          generatedAt: '2026-04-23T15:40:07.998122Z',
-          asOfTs: '2026-04-23T15:40:07.998122Z',
-          seatWeights: [
-            {
-              seatKey: 'cross_asset',
-              priorWeight: 1 / 3,
-              effectiveWeight: 1 / 3,
-              sampleSize: 0,
-              recommendedAction: 'hold',
-            },
-            {
-              seatKey: 'macro',
-              priorWeight: 1 / 3,
-              effectiveWeight: 1 / 3,
-              sampleSize: 0,
-              recommendedAction: 'hold',
-            },
-            {
-              seatKey: 'risk',
-              priorWeight: 1 / 3,
-              effectiveWeight: 1 / 3,
-              sampleSize: 0,
-              recommendedAction: 'hold',
-            },
-          ],
-          driftCallouts: [],
-          topUpweighted: [],
-          topDownweighted: [],
-        },
       },
       isLoading: false,
       isFetching: false,
@@ -237,13 +205,6 @@ describe('SymbolWorkspace', () => {
     await user.click(screen.getByRole('button', { name: 'Track' }))
 
     expect(screen.getByText(/recent articles/i)).toBeInTheDocument()
-    expect(screen.getByText(/jenny committee review/i)).toBeInTheDocument()
-    expect(
-      screen.getByTestId('symbol-jenny-prediction-review'),
-    ).toHaveTextContent('Warmup · 3D horizon')
-    expect(
-      screen.getByTestId('symbol-jenny-prediction-review'),
-    ).toHaveTextContent(/cross asset/i)
     expect(
       screen.getByText(/etf flows remain constructive/i),
     ).toBeInTheDocument()

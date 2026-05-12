@@ -6,9 +6,6 @@ import { apiRequest } from './client'
 import type {
   MarketConditionsResponse,
   MarketIntelligenceResponse,
-  MarketPredictionCommitteeResponse,
-  MarketPredictionHistoryResponse,
-  MarketPredictionSeatReviewResponse,
   MarketTrendsResponse,
   PricesResponse,
 } from './market-types'
@@ -53,59 +50,6 @@ export async function fetchMarketTrends(
 ): Promise<MarketTrendsResponse> {
   return apiRequest<MarketTrendsResponse>(
     `/api/market/trends?days=${days}`,
-    options,
-  )
-}
-
-/**
- * Get the latest market prediction committee snapshot for a trading-day window
- */
-export async function fetchMarketPredictionCommittee(
-  windowDays: number = 3,
-  options: RequestInit = {},
-): Promise<MarketPredictionCommitteeResponse> {
-  return apiRequest<MarketPredictionCommitteeResponse>(
-    `/api/market/prediction/committee?window_days=${windowDays}`,
-    options,
-  )
-}
-
-/**
- * Force a new market prediction committee snapshot for a trading-day window.
- */
-export async function refreshMarketPredictionCommittee(
-  windowDays: number = 3,
-): Promise<MarketPredictionCommitteeResponse> {
-  return apiRequest<MarketPredictionCommitteeResponse>(
-    `/api/market/prediction/committee/refresh?window_days=${windowDays}`,
-    { method: 'POST' },
-  )
-}
-
-/**
- * Get the latest market prediction review artifact for a trading-day window
- */
-export async function fetchMarketPredictionReview(
-  windowDays: number = 3,
-  options: RequestInit = {},
-): Promise<MarketPredictionSeatReviewResponse> {
-  return apiRequest<MarketPredictionSeatReviewResponse>(
-    `/api/market/prediction/review?window_days=${windowDays}`,
-    options,
-  )
-}
-
-/**
- * Get historical market prediction committee calls for a symbol/window pair
- */
-export async function fetchMarketPredictionHistory(
-  symbol: string,
-  windowDays: number = 3,
-  limit: number = 30,
-  options: RequestInit = {},
-): Promise<MarketPredictionHistoryResponse> {
-  return apiRequest<MarketPredictionHistoryResponse>(
-    `/api/market/prediction/committee/history?symbol=${encodeURIComponent(symbol)}&window_days=${windowDays}&limit=${limit}`,
     options,
   )
 }

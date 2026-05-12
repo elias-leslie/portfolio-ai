@@ -13,6 +13,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import (
+    committee_runs,
+    committee_stream,
     health,
     home,
     household,
@@ -149,6 +151,8 @@ app.include_router(watchlist.router, prefix="/api/watchlist")
 app.include_router(rules.router)
 app.include_router(symbols.router)
 app.include_router(thesis.router)
+app.include_router(committee_runs.router)
+app.include_router(committee_stream.router)
 
 
 @app.get("/")

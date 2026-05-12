@@ -95,7 +95,7 @@ def test_get_hatchet_primes_sdk_env_from_settings(monkeypatch) -> None:
     }
 
 
-def test_worker_registers_market_prediction_workflows(monkeypatch) -> None:
+def test_worker_registers_macro_calendar_and_ohlcv_workflows(monkeypatch) -> None:
     worker = MagicMock()
     hatchet = MagicMock()
     hatchet.worker.return_value = worker
@@ -108,9 +108,8 @@ def test_worker_registers_market_prediction_workflows(monkeypatch) -> None:
 
     workflows = hatchet.worker.call_args.kwargs["workflows"]
     workflow_names = {workflow.name for workflow in workflows}
-    assert "portfolio-market-prediction-morning-prep" in workflow_names
-    assert "portfolio-market-prediction-after-close" in workflow_names
-    assert "portfolio-market-prediction-sunday-prep" in workflow_names
+    assert "portfolio-market-macro-calendar-ingestion" in workflow_names
+    assert "portfolio-refresh-ohlcv" in workflow_names
     assert worker.handle_kill is False
     worker.start.assert_called_once_with()
     exit_mock.assert_called_once_with(0)

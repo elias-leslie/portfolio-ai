@@ -92,9 +92,6 @@ function decisionEvidenceLine(domain: DecisionDataDomain) {
     case 'household_evidence': {
       return `Net worth ${formatEnumLabel(evidenceString(evidence, 'net_worth_status', 'netWorthStatus'), 'unknown')} · Spend ${formatEnumLabel(evidenceString(evidence, 'monthly_spend_status', 'monthlySpendStatus'), 'unknown')}`
     }
-    case 'prediction_macro': {
-      return `Snapshot ${formatEnumLabel(evidenceString(evidence, 'state'), 'unknown')} · Macro ${formatEnumLabel(evidenceString(evidence, 'macro_freshness', 'macroFreshness'), 'unknown')}`
-    }
     default:
       return null
   }

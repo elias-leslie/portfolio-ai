@@ -5,9 +5,6 @@ from app.workflows.data_refresh_schedules import (
     FUNDAMENTAL_INGESTION_CRONS,
     HISTORICAL_OHLCV_MAINTENANCE_CRONS,
     MACRO_INDICATOR_INGESTION_CRONS,
-    MARKET_PREDICTION_AFTER_CLOSE_CRONS,
-    MARKET_PREDICTION_MORNING_CRONS,
-    MARKET_PREDICTION_SUNDAY_CRONS,
     OPTIONS_ACTIVITY_CRONS,
     PUTCALL_RATIO_CRONS,
     TECHNICAL_INDICATOR_BACKFILL_CRONS,
@@ -35,12 +32,6 @@ def test_putcall_ratio_schedule_covers_market_open_and_close() -> None:
         "30 14 * * *",
         "39 21 * * *",
     ]
-
-
-def test_market_prediction_schedules_cover_morning_after_close_and_sunday_prep() -> None:
-    assert MARKET_PREDICTION_MORNING_CRONS == ["15 13 * * 1-5"]
-    assert MARKET_PREDICTION_AFTER_CLOSE_CRONS == ["10 22 * * 1-5"]
-    assert MARKET_PREDICTION_SUNDAY_CRONS == ["0 22 * * 0"]
 
 
 def test_core_ingestion_schedules_are_centralized() -> None:
