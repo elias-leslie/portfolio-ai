@@ -790,21 +790,76 @@ async def _build_context(symbol: str) -> dict[str, Any]:
     except Exception as exc:
         logger.warning("committee_context_build_failed", symbol=symbol, error=str(exc))
         return {"current_price": None}
+    return _context_from_intelligence_payload(payload)
+
+
+def _context_from_intelligence_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Map Symbol Intelligence sections into the committee analyst slices."""
+    scores = payload.get("scores") if isinstance(payload.get("scores"), dict) else {}
+    pillars = scores.get("pillars") if isinstance(scores.get("pillars"), dict) else {}
+    news = payload.get("news") if isinstance(payload.get("news"), dict) else None
     return {
         "current_price": _extract_price(payload),
-        "fundamentals": payload.get("fundamentals"),
-        "valuation": payload.get("valuation"),
-        "news": payload.get("news"),
-        "sentiment": payload.get("sentiment"),
-        "options": payload.get("options"),
-        "ohlcv": payload.get("ohlcv") or payload.get("technicals"),
-        "indicators": payload.get("indicators") or payload.get("technicals"),
+        "fundamentals": _compact_dict(
+            {
+                "pillar": pillars.get("fundamental"),
+                "company": payload.get("company"),
+                "data_quality": scores.get("data_quality"),
+            }
+        ),
+        "valuation": _compact_dict(
+            {
+                "overall_score": scores.get("overall"),
+                "signal_type": scores.get("signal_type"),
+                "signal_strength": scores.get("signal_strength"),
+                "signal": payload.get("signal"),
+                "trading": payload.get("trading"),
+                "recommendation": payload.get("recommendation"),
+                "decision": payload.get("decision"),
+            }
+        ),
+        "news": _compact_dict(
+            {
+                "section": news,
+                "catalyst_pillar": pillars.get("catalyst"),
+                "alerts": payload.get("alerts"),
+            }
+        ),
+        "sentiment": _compact_dict(
+            {
+                "news_sentiment_score": news.get("sentiment_score") if news else None,
+                "news_sentiment_label": news.get("sentiment_label") if news else None,
+                "market": payload.get("market"),
+                "signal": payload.get("signal"),
+            }
+        ),
+        "options": _compact_dict({"pillar": pillars.get("options_flow")}),
+        "ohlcv": _compact_dict(
+            {
+                "price_pillar": pillars.get("price"),
+                "trends": payload.get("trends"),
+                "current_price": _extract_price(payload),
+            }
+        ),
+        "indicators": _compact_dict(
+            {
+                "technical_pillar": pillars.get("technical"),
+                "trends": payload.get("trends"),
+            }
+        ),
     }
 
 
 def _extract_price(payload: dict[str, Any]) -> float | None:
     """Best-effort current-price extraction from the intelligence payload."""
-    for path in (("price",), ("market", "price"), ("quote", "price"), ("technicals", "last_close")):
+    for path in (
+        ("price",),
+        ("market", "price"),
+        ("quote", "price"),
+        ("technicals", "last_close"),
+        ("scores", "pillars", "price", "metadata", "price"),
+        ("trading", "entry_price"),
+    ):
         value: Any = payload
         for key in path:
             if not isinstance(value, dict):
@@ -819,6 +874,18 @@ def _extract_price(payload: dict[str, Any]) -> float | None:
             except (TypeError, ValueError):
                 continue
     return None
+
+
+def _compact_dict(value: dict[str, Any]) -> dict[str, Any]:
+    """Remove empty top-level context fields while preserving nested payload shape."""
+    compacted: dict[str, Any] = {}
+    for key, item in value.items():
+        if item is None:
+            continue
+        if isinstance(item, (dict, list)) and not item:
+            continue
+        compacted[key] = item
+    return compacted
 
 
 def _portfolio_value_estimate(household_id: str | None) -> float:

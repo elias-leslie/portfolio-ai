@@ -195,6 +195,43 @@ def _seed_events_through_analysts() -> list[dict[str, Any]]:
     return events
 
 
+def test_committee_context_maps_symbol_intelligence_sections() -> None:
+    context = graph_mod._context_from_intelligence_payload(
+        {
+            "scores": {
+                "overall": 62.6,
+                "signal_type": "BUY",
+                "signal_strength": 5,
+                "pillars": {
+                    "price": {"score": 51.6, "metadata": {"price": 431.12}},
+                    "technical": {"score": 75.5, "metadata": {"rsi_14": 74.0}},
+                    "fundamental": {"score": 66.0, "metadata": {"pe": 42.0}},
+                    "catalyst": {"score": 40.0},
+                    "options_flow": {"score": 55.0},
+                },
+                "data_quality": {"overall_pct": 99.1},
+            },
+            "signal": {"type": "BUY", "strength": 5},
+            "trading": {"entry_price": 431.12, "profit_target": 463.5},
+            "company": {"health": "GOOD"},
+            "trends": {"short_term_aligned": True},
+            "news": {"sentiment_score": 0.39, "sentiment_label": "Positive"},
+            "market": {"fear_greed_label": "Greed"},
+            "alerts": [{"label": "Breaking News"}],
+            "recommendation": {"action": "SMALL_POSITION"},
+            "decision": {"action": "SMALL_POSITION"},
+        }
+    )
+
+    assert context["current_price"] == 431.12
+    assert context["fundamentals"]["pillar"]["metadata"]["pe"] == 42.0
+    assert context["valuation"]["signal_type"] == "BUY"
+    assert context["news"]["catalyst_pillar"]["score"] == 40.0
+    assert context["sentiment"]["news_sentiment_label"] == "Positive"
+    assert context["options"]["pillar"]["score"] == 55.0
+    assert context["indicators"]["technical_pillar"]["metadata"]["rsi_14"] == 74.0
+
+
 def _seed_events_through_first_risk_vote() -> list[dict[str, Any]]:
     events = _seed_events_through_analysts()
     seq = len(events)
