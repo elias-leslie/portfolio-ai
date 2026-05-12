@@ -227,6 +227,15 @@ def captured_events(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
         return _proposal()
 
     async def fake_run_risk(slug: str, **kw: Any) -> RiskVoteOutput:
+        events.append(
+            {
+                "type": "__risk_call__",
+                "slug": slug,
+                "risk_history": [
+                    vote.agent_slug for vote in kw.get("risk_history") or []
+                ],
+            }
+        )
         return _risk_vote(slug)
 
     async def fake_run_pm(**kw: Any) -> PmDecision:
@@ -320,6 +329,25 @@ async def test_every_plan_schema_event_type_fires_at_least_once(
     }
     missing = expected - types_seen
     assert not missing, f"plan-schema event types missing: {missing}"
+
+
+@pytest.mark.asyncio
+async def test_risk_voters_receive_prior_risk_arguments(
+    captured_events: list[dict[str, Any]],
+) -> None:
+    """Risk stage mirrors TradingAgents' ordered risk discussion."""
+    await committee_stream.register("run-uuid")
+    await graph_mod.run_committee(
+        run_id="run-uuid",
+        symbol="NVDA",
+        household_id=None,
+    )
+
+    calls = [e for e in captured_events if e.get("type") == "__risk_call__"]
+    assert [c["slug"] for c in calls] == list(graph_mod.stages.RISK_SLUGS)
+    assert calls[0]["risk_history"] == []
+    assert calls[1]["risk_history"] == [graph_mod.stages.RISK_SLUGS[0]]
+    assert calls[2]["risk_history"] == list(graph_mod.stages.RISK_SLUGS[:2])
 
 
 @pytest.mark.asyncio

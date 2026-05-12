@@ -50,7 +50,7 @@ SLUG_RISK_CONSERVATIVE = "risk-conservative-v1"
 SLUG_PM = "portfolio-mgr-v1"
 
 ANALYST_SLUGS = (SLUG_FUNDAMENTALS, SLUG_NEWS, SLUG_SENTIMENT, SLUG_TECHNICAL)
-RISK_SLUGS = (SLUG_RISK_AGGRESSIVE, SLUG_RISK_NEUTRAL, SLUG_RISK_CONSERVATIVE)
+RISK_SLUGS = (SLUG_RISK_AGGRESSIVE, SLUG_RISK_CONSERVATIVE, SLUG_RISK_NEUTRAL)
 
 
 async def run_analyst(
@@ -168,6 +168,7 @@ async def run_risk(
     analyst_outputs: list[AnalystOutput],
     debate_history: list[DebateRound],
     ips_result: IpsResult,
+    risk_history: list[RiskVoteOutput] | None = None,
     feedback_round: dict[str, Any] | None = None,
 ) -> RiskVoteOutput:
     """Call one risk voter."""
@@ -176,6 +177,7 @@ async def run_risk(
         "analyst_outputs": [_summarize_analyst(a) for a in analyst_outputs],
         "debate_history": [_summarize_round(r) for r in debate_history],
         "ips_result": ips_result.model_dump(mode="json"),
+        "risk_history": [_summarize_risk_vote(v) for v in risk_history or []],
         "feedback_round": bool(feedback_round),
     }
     if feedback_round is not None:
@@ -470,6 +472,16 @@ def _summarize_round(r: DebateRound) -> dict[str, Any]:
             "argument_md": r.bear.argument_md,
             "rebuttals_md": r.bear.rebuttals_md,
         },
+    }
+
+
+def _summarize_risk_vote(v: RiskVoteOutput) -> dict[str, Any]:
+    return {
+        "agent_slug": v.agent_slug,
+        "vote": v.vote,
+        "score": v.score,
+        "narrative_md": v.narrative_md,
+        "objections": [o.model_dump(mode="json") for o in v.objections],
     }
 
 

@@ -221,7 +221,7 @@ async def run_committee(
                 content=check.model_dump(mode="json"),
             )
 
-        # Stage 5: Risk vote (3 voters concurrent).
+        # Stage 5: Risk vote (ordered so later voters can rebut prior risk stances).
         await emit("stage.enter", stage_name="risk", content={"stage": "risk"})
         await stream.check_control(run_id)
         risk_votes = await _run_risk_stage(proposal, analyst_outputs, debate_history, ips_result, emit)
@@ -389,18 +389,17 @@ async def _run_risk_stage(
     ips_result: IpsResult,
     emit,
 ) -> list[RiskVoteOutput]:
-    tasks = [
-        stages.run_risk(
+    votes: list[RiskVoteOutput] = []
+    for slug in stages.RISK_SLUGS:
+        vote = await stages.run_risk(
             slug,
             proposal=proposal,
             analyst_outputs=analyst_outputs,
             debate_history=debate_history,
             ips_result=ips_result,
+            risk_history=votes,
         )
-        for slug in stages.RISK_SLUGS
-    ]
-    votes = await asyncio.gather(*tasks)
-    for vote in votes:
+        votes.append(vote)
         await emit(
             "risk.vote",
             stage_name="risk",
