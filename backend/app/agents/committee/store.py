@@ -317,6 +317,47 @@ def get_run_summary(run_id: str) -> dict[str, Any] | None:
         }
 
 
+def list_recent_runs(
+    household_id: str | None,
+    *,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    """Last N committee runs scoped to the household, newest first.
+
+    Mirrors the auth scoping of ``load_past_decisions``: ``NULL``
+    household sees only ``NULL``-household runs (single-household mode
+    today). Returns the shape the PriorRunsSidebar expects: a compact
+    projection (no per-event detail).
+    """
+    cm = get_connection_manager()
+    with cm.connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, symbol, status, decision_action, decision_pct_portfolio,
+                   confidence, parent_run_id, started_at, completed_at
+            FROM committee_runs
+            WHERE household_id IS NOT DISTINCT FROM %s
+            ORDER BY started_at DESC
+            LIMIT %s
+            """,
+            (household_id, limit),
+        ).fetchall()
+    return [
+        {
+            "id": str(row[0]),
+            "symbol": row[1],
+            "status": row[2],
+            "decision_action": row[3],
+            "decision_pct_portfolio": float(row[4]) if row[4] is not None else None,
+            "confidence": float(row[5]) if row[5] is not None else None,
+            "parent_run_id": str(row[6]) if row[6] is not None else None,
+            "started_at": row[7].isoformat() if isinstance(row[7], datetime) else row[7],
+            "completed_at": row[8].isoformat() if isinstance(row[8], datetime) else row[8],
+        }
+        for row in rows
+    ]
+
+
 def load_past_decisions(
     symbol: str,
     household_id: str | None,

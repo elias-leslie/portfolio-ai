@@ -69,6 +69,22 @@ class RunSnapshotResponse(BaseModel):
     events: list[dict[str, Any]]
 
 
+class RunListItem(BaseModel):
+    id: str
+    symbol: str
+    status: str
+    decision_action: str | None
+    decision_pct_portfolio: float | None
+    confidence: float | None
+    parent_run_id: str | None
+    started_at: str | None
+    completed_at: str | None
+
+
+class RunListResponse(BaseModel):
+    runs: list[RunListItem]
+
+
 @router.post("/runs", response_model=StartRunResponse, status_code=status.HTTP_201_CREATED)
 async def start_run(
     payload: StartRunRequest, background_tasks: BackgroundTasks
@@ -101,6 +117,20 @@ async def start_run(
         status="pending",
         graph_version=GRAPH_VERSION,
     )
+
+
+@router.get("/runs", response_model=RunListResponse)
+async def list_runs(limit: int = 20) -> RunListResponse:
+    """Last ``limit`` committee runs scoped to the authenticated household.
+
+    Drives the PriorRunsSidebar on ``/portfolio/committee``. The limit
+    is clamped to [1, 100] so a misbehaving client cannot ask for the
+    whole table.
+    """
+    household_id = _resolve_household_id()
+    clamped = max(1, min(int(limit), 100))
+    rows = await run_in_threadpool(store.list_recent_runs, household_id, limit=clamped)
+    return RunListResponse(runs=[RunListItem(**row) for row in rows])
 
 
 @router.get("/runs/{run_id}", response_model=RunSnapshotResponse)
