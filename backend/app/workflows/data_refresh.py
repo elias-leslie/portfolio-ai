@@ -41,9 +41,15 @@ from .models import EmptyInput, SymbolsInput
     ),
 )
 async def refresh_daily_ohlcv_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    from ..services import paper_trades
     from ..tasks.ingestion.price_ingestion import refresh_daily_ohlcv
 
-    return await asyncio.to_thread(refresh_daily_ohlcv)
+    ohlcv_result: dict[str, Any] = dict(await asyncio.to_thread(refresh_daily_ohlcv))
+    if ohlcv_result.get("status") == "failed":
+        ohlcv_result["paper_trade_pnl"] = {"status": "skipped", "reason": "ohlcv_refresh_failed"}
+        return ohlcv_result
+    ohlcv_result["paper_trade_pnl"] = await asyncio.to_thread(paper_trades.update_pnl_for_open)
+    return ohlcv_result
 
 
 @hatchet.task(

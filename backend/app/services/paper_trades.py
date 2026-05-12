@@ -8,8 +8,8 @@ Two surfaces:
   current_close``, persists a ``paper_trades`` row, marks the run
   ``approved``.
 
-- ``update_pnl_for_open()``: invoked by the nightly
-  ``market_prediction`` workflow after the OHLCV refresh. Walks every
+- ``update_pnl_for_open()``: invoked from the daily
+  ``refresh_daily_ohlcv_wf`` after the OHLCV refresh. Walks every
   paper trade where ``closed_at IS NULL`` and updates
   ``current_price/current_pnl/last_pnl_at`` from the latest day_bars
   close.
