@@ -78,6 +78,11 @@ reports/autonomous/*
 # Dev tools
 .dev-tools/
 
+# Generated knowledge-graph artifacts
+graphify-out/
+.graphify_detect.json
+.graphify_transcripts.json
+
 # Reference repos
 references/
 app/references/
