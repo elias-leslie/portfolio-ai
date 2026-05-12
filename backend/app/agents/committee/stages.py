@@ -12,6 +12,7 @@ structured user-message payload.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import Any
@@ -51,6 +52,7 @@ SLUG_PM = "portfolio-mgr-v1"
 
 ANALYST_SLUGS = (SLUG_FUNDAMENTALS, SLUG_NEWS, SLUG_SENTIMENT, SLUG_TECHNICAL)
 RISK_SLUGS = (SLUG_RISK_AGGRESSIVE, SLUG_RISK_CONSERVATIVE, SLUG_RISK_NEUTRAL)
+_AGENT_COMPLETION_TIMEOUT_SECONDS = 20 * 60
 
 
 async def run_analyst(
@@ -331,18 +333,24 @@ async def _complete(slug: str, payload: dict[str, Any], *, purpose: str) -> Any:
     """
     client = AgentHubAPIClient(agent_slug=slug, use_memory=False)
     try:
-        return await client.complete_messages_async(
-            agent_slug=slug,
-            messages=[
-                {
-                    "role": "user",
-                    "content": json.dumps(payload, default=str),
-                }
-            ],
-            temperature=0.2,
-            purpose=purpose,
-            response_format={"type": "json_object"},
-        )
+        try:
+            async with asyncio.timeout(_AGENT_COMPLETION_TIMEOUT_SECONDS):
+                return await client.complete_messages_async(
+                    agent_slug=slug,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": json.dumps(payload, default=str),
+                        }
+                    ],
+                    temperature=0.2,
+                    purpose=purpose,
+                    response_format={"type": "json_object"},
+                )
+        except TimeoutError as exc:
+            raise TimeoutError(
+                f"{purpose} timed out after {_AGENT_COMPLETION_TIMEOUT_SECONDS}s"
+            ) from exc
     finally:
         await client.aclose()
 
