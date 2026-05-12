@@ -49,24 +49,6 @@ def _dashboard_payload() -> dict[str, Any]:
         "symbol_reviews": [],
         "trade_reviews": [],
         "scorecards": [],
-        "prediction_review_summary": {
-            "window_days": 3,
-            "review_state": "warmup",
-            "generated_at": "2026-04-23T15:40:07.998122+00:00",
-            "as_of_ts": "2026-04-23T15:40:07.998122+00:00",
-            "seat_weights": [
-                {
-                    "seat_key": "cross_asset",
-                    "prior_weight": 1 / 3,
-                    "effective_weight": 1 / 3,
-                    "sample_size": 0,
-                    "recommended_action": "hold",
-                }
-            ],
-            "drift_callouts": [],
-            "top_upweighted": [],
-            "top_downweighted": [],
-        },
     }
 
 
@@ -97,7 +79,6 @@ def test_get_jenny_dashboard_returns_service_payload(mocker: MockerFixture) -> N
     data = response.json()
     assert data["routines"][0]["routine_type"] == "daily_operator"
     assert data["notifications"][0]["symbol"] == "AAPL"
-    assert data["prediction_review_summary"]["review_state"] == "warmup"
 
 
 def test_run_jenny_routine_dispatches_daily_operator(mocker: MockerFixture) -> None:

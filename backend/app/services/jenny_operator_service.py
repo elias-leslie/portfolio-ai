@@ -73,7 +73,6 @@ _DASHBOARD_READER_METHODS: dict[str, str] = {
     "_get_latest_symbol_review": "get_latest_symbol_review",
     "_get_recent_trade_reviews": "get_recent_trade_reviews",
     "_get_scorecards": "get_scorecards",
-    "_get_latest_prediction_review_summary": "get_latest_prediction_review_summary",
     "_fetch_all_evaluations": "fetch_all_evaluations",
     "_build_review_consensus": "build_review_consensus",
 }
@@ -164,7 +163,6 @@ class JennyOperatorService:
             symbol_reviews=self._get_latest_symbol_reviews(),
             trade_reviews=self._get_recent_trade_reviews(),
             scorecards=self._get_scorecards(),
-            prediction_review_summary=self._get_latest_prediction_review_summary(),
         )
 
     def acknowledge_notification(self, notification_id: str) -> JennyNotification | None:

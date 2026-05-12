@@ -45,8 +45,6 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
   const latestReview = jennyDashboard?.symbolReviews.find(
     (review) => review.symbol === uppercaseSymbol,
   )
-  const predictionReviewSummary =
-    jennyDashboard?.predictionReviewSummary ?? null
   const tradeReviews =
     jennyDashboard?.tradeReviews.filter(
       (review) => review.symbol === uppercaseSymbol,
@@ -110,9 +108,6 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
     decisionUsesLiveModel && entrySignalParts.length > 0
       ? `${data?.portfolio?.held ? 'Entry signal if not held' : 'Live entry signal'}: ${entrySignalParts.join(' · ')}`
       : null
-  const predictionReviewLabel = predictionReviewSummary
-    ? `${formatEnumLabel(predictionReviewSummary.reviewState, 'Unknown')} · ${predictionReviewSummary.windowDays}D horizon`
-    : null
   const marketAsOfDate =
     data?.market?.sp500AsOfDate ??
     data?.market?.vixAsOfDate ??
@@ -319,78 +314,6 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             badge: alertCount > 0 ? String(alertCount) : undefined,
             content: (
               <div className="space-y-6">
-                {predictionReviewSummary ? (
-                  <SectionCard
-                    variant="surface"
-                    title="Jenny Committee Review"
-                    description="Latest persisted market-prediction review carried through Jenny's dashboard contract."
-                  >
-                    <div
-                      data-testid="symbol-jenny-prediction-review"
-                      className="space-y-3"
-                    >
-                      <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
-                        <p className="text-sm font-semibold text-text">
-                          {predictionReviewLabel}
-                        </p>
-                        <p className="mt-2 text-sm text-text-muted">
-                          {predictionReviewSummary.generatedAt ? (
-                            <>
-                              Updated{' '}
-                              <RelativeTime
-                                value={predictionReviewSummary.generatedAt}
-                              />
-                            </>
-                          ) : (
-                            'Update time unavailable'
-                          )}
-                          {predictionReviewSummary.asOfTs ? (
-                            <>
-                              {' · As of '}
-                              <RelativeTime
-                                value={predictionReviewSummary.asOfTs}
-                              />
-                            </>
-                          ) : null}
-                        </p>
-                        <p className="mt-2 text-sm text-text-muted">
-                          {predictionReviewSummary.topUpweighted.length ||
-                          predictionReviewSummary.topDownweighted.length
-                            ? `${predictionReviewSummary.topUpweighted.length} upweighted · ${predictionReviewSummary.topDownweighted.length} downweighted`
-                            : 'No resolved seat drift yet.'}
-                        </p>
-                      </div>
-
-                      <div className="grid gap-3 md:grid-cols-3">
-                        {predictionReviewSummary.seatWeights.map((seat) => (
-                          <div
-                            key={seat.seatKey}
-                            className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
-                          >
-                            <p className="text-sm font-semibold text-text">
-                              {formatEnumLabel(seat.seatKey, seat.seatKey)}
-                            </p>
-                            <p className="mt-2 text-2xl font-semibold text-text">
-                              {Math.round(seat.effectiveWeight * 100)}%
-                            </p>
-                            <p className="mt-1 text-xs text-text-muted">
-                              Prior {Math.round(seat.priorWeight * 100)}% ·{' '}
-                              {seat.sampleSize} matured vote
-                              {seat.sampleSize === 1 ? '' : 's'}
-                            </p>
-                            <p className="mt-2 text-xs uppercase tracking-[0.18em] text-text-muted">
-                              {formatEnumLabel(
-                                seat.recommendedAction,
-                                seat.recommendedAction,
-                              )}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </SectionCard>
-                ) : null}
-
                 <SymbolWorkflowPanel
                   symbol={uppercaseSymbol}
                   latestReview={{
