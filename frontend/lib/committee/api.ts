@@ -156,3 +156,23 @@ export async function startRetroRun(runId: string): Promise<StartRunResponse> {
 export interface DecisionView extends PmDecisionEvent {
   status: CommitteeRunRow['status']
 }
+
+export interface CommitteeRunListItem {
+  id: string
+  symbol: string
+  status: CommitteeRunRow['status']
+  decision_action: string | null
+  decision_pct_portfolio: number | null
+  confidence: number | null
+  parent_run_id: string | null
+  started_at: string | null
+  completed_at: string | null
+}
+
+export async function fetchCommitteeRuns(
+  limit = 20,
+): Promise<{ runs: CommitteeRunListItem[] }> {
+  return rawJson<{ runs: CommitteeRunListItem[] }>(
+    `/api/committee/runs?limit=${encodeURIComponent(limit)}`,
+  )
+}

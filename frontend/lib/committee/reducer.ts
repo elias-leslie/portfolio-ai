@@ -63,6 +63,7 @@ export interface CommitteeUiState {
   kpi: { tokens_total: number; cost_usd: number; elapsed_ms: number | null }
   symbol: string | null
   graph_version: string | null
+  started_at: string | null
   feedback: FeedbackEntry[]
   error: string | null
 }
@@ -80,6 +81,7 @@ export const INITIAL_COMMITTEE_STATE: CommitteeUiState = {
   kpi: { tokens_total: 0, cost_usd: 0, elapsed_ms: null },
   symbol: null,
   graph_version: null,
+  started_at: null,
   feedback: [],
   error: null,
 }
@@ -102,6 +104,7 @@ export function reduceCommitteeEvent(
       next.symbol = String(event.content.symbol ?? '') || state.symbol
       next.graph_version =
         String(event.content.graph_version ?? '') || state.graph_version
+      next.started_at = event.ts || state.started_at
       return next
     }
     case 'stage.enter': {
