@@ -164,7 +164,8 @@ async def test_process_feedback_claim_with_unanimous_weak_keeps_decision_and_emi
         emitted.append({"type": type, "stage": stage_name, "content": content or {}})
         return 1
 
-    revised_decision, _ = await graph_mod._process_feedback_claim(
+    counters: dict[str, float] = {"tokens": 0.0, "cost_usd": 0.0}
+    revised_decision = await graph_mod._process_feedback_claim(
         run_id="run-test",
         symbol="NVDA",
         household_id=None,
@@ -176,7 +177,7 @@ async def test_process_feedback_claim_with_unanimous_weak_keeps_decision_and_emi
         risk_votes_prior=risk_votes_prior,
         past_decisions=[],
         decision=decision,
-        tokens_total=0,
+        counters=counters,
         claim={"user_input": "What about the China tariff news?", "round": 1, "input_id": None},
         emit=emit,
     )

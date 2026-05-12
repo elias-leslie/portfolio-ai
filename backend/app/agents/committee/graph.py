@@ -52,6 +52,38 @@ _DEBATE_ROUNDS = 3
 # follow-up. Capped to keep idle runs from holding background slots.
 _FEEDBACK_WAIT_SECONDS = 30.0
 _FEEDBACK_POLL_INTERVAL = 0.5
+_KPI_TICK_INTERVAL = 1.0
+
+
+async def _kpi_ticker(
+    *,
+    run_id: str,
+    counters: dict[str, float],
+    started_at: float,
+    emit,
+) -> None:
+    """Emit ``kpi.tick`` events ~every ``_KPI_TICK_INTERVAL`` seconds.
+
+    Reads the runner's mutable ``counters`` dict so token/cost numbers
+    reflect the latest stage completion. Cancelled by the runner's
+    ``try/finally`` once a terminal event is emitted.
+    """
+    try:
+        while True:
+            await asyncio.sleep(_KPI_TICK_INTERVAL)
+            elapsed_ms = int((time.monotonic() - started_at) * 1000)
+            await emit(
+                "kpi.tick",
+                stage_name="system",
+                content={
+                    "tokens_total": int(counters["tokens"]),
+                    "cost_usd": float(counters["cost_usd"]),
+                    "elapsed_ms": elapsed_ms,
+                },
+            )
+    except asyncio.CancelledError:
+        # Expected — the runner cancels the ticker right before the terminal event.
+        raise
 
 
 async def run_committee(
@@ -63,8 +95,9 @@ async def run_committee(
 ) -> None:
     """Drive a single committee run from start to terminal event."""
     started_at = time.monotonic()
-    tokens_total = 0
+    counters: dict[str, float] = {"tokens": 0.0, "cost_usd": 0.0}
     seq_state = _SeqState()
+    ticker_task: asyncio.Task[None] | None = None
 
     async def emit(
         type: str,
@@ -115,6 +148,9 @@ async def run_committee(
             stage_name="system",
             content={"symbol": symbol, "parent_run_id": parent_run_id, "graph_version": GRAPH_VERSION},
         )
+        ticker_task = asyncio.create_task(
+            _kpi_ticker(run_id=run_id, counters=counters, started_at=started_at, emit=emit)
+        )
 
         await _ensure_ohlcv(symbol)
 
@@ -126,7 +162,7 @@ async def run_committee(
         await emit("stage.enter", stage_name="analysts", content={"stage": "analysts"})
         await stream.check_control(run_id)
         analyst_outputs = await _run_analyst_stage(symbol, context, emit)
-        tokens_total += sum(a.tokens for a in analyst_outputs)
+        counters["tokens"] += sum(a.tokens for a in analyst_outputs)
 
         # Stage 2: 3-round bull/bear debate.
         await emit("stage.enter", stage_name="researchers", content={"stage": "researchers"})
@@ -139,7 +175,7 @@ async def run_committee(
                 content={"round": round_idx},
             )
             bull, bear = await _run_debate_round(symbol, analyst_outputs, debate_history, emit)
-            tokens_total += bull.tokens + bear.tokens
+            counters["tokens"] += bull.tokens + bear.tokens
             debate_history.append(DebateRound(round_idx=round_idx, bull=bull, bear=bear))
             await emit(
                 "debate.round.end",
@@ -164,7 +200,7 @@ async def run_committee(
             current_price=current_price,
             past_decisions=past_decisions,
         )
-        tokens_total += proposal.tokens
+        counters["tokens"] += proposal.tokens
         await emit(
             "trader.proposal",
             stage_name="trader",
@@ -192,7 +228,7 @@ async def run_committee(
         await emit("stage.enter", stage_name="risk", content={"stage": "risk"})
         await stream.check_control(run_id)
         risk_votes = await _run_risk_stage(proposal, analyst_outputs, debate_history, ips_result, emit)
-        tokens_total += sum(v.tokens for v in risk_votes)
+        counters["tokens"] += sum(v.tokens for v in risk_votes)
 
         # Stage 6: PM final decision.
         await emit("stage.enter", stage_name="pm", content={"stage": "pm"})
@@ -204,7 +240,7 @@ async def run_committee(
             ips_result=ips_result,
             past_decisions=past_decisions,
         )
-        tokens_total += decision.tokens
+        counters["tokens"] += decision.tokens
         decision = _enforce_ips_compliance(decision, ips_result)
         await emit(
             "pm.decision",
@@ -220,15 +256,15 @@ async def run_committee(
         store.mark_complete(
             run_id,
             decision=decision,
-            tokens_total=tokens_total,
-            cost_usd=0.0,  # cost tracking deferred; Agent Hub owns billing
+            tokens_total=int(counters["tokens"]),
+            cost_usd=counters["cost_usd"],
         )
 
         # Post-decision feedback loop: drain queued claims, run the
         # consensus-shift round, persist any revised decision. Re-arm the
         # wait window every time a claim lands so a follow-up gets a
         # chance.
-        decision, tokens_total = await _drain_feedback_loop(
+        decision = await _drain_feedback_loop(
             run_id=run_id,
             symbol=symbol,
             household_id=household_id,
@@ -240,29 +276,37 @@ async def run_committee(
             risk_votes=risk_votes,
             past_decisions=past_decisions,
             decision=decision,
-            tokens_total=tokens_total,
+            counters=counters,
             emit=emit,
         )
 
+        await _cancel_ticker(ticker_task)
+        ticker_task = None
         elapsed_ms = int((time.monotonic() - started_at) * 1000)
         await emit(
             "run.complete",
             stage_name="system",
             content={
                 "decision": decision.model_dump(mode="json"),
-                "tokens_total": tokens_total,
-                "cost_usd": 0.0,
+                "tokens_total": int(counters["tokens"]),
+                "cost_usd": counters["cost_usd"],
                 "elapsed_ms": elapsed_ms,
             },
         )
 
     except asyncio.CancelledError:
+        await _cancel_ticker(ticker_task)
+        ticker_task = None
         store.mark_aborted(run_id, reason="user_abort")
         await emit("run.aborted", stage_name="system", content={"reason": "user"})
     except Exception as exc:
+        await _cancel_ticker(ticker_task)
+        ticker_task = None
         logger.exception("committee_run_failed", run_id=run_id)
         store.mark_failed(run_id, error=str(exc))
         await emit("run.failed", stage_name="system", content={"error": str(exc)})
+    finally:
+        await _cancel_ticker(ticker_task)
 
 
 async def _run_analyst_stage(
@@ -511,9 +555,9 @@ async def _drain_feedback_loop(
     risk_votes: list[RiskVoteOutput],
     past_decisions: list[PastDecisionEntry],
     decision: PmDecision,
-    tokens_total: int,
+    counters: dict[str, float],
     emit,
-) -> tuple[PmDecision, int]:
+) -> PmDecision:
     """Wait for + process user feedback claims for ~``_FEEDBACK_WAIT_SECONDS``.
 
     Each claim triggers a consensus-shift round: re-invoke analysts +
@@ -522,7 +566,8 @@ async def _drain_feedback_loop(
     ``run.feedback.resolved``. Re-arms the wait window on every claim
     so the user can follow up.
 
-    Returns the (possibly updated) decision and token total.
+    Returns the (possibly updated) decision; mutates ``counters`` for
+    token accounting so the kpi.tick ticker stays accurate.
     """
     deadline = time.monotonic() + _FEEDBACK_WAIT_SECONDS
     debate_summary = [stages._summarize_round(r) for r in debate_history]
@@ -536,7 +581,7 @@ async def _drain_feedback_loop(
             await asyncio.sleep(_FEEDBACK_POLL_INTERVAL)
             continue
         for claim in claims:
-            decision, tokens_total = await _process_feedback_claim(
+            decision = await _process_feedback_claim(
                 run_id=run_id,
                 symbol=symbol,
                 household_id=household_id,
@@ -548,12 +593,12 @@ async def _drain_feedback_loop(
                 risk_votes_prior=risk_votes,
                 past_decisions=past_decisions,
                 decision=decision,
-                tokens_total=tokens_total,
+                counters=counters,
                 claim=claim,
                 emit=emit,
             )
         deadline = time.monotonic() + _FEEDBACK_WAIT_SECONDS
-    return decision, tokens_total
+    return decision
 
 
 async def _process_feedback_claim(
@@ -569,16 +614,16 @@ async def _process_feedback_claim(
     risk_votes_prior: list[RiskVoteOutput],
     past_decisions: list[PastDecisionEntry],
     decision: PmDecision,
-    tokens_total: int,
+    counters: dict[str, float],
     claim: dict[str, Any],
     emit,
-) -> tuple[PmDecision, int]:
+) -> PmDecision:
     """Run one feedback round: analysts + risk voters + (maybe) PM."""
     new_claim = str(claim.get("user_input") or "").strip()
     round_num = int(claim.get("round") or 0)
     input_id = claim.get("input_id")
     if not new_claim:
-        return decision, tokens_total
+        return decision
 
     analyst_responses = await _run_analyst_feedback_stage(
         symbol=symbol,
@@ -594,7 +639,7 @@ async def _process_feedback_claim(
         debate_summary=debate_summary,
         new_claim=new_claim,
     )
-    tokens_total += sum(v.tokens for v in new_risk_votes)
+    counters["tokens"] += sum(v.tokens for v in new_risk_votes)
 
     should_revise, telemetry = feedback_mod.should_revise_decision(
         analyst_responses=analyst_responses,
@@ -611,13 +656,13 @@ async def _process_feedback_claim(
             past_decisions=past_decisions,
             feedback_round={"new_claim": new_claim, "prior_decision": decision.model_dump(mode="json")},
         )
-        tokens_total += revised.tokens
+        counters["tokens"] += revised.tokens
         revised = _enforce_ips_compliance(revised, ips_result)
         store.mark_complete(
             run_id,
             decision=revised,
-            tokens_total=tokens_total,
-            cost_usd=0.0,
+            tokens_total=int(counters["tokens"]),
+            cost_usd=counters["cost_usd"],
         )
         await emit(
             "pm.decision",
@@ -656,7 +701,7 @@ async def _process_feedback_claim(
         },
     )
     _ = household_id  # household scoping handled by store layer today
-    return decision, tokens_total
+    return decision
 
 
 async def _run_analyst_feedback_stage(
@@ -701,6 +746,17 @@ async def _run_risk_feedback_stage(
         for vote in prior_votes
     ]
     return list(await asyncio.gather(*tasks))
+
+
+async def _cancel_ticker(task: asyncio.Task[None] | None) -> None:
+    """Cancel and await a ticker task; idempotent if already cancelled or None."""
+    import contextlib
+
+    if task is None or task.done():
+        return
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
 
 
 def _SeqState():  # noqa: N802 — sentinel-style factory
