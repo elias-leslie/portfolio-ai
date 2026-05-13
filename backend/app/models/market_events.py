@@ -1,6 +1,6 @@
 """Data models for market events API.
 
-Market-wide macro events (FOMC, CPI, NFP) for sentiment chart overlays.
+Market-wide macro events for sentiment chart overlays.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 MarketEventType = Literal[
     "fomc_decision",
     "cpi_release",
+    "ppi_release",
     "nfp_release",
     "fed_speech",
     "pce_release",
@@ -109,6 +110,14 @@ EVENT_TYPE_INFO: dict[MarketEventType, EventTypeInfo] = {
         label="CPI Inflation",
         short_label="CPI",
         color="#EF4444",  # Red
+        frequency="12/year",
+        impact="HIGH",
+    ),
+    "ppi_release": EventTypeInfo(
+        event_type="ppi_release",
+        label="PPI Inflation",
+        short_label="PPI",
+        color="#EC4899",  # Pink
         frequency="12/year",
         impact="HIGH",
     ),

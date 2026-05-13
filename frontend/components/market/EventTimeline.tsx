@@ -191,7 +191,9 @@ export function EventLegend({ className }: { className?: string }) {
   const eventTypes = [
     { label: 'FOMC', color: 'var(--color-event-fomc)' },
     { label: 'CPI', color: 'var(--color-event-cpi)' },
+    { label: 'PPI', color: 'var(--color-event-ppi)' },
     { label: 'NFP', color: 'var(--color-event-nfp)' },
+    { label: 'PCE', color: 'var(--color-event-pce)' },
     { label: 'GDP', color: 'var(--color-event-gdp)' },
   ]
 

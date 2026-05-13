@@ -97,7 +97,9 @@
   /* Event types */
   --color-event-fomc: var(--event-fomc);
   --color-event-cpi: var(--event-cpi);
+  --color-event-ppi: var(--event-ppi);
   --color-event-nfp: var(--event-nfp);
+  --color-event-pce: var(--event-pce);
   --color-event-gdp: var(--event-gdp);
 
   --font-sans: var(--font-sans-body);
@@ -230,7 +232,9 @@
   /* Event type colors */
   --event-fomc: oklch(0.62 0.18 255);
   --event-cpi: oklch(0.62 0.21 27);
+  --event-ppi: oklch(0.66 0.22 345);
   --event-nfp: oklch(0.7 0.18 149);
+  --event-pce: oklch(0.72 0.18 55);
   --event-gdp: oklch(0.72 0.15 195);
 
   --space-px: 1px;

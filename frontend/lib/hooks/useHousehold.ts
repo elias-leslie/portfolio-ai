@@ -29,6 +29,7 @@ import {
 const DOCUMENT_REVIEW_POLL_INTERVAL_MS = 1500
 const DOCUMENT_REVIEW_POLL_ATTEMPTS = 40
 const HOUSEHOLD_WORKSPACE_STALE_MS = 1000 * 60 * 5
+const HOUSEHOLD_MARKET_VALUE_REFRESH_MS = 1000 * 30
 
 async function refreshHouseholdQueries(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -137,8 +138,9 @@ export function useHouseholdNetWorthTrend(params?: { days?: number }) {
   return useQuery({
     queryKey: ['household', 'net-worth-trend', params ?? {}],
     queryFn: ({ signal }) => fetchHouseholdNetWorthTrend(params, { signal }),
-    staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
-    refetchOnWindowFocus: false,
+    staleTime: HOUSEHOLD_MARKET_VALUE_REFRESH_MS,
+    refetchInterval: HOUSEHOLD_MARKET_VALUE_REFRESH_MS,
+    refetchOnWindowFocus: true,
   })
 }
 

@@ -161,7 +161,7 @@ def test_fetch_bea_release_events_parses_gdp_and_pce_json_and_skips_rescheduled(
     ]
 
 
-def test_fetch_bls_release_events_parses_cpi_and_employment_situation_ics() -> None:
+def test_fetch_bls_release_events_parses_key_bls_market_movers_ics() -> None:
     calendar = """
 BEGIN:VCALENDAR
 BEGIN:VEVENT
@@ -171,6 +171,10 @@ END:VEVENT
 BEGIN:VEVENT
 DTSTART;TZID=America/New_York:20260512T083000
 SUMMARY:Consumer Price Index
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=America/New_York:20260513T083000
+SUMMARY:Producer Price Index
 END:VEVENT
 END:VCALENDAR
 """
@@ -184,6 +188,7 @@ END:VCALENDAR
     assert [(event.event_type, event.event_date, event.event_time, event.title) for event in events] == [
         ("nfp_release", dt.date(2026, 5, 8), dt.time(8, 30), "Employment Situation"),
         ("cpi_release", dt.date(2026, 5, 12), dt.time(8, 30), "Consumer Price Index"),
+        ("ppi_release", dt.date(2026, 5, 13), dt.time(8, 30), "Producer Price Index"),
     ]
 
 
@@ -193,6 +198,7 @@ def test_fetch_bls_release_events_falls_back_to_official_monthly_schedule_reader
 | --- | --- | --- |
 | Friday, May 08, 2026 | 08:30 AM | **Employment Situation** for April 2026 |
 | Tuesday, May 12, 2026 | 08:30 AM | **Consumer Price Index** for April 2026 |
+| Wednesday, May 13, 2026 | 08:30 AM | **Producer Price Index** for April 2026 |
 """
 
     def text_fetcher(url: str) -> str:
@@ -211,6 +217,7 @@ def test_fetch_bls_release_events_falls_back_to_official_monthly_schedule_reader
     assert [(event.event_type, event.event_date, event.event_time, event.title) for event in events] == [
         ("nfp_release", dt.date(2026, 5, 8), dt.time(8, 30), "Employment Situation"),
         ("cpi_release", dt.date(2026, 5, 12), dt.time(8, 30), "Consumer Price Index"),
+        ("ppi_release", dt.date(2026, 5, 13), dt.time(8, 30), "Producer Price Index"),
     ]
     assert all("BLS monthly release schedule" in str(event.description) for event in events)
     assert all(BLS_MONTHLY_SCHEDULE_URL_TEMPLATE.format(year=2026, month=5) in str(event.description) for event in events)
@@ -223,6 +230,7 @@ def test_fetch_bls_monthly_schedule_filters_to_supported_market_movers() -> None
 | Tuesday, May 05, 2026 | 10:00 AM | **Job Openings and Labor Turnover Survey** for March 2026 |
 | Friday, May 08, 2026 | 08:30 AM | **Employment Situation** for April 2026 |
 | Tuesday, May 12, 2026 | 08:30 AM | **Consumer Price Index** for April 2026 |
+| Wednesday, May 13, 2026 | 08:30 AM | **Producer Price Index** for April 2026 |
 """
 
     events = fetch_bls_release_events_from_monthly_pages(
@@ -231,7 +239,7 @@ def test_fetch_bls_monthly_schedule_filters_to_supported_market_movers() -> None
         text_fetcher=lambda _url: monthly_page,
     )
 
-    assert [event.event_type for event in events] == ["nfp_release", "cpi_release"]
+    assert [event.event_type for event in events] == ["nfp_release", "cpi_release", "ppi_release"]
 
 
 def test_ingest_macro_calendar_dedupes_and_upserts_without_overwriting_actuals() -> None:

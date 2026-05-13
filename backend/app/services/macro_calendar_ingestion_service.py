@@ -48,7 +48,7 @@ SOURCE_PROVENANCE: Final = {
         "url": BLS_RELEASE_CALENDAR_URL,
         "fallback_url": "https://www.bls.gov/schedule/",
         "availability": "BLS public iCalendar release calendar, with BLS monthly schedule page fallback when the calendar blocks server fetches.",
-        "event_types": ["cpi_release", "nfp_release"],
+        "event_types": ["cpi_release", "ppi_release", "nfp_release"],
     },
 }
 
@@ -59,6 +59,7 @@ BEA_RELEASE_TYPES: Final[dict[str, tuple[MarketEventType, int]]] = {
 
 BLS_RELEASE_TYPES: Final[dict[str, tuple[MarketEventType, int]]] = {
     "Consumer Price Index": ("cpi_release", 5),
+    "Producer Price Index": ("ppi_release", 5),
     "Employment Situation": ("nfp_release", 5),
 }
 

@@ -12,6 +12,10 @@ vi.mock('@/components/market/MarketStatusBadge', () => ({
   MarketStatusBadge: () => <div>Market Open</div>,
 }))
 
+vi.mock('@/components/home/HomeActionQueueBadge', () => ({
+  HomeActionQueueBadge: () => <button type="button">Actions 0</button>,
+}))
+
 vi.mock('@/components/status/FreshnessStatusBadge', () => ({
   FreshnessStatusBadge: () => <div>Live</div>,
 }))
