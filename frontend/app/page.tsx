@@ -3,10 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { TodayOverviewPanel } from '@/components/home/TodayOverviewPanel'
-import {
-  InvestingMarketSummaryPanel,
-  InvestingMarketTrendPanels,
-} from '@/components/portfolio/InvestingMarketPanel'
+import { InvestingMarketTrendPanels } from '@/components/portfolio/InvestingMarketPanel'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 
@@ -20,10 +17,7 @@ export default function Dashboard() {
         size="md"
         variant="plain"
       />
-      <div className="grid gap-4 xl:grid-cols-2 xl:items-stretch">
-        <TodayOverviewPanel />
-        <InvestingMarketSummaryPanel />
-      </div>
+      <TodayOverviewPanel />
       <InvestingMarketTrendPanels />
     </PageContainer>
   )

@@ -11,8 +11,8 @@ import {
   buildLiveMarketMetrics,
   MarketStripGrid,
 } from './today/MarketStripGrid'
+import { MarketSummaryGrid } from './today/MarketSummaryGrid'
 import { PrimaryTilesGrid } from './today/PrimaryTilesGrid'
-import { SystemPulseGrid } from './today/SystemPulseGrid'
 
 export function TodayOverviewPanel() {
   const { data: household, isLoading: householdLoading } =
@@ -30,35 +30,28 @@ export function TodayOverviewPanel() {
     <SectionCard
       variant="surface"
       title="Overview"
-      description="Household state, market tape, and data quality in one compact rail."
+      description="Household state, market tape, and next moves in one compact rail."
       padding="sm"
       headerClassName="px-5 py-4"
-      className="h-full"
     >
-      <div className="flex h-full flex-col gap-3 animate-stagger">
-        <PrimaryTilesGrid
-          household={household}
-          householdLoading={householdLoading}
-          analytics={analytics}
-          analyticsLoading={analyticsLoading}
-          netWorthTrend={netWorthTrend}
-          trendLoading={trendLoading}
-        />
+      <div className="flex flex-col gap-3 animate-stagger">
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.08fr)_minmax(28rem,0.92fr)]">
+          <PrimaryTilesGrid
+            household={household}
+            householdLoading={householdLoading}
+            analytics={analytics}
+            analyticsLoading={analyticsLoading}
+            netWorthTrend={netWorthTrend}
+            trendLoading={trendLoading}
+          />
+          <MarketSummaryGrid market={market} />
+        </div>
 
         <MarketStripGrid
           metrics={marketMetrics}
           isLive={marketMetrics.length > 0}
           timestamp={marketStripTimestamp}
           loading={marketLoading}
-        />
-
-        <SystemPulseGrid
-          household={household}
-          householdLoading={householdLoading}
-          analytics={analytics}
-          analyticsLoading={analyticsLoading}
-          market={market}
-          marketLoading={marketLoading}
         />
       </div>
     </SectionCard>

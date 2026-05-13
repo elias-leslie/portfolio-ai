@@ -52,16 +52,10 @@ export function buildLiveMarketMetrics(
   const tnx = market.indicators.tnx
   if (!sp500 || !vix || !tnx) return null
 
-  const leading = market.sectorRotation.leading.slice(0, 3)
-  const leadership = leading
-    .map((sector) => sector.name)
-    .filter(Boolean)
-    .join(', ')
   const marketAsOf = market.lastUpdated
   const sp500AsOf = indicatorAsOf(sp500, marketAsOf)
   const vixAsOf = indicatorAsOf(vix, marketAsOf)
   const tnxAsOf = indicatorAsOf(tnx, marketAsOf)
-  const leadershipAsOf = leading[0]?.lastUpdated ?? marketAsOf
   const moodScore = intradayMoodScore(market)
   const mood = describeIntradayMood(market)
 
@@ -114,18 +108,6 @@ export function buildLiveMarketMetrics(
           : mood.tone === 'warning' || mood.tone === 'loss'
             ? 'warning'
             : 'neutral',
-    },
-    {
-      key: 'leadership',
-      label: 'Leadership',
-      value: leadership || 'Mixed',
-      changePct: leading[0]?.changePct ?? null,
-      detail: 'Sectors leading today',
-      horizon: 'Current quotes · 1D sectors',
-      asOf: leadershipAsOf,
-      asOfLabel: null,
-      tone: leading.length > 0 ? 'positive' : 'neutral',
-      span: 'wide',
     },
   ]
 }
@@ -204,15 +186,12 @@ export function MarketStripGrid({
         </p>
       </div>
 
-      <div className="mt-3 grid gap-2 @[36rem]:grid-cols-2">
+      <div className="mt-3 grid gap-2 @[36rem]:grid-cols-4">
         {loading && metrics.length === 0
-          ? [...Array(5)].map((_, index) => (
+          ? [...Array(4)].map((_, index) => (
               <div
                 key={`overview-market-strip-skeleton-${index}`}
-                className={cn(
-                  'h-[4.75rem] rounded-2xl skeleton',
-                  index === 4 && '@[36rem]:col-span-2',
-                )}
+                className="h-[4.75rem] rounded-2xl skeleton"
               />
             ))
           : metrics.map((metric) => (

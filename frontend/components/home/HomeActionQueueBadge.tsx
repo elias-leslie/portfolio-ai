@@ -179,7 +179,7 @@ export function HomeActionQueueBadge() {
       {open ? (
         <div
           role="dialog"
-          className="absolute right-0 top-full z-50 mt-2 w-[min(calc(100vw-2rem),24rem)] overflow-hidden rounded-xl border border-border/50 bg-surface-overlay shadow-2xl shadow-bg/40"
+          className="fixed right-3 top-16 z-[60] mt-2 w-[min(calc(100vw-1.5rem),42rem)] overflow-hidden rounded-xl border border-border/50 bg-surface-overlay shadow-2xl shadow-bg/40 sm:right-6 lg:right-8"
         >
           <div className="border-b border-border/40 px-4 py-3">
             <div className="flex items-center justify-between gap-3">
@@ -202,7 +202,7 @@ export function HomeActionQueueBadge() {
             </div>
           </div>
 
-          <div className="max-h-[70vh] overflow-y-auto p-3">
+          <div className="max-h-[calc(100vh-10rem)] overflow-y-auto overflow-x-hidden p-3">
             {isLoading ? (
               <div className="grid gap-2" role="status" aria-live="polite">
                 {[...Array(3)].map((_, index) => (
@@ -264,21 +264,21 @@ export function HomeActionQueueBadge() {
                   return (
                     <div
                       key={action.id}
-                      className="rounded-lg border border-border/40 bg-surface/70 p-3"
+                      className="overflow-hidden rounded-lg border border-border/40 bg-surface/70 p-3"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1 basis-64">
+                          <div className="flex min-w-0 items-start gap-2">
                             <span
                               className={cn(
-                                'size-2 shrink-0 rounded-full',
+                                'mt-1.5 size-2 shrink-0 rounded-full',
                                 priorityDot[
                                   action.priority as keyof typeof priorityDot
                                 ] ?? priorityDot.low,
                               )}
                             />
-                            <Icon className="size-4 shrink-0 text-text-muted" />
-                            <p className="truncate text-sm font-semibold text-text">
+                            <Icon className="mt-0.5 size-4 shrink-0 text-text-muted" />
+                            <p className="min-w-0 text-sm font-semibold leading-5 text-text">
                               {action.title}
                             </p>
                           </div>
@@ -289,12 +289,15 @@ export function HomeActionQueueBadge() {
                           ) : null}
                         </div>
                         {badgeLabel ? (
-                          <Badge variant="outline" className="shrink-0">
+                          <Badge
+                            variant="outline"
+                            className="max-w-full shrink-0 whitespace-normal text-left leading-4"
+                          >
                             {badgeLabel}
                           </Badge>
                         ) : null}
                       </div>
-                      <p className="mt-2 line-clamp-2 text-xs leading-5 text-text-muted">
+                      <p className="mt-2 break-words text-xs leading-5 text-text-muted">
                         {action.detail}
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2">
