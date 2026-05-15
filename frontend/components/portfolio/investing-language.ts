@@ -360,14 +360,45 @@ export function describeNewsTone(summary?: NewsSentimentDetail | null): {
   }
 }
 
+// Mirrors backend account_valuation._quote_freshness "stale" tier and the Market
+// Strip threshold used in MarketStripGrid.
+const POSITIONING_STALE_MS_OPEN = 15 * 60 * 1000
+const POSITIONING_STALE_MS_CLOSED = 24 * 60 * 60 * 1000
+
+function isPositioningStale(
+  lastUpdated: string | null | undefined,
+  marketIsOpen: boolean,
+): boolean {
+  if (!lastUpdated) return false
+  const ts = new Date(lastUpdated).getTime()
+  if (Number.isNaN(ts)) return false
+  const ageMs = Date.now() - ts
+  return (
+    ageMs >
+    (marketIsOpen ? POSITIONING_STALE_MS_OPEN : POSITIONING_STALE_MS_CLOSED)
+  )
+}
+
 export function describeMarketPositioning(
   indicator?: EnrichedIndicator | null,
+  options: { marketIsOpen?: boolean } = {},
 ): { label: string; detail: string; tone: OverviewTone } {
   if (!indicator || indicator.value == null) {
     return {
       label: 'Unavailable',
       detail: 'Options positioning will return after refresh.',
       tone: 'default',
+    }
+  }
+
+  if (
+    isPositioningStale(indicator.lastUpdated, options.marketIsOpen ?? false)
+  ) {
+    return {
+      label: 'Stale',
+      detail:
+        'Options positioning data is older than the freshness threshold for the current market session.',
+      tone: 'warning',
     }
   }
 

@@ -116,4 +116,10 @@ class MarketIntelligenceResponse(BaseModel):
     )
 
     # Metadata
-    last_updated: str = Field(..., description="Last update timestamp (ISO 8601)")
+    last_updated: str | None = Field(
+        None,
+        description=(
+            "Last update timestamp (ISO 8601). Null when no underlying indicator carries"
+            " a timestamp; the UI renders 'Update time unavailable' in that case."
+        ),
+    )

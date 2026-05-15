@@ -534,21 +534,33 @@ def build_overview(
         "credit": 0.0,
         "other": 0.0,
     }
+    asset_evidence_bump = 0.0
     if cash_reserve <= 0:
-        cash_reserve += evidence_totals.get("cash", 0.0)
+        cash_fallback = evidence_totals.get("cash", 0.0)
+        cash_reserve += cash_fallback
+        asset_evidence_bump += cash_fallback
     if retirement_assets <= 0:
         retirement_fallback = evidence_totals.get("retirement", 0.0)
         retirement_assets += retirement_fallback
         invested_assets += retirement_fallback
+        asset_evidence_bump += retirement_fallback
     if taxable_assets <= 0:
         taxable_fallback = evidence_totals.get("taxable", 0.0) + evidence_totals.get("education", 0.0)
         taxable_assets += taxable_fallback
         invested_assets += taxable_fallback
+        asset_evidence_bump += taxable_fallback
     if invested_assets <= 0:
-        invested_assets += evidence_totals.get("other", 0.0)
+        other_fallback = evidence_totals.get("other", 0.0)
+        invested_assets += other_fallback
+        asset_evidence_bump += other_fallback
     if summary_totals is None:
         total_tracked_assets = invested_assets + cash_reserve
         liabilities_total = evidence_totals.get("debt", 0.0) + evidence_totals.get("credit", 0.0)
+    else:
+        # Account-summary path fixes total_tracked_assets from current_value rows; evidence
+        # fallbacks above add categories that aren't in those summaries, so the total must
+        # absorb them or net_worth understates by the bump amount.
+        total_tracked_assets += asset_evidence_bump
     net_worth = total_tracked_assets - liabilities_total
     rnv = lambda field: resolved_numeric_value(resolved_values, field)  # noqa: E731
     effective_account_count = len(account_summaries) or len(accounts) or len(evidence_accounts)

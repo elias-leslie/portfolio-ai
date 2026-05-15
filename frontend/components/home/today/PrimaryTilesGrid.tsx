@@ -109,14 +109,11 @@ export function PrimaryTilesGrid({
   const netWorthStatus =
     netWorthTrend?.status ?? household?.overview.netWorthStatus ?? null
 
-  const investedAssets =
-    household?.overview.investedAssets ??
-    analytics?.householdInvestedTotalValue ??
-    analytics?.effectiveTotalValue ??
-    analytics?.portfolioValue.totalValue ??
-    null
-  const cashReserve =
-    household?.overview.cashReserve ?? analytics?.householdCashReserve ?? null
+  // Only the household.overview value is invested-only. analytics.effectiveTotalValue
+  // and analytics.portfolioValue.totalValue both include cash, so falling back to them
+  // mislabels Invested + Cash as "Invested" when overview is missing.
+  const investedAssets = household?.overview.investedAssets ?? null
+  const cashReserve = household?.overview.cashReserve ?? null
   const cashReserveMonths =
     household?.portfolioContext?.cashReservesMonths ?? null
 
@@ -126,16 +123,22 @@ export function PrimaryTilesGrid({
         household.budgetSnapshot.monthToDatePlan
       : null
 
+  // Tile value and badge both derive from backend paceStatus so they can never disagree.
+  // The variance amount only annotates the value when the backend says we are off plan.
+  const paceStatus = household?.budgetSnapshot.paceStatus ?? null
   let spendPaceValue: string
   if (householdLoading || !household) {
     spendPaceValue = 'Loading…'
-  } else if (monthToDateVariance == null) {
-    spendPaceValue = household.budgetSnapshot.paceStatus.replaceAll('_', ' ')
-  } else if (Math.abs(monthToDateVariance) < 25) {
+  } else if (paceStatus === 'on_track') {
     spendPaceValue = 'On plan'
-  } else {
+  } else if (
+    (paceStatus === 'running_hot' || paceStatus === 'under_plan') &&
+    monthToDateVariance != null
+  ) {
     const sign = monthToDateVariance > 0 ? '+' : '−'
     spendPaceValue = `${sign}${formatCurrencyWhole(Math.abs(monthToDateVariance))}`
+  } else {
+    spendPaceValue = (paceStatus ?? 'unavailable').replaceAll('_', ' ')
   }
 
   const investedFreshnessStatus =
@@ -177,10 +180,7 @@ export function PrimaryTilesGrid({
     },
     {
       label: 'Invested',
-      value: renderMoneyValue(
-        investedAssets,
-        householdLoading && analyticsLoading && investedAssets == null,
-      ),
+      value: renderMoneyValue(investedAssets, householdLoading && !household),
       detail: 'Money currently in investments',
       labelDetail:
         'Retirement and brokerage assets. Cash kept on the side stays out.',
@@ -190,10 +190,7 @@ export function PrimaryTilesGrid({
     },
     {
       label: 'Cash Reserve',
-      value: renderMoneyValue(
-        cashReserve,
-        householdLoading && analyticsLoading && cashReserve == null,
-      ),
+      value: renderMoneyValue(cashReserve, householdLoading && !household),
       detail: 'Cash available before selling assets',
       labelDetail:
         'Cash you can use now without selling long-term investments.',

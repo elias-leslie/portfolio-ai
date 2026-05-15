@@ -194,7 +194,7 @@ export interface MarketIntelligenceResponse {
   indicators: Record<string, EnrichedIndicator>
   sectorRotation: SectorRotationSummary
   optionsActivity: OptionsActivityMetrics | null
-  lastUpdated: string
+  lastUpdated: string | null
 }
 
 // ============================================================================
