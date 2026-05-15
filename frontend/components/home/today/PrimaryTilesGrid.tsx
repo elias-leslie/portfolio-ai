@@ -109,14 +109,11 @@ export function PrimaryTilesGrid({
   const netWorthStatus =
     netWorthTrend?.status ?? household?.overview.netWorthStatus ?? null
 
-  const investedAssets =
-    household?.overview.investedAssets ??
-    analytics?.householdInvestedTotalValue ??
-    analytics?.effectiveTotalValue ??
-    analytics?.portfolioValue.totalValue ??
-    null
-  const cashReserve =
-    household?.overview.cashReserve ?? analytics?.householdCashReserve ?? null
+  // Only the household.overview value is invested-only. analytics.effectiveTotalValue
+  // and analytics.portfolioValue.totalValue both include cash, so falling back to them
+  // mislabels Invested + Cash as "Invested" when overview is missing.
+  const investedAssets = household?.overview.investedAssets ?? null
+  const cashReserve = household?.overview.cashReserve ?? null
   const cashReserveMonths =
     household?.portfolioContext?.cashReservesMonths ?? null
 
@@ -177,10 +174,7 @@ export function PrimaryTilesGrid({
     },
     {
       label: 'Invested',
-      value: renderMoneyValue(
-        investedAssets,
-        householdLoading && analyticsLoading && investedAssets == null,
-      ),
+      value: renderMoneyValue(investedAssets, householdLoading && !household),
       detail: 'Money currently in investments',
       labelDetail:
         'Retirement and brokerage assets. Cash kept on the side stays out.',
@@ -190,10 +184,7 @@ export function PrimaryTilesGrid({
     },
     {
       label: 'Cash Reserve',
-      value: renderMoneyValue(
-        cashReserve,
-        householdLoading && analyticsLoading && cashReserve == null,
-      ),
+      value: renderMoneyValue(cashReserve, householdLoading && !household),
       detail: 'Cash available before selling assets',
       labelDetail:
         'Cash you can use now without selling long-term investments.',
