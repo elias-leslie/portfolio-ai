@@ -566,3 +566,75 @@ def test_build_overview_prefers_account_summary_totals_over_legacy_portfolio_inp
     assert round(retirement_assets, 2) == 403298.57
     assert round(taxable_assets, 2) == 549736.49
     assert round(cash_reserve, 2) == 39400.59
+
+
+def test_build_overview_includes_evidence_retirement_in_net_worth_when_summaries_have_no_retirement() -> None:
+    """Repro for P1.1: evidence-backed retirement assets must roll into net_worth even when
+    account_summaries supply the primary totals (the summary_totals-is-not-None branch)."""
+
+    account_summaries = [
+        HouseholdAccountSummary(
+            id="cash",
+            label="Cash Management",
+            asset_group="taxable",
+            account_type="brokerage",
+            source_type="brokerage",
+            current_value=10000.0,
+            cash_balance=10000.0,
+            money_role="spend_driver",
+            last_balance_at="2026-04-13T00:00:00+00:00",
+            balance_freshness_status="fresh",
+            balance_freshness_label="Fresh",
+            transaction_freshness_status="aging",
+            transaction_freshness_label="Refresh soon",
+            freshness_status="aging",
+            freshness_label="Refresh soon",
+            match_status="linked",
+        ),
+    ]
+    reports = HouseholdReports(
+        executive=HouseholdExecutiveReport(
+            headline="Visible household cash flow",
+            summary="Visible.",
+            average_monthly_spend=0.0,
+            average_monthly_essentials=0.0,
+            average_monthly_discretionary=0.0,
+            recent_30_day_spend=0.0,
+            recurring_merchant_count=0,
+            tracked_expense_count=0,
+            coverage_months=0,
+        ),
+        recent_transactions=[],
+    )
+
+    service = _service()
+    service.evidence_service = cast(Any, Mock())
+    service.evidence_service.totals_by_group.return_value = {
+        "cash": 0.0,
+        "retirement": 50000.0,
+        "taxable": 0.0,
+        "education": 0.0,
+        "debt": 0.0,
+        "credit": 0.0,
+        "other": 0.0,
+    }
+    service.evidence_service.investment_like_count.return_value = 0
+
+    overview, retirement_assets, _taxable_assets, _cash_reserve, total_tracked_assets = build_overview(
+        accounts=[],
+        live_positions=[],
+        evidence_accounts=[],
+        account_summaries=account_summaries,
+        inbox=[],
+        statement_freshness={"coverage_months": 0, "gap_months": [], "most_recent_date": None},
+        reports=reports,
+        holdings_by_account={},
+        documents=[],
+        questions=[],
+        resolved_values=[],
+        service=service,
+    )
+
+    assert round(retirement_assets, 2) == 50000.00
+    assert round(total_tracked_assets, 2) == 60000.00
+    assert round(overview.net_worth, 2) == 60000.00
