@@ -5,7 +5,10 @@ import {
   useHouseholdDashboard,
   useHouseholdNetWorthTrend,
 } from '@/lib/hooks/useHousehold'
-import { useMarketIntelligence } from '@/lib/hooks/useMarketIntelligence'
+import {
+  useMarketIntelligence,
+  useMarketStatus,
+} from '@/lib/hooks/useMarketIntelligence'
 import { usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
 import {
   buildLiveMarketMetrics,
@@ -22,8 +25,12 @@ export function TodayOverviewPanel() {
   const { data: analytics, isLoading: analyticsLoading } =
     usePortfolioAnalytics()
   const { data: market, isLoading: marketLoading } = useMarketIntelligence()
+  const { data: marketStatus } = useMarketStatus()
 
-  const marketMetrics = buildLiveMarketMetrics(market) ?? []
+  const marketMetrics =
+    buildLiveMarketMetrics(market, {
+      marketIsOpen: marketStatus?.isOpen ?? false,
+    }) ?? []
   const marketStripTimestamp = market?.lastUpdated
 
   return (

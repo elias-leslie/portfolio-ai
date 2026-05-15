@@ -23,6 +23,25 @@ export interface MarketStripMetric {
   asOf?: string | null
   asOfLabel?: string | null
   span?: 'wide' | null
+  isStale?: boolean
+}
+
+// Mirrors backend account_valuation._quote_freshness "stale" tier:
+// open market → > 15 minutes old; closed market → > 24 hours old.
+const STALE_THRESHOLD_MS_OPEN = 15 * 60 * 1000
+const STALE_THRESHOLD_MS_CLOSED = 24 * 60 * 60 * 1000
+
+function isIndicatorStale(
+  asOf: string | null | undefined,
+  marketIsOpen: boolean,
+): boolean {
+  if (!asOf) return false
+  const ts = new Date(asOf).getTime()
+  if (Number.isNaN(ts)) return false
+  const ageMs = Date.now() - ts
+  return (
+    ageMs > (marketIsOpen ? STALE_THRESHOLD_MS_OPEN : STALE_THRESHOLD_MS_CLOSED)
+  )
 }
 
 function formatMetricNumber(value: number | null | undefined, digits = 2) {
@@ -44,6 +63,7 @@ function indicatorAsOf(
 
 export function buildLiveMarketMetrics(
   market: MarketIntelligenceResponse | undefined,
+  options: { marketIsOpen?: boolean } = {},
 ): MarketStripMetric[] | null {
   if (!market?.indicators || !market.sectorRotation) return null
 
@@ -58,6 +78,7 @@ export function buildLiveMarketMetrics(
   const tnxAsOf = indicatorAsOf(tnx, marketAsOf)
   const moodScore = intradayMoodScore(market)
   const mood = describeIntradayMood(market)
+  const marketIsOpen = options.marketIsOpen ?? false
 
   return [
     {
@@ -70,6 +91,7 @@ export function buildLiveMarketMetrics(
       asOf: sp500AsOf,
       asOfLabel: null,
       tone: (sp500.changePct ?? 0) > 0 ? 'positive' : 'negative',
+      isStale: isIndicatorStale(sp500AsOf, marketIsOpen),
     },
     {
       key: 'vix',
@@ -81,6 +103,7 @@ export function buildLiveMarketMetrics(
       asOf: vixAsOf,
       asOfLabel: null,
       tone: vix.value < 20 ? 'positive' : 'warning',
+      isStale: isIndicatorStale(vixAsOf, marketIsOpen),
     },
     {
       key: 'tnx',
@@ -92,6 +115,7 @@ export function buildLiveMarketMetrics(
       asOf: tnxAsOf,
       asOfLabel: null,
       tone: tnx.value >= 4.5 ? 'warning' : 'neutral',
+      isStale: isIndicatorStale(tnxAsOf, marketIsOpen),
     },
     {
       key: 'intraday_mood',
@@ -108,6 +132,7 @@ export function buildLiveMarketMetrics(
           : mood.tone === 'warning' || mood.tone === 'loss'
             ? 'warning'
             : 'neutral',
+      isStale: isIndicatorStale(marketAsOf, marketIsOpen),
     },
   ]
 }
@@ -143,6 +168,14 @@ function MarketStripItem({ metric }: { metric: MarketStripMetric }) {
       </p>
       <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-text-muted">
         {metric.detail}
+        {metric.isStale ? (
+          <span
+            className="ml-1 text-warning"
+            title="This indicator's quote is older than the freshness threshold for the current market session."
+          >
+            · stale
+          </span>
+        ) : null}
       </p>
     </div>
   )

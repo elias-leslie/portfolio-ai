@@ -45,7 +45,14 @@ def _extract_price(data: object | None) -> float | None:
 
 
 def _extract_price_timestamp(data: object | None) -> str | None:
-    """Extract timestamp from PriceData object, returning None if data is None."""
+    """Extract timestamp from PriceData object, returning None if data is None.
+
+    PriceData currently only carries `cached_at` (the time we wrote the row to the
+    cache). The vendor's regularMarketTime would be more honest but isn't extracted
+    by yfinance_parsers.build_reference_payload today; threading it through the
+    payload + cache schema is out of scope for this fix. Per-indicator staleness in
+    the UI surfaces the truth that the cached timestamp can lag the underlying quote.
+    """
     return data.cached_at.isoformat() if data else None
 
 
