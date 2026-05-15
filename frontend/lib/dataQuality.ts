@@ -66,16 +66,19 @@ export function qualityBadgeVariant(
 }
 
 /**
- * Net-worth tiles collapse the full vocabulary into Current / Known / Unavailable —
- * the user only needs to know whether it's live, last-known, or absent.
+ * Net-worth tiles collapse the full vocabulary into Current / Known / Stale /
+ * Unavailable. Stale gets its own label and warning tone so a tile this
+ * prominent doesn't display the same neutral pill for "5 days old" and
+ * "90 days old".
  */
 export function netWorthBadgeLabel(status: string | null | undefined): string {
   switch (normalizeQualityStatus(status)) {
     case 'current':
       return 'Current'
+    case 'stale':
+      return 'Stale'
     case 'estimated':
     case 'known':
-    case 'stale':
       return 'Known'
     default:
       return 'Unavailable'
@@ -88,9 +91,10 @@ export function netWorthBadgeVariant(
   switch (normalizeQualityStatus(status)) {
     case 'current':
       return 'success'
+    case 'stale':
+      return 'warning'
     case 'estimated':
     case 'known':
-    case 'stale':
       return 'secondary'
     default:
       return 'outline'
