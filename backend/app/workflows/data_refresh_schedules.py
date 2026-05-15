@@ -47,9 +47,15 @@ IPS_DRIFT_SNAPSHOT_CRONS = ["0 18 * * *"]
 # during the trading day.
 CATALYST_PREWARM_CRONS = ["0 6 * * *"]
 
-# Warm price_cache for held household symbols every 5 minutes during the US
-# trading session so household dashboard / net-worth-trend reads hit cache
-# instead of paying vendor latency. The 13:00-21:59 UTC window covers both
-# EST (14:30-21:00 UTC market open) and EDT (13:30-20:00 UTC) with a buffer
-# for pre-market quotes; weekdays only.
-HOUSEHOLD_HOLDINGS_REFRESH_CRONS = ["*/5 13-21 * * 1-5"]
+# Warm price_cache for held household symbols throughout the trading day so
+# household dashboard / net-worth-trend reads hit cache instead of paying
+# vendor latency. Tiered cadence — every 5 min during regular hours (where
+# price moves matter most), every 15 min during pre-market and after-hours
+# (where activity is thinner). Weekdays only. UTC windows cover both EST and
+# EDT; combined with the session-aware extractor in yfinance_parsers, this
+# means the cache reflects the freshest available quote across regular,
+# pre-market, and post-market sessions.
+HOUSEHOLD_HOLDINGS_REFRESH_CRONS = [
+    "*/5 13-20 * * 1-5",  # regular hours (~9:30am-4pm ET both DST regimes)
+    "*/15 8-12,21-23 * * 1-5",  # pre-market + after-hours
+]
