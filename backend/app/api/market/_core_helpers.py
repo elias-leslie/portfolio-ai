@@ -49,7 +49,7 @@ def _extract_price_timestamp(data: object | None) -> str | None:
     return data.cached_at.isoformat() if data else None
 
 
-def _latest_price_timestamp(*items: object | None) -> str:
+def _latest_price_timestamp(*items: object | None) -> str | None:
     timestamps: list[datetime] = []
     for item in items:
         if not item:
@@ -58,7 +58,10 @@ def _latest_price_timestamp(*items: object | None) -> str:
         if isinstance(value, datetime):
             timestamps.append(value if value.tzinfo else value.replace(tzinfo=UTC))
     if not timestamps:
-        return datetime.now(UTC).isoformat()
+        # Returning now() would let the page-level "last updated" label confidently
+        # render "just now" while every indicator shows Unavailable. Surface None and
+        # let the UI render an honest "Update time unavailable".
+        return None
     return max(timestamps).isoformat()
 
 
@@ -158,7 +161,7 @@ def build_enriched_indicators(
 def _build_health_score(
     market_data: CoreMarketData,
     sector_data_list: list[tuple[str, float | None, float | None, str | None]],
-    current_timestamp: str,
+    current_timestamp: str | None,
 ) -> object:
     """Calculate market health score from core data."""
     return calculate_market_health(
@@ -176,7 +179,7 @@ def _build_health_score(
 
 def build_intelligence_response_data(
     market_data: CoreMarketData,
-    current_timestamp: str,
+    current_timestamp: str | None,
 ) -> dict[str, object]:
     """Assemble all data needed for the market intelligence response."""
     sector_symbols = get_sector_symbols()

@@ -47,4 +47,4 @@ class CoreMarketData:
     tnx_data: object | None
     dxy_data: object | None
     sector_data: dict[str, tuple[float | None, float | None, str | None]]
-    current_timestamp: str
+    current_timestamp: str | None
