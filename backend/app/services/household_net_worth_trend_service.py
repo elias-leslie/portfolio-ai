@@ -14,8 +14,9 @@ from app.models.household_finance import (
 )
 
 _METHODOLOGY = (
-    "Current shares are repriced with stored daily closes. Cash, liabilities, "
-    "and non-symbol accounts use latest available household balances."
+    "Current shares are repriced with cached recent quotes (live during market "
+    "hours, latest close after). Cash, liabilities, and non-symbol accounts use "
+    "latest available household balances."
 )
 
 
@@ -78,7 +79,10 @@ def _position_shares_by_symbol(positions: list[Any]) -> dict[str, float]:
 def _current_priced_holdings_value(service: Any, shares_by_symbol: dict[str, float]) -> tuple[float, str | None]:
     if not shares_by_symbol:
         return 0.0, None
-    price_data = service.price_fetcher.fetch_cached_price_data(sorted(shares_by_symbol))
+    # cache + on-miss vendor fetch with smart TTL (2/5/30 min based on market state).
+    # The household holdings cron keeps the cache hot during market hours so this
+    # is normally a cache hit; on-miss covers cold loads and never-touched symbols.
+    price_data = service.price_fetcher.fetch_price_data(sorted(shares_by_symbol))
     total = 0.0
     quote_dates: list[str] = []
     for symbol, shares in shares_by_symbol.items():

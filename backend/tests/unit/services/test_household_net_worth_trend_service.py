@@ -44,7 +44,7 @@ def test_build_net_worth_trend_reprices_current_symbol_holdings() -> None:
             position_type="long",
         )
     ]
-    service.price_fetcher.fetch_cached_price_data.return_value = {
+    service.price_fetcher.fetch_price_data.return_value = {
         "ABC": PriceData(
             symbol="ABC",
             price=50.0,

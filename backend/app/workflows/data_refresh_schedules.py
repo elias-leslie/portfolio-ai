@@ -46,3 +46,10 @@ IPS_DRIFT_SNAPSHOT_CRONS = ["0 18 * * *"]
 # every morning before the open so /api/catalysts/upcoming is fast
 # during the trading day.
 CATALYST_PREWARM_CRONS = ["0 6 * * *"]
+
+# Warm price_cache for held household symbols every 5 minutes during the US
+# trading session so household dashboard / net-worth-trend reads hit cache
+# instead of paying vendor latency. The 13:00-21:59 UTC window covers both
+# EST (14:30-21:00 UTC market open) and EDT (13:30-20:00 UTC) with a buffer
+# for pre-market quotes; weekdays only.
+HOUSEHOLD_HOLDINGS_REFRESH_CRONS = ["*/5 13-21 * * 1-5"]

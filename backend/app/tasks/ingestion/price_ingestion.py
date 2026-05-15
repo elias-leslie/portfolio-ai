@@ -106,6 +106,87 @@ def refresh_daily_ohlcv(
         task_cleanup("refresh_daily_ohlcv")
 
 
+def refresh_household_holdings_prices() -> dict[str, int | str | float]:
+    """Warm price_cache for symbols held across non-paper portfolio accounts.
+
+    Runs on a tight cron during US market hours so household reads
+    (fetch_price_data via household dashboard / net-worth-trend) hit cache
+    instead of waiting on a vendor round-trip. Vendor latency is the only thing
+    this task absorbs; the actual cache write happens inside fetch_price_data.
+    """
+    task_id = str(uuid.uuid4())
+    start_time = dt.datetime.now(dt.UTC)
+    lock_key = generate_task_lock_key("refresh_household_holdings_prices", [], 0)
+
+    with task_lock(lock_key, ttl=300) as acquired:
+        if not acquired:
+            logger.info(
+                "refresh_household_holdings_prices_skipped_duplicate",
+                task_id=task_id,
+            )
+            return {
+                "task_id": task_id,
+                "skipped": True,
+                "reason": "duplicate_task_running",
+                "symbols_count": 0,
+            }
+
+        try:
+            from app.portfolio.manager import PortfolioManager
+            from app.portfolio.price_fetcher import PriceDataFetcher
+
+            storage = get_storage()
+            mgr = PortfolioManager(storage)
+            account_ids = {
+                str(a.id)
+                for a in mgr.get_accounts()
+                if getattr(a, "account_type", None) != "paper"
+            }
+            symbols = sorted({
+                str(p.symbol).upper()
+                for p in mgr.get_positions()
+                if str(getattr(p, "account_id", "")) in account_ids
+                and getattr(p, "symbol", None)
+            })
+
+            if not symbols:
+                logger.info(
+                    "refresh_household_holdings_prices_no_symbols",
+                    task_id=task_id,
+                )
+                return {
+                    "task_id": task_id,
+                    "symbols_count": 0,
+                    "duration_ms": int(
+                        (dt.datetime.now(dt.UTC) - start_time).total_seconds() * 1000
+                    ),
+                }
+
+            fetcher = PriceDataFetcher(storage)
+            result = fetcher.fetch_price_data(symbols)
+            duration_ms = int(
+                (dt.datetime.now(dt.UTC) - start_time).total_seconds() * 1000
+            )
+            errors = sum(1 for p in result.values() if getattr(p, "error", None))
+            logger.info(
+                "refresh_household_holdings_prices_complete",
+                task_id=task_id,
+                symbols_count=len(symbols),
+                priced_count=len(result) - errors,
+                error_count=errors,
+                duration_ms=duration_ms,
+            )
+            return {
+                "task_id": task_id,
+                "symbols_count": len(symbols),
+                "priced_count": len(result) - errors,
+                "error_count": errors,
+                "duration_ms": duration_ms,
+            }
+        finally:
+            task_cleanup("refresh_household_holdings_prices")
+
+
 def refresh_watchlist_ohlcv() -> dict[str, int | str | float]:
     """Refresh latest OHLCV data for all watchlist symbols (5-day window, daily at 02:15 UTC)."""
     task_id = str(uuid.uuid4())
