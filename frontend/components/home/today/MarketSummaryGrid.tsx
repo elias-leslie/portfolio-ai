@@ -54,20 +54,27 @@ export function MarketSummaryGrid({
     marketIsOpen: marketStatus?.isOpen ?? false,
   })
   const marketUpdatedLabel = formatAsOfTimestamp(market?.lastUpdated)
+  // Defensive sort: backend currently sorts by currentPct desc, but trusting that
+  // implicit contract silently swaps leaders/laggards if the backend ever changes.
+  const sortedSectors = useMemo(() => {
+    if (!sectorHistory?.sectors) return []
+    return [...sectorHistory.sectors].sort(
+      (a, b) => (b.currentPct ?? 0) - (a.currentPct ?? 0),
+    )
+  }, [sectorHistory?.sectors])
   const leadingAreas = useMemo(() => {
-    const sectors = sectorHistory?.sectors?.slice(0, 3) ?? []
     if (isSectorHistoryLoading) return 'Updating sector leaders...'
     if (sectorHistoryError) return 'Unable to rank sectors right now'
-    return sectorSummaryText(sectors, 'Still populating')
-  }, [isSectorHistoryLoading, sectorHistory?.sectors, sectorHistoryError])
+    return sectorSummaryText(sortedSectors.slice(0, 3), 'Still populating')
+  }, [isSectorHistoryLoading, sortedSectors, sectorHistoryError])
   const laggingAreas = useMemo(() => {
-    const sectors = sectorHistory?.sectors
-      ? [...sectorHistory.sectors].slice(-3).reverse()
-      : []
     if (isSectorHistoryLoading) return 'Updating sector laggards...'
     if (sectorHistoryError) return 'Unable to rank sectors right now'
-    return sectorSummaryText(sectors, 'Still populating')
-  }, [isSectorHistoryLoading, sectorHistory?.sectors, sectorHistoryError])
+    return sectorSummaryText(
+      sortedSectors.slice(-3).reverse(),
+      'Still populating',
+    )
+  }, [isSectorHistoryLoading, sortedSectors, sectorHistoryError])
 
   return (
     <section className="@container rounded-2xl border border-border/35 bg-surface/35 p-3.5">
