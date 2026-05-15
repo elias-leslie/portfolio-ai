@@ -123,16 +123,22 @@ export function PrimaryTilesGrid({
         household.budgetSnapshot.monthToDatePlan
       : null
 
+  // Tile value and badge both derive from backend paceStatus so they can never disagree.
+  // The variance amount only annotates the value when the backend says we are off plan.
+  const paceStatus = household?.budgetSnapshot.paceStatus ?? null
   let spendPaceValue: string
   if (householdLoading || !household) {
     spendPaceValue = 'Loading…'
-  } else if (monthToDateVariance == null) {
-    spendPaceValue = household.budgetSnapshot.paceStatus.replaceAll('_', ' ')
-  } else if (Math.abs(monthToDateVariance) < 25) {
+  } else if (paceStatus === 'on_track') {
     spendPaceValue = 'On plan'
-  } else {
+  } else if (
+    (paceStatus === 'running_hot' || paceStatus === 'under_plan') &&
+    monthToDateVariance != null
+  ) {
     const sign = monthToDateVariance > 0 ? '+' : '−'
     spendPaceValue = `${sign}${formatCurrencyWhole(Math.abs(monthToDateVariance))}`
+  } else {
+    spendPaceValue = (paceStatus ?? 'unavailable').replaceAll('_', ' ')
   }
 
   const investedFreshnessStatus =

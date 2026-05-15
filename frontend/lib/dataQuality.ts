@@ -107,6 +107,7 @@ export function spendPaceBadgeVariant(
       return 'success'
     case 'above_plan':
     case 'over_plan':
+    case 'running_hot':
     case 'watch':
       return 'warning'
     default:
