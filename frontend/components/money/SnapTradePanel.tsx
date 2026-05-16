@@ -58,7 +58,7 @@ export function SnapTradePanel() {
     clientId: '',
     consumerKey: '',
     redirectUri: '',
-    defaultBroker: 'FIDELITY',
+    defaultBroker: '',
   })
 
   useEffect(() => {
@@ -75,6 +75,10 @@ export function SnapTradePanel() {
     configureSnapTrade.isPending ||
     createPortal.isPending ||
     syncSnapTrade.isPending
+  const selectedBroker =
+    form.defaultBroker.trim().toUpperCase() ||
+    status?.defaultBroker ||
+    'FIDELITY'
 
   const summary = useMemo(() => {
     if (isLoading) return 'Loading SnapTrade status'
@@ -89,7 +93,7 @@ export function SnapTradePanel() {
       clientId: form.clientId.trim(),
       consumerKey: form.consumerKey.trim(),
       redirectUri: form.redirectUri.trim() || null,
-      defaultBroker: form.defaultBroker.trim().toUpperCase() || 'FIDELITY',
+      defaultBroker: selectedBroker,
     })
     setForm((current) => ({ ...current, clientId: '', consumerKey: '' }))
     setConfigOpen(false)
@@ -98,7 +102,7 @@ export function SnapTradePanel() {
   const handleConnect = async () => {
     setPortalError(null)
     const response = await createPortal.mutateAsync({
-      broker: form.defaultBroker.trim().toUpperCase() || 'FIDELITY',
+      broker: selectedBroker,
     })
     if (typeof window === 'undefined') return
     const opened = window.open(
@@ -157,7 +161,7 @@ export function SnapTradePanel() {
             ) : (
               <ExternalLink className="h-4 w-4" />
             )}
-            Connect Fidelity
+            Connect brokerage
           </Button>
         </>
       }
@@ -209,10 +213,11 @@ export function SnapTradePanel() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="snaptrade-broker">Broker</Label>
+              <Label htmlFor="snaptrade-broker">Broker slug</Label>
               <Input
                 id="snaptrade-broker"
                 value={form.defaultBroker}
+                placeholder={status?.defaultBroker ?? 'FIDELITY'}
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,

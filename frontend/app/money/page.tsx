@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { Loader2, PlusCircle, Settings2 } from 'lucide-react'
+import { Database, Loader2, PlusCircle, Settings2 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { HouseholdDocumentCenter } from '@/components/money/HouseholdDocumentCenter'
@@ -14,12 +14,11 @@ import { JennyQuestionInbox } from '@/components/money/JennyQuestionInbox'
 import { MoneyAccountsPanel } from '@/components/money/MoneyAccountsPanel'
 import { MoneyAssumptionsDrawer } from '@/components/money/MoneyAssumptionsDrawer'
 import { MoneyBudgetPanel } from '@/components/money/MoneyBudgetPanel'
+import { MoneyDataServicesDrawer } from '@/components/money/MoneyDataServicesDrawer'
 import { MoneyLedgerPanel } from '@/components/money/MoneyLedgerPanel'
 import { MoneyLeversPanel } from '@/components/money/MoneyLeversPanel'
 import { MoneyOverviewPanel } from '@/components/money/MoneyOverviewPanel'
 import { MoneyRetirementPanel } from '@/components/money/MoneyRetirementPanel'
-import { PlaidLinkPanel } from '@/components/money/PlaidLinkPanel'
-import { SnapTradePanel } from '@/components/money/SnapTradePanel'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -96,7 +95,7 @@ function MoneyWorkspaceSkeleton() {
   )
 }
 
-type MoneyUtility = 'planning'
+type MoneyUtility = 'planning' | 'data-services'
 type MoneyFocus =
   | 'date-quality'
   | 'clarifications'
@@ -124,7 +123,9 @@ function isPlanningFocus(
 function resolveRequestedUtility(
   requested: string | null | undefined,
 ): MoneyUtility | null {
-  return requested === 'planning' ? requested : null
+  return requested === 'planning' || requested === 'data-services'
+    ? requested
+    : null
 }
 
 function readRequestedUtility(): MoneyUtility | null {
@@ -479,6 +480,15 @@ function MoneyPageContent() {
               <Settings2 className="mr-2 h-4 w-4" />
               Assumptions
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setOpenUtility('data-services')}
+            >
+              <Database className="mr-2 h-4 w-4" />
+              Data services
+            </Button>
             <Button asChild type="button" variant="outline" size="sm">
               <Link href="/money?tab=intake">
                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -488,11 +498,6 @@ function MoneyPageContent() {
           </div>
         }
       />
-
-      <div className="grid gap-6 xl:grid-cols-2">
-        <PlaidLinkPanel />
-        <SnapTradePanel />
-      </div>
 
       <WorkspaceTabs
         defaultValue="dashboard"
@@ -529,6 +534,26 @@ function MoneyPageContent() {
                   ) : undefined
                 }
               />
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={openUtility === 'data-services'}
+        onOpenChange={(open) => setOpenUtility(open ? 'data-services' : null)}
+      >
+        <DialogContent className="left-auto right-0 top-0 h-dvh max-w-[min(1040px,100vw)] translate-x-0 translate-y-0 rounded-none border-l border-border/45 p-0 sm:max-w-[min(1040px,100vw)]">
+          <div className="max-h-dvh overflow-y-auto p-6">
+            <DialogHeader>
+              <DialogTitle>Data Services</DialogTitle>
+              <DialogDescription>
+                External financial data connections for household accounts,
+                balances, positions, activities, and transactions.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="mt-4">
+              <MoneyDataServicesDrawer />
             </div>
           </div>
         </DialogContent>
