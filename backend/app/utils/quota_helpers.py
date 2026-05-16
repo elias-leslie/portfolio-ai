@@ -10,6 +10,7 @@ import os
 from typing import TYPE_CHECKING, Any
 
 from ..logging_config import get_logger
+from ..services.source_credentials import get_source_credential
 
 if TYPE_CHECKING:
     from ..storage.facade import PortfolioStorage
@@ -36,12 +37,8 @@ def is_api_key_configured(
     """
     # Check database first
     try:
-        cred_df = storage.query(
-            "SELECT value FROM source_credentials WHERE source_id = ? AND field = 'apikey'",
-            [source_id],
-        )
-        if not cred_df.is_empty():
-            db_value = cred_df.to_dicts()[0]["value"]
+        db_value = get_source_credential(storage, source_id, "apikey")
+        if db_value is not None:
             # Database has a row: return True only if value is valid (non-empty, non-placeholder)
             return bool(db_value and db_value not in ("your_key_here", "PLACEHOLDER"))
     except Exception as e:

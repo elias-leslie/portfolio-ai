@@ -16,6 +16,7 @@ import httpx
 
 from app.constants import DEFAULT_HTTP_TIMEOUT
 from app.logging_config import get_logger
+from app.services.source_credentials import get_source_credential
 from app.utils.db_helpers import ensure_symbol_exists
 
 if TYPE_CHECKING:
@@ -60,12 +61,7 @@ class AnalystRevision(TypedDict):
 def _get_finnhub_key(storage: PortfolioStorage) -> str | None:
     """Get Finnhub API key from database."""
     try:
-        with storage.connection() as conn:
-            result = conn.execute(
-                "SELECT value FROM source_credentials WHERE source_id = 'finnhub' AND field = 'apikey'"
-            )
-            row = result.fetchone()
-            return str(row[0]) if row else None
+        return get_source_credential(storage, "finnhub", "apikey")
     except Exception as e:
         logger.warning("finnhub_key_fetch_failed", error=str(e))
         return None

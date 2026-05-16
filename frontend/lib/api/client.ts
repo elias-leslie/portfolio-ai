@@ -78,6 +78,31 @@ function isRetryableMethod(method: string | undefined): boolean {
   return ['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())
 }
 
+function errorMessageFromPayload(payload: unknown, fallback: string): string {
+  if (!payload || typeof payload !== 'object') {
+    return fallback
+  }
+
+  const data = payload as Record<string, unknown>
+  const detail = data.detail
+  if (typeof detail === 'string') {
+    return detail
+  }
+  if (detail && typeof detail === 'object') {
+    const detailData = detail as Record<string, unknown>
+    for (const key of ['error_message', 'message', 'detail']) {
+      const value = detailData[key]
+      if (typeof value === 'string' && value.trim()) {
+        return value
+      }
+    }
+    return JSON.stringify(detailData)
+  }
+
+  const message = data.message
+  return typeof message === 'string' && message.trim() ? message : fallback
+}
+
 /**
  * Unified API request function with retry logic and error handling
  *
@@ -129,11 +154,7 @@ export async function apiRequest<T>(
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`
         try {
           const errorData = await response.json()
-          if (errorData.detail) {
-            errorMessage = errorData.detail
-          } else if (errorData.message) {
-            errorMessage = errorData.message
-          }
+          errorMessage = errorMessageFromPayload(errorData, errorMessage)
         } catch {
           // If JSON parsing fails, use default error message
         }

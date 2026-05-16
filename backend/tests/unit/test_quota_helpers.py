@@ -29,8 +29,8 @@ class TestIsApiKeyConfigured:
 
         assert result is True
         mock_storage.query.assert_called_once_with(
-            "SELECT value FROM source_credentials WHERE source_id = ? AND field = 'apikey'",
-            ["twelvedata"],
+            "SELECT value FROM source_credentials WHERE source_id = ? AND field = ?",
+            ["twelvedata", "apikey"],
         )
 
     def test_key_not_in_database_falls_back_to_env_var(self) -> None:

@@ -9,6 +9,8 @@ from __future__ import annotations
 import os
 
 from ..logging_config import get_logger
+from ..services.credential_crypto import SecretDecryptionError, SecretKeyUnavailableError
+from ..services.source_credentials import decrypt_source_credential_value
 from .facade import get_storage
 
 logger = get_logger(__name__)
@@ -37,6 +39,8 @@ ENV_VAR_MAPPINGS = {
     # Note: yfinance does not use API keys - it's a free/open source library
 }
 
+DB_LOCAL_CREDENTIAL_SOURCES = {"plaid", "snaptrade"}
+
 
 def _load_single_credential(source_id: str, field: str, value: str) -> tuple[bool, bool]:
     """Load a single credential into environment.
@@ -47,6 +51,13 @@ def _load_single_credential(source_id: str, field: str, value: str) -> tuple[boo
     env_var = ENV_VAR_MAPPINGS.get((source_id, field))
 
     if not env_var:
+        if source_id in DB_LOCAL_CREDENTIAL_SOURCES:
+            logger.debug(
+                "credential_db_local_only",
+                source=source_id,
+                field=field,
+            )
+            return False, True
         logger.warning(
             "credential_no_mapping",
             source=source_id,
@@ -64,7 +75,17 @@ def _load_single_credential(source_id: str, field: str, value: str) -> tuple[boo
         )
         return False, True
 
-    os.environ[env_var] = value
+    try:
+        os.environ[env_var] = decrypt_source_credential_value(value)
+    except (SecretDecryptionError, SecretKeyUnavailableError) as exc:
+        logger.warning(
+            "credential_decryption_failed",
+            source=source_id,
+            field=field,
+            env_var=env_var,
+            error=str(exc),
+        )
+        return False, False
     logger.debug("credential_loaded", source=source_id, field=field, env_var=env_var)
     return True, False
 

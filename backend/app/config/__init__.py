@@ -82,6 +82,7 @@ class Settings(BaseSettings):
     portfolio_client_id: str = ""
     portfolio_request_source: str = "portfolio-ai"
     sec_user_agent: str = ""
+    portfolio_secret_key: str = ""
 
     # Self-referencing URLs (for internal service calls)
     backend_url: str = f"http://localhost:{PORTFOLIO_BACKEND_PORT}"

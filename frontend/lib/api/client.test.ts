@@ -82,6 +82,26 @@ describe('api client helpers', () => {
     expect(result).toBeUndefined()
   })
 
+  it('uses nested API error messages instead of object stringification', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 502,
+      statusText: 'Bad Gateway',
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: vi.fn().mockResolvedValue({
+        detail: {
+          error_type: 'INVALID_REQUEST',
+          error_code: 'INVALID_FIELD',
+          error_message: 'OAuth redirect URI must be configured.',
+        },
+      }),
+    }) as unknown as typeof fetch
+
+    await expect(post('/api/plaid/link-token')).rejects.toThrow(
+      'OAuth redirect URI must be configured.',
+    )
+  })
+
   it('retries safe GET requests after transient failures', async () => {
     global.fetch = vi
       .fn()

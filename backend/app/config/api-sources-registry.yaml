@@ -1419,7 +1419,7 @@ credentials:
   columns:
     source_id: "Provider name (e.g., 'finnhub')"
     field: "Key field name (e.g., 'apikey')"
-    value: "API key value"
+    value: "API key value; sensitive values may use enc:v1: encrypted storage"
 
   query_example: |
     SELECT value FROM source_credentials

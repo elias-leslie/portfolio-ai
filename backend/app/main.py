@@ -21,9 +21,11 @@ from app.api import (
     intake,
     news,
     news_profiling,
+    plaid,
     portfolio,
     preferences,
     rules,
+    snaptrade,
     symbols,
     thesis,
     watchlist,
@@ -149,6 +151,8 @@ app.include_router(retirement_router)
 app.include_router(market_router)
 app.include_router(news.router)
 app.include_router(news_profiling.router)
+app.include_router(plaid.router)
+app.include_router(snaptrade.router)
 app.include_router(preferences.router)
 app.include_router(watchlist.router, prefix="/api/watchlist")
 app.include_router(rules.router)

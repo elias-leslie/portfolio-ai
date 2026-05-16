@@ -18,6 +18,8 @@ import { MoneyLedgerPanel } from '@/components/money/MoneyLedgerPanel'
 import { MoneyLeversPanel } from '@/components/money/MoneyLeversPanel'
 import { MoneyOverviewPanel } from '@/components/money/MoneyOverviewPanel'
 import { MoneyRetirementPanel } from '@/components/money/MoneyRetirementPanel'
+import { PlaidLinkPanel } from '@/components/money/PlaidLinkPanel'
+import { SnapTradePanel } from '@/components/money/SnapTradePanel'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -486,6 +488,11 @@ function MoneyPageContent() {
           </div>
         }
       />
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <PlaidLinkPanel />
+        <SnapTradePanel />
+      </div>
 
       <WorkspaceTabs
         defaultValue="dashboard"

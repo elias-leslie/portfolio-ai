@@ -13,6 +13,7 @@ import requests
 
 from app.constants import SHORT_HTTP_TIMEOUT
 from app.logging_config import get_logger
+from app.services.source_credentials import get_source_credentials
 
 if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
@@ -166,11 +167,7 @@ def fetch_from_alpaca(
         MarketMoversResult or None if fetch fails
     """
     try:
-        with storage.connection() as conn:
-            rows = conn.execute(
-                "SELECT field, value FROM source_credentials WHERE source_id = 'alpaca'"
-            ).fetchall()
-        creds = {row[0]: row[1] for row in rows}
+        creds = get_source_credentials(storage, "alpaca")
         key_id = creds.get("key_id") or creds.get("api_key")
         secret = creds.get("secret_key")
 
