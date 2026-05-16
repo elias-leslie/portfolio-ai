@@ -53,6 +53,34 @@ def looks_generic_account_mask(value: object) -> bool:
     )
 
 
+def normalize_account_mask(value: object) -> str | None:
+    text = clean_text(value)
+    if not text or looks_generic_account_mask(text):
+        return None
+    compact = re.sub(r"[^A-Za-z0-9]", "", text).lower()
+    return compact or None
+
+
+def account_masks_match(left: object, right: object) -> bool:
+    left_mask = normalize_account_mask(left)
+    right_mask = normalize_account_mask(right)
+    if not left_mask or not right_mask:
+        return False
+    if left_mask == right_mask:
+        return True
+    if len(left_mask) > 4 and len(right_mask) <= 4:
+        return left_mask.endswith(right_mask)
+    if len(right_mask) > 4 and len(left_mask) <= 4:
+        return right_mask.endswith(left_mask)
+    return False
+
+
+def account_masks_conflict(left: object, right: object) -> bool:
+    left_mask = normalize_account_mask(left)
+    right_mask = normalize_account_mask(right)
+    return bool(left_mask and right_mask and not account_masks_match(left_mask, right_mask))
+
+
 def _looks_like_date_token(value: str | None) -> bool:
     text = clean_text(value)
     if not text:

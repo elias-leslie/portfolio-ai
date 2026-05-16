@@ -42,6 +42,10 @@ from app.services._household_document_pipeline_utils import (
     parse_row_date,
 )
 from app.services._household_finance_utils import iso, iso_or_none, to_float
+from app.services.household_account_identity import (
+    account_masks_match,
+    normalize_account_mask,
+)
 from app.services.household_finance_rows import FIELD_LABELS, row_to_document
 from app.services.household_review_agent_service import HOUSEHOLD_REVIEW_AGENT_SLUG
 from app.services.household_upload_validation import (
@@ -388,44 +392,16 @@ def _clean_text(value: object) -> str:
     return " ".join(str(value or "").strip().lower().split())
 
 
-def _clean_mask(value: object) -> str:
-    return "".join(char for char in str(value or "").lower() if char.isalnum())
+def _account_mask_values(account: dict[str, object]) -> list[object]:
+    return [
+        value
+        for key in ("account_mask", "extracted_account_mask")
+        if normalize_account_mask(value := account.get(key))
+    ]
 
 
-def _mask_candidates(value: object) -> set[str]:
-    cleaned = _clean_mask(value)
-    if not cleaned:
-        return set()
-    candidates = {cleaned}
-    digits = "".join(char for char in cleaned if char.isdigit())
-    if len(digits) >= 4:
-        candidates.add(digits)
-        candidates.add(digits[-4:])
-    return candidates
-
-
-def _account_mask_candidates(account: dict[str, object]) -> set[str]:
-    candidates: set[str] = set()
-    for key in ("account_mask", "extracted_account_mask"):
-        candidates.update(_mask_candidates(account.get(key)))
-    return candidates
-
-
-def _masks_match(left: set[str], right: set[str]) -> bool:
-    if not left or not right:
-        return False
-    if left & right:
-        return True
-    return any(
-        len(left_candidate) >= 4
-        and len(right_candidate) >= 4
-        and (
-            left_candidate.endswith(right_candidate)
-            or right_candidate.endswith(left_candidate)
-        )
-        for left_candidate in left
-        for right_candidate in right
-    )
+def _account_matches_mask(account: dict[str, object], target_mask: object) -> bool:
+    return any(account_masks_match(mask, target_mask) for mask in _account_mask_values(account))
 
 
 def _metadata_household_account_id(document: HouseholdDocument) -> str | None:
@@ -479,9 +455,12 @@ def _account_conflicts_with_target(
     target: dict[str, object],
 ) -> list[str]:
     conflicts: list[str] = []
-    account_masks = _account_mask_candidates(account)
-    target_masks = _mask_candidates(target.get("account_mask"))
-    if account_masks and target_masks and not _masks_match(account_masks, target_masks):
+    target_mask = target.get("account_mask")
+    if (
+        _account_mask_values(account)
+        and normalize_account_mask(target_mask)
+        and not _account_matches_mask(account, target_mask)
+    ):
         conflicts.append("account_mask")
 
     account_source = _clean_text(account.get("source_type"))
@@ -504,9 +483,7 @@ def _account_matches_target(
     conflicts = _account_conflicts_with_target(account, target)
     if conflicts:
         return False
-    account_masks = _account_mask_candidates(account)
-    target_masks = _mask_candidates(target.get("account_mask"))
-    if _masks_match(account_masks, target_masks):
+    if _account_matches_mask(account, target.get("account_mask")):
         return True
     account_name = _clean_text(account.get("account_name") or account.get("account_hint"))
     target_label = _clean_text(target.get("canonical_label"))

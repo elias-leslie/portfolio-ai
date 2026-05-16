@@ -21,6 +21,7 @@ from app.services.credential_crypto import (
     SecretDecryptionError,
     SecretKeyUnavailableError,
 )
+from app.services.household_account_identity import account_masks_match
 from app.services.source_credentials import get_source_credentials, set_source_credential
 from app.storage import PortfolioStorage, get_storage
 
@@ -1051,6 +1052,15 @@ class SnapTradeService:
         account_mask: str | None,
     ) -> str:
         identity_key = f"snaptrade_account:{account_id}"
+        mask_matched_household_account_id = (
+            self._match_household_account_by_snaptrade_mask(
+                conn=conn,
+                institution_name=institution_name,
+                account_mask=account_mask,
+            )
+            if institution_name and account_mask
+            else None
+        )
         row = conn.execute(
             """
             SELECT household_account_id
@@ -1060,7 +1070,25 @@ class SnapTradeService:
             """,
             [identity_key],
         ).fetchone()
-        if row is not None and row[0] is not None:
+        if mask_matched_household_account_id is not None:
+            household_account_id = mask_matched_household_account_id
+            self._update_household_account_from_snaptrade(
+                conn=conn,
+                household_account_id=household_account_id,
+                account_id=account_id,
+                label=label,
+                kind=kind,
+                institution_name=institution_name,
+                account_mask=account_mask,
+            )
+        elif row is not None and row[0] is not None and (
+            account_mask is None
+            or self._household_account_accepts_snaptrade_mask(
+                conn=conn,
+                household_account_id=str(row[0]),
+                account_mask=account_mask,
+            )
+        ):
             household_account_id = str(row[0])
             self._update_household_account_from_snaptrade(
                 conn=conn,
@@ -1071,36 +1099,7 @@ class SnapTradeService:
                 institution_name=institution_name,
                 account_mask=account_mask,
             )
-            return household_account_id
-
-        match_row = None
-        if institution_name and account_mask:
-            match_row = conn.execute(
-                """
-                SELECT id
-                FROM household_accounts
-                WHERE lower(COALESCE(institution_name, '')) = lower(%s)
-                  AND account_mask IS NOT NULL
-                  AND (account_mask = %s OR right(account_mask, 4) = %s)
-                ORDER BY updated_at DESC
-                LIMIT 1
-                """,
-                [institution_name, account_mask, account_mask[-4:]],
-            ).fetchone()
-        if match_row is None and institution_name:
-            match_row = conn.execute(
-                """
-                SELECT id
-                FROM household_accounts
-                WHERE lower(COALESCE(institution_name, '')) = lower(%s)
-                  AND lower(COALESCE(canonical_label, '')) = lower(%s)
-                ORDER BY updated_at DESC
-                LIMIT 1
-                """,
-                [institution_name, name],
-            ).fetchone()
-
-        if match_row is None:
+        else:
             household_account_id = str(uuid.uuid4())
             conn.execute(
                 """
@@ -1124,17 +1123,6 @@ class SnapTradeService:
                     _now(),
                     _now(),
                 ],
-            )
-        else:
-            household_account_id = str(match_row[0])
-            self._update_household_account_from_snaptrade(
-                conn=conn,
-                household_account_id=household_account_id,
-                account_id=account_id,
-                label=label,
-                kind=kind,
-                institution_name=institution_name,
-                account_mask=account_mask,
             )
 
         conn.execute(
@@ -1161,6 +1149,92 @@ class SnapTradeService:
             ],
         )
         return household_account_id
+
+    def _match_household_account_by_snaptrade_mask(
+        self,
+        *,
+        conn: Any,
+        institution_name: str | None,
+        account_mask: str | None,
+    ) -> str | None:
+        if not institution_name or not account_mask:
+            return None
+        evidence_rows = conn.execute(
+            """
+            SELECT household_account_id, account_mask
+            FROM household_evidence_accounts
+            WHERE household_account_id IS NOT NULL
+              AND lower(COALESCE(institution_name, '')) = lower(%s)
+              AND account_mask IS NOT NULL
+            ORDER BY updated_at DESC
+            LIMIT 25
+            """,
+            [institution_name],
+        ).fetchall()
+        evidence_account_ids = [
+            str(row[0])
+            for row in evidence_rows
+            if row[0] is not None and account_masks_match(row[1], account_mask)
+        ]
+        unique_evidence_account_ids = list(dict.fromkeys(evidence_account_ids))
+        if len(unique_evidence_account_ids) == 1:
+            return unique_evidence_account_ids[0]
+
+        rows = conn.execute(
+            """
+            SELECT id, account_mask
+            FROM household_accounts
+            WHERE lower(COALESCE(institution_name, '')) = lower(%s)
+              AND account_mask IS NOT NULL
+            ORDER BY updated_at DESC
+            LIMIT 25
+            """,
+            [institution_name],
+        ).fetchall()
+        for row in rows:
+            if not account_masks_match(row[1], account_mask):
+                continue
+            household_account_id = str(row[0])
+            if self._household_account_accepts_snaptrade_mask(
+                conn=conn,
+                household_account_id=household_account_id,
+                account_mask=account_mask,
+            ):
+                return household_account_id
+        return None
+
+    @staticmethod
+    def _household_account_accepts_snaptrade_mask(
+        *,
+        conn: Any,
+        household_account_id: str,
+        account_mask: str,
+    ) -> bool:
+        evidence_rows = conn.execute(
+            """
+            SELECT DISTINCT account_mask
+            FROM household_evidence_accounts
+            WHERE household_account_id = %s
+              AND account_mask IS NOT NULL
+            """,
+            [household_account_id],
+        ).fetchall()
+        evidence_masks = [str(row[0]) for row in evidence_rows if row[0] is not None]
+        if evidence_masks:
+            return any(account_masks_match(mask, account_mask) for mask in evidence_masks)
+
+        row = conn.execute(
+            """
+            SELECT account_mask
+            FROM household_accounts
+            WHERE id = %s
+            """,
+            [household_account_id],
+        ).fetchone()
+        if row is None or row[0] is None:
+            return True
+        existing_mask = str(row[0])
+        return account_masks_match(existing_mask, account_mask)
 
     def _update_household_account_from_snaptrade(
         self,

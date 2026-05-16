@@ -266,7 +266,7 @@ def test_should_merge_shadow_alias_into_evidence_account() -> None:
     )
 
 
-def test_should_merge_weaker_evidence_alias_into_stronger_canonical_account() -> None:
+def test_should_not_merge_masked_accounts_when_masks_conflict() -> None:
     registry = HouseholdAccountRegistryService()
     legacy = _canonical(
         account_id="legacy",
@@ -291,12 +291,74 @@ def test_should_merge_weaker_evidence_alias_into_stronger_canonical_account() ->
     )
     current.primary_identity_key = "credit-lineage|chase|chase prime visa / amazon card|elias b leslie|credit_card"
 
-    assert registry._should_merge_accounts(
+    assert not registry._should_merge_accounts(
         legacy,
         current,
         metrics={
             "legacy": {"evidence": 4, "tracked": 0, "transactions": 120},
             "current": {"evidence": 3, "tracked": 1, "transactions": 331},
+        },
+    )
+
+
+def test_should_merge_accounts_when_full_mask_matches_visible_suffix() -> None:
+    registry = HouseholdAccountRegistryService()
+    evidence = _canonical(
+        account_id="evidence",
+        label="Rollover IRA",
+        asset_group="retirement",
+        account_type="ira",
+        source_type="retirement",
+        institution_name="Fidelity",
+        account_mask="267328698",
+    )
+    source = _canonical(
+        account_id="source",
+        label="Fidelity - Rollover IRA *8698",
+        asset_group="retirement",
+        account_type="ira",
+        source_type="retirement",
+        institution_name="Fidelity",
+        account_mask="8698",
+    )
+
+    assert registry._should_merge_accounts(
+        evidence,
+        source,
+        metrics={
+            "evidence": {"evidence": 2, "tracked": 0, "transactions": 0},
+            "source": {"evidence": 0, "tracked": 0, "transactions": 0},
+        },
+    )
+
+
+def test_should_not_merge_same_label_accounts_when_masks_differ() -> None:
+    registry = HouseholdAccountRegistryService()
+    left = _canonical(
+        account_id="left",
+        label="Rollover IRA",
+        asset_group="retirement",
+        account_type="ira",
+        source_type="retirement",
+        institution_name="Fidelity",
+        account_mask="2283",
+    )
+    right = _canonical(
+        account_id="right",
+        label="Fidelity - Rollover IRA *8698",
+        asset_group="retirement",
+        account_type="ira",
+        source_type="retirement",
+        institution_name="Fidelity",
+        account_mask="8698",
+    )
+
+    assert not registry._should_merge_accounts(
+        left,
+        right,
+        metrics={
+            "left": {"evidence": 1, "tracked": 0, "transactions": 0},
+            "right": {"evidence": 0, "tracked": 0, "transactions": 0},
         },
     )
 
@@ -354,7 +416,7 @@ def test_resolve_from_tracked_prefers_structural_identity_over_stale_match_key()
     assert account_id == "nadia"
 
 
-def test_resolve_from_tracked_ignores_corrupted_asset_hints_when_label_match_is_clear() -> None:
+def test_resolve_from_tracked_prefers_mask_over_label_when_both_are_present() -> None:
     registry = HouseholdAccountRegistryService()
     conn = Mock()
     canonical_accounts = {
@@ -399,7 +461,7 @@ def test_resolve_from_tracked_ignores_corrupted_asset_hints_when_label_match_is_
     )
 
     assert created == 0
-    assert account_id == "cash"
+    assert account_id == "rollover"
 
 
 def test_resolve_from_tracked_merges_shadow_linked_row_into_evidence_account_via_match_key() -> None:
