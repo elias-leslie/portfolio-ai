@@ -106,7 +106,7 @@ export function SnapTradePanel() {
       '_blank',
       'noopener,noreferrer',
     )
-    if (!opened) {
+    if (!opened && document.hasFocus()) {
       setPortalError('Connection portal was blocked by the browser.')
     }
   }

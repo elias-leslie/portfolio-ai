@@ -108,6 +108,7 @@ _LANE_CONFIGS: list[tuple[str, str, str]] = [
     ("Savings", "Reserve dollars for investing, emergency cash, and future big-ticket items.", "monthly_savings_target"),
 ]
 _DEGRADED_ACCOUNT_FRESHNESS_STATUSES = {"aging", "stale", "needs_evidence"}
+_SOURCE_ACCOUNT_METADATA_KEYS = ("snaptrade_account_id",)
 
 
 # ---------------------------------------------------------------------------
@@ -788,6 +789,7 @@ def gather_service_data(service: Any) -> dict[str, Any]:
         for account_id, valuation in account_valuations.items()
         if valuation.priced_positions_value > 0
     }
+    source_owned_account_values = _fetch_source_owned_account_values(service.storage)
     reports = service.transaction_service.build_reports()
     return {
         "profile": profile, "planning": planning, "documents": documents, "questions": questions,
@@ -795,8 +797,51 @@ def gather_service_data(service: Any) -> dict[str, Any]:
         "tracked_accounts": tracked_accounts,
         "accounts": accounts, "live_positions": live_positions,
         "account_valuations": account_valuations,
+        "source_owned_household_account_ids": (
+            _fetch_source_owned_household_account_ids(service.storage)
+            | set(source_owned_account_values)
+        ),
+        "source_owned_account_values": source_owned_account_values,
         "holdings_by_account": holdings_by_account, "reports": reports,
     }
+
+
+def _fetch_source_owned_household_account_ids(storage: Any) -> set[str]:
+    with storage.connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id
+            FROM household_accounts
+            WHERE EXISTS (
+                SELECT 1
+                FROM jsonb_object_keys(COALESCE(metadata, '{}'::jsonb)) AS key
+                WHERE key = ANY(%s::text[])
+            )
+            """,
+            [list(_SOURCE_ACCOUNT_METADATA_KEYS)],
+        ).fetchall()
+    return {str(row[0]) for row in rows if row[0] is not None}
+
+
+def _fetch_source_owned_account_values(storage: Any) -> dict[str, dict[str, Any]]:
+    with storage.connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT household_account_id, balance, cash_balance, last_synced_at, account_mask
+            FROM snaptrade_accounts
+            WHERE household_account_id IS NOT NULL
+            """
+        ).fetchall()
+    values: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        household_account_id = str(row[0])
+        values[household_account_id] = {
+            "current_value": row[1],
+            "cash_balance": row[2],
+            "last_synced_at": row[3],
+            "account_mask": row[4],
+        }
+    return values
 
 
 def resolve_dashboard_values(service: Any, *, profile: Any, reports: Any, questions: list[Any]) -> tuple[list[Any], list[Any]]:

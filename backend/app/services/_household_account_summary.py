@@ -195,6 +195,18 @@ def _account_value(account: HouseholdEvidenceAccount) -> float | None:
     return None
 
 
+def _source_account_float(source_value: dict[str, Any] | None, key: str) -> float | None:
+    if not source_value:
+        return None
+    value = source_value.get(key)
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _is_closed_zero_balance_account(
     account: HouseholdEvidenceAccount,
     *documents: HouseholdDocument | None,
@@ -816,6 +828,8 @@ def build_account_summaries(
     portfolio_accounts: list[Any],
     tracked_accounts: list[HouseholdTrackedAccount],
     account_valuations: dict[str, Any] | None = None,
+    source_owned_household_account_ids: set[str] | None = None,
+    source_owned_account_values: dict[str, dict[str, Any]] | None = None,
     holdings_by_account: dict[str, float],
     statement_freshness: dict[str, Any],
     latest_transaction_dates_by_household_account: dict[str, date] | None = None,
@@ -823,6 +837,8 @@ def build_account_summaries(
     latest_transaction_dates_by_account_label: dict[str, date] | None = None,
 ) -> list[HouseholdAccountSummary]:
     account_valuations = account_valuations or {}
+    source_owned_household_account_ids = source_owned_household_account_ids or set()
+    source_owned_account_values = source_owned_account_values or {}
     latest_transaction_dates_by_household_account = latest_transaction_dates_by_household_account or {}
     latest_transaction_dates_by_document = latest_transaction_dates_by_document or {}
     latest_transaction_dates_by_account_label = latest_transaction_dates_by_account_label or {}
@@ -1039,12 +1055,36 @@ def build_account_summaries(
         )
         if portfolio_account is not None:
             linked_portfolio_ids.add(portfolio_account.id)
+        linked_group_household_account_id = next(
+            (
+                candidate.household_account_id
+                for candidate in accounts
+                if candidate.household_account_id
+            ),
+            None,
+        )
+        household_account_id = (
+            display_account.household_account_id
+            or linked_group_household_account_id
+            or (tracked_account.household_account_id if tracked_account is not None else None)
+        )
+        if household_account_id is None and portfolio_account is not None:
+            household_account_id = getattr(portfolio_account, "household_account_id", None)
+        source_owned = (
+            household_account_id is not None
+            and household_account_id in source_owned_household_account_ids
+        )
+        source_account_value = (
+            source_owned_account_values.get(household_account_id)
+            if household_account_id is not None
+            else None
+        )
         effective_asset_group = display_account.asset_group
         effective_label = (
-            _tracked_label(tracked_account)
-            if tracked_account is not None
-            else _portfolio_label(portfolio_account)
+            _portfolio_label(portfolio_account)
             if portfolio_account is not None
+            else _tracked_label(tracked_account)
+            if tracked_account is not None
             else account_label
         )
         effective_account_type = display_account.account_type
@@ -1055,6 +1095,16 @@ def build_account_summaries(
         )
         if closed_zero_balance_account:
             effective_money_role = "net_worth_only"
+        if source_owned and portfolio_account is not None:
+            source_balance_dt = _parse_datetime((source_account_value or {}).get("last_synced_at")) or _parse_datetime(getattr(portfolio_account, "updated_at", None))
+            if source_balance_dt is not None:
+                last_balance_dt = source_balance_dt
+                days_since_balance = (datetime.now(UTC).date() - source_balance_dt.date()).days
+                balance_freshness_status, balance_freshness_label = _freshness_state_from_thresholds(
+                    _BALANCE_FRESHNESS_THRESHOLDS,
+                    effective_asset_group,
+                    days_since=days_since_balance,
+                )
         if effective_money_role == "spend_driver":
             transaction_freshness_status, transaction_freshness_label = (
                 _freshness_state_from_thresholds(
@@ -1088,6 +1138,14 @@ def build_account_summaries(
             portfolio_valuation is not None
             and getattr(portfolio_valuation, "priced_position_count", 0) > 0
         )
+        source_current_value = _source_account_float(source_account_value, "current_value")
+        source_cash_value = _source_account_float(source_account_value, "cash_balance")
+        source_account_mask = (
+            str(source_account_value.get("account_mask"))
+            if source_account_value and source_account_value.get("account_mask")
+            else None
+        )
+        has_source_balance = source_owned and source_current_value is not None
         evidence_current_value = _account_value(balance_account)
         if evidence_current_value is None and closed_zero_balance_account:
             evidence_current_value = 0.0
@@ -1096,18 +1154,31 @@ def build_account_summaries(
             if has_live_pricing
             else None
         )
+        portfolio_effective_cash_balance = (
+            float(getattr(portfolio_valuation, "effective_cash_balance", 0.0) or 0.0)
+            if portfolio_valuation is not None
+            else None
+        )
         effective_cash_balance = (
             0.0
             if closed_zero_balance_account
+            else source_cash_value
+            if source_cash_value is not None
+            else portfolio_effective_cash_balance
+            if has_source_balance
             else float(balance_account.cash_balance)
             if balance_account.cash_balance is not None
-            else (
-                float(getattr(portfolio_valuation, "effective_cash_balance", 0.0) or 0.0)
-                if portfolio_valuation is not None
-                else None
-            )
+            else portfolio_effective_cash_balance
+        )
+        source_holdings_value = (
+            source_current_value - float(effective_cash_balance or 0.0)
+            if has_source_balance
+            else None
         )
         effective_holdings_value = (
+            source_holdings_value
+            if source_holdings_value is not None
+            else
             live_priced_positions_value
             if live_priced_positions_value is not None
             else float(balance_account.holdings_value)
@@ -1115,30 +1186,19 @@ def build_account_summaries(
             else None
         )
         effective_current_value = (
-            live_priced_positions_value + float(effective_cash_balance or 0.0)
-            if live_priced_positions_value is not None
+            source_current_value
+            if has_source_balance
+            else live_priced_positions_value + float(effective_cash_balance or 0.0)
+            if has_live_pricing and live_priced_positions_value is not None
             else evidence_current_value
         )
         valuation_source = (
-            "live_quotes"
+            "source_balance"
+            if has_source_balance
+            else "live_quotes"
             if has_live_pricing
             else "evidence"
         )
-        linked_group_household_account_id = next(
-            (
-                candidate.household_account_id
-                for candidate in accounts
-                if candidate.household_account_id
-            ),
-            None,
-        )
-        household_account_id = (
-            display_account.household_account_id
-            or linked_group_household_account_id
-            or (tracked_account.household_account_id if tracked_account is not None else None)
-        )
-        if household_account_id is None and portfolio_account is not None:
-            household_account_id = getattr(portfolio_account, "household_account_id", None)
         summary = HouseholdAccountSummary(
             id=group_key,
             household_account_id=household_account_id,
@@ -1149,7 +1209,7 @@ def build_account_summaries(
             match_key=tracked_account.match_key if tracked_account is not None else group_key,
             institution_name=display_account.institution_name,
             owner_name=tracked_account.owner_name if tracked_account is not None and tracked_account.owner_name is not None else display_account.owner_name,
-            account_mask=display_account.account_mask,
+            account_mask=source_account_mask or display_account.account_mask,
             notes=tracked_account.notes if tracked_account is not None else None,
             currency=balance_account.currency or display_account.currency,
             current_value=effective_current_value,
@@ -1220,6 +1280,50 @@ def build_account_summaries(
         if getattr(account, "account_type", None) == "paper" or account.id in linked_portfolio_ids:
             continue
         portfolio_valuation = account_valuations.get(account.id)
+        portfolio_household_account_id = getattr(account, "household_account_id", None)
+        source_owned = (
+            portfolio_household_account_id is not None
+            and str(portfolio_household_account_id) in source_owned_household_account_ids
+        )
+        source_account_value = (
+            source_owned_account_values.get(str(portfolio_household_account_id))
+            if portfolio_household_account_id is not None
+            else None
+        )
+        source_balance_dt = (
+            _parse_datetime((source_account_value or {}).get("last_synced_at"))
+            or _parse_datetime(getattr(account, "updated_at", None))
+            if source_owned
+            else None
+        )
+        days_since_source_balance = (
+            (datetime.now(UTC).date() - source_balance_dt.date()).days
+            if source_balance_dt is not None
+            else None
+        )
+        balance_status, balance_label = (
+            _freshness_state_from_thresholds(
+                _BALANCE_FRESHNESS_THRESHOLDS,
+                _portfolio_asset_group(account),
+                days_since=days_since_source_balance,
+            )
+            if source_owned
+            else ("needs_evidence", "Needs evidence")
+        )
+        source_current_value = _source_account_float(source_account_value, "current_value")
+        source_cash_value = _source_account_float(source_account_value, "cash_balance")
+        portfolio_current_value = (
+            float(getattr(portfolio_valuation, "total_value", 0.0) or 0.0)
+            if portfolio_valuation is not None
+            else _portfolio_value(account, holdings_by_account)
+        )
+        portfolio_cash_balance = (
+            float(getattr(portfolio_valuation, "effective_cash_balance", 0.0) or 0.0)
+            if portfolio_valuation is not None
+            else float(getattr(account, "cash_balance", 0.0) or 0.0)
+        )
+        effective_current_value = source_current_value if source_current_value is not None else portfolio_current_value
+        effective_cash_balance = source_cash_value if source_cash_value is not None else portfolio_cash_balance
         summaries.append(
             HouseholdAccountSummary(
                 id=_portfolio_summary_key(account),
@@ -1229,25 +1333,22 @@ def build_account_summaries(
                 account_type=str(account.account_type),
                 source_type=_portfolio_source_type(account),
                 match_key=None,
-                current_value=(
-                    float(getattr(portfolio_valuation, "total_value", 0.0) or 0.0)
-                    if portfolio_valuation is not None
-                    else _portfolio_value(account, holdings_by_account)
-                ),
+                current_value=effective_current_value,
                 holdings_value=(
+                    effective_current_value - effective_cash_balance
+                    if source_current_value is not None
+                    else
                     float(getattr(portfolio_valuation, "priced_positions_value", 0.0) or 0.0)
                     if portfolio_valuation is not None
                     else holdings_by_account.get(account.id, 0.0)
                 ),
-                cash_balance=(
-                    float(getattr(portfolio_valuation, "effective_cash_balance", 0.0) or 0.0)
-                    if portfolio_valuation is not None
-                    else float(getattr(account, "cash_balance", 0.0) or 0.0)
-                ),
+                cash_balance=effective_cash_balance,
                 valuation_source=(
                     "live_quotes"
                     if portfolio_valuation is not None
                     and getattr(portfolio_valuation, "priced_position_count", 0) > 0
+                    else "source_balance"
+                    if source_owned
                     else "portfolio_cash"
                 ),
                 latest_document_id=None,
@@ -1259,10 +1360,10 @@ def build_account_summaries(
                     str(account.account_type),
                     _portfolio_label(account),
                 ),
-                last_balance_at=None,
-                days_since_balance=None,
-                balance_freshness_status="needs_evidence",
-                balance_freshness_label="Needs evidence",
+                last_balance_at=source_balance_dt.isoformat() if source_balance_dt is not None else None,
+                days_since_balance=days_since_source_balance,
+                balance_freshness_status=balance_status,
+                balance_freshness_label=balance_label,
                 last_transaction_at=None,
                 days_since_transaction=None,
                 transaction_freshness_status="not_applicable",
@@ -1294,8 +1395,8 @@ def build_account_summaries(
                     if portfolio_valuation is not None
                     else 0
                 ),
-                freshness_status="needs_evidence",
-                freshness_label="Needs evidence",
+                freshness_status=balance_status,
+                freshness_label=balance_label,
                 match_status="tracked",
                 match_confidence=None,
             )

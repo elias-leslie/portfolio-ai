@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from decimal import Decimal
+
 import pytest
 
 from app.services.snaptrade_service import (
     _READ_ONLY_CONNECTION_TYPE,
+    SnapTradeNormalizedAccount,
+    SnapTradeNormalizedPosition,
     SnapTradeReadOnlyClient,
+    SnapTradeService,
     SnapTradeUser,
     _account_kind,
     _connection_portal_kwargs,
@@ -17,6 +23,14 @@ class _FakeSnapTradeClient:
     authentication = object()
     connections = object()
     account_information = object()
+
+
+class _RecordingConnection:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, list[object] | None]] = []
+
+    def execute(self, sql: str, params: list[object] | None = None) -> None:
+        self.calls.append((sql, params))
 
 
 def test_connection_portal_is_read_only() -> None:
@@ -49,3 +63,89 @@ def test_fidelity_account_kind_mapping() -> None:
     assert _account_kind("ROTH IRA").portfolio_account_type == "Roth"
     assert _account_kind("Traditional IRA").portfolio_account_type == "IRA"
     assert _account_kind("Individual - TOD").portfolio_account_type == "Taxable"
+
+
+def test_cash_balance_from_account_preserves_zero() -> None:
+    assert SnapTradeService._cash_balance_from_account({"balance": {"cash": "0.00"}}) == Decimal("0.00")
+
+
+def test_source_cash_balance_uses_account_total_when_cash_is_missing() -> None:
+    account = SnapTradeNormalizedAccount(
+        account_id="acct-1",
+        authorization_id="auth-1",
+        name="Individual - TOD",
+        institution_name="Fidelity",
+        account_mask="7544",
+        raw_type=None,
+        portfolio_account_type="Taxable",
+        balance=Decimal("549593.06"),
+        cash_balance=None,
+        currency="USD",
+        household_account_id="household-1",
+        portfolio_account_id="portfolio-1",
+        metadata={},
+    )
+    position = SnapTradeNormalizedPosition(
+        position_key="vti",
+        symbol="VTI",
+        raw_symbol=None,
+        security_id="vti",
+        security_kind=None,
+        units=Decimal("1488"),
+        price=Decimal("362.74"),
+        average_purchase_price=None,
+        market_value=Decimal("539757.12"),
+        cost_basis=None,
+        currency="USD",
+        metadata={},
+    )
+
+    assert SnapTradeService._source_cash_balance(account, [position]) == Decimal("9835.94")
+    assert SnapTradeService._source_cash_balance(account, []) == Decimal("549593.06")
+
+
+def test_replace_portfolio_positions_removes_unmanaged_rows_for_source_owned_account() -> None:
+    account = SnapTradeNormalizedAccount(
+        account_id="acct-1",
+        authorization_id="auth-1",
+        name="Traditional IRA",
+        institution_name="Fidelity",
+        account_mask="4181",
+        raw_type=None,
+        portfolio_account_type="IRA",
+        balance=Decimal("376672.30"),
+        cash_balance=None,
+        currency="USD",
+        household_account_id="household-1",
+        portfolio_account_id="portfolio-1",
+        metadata={},
+    )
+    position = SnapTradeNormalizedPosition(
+        position_key="vti",
+        symbol="VTI",
+        raw_symbol=None,
+        security_id="vti",
+        security_kind=None,
+        units=Decimal("994.409"),
+        price=Decimal("362.74"),
+        average_purchase_price=None,
+        market_value=Decimal("360711.9207"),
+        cost_basis=None,
+        currency="USD",
+        metadata={},
+    )
+    conn = _RecordingConnection()
+    service = object.__new__(SnapTradeService)
+
+    service._replace_portfolio_positions(
+        conn=conn,
+        account=account,
+        positions=[position],
+        existing_portfolio_ids={},
+        synced_at=datetime(2026, 5, 16, 18, 0, tzinfo=UTC),
+    )
+
+    delete_sql, delete_params = conn.calls[0]
+    assert "strategy_id IS NULL" in delete_sql
+    assert "id <> ALL" in delete_sql
+    assert delete_params == ["portfolio-1", ["snaptrade:acct-1:vti"]]

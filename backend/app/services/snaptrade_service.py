@@ -908,6 +908,12 @@ class SnapTradeService:
                 existing_portfolio_ids=existing_portfolio_ids,
                 synced_at=synced_at,
             )
+            self._update_portfolio_account_cash_balance(
+                conn=conn,
+                account=account,
+                positions=positions,
+                synced_at=synced_at,
+            )
             for position in positions:
                 portfolio_position_id = f"snaptrade:{account.account_id}:{position.position_key}"
                 conn.execute(
@@ -1055,7 +1061,17 @@ class SnapTradeService:
             [identity_key],
         ).fetchone()
         if row is not None and row[0] is not None:
-            return str(row[0])
+            household_account_id = str(row[0])
+            self._update_household_account_from_snaptrade(
+                conn=conn,
+                household_account_id=household_account_id,
+                account_id=account_id,
+                label=label,
+                kind=kind,
+                institution_name=institution_name,
+                account_mask=account_mask,
+            )
+            return household_account_id
 
         match_row = None
         if institution_name and account_mask:
@@ -1111,14 +1127,14 @@ class SnapTradeService:
             )
         else:
             household_account_id = str(match_row[0])
-            conn.execute(
-                """
-                UPDATE household_accounts
-                SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
-                    updated_at = %s
-                WHERE id = %s
-                """,
-                [_json({"snaptrade_account_id": account_id}), _now(), household_account_id],
+            self._update_household_account_from_snaptrade(
+                conn=conn,
+                household_account_id=household_account_id,
+                account_id=account_id,
+                label=label,
+                kind=kind,
+                institution_name=institution_name,
+                account_mask=account_mask,
             )
 
         conn.execute(
@@ -1146,6 +1162,43 @@ class SnapTradeService:
         )
         return household_account_id
 
+    def _update_household_account_from_snaptrade(
+        self,
+        *,
+        conn: Any,
+        household_account_id: str,
+        account_id: str,
+        label: str,
+        kind: SnapTradeAccountKind,
+        institution_name: str | None,
+        account_mask: str | None,
+    ) -> None:
+        conn.execute(
+            """
+            UPDATE household_accounts
+            SET canonical_label = %s,
+                asset_group = %s,
+                account_type = %s,
+                source_type = %s,
+                institution_name = %s,
+                account_mask = %s,
+                metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
+                updated_at = %s
+            WHERE id = %s
+            """,
+            [
+                label,
+                kind.household_asset_group,
+                kind.household_account_type,
+                kind.household_source_type,
+                institution_name,
+                account_mask,
+                _json({"snaptrade_account_id": account_id}),
+                _now(),
+                household_account_id,
+            ],
+        )
+
     def _resolve_portfolio_account(
         self,
         *,
@@ -1166,16 +1219,23 @@ class SnapTradeService:
             [household_account_id],
         ).fetchone()
         if linked is not None:
-            if cash_balance is not None:
-                conn.execute(
-                    """
-                    UPDATE portfolio_accounts
-                    SET cash_balance = %s,
-                        updated_at = %s
-                    WHERE id = %s
-                    """,
-                    [float(cash_balance), _now(), str(linked[0])],
-                )
+            conn.execute(
+                """
+                UPDATE portfolio_accounts
+                SET name = %s,
+                    account_type = %s,
+                    cash_balance = COALESCE(%s, cash_balance),
+                    updated_at = %s
+                WHERE id = %s
+                """,
+                [
+                    name,
+                    portfolio_account_type,
+                    float(cash_balance) if cash_balance is not None else None,
+                    _now(),
+                    str(linked[0]),
+                ],
+            )
             return str(linked[0])
 
         portfolio_account_id = f"snaptrade:{account_id}"
@@ -1221,7 +1281,7 @@ class SnapTradeService:
                 """
                 DELETE FROM portfolio_positions
                 WHERE account_id = %s
-                  AND id LIKE 'snaptrade:%'
+                  AND (id LIKE 'snaptrade:%%' OR strategy_id IS NULL)
                   AND id <> ALL(%s)
                 """,
                 [account.portfolio_account_id, desired_ids],
@@ -1230,7 +1290,8 @@ class SnapTradeService:
             conn.execute(
                 """
                 DELETE FROM portfolio_positions
-                WHERE account_id = %s AND id LIKE 'snaptrade:%'
+                WHERE account_id = %s
+                  AND (id LIKE 'snaptrade:%%' OR strategy_id IS NULL)
                 """,
                 [account.portfolio_account_id],
             )
@@ -1267,6 +1328,48 @@ class SnapTradeService:
                 ],
             )
 
+    def _update_portfolio_account_cash_balance(
+        self,
+        *,
+        conn: Any,
+        account: SnapTradeNormalizedAccount,
+        positions: list[SnapTradeNormalizedPosition],
+        synced_at: datetime,
+    ) -> None:
+        cash_balance = self._source_cash_balance(account, positions)
+        if cash_balance is None:
+            return
+        conn.execute(
+            """
+            UPDATE portfolio_accounts
+            SET cash_balance = %s,
+                updated_at = %s
+            WHERE id = %s
+            """,
+            [float(cash_balance), synced_at, account.portfolio_account_id],
+        )
+
+    @staticmethod
+    def _source_cash_balance(
+        account: SnapTradeNormalizedAccount,
+        positions: list[SnapTradeNormalizedPosition],
+    ) -> Decimal | None:
+        if account.cash_balance is not None:
+            return account.cash_balance
+        if account.balance is None:
+            return None
+        positions_value = sum(
+            (
+                position.market_value
+                if position.market_value is not None
+                else position.price * position.units
+                if position.price is not None
+                else Decimal("0")
+            )
+            for position in positions
+        )
+        return account.balance - positions_value
+
     @staticmethod
     def _position_cost_basis_per_share(position: SnapTradeNormalizedPosition) -> Decimal:
         if position.average_purchase_price is not None:
@@ -1300,7 +1403,8 @@ class SnapTradeService:
     def _cash_balance_from_account(account: dict[str, object]) -> Decimal | None:
         balance = _dict(account.get("balance"))
         for key in ("cash", "cash_balance", "available_cash"):
-            if parsed := _decimal(balance.get(key)):
+            parsed = _decimal(balance.get(key))
+            if parsed is not None:
                 return parsed
         return None
 

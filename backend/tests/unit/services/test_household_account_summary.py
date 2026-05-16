@@ -1746,6 +1746,133 @@ def test_build_account_summaries_uses_portfolio_label_for_linked_evidence_accoun
     assert summaries[0].match_status == "linked"
 
 
+def test_build_account_summaries_prefers_source_portfolio_label_over_tracked_alias() -> None:
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="acct-tod",
+                document_id="doc-tod",
+                household_account_id="household-tod",
+                source_type="brokerage",
+                asset_group="taxable",
+                account_type="brokerage",
+                institution_name="Fidelity",
+                account_name="Brokerage",
+                account_mask="Z35217544",
+                owner_name=None,
+                currency="USD",
+                balance=549332.66,
+                holdings_value=539496.72,
+                cash_balance=9835.94,
+                as_of_date=_iso(1),
+                confidence=0.95,
+                metadata={},
+            )
+        ],
+        documents=[],
+        portfolio_accounts=[
+            Account(
+                id="portfolio-tod",
+                name="Individual - TOD",
+                account_type="Taxable",
+                household_account_id="household-tod",
+                cash_balance=9835.94,
+            )
+        ],
+        tracked_accounts=[
+            HouseholdTrackedAccount(
+                id="tracked-tod",
+                household_account_id="household-tod",
+                label="Brokerage",
+                asset_group="taxable",
+                account_type="brokerage",
+                source_type="brokerage",
+                institution_name="Fidelity",
+                owner_name=None,
+                account_mask="Z35217544",
+                notes=None,
+                created_at=_iso(30),
+                updated_at=_iso(30),
+            )
+        ],
+        holdings_by_account={"portfolio-tod": 539496.72},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    assert len(summaries) == 1
+    assert summaries[0].label == "Individual - TOD"
+    assert summaries[0].tracked_account_id == "tracked-tod"
+
+
+def test_build_account_summaries_uses_source_balance_for_source_owned_cash_account() -> None:
+    portfolio_account = Account(
+        id="portfolio-cma",
+        name="Cash Management (Joint WROS)",
+        account_type="Taxable",
+        household_account_id="household-cma",
+        cash_balance=41840.64,
+        updated_at=datetime.now(UTC),
+    )
+    valuation = AccountValuation(
+        account_id="portfolio-cma",
+        priced_positions_value=0.0,
+        effective_cash_balance=41840.64,
+        total_value=41840.64,
+        priced_position_count=0,
+        quote_updated_at=None,
+        quote_freshness_status="not_applicable",
+        quote_freshness_label="No live quotes",
+        quote_source=None,
+    )
+
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="acct-cma",
+                document_id="doc-cma",
+                household_account_id="household-cma",
+                source_type="brokerage",
+                asset_group="taxable",
+                account_type="brokerage",
+                institution_name="Fidelity",
+                account_name="Cash Management Account (CMA)",
+                account_mask="Z38367298",
+                owner_name=None,
+                currency="USD",
+                balance=39084.27,
+                holdings_value=0.0,
+                cash_balance=39084.27,
+                as_of_date=_iso(8),
+                confidence=0.95,
+                metadata={},
+            )
+        ],
+        documents=[],
+        portfolio_accounts=[portfolio_account],
+        tracked_accounts=[],
+        account_valuations={"portfolio-cma": valuation},
+        source_owned_household_account_ids={"household-cma"},
+        source_owned_account_values={
+            "household-cma": {
+                "current_value": 41840.64,
+                "cash_balance": None,
+                "last_synced_at": datetime.now(UTC),
+                "account_mask": "7298",
+            }
+        },
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    assert len(summaries) == 1
+    assert summaries[0].label == "Cash Management (Joint WROS)"
+    assert summaries[0].current_value == 41840.64
+    assert summaries[0].account_mask == "7298"
+    assert summaries[0].cash_balance == 41840.64
+    assert summaries[0].valuation_source == "source_balance"
+    assert summaries[0].balance_freshness_status == "fresh"
+
+
 def test_build_account_summaries_prefers_portfolio_household_account_link_over_name_match() -> None:
     documents = [
         HouseholdDocument(

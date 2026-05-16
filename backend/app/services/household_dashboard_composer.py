@@ -80,6 +80,8 @@ class HouseholdDashboardComposer:
             portfolio_accounts=d["accounts"],
             tracked_accounts=d["tracked_accounts"],
             account_valuations=d["account_valuations"],
+            source_owned_household_account_ids=d["source_owned_household_account_ids"],
+            source_owned_account_values=d["source_owned_account_values"],
             holdings_by_account=d["holdings_by_account"],
             statement_freshness=freshness,
             latest_transaction_dates_by_document=latest_transaction_dates_by_document,
