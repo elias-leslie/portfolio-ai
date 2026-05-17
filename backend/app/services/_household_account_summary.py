@@ -1199,6 +1199,13 @@ def build_account_summaries(
             if has_live_pricing
             else "evidence"
         )
+        if (
+            portfolio_account is None
+            and tracked_account is None
+            and not source_owned
+            and effective_current_value is None
+        ):
+            continue
         summary = HouseholdAccountSummary(
             id=group_key,
             household_account_id=household_account_id,

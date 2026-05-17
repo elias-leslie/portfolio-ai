@@ -244,12 +244,26 @@ def _owner_matches(left: str | None, right: str | None) -> bool:
 
 
 def _identity_key_has_mask_evidence(identity_key: str) -> bool:
+    if identity_key.startswith("match::"):
+        return _identity_key_has_mask_evidence(identity_key.removeprefix("match::"))
     if identity_key.startswith(_MASK_IDENTITY_PREFIXES):
         return True
     if not identity_key.startswith("evidence|"):
         return False
     parts = identity_key.split("|")
     return len(parts) > 1 and any(char.isdigit() for char in parts[1])
+
+
+def _mask_identity_candidates(candidate_keys: list[str]) -> list[str]:
+    return [key for key in candidate_keys if _identity_key_has_mask_evidence(key)]
+
+
+def _trusted_evidence_account_mask(evidence: HouseholdEvidenceAccount) -> str | None:
+    if isinstance(evidence.metadata, dict):
+        extracted_mask = clean_text(evidence.metadata.get("extracted_account_mask"))
+        if extracted_mask and not looks_generic_account_mask(extracted_mask):
+            return extracted_mask
+    return evidence.account_mask
 
 
 class HouseholdAccountRegistryService:
@@ -307,29 +321,17 @@ class HouseholdAccountRegistryService:
         if has_mismatch:
             return False
 
-        if (
-            evidence_account_type == "credit_card"
-            and canonical_account_type == "credit_card"
-            and evidence_institution
-            and canonical_institution
-            and evidence_institution == canonical_institution
-        ):
-            evidence_name_tokens = _name_tokens(evidence.account_name)
-            canonical_name_tokens = _name_tokens(canonical_account.canonical_label)
-            if (
-                evidence_name_tokens
-                and canonical_name_tokens
-                and evidence_name_tokens & canonical_name_tokens
-            ):
-                return True
-
         evidence_mask = derive_account_mask(
-            evidence.account_mask,
+            _trusted_evidence_account_mask(evidence),
             evidence.account_name,
             self._evidence_fallback_label(evidence),
         )
+        if not evidence_mask:
+            return False
+        if allow_mask_conflict:
+            return True
         canonical_mask = clean_text(canonical_account.account_mask)
-        return allow_mask_conflict or not account_masks_conflict(evidence_mask, canonical_mask)
+        return not account_masks_conflict(evidence_mask, canonical_mask)
 
     def sync_registry(self, service: Any, *, limit: int = 500) -> dict[str, int]:
         with service.storage.connection() as conn:
@@ -575,18 +577,20 @@ class HouseholdAccountRegistryService:
         identity_map: dict[str, str],
     ) -> tuple[str, int, int]:
         stale_candidate_keys: set[str] = set()
-        candidates = account_identity_candidates(
-            source_type=evidence.source_type,
-            asset_group=evidence.asset_group,
-            account_type=evidence.account_type,
-            institution_name=evidence.institution_name,
-            account_name=evidence.account_name,
-            owner_name=evidence.owner_name,
-            account_mask=evidence.account_mask,
-            fallback_label=self._evidence_fallback_label(evidence),
-            explicit_match_key=str(evidence.metadata.get("match_key"))
-            if isinstance(evidence.metadata, dict) and evidence.metadata.get("match_key")
-            else None,
+        candidates = _mask_identity_candidates(
+            account_identity_candidates(
+                source_type=evidence.source_type,
+                asset_group=evidence.asset_group,
+                account_type=evidence.account_type,
+                institution_name=evidence.institution_name,
+                account_name=evidence.account_name,
+                owner_name=evidence.owner_name,
+                account_mask=_trusted_evidence_account_mask(evidence),
+                fallback_label=self._evidence_fallback_label(evidence),
+                explicit_match_key=str(evidence.metadata.get("match_key"))
+                if isinstance(evidence.metadata, dict) and evidence.metadata.get("match_key")
+                else None,
+            )
         )
         matched_ids: set[str] = set()
         preserved_account_id = (
@@ -647,7 +651,7 @@ class HouseholdAccountRegistryService:
                 account_type=evidence.account_type,
             )
             derived_mask = derive_account_mask(
-                evidence.account_mask,
+                _trusted_evidence_account_mask(evidence),
                 evidence.account_name,
                 self._evidence_fallback_label(evidence),
             )
@@ -754,16 +758,18 @@ class HouseholdAccountRegistryService:
             else None
         )
         tracked_mask = derive_account_mask(tracked.account_mask, tracked.label)
-        base_candidates = account_identity_candidates(
-            source_type=tracked.source_type,
-            asset_group=tracked.asset_group,
-            account_type=tracked.account_type,
-            institution_name=tracked.institution_name,
-            account_name=tracked.label,
-            owner_name=tracked.owner_name,
-            account_mask=tracked.account_mask,
-            fallback_label=tracked.label,
-            explicit_match_key=None,
+        base_candidates = _mask_identity_candidates(
+            account_identity_candidates(
+                source_type=tracked.source_type,
+                asset_group=tracked.asset_group,
+                account_type=tracked.account_type,
+                institution_name=tracked.institution_name,
+                account_name=tracked.label,
+                owner_name=tracked.owner_name,
+                account_mask=tracked.account_mask,
+                fallback_label=tracked.label,
+                explicit_match_key=None,
+            )
         )
         base_matches = {
             identity_map[key]
@@ -775,8 +781,12 @@ class HouseholdAccountRegistryService:
             )
         }
         matched_ids: set[str] = set()
-        if linked_account_id is not None and not account_masks_conflict(
-            tracked_mask, canonical_accounts[linked_account_id].account_mask
+        if (
+            linked_account_id is not None
+            and tracked_mask
+            and not account_masks_conflict(
+                tracked_mask, canonical_accounts[linked_account_id].account_mask
+            )
         ):
             matched_ids.add(linked_account_id)
         if base_matches:
@@ -794,16 +804,18 @@ class HouseholdAccountRegistryService:
             if fuzzy is not None:
                 matched_ids.add(fuzzy)
         if not base_matches and tracked.match_key and linked_account_id is not None:
-            explicit_candidates = account_identity_candidates(
-                source_type=tracked.source_type,
-                asset_group=tracked.asset_group,
-                account_type=tracked.account_type,
-                institution_name=tracked.institution_name,
-                account_name=tracked.label,
-                owner_name=tracked.owner_name,
-                account_mask=tracked.account_mask,
-                fallback_label=tracked.label,
-                explicit_match_key=tracked.match_key,
+            explicit_candidates = _mask_identity_candidates(
+                account_identity_candidates(
+                    source_type=tracked.source_type,
+                    asset_group=tracked.asset_group,
+                    account_type=tracked.account_type,
+                    institution_name=tracked.institution_name,
+                    account_name=tracked.label,
+                    owner_name=tracked.owner_name,
+                    account_mask=tracked.account_mask,
+                    fallback_label=tracked.label,
+                    explicit_match_key=tracked.match_key,
+                )
             )
             matched_ids = {
                 identity_map[key]
@@ -814,20 +826,26 @@ class HouseholdAccountRegistryService:
                     tracked_mask, canonical_accounts[identity_map[key]].account_mask
                 )
             }
-            if linked_account_id is not None and not account_masks_conflict(
-                tracked_mask, canonical_accounts[linked_account_id].account_mask
+            if (
+                linked_account_id is not None
+                and tracked_mask
+                and not account_masks_conflict(
+                    tracked_mask, canonical_accounts[linked_account_id].account_mask
+                )
             ):
                 matched_ids.add(linked_account_id)
-        candidates = account_identity_candidates(
-            source_type=tracked.source_type,
-            asset_group=tracked.asset_group,
-            account_type=tracked.account_type,
-            institution_name=tracked.institution_name,
-            account_name=tracked.label,
-            owner_name=tracked.owner_name,
-            account_mask=tracked.account_mask,
-            fallback_label=tracked.label,
-            explicit_match_key=tracked.match_key,
+        candidates = _mask_identity_candidates(
+            account_identity_candidates(
+                source_type=tracked.source_type,
+                asset_group=tracked.asset_group,
+                account_type=tracked.account_type,
+                institution_name=tracked.institution_name,
+                account_name=tracked.label,
+                owner_name=tracked.owner_name,
+                account_mask=tracked.account_mask,
+                fallback_label=tracked.label,
+                explicit_match_key=tracked.match_key,
+            )
         )
         matched = [account_id for account_id in matched_ids if account_id in canonical_accounts]
         if matched:
@@ -908,7 +926,7 @@ class HouseholdAccountRegistryService:
     ) -> None:
         current = canonical_accounts[account_id]
         next_mask = derive_account_mask(
-            evidence.account_mask,
+            _trusted_evidence_account_mask(evidence),
             evidence.account_name,
             self._evidence_fallback_label(evidence),
         )
@@ -1139,6 +1157,7 @@ class HouseholdAccountRegistryService:
         force_reassign_keys: set[str] | None = None,
     ) -> None:
         force_reassign_keys = force_reassign_keys or set()
+        candidate_keys = _mask_identity_candidates(candidate_keys)
         current = canonical_accounts[account_id]
         if current.primary_identity_key is None and candidate_keys:
             canonical_accounts[account_id] = HouseholdCanonicalAccount(
@@ -1585,67 +1604,7 @@ class HouseholdAccountRegistryService:
         *,
         metrics: dict[str, dict[str, int]],
     ) -> bool:
-        if account_masks_match(left.account_mask, right.account_mask):
-            return True
-        if left.asset_group != right.asset_group or account_masks_conflict(
-            left.account_mask, right.account_mask
-        ):
-            return False
-
-        left_metrics = metrics.get(left.id, {})
-        right_metrics = metrics.get(right.id, {})
-        left_evidence = left_metrics.get("evidence", 0)
-        right_evidence = right_metrics.get("evidence", 0)
-        left_tokens = _name_tokens(left.canonical_label, left.institution_name)
-        right_tokens = _name_tokens(right.canonical_label, right.institution_name)
-        same_institution = (
-            bool(left.institution_name)
-            and bool(right.institution_name)
-            and clean_text(left.institution_name) == clean_text(right.institution_name)
-        )
-        owner_compatible = (
-            _owner_matches(left.owner_name, right.owner_name)
-            or not left.owner_name
-            or not right.owner_name
-        )
-        tokens_compatible = (
-            bool(left_tokens)
-            and bool(right_tokens)
-            and (left_tokens <= right_tokens or right_tokens <= left_tokens)
-        )
-
-        if left_evidence > 0 and right_evidence > 0:
-            institution_compatible = (
-                same_institution or not left.institution_name or not right.institution_name
-            )
-            if not (institution_compatible and owner_compatible and tokens_compatible):
-                return False
-            left_strength = _canonical_identity_strength(left)
-            right_strength = _canonical_identity_strength(right)
-            weaker, stronger = (left, right) if left_strength <= right_strength else (right, left)
-            weaker_strength = min(left_strength, right_strength)
-            stronger_strength = max(left_strength, right_strength)
-            weaker_missing_core = not clean_text(weaker.institution_name) or not clean_text(
-                weaker.owner_name
-            )
-            stronger_has_core = bool(
-                clean_text(stronger.institution_name) and clean_text(stronger.owner_name)
-            )
-            return (
-                weaker_missing_core
-                and stronger_has_core
-                and stronger_strength >= weaker_strength + 20
-            )
-
-        evidence_backed = left_evidence > 0 or right_evidence > 0
-        if not evidence_backed:
-            return False
-        return (
-            same_institution
-            and owner_compatible
-            and tokens_compatible
-            and (left_evidence == 0 or right_evidence == 0)
-        )
+        return account_masks_match(left.account_mask, right.account_mask)
 
     def _sync_tracked_identity_snapshot(
         self,
@@ -1734,7 +1693,11 @@ class HouseholdAccountRegistryService:
                     fallback_label=transaction_label,
                     explicit_match_key=None,
                 )
-                matched = {identity_map[key] for key in candidates if key in identity_map}
+                matched = {
+                    identity_map[key]
+                    for key in _mask_identity_candidates(candidates)
+                    if key in identity_map
+                }
                 if len(matched) == 1:
                     next_account_id = next(iter(matched))
             if not next_account_id:
@@ -1862,6 +1825,8 @@ class HouseholdAccountRegistryService:
         normalized_source = clean_text(source_type)
         normalized_institution = clean_text(institution_name)
         normalized_mask = normalize_account_mask(account_mask)
+        if not normalized_mask:
+            return None
         input_tokens = _name_tokens(*labels, institution_name)
 
         scored: list[tuple[int, str]] = []
