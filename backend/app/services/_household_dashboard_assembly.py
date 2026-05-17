@@ -595,13 +595,6 @@ def build_overview(
     if account_control is not None and account_control.blocking_issue_count > 0:
         net_worth_status = "blocked"
         net_worth_detail = account_control.summary
-    elif (
-        account_control is not None
-        and account_control.issue_count > 0
-        and net_worth_status == "current"
-    ):
-        net_worth_status = "review"
-        net_worth_detail = f"{net_worth_detail} {account_control.summary}"
     monthly_spend_status, monthly_spend_detail = _monthly_spend_trust(
         account_summaries,
         statement_freshness,

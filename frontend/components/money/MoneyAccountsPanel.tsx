@@ -2,7 +2,6 @@
 
 import { PlusCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { InfoBadge } from '@/components/shared/InfoBadge'
 import { Accordion } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
 import type {
@@ -20,43 +19,6 @@ import { TrackedAccountDialog } from './TrackedAccountDialog'
 
 type MoneyAccountsFocus = 'coverage' | 'discovered' | null
 type MoneyAccountsIntent = 'evidence' | 'review' | null
-
-function accountControlBadgeVariant(
-  status: string | undefined,
-  blockingIssueCount: number | undefined,
-) {
-  if (status === 'blocked' || (blockingIssueCount ?? 0) > 0) {
-    return 'error' as const
-  }
-  if (status === 'review') {
-    return 'warning' as const
-  }
-  return 'success' as const
-}
-
-function accountControlLabel(
-  status: string | undefined,
-  blockingIssueCount: number | undefined,
-) {
-  if (status === 'blocked' || (blockingIssueCount ?? 0) > 0) {
-    return 'Blocked'
-  }
-  if (status === 'review') {
-    return 'Review'
-  }
-  return 'Clear'
-}
-
-function issueToneClass(severity: string) {
-  switch (severity) {
-    case 'high':
-      return 'border-loss/25 bg-loss/8 text-loss'
-    case 'medium':
-      return 'border-warning/25 bg-warning/8 text-warning'
-    default:
-      return 'border-border/40 bg-surface/70 text-text-muted'
-  }
-}
 
 export function MoneyAccountsPanel({
   accounts,
@@ -97,10 +59,9 @@ export function MoneyAccountsPanel({
 
   const deleteAccount = useDeleteHouseholdTrackedAccount()
   const documentsById = Object.fromEntries(documents.map((d) => [d.id, d]))
-  const accountControlNeedsReview = Boolean(
-    accountControl && accountControl.status !== 'clear',
-  )
-  const accountControlIssues = accountControl?.issues.slice(0, 3) ?? []
+  const blockingAccountControlIssues =
+    accountControl?.issues.filter((issue) => issue.affectsTotals).slice(0, 3) ??
+    []
 
   useEffect(() => {
     if (focusedAccountId) setOpenAccountId(focusedAccountId)
@@ -151,59 +112,34 @@ export function MoneyAccountsPanel({
         onSeed={openSeedDialog}
       />
 
-      {accountControlNeedsReview ? (
+      {blockingAccountControlIssues.length > 0 ? (
         <div
           id="account-coverage"
-          className="rounded-3xl border border-warning/25 bg-warning/5 p-5"
+          className="rounded-3xl border border-loss/25 bg-loss/5 p-5"
         >
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               <p className="text-sm font-semibold text-text">
-                Account Controls
+                Totals Need Reconciliation
               </p>
               <p className="mt-1 text-sm leading-relaxed text-text-muted">
                 {accountControl?.summary}
               </p>
             </div>
-            <InfoBadge
-              label={accountControlLabel(
-                accountControl?.status,
-                accountControl?.blockingIssueCount,
-              )}
-              detail={`${accountControl?.issueCount ?? 0} issue${accountControl?.issueCount === 1 ? '' : 's'}`}
-              variant={accountControlBadgeVariant(
-                accountControl?.status,
-                accountControl?.blockingIssueCount,
-              )}
-              interactive={false}
-            />
+            <span className="w-fit rounded-full border border-loss/25 bg-loss/8 px-2.5 py-1 text-xs font-medium text-loss">
+              Blocked
+            </span>
           </div>
-          {accountControlIssues.length > 0 ? (
-            <div className="mt-4 divide-y divide-warning/20 rounded-2xl border border-warning/25 bg-background/35">
-              {accountControlIssues.map((issue) => (
-                <div
-                  key={issue.id}
-                  className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-text">
-                      {issue.title}
-                    </p>
-                    <p className="mt-1 text-sm leading-relaxed text-text-muted">
-                      {issue.detail}
-                    </p>
-                  </div>
-                  <span
-                    className={`w-fit rounded-full border px-2.5 py-1 text-xs capitalize ${issueToneClass(
-                      issue.severity,
-                    )}`}
-                  >
-                    {issue.severity}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : null}
+          <div className="mt-4 divide-y divide-loss/20 rounded-2xl border border-loss/25 bg-background/35">
+            {blockingAccountControlIssues.map((issue) => (
+              <div key={issue.id} className="p-4">
+                <p className="text-sm font-medium text-text">{issue.title}</p>
+                <p className="mt-1 text-sm leading-relaxed text-text-muted">
+                  {issue.detail}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
 

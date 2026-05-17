@@ -107,25 +107,26 @@ export function PrimaryTilesGrid({
       : null
   const netWorth = netWorthTrendLatest ?? household?.overview.netWorth ?? null
   const accountControl = household?.accountControl
-  const accountControlNeedsReview = Boolean(
-    accountControl && accountControl.status !== 'clear',
+  const accountControlBlocksTotals = Boolean(
+    accountControl && accountControl.blockingIssueCount > 0,
   )
   const accountControlStatus =
     accountControl?.blockingIssueCount && accountControl.blockingIssueCount > 0
       ? 'blocked'
-      : accountControlNeedsReview
-        ? 'review'
-        : null
+      : null
   const netWorthStatus =
     accountControlStatus ??
     netWorthTrend?.status ??
     household?.overview.netWorthStatus ??
     null
-  const netWorthDetail = accountControlNeedsReview
+  const netWorthDetail = accountControlBlocksTotals
     ? accountControl?.summary
     : (netWorthTrend?.detail ?? household?.overview.netWorthDetail)
   const accountControlIssueLines =
-    accountControl?.issues.slice(0, 2).map((issue) => issue.title) ?? []
+    accountControl?.issues
+      .filter((issue) => issue.affectsTotals)
+      .slice(0, 2)
+      .map((issue) => issue.title) ?? []
 
   // Only the household.overview value is invested-only. analytics.effectiveTotalValue
   // and analytics.portfolioValue.totalValue both include cash, so falling back to them
@@ -180,8 +181,8 @@ export function PrimaryTilesGrid({
     {
       label: 'Net Worth',
       value: renderMoneyValue(netWorth, householdLoading && !household),
-      detail: accountControlNeedsReview
-        ? 'Account source controls need review'
+      detail: accountControlBlocksTotals
+        ? 'Totals need reconciliation'
         : 'Known holdings and balances minus debt',
       labelDetail:
         'Uses actual tracked portfolio shares with latest cached prices where symbols are linked. Cash, debt, and non-symbol accounts use latest available balance evidence.',
@@ -192,7 +193,7 @@ export function PrimaryTilesGrid({
           {accountControlIssueLines.map((line) => (
             <p key={line}>{line}</p>
           ))}
-          {!accountControlNeedsReview && netWorthTrend?.methodology ? (
+          {!accountControlBlocksTotals && netWorthTrend?.methodology ? (
             <p>{netWorthTrend.methodology}</p>
           ) : null}
         </div>
@@ -214,25 +215,25 @@ export function PrimaryTilesGrid({
     {
       label: 'Cash Reserve',
       value: renderMoneyValue(cashReserve, householdLoading && !household),
-      detail: accountControlNeedsReview
-        ? 'Account source controls need review'
+      detail: accountControlBlocksTotals
+        ? 'Totals need reconciliation'
         : 'Cash available before selling assets',
       labelDetail:
         'Cash you can use now without selling long-term investments.',
       badge:
-        accountControlNeedsReview && accountControl
+        accountControlBlocksTotals && accountControl
           ? netWorthBadgeLabel(accountControlStatus)
           : cashReserveMonths != null
             ? `${cashReserveMonths.toFixed(1)} mo`
             : null,
       badgeDetail:
-        accountControlNeedsReview && accountControl
+        accountControlBlocksTotals && accountControl
           ? accountControl.summary
           : cashReserveMonths != null
             ? `Cash reserve covers about ${cashReserveMonths.toFixed(1)} months of essential spending.`
             : 'Months of cash runway will appear once essential spending coverage is available.',
       badgeVariant:
-        accountControlNeedsReview && accountControl
+        accountControlBlocksTotals && accountControl
           ? netWorthBadgeVariant(accountControlStatus)
           : 'outline',
     },

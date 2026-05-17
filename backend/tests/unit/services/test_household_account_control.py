@@ -13,6 +13,7 @@ from app.models.household_finance import (
 from app.services.household_account_control import (
     SourceAccountRow,
     _collapse_source_rows,
+    account_control_inbox_items,
     apply_account_control_to_summaries,
 )
 
@@ -94,8 +95,8 @@ def test_unlinked_source_account_with_value_blocks_trusted_totals() -> None:
     assert issues[0].affects_totals is True
 
 
-def test_account_control_issues_are_added_to_account_gap_flags() -> None:
-    account = HouseholdAccountSummary(
+def _account_summary() -> HouseholdAccountSummary:
+    return HouseholdAccountSummary(
         id="account-1",
         household_account_id="household-cash",
         label="Cash Management",
@@ -113,6 +114,10 @@ def test_account_control_issues_are_added_to_account_gap_flags() -> None:
         freshness_label="Refresh soon",
         match_status="linked",
     )
+
+
+def test_review_only_account_control_issues_do_not_add_ui_gap_flags() -> None:
+    account = _account_summary()
     control = HouseholdAccountControl(
         status="review",
         summary="1 account control review item found.",
@@ -137,5 +142,37 @@ def test_account_control_issues_are_added_to_account_gap_flags() -> None:
 
     updated = apply_account_control_to_summaries([account], control)
 
-    assert updated[0].gap_flags[-1].code == "duplicate_source_alias"
-    assert updated[0].gap_flags[-1].severity == "medium"
+    assert updated[0].gap_flags == []
+    assert account_control_inbox_items(control) == []
+
+
+def test_blocking_account_control_issues_are_added_to_gap_flags_and_inbox() -> None:
+    account = _account_summary()
+    control = HouseholdAccountControl(
+        status="blocked",
+        summary="1 account control issue blocks trusted totals.",
+        issue_count=1,
+        blocking_issue_count=1,
+        checked_at="2026-05-16T00:00:00+00:00",
+        issues=[
+            HouseholdAccountControlIssue(
+                id="source_value_conflict:household-cash",
+                code="source_value_conflict",
+                severity="high",
+                title="Source balances conflict",
+                detail="Cash Management has source rows with different balances.",
+                household_account_id="household-cash",
+                account_label="Cash Management",
+                source="source_accounts",
+                source_account_ids=["snaptrade-account-1", "snaptrade-account-2"],
+                affects_totals=True,
+            )
+        ],
+    )
+
+    updated = apply_account_control_to_summaries([account], control)
+    inbox = account_control_inbox_items(control)
+
+    assert updated[0].gap_flags[-1].code == "source_value_conflict"
+    assert updated[0].gap_flags[-1].severity == "high"
+    assert inbox[0].title == "Source balances conflict"

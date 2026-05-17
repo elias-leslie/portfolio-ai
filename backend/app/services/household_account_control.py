@@ -408,7 +408,7 @@ def apply_account_control_to_summaries(
         return account_summaries
     issues_by_account: dict[str, list[HouseholdAccountControlIssue]] = defaultdict(list)
     for issue in account_control.issues:
-        if issue.household_account_id:
+        if issue.household_account_id and issue.affects_totals:
             issues_by_account[issue.household_account_id].append(issue)
     if not issues_by_account:
         return account_summaries
@@ -439,11 +439,12 @@ def apply_account_control_to_summaries(
 def account_control_inbox_items(
     account_control: HouseholdAccountControl,
 ) -> list[HouseholdInboxItem]:
-    if not account_control.issues:
+    blocking_issues = [issue for issue in account_control.issues if issue.affects_totals]
+    if not blocking_issues:
         return []
     priority_order = {"high": 0, "medium": 1, "low": 2}
     sorted_issues = sorted(
-        account_control.issues,
+        blocking_issues,
         key=lambda issue: priority_order.get(issue.severity, 3),
     )
     items: list[HouseholdInboxItem] = []

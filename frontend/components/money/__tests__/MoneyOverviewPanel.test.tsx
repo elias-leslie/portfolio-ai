@@ -341,6 +341,44 @@ describe('MoneyOverviewPanel', () => {
     ).toBeInTheDocument()
   })
 
+  it('keeps review-only account controls out of the main dashboard surface', () => {
+    render(
+      <MoneyOverviewPanel
+        dashboard={{
+          ...dashboard,
+          accountControl: {
+            status: 'review',
+            summary:
+              '1 account control review item found; totals are not double-counting it.',
+            issueCount: 1,
+            blockingIssueCount: 0,
+            checkedAt: '2026-04-11T00:00:00Z',
+            issues: [
+              {
+                id: 'duplicate_source_alias:cash',
+                code: 'duplicate_source_alias',
+                severity: 'medium',
+                title: 'Duplicate source aliases collapsed',
+                detail:
+                  'Cash Management is represented by two matching source rows.',
+                householdAccountId: 'cash',
+                accountLabel: 'Cash Management',
+                source: 'snaptrade',
+                sourceAccountIds: ['source-1', 'source-2'],
+                affectsTotals: false,
+              },
+            ],
+          },
+        }}
+      />,
+    )
+
+    expect(screen.queryByText('Account Controls')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Duplicate source aliases collapsed'),
+    ).not.toBeInTheDocument()
+  })
+
   it('marks spend decisions as estimated when coverage is incomplete', () => {
     render(
       <MoneyOverviewPanel

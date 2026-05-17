@@ -253,6 +253,45 @@ describe('MoneyAccountsPanel', () => {
     expect(screen.getByText('Supporting documents')).toBeInTheDocument()
   })
 
+  it('does not show review-only account controls as account-page alerts', () => {
+    render(
+      <MoneyAccountsPanel
+        accounts={accounts}
+        documents={documents}
+        accountControl={{
+          status: 'review',
+          summary:
+            '1 account control review item found; totals are not double-counting it.',
+          issueCount: 1,
+          blockingIssueCount: 0,
+          checkedAt: '2026-04-11T00:00:00Z',
+          issues: [
+            {
+              id: 'duplicate_source_alias:cash',
+              code: 'duplicate_source_alias',
+              severity: 'medium',
+              title: 'Duplicate source aliases collapsed',
+              detail:
+                'Cash Management is represented by two matching source rows.',
+              householdAccountId: 'cash',
+              accountLabel: 'Cash Management',
+              source: 'snaptrade',
+              sourceAccountIds: ['source-1', 'source-2'],
+              affectsTotals: false,
+            },
+          ],
+        }}
+      />,
+    )
+
+    expect(
+      screen.queryByText('Totals Need Reconciliation'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Duplicate source aliases collapsed'),
+    ).not.toBeInTheDocument()
+  })
+
   it('creates an account from the add account dialog', async () => {
     const user = userEvent.setup()
     render(<MoneyAccountsPanel accounts={accounts} documents={documents} />)

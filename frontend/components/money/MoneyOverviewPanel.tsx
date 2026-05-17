@@ -285,40 +285,6 @@ function trustBadgeVariant(status: string) {
   }
 }
 
-function accountControlBadgeVariant(
-  status: string,
-  blockingIssueCount: number,
-) {
-  if (status === 'blocked' || blockingIssueCount > 0) {
-    return 'error' as const
-  }
-  if (status === 'review') {
-    return 'warning' as const
-  }
-  return 'success' as const
-}
-
-function accountControlLabel(status: string, blockingIssueCount: number) {
-  if (status === 'blocked' || blockingIssueCount > 0) {
-    return 'Blocked'
-  }
-  if (status === 'review') {
-    return 'Review'
-  }
-  return 'Clear'
-}
-
-function issueBadgeVariant(severity: string) {
-  switch (severity) {
-    case 'high':
-      return 'error' as const
-    case 'medium':
-      return 'warning' as const
-    default:
-      return 'secondary' as const
-  }
-}
-
 export function MoneyOverviewPanel({
   dashboard,
   sections,
@@ -429,8 +395,6 @@ export function MoneyOverviewPanel({
   const netWorthTrustStatus = normalizeTrustStatus(
     dashboard.overview.netWorthStatus,
   )
-  const accountControlNeedsReview = dashboard.accountControl.status !== 'clear'
-  const accountControlIssues = dashboard.accountControl.issues.slice(0, 3)
   const spendTrustDetail = dashboard.overview.monthlySpendDetail
   const spendTrustUnavailable = spendTrustStatus === 'unavailable'
   const spendTrustDegraded = spendTrustStatus !== 'current'
@@ -563,72 +527,6 @@ export function MoneyOverviewPanel({
 
   return (
     <div className="space-y-6">
-      {accountControlNeedsReview ? (
-        <SectionCard
-          variant="surface"
-          title="Account Controls"
-          description={dashboard.accountControl.summary}
-          actions={
-            <InfoBadge
-              label={accountControlLabel(
-                dashboard.accountControl.status,
-                dashboard.accountControl.blockingIssueCount,
-              )}
-              detail={
-                <>
-                  Checked{' '}
-                  <RelativeTime value={dashboard.accountControl.checkedAt} />
-                </>
-              }
-              variant={accountControlBadgeVariant(
-                dashboard.accountControl.status,
-                dashboard.accountControl.blockingIssueCount,
-              )}
-            />
-          }
-        >
-          {accountControlIssues.length > 0 ? (
-            <div className="divide-y divide-border/30 rounded-2xl border border-border/40 bg-surface-muted/15">
-              {accountControlIssues.map((issue) => (
-                <div
-                  key={issue.id}
-                  className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-text">
-                      {issue.title}
-                    </p>
-                    <p className="mt-1 text-sm leading-relaxed text-text-muted">
-                      {issue.detail}
-                    </p>
-                    {issue.accountLabel ? (
-                      <p className="mt-2 text-xs text-text-muted">
-                        {issue.accountLabel}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                    <Badge variant={issueBadgeVariant(issue.severity)}>
-                      {formatEnumLabel(issue.severity)}
-                    </Badge>
-                    {issue.sourceAccountIds.length > 0 ? (
-                      <Badge variant="outline">
-                        {issue.sourceAccountIds.length} source row
-                        {issue.sourceAccountIds.length === 1 ? '' : 's'}
-                      </Badge>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4 text-sm text-text-muted">
-              {dashboard.accountControl.summary}
-            </p>
-          )}
-        </SectionCard>
-      ) : null}
-
       {showDecision ? (
         <SectionCard
           variant="surface"
