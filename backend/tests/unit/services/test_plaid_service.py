@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.services import plaid_service
-from app.services.plaid_service import PlaidConfigurationError, PlaidService
+from app.services.plaid_service import PlaidConfigurationError, PlaidService, _account_kind
 
 
 def _service() -> PlaidService:
@@ -77,3 +77,87 @@ def test_configure_still_requires_credentials_for_first_setup(monkeypatch) -> No
         )
 
     assert str(exc_info.value) == "Plaid client_id and secret are required."
+
+
+def test_upsert_household_account_targets_partial_identity_key_index() -> None:
+    service = _service()
+    executed_queries: list[str] = []
+
+    class FakeResult:
+        def fetchall(self) -> list[list[str]]:
+            return []
+
+        def fetchone(self) -> list[str]:
+            return ["household-account-id"]
+
+    class FakeConnection:
+        def execute(self, query: str, params: list[object]) -> FakeResult:
+            executed_queries.append(" ".join(query.split()))
+            return FakeResult()
+
+    result = service._upsert_household_account(
+        conn=FakeConnection(),
+        account_id="plaid-account-id",
+        label="Chase Checking *1234",
+        asset_group="cash",
+        source_type="bank",
+        account_type="checking",
+        institution_name="Chase",
+        mask="1234",
+    )
+
+    assert result == "household-account-id"
+    assert any(
+        "ON CONFLICT (primary_identity_key) WHERE primary_identity_key IS NOT NULL DO UPDATE SET"
+        in query
+        for query in executed_queries
+    )
+
+
+def test_account_kind_uses_household_credit_card_taxonomy() -> None:
+    assert _account_kind("credit", "credit card") == (
+        "credit",
+        "credit_card",
+        "credit_card",
+    )
+
+
+def test_upsert_household_account_reuses_existing_mask_identity() -> None:
+    service = _service()
+    executed_params: list[list[object]] = []
+
+    class FakeResult:
+        def __init__(self, rows: list[list[str]] | None = None) -> None:
+            self.rows = rows or []
+
+        def fetchall(self) -> list[list[str]]:
+            return self.rows
+
+        def fetchone(self) -> list[str]:
+            return ["new-household-account-id"]
+
+    class FakeConnection:
+        def execute(self, query: str, params: list[object]) -> FakeResult:
+            executed_params.append(params)
+            if "FROM household_account_identities" in query:
+                identity_keys = params[0]
+                if "institution-mask::chase|9728" in identity_keys:
+                    return FakeResult(
+                        [["institution-mask::chase|9728", "existing-household-account-id"]]
+                    )
+                return FakeResult([])
+            return FakeResult()
+
+    result = service._upsert_household_account(
+        conn=FakeConnection(),
+        account_id="plaid-account-id",
+        label="Chase - Prime Visa *9728",
+        asset_group="credit",
+        source_type="credit_card",
+        account_type="credit_card",
+        institution_name="Chase",
+        mask="9728",
+    )
+
+    assert result == "existing-household-account-id"
+    assert any("plaid_account:plaid-account-id" in params for params in executed_params)

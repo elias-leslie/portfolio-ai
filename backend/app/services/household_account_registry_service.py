@@ -51,6 +51,7 @@ _PORTFOLIO_ACCOUNT_GROUPS = {
     "Roth": "retirement",
     "Taxable": "taxable",
 }
+_MASK_IDENTITY_PREFIXES = ("institution-mask::", "mask::", "mask-asset::")
 
 
 @dataclass(slots=True)
@@ -69,10 +70,7 @@ class HouseholdCanonicalAccount:
 
 def _load_json_object(value: object) -> dict[str, object]:
     if isinstance(value, dict):
-        return {
-            str(key): nested
-            for key, nested in value.items()
-        }
+        return {str(key): nested for key, nested in value.items()}
     if isinstance(value, str):
         try:
             parsed = json.loads(value)
@@ -150,18 +148,27 @@ def _evidence_recency_timestamp(row: dict[str, object]) -> datetime:
 
 
 def _evidence_mask_rank(row: dict[str, object]) -> tuple[int, datetime, str]:
-    mask = clean_text(row.get("account_mask"))
+    metadata = _load_json_object(row.get("metadata"))
+    extracted_mask = clean_text(metadata.get("extracted_account_mask"))
+    mask = extracted_mask or clean_text(row.get("account_mask"))
     if not mask or looks_generic_account_mask(mask):
         return (-1, _evidence_recency_timestamp(row), "")
-    metadata = _load_json_object(row.get("metadata"))
     filename = clean_text(metadata.get("document_filename"))
     filename_mask = derive_account_mask(None, clean_text(row.get("account_name")), filename)
     score = 0
+    if extracted_mask:
+        score += 100
     if filename_mask and clean_text(filename_mask) == mask:
         score += 90
+    if metadata.get("plaid_account_id"):
+        score += 80
     if metadata.get("extracted_account_mask"):
         score += 30
-    if row.get("balance") is not None or row.get("holdings_value") is not None or row.get("cash_balance") is not None:
+    if (
+        row.get("balance") is not None
+        or row.get("holdings_value") is not None
+        or row.get("cash_balance") is not None
+    ):
         score += 40
     filename_text = (filename or "").lower()
     if any(token in filename_text for token in ("activity", "history", "transactions", "export")):
@@ -206,7 +213,9 @@ def _canonical_identity_strength(account: HouseholdCanonicalAccount) -> int:
         score += 20
     if clean_text(account.primary_identity_key):
         score += 10
-    if clean_text(account.canonical_label) and not _looks_generic_account_name(account.canonical_label):
+    if clean_text(account.canonical_label) and not _looks_generic_account_name(
+        account.canonical_label
+    ):
         score += 10
     return score
 
@@ -234,6 +243,15 @@ def _owner_matches(left: str | None, right: str | None) -> bool:
     return left_tokens[0] == right_tokens[0] or left_text.lower() == right_text.lower()
 
 
+def _identity_key_has_mask_evidence(identity_key: str) -> bool:
+    if identity_key.startswith(_MASK_IDENTITY_PREFIXES):
+        return True
+    if not identity_key.startswith("evidence|"):
+        return False
+    parts = identity_key.split("|")
+    return len(parts) > 1 and any(char.isdigit() for char in parts[1])
+
+
 class HouseholdAccountRegistryService:
     """Own canonical household-account identities across evidence, settings, and ledger."""
 
@@ -241,7 +259,9 @@ class HouseholdAccountRegistryService:
     def _evidence_fallback_label(evidence: HouseholdEvidenceAccount) -> str | None:
         if not isinstance(evidence.metadata, dict):
             return None
-        raw = evidence.metadata.get("document_filename") or evidence.metadata.get("document_account_label")
+        raw = evidence.metadata.get("document_filename") or evidence.metadata.get(
+            "document_account_label"
+        )
         if raw is None:
             return None
         text = str(raw).strip()
@@ -252,6 +272,7 @@ class HouseholdAccountRegistryService:
         *,
         evidence: HouseholdEvidenceAccount,
         canonical_account: HouseholdCanonicalAccount,
+        allow_mask_conflict: bool = False,
     ) -> bool:
         evidence_source_type = clean_text(evidence.source_type)
         canonical_source_type = clean_text(canonical_account.source_type)
@@ -278,7 +299,9 @@ class HouseholdAccountRegistryService:
                 evidence_institution
                 and canonical_institution
                 and evidence_institution != canonical_institution,
-                evidence_owner and canonical_owner and not _owner_matches(evidence_owner, canonical_owner),
+                evidence_owner
+                and canonical_owner
+                and not _owner_matches(evidence_owner, canonical_owner),
             )
         )
         if has_mismatch:
@@ -293,7 +316,11 @@ class HouseholdAccountRegistryService:
         ):
             evidence_name_tokens = _name_tokens(evidence.account_name)
             canonical_name_tokens = _name_tokens(canonical_account.canonical_label)
-            if evidence_name_tokens and canonical_name_tokens and evidence_name_tokens & canonical_name_tokens:
+            if (
+                evidence_name_tokens
+                and canonical_name_tokens
+                and evidence_name_tokens & canonical_name_tokens
+            ):
                 return True
 
         evidence_mask = derive_account_mask(
@@ -302,7 +329,7 @@ class HouseholdAccountRegistryService:
             self._evidence_fallback_label(evidence),
         )
         canonical_mask = clean_text(canonical_account.account_mask)
-        return not account_masks_conflict(evidence_mask, canonical_mask)
+        return allow_mask_conflict or not account_masks_conflict(evidence_mask, canonical_mask)
 
     def sync_registry(self, service: Any, *, limit: int = 500) -> dict[str, int]:
         with service.storage.connection() as conn:
@@ -475,7 +502,9 @@ class HouseholdAccountRegistryService:
             """,
             [max(limit, 1)],
         ).fetchall()
-        return [row_to_evidence_account(row, to_float=to_float, iso_or_none=iso_or_none) for row in rows]
+        return [
+            row_to_evidence_account(row, to_float=to_float, iso_or_none=iso_or_none) for row in rows
+        ]
 
     def _fetch_tracked_accounts(self, conn: Any, *, limit: int) -> list[HouseholdTrackedAccount]:
         rows = conn.execute(
@@ -555,9 +584,27 @@ class HouseholdAccountRegistryService:
             owner_name=evidence.owner_name,
             account_mask=evidence.account_mask,
             fallback_label=self._evidence_fallback_label(evidence),
-            explicit_match_key=str(evidence.metadata.get("match_key")) if isinstance(evidence.metadata, dict) and evidence.metadata.get("match_key") else None,
+            explicit_match_key=str(evidence.metadata.get("match_key"))
+            if isinstance(evidence.metadata, dict) and evidence.metadata.get("match_key")
+            else None,
         )
         matched_ids: set[str] = set()
+        preserved_account_id = (
+            str(evidence.metadata.get("preserved_household_account_id"))
+            if isinstance(evidence.metadata, dict)
+            and evidence.metadata.get("preserved_household_account_id")
+            else None
+        )
+        if (
+            preserved_account_id
+            and preserved_account_id in canonical_accounts
+            and self._evidence_matches_canonical_account(
+                evidence=evidence,
+                canonical_account=canonical_accounts[preserved_account_id],
+                allow_mask_conflict=True,
+            )
+        ):
+            matched_ids.add(preserved_account_id)
         for key in candidates:
             mapped_account_id = identity_map.get(key)
             if mapped_account_id is None or mapped_account_id not in canonical_accounts:
@@ -565,6 +612,7 @@ class HouseholdAccountRegistryService:
             if self._evidence_matches_canonical_account(
                 evidence=evidence,
                 canonical_account=canonical_accounts[mapped_account_id],
+                allow_mask_conflict=_identity_key_has_mask_evidence(key),
             ):
                 matched_ids.add(mapped_account_id)
             else:
@@ -677,7 +725,9 @@ class HouseholdAccountRegistryService:
                     account_mask=str(row[8]) if row[8] is not None else None,
                     metadata=_load_json_object(row[9]),
                 )
-        self._refresh_account_from_evidence(conn, account_id=account_id, evidence=evidence, canonical_accounts=canonical_accounts)
+        self._refresh_account_from_evidence(
+            conn, account_id=account_id, evidence=evidence, canonical_accounts=canonical_accounts
+        )
         self._upsert_identity_candidates(
             conn,
             account_id=account_id,
@@ -718,13 +768,15 @@ class HouseholdAccountRegistryService:
         base_matches = {
             identity_map[key]
             for key in base_candidates
-            if key in identity_map and identity_map[key] in canonical_accounts
-            and not account_masks_conflict(tracked_mask, canonical_accounts[identity_map[key]].account_mask)
+            if key in identity_map
+            and identity_map[key] in canonical_accounts
+            and not account_masks_conflict(
+                tracked_mask, canonical_accounts[identity_map[key]].account_mask
+            )
         }
         matched_ids: set[str] = set()
-        if (
-            linked_account_id is not None
-            and not account_masks_conflict(tracked_mask, canonical_accounts[linked_account_id].account_mask)
+        if linked_account_id is not None and not account_masks_conflict(
+            tracked_mask, canonical_accounts[linked_account_id].account_mask
         ):
             matched_ids.add(linked_account_id)
         if base_matches:
@@ -741,11 +793,7 @@ class HouseholdAccountRegistryService:
             )
             if fuzzy is not None:
                 matched_ids.add(fuzzy)
-        if (
-            not base_matches
-            and tracked.match_key
-            and linked_account_id is not None
-        ):
+        if not base_matches and tracked.match_key and linked_account_id is not None:
             explicit_candidates = account_identity_candidates(
                 source_type=tracked.source_type,
                 asset_group=tracked.asset_group,
@@ -760,12 +808,14 @@ class HouseholdAccountRegistryService:
             matched_ids = {
                 identity_map[key]
                 for key in explicit_candidates
-                if key in identity_map and identity_map[key] in canonical_accounts
-                and not account_masks_conflict(tracked_mask, canonical_accounts[identity_map[key]].account_mask)
+                if key in identity_map
+                and identity_map[key] in canonical_accounts
+                and not account_masks_conflict(
+                    tracked_mask, canonical_accounts[identity_map[key]].account_mask
+                )
             }
-            if (
-                linked_account_id is not None
-                and not account_masks_conflict(tracked_mask, canonical_accounts[linked_account_id].account_mask)
+            if linked_account_id is not None and not account_masks_conflict(
+                tracked_mask, canonical_accounts[linked_account_id].account_mask
             ):
                 matched_ids.add(linked_account_id)
         candidates = account_identity_candidates(
@@ -968,7 +1018,8 @@ class HouseholdAccountRegistryService:
                 "updated_at": iso_or_none(row[14]),
                 "document_statement_end": iso_or_none(row[16]),
                 "document_uploaded_at": iso_or_none(row[17]),
-                "metadata": _load_json_object(row[18]) | {"document_filename": str(row[15]) if row[15] is not None else None},
+                "metadata": _load_json_object(row[18])
+                | {"document_filename": str(row[15]) if row[15] is not None else None},
             }
             grouped.setdefault(account_id, []).append(evidence_row)
 
@@ -991,9 +1042,14 @@ class HouseholdAccountRegistryService:
                 current.owner_name,
             )
             best_mask = max(evidence_rows, key=_evidence_mask_rank)
-            next_mask = clean_text(best_mask.get("account_mask")) if _evidence_mask_rank(best_mask)[0] >= 0 else None
+            best_mask_rank = _evidence_mask_rank(best_mask)
+            next_mask = best_mask_rank[2] if best_mask_rank[0] >= 0 else None
             best_name = max(evidence_rows, key=_evidence_name_rank)
-            next_name = clean_text(best_name.get("account_name")) if _evidence_name_rank(best_name)[0] >= 0 else None
+            next_name = (
+                clean_text(best_name.get("account_name"))
+                if _evidence_name_rank(best_name)[0] >= 0
+                else None
+            )
             next_label = _canonical_label(
                 institution_name=institution_name or current.institution_name,
                 account_name=next_name or current.canonical_label,
@@ -1247,14 +1303,31 @@ class HouseholdAccountRegistryService:
         canonical_accounts: dict[str, HouseholdCanonicalAccount],
         identity_map: dict[str, str],
     ) -> str:
-        unique_ids = [account_id for account_id in dict.fromkeys(account_ids) if account_id in canonical_accounts]
+        unique_ids = [
+            account_id
+            for account_id in dict.fromkeys(account_ids)
+            if account_id in canonical_accounts
+        ]
         if len(unique_ids) <= 1:
             return unique_ids[0]
         counts = self._account_link_counts(conn, account_ids=unique_ids)
-        winner_id = max(unique_ids, key=lambda account_id: (counts.get(account_id, 0), canonical_accounts[account_id].primary_identity_key is not None, account_id))
+        winner_id = max(
+            unique_ids,
+            key=lambda account_id: (
+                counts.get(account_id, 0),
+                canonical_accounts[account_id].primary_identity_key is not None,
+                account_id,
+            ),
+        )
         losers = [account_id for account_id in unique_ids if account_id != winner_id]
         for loser_id in losers:
-            self._merge_account(conn, winner_id=winner_id, loser_id=loser_id, identity_map=identity_map, canonical_accounts=canonical_accounts)
+            self._merge_account(
+                conn,
+                winner_id=winner_id,
+                loser_id=loser_id,
+                identity_map=identity_map,
+                canonical_accounts=canonical_accounts,
+            )
         return winner_id
 
     def _account_link_counts(self, conn: Any, *, account_ids: list[str]) -> dict[str, int]:
@@ -1318,8 +1391,12 @@ class HouseholdAccountRegistryService:
             [[winner_id, loser_id]],
         ).fetchall()
         tracked_accounts = [row_to_tracked_account(row, iso=iso) for row in tracked_rows]
-        winner_rows = [tracked for tracked in tracked_accounts if tracked.household_account_id == winner_id]
-        loser_rows = [tracked for tracked in tracked_accounts if tracked.household_account_id == loser_id]
+        winner_rows = [
+            tracked for tracked in tracked_accounts if tracked.household_account_id == winner_id
+        ]
+        loser_rows = [
+            tracked for tracked in tracked_accounts if tracked.household_account_id == loser_id
+        ]
         keeper = winner_rows[0] if winner_rows else (loser_rows[0] if loser_rows else None)
         if keeper is not None and winner_rows and not keeper.notes:
             note_candidates = [tracked.notes for tracked in loser_rows if tracked.notes]
@@ -1392,6 +1469,14 @@ class HouseholdAccountRegistryService:
             [winner_id, loser_id],
         )
         conn.execute(
+            "UPDATE plaid_accounts SET household_account_id = %s WHERE household_account_id = %s",
+            [winner_id, loser_id],
+        )
+        conn.execute(
+            "UPDATE snaptrade_accounts SET household_account_id = %s WHERE household_account_id = %s",
+            [winner_id, loser_id],
+        )
+        conn.execute(
             """
             UPDATE household_account_identities
             SET household_account_id = %s,
@@ -1417,7 +1502,9 @@ class HouseholdAccountRegistryService:
         ).fetchall()
         for row in duplicate_identity_rows:
             identity_map[str(row[0])] = winner_id
-        conn.execute("DELETE FROM household_account_identities WHERE household_account_id = %s", [loser_id])
+        conn.execute(
+            "DELETE FROM household_account_identities WHERE household_account_id = %s", [loser_id]
+        )
         conn.execute("DELETE FROM household_accounts WHERE id = %s", [loser_id])
         for key, account_id in list(identity_map.items()):
             if account_id == loser_id:
@@ -1437,7 +1524,7 @@ class HouseholdAccountRegistryService:
         for left_index, left_id in enumerate(account_ids):
             if left_id not in canonical_accounts:
                 continue
-            for right_id in account_ids[left_index + 1:]:
+            for right_id in account_ids[left_index + 1 :]:
                 if left_id not in canonical_accounts:
                     break
                 if right_id not in canonical_accounts:
@@ -1500,7 +1587,9 @@ class HouseholdAccountRegistryService:
     ) -> bool:
         if account_masks_match(left.account_mask, right.account_mask):
             return True
-        if left.asset_group != right.asset_group or account_masks_conflict(left.account_mask, right.account_mask):
+        if left.asset_group != right.asset_group or account_masks_conflict(
+            left.account_mask, right.account_mask
+        ):
             return False
 
         left_metrics = metrics.get(left.id, {})
@@ -1514,11 +1603,21 @@ class HouseholdAccountRegistryService:
             and bool(right.institution_name)
             and clean_text(left.institution_name) == clean_text(right.institution_name)
         )
-        owner_compatible = _owner_matches(left.owner_name, right.owner_name) or not left.owner_name or not right.owner_name
-        tokens_compatible = bool(left_tokens) and bool(right_tokens) and (left_tokens <= right_tokens or right_tokens <= left_tokens)
+        owner_compatible = (
+            _owner_matches(left.owner_name, right.owner_name)
+            or not left.owner_name
+            or not right.owner_name
+        )
+        tokens_compatible = (
+            bool(left_tokens)
+            and bool(right_tokens)
+            and (left_tokens <= right_tokens or right_tokens <= left_tokens)
+        )
 
         if left_evidence > 0 and right_evidence > 0:
-            institution_compatible = same_institution or not left.institution_name or not right.institution_name
+            institution_compatible = (
+                same_institution or not left.institution_name or not right.institution_name
+            )
             if not (institution_compatible and owner_compatible and tokens_compatible):
                 return False
             left_strength = _canonical_identity_strength(left)
@@ -1526,9 +1625,17 @@ class HouseholdAccountRegistryService:
             weaker, stronger = (left, right) if left_strength <= right_strength else (right, left)
             weaker_strength = min(left_strength, right_strength)
             stronger_strength = max(left_strength, right_strength)
-            weaker_missing_core = not clean_text(weaker.institution_name) or not clean_text(weaker.owner_name)
-            stronger_has_core = bool(clean_text(stronger.institution_name) and clean_text(stronger.owner_name))
-            return weaker_missing_core and stronger_has_core and stronger_strength >= weaker_strength + 20
+            weaker_missing_core = not clean_text(weaker.institution_name) or not clean_text(
+                weaker.owner_name
+            )
+            stronger_has_core = bool(
+                clean_text(stronger.institution_name) and clean_text(stronger.owner_name)
+            )
+            return (
+                weaker_missing_core
+                and stronger_has_core
+                and stronger_strength >= weaker_strength + 20
+            )
 
         evidence_backed = left_evidence > 0 or right_evidence > 0
         if not evidence_backed:
@@ -1728,7 +1835,10 @@ class HouseholdAccountRegistryService:
         ).fetchall()
         orphan_ids = [str(row[0]) for row in rows if row[0] is not None]
         for account_id in orphan_ids:
-            conn.execute("DELETE FROM household_account_identities WHERE household_account_id = %s", [account_id])
+            conn.execute(
+                "DELETE FROM household_account_identities WHERE household_account_id = %s",
+                [account_id],
+            )
             conn.execute("DELETE FROM household_accounts WHERE id = %s", [account_id])
             canonical_accounts.pop(account_id, None)
         if orphan_ids:
@@ -1765,11 +1875,17 @@ class HouseholdAccountRegistryService:
                 score += 8
             if normalized_source and clean_text(account.source_type) == normalized_source:
                 score += 3
-            if normalized_institution and account.institution_name and clean_text(account.institution_name) == normalized_institution:
+            if (
+                normalized_institution
+                and account.institution_name
+                and clean_text(account.institution_name) == normalized_institution
+            ):
                 score += 20
             if owner_name and _owner_matches(owner_name, account.owner_name):
                 score += 15
-            shared_tokens = input_tokens & _name_tokens(account.canonical_label, account.institution_name)
+            shared_tokens = input_tokens & _name_tokens(
+                account.canonical_label, account.institution_name
+            )
             score += len(shared_tokens) * 5
             if score >= 20:
                 scored.append((score, account_id))

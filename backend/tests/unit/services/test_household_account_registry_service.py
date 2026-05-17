@@ -14,6 +14,7 @@ from app.services.household_account_identity import (
 from app.services.household_account_registry_service import (
     HouseholdAccountRegistryService,
     HouseholdCanonicalAccount,
+    _evidence_mask_rank,
 )
 
 
@@ -204,6 +205,27 @@ def test_derive_account_mask_ignores_year_like_export_tokens() -> None:
     assert derive_account_mask("5313", "Prime Visa", None) == "5313"
 
 
+def test_evidence_mask_rank_prefers_extracted_mask_over_filename_id() -> None:
+    score, _, mask = _evidence_mask_rank(
+        {
+            "account_name": "Chase Prime Visa / Amazon card",
+            "account_mask": "1000020649",
+            "balance": 92.58,
+            "holdings_value": None,
+            "cash_balance": None,
+            "source_type": "credit_card",
+            "confidence": 0.93,
+            "metadata": {
+                "document_filename": "1000020649.jpg",
+                "extracted_account_mask": "9728",
+            },
+        }
+    )
+
+    assert mask == "9728"
+    assert score > 100
+
+
 def test_should_not_merge_same_owner_sibling_evidence_accounts() -> None:
     registry = HouseholdAccountRegistryService()
     left = _canonical(
@@ -289,7 +311,9 @@ def test_should_not_merge_masked_accounts_when_masks_conflict() -> None:
         owner_name="Elias B Leslie",
         account_mask="9728",
     )
-    current.primary_identity_key = "credit-lineage|chase|chase prime visa / amazon card|elias b leslie|credit_card"
+    current.primary_identity_key = (
+        "credit-lineage|chase|chase prime visa / amazon card|elias b leslie|credit_card"
+    )
 
     assert not registry._should_merge_accounts(
         legacy,
@@ -464,7 +488,9 @@ def test_resolve_from_tracked_prefers_mask_over_label_when_both_are_present() ->
     assert account_id == "rollover"
 
 
-def test_resolve_from_tracked_merges_shadow_linked_row_into_evidence_account_via_match_key() -> None:
+def test_resolve_from_tracked_merges_shadow_linked_row_into_evidence_account_via_match_key() -> (
+    None
+):
     registry = HouseholdAccountRegistryService()
     conn = Mock()
     canonical_accounts = {
@@ -619,6 +645,71 @@ def test_resolve_from_evidence_can_link_weak_statement_rows_by_filename_mask() -
 
     assert strong_id == weak_id
     assert len(canonical_accounts) == 1
+
+
+def test_resolve_from_evidence_merges_duplicate_accounts_with_shared_mask_identity() -> None:
+    registry = HouseholdAccountRegistryService()
+    conn = Mock()
+    canonical_accounts = {
+        "canonical": _canonical(
+            account_id="canonical",
+            label="Chase Prime Visa / Amazon card",
+            asset_group="credit",
+            account_type="credit_card",
+            source_type="credit_card",
+            institution_name="Chase",
+            account_mask="9728",
+        ),
+        "duplicate": _canonical(
+            account_id="duplicate",
+            label="Chase Amazon card",
+            asset_group="credit",
+            account_type="credit_card",
+            source_type="credit_card",
+            account_mask="5313",
+        ),
+    }
+    identity_map = {
+        "institution-mask::chase|5313": "canonical",
+        "mask::5313|credit|credit_card": "duplicate",
+    }
+    merge_accounts = Mock(return_value="canonical")
+    registry._merge_accounts_if_needed = cast(Any, merge_accounts)
+    evidence = HouseholdEvidenceAccount(
+        id="weak-evidence",
+        document_id="doc-weak",
+        household_account_id="duplicate",
+        source_type="credit_card",
+        asset_group="credit",
+        account_type="credit_card",
+        institution_name=None,
+        account_name="Chase Amazon card",
+        account_mask=None,
+        owner_name=None,
+        currency="USD",
+        balance=5192.03,
+        holdings_value=None,
+        cash_balance=None,
+        as_of_date=None,
+        confidence=0.8,
+        metadata={
+            "document_filename": "20260211-statements-5313-.pdf",
+            "preserved_household_account_id": "canonical",
+        },
+    )
+
+    account_id, created, merged = registry._resolve_from_evidence(
+        conn,
+        evidence=evidence,
+        canonical_accounts=canonical_accounts,
+        identity_map=identity_map,
+    )
+
+    assert account_id == "canonical"
+    assert created == 0
+    assert merged == 1
+    merge_args = merge_accounts.call_args.kwargs["account_ids"]
+    assert set(merge_args) == {"canonical", "duplicate"}
 
 
 def test_resolve_from_evidence_rejects_incompatible_existing_household_account_link() -> None:
@@ -790,9 +881,7 @@ def test_sync_portfolio_accounts_links_exact_name_to_canonical_account() -> None
         source_type="brokerage",
         institution_name="Fidelity",
     )
-    tracked_accounts = [
-        tracked_account.model_copy(update={"household_account_id": "tod-id"})
-    ]
+    tracked_accounts = [tracked_account.model_copy(update={"household_account_id": "tod-id"})]
     portfolio_accounts = [
         Account(
             id="portfolio-tod",
