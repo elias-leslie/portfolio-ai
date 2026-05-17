@@ -16,6 +16,7 @@ from app.services.household_account_registry_service import (
     HouseholdCanonicalAccount,
     _evidence_mask_rank,
     _mask_identity_candidates,
+    _registry_identity_candidates,
 )
 
 
@@ -202,6 +203,29 @@ def test_registry_matching_uses_only_mask_identity_candidates() -> None:
     assert "institution-mask::chase|5313" in filtered
 
 
+def test_registry_matching_allows_explicit_review_match_key_without_mask() -> None:
+    explicit_key = (
+        "institution-name-owner::florida retirement system (frs)|frs investment plan|"
+        "elias b. leslie|retirement|retirement"
+    )
+    candidates = account_identity_candidates(
+        source_type="retirement",
+        asset_group="retirement",
+        account_type="retirement",
+        institution_name="Florida Retirement System (FRS)",
+        account_name="FRS Investment Plan",
+        owner_name="Elias B. Leslie",
+        account_mask=None,
+        explicit_match_key=explicit_key,
+    )
+
+    filtered = _registry_identity_candidates(candidates, explicit_match_key=explicit_key)
+
+    assert explicit_key in filtered
+    assert f"match::{explicit_key}" in filtered
+    assert "name-owner::frs investment plan|elias b. leslie|retirement|retirement" not in filtered
+
+
 def test_derive_account_mask_ignores_year_like_export_tokens() -> None:
     assert (
         derive_account_mask(
@@ -280,6 +304,103 @@ def test_resolve_from_evidence_uses_extracted_mask_for_identity_matching() -> No
             as_of_date=None,
             confidence=0.8,
             metadata={"extracted_account_mask": "9728"},
+        ),
+        canonical_accounts=canonical_accounts,
+        identity_map=identity_map,
+    )
+
+    assert account_id == "canonical"
+    assert created == 0
+    assert merged == 0
+
+
+def test_resolve_from_evidence_uses_explicit_review_match_key_without_mask() -> None:
+    registry = HouseholdAccountRegistryService()
+    conn = Mock()
+    match_key = (
+        "institution-name-owner::florida retirement system (frs)|frs investment plan|"
+        "elias b. leslie|retirement|retirement"
+    )
+    canonical_accounts = {
+        "canonical": _canonical(
+            account_id="canonical",
+            label="FRS Investment Plan",
+            asset_group="retirement",
+            account_type="retirement",
+            source_type="retirement",
+            institution_name="Florida Retirement System (FRS)",
+            owner_name="Elias B. Leslie",
+            account_mask=None,
+        ),
+    }
+    identity_map = {match_key: "canonical"}
+
+    account_id, created, merged = registry._resolve_from_evidence(
+        conn,
+        evidence=HouseholdEvidenceAccount(
+            id="frs-evidence",
+            document_id="doc-frs",
+            household_account_id=None,
+            source_type="retirement",
+            asset_group="retirement",
+            account_type="retirement",
+            institution_name="Florida Retirement System (FRS)",
+            account_name="FRS Investment Plan",
+            account_mask=None,
+            owner_name="Elias B. Leslie",
+            currency="USD",
+            balance=44913.86,
+            holdings_value=44913.86,
+            cash_balance=None,
+            as_of_date="2026-05-01T00:00:00Z",
+            confidence=0.8,
+            metadata={"match_key": match_key},
+        ),
+        canonical_accounts=canonical_accounts,
+        identity_map=identity_map,
+    )
+
+    assert account_id == "canonical"
+    assert created == 0
+    assert merged == 0
+
+
+def test_resolve_from_evidence_uses_preserved_account_id_without_mask() -> None:
+    registry = HouseholdAccountRegistryService()
+    conn = Mock()
+    canonical_accounts = {
+        "canonical": _canonical(
+            account_id="canonical",
+            label="Cash Management (Joint WROS)",
+            asset_group="taxable",
+            account_type="brokerage",
+            source_type="brokerage",
+            institution_name="Fidelity",
+            account_mask="Z38367298",
+        ),
+    }
+    identity_map: dict[str, str] = {}
+
+    account_id, created, merged = registry._resolve_from_evidence(
+        conn,
+        evidence=HouseholdEvidenceAccount(
+            id="cash-evidence",
+            document_id="doc-cash",
+            household_account_id=None,
+            source_type="brokerage",
+            asset_group="taxable",
+            account_type="brokerage",
+            institution_name="Fidelity",
+            account_name="Cash Management account (CMA)",
+            account_mask=None,
+            owner_name=None,
+            currency="USD",
+            balance=42059.44,
+            holdings_value=42059.44,
+            cash_balance=42059.44,
+            as_of_date="2026-04-20T00:00:00Z",
+            confidence=0.8,
+            metadata={"preserved_household_account_id": "canonical"},
         ),
         canonical_accounts=canonical_accounts,
         identity_map=identity_map,

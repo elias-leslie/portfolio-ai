@@ -1413,6 +1413,8 @@ def build_account_summaries(
         if account.id in linked_tracked_ids:
             continue
         portfolio_account = tracked_portfolio_matches.get(account.id)
+        if portfolio_account is None:
+            continue
         summaries.append(
             HouseholdAccountSummary(
                 id=_tracked_summary_key(account),
