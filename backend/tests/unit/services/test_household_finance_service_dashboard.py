@@ -7,6 +7,7 @@ from typing import Any, cast
 from unittest.mock import Mock, patch
 
 from app.models.household_finance import (
+    HouseholdAccountControl,
     HouseholdAccountSummary,
     HouseholdDocumentList,
     HouseholdExecutiveReport,
@@ -25,6 +26,7 @@ from app.services._household_dashboard_assembly import (
     build_overview,
     gather_service_data,
 )
+from app.services.household_account_control import HouseholdAccountControlResult
 from app.services.household_finance_service import HouseholdFinanceService
 
 
@@ -120,6 +122,14 @@ def test_get_dashboard_returns_composed_household_view() -> None:
     )
 
     assembly_path = "app.services._household_dashboard_assembly"
+    account_control = HouseholdAccountControl(
+        status="clear",
+        summary="Account source controls are clear.",
+        issue_count=0,
+        blocking_issue_count=0,
+        checked_at="2026-05-16T00:00:00+00:00",
+        issues=[],
+    )
     with (
         patch(f"{assembly_path}.compute_visibility_score", return_value=88),
         patch(f"{assembly_path}.visibility_label", return_value="High"),
@@ -133,6 +143,14 @@ def test_get_dashboard_returns_composed_household_view() -> None:
         patch(f"{assembly_path}.fetch_monthly_retirement_contributions", return_value=900.0),
         patch(f"{assembly_path}.fetch_inferred_value_rows", return_value={}),
         patch(f"{assembly_path}.infer_profile_from_transactions"),
+        patch(
+            f"{assembly_path}.build_household_account_control",
+            return_value=HouseholdAccountControlResult(
+                control=account_control,
+                source_owned_household_account_ids=set(),
+                source_owned_account_values={},
+            ),
+        ),
         patch("app.services.household_dashboard_composer.fetch_categorization_queue", return_value=[]),
         patch("app.services.household_dashboard_composer.fetch_recurring_commitments", return_value=[]),
     ):
@@ -220,9 +238,28 @@ def test_gather_service_data_uses_dashboard_sync_gate_before_raw_registry_sync()
     service.price_fetcher = Mock()
     service.price_fetcher.fetch_price_data.return_value = {}
 
-    with patch(
-        "app.services._household_dashboard_assembly.calculate_account_valuations",
-        return_value={},
+    account_control = HouseholdAccountControl(
+        status="clear",
+        summary="Account source controls are clear.",
+        issue_count=0,
+        blocking_issue_count=0,
+        checked_at="2026-05-16T00:00:00+00:00",
+        issues=[],
+    )
+
+    with (
+        patch(
+            "app.services._household_dashboard_assembly.calculate_account_valuations",
+            return_value={},
+        ),
+        patch(
+            "app.services._household_dashboard_assembly.build_household_account_control",
+            return_value=HouseholdAccountControlResult(
+                control=account_control,
+                source_owned_household_account_ids=set(),
+                source_owned_account_values={},
+            ),
+        ),
     ):
         gather_service_data(service)
 

@@ -52,6 +52,14 @@ const dashboard = {
       'Monthly spend reflects 1 covered spending account through 2026-04-09.',
     nextBestAction: 'Review the budget pulse.',
   },
+  accountControl: {
+    status: 'clear',
+    summary: 'Account source controls are clear.',
+    issueCount: 0,
+    blockingIssueCount: 0,
+    checkedAt: '2026-04-11T00:00:00Z',
+    issues: [],
+  },
   profile: {
     id: 'profile-1',
     householdName: 'Household',

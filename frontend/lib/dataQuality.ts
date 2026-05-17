@@ -17,6 +17,7 @@ const RAW_TO_NORMALIZED: Record<string, DataQualityStatus> = {
   current: 'current',
   partial: 'estimated',
   estimated: 'estimated',
+  review: 'estimated',
   aging: 'aging',
   known: 'known',
   stale: 'stale',
@@ -32,6 +33,7 @@ export function normalizeQualityStatus(
 }
 
 export function qualityLabel(status: string | null | undefined): string {
+  if (status === 'review') return 'Review'
   switch (normalizeQualityStatus(status)) {
     case 'current':
       return 'Current'
@@ -72,6 +74,7 @@ export function qualityBadgeVariant(
  * "90 days old".
  */
 export function netWorthBadgeLabel(status: string | null | undefined): string {
+  if (status === 'review') return 'Review'
   switch (normalizeQualityStatus(status)) {
     case 'current':
       return 'Current'
@@ -88,6 +91,7 @@ export function netWorthBadgeLabel(status: string | null | undefined): string {
 export function netWorthBadgeVariant(
   status: string | null | undefined,
 ): BadgeVariant {
+  if (status === 'review') return 'warning'
   switch (normalizeQualityStatus(status)) {
     case 'current':
       return 'success'

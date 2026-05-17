@@ -61,6 +61,7 @@ from app.services._household_jenny_needs_builders import (
     _jenny_statement_needs,
     _jenny_transaction_date_quality_needs,
 )
+from app.services.household_account_control import build_household_account_control
 
 # ---------------------------------------------------------------------------
 # Static configuration
@@ -108,9 +109,6 @@ _LANE_CONFIGS: list[tuple[str, str, str]] = [
     ("Savings", "Reserve dollars for investing, emergency cash, and future big-ticket items.", "monthly_savings_target"),
 ]
 _DEGRADED_ACCOUNT_FRESHNESS_STATUSES = {"aging", "stale", "needs_evidence"}
-_SOURCE_ACCOUNT_METADATA_KEYS = ("plaid_account_id", "snaptrade_account_id")
-
-
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
@@ -503,6 +501,7 @@ def build_overview(
     reports: HouseholdReports,
     holdings_by_account: dict[str, float], documents: list[Any],
     questions: list[Any], resolved_values: list[HouseholdResolvedValue],
+    account_control: Any | None = None,
     service: Any | None = None,
 ) -> tuple[HouseholdOverview, float, float, float, float]:
     summary_totals = _overview_totals_from_account_summaries(account_summaries)
@@ -593,6 +592,16 @@ def build_overview(
         str(statement_freshness.get("most_recent_date")) if statement_freshness.get("most_recent_date") else None
     )
     net_worth_status, net_worth_detail = _net_worth_trust(account_summaries)
+    if account_control is not None and account_control.blocking_issue_count > 0:
+        net_worth_status = "blocked"
+        net_worth_detail = account_control.summary
+    elif (
+        account_control is not None
+        and account_control.issue_count > 0
+        and net_worth_status == "current"
+    ):
+        net_worth_status = "review"
+        net_worth_detail = f"{net_worth_detail} {account_control.summary}"
     monthly_spend_status, monthly_spend_detail = _monthly_spend_trust(
         account_summaries,
         statement_freshness,
@@ -789,7 +798,7 @@ def gather_service_data(service: Any) -> dict[str, Any]:
         for account_id, valuation in account_valuations.items()
         if valuation.priced_positions_value > 0
     }
-    source_owned_account_values = _fetch_source_owned_account_values(service.storage)
+    account_control_result = build_household_account_control(service.storage)
     reports = service.transaction_service.build_reports()
     return {
         "profile": profile, "planning": planning, "documents": documents, "questions": questions,
@@ -797,58 +806,14 @@ def gather_service_data(service: Any) -> dict[str, Any]:
         "tracked_accounts": tracked_accounts,
         "accounts": accounts, "live_positions": live_positions,
         "account_valuations": account_valuations,
+        "account_control": account_control_result.control,
         "source_owned_household_account_ids": (
-            _fetch_source_owned_household_account_ids(service.storage)
-            | set(source_owned_account_values)
+            account_control_result.source_owned_household_account_ids
+            | set(account_control_result.source_owned_account_values)
         ),
-        "source_owned_account_values": source_owned_account_values,
+        "source_owned_account_values": account_control_result.source_owned_account_values,
         "holdings_by_account": holdings_by_account, "reports": reports,
     }
-
-
-def _fetch_source_owned_household_account_ids(storage: Any) -> set[str]:
-    with storage.connection() as conn:
-        rows = conn.execute(
-            """
-            SELECT id
-            FROM household_accounts
-            WHERE EXISTS (
-                SELECT 1
-                FROM jsonb_object_keys(COALESCE(metadata, '{}'::jsonb)) AS key
-                WHERE key = ANY(%s::text[])
-            )
-            """,
-            [list(_SOURCE_ACCOUNT_METADATA_KEYS)],
-        ).fetchall()
-    return {str(row[0]) for row in rows if row[0] is not None}
-
-
-def _fetch_source_owned_account_values(storage: Any) -> dict[str, dict[str, Any]]:
-    with storage.connection() as conn:
-        snaptrade_rows = conn.execute(
-            """
-            SELECT household_account_id, balance, cash_balance, last_synced_at, account_mask
-            FROM snaptrade_accounts
-            WHERE household_account_id IS NOT NULL
-            """
-        ).fetchall()
-        plaid_rows = conn.execute(
-            """
-            SELECT household_account_id, current_balance, NULL::numeric, last_synced_at, mask
-            FROM plaid_accounts
-            WHERE household_account_id IS NOT NULL
-            """
-        ).fetchall()
-    values: dict[str, dict[str, Any]] = {}
-    for row in [*snaptrade_rows, *plaid_rows]:
-        household_account_id = str(row[0])
-        values[household_account_id] = {
-            "current_value": row[1],
-            "cash_balance": row[2],
-            "last_synced_at": row[3],
-            "account_mask": row[4],
-        }
-    return values
 
 
 def resolve_dashboard_values(service: Any, *, profile: Any, reports: Any, questions: list[Any]) -> tuple[list[Any], list[Any]]:
@@ -872,7 +837,10 @@ def assemble_finance_dashboard(
     profile, reports, documents, planning = d["profile"], d["reports"], d["documents"], d["planning"]
     return HouseholdFinanceDashboard(
         generated_at=datetime.now(UTC).isoformat(),
-        overview=overview, profile=profile, resolved_values=resolved_values,
+        overview=overview,
+        account_control=d["account_control"],
+        profile=profile,
+        resolved_values=resolved_values,
         budget_readiness=build_budget_readiness(
             resolved_values=resolved_values,
             documents=documents,

@@ -35,6 +35,14 @@ describe('household api', () => {
           visibility_label: 'Early household setup',
           next_best_action: 'Upload recent statements.',
         },
+        account_control: {
+          status: 'clear',
+          summary: 'Account source controls are clear.',
+          issue_count: 0,
+          blocking_issue_count: 0,
+          checked_at: '2026-03-09T00:00:00Z',
+          issues: [],
+        },
         profile: {
           id: 'profile-1',
           household_name: 'Household',

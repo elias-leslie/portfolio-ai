@@ -24,6 +24,14 @@ export function buildHouseholdDashboard() {
       monthlySpendDetail: '3 months of recent evidence coverage.',
       nextBestAction: 'Refresh Chase Amazon card',
     },
+    accountControl: {
+      status: 'clear',
+      summary: 'Account source controls are clear.',
+      issueCount: 0,
+      blockingIssueCount: 0,
+      checkedAt: '2026-03-10T00:00:00Z',
+      issues: [],
+    },
     profile: {
       id: 'profile-1',
       householdName: 'Household',

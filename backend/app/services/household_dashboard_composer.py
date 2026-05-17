@@ -49,6 +49,10 @@ from app.services._household_dashboard_queries import (
 from app.services._household_dashboard_unknown_accounts import (
     detect_unknown_accounts,
 )
+from app.services.household_account_control import (
+    account_control_inbox_items,
+    apply_account_control_to_summaries,
+)
 
 
 class HouseholdDashboardComposer:
@@ -88,6 +92,10 @@ class HouseholdDashboardComposer:
             latest_transaction_dates_by_account_label=latest_transaction_dates_by_account_label,
             latest_transaction_dates_by_household_account=latest_transaction_dates_by_household_account,
         )
+        account_summaries = apply_account_control_to_summaries(
+            account_summaries,
+            d["account_control"],
+        )
         inbox = build_money_inbox(
             accounts=account_summaries,
             discovered_accounts=discovered_accounts,
@@ -96,6 +104,10 @@ class HouseholdDashboardComposer:
             parsed_documents=sum(1 for document in d["documents"] if document.status in {"parsed", "needs_review"}),
             statement_freshness=freshness,
         )
+        inbox = [
+            *account_control_inbox_items(d["account_control"]),
+            *inbox,
+        ]
         overview, retirement_assets, taxable_assets, cash_reserve, total_tracked_assets = build_overview(
             accounts=d["accounts"], live_positions=d["live_positions"],
             evidence_accounts=d["evidence_accounts"], account_summaries=account_summaries,
@@ -103,6 +115,7 @@ class HouseholdDashboardComposer:
             reports=d["reports"],
             holdings_by_account=d["holdings_by_account"], documents=d["documents"],
             questions=visible_questions, resolved_values=resolved_values,
+            account_control=d["account_control"],
             service=service,
         )
         categorization_queue = fetch_categorization_queue(service.storage, 6)

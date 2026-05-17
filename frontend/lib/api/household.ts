@@ -34,6 +34,28 @@ export interface HouseholdOverview {
   nextBestAction: string
 }
 
+export interface HouseholdAccountControlIssue {
+  id: string
+  code: string
+  severity: string
+  title: string
+  detail: string
+  householdAccountId: string | null
+  accountLabel: string | null
+  source: string | null
+  sourceAccountIds: string[]
+  affectsTotals: boolean
+}
+
+export interface HouseholdAccountControl {
+  status: string
+  summary: string
+  issueCount: number
+  blockingIssueCount: number
+  checkedAt: string
+  issues: HouseholdAccountControlIssue[]
+}
+
 export interface HouseholdProfile {
   id: string
   householdName: string
@@ -619,6 +641,7 @@ export interface PortfolioHouseholdContext {
 export interface HouseholdFinanceDashboard {
   generatedAt: string
   overview: HouseholdOverview
+  accountControl: HouseholdAccountControl
   profile: HouseholdProfile
   resolvedValues: HouseholdResolvedValue[]
   budgetReadiness: BudgetReadiness

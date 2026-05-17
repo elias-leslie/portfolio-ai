@@ -41,6 +41,14 @@ describe('HouseholdPlanningPanels', () => {
               'Monthly spend is not available yet because Jenny does not have any checking, card, or debt accounts with transaction history.',
             nextBestAction: 'Upload more statements.',
           },
+          accountControl: {
+            status: 'clear',
+            summary: 'Account source controls are clear.',
+            issueCount: 0,
+            blockingIssueCount: 0,
+            checkedAt: '2026-03-10T00:00:00Z',
+            issues: [],
+          },
           profile: {
             id: 'profile-1',
             householdName: 'Household',
@@ -208,6 +216,14 @@ describe('HouseholdPlanningPanels', () => {
             monthlySpendDetail:
               'Monthly spend reflects 2 covered spending accounts through 2026-03-09.',
             nextBestAction: 'Review retirement strategies.',
+          },
+          accountControl: {
+            status: 'clear',
+            summary: 'Account source controls are clear.',
+            issueCount: 0,
+            blockingIssueCount: 0,
+            checkedAt: '2026-03-10T00:00:00Z',
+            issues: [],
           },
           profile: {
             id: 'profile-1',

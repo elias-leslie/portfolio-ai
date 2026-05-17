@@ -410,6 +410,7 @@ function MoneyPageContent() {
         <div className="space-y-6">
           <MoneyAccountsPanel
             accounts={dashboard.accounts}
+            accountControl={dashboard.accountControl}
             discoveredAccounts={dashboard.discoveredAccounts}
             documents={documentItems}
             focus={

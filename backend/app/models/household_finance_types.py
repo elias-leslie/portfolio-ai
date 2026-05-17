@@ -29,6 +29,28 @@ class HouseholdOverview(BaseModel):
     monthly_spend_detail: str = "Monthly spend reflects current covered transaction accounts."
 
 
+class HouseholdAccountControlIssue(BaseModel):
+    id: str
+    code: str
+    severity: str
+    title: str
+    detail: str
+    household_account_id: str | None = None
+    account_label: str | None = None
+    source: str | None = None
+    source_account_ids: list[str] = Field(default_factory=list)
+    affects_totals: bool = False
+
+
+class HouseholdAccountControl(BaseModel):
+    status: str
+    summary: str
+    issue_count: int = 0
+    blocking_issue_count: int = 0
+    checked_at: str
+    issues: list[HouseholdAccountControlIssue] = Field(default_factory=list)
+
+
 class HouseholdResolvedValue(BaseModel):
     field_name: str
     label: str

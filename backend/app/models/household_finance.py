@@ -8,6 +8,8 @@ from app.models.household_finance_types import (
     BudgetLane,
     BudgetReadiness,
     ConfirmFactRequest,
+    HouseholdAccountControl,
+    HouseholdAccountControlIssue,
     HouseholdAccountGap,
     HouseholdAccountSummary,
     HouseholdBudgetSnapshot,
@@ -63,6 +65,8 @@ __all__ = [
     "BudgetLane",
     "BudgetReadiness",
     "ConfirmFactRequest",
+    "HouseholdAccountControl",
+    "HouseholdAccountControlIssue",
     "HouseholdAccountGap",
     "HouseholdAccountSummary",
     "HouseholdBudgetSnapshot",
@@ -172,6 +176,7 @@ class HouseholdTransactionCategoryUpdate(BaseModel):
 class HouseholdFinanceDashboard(BaseModel):
     generated_at: str
     overview: HouseholdOverview
+    account_control: HouseholdAccountControl
     profile: HouseholdProfile
     resolved_values: list[HouseholdResolvedValue] = Field(default_factory=list)
     budget_readiness: BudgetReadiness
