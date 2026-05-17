@@ -29,6 +29,7 @@ from app.services.credential_crypto import (
     SecretDecryptionError,
     SecretKeyUnavailableError,
 )
+from app.services.household_account_identity import account_identity_candidates
 from app.services.household_transaction_service import HouseholdTransactionService
 from app.services.source_credentials import get_source_credentials, set_source_credential
 from app.storage import get_storage
@@ -39,6 +40,13 @@ _PLAID_SOURCE_ID = "plaid"
 _DEFAULT_PRODUCTS = ["transactions"]
 _DEFAULT_COUNTRY_CODES = ["US"]
 _VALID_ENVIRONMENTS = {"sandbox", "production"}
+_GENERIC_PLAID_ACCOUNT_NAMES = {"account", "credit card"}
+_MASK_IDENTITY_PREFIXES = (
+    "institution-mask::",
+    "mask::",
+    "mask-asset::",
+    "evidence|",
+)
 
 
 class PlaidConfigurationError(RuntimeError):
@@ -155,16 +163,24 @@ def _metadata_institution_name(metadata: dict[str, object] | None) -> str | None
 
 def _account_kind(account_type: str | None, subtype: str | None) -> tuple[str, str, str]:
     normalized_type = (account_type or "").strip().lower()
-    normalized_subtype = (subtype or "").strip().lower()
+    normalized_subtype = (subtype or "").strip().lower().replace(" ", "_")
     if normalized_type == "credit":
-        return "liability", "credit_card", normalized_subtype or "credit_card"
+        return "credit", "credit_card", "credit_card"
     if normalized_type == "depository":
         return "cash", "bank", normalized_subtype or "depository"
     if normalized_type == "investment":
         return "taxable", "brokerage", normalized_subtype or "investment"
     if normalized_type == "loan":
-        return "liability", "loan", normalized_subtype or "loan"
+        return "debt", "loan", normalized_subtype or "loan"
     return "other", "plaid", normalized_subtype or normalized_type or "account"
+
+
+def _plaid_account_name(account: dict[str, Any]) -> str:
+    name = str(account.get("name") or "").strip()
+    official_name = str(account.get("official_name") or "").strip()
+    if official_name and (not name or name.lower() in _GENERIC_PLAID_ACCOUNT_NAMES):
+        return official_name
+    return name or official_name or "Plaid account"
 
 
 def _account_label(
@@ -819,7 +835,7 @@ class PlaidService:
             for raw_account in accounts:
                 account = _to_dict(raw_account)
                 account_id = str(account.get("account_id") or "")
-                name = str(account.get("name") or account.get("official_name") or "Plaid account")
+                name = _plaid_account_name(account)
                 if not account_id:
                     continue
                 balances = _as_json_object(account.get("balances"))
@@ -940,51 +956,156 @@ class PlaidService:
         mask: str | None,
     ) -> str:
         identity_key = f"plaid_account:{account_id}"
-        row = conn.execute(
-            """
-            INSERT INTO household_accounts (
-                id, primary_identity_key, canonical_label, asset_group, account_type,
-                source_type, institution_name, account_mask, metadata, created_at, updated_at
-            ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s
+        mask_identity_keys = [
+            key
+            for key in account_identity_candidates(
+                source_type=source_type,
+                asset_group=asset_group,
+                account_type=account_type,
+                institution_name=institution_name,
+                account_name=label,
+                owner_name=None,
+                account_mask=mask,
             )
-            ON CONFLICT (primary_identity_key) DO UPDATE SET
-                canonical_label = EXCLUDED.canonical_label,
-                asset_group = EXCLUDED.asset_group,
-                account_type = EXCLUDED.account_type,
-                source_type = EXCLUDED.source_type,
-                institution_name = EXCLUDED.institution_name,
-                account_mask = EXCLUDED.account_mask,
-                metadata = household_accounts.metadata || EXCLUDED.metadata,
-                updated_at = EXCLUDED.updated_at
-            RETURNING id
+            if key.startswith(_MASK_IDENTITY_PREFIXES)
+        ]
+        household_account_id = self._match_household_account_identity(
+            conn=conn,
+            identity_keys=mask_identity_keys,
+        ) or self._match_household_account_identity(
+            conn=conn,
+            identity_keys=[identity_key],
+        )
+
+        if household_account_id:
+            conn.execute(
+                """
+                UPDATE household_accounts
+                SET canonical_label = CASE
+                        WHEN canonical_label IS NULL
+                          OR lower(canonical_label) IN ('account', 'credit card')
+                        THEN %s
+                        ELSE canonical_label
+                    END,
+                    asset_group = %s,
+                    account_type = %s,
+                    source_type = %s,
+                    institution_name = %s,
+                    account_mask = COALESCE(%s, account_mask),
+                    metadata = metadata || %s::jsonb,
+                    updated_at = %s
+                WHERE id = %s
+                """,
+                [
+                    label,
+                    asset_group,
+                    account_type,
+                    source_type,
+                    institution_name,
+                    mask,
+                    _json({"plaid_account_id": account_id}),
+                    _now(),
+                    household_account_id,
+                ],
+            )
+        else:
+            row = conn.execute(
+                """
+                INSERT INTO household_accounts (
+                    id, primary_identity_key, canonical_label, asset_group, account_type,
+                    source_type, institution_name, account_mask, metadata, created_at, updated_at
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s
+                )
+                ON CONFLICT (primary_identity_key) WHERE primary_identity_key IS NOT NULL DO UPDATE SET
+                    canonical_label = EXCLUDED.canonical_label,
+                    asset_group = EXCLUDED.asset_group,
+                    account_type = EXCLUDED.account_type,
+                    source_type = EXCLUDED.source_type,
+                    institution_name = EXCLUDED.institution_name,
+                    account_mask = EXCLUDED.account_mask,
+                    metadata = household_accounts.metadata || EXCLUDED.metadata,
+                    updated_at = EXCLUDED.updated_at
+                RETURNING id
+                """,
+                [
+                    str(uuid.uuid4()),
+                    identity_key,
+                    label,
+                    asset_group,
+                    account_type,
+                    source_type,
+                    institution_name,
+                    mask,
+                    _json({"plaid_account_id": account_id}),
+                    _now(),
+                    _now(),
+                ],
+            ).fetchone()
+            household_account_id = str(row[0])
+
+        self._upsert_household_account_identity(
+            conn=conn,
+            household_account_id=household_account_id,
+            identity_key=identity_key,
+            identity_kind="plaid_account",
+            is_primary=True,
+            metadata={"source": "plaid"},
+        )
+        for mask_identity_key in mask_identity_keys:
+            self._upsert_household_account_identity(
+                conn=conn,
+                household_account_id=household_account_id,
+                identity_key=mask_identity_key,
+                identity_kind="plaid_mask",
+                is_primary=False,
+                metadata={"source": "plaid"},
+            )
+        return household_account_id
+
+    @staticmethod
+    def _match_household_account_identity(
+        *,
+        conn: Any,
+        identity_keys: list[str],
+    ) -> str | None:
+        if not identity_keys:
+            return None
+        rows = conn.execute(
+            """
+            SELECT identity_key, household_account_id
+            FROM household_account_identities
+            WHERE identity_key = ANY(%s)
             """,
-            [
-                str(uuid.uuid4()),
-                identity_key,
-                label,
-                asset_group,
-                account_type,
-                source_type,
-                institution_name,
-                mask,
-                _json({"plaid_account_id": account_id}),
-                _now(),
-                _now(),
-            ],
-        ).fetchone()
-        household_account_id = str(row[0])
+            [identity_keys],
+        ).fetchall()
+        by_key = {str(row[0]): str(row[1]) for row in rows if row[0] and row[1]}
+        for identity_key in identity_keys:
+            if identity_key in by_key:
+                return by_key[identity_key]
+        return None
+
+    @staticmethod
+    def _upsert_household_account_identity(
+        *,
+        conn: Any,
+        household_account_id: str,
+        identity_key: str,
+        identity_kind: str,
+        is_primary: bool,
+        metadata: dict[str, object],
+    ) -> None:
         conn.execute(
             """
             INSERT INTO household_account_identities (
                 id, household_account_id, identity_key, identity_kind, is_primary,
                 confidence, metadata, created_at, updated_at
             ) VALUES (
-                %s, %s, %s, 'plaid_account', TRUE, 1.0, %s::jsonb, %s, %s
+                %s, %s, %s, %s, %s, 1.0, %s::jsonb, %s, %s
             )
             ON CONFLICT (identity_key) DO UPDATE SET
                 household_account_id = EXCLUDED.household_account_id,
-                is_primary = TRUE,
+                is_primary = EXCLUDED.is_primary,
                 confidence = 1.0,
                 metadata = household_account_identities.metadata || EXCLUDED.metadata,
                 updated_at = EXCLUDED.updated_at
@@ -993,12 +1114,13 @@ class PlaidService:
                 str(uuid.uuid4()),
                 household_account_id,
                 identity_key,
-                _json({"source": "plaid"}),
+                identity_kind,
+                is_primary,
+                _json(metadata),
                 _now(),
                 _now(),
             ],
         )
-        return household_account_id
 
     def _sync_transactions(
         self,
