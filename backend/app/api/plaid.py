@@ -19,8 +19,8 @@ router = APIRouter(prefix="/api/plaid", tags=["plaid"])
 
 
 class PlaidConfigureRequest(BaseModel):
-    client_id: SecretStr
-    secret: SecretStr
+    client_id: SecretStr | None = None
+    secret: SecretStr | None = None
     environment: str = "sandbox"
     products: list[str] = Field(default_factory=lambda: ["transactions"])
     country_codes: list[str] = Field(default_factory=lambda: ["US"])
@@ -64,8 +64,8 @@ async def configure_plaid(payload: PlaidConfigureRequest) -> dict[str, object]:
     try:
         return await run_in_threadpool(
             _service().configure,
-            client_id=payload.client_id.get_secret_value(),
-            secret=payload.secret.get_secret_value(),
+            client_id=payload.client_id.get_secret_value() if payload.client_id else None,
+            secret=payload.secret.get_secret_value() if payload.secret else None,
             environment=payload.environment,
             products=payload.products,
             country_codes=payload.country_codes,

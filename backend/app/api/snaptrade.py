@@ -17,8 +17,8 @@ router = APIRouter(prefix="/api/snaptrade", tags=["snaptrade"])
 
 
 class SnapTradeConfigureRequest(BaseModel):
-    client_id: SecretStr
-    consumer_key: SecretStr
+    client_id: SecretStr | None = None
+    consumer_key: SecretStr | None = None
     redirect_uri: str | None = None
     default_broker: str | None = "FIDELITY"
 
@@ -55,8 +55,8 @@ async def configure_snaptrade(payload: SnapTradeConfigureRequest) -> dict[str, o
     try:
         return await run_in_threadpool(
             _service().configure,
-            client_id=payload.client_id.get_secret_value(),
-            consumer_key=payload.consumer_key.get_secret_value(),
+            client_id=payload.client_id.get_secret_value() if payload.client_id else None,
+            consumer_key=payload.consumer_key.get_secret_value() if payload.consumer_key else None,
             redirect_uri=payload.redirect_uri,
             default_broker=payload.default_broker,
         )
