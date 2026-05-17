@@ -30,6 +30,39 @@ def _iso(days_ago: int) -> str:
     return (datetime.now(UTC) - timedelta(days=days_ago)).isoformat()
 
 
+def test_build_account_summaries_omits_unlinked_no_value_evidence() -> None:
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="activity-export",
+                document_id="doc-activity",
+                household_account_id="manual-account",
+                source_type="credit_card",
+                asset_group="credit",
+                account_type="credit_card",
+                institution_name="Chase",
+                account_name="Chase credit card activity export",
+                account_mask=None,
+                owner_name="Elias B Leslie",
+                currency="USD",
+                balance=None,
+                holdings_value=None,
+                cash_balance=None,
+                as_of_date=None,
+                confidence=0.8,
+                metadata={},
+            )
+        ],
+        documents=[],
+        portfolio_accounts=[],
+        tracked_accounts=[],
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    assert summaries == []
+
+
 def test_build_account_summaries_groups_evidence_and_surfaces_freshness() -> None:
     documents = [
         HouseholdDocument(

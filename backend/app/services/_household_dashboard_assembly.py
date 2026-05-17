@@ -108,7 +108,7 @@ _LANE_CONFIGS: list[tuple[str, str, str]] = [
     ("Savings", "Reserve dollars for investing, emergency cash, and future big-ticket items.", "monthly_savings_target"),
 ]
 _DEGRADED_ACCOUNT_FRESHNESS_STATUSES = {"aging", "stale", "needs_evidence"}
-_SOURCE_ACCOUNT_METADATA_KEYS = ("snaptrade_account_id",)
+_SOURCE_ACCOUNT_METADATA_KEYS = ("plaid_account_id", "snaptrade_account_id")
 
 
 # ---------------------------------------------------------------------------
@@ -825,15 +825,22 @@ def _fetch_source_owned_household_account_ids(storage: Any) -> set[str]:
 
 def _fetch_source_owned_account_values(storage: Any) -> dict[str, dict[str, Any]]:
     with storage.connection() as conn:
-        rows = conn.execute(
+        snaptrade_rows = conn.execute(
             """
             SELECT household_account_id, balance, cash_balance, last_synced_at, account_mask
             FROM snaptrade_accounts
             WHERE household_account_id IS NOT NULL
             """
         ).fetchall()
+        plaid_rows = conn.execute(
+            """
+            SELECT household_account_id, current_balance, NULL::numeric, last_synced_at, mask
+            FROM plaid_accounts
+            WHERE household_account_id IS NOT NULL
+            """
+        ).fetchall()
     values: dict[str, dict[str, Any]] = {}
-    for row in rows:
+    for row in [*snaptrade_rows, *plaid_rows]:
         household_account_id = str(row[0])
         values[household_account_id] = {
             "current_value": row[1],
