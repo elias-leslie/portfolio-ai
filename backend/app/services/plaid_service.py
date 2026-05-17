@@ -226,7 +226,7 @@ class PlaidService:
         with self.storage.connection() as conn:
             credential_rows = conn.execute(
                 """
-                SELECT field, value
+                SELECT field, value, updated_at
                 FROM source_credentials
                 WHERE source_id = %s
                 """,
@@ -252,9 +252,21 @@ class PlaidService:
             ).fetchall()
 
         raw_credentials = {str(row[0]): str(row[1]) for row in credential_rows}
-        configured = bool(raw_credentials.get("client_id") and raw_credentials.get("secret"))
+        credential_updated_at = [
+            row[2]
+            for row in credential_rows
+            if str(row[0]) in {"client_id", "secret"} and row[1] and isinstance(row[2], datetime)
+        ]
+        client_id_configured = bool(raw_credentials.get("client_id"))
+        secret_configured = bool(raw_credentials.get("secret"))
+        configured = client_id_configured and secret_configured
         return {
             "configured": configured,
+            "client_id_configured": client_id_configured,
+            "secret_configured": secret_configured,
+            "configuration_updated_at": max(credential_updated_at).isoformat()
+            if credential_updated_at
+            else None,
             "encryption_ready": self.cipher.available,
             "environment": raw_credentials.get("environment"),
             "products": _as_json_list(raw_credentials.get("products"), _DEFAULT_PRODUCTS)
@@ -290,8 +302,8 @@ class PlaidService:
     def configure(
         self,
         *,
-        client_id: str,
-        secret: str,
+        client_id: str | None,
+        secret: str | None,
         environment: str,
         products: list[str] | None = None,
         country_codes: list[str] | None = None,
@@ -300,16 +312,27 @@ class PlaidService:
         environment = environment.strip().lower()
         if environment not in _VALID_ENVIRONMENTS:
             raise PlaidConfigurationError("Plaid environment must be sandbox or production.")
-        client_id = client_id.strip()
-        secret = secret.strip()
-        if not client_id or not secret:
-            raise PlaidConfigurationError("Plaid client_id and secret are required.")
         if not self.cipher.available:
-            raise SecretKeyUnavailableError("PORTFOLIO_SECRET_KEY is required for encrypted credentials")
+            raise SecretKeyUnavailableError(
+                "PORTFOLIO_SECRET_KEY is required for encrypted credentials"
+            )
+        client_id = client_id.strip() if client_id else ""
+        secret = secret.strip() if secret else ""
+        existing_credentials = get_source_credentials(self.storage, _PLAID_SOURCE_ID)
+        existing_client_id = existing_credentials.get("client_id")
+        existing_secret = existing_credentials.get("secret")
+        if (not client_id or not secret) and (
+            not (client_id or existing_client_id) or not (secret or existing_secret)
+        ):
+            raise PlaidConfigurationError("Plaid client_id and secret are required.")
 
-        cleaned_products = [item.strip() for item in (products or _DEFAULT_PRODUCTS) if item.strip()]
+        cleaned_products = [
+            item.strip() for item in (products or _DEFAULT_PRODUCTS) if item.strip()
+        ]
         cleaned_country_codes = [
-            item.strip().upper() for item in (country_codes or _DEFAULT_COUNTRY_CODES) if item.strip()
+            item.strip().upper()
+            for item in (country_codes or _DEFAULT_COUNTRY_CODES)
+            if item.strip()
         ]
         if not cleaned_products:
             cleaned_products = _DEFAULT_PRODUCTS
@@ -317,8 +340,10 @@ class PlaidService:
             cleaned_country_codes = _DEFAULT_COUNTRY_CODES
 
         self._ensure_source_registry()
-        set_source_credential(self.storage, _PLAID_SOURCE_ID, "client_id", client_id)
-        set_source_credential(self.storage, _PLAID_SOURCE_ID, "secret", secret)
+        if client_id:
+            set_source_credential(self.storage, _PLAID_SOURCE_ID, "client_id", client_id)
+        if secret:
+            set_source_credential(self.storage, _PLAID_SOURCE_ID, "secret", secret)
         set_source_credential(
             self.storage,
             _PLAID_SOURCE_ID,
@@ -490,12 +515,12 @@ class PlaidService:
             totals["transaction_added_count"] = int(totals["transaction_added_count"]) + int(
                 item_result["transaction_added_count"]
             )
-            totals["transaction_modified_count"] = int(
-                totals["transaction_modified_count"]
-            ) + int(item_result["transaction_modified_count"])
-            totals["transaction_removed_count"] = int(
-                totals["transaction_removed_count"]
-            ) + int(item_result["transaction_removed_count"])
+            totals["transaction_modified_count"] = int(totals["transaction_modified_count"]) + int(
+                item_result["transaction_modified_count"]
+            )
+            totals["transaction_removed_count"] = int(totals["transaction_removed_count"]) + int(
+                item_result["transaction_removed_count"]
+            )
 
         return totals
 
@@ -562,7 +587,9 @@ class PlaidService:
 
     def _load_config(self) -> PlaidConfig:
         if not self.cipher.available:
-            raise SecretKeyUnavailableError("PORTFOLIO_SECRET_KEY is required for encrypted credentials")
+            raise SecretKeyUnavailableError(
+                "PORTFOLIO_SECRET_KEY is required for encrypted credentials"
+            )
         credentials = get_source_credentials(self.storage, _PLAID_SOURCE_ID)
         client_id = credentials.get("client_id")
         secret = credentials.get("secret")
@@ -652,9 +679,13 @@ class PlaidService:
         return {
             "institution_id": str(institution_id) if institution_id else None,
             "institution_name": institution_name,
-            "available_products": item.get("available_products", []) if isinstance(item, dict) else [],
+            "available_products": item.get("available_products", [])
+            if isinstance(item, dict)
+            else [],
             "billed_products": item.get("billed_products", []) if isinstance(item, dict) else [],
-            "consented_products": item.get("consented_products", []) if isinstance(item, dict) else [],
+            "consented_products": item.get("consented_products", [])
+            if isinstance(item, dict)
+            else [],
         }
 
     def _sync_single_item(
@@ -668,7 +699,11 @@ class PlaidService:
         accounts_response = _to_dict(
             client.accounts_balance_get(AccountsBalanceGetRequest(access_token=access_token))
         )
-        accounts = accounts_response.get("accounts") if isinstance(accounts_response.get("accounts"), list) else []
+        accounts = (
+            accounts_response.get("accounts")
+            if isinstance(accounts_response.get("accounts"), list)
+            else []
+        )
         document_id = self._ensure_sync_document(item=item)
         account_count = self._upsert_accounts(
             item=item,
@@ -989,7 +1024,9 @@ class PlaidService:
             modified.extend(
                 response.get("modified") if isinstance(response.get("modified"), list) else []
             )
-            removed.extend(response.get("removed") if isinstance(response.get("removed"), list) else [])
+            removed.extend(
+                response.get("removed") if isinstance(response.get("removed"), list) else []
+            )
             has_more = bool(response.get("has_more"))
             next_cursor = str(response.get("next_cursor") or next_cursor or "")
             if not next_cursor:

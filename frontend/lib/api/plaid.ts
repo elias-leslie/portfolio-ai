@@ -10,6 +10,9 @@ export interface PlaidStatusItem {
 
 export interface PlaidStatus {
   configured: boolean
+  clientIdConfigured: boolean
+  secretConfigured: boolean
+  configurationUpdatedAt: string | null
   encryptionReady: boolean
   environment: string | null
   products: string[]
@@ -23,8 +26,8 @@ export interface PlaidStatus {
 }
 
 export interface PlaidConfigurePayload {
-  clientId: string
-  secret: string
+  clientId?: string
+  secret?: string
   environment: string
   products: string[]
   countryCodes: string[]

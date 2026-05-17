@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 
+from app.services import snaptrade_service
 from app.services.snaptrade_service import (
     _READ_ONLY_CONNECTION_TYPE,
+    SnapTradeConfigurationError,
     SnapTradeNormalizedAccount,
     SnapTradeNormalizedPosition,
     SnapTradeReadOnlyClient,
@@ -66,7 +69,9 @@ def test_fidelity_account_kind_mapping() -> None:
 
 
 def test_cash_balance_from_account_preserves_zero() -> None:
-    assert SnapTradeService._cash_balance_from_account({"balance": {"cash": "0.00"}}) == Decimal("0.00")
+    assert SnapTradeService._cash_balance_from_account({"balance": {"cash": "0.00"}}) == Decimal(
+        "0.00"
+    )
 
 
 def test_source_cash_balance_uses_account_total_when_cash_is_missing() -> None:
@@ -102,6 +107,70 @@ def test_source_cash_balance_uses_account_total_when_cash_is_missing() -> None:
 
     assert SnapTradeService._source_cash_balance(account, [position]) == Decimal("9835.94")
     assert SnapTradeService._source_cash_balance(account, []) == Decimal("549593.06")
+
+
+def test_configure_keeps_saved_credentials_when_secret_inputs_are_blank(monkeypatch) -> None:
+    service = object.__new__(SnapTradeService)
+    service.storage = object()
+    service.cipher = SimpleNamespace(available=True)
+    saved_fields: list[tuple[str, str, bool]] = []
+
+    monkeypatch.setattr(service, "_ensure_source_registry", lambda: None)
+    monkeypatch.setattr(service, "get_status", lambda: {"configured": True})
+    monkeypatch.setattr(
+        snaptrade_service,
+        "get_source_credentials",
+        lambda _storage, _source_id: {
+            "client_id": "existing-client",
+            "consumer_key": "existing-key",
+        },
+    )
+
+    def fake_set_source_credential(
+        storage: object,
+        source_id: str,
+        field: str,
+        value: str,
+        *,
+        encrypt: bool = True,
+    ) -> None:
+        saved_fields.append((field, value, encrypt))
+
+    monkeypatch.setattr(snaptrade_service, "set_source_credential", fake_set_source_credential)
+
+    result = service.configure(
+        client_id="",
+        consumer_key=None,
+        redirect_uri="https://port.summitflow.dev/money",
+        default_broker="FIDELITY",
+    )
+
+    assert result == {"configured": True}
+    assert ("client_id", "existing-client", True) not in saved_fields
+    assert ("consumer_key", "existing-key", True) not in saved_fields
+    assert ("redirect_uri", "https://port.summitflow.dev/money", False) in saved_fields
+    assert ("default_broker", "FIDELITY", False) in saved_fields
+
+
+def test_configure_still_requires_credentials_for_first_setup(monkeypatch) -> None:
+    service = object.__new__(SnapTradeService)
+    service.storage = object()
+    service.cipher = SimpleNamespace(available=True)
+    monkeypatch.setattr(
+        snaptrade_service,
+        "get_source_credentials",
+        lambda _storage, _source_id: {},
+    )
+
+    with pytest.raises(SnapTradeConfigurationError) as exc_info:
+        service.configure(
+            client_id=None,
+            consumer_key=None,
+            redirect_uri=None,
+            default_broker="FIDELITY",
+        )
+
+    assert str(exc_info.value) == "SnapTrade client_id and consumer_key are required."
 
 
 def test_replace_portfolio_positions_removes_unmanaged_rows_for_source_owned_account() -> None:

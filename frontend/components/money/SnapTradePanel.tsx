@@ -1,17 +1,14 @@
 'use client'
 
-import {
-  ExternalLink,
-  KeyRound,
-  Landmark,
-  Loader2,
-  RefreshCw,
-  ShieldCheck,
-} from 'lucide-react'
+import { ExternalLink, Landmark, RefreshCw } from 'lucide-react'
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
-import { SectionCard } from '@/components/shared/SectionCard'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import {
+  formatDataServiceTime,
+  MoneyDataServiceConfigForm,
+  MoneyDataServicePanel,
+  MoneyDataServiceSecretInput,
+  type MoneyDataServiceTile,
+} from '@/components/money/MoneyDataServicePanel'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -24,18 +21,6 @@ import {
 function defaultRedirectUri() {
   if (typeof window === 'undefined') return ''
   return `${window.location.origin}/money`
-}
-
-function formatSyncTime(value?: string | null) {
-  if (!value) return 'Never synced'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(date)
 }
 
 function formatCurrency(value?: number | null, currency?: string | null) {
@@ -69,8 +54,31 @@ export function SnapTradePanel() {
     )
   }, [])
 
+  useEffect(() => {
+    if (!status) return
+    setForm((current) => ({
+      ...current,
+      redirectUri:
+        status.redirectUri ?? (current.redirectUri || defaultRedirectUri()),
+      defaultBroker: current.defaultBroker || status.defaultBroker,
+    }))
+  }, [status])
+
   const configured = status?.configured === true
   const canConfigure = status?.encryptionReady !== false
+  const redirectConfigured = Boolean(status?.redirectUri)
+  const hasConnection = (status?.connectionCount ?? 0) > 0
+  const portalReady = configured && redirectConfigured
+  const connectionStatus = hasConnection
+    ? 'Linked'
+    : portalReady
+      ? 'Ready'
+      : 'Pending'
+  const connectionDetail = hasConnection
+    ? 'Sync enabled'
+    : portalReady
+      ? 'Portal connection pending'
+      : 'Needs redirect URI'
   const isBusy =
     configureSnapTrade.isPending ||
     createPortal.isPending ||
@@ -84,14 +92,18 @@ export function SnapTradePanel() {
     if (isLoading) return 'Loading SnapTrade status'
     if (!status?.encryptionReady) return 'App secret key required'
     if (!configured) return 'Credentials not configured'
+    if (!status.userRegistered)
+      return 'Credentials configured; brokerage connection pending'
     return `${status.accountCount} account${status.accountCount === 1 ? '' : 's'} linked`
   }, [configured, isLoading, status])
 
   const handleConfigure = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    const clientId = form.clientId.trim()
+    const consumerKey = form.consumerKey.trim()
     await configureSnapTrade.mutateAsync({
-      clientId: form.clientId.trim(),
-      consumerKey: form.consumerKey.trim(),
+      ...(clientId ? { clientId } : {}),
+      ...(consumerKey ? { consumerKey } : {}),
       redirectUri: form.redirectUri.trim() || null,
       defaultBroker: selectedBroker,
     })
@@ -115,234 +127,215 @@ export function SnapTradePanel() {
     }
   }
 
-  return (
-    <SectionCard
-      variant="surface"
-      title="SnapTrade"
-      description={summary}
-      actions={
-        <>
-          <Badge variant="secondary" className="gap-1">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            Read only
-          </Badge>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setConfigOpen((open) => !open)}
-            disabled={!canConfigure}
-          >
-            <KeyRound className="h-4 w-4" />
-            Configure
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void syncSnapTrade.mutateAsync()}
-            disabled={!configured || isBusy || !status?.userRegistered}
-          >
-            <RefreshCw
-              className={
-                syncSnapTrade.isPending ? 'h-4 w-4 animate-spin' : 'h-4 w-4'
-              }
-            />
-            Sync
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => void handleConnect()}
-            disabled={!configured || isBusy}
-          >
-            {createPortal.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <ExternalLink className="h-4 w-4" />
-            )}
-            Connect brokerage
-          </Button>
-        </>
-      }
+  const statusTiles: MoneyDataServiceTile[] = [
+    {
+      id: 'credentials',
+      label: 'Credentials',
+      value: status?.clientIdConfigured
+        ? 'Client ID saved'
+        : 'Client ID missing',
+      detail: status?.consumerKeyConfigured
+        ? 'Consumer key saved'
+        : 'Consumer key missing',
+      badge: {
+        label: configured ? 'Saved' : 'Missing',
+        variant: configured ? 'success' : 'secondary',
+      },
+    },
+    {
+      id: 'access',
+      label: 'Access',
+      value: 'Read only',
+      detail: selectedBroker,
+      badge: {
+        label: 'Read only',
+        variant: 'secondary',
+      },
+    },
+    {
+      id: 'redirect',
+      label: 'OAuth Redirect',
+      value: status?.redirectUri ?? 'Not set',
+      title: status?.redirectUri ?? undefined,
+      detail: formatDataServiceTime(status?.configurationUpdatedAt),
+      badge: {
+        label: redirectConfigured ? 'Ready' : 'Missing',
+        variant: redirectConfigured ? 'success' : 'secondary',
+      },
+    },
+    {
+      id: 'connection',
+      label: 'Brokerage',
+      value: connectionDetail,
+      icon: <Landmark className="h-4 w-4 text-primary" />,
+      badge: {
+        label: connectionStatus,
+        variant: hasConnection
+          ? 'success'
+          : portalReady
+            ? 'warning'
+            : 'secondary',
+      },
+    },
+  ]
+
+  const metricTiles: MoneyDataServiceTile[] = [
+    {
+      id: 'connections',
+      label: 'Connections',
+      value: status?.connectionCount ?? 0,
+    },
+    {
+      id: 'accounts',
+      label: 'Accounts',
+      value: status?.accountCount ?? 0,
+    },
+    {
+      id: 'positions',
+      label: 'Positions',
+      value: status?.positionCount ?? 0,
+    },
+    {
+      id: 'activities',
+      label: 'Activities',
+      value: status?.activityCount ?? 0,
+    },
+    {
+      id: 'last-sync',
+      label: 'Last Sync',
+      value: formatDataServiceTime(status?.lastSuccessfulSyncAt),
+    },
+    {
+      id: 'default-broker',
+      label: 'Default Broker',
+      value: status?.defaultBroker ?? 'FIDELITY',
+    },
+  ]
+
+  const configForm = (
+    <MoneyDataServiceConfigForm
+      isPending={configureSnapTrade.isPending}
+      canConfigure={canConfigure}
+      onSubmit={(event) => void handleConfigure(event)}
+      onCancel={() => setConfigOpen(false)}
     >
-      <div className="space-y-4">
-        {!canConfigure && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            PORTFOLIO_SECRET_KEY is required before encrypted credentials can be
-            saved.
-          </div>
-        )}
+      <MoneyDataServiceSecretInput
+        id="snaptrade-client-id"
+        label="Client ID"
+        value={form.clientId}
+        saved={configured}
+        onChange={(clientId) =>
+          setForm((current) => ({
+            ...current,
+            clientId,
+          }))
+        }
+      />
+      <MoneyDataServiceSecretInput
+        id="snaptrade-consumer-key"
+        label="Consumer key"
+        value={form.consumerKey}
+        saved={configured}
+        onChange={(consumerKey) =>
+          setForm((current) => ({
+            ...current,
+            consumerKey,
+          }))
+        }
+      />
+      <div className="space-y-2">
+        <Label htmlFor="snaptrade-broker">Broker slug</Label>
+        <Input
+          id="snaptrade-broker"
+          value={form.defaultBroker}
+          placeholder={status?.defaultBroker ?? 'FIDELITY'}
+          onChange={(event) =>
+            setForm((current) => ({
+              ...current,
+              defaultBroker: event.target.value,
+            }))
+          }
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="snaptrade-redirect-uri">Redirect URI</Label>
+        <Input
+          id="snaptrade-redirect-uri"
+          value={form.redirectUri}
+          onChange={(event) =>
+            setForm((current) => ({
+              ...current,
+              redirectUri: event.target.value,
+            }))
+          }
+        />
+      </div>
+    </MoneyDataServiceConfigForm>
+  )
 
-        {configOpen && (
-          <form
-            className="grid gap-3 rounded-md border border-border/40 bg-bg/70 p-4 md:grid-cols-2"
-            autoComplete="off"
-            onSubmit={(event) => void handleConfigure(event)}
-          >
-            <div className="space-y-2">
-              <Label htmlFor="snaptrade-client-id">Client ID</Label>
-              <Input
-                id="snaptrade-client-id"
-                type="password"
-                value={form.clientId}
-                autoComplete="off"
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    clientId: event.target.value,
-                  }))
-                }
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="snaptrade-consumer-key">Consumer key</Label>
-              <Input
-                id="snaptrade-consumer-key"
-                type="password"
-                value={form.consumerKey}
-                autoComplete="off"
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    consumerKey: event.target.value,
-                  }))
-                }
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="snaptrade-broker">Broker slug</Label>
-              <Input
-                id="snaptrade-broker"
-                value={form.defaultBroker}
-                placeholder={status?.defaultBroker ?? 'FIDELITY'}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    defaultBroker: event.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="snaptrade-redirect-uri">Redirect URI</Label>
-              <Input
-                id="snaptrade-redirect-uri"
-                value={form.redirectUri}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    redirectUri: event.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="flex items-center gap-2 md:col-span-2">
-              <Button
-                type="submit"
-                disabled={configureSnapTrade.isPending || !canConfigure}
-              >
-                {configureSnapTrade.isPending && (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                )}
-                Save credentials
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setConfigOpen(false)}
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
-        )}
-
-        {(portalError || status?.lastError) && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {portalError || status?.lastError}
-          </div>
-        )}
-
-        <div className="grid gap-3 md:grid-cols-4">
-          <div className="rounded-md border border-border/35 bg-bg/60 p-3">
-            <p className="text-xs uppercase text-text-muted">Connections</p>
-            <p className="mt-1 text-lg font-semibold text-text">
-              {status?.connectionCount ?? 0}
-            </p>
-          </div>
-          <div className="rounded-md border border-border/35 bg-bg/60 p-3">
-            <p className="text-xs uppercase text-text-muted">Accounts</p>
-            <p className="mt-1 text-lg font-semibold text-text">
-              {status?.accountCount ?? 0}
-            </p>
-          </div>
-          <div className="rounded-md border border-border/35 bg-bg/60 p-3">
-            <p className="text-xs uppercase text-text-muted">Positions</p>
-            <p className="mt-1 text-lg font-semibold text-text">
-              {status?.positionCount ?? 0}
-            </p>
-          </div>
-          <div className="rounded-md border border-border/35 bg-bg/60 p-3">
-            <p className="text-xs uppercase text-text-muted">Activities</p>
-            <p className="mt-1 text-lg font-semibold text-text">
-              {status?.activityCount ?? 0}
-            </p>
-          </div>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-md border border-border/35 bg-bg/60 p-3">
-            <p className="text-xs uppercase text-text-muted">Last Sync</p>
-            <p className="mt-1 text-sm font-medium text-text">
-              {formatSyncTime(status?.lastSuccessfulSyncAt)}
-            </p>
-          </div>
-          <div className="rounded-md border border-border/35 bg-bg/60 p-3">
-            <p className="text-xs uppercase text-text-muted">Default Broker</p>
-            <p className="mt-1 text-sm font-medium text-text">
-              {status?.defaultBroker ?? 'FIDELITY'}
-            </p>
-          </div>
-        </div>
-
-        {status?.accounts.length ? (
-          <div className="space-y-2">
-            {status.accounts.map((account) => (
-              <div
-                key={account.accountId}
-                className="flex flex-col gap-2 rounded-md border border-border/35 bg-bg/60 p-3 md:flex-row md:items-center md:justify-between"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <Landmark className="h-4 w-4 text-primary" />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-text">
-                      {account.institutionName
-                        ? `${account.institutionName} - ${account.name}`
-                        : account.name}
-                    </p>
-                    <p className="text-xs text-text-muted">
-                      {account.accountMask
-                        ? `*${account.accountMask} - ${account.portfolioAccountType}`
-                        : account.portfolioAccountType}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-left md:text-right">
-                  <p className="text-sm font-semibold text-text">
-                    {formatCurrency(account.balance, account.currency)}
+  return (
+    <MoneyDataServicePanel
+      title="SnapTrade"
+      summary={summary}
+      configured={configured}
+      canConfigure={canConfigure}
+      configOpen={configOpen}
+      onToggleConfig={() => setConfigOpen((open) => !open)}
+      configForm={configForm}
+      statusTiles={statusTiles}
+      metricTiles={metricTiles}
+      metricColumns={4}
+      alerts={[portalError, status?.lastError]}
+      syncAction={{
+        label: 'Sync',
+        icon: <RefreshCw className="h-4 w-4" />,
+        pending: syncSnapTrade.isPending,
+        disabled: !configured || isBusy || !status?.userRegistered,
+        variant: 'outline',
+        onClick: () => void syncSnapTrade.mutateAsync(),
+      }}
+      connectAction={{
+        label: 'Connect brokerage',
+        icon: <ExternalLink className="h-4 w-4" />,
+        pending: createPortal.isPending,
+        disabled: !configured || isBusy,
+        onClick: () => void handleConnect(),
+      }}
+    >
+      {status?.accounts.length ? (
+        <div className="space-y-2">
+          {status.accounts.map((account) => (
+            <div
+              key={account.accountId}
+              className="flex flex-col gap-2 rounded-md border border-border/35 bg-bg/60 p-3 md:flex-row md:items-center md:justify-between"
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                <Landmark className="h-4 w-4 text-primary" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-text">
+                    {account.institutionName
+                      ? `${account.institutionName} - ${account.name}`
+                      : account.name}
                   </p>
                   <p className="text-xs text-text-muted">
-                    {formatSyncTime(account.lastSyncedAt)}
+                    {account.accountMask
+                      ? `*${account.accountMask} - ${account.portfolioAccountType}`
+                      : account.portfolioAccountType}
                   </p>
                 </div>
               </div>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </SectionCard>
+              <div className="text-left md:text-right">
+                <p className="text-sm font-semibold text-text">
+                  {formatCurrency(account.balance, account.currency)}
+                </p>
+                <p className="text-xs text-text-muted">
+                  {formatDataServiceTime(account.lastSyncedAt)}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </MoneyDataServicePanel>
   )
 }

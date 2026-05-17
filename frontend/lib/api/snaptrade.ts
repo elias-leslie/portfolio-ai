@@ -23,6 +23,9 @@ export interface SnapTradeAccount {
 
 export interface SnapTradeStatus {
   configured: boolean
+  clientIdConfigured: boolean
+  consumerKeyConfigured: boolean
+  configurationUpdatedAt: string | null
   encryptionReady: boolean
   accessMode: 'read_only'
   defaultBroker: string
@@ -39,8 +42,8 @@ export interface SnapTradeStatus {
 }
 
 export interface SnapTradeConfigurePayload {
-  clientId: string
-  consumerKey: string
+  clientId?: string
+  consumerKey?: string
   redirectUri?: string | null
   defaultBroker?: string | null
 }

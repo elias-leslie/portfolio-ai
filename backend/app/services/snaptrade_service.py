@@ -257,7 +257,10 @@ def _snaptrade_error_payload(exc: ApiException) -> dict[str, object]:
         or "SnapTrade request failed."
     )
     lower_message = message.lower()
-    if any(secret_word in lower_message for secret_word in ("clientid", "client id", "consumer", "signature")):
+    if any(
+        secret_word in lower_message
+        for secret_word in ("clientid", "client id", "consumer", "signature")
+    ):
         message = "SnapTrade rejected the configured credentials."
     return {
         "error_type": "SNAPTRADE_API_ERROR",
@@ -298,11 +301,7 @@ def _brokerage_fields(connection: dict[str, object]) -> tuple[str | None, str | 
 
 
 def _account_kind(*values: object) -> SnapTradeAccountKind:
-    normalized = " ".join(
-        value.lower()
-        for raw in values
-        if (value := _string(raw))
-    )
+    normalized = " ".join(value.lower() for raw in values if (value := _string(raw)))
     if "roth" in normalized:
         return SnapTradeAccountKind("Roth", "retirement", "retirement", "roth_ira")
     if "401" in normalized:
@@ -331,7 +330,7 @@ class SnapTradeService:
         with self.storage.connection() as conn:
             credential_rows = conn.execute(
                 """
-                SELECT field, value
+                SELECT field, value, updated_at
                 FROM source_credentials
                 WHERE source_id = %s
                 """,
@@ -376,9 +375,23 @@ class SnapTradeService:
             ).fetchone()
 
         raw_credentials = {str(row[0]): str(row[1]) for row in credential_rows}
-        configured = bool(raw_credentials.get("client_id") and raw_credentials.get("consumer_key"))
+        credential_updated_at = [
+            row[2]
+            for row in credential_rows
+            if str(row[0]) in {"client_id", "consumer_key"}
+            and row[1]
+            and isinstance(row[2], datetime)
+        ]
+        client_id_configured = bool(raw_credentials.get("client_id"))
+        consumer_key_configured = bool(raw_credentials.get("consumer_key"))
+        configured = client_id_configured and consumer_key_configured
         return {
             "configured": configured,
+            "client_id_configured": client_id_configured,
+            "consumer_key_configured": consumer_key_configured,
+            "configuration_updated_at": max(credential_updated_at).isoformat()
+            if credential_updated_at
+            else None,
             "encryption_ready": self.cipher.available,
             "access_mode": "read_only",
             "default_broker": raw_credentials.get("default_broker") or _DEFAULT_BROKER,
@@ -422,21 +435,35 @@ class SnapTradeService:
     def configure(
         self,
         *,
-        client_id: str,
-        consumer_key: str,
+        client_id: str | None,
+        consumer_key: str | None,
         redirect_uri: str | None = None,
         default_broker: str | None = _DEFAULT_BROKER,
     ) -> dict[str, object]:
-        client_id = client_id.strip()
-        consumer_key = consumer_key.strip()
-        if not client_id or not consumer_key:
-            raise SnapTradeConfigurationError("SnapTrade client_id and consumer_key are required.")
         if not self.cipher.available:
-            raise SecretKeyUnavailableError("PORTFOLIO_SECRET_KEY is required for encrypted credentials")
+            raise SecretKeyUnavailableError(
+                "PORTFOLIO_SECRET_KEY is required for encrypted credentials"
+            )
+        client_id = client_id.strip() if client_id else ""
+        consumer_key = consumer_key.strip() if consumer_key else ""
+        existing_credentials = get_source_credentials(self.storage, _SNAPTRADE_SOURCE_ID)
+        existing_client_id = existing_credentials.get("client_id")
+        existing_consumer_key = existing_credentials.get("consumer_key")
+        if (not client_id or not consumer_key) and (
+            not (client_id or existing_client_id) or not (consumer_key or existing_consumer_key)
+        ):
+            raise SnapTradeConfigurationError("SnapTrade client_id and consumer_key are required.")
         broker = (default_broker or "").strip().upper() or _DEFAULT_BROKER
         self._ensure_source_registry()
-        set_source_credential(self.storage, _SNAPTRADE_SOURCE_ID, "client_id", client_id)
-        set_source_credential(self.storage, _SNAPTRADE_SOURCE_ID, "consumer_key", consumer_key)
+        if client_id:
+            set_source_credential(self.storage, _SNAPTRADE_SOURCE_ID, "client_id", client_id)
+        if consumer_key:
+            set_source_credential(
+                self.storage,
+                _SNAPTRADE_SOURCE_ID,
+                "consumer_key",
+                consumer_key,
+            )
         set_source_credential(
             self.storage,
             _SNAPTRADE_SOURCE_ID,
@@ -531,7 +558,9 @@ class SnapTradeService:
             authorization_id = _string(connection.get("id"))
             if not authorization_id:
                 continue
-            self._upsert_connection(user_id=user.user_id, authorization_id=authorization_id, connection=connection)
+            self._upsert_connection(
+                user_id=user.user_id, authorization_id=authorization_id, connection=connection
+            )
             totals["connection_count"] = int(totals["connection_count"]) + 1
             try:
                 accounts = _list(
@@ -577,7 +606,9 @@ class SnapTradeService:
                         errors.append({"account_id": account.account_id, **payload})
                     continue
                 totals["position_count"] = int(totals["position_count"]) + position_count
-                totals["portfolio_position_count"] = int(totals["portfolio_position_count"]) + position_count
+                totals["portfolio_position_count"] = (
+                    int(totals["portfolio_position_count"]) + position_count
+                )
                 totals["activity_count"] = int(totals["activity_count"]) + activity_count
                 symbols.update(position_symbols)
 
@@ -618,7 +649,9 @@ class SnapTradeService:
 
     def _load_config(self) -> SnapTradeConfig:
         if not self.cipher.available:
-            raise SecretKeyUnavailableError("PORTFOLIO_SECRET_KEY is required for encrypted credentials")
+            raise SecretKeyUnavailableError(
+                "PORTFOLIO_SECRET_KEY is required for encrypted credentials"
+            )
         credentials = get_source_credentials(self.storage, _SNAPTRADE_SOURCE_ID)
         client_id = credentials.get("client_id")
         consumer_key = credentials.get("consumer_key")
@@ -642,9 +675,7 @@ class SnapTradeService:
             return existing
         user_id = f"portfolio-ai-{uuid.uuid4()}"
         try:
-            response = _dict(
-                _body(client.authentication.register_snap_trade_user(user_id=user_id))
-            )
+            response = _dict(_body(client.authentication.register_snap_trade_user(user_id=user_id)))
         except ApiException as exc:
             payload = _snaptrade_error_payload(exc)
             raise SnapTradeIntegrationError(
@@ -762,7 +793,9 @@ class SnapTradeService:
             return None
         name = _string(raw_account.get("name")) or "SnapTrade account"
         institution_name = _string(raw_account.get("institution_name"))
-        raw_type = _string(_dict(raw_account.get("meta")).get("type")) or _string(raw_account.get("type"))
+        raw_type = _string(_dict(raw_account.get("meta")).get("type")) or _string(
+            raw_account.get("type")
+        )
         account_mask = _redact_account_number(raw_account.get("number"))
         kind = _account_kind(name, raw_type)
         balance, currency = self._account_balance(raw_account)
@@ -884,9 +917,7 @@ class SnapTradeService:
                 [account.account_id],
             ).fetchall()
             existing_portfolio_ids = {
-                str(row[0]): str(row[1])
-                for row in existing_rows
-                if row[1] is not None
+                str(row[0]): str(row[1]) for row in existing_rows if row[1] is not None
             }
             desired_keys = {position.position_key for position in positions}
             if desired_keys:
@@ -986,7 +1017,9 @@ class SnapTradeService:
         count = 0
         with self.storage.connection() as conn:
             for activity in activities:
-                activity_id = _string(activity.get("id")) or _string(activity.get("external_reference_id"))
+                activity_id = _string(activity.get("id")) or _string(
+                    activity.get("external_reference_id")
+                )
                 if not activity_id:
                     continue
                 symbol = self._activity_symbol(activity)
@@ -1081,12 +1114,16 @@ class SnapTradeService:
                 institution_name=institution_name,
                 account_mask=account_mask,
             )
-        elif row is not None and row[0] is not None and (
-            account_mask is None
-            or self._household_account_accepts_snaptrade_mask(
-                conn=conn,
-                household_account_id=str(row[0]),
-                account_mask=account_mask,
+        elif (
+            row is not None
+            and row[0] is not None
+            and (
+                account_mask is None
+                or self._household_account_accepts_snaptrade_mask(
+                    conn=conn,
+                    household_account_id=str(row[0]),
+                    account_mask=account_mask,
+                )
             )
         ):
             household_account_id = str(row[0])
@@ -1349,7 +1386,9 @@ class SnapTradeService:
         existing_portfolio_ids: dict[str, str],
         synced_at: datetime,
     ) -> None:
-        desired_ids = [f"snaptrade:{account.account_id}:{position.position_key}" for position in positions]
+        desired_ids = [
+            f"snaptrade:{account.account_id}:{position.position_key}" for position in positions
+        ]
         if desired_ids:
             conn.execute(
                 """
@@ -1494,7 +1533,9 @@ class SnapTradeService:
             or _symbol(universal_symbol.get("symbol"))
             or _symbol(raw_position.get("symbol"))
         )
-        units = _decimal(raw_position.get("units")) or _decimal(raw_position.get("fractional_units"))
+        units = _decimal(raw_position.get("units")) or _decimal(
+            raw_position.get("fractional_units")
+        )
         if symbol is None or units is None or units == 0:
             return None
         security_id = (
@@ -1507,7 +1548,9 @@ class SnapTradeService:
         average_purchase_price = _decimal(raw_position.get("average_purchase_price"))
         cost_basis = _decimal(raw_position.get("cost_basis"))
         market_value = price * units if price is not None else None
-        raw_symbol = _string(instrument.get("raw_symbol")) or _string(universal_symbol.get("raw_symbol"))
+        raw_symbol = _string(instrument.get("raw_symbol")) or _string(
+            universal_symbol.get("raw_symbol")
+        )
         currency = (
             _currency_code(instrument.get("currency"))
             or _currency_code(universal_symbol.get("currency"))
