@@ -75,17 +75,20 @@ describe('PlaidLinkPanel', () => {
     removeItemMutateAsync.mockResolvedValue({})
   })
 
-  it('shows saved Plaid credentials separately from pending Chase authorization', () => {
+  it('shows saved Plaid credentials separately from pending institution connection', () => {
     render(<PlaidLinkPanel />)
 
     expect(
-      screen.getByText('Credentials configured; Chase authorization pending'),
+      screen.getByText(
+        'Credentials configured; institution connection pending',
+      ),
     ).toBeInTheDocument()
     expect(screen.getByText('Client ID saved')).toBeInTheDocument()
     expect(screen.getByText('Secret saved')).toBeInTheDocument()
     expect(screen.getByText('Production')).toBeInTheDocument()
     expect(screen.getByText('OAuth authorization pending')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /connect chase/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /connect bank/i })).toBeEnabled()
+    expect(screen.queryByText(/chase/i)).not.toBeInTheDocument()
   })
 
   it('keeps existing secret fields when saving non-secret Plaid settings', async () => {
@@ -112,11 +115,11 @@ describe('PlaidLinkPanel', () => {
     })
   })
 
-  it('opens Plaid Link when starting the Chase connection', async () => {
+  it('opens Plaid Link when starting the bank connection', async () => {
     const user = userEvent.setup()
     render(<PlaidLinkPanel />)
 
-    await user.click(screen.getByRole('button', { name: /connect chase/i }))
+    await user.click(screen.getByRole('button', { name: /connect bank/i }))
 
     expect(createLinkTokenMutateAsync).toHaveBeenCalled()
     await waitFor(() => expect(openPlaidMock).toHaveBeenCalled())

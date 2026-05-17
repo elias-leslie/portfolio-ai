@@ -118,10 +118,8 @@ export function PlaidLinkPanel() {
   const canConfigure = status?.encryptionReady !== false
   const redirectConfigured = Boolean(status?.redirectUri)
   const productionReady = status?.environment === 'production'
-  const hasChaseItem =
-    status?.items.some((item) => /chase/i.test(item.institutionName ?? '')) ??
-    false
-  const chaseReady = configured && productionReady && redirectConfigured
+  const hasLinkedInstitution = (status?.itemCount ?? 0) > 0
+  const institutionReady = configured && productionReady && redirectConfigured
   const isBusy =
     createLinkToken.isPending ||
     exchangePublicToken.isPending ||
@@ -206,17 +204,25 @@ export function PlaidLinkPanel() {
     if (!status?.encryptionReady) return 'App secret key required'
     if (!configured) return 'Credentials not configured'
     if (status.itemCount === 0) {
-      return 'Credentials configured; Chase authorization pending'
+      return 'Credentials configured; institution connection pending'
     }
     return `${status.itemCount} item${status.itemCount === 1 ? '' : 's'} linked`
   }, [configured, isLoading, status])
 
-  const chaseStatus = hasChaseItem ? 'Linked' : chaseReady ? 'Ready' : 'Pending'
-  const chaseDetail = hasChaseItem
+  const institutionStatus = hasLinkedInstitution
+    ? 'Linked'
+    : institutionReady
+      ? 'Ready'
+      : 'Pending'
+  const institutionDetail = hasLinkedInstitution
     ? 'Sync enabled'
-    : chaseReady
-      ? 'OAuth authorization pending'
-      : 'Needs production redirect'
+    : !configured
+      ? 'Connect credentials first'
+      : !productionReady
+        ? 'Switch to production for live institutions'
+        : institutionReady
+          ? 'OAuth authorization pending'
+          : 'OAuth redirect missing'
 
   const statusTiles: MoneyDataServiceTile[] = [
     {
@@ -249,19 +255,19 @@ export function PlaidLinkPanel() {
       },
     },
     {
-      id: 'chase',
-      label: 'Chase',
-      value: chaseDetail,
-      icon: hasChaseItem ? (
+      id: 'institution',
+      label: 'Institution',
+      value: institutionDetail,
+      icon: hasLinkedInstitution ? (
         <CheckCircle2 className="h-4 w-4 text-gain" />
       ) : (
         <Landmark className="h-4 w-4 text-primary" />
       ),
       badge: {
-        label: chaseStatus,
-        variant: hasChaseItem
+        label: institutionStatus,
+        variant: hasLinkedInstitution
           ? 'success'
-          : chaseReady
+          : institutionReady
             ? 'warning'
             : 'secondary',
       },
@@ -397,7 +403,7 @@ export function PlaidLinkPanel() {
         onClick: () => void syncPlaid.mutateAsync({}),
       }}
       connectAction={{
-        label: hasChaseItem ? 'Connect bank' : 'Connect Chase',
+        label: 'Connect bank',
         icon: <Link2 className="h-4 w-4" />,
         pending: createLinkToken.isPending || exchangePublicToken.isPending,
         disabled: !configured || isBusy,
