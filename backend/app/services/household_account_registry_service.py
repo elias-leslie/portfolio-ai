@@ -22,6 +22,7 @@ from app.services.household_account_identity import (
     derive_account_mask,
     looks_generic_account_mask,
     normalize_account_mask,
+    normalize_text,
 )
 from app.services.household_finance_rows import row_to_evidence_account, row_to_tracked_account
 
@@ -258,6 +259,20 @@ def _mask_identity_candidates(candidate_keys: list[str]) -> list[str]:
     return [key for key in candidate_keys if _identity_key_has_mask_evidence(key)]
 
 
+def _registry_identity_candidates(
+    candidate_keys: list[str],
+    *,
+    explicit_match_key: str | None = None,
+) -> list[str]:
+    explicit = normalize_text(explicit_match_key)
+    explicit_candidates = {explicit, f"match::{explicit}"} if explicit else set()
+    return [
+        key
+        for key in candidate_keys
+        if _identity_key_has_mask_evidence(key) or key in explicit_candidates
+    ]
+
+
 def _trusted_evidence_account_mask(evidence: HouseholdEvidenceAccount) -> str | None:
     if isinstance(evidence.metadata, dict):
         extracted_mask = clean_text(evidence.metadata.get("extracted_account_mask"))
@@ -287,6 +302,7 @@ class HouseholdAccountRegistryService:
         evidence: HouseholdEvidenceAccount,
         canonical_account: HouseholdCanonicalAccount,
         allow_mask_conflict: bool = False,
+        require_mask: bool = True,
     ) -> bool:
         evidence_source_type = clean_text(evidence.source_type)
         canonical_source_type = clean_text(canonical_account.source_type)
@@ -327,7 +343,7 @@ class HouseholdAccountRegistryService:
             self._evidence_fallback_label(evidence),
         )
         if not evidence_mask:
-            return False
+            return not require_mask
         if allow_mask_conflict:
             return True
         canonical_mask = clean_text(canonical_account.account_mask)
@@ -577,7 +593,12 @@ class HouseholdAccountRegistryService:
         identity_map: dict[str, str],
     ) -> tuple[str, int, int]:
         stale_candidate_keys: set[str] = set()
-        candidates = _mask_identity_candidates(
+        explicit_match_key = (
+            str(evidence.metadata.get("match_key"))
+            if isinstance(evidence.metadata, dict) and evidence.metadata.get("match_key")
+            else None
+        )
+        candidates = _registry_identity_candidates(
             account_identity_candidates(
                 source_type=evidence.source_type,
                 asset_group=evidence.asset_group,
@@ -587,10 +608,9 @@ class HouseholdAccountRegistryService:
                 owner_name=evidence.owner_name,
                 account_mask=_trusted_evidence_account_mask(evidence),
                 fallback_label=self._evidence_fallback_label(evidence),
-                explicit_match_key=str(evidence.metadata.get("match_key"))
-                if isinstance(evidence.metadata, dict) and evidence.metadata.get("match_key")
-                else None,
-            )
+                explicit_match_key=explicit_match_key,
+            ),
+            explicit_match_key=explicit_match_key,
         )
         matched_ids: set[str] = set()
         preserved_account_id = (
@@ -606,6 +626,7 @@ class HouseholdAccountRegistryService:
                 evidence=evidence,
                 canonical_account=canonical_accounts[preserved_account_id],
                 allow_mask_conflict=True,
+                require_mask=False,
             )
         ):
             matched_ids.add(preserved_account_id)
@@ -617,6 +638,7 @@ class HouseholdAccountRegistryService:
                 evidence=evidence,
                 canonical_account=canonical_accounts[mapped_account_id],
                 allow_mask_conflict=_identity_key_has_mask_evidence(key),
+                require_mask=_identity_key_has_mask_evidence(key),
             ):
                 matched_ids.add(mapped_account_id)
             else:
@@ -1157,7 +1179,6 @@ class HouseholdAccountRegistryService:
         force_reassign_keys: set[str] | None = None,
     ) -> None:
         force_reassign_keys = force_reassign_keys or set()
-        candidate_keys = _mask_identity_candidates(candidate_keys)
         current = canonical_accounts[account_id]
         if current.primary_identity_key is None and candidate_keys:
             canonical_accounts[account_id] = HouseholdCanonicalAccount(
