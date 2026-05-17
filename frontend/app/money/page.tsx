@@ -541,6 +541,7 @@ function MoneyPageContent() {
 
       <Dialog
         open={openUtility === 'data-services'}
+        modal={false}
         onOpenChange={(open) => setOpenUtility(open ? 'data-services' : null)}
       >
         <DialogContent className="left-auto right-0 top-0 h-dvh max-w-[min(1040px,100vw)] translate-x-0 translate-y-0 rounded-none border-l border-border/45 p-0 sm:max-w-[min(1040px,100vw)]">
