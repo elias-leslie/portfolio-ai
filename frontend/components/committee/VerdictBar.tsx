@@ -20,10 +20,7 @@ const SIGNER_GROUPS: Array<{ label: string; slugs: string[] }> = [
   { label: 'BULL', slugs: ['bull-researcher-v1'] },
   { label: 'BEAR', slugs: ['bear-researcher-v1'] },
   { label: 'TRAD', slugs: ['trader-v1'] },
-  {
-    label: 'RISK',
-    slugs: ['risk-aggressive-v1', 'risk-neutral-v1', 'risk-conservative-v1'],
-  },
+  { label: 'RISK', slugs: ['risk-neutral-v1'] },
   { label: 'PM', slugs: ['portfolio-mgr-v1'] },
 ]
 

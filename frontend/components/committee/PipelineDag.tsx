@@ -78,19 +78,9 @@ const LANES: LaneSpec[] = [
     stage: 'risk',
     nodes: [
       {
-        slug: 'risk-aggressive-v1',
-        label: 'Aggressive',
-        shortSlug: 'ah/risk-aggressive.v1',
-      },
-      {
         slug: 'risk-neutral-v1',
-        label: 'Neutral',
+        label: 'Risk Voter',
         shortSlug: 'ah/risk-neutral.v1',
-      },
-      {
-        slug: 'risk-conservative-v1',
-        label: 'Conservative',
-        shortSlug: 'ah/risk-conservative.v1',
       },
     ],
   },

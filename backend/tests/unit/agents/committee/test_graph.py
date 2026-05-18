@@ -239,7 +239,7 @@ def _seed_events_through_first_risk_vote() -> list[dict[str, Any]]:
         _event(seq, "stage.enter", stage="researchers", content={"stage": "researchers"})
     )
     seq += 1
-    for round_idx in range(3):
+    for round_idx in range(graph_mod._DEBATE_ROUNDS):
         events.append(
             _event(
                 seq,
@@ -302,7 +302,7 @@ def _seed_events_through_first_risk_vote() -> list[dict[str, Any]]:
             _event(seq, "ips.check", stage="ips", content=check.model_dump(mode="json"))
         )
         seq += 1
-    first_vote = _risk_vote(graph_mod.stages.SLUG_RISK_AGGRESSIVE)
+    first_vote = _risk_vote(graph_mod.stages.RISK_SLUGS[0])
     events.extend(
         [
             _event(seq, "stage.enter", stage="risk", content={"stage": "risk"}),
@@ -457,10 +457,10 @@ def captured_events(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
 
 
 @pytest.mark.asyncio
-async def test_happy_path_emits_every_stage_in_plan_order_with_three_debate_rounds(
+async def test_happy_path_emits_every_stage_in_plan_order_with_configured_debate_rounds(
     captured_events: list[dict[str, Any]],
 ) -> None:
-    """Plan: analysts -> researchers (x3 rounds) -> trader -> ips -> risk -> pm -> run.complete."""
+    """Plan: analysts -> researchers (x_DEBATE_ROUNDS) -> trader -> ips -> risk -> pm -> run.complete."""
     await committee_stream.register("run-uuid")
     await graph_mod.run_committee(
         run_id="run-uuid",
@@ -481,18 +481,18 @@ async def test_happy_path_emits_every_stage_in_plan_order_with_three_debate_roun
         "pm",
     ]
 
+    expected_rounds = graph_mod._DEBATE_ROUNDS
     round_starts = [e for e in captured_events if e.get("type") == "debate.round.start"]
     round_ends = [e for e in captured_events if e.get("type") == "debate.round.end"]
-    assert len(round_starts) == 3
-    assert len(round_ends) == 3
+    assert len(round_starts) == expected_rounds
+    assert len(round_ends) == expected_rounds
 
-    # Each round produced one bull + one bear agent.output (concurrent — order may vary).
     debate_outputs = [
         e
         for e in captured_events
         if e.get("type") == "agent.output" and e.get("stage") == "researchers"
     ]
-    assert len(debate_outputs) == 6  # 3 rounds x (bull + bear)
+    assert len(debate_outputs) == 2 * expected_rounds
     roles = {e.get("role") for e in debate_outputs}
     assert roles == {"bull", "bear"}
 
@@ -531,7 +531,7 @@ async def test_every_plan_schema_event_type_fires_at_least_once(
 async def test_risk_voters_receive_prior_risk_arguments(
     captured_events: list[dict[str, Any]],
 ) -> None:
-    """Risk stage mirrors TradingAgents' ordered risk discussion."""
+    """Each risk voter sees the prior voters' arguments via ``risk_history``."""
     await committee_stream.register("run-uuid")
     await graph_mod.run_committee(
         run_id="run-uuid",
@@ -541,9 +541,9 @@ async def test_risk_voters_receive_prior_risk_arguments(
 
     calls = [e for e in captured_events if e.get("type") == "__risk_call__"]
     assert [c["slug"] for c in calls] == list(graph_mod.stages.RISK_SLUGS)
-    assert calls[0]["risk_history"] == []
-    assert calls[1]["risk_history"] == [graph_mod.stages.RISK_SLUGS[0]]
-    assert calls[2]["risk_history"] == list(graph_mod.stages.RISK_SLUGS[:2])
+    # Each voter receives a history of every voter that already fired before it.
+    for idx, call in enumerate(calls):
+        assert call["risk_history"] == list(graph_mod.stages.RISK_SLUGS[:idx])
 
 
 @pytest.mark.asyncio
@@ -578,11 +578,11 @@ async def test_resume_skips_completed_analyst_stage(
 
 
 @pytest.mark.asyncio
-async def test_resume_continues_risk_stage_without_replaying_prior_vote(
+async def test_resume_skips_completed_risk_stage(
     monkeypatch: pytest.MonkeyPatch,
     captured_events: list[dict[str, Any]],
 ) -> None:
-    """Risk resume keeps the persisted aggressive vote and continues with later voters."""
+    """When the persisted risk vote(s) cover every slug, resume skips the risk stage."""
     monkeypatch.setattr(
         graph_mod.store,
         "load_events",
@@ -596,16 +596,10 @@ async def test_resume_continues_risk_stage_without_replaying_prior_vote(
         household_id=None,
     )
 
+    # No further risk-voter invocations during resume.
     calls = [e for e in captured_events if e.get("type") == "__risk_call__"]
-    assert [c["slug"] for c in calls] == [
-        graph_mod.stages.SLUG_RISK_CONSERVATIVE,
-        graph_mod.stages.SLUG_RISK_NEUTRAL,
-    ]
-    assert calls[0]["risk_history"] == [graph_mod.stages.SLUG_RISK_AGGRESSIVE]
-    assert calls[1]["risk_history"] == [
-        graph_mod.stages.SLUG_RISK_AGGRESSIVE,
-        graph_mod.stages.SLUG_RISK_CONSERVATIVE,
-    ]
+    assert calls == []
+    # And no re-running of upstream stages either.
     new_trader_events = [
         e for e in captured_events if e.get("type") == "trader.proposal"
     ]

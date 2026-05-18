@@ -13,6 +13,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from app.agents.committee import cache as cache_mod
+from app.agents.committee.schemas import Tier1Verdict
 from app.workflows import committee_fanout as fanout_mod
 
 
@@ -174,3 +175,78 @@ def test_no_loop_means_runs_recorded_but_not_dispatched() -> None:
          patch.object(fanout_mod.committee_store, "create_run", return_value="run-AAA"):
         out = fanout_mod.run_fanout(top_n=10, max_daily=10, now=now)
     assert [s["symbol"] for s in out.spawned] == ["AAA"]
+
+
+def test_rank_candidates_orders_by_conviction_then_score_then_scanner_rank() -> None:
+    """(conviction tier desc, score desc, scanner_rank asc) is the spawn order Tier-1 produces."""
+    candidates = [
+        {"symbol": "LOWMID", "scanner_rank": 1, "row": {}},
+        {"symbol": "HIGH1",  "scanner_rank": 4, "row": {}},
+        {"symbol": "HIGH2",  "scanner_rank": 7, "row": {}},
+        {"symbol": "MIDPOS", "scanner_rank": 2, "row": {}},
+        {"symbol": "LOWNEG", "scanner_rank": 3, "row": {}},
+    ]
+    verdicts = [
+        Tier1Verdict(agent_slug="t1", symbol="LOWMID", score=0.10, conviction="low",  one_line_rationale="x", top_factor="other"),
+        Tier1Verdict(agent_slug="t1", symbol="HIGH1",  score=0.30, conviction="high", one_line_rationale="x", top_factor="other"),
+        Tier1Verdict(agent_slug="t1", symbol="HIGH2",  score=0.50, conviction="high", one_line_rationale="x", top_factor="other"),
+        Tier1Verdict(agent_slug="t1", symbol="MIDPOS", score=0.70, conviction="mid",  one_line_rationale="x", top_factor="other"),
+        Tier1Verdict(agent_slug="t1", symbol="LOWNEG", score=-0.40, conviction="low", one_line_rationale="x", top_factor="other"),
+    ]
+    ordered = fanout_mod._rank_candidates_by_tier1(candidates, verdicts)
+    assert [e["symbol"] for e in ordered] == ["HIGH2", "HIGH1", "MIDPOS", "LOWMID", "LOWNEG"]
+    # HIGH2 first: highest conviction tier, then higher score breaks the high/high tie.
+    # LOWMID before LOWNEG inside the low tier because 0.10 > -0.40.
+
+
+def test_fanout_keeps_only_tier1_top_k_when_loop_provided() -> None:
+    """With a running loop, the fan-out cuts to COMMITTEE_TIER1_KEEP after Tier-1 ranks."""
+    now = datetime(2026, 5, 17, 18, 0, tzinfo=UTC)
+    latest = {
+        "run_id": str(uuid4()),
+        "run_date": "2026-05-17",
+        "gate_zone": "FULL_DEPLOY",
+        "universe_size": 504,
+        "scored_count": 5,
+        "skip_reason": None,
+    }
+    scores = [_scanner_row(f"S{i}", i + 1) for i in range(5)]
+    fake_verdicts = [
+        Tier1Verdict(agent_slug="t1", symbol="S0", score=0.10, conviction="low",  one_line_rationale="r", top_factor="other"),
+        Tier1Verdict(agent_slug="t1", symbol="S1", score=0.80, conviction="high", one_line_rationale="r", top_factor="other"),
+        Tier1Verdict(agent_slug="t1", symbol="S2", score=0.50, conviction="high", one_line_rationale="r", top_factor="other"),
+        Tier1Verdict(agent_slug="t1", symbol="S3", score=0.10, conviction="mid",  one_line_rationale="r", top_factor="other"),
+        Tier1Verdict(agent_slug="t1", symbol="S4", score=0.40, conviction="low",  one_line_rationale="r", top_factor="other"),
+    ]
+    created: list[dict] = []
+
+    def fake_create_run(**kw):
+        created.append(kw)
+        return f"run-{kw['symbol']}"
+
+    sentinel_loop = object()
+    with patch.object(fanout_mod.scanner_repo, "get_latest_run", return_value=latest), \
+         patch.object(fanout_mod.scanner_repo, "get_scores_for_run", return_value=scores), \
+         patch.object(fanout_mod, "_count_fanout_today", return_value=0), \
+         patch.object(fanout_mod, "_run_tier1_batch", return_value=fake_verdicts) as t1, \
+         patch.object(fanout_mod, "_int_env", side_effect=lambda name, default: 2 if name == "COMMITTEE_TIER1_KEEP" else default), \
+         patch.object(fanout_mod.cache, "should_run",
+                      return_value=cache_mod.CacheDecision(should_run=True, reason="no_prior_run")), \
+         patch.object(fanout_mod, "asyncio") as asyncio_mock, \
+         patch.object(fanout_mod.committee_store, "create_run", side_effect=fake_create_run):
+        asyncio_mock.run_coroutine_threadsafe.return_value = object()
+        out = fanout_mod.run_fanout(top_n=10, max_daily=10, now=now, loop=sentinel_loop)
+
+    # Tier-1 was invoked once with the candidate list.
+    t1.assert_called_once()
+    # Only the top 2 (S1 high/0.8, S2 high/0.5) get spawned.
+    spawned_syms = [s["symbol"] for s in out.spawned]
+    assert spawned_syms == ["S1", "S2"]
+    # The other 3 land in skipped with tier1_below_cut.
+    cut_syms = {s["symbol"] for s in out.skipped if s["reason"] == "tier1_below_cut"}
+    assert cut_syms == {"S0", "S3", "S4"}
+    # tier1_verdicts telemetry is preserved on the output.
+    assert len(out.tier1_verdicts) == 5
+    assert all("score" in v and "conviction" in v for v in out.tier1_verdicts)
+    # Spawned entries carry the Tier-1 score for cost-ledger attribution.
+    assert all("tier1_score" in s and "tier1_conviction" in s for s in out.spawned)

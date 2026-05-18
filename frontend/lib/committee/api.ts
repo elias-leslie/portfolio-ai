@@ -78,19 +78,6 @@ async function rawJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await response.json()) as T
 }
 
-export async function startCommitteeRun(input: {
-  symbol: string
-  parentRunId?: string
-}): Promise<StartRunResponse> {
-  return rawJson<StartRunResponse>('/api/committee/runs', {
-    method: 'POST',
-    body: JSON.stringify({
-      symbol: input.symbol,
-      parent_run_id: input.parentRunId ?? null,
-    }),
-  })
-}
-
 export async function fetchCommitteeRun(
   runId: string,
 ): Promise<CommitteeRunSnapshot> {

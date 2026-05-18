@@ -3,10 +3,8 @@
 export const dynamic = 'force-dynamic'
 
 import { PlusCircle, RefreshCw } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { PriorRunsSidebar } from '@/components/committee/PriorRunsSidebar'
 import { AccountsWithPositionsContent } from '@/components/portfolio/AccountsWithPositions'
 import { AddAccountDialog } from '@/components/portfolio/AddAccountDialog'
 import { AddPositionDialog } from '@/components/portfolio/AddPositionDialog'
@@ -27,7 +25,6 @@ import {
   WatchlistLoadingSkeleton,
 } from '@/components/watchlist/WatchlistStateViews'
 import { WatchlistTable } from '@/components/watchlist/WatchlistTable'
-import { startCommitteeRun } from '@/lib/committee/api'
 import { useAccounts, usePortfolio } from '@/lib/hooks/usePortfolio'
 import { useBlendedSignals } from '@/lib/hooks/useSignals'
 import {
@@ -36,63 +33,6 @@ import {
   useWatchlist,
 } from '@/lib/hooks/useWatchlist'
 import { cn } from '@/lib/utils'
-
-function CommitteeTabContent() {
-  const router = useRouter()
-  const [symbol, setSymbol] = useState('')
-  const [starting, setStarting] = useState(false)
-
-  const handleStart = async (event: React.FormEvent) => {
-    event.preventDefault()
-    const cleaned = symbol.trim().toUpperCase()
-    if (!cleaned) return
-    setStarting(true)
-    try {
-      const result = await startCommitteeRun({ symbol: cleaned })
-      toast.success(`Committee run started for ${cleaned}`)
-      router.push(`/portfolio/committee/${result.run_id}`)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to start run')
-    } finally {
-      setStarting(false)
-    }
-  }
-
-  return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
-      <div className="overflow-hidden rounded-2xl border border-border bg-gradient-to-b from-surface to-bg">
-        <div className="flex items-center justify-between border-b border-border-subtle px-4 py-2.5 text-[10px] uppercase tracking-[0.18em] text-text-muted/70">
-          <span>Start a run</span>
-          <span className="font-mono text-text-muted">
-            in-process · pause / resume / abort
-          </span>
-        </div>
-        <form
-          onSubmit={handleStart}
-          className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center"
-        >
-          <input
-            type="text"
-            placeholder="Symbol (e.g. NVDA)"
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value)}
-            className="flex-1 rounded-xl border border-border-subtle bg-surface px-3 py-2 text-sm uppercase tracking-[0.16em] text-text placeholder:text-text-muted/60 focus:outline-none focus:ring-1 focus:ring-primary/40"
-            maxLength={12}
-          />
-          <Button type="submit" disabled={starting || !symbol.trim()}>
-            {starting ? 'Starting…' : 'Start Committee'}
-          </Button>
-        </form>
-        <p className="px-4 pb-4 text-xs text-text-muted/80">
-          Multi-agent decision: four analysts, bull/bear debate, IPS checks,
-          risk vote, PM verdict. Approve to execute a paper trade. Each run runs
-          in-process — no cron, no background tokens.
-        </p>
-      </div>
-      <PriorRunsSidebar />
-    </div>
-  )
-}
 
 function PortfolioPageContent() {
   const {
@@ -283,11 +223,6 @@ function PortfolioPageContent() {
           onAddPosition={openPositionDialog}
         />
       ),
-    },
-    {
-      value: 'committee',
-      label: 'Committee',
-      content: <CommitteeTabContent />,
     },
   ]
 

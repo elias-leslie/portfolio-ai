@@ -47,7 +47,10 @@ from .schemas import (
 logger = get_logger(__name__)
 
 
-_DEBATE_ROUNDS = 3
+# One round captures the value (Liang et al., Degeneration of Thought,
+# arxiv 2305.19118). Rounds 2-3 amplify persuasion-over-truth and the
+# echo-chamber effect dominates the marginal information gain.
+_DEBATE_ROUNDS = 1
 # After pm.decision the runner stays alive briefly so user feedback
 # submitted within this window is processed by the consensus-shift
 # round. Reset every time a claim lands so the user can submit a
