@@ -37,9 +37,12 @@ async def macro_gate_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     if output is None:
         return {"status": "skipped", "reason": "no_inputs"}
 
-    # Phase 2 will plumb the scanner workflow trigger here. Until then the
-    # snapshot is persisted regardless of any downstream consumers so the
-    # scanner can pick it up on its own schedule.
+    # Chain L2 scanner. Imported lazily to avoid cyclic registration at
+    # Hatchet boot. ``aio_run_no_wait`` returns immediately so the gate
+    # task isn't held open while the scanner runs.
+    from .scanner import scanner_wf
+
+    await scanner_wf.aio_run_no_wait(EmptyInput())
 
     return {
         "status": "ok",

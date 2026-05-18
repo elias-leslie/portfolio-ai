@@ -33,6 +33,7 @@ from app.workflows.jenny import (
     jenny_weekly_learning_wf,
 )
 from app.workflows.macro_calendar import market_macro_calendar_ingestion_wf
+from app.workflows.macro_gate import macro_gate_wf
 from app.workflows.maintenance import (
     check_all_data_freshness_wf,
     check_data_source_health_wf,
@@ -65,6 +66,8 @@ from app.workflows.reference import (
     valuation_metrics_wf,
     yfinance_ref_wf,
 )
+from app.workflows.research_universe import research_universe_refresh_wf
+from app.workflows.scanner import scanner_wf
 from app.workflows.strategy import (
     covariance_wf,
     portfolio_snapshots_wf,
@@ -147,6 +150,10 @@ def main() -> None:
             jenny_daily_household_maintenance_wf,
             # Macro calendar ingestion
             market_macro_calendar_ingestion_wf,
+            # Signal stack: L1 macro gate -> L2 scanner; universe refresh feeds both
+            research_universe_refresh_wf,
+            macro_gate_wf,
+            scanner_wf,
             # Events (1)
             cross_validate_insight_wf,
             # Portfolio TLH (1)
