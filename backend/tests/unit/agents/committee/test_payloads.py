@@ -30,7 +30,13 @@ class _FakeCursor:
         elif "from financial_health_scores" in sql_lower:
             self._next = self._rows_by_table.get("financial_health_scores")
         elif "from symbols" in sql_lower:
-            self._next = self._rows_by_table.get("symbols")
+            # Disambiguate the sector-only lookup used by the portfolio
+            # fetcher from the company-meta select in the fundamentals
+            # fetcher: the former selects only `sector`.
+            if "select sector" in sql_lower and "company_name" not in sql_lower:
+                self._next = self._rows_by_table.get("symbols_sector_only")
+            else:
+                self._next = self._rows_by_table.get("symbols")
         elif "from earnings_surprises" in sql_lower:
             self._next = self._rows_by_table.get("earnings_surprises")
         elif "from watchlist_snapshots" in sql_lower:
@@ -272,3 +278,234 @@ def test_fetch_technical_indicators_empty_symbol_returns_none(
     monkeypatch.setattr(payloads, "get_connection_manager", lambda: None)
     assert payloads.fetch_technical_indicators("") is None
     assert payloads.fetch_technical_indicators("   ") is None
+
+
+# ---------- fundamentals ----------
+
+
+def _fundamentals_rows() -> dict[str, Any]:
+    return {
+        "valuation_metrics": (
+            dt.datetime(2026, 5, 17, tzinfo=dt.UTC),  # as_of_date
+            46.08,  # pe_ratio_trailing
+            19.71,  # pe_ratio_forward
+            25.27,  # ps_ratio
+            34.81,  # pb_ratio
+            0.75,  # peg_ratio
+            0.02,  # dividend_yield
+            0.0082,  # payout_ratio
+        ),
+        "cash_flow_metrics": (
+            dt.date(2026, 5, 17),
+            102_718_000_000,
+            96_676_000_000,
+            -6_042_000_000,
+            0.0177,
+            0.4757,
+            3.9915,
+            0.8555,
+        ),
+        "financial_health_scores": (
+            dt.datetime(2026, 5, 17, tzinfo=dt.UTC),
+            4,
+            {"ocf_positive": 1, "roa_positive": 1},
+            70.98,
+            "safe",
+        ),
+        "symbols": ("NVIDIA Corp", "Technology", "Semiconductors", "NASDAQ"),
+        "earnings_surprises": [
+            (
+                dt.date(2026, 2, 26),
+                "Q4 FY25",
+                4.50,
+                5.20,
+                15.6,
+                "beat",
+                32_000_000_000,
+                35_100_000_000,
+            )
+        ],
+        "watchlist_snapshots": (
+            dt.datetime(2026, 5, 18, 12, tzinfo=dt.UTC),
+            72.5,
+            81.0,
+            "strong",
+            dt.date(2026, 5, 28),
+            10,
+            {"fundamental": {"summary": "best in class"}},
+        ),
+    }
+
+
+def test_fetch_fundamental_snapshot_assembles_all_sources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_cm(monkeypatch, _fundamentals_rows())
+    payload = payloads.fetch_fundamental_snapshot("NVDA")
+    assert payload is not None
+    # Every source surfaces under its named section.
+    assert payload["company"]["sector"] == "Technology"
+    assert payload["valuation"]["pe_ratio_trailing"] == 46.08
+    assert payload["valuation"]["pe_ratio_forward"] == 19.71
+    assert payload["cash_flow"]["free_cash_flow"] == 96_676_000_000
+    assert payload["cash_flow"]["fcf_yield"] == 0.0177
+    assert payload["health"]["f_score"] == 4
+    assert payload["health"]["z_score_zone"] == "safe"
+    assert payload["earnings_surprise_history"][0]["surprise_pct"] == 15.6
+    assert payload["watchlist"]["fundamental_score"] == 72.5
+
+
+def test_fetch_fundamental_snapshot_returns_none_when_all_sources_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_cm(
+        monkeypatch,
+        {
+            "valuation_metrics": None,
+            "cash_flow_metrics": None,
+            "financial_health_scores": None,
+            "symbols": None,
+            "earnings_surprises": [],
+            "watchlist_snapshots": None,
+        },
+    )
+    assert payloads.fetch_fundamental_snapshot("NVDA") is None
+
+
+def test_fetch_fundamental_snapshot_partial_coverage_still_ships(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = _fundamentals_rows()
+    # Only valuation_metrics + symbols populated; rest empty.
+    rows["cash_flow_metrics"] = None
+    rows["financial_health_scores"] = None
+    rows["earnings_surprises"] = []
+    rows["watchlist_snapshots"] = None
+    _install_fake_cm(monkeypatch, rows)
+    payload = payloads.fetch_fundamental_snapshot("NVDA")
+    assert payload is not None
+    assert "valuation" in payload
+    assert "company" in payload
+    assert "cash_flow" not in payload
+    assert "health" not in payload
+
+
+# ---------- news ----------
+
+
+def _news_row(
+    *,
+    headline: str,
+    summary: str = "body",
+    published_at: dt.datetime,
+    sentiment_score: float = 0.3,
+) -> tuple[Any, ...]:
+    return (
+        headline,
+        summary,
+        "https://example.com/x",
+        "Bloomberg",
+        published_at,
+        sentiment_score,
+        "positive",
+        0.9,
+        True,
+        "impact summary",
+        "actionable insight",
+    )
+
+
+def test_fetch_news_sentiment_returns_freshness_ordered_articles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base = dt.datetime(2026, 5, 18, 14, tzinfo=dt.UTC)
+    rows = [
+        _news_row(headline="latest", published_at=base, sentiment_score=0.5),
+        _news_row(
+            headline="older",
+            published_at=base - dt.timedelta(hours=12),
+            sentiment_score=-0.2,
+        ),
+    ]
+    _install_fake_cm(monkeypatch, {"news_cache": rows})
+    payload = payloads.fetch_news_sentiment("NVDA")
+    assert payload is not None
+    assert payload["article_count"] == 2
+    assert payload["articles"][0]["headline"] == "latest"
+    assert payload["articles"][0]["summary"] == "body"
+    # avg of 0.5 and -0.2 = 0.15
+    assert payload["avg_sentiment_score"] == pytest.approx(0.15)
+
+
+def test_fetch_news_sentiment_returns_none_when_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_cm(monkeypatch, {"news_cache": []})
+    assert payloads.fetch_news_sentiment("NVDA") is None
+
+
+# ---------- portfolio ----------
+
+
+def _portfolio_rows(
+    *,
+    nvda_value: float = 80_000,
+    aapl_value: float = 20_000,
+    cash: float = 100_000,
+) -> dict[str, Any]:
+    # Row layout: (symbol, shares, avg_cost, price, value, sector)
+    positions = [
+        ("NVDA", 100.0, 600.0, 800.0, nvda_value, "Technology"),
+        ("AAPL", 100.0, 150.0, 200.0, aapl_value, "Technology"),
+        ("XOM", 200.0, 50.0, 60.0, 12_000.0, "Energy"),
+    ]
+    return {
+        "portfolio_positions": positions,
+        "portfolio_accounts": (cash,),
+        "symbols": ("NVIDIA Corp", "Technology", "Semiconductors", "NASDAQ"),
+    }
+
+
+def test_fetch_portfolio_context_full_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_cm(monkeypatch, _portfolio_rows())
+    payload = payloads.fetch_portfolio_context("NVDA")
+    assert payload is not None
+    assert payload["held"] is True
+    assert payload["position_in_symbol"]["shares"] == 100.0
+    assert payload["target_sector"] == "Technology"
+    # NVDA(80k) + AAPL(20k) + XOM(12k) + cash(100k) = 212k → tech = 100/212
+    assert payload["sector_exposure_pct"] == pytest.approx(
+        (100_000 / 212_000) * 100.0, abs=0.1
+    )
+    assert payload["sector_breakdown"]["Energy"] == pytest.approx(
+        (12_000 / 212_000) * 100.0, abs=0.1
+    )
+    assert payload["top_5_positions"][0]["symbol"] == "NVDA"
+    assert payload["cash_pct"] == pytest.approx(
+        (100_000 / 212_000) * 100.0, abs=0.1
+    )
+    assert payload["num_holdings"] == 3
+
+
+def test_fetch_portfolio_context_no_holdings_returns_none_held(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_cm(
+        monkeypatch,
+        {
+            "portfolio_positions": [],
+            "portfolio_accounts": (50_000.0,),
+            # Symbol exists in catalog even though we don't hold it. The
+            # portfolio fetcher does a sector-only lookup.
+            "symbols_sector_only": ("Technology",),
+        },
+    )
+    payload = payloads.fetch_portfolio_context("MSFT")
+    assert payload is not None
+    assert payload["held"] is False
+    # No holdings → sector_breakdown empty / None, but target_sector still
+    # surfaces from the catalog lookup so the trader can size against it.
+    assert payload["target_sector"] == "Technology"
+    assert payload["num_holdings"] == 0
