@@ -28,7 +28,7 @@ from typing import Any
 
 from app.logging_config import get_logger
 
-from . import GRAPH_VERSION, readiness, stages, store, stream
+from . import GRAPH_VERSION, payloads, readiness, stages, store, stream
 from . import feedback as feedback_mod
 from . import ips as ips_mod
 from .schemas import (
@@ -260,6 +260,12 @@ async def run_committee(
 
         await stream.check_control(run_id)
         context = await _build_context(symbol)
+        # Portfolio context flows into trader / risk / PM only — keeping
+        # the analyst slices position-blind avoids anchoring their reads
+        # on what we already own.
+        portfolio_context = await asyncio.to_thread(
+            payloads.fetch_portfolio_context, symbol, household_id
+        )
         past_decisions = store.load_past_decisions(symbol, household_id, limit=5)
 
         # Stage 1: Analysts (concurrent — independent data slices).
@@ -325,6 +331,7 @@ async def run_committee(
                 portfolio_value=portfolio_value,
                 current_price=current_price,
                 past_decisions=past_decisions,
+                portfolio_context=portfolio_context,
             )
             counters["tokens"] += proposal.tokens
             await emit(
@@ -358,6 +365,7 @@ async def run_committee(
             ips_result,
             emit,
             existing=checkpoint.risk_votes,
+            portfolio_context=portfolio_context,
         )
         counters["tokens"] += sum(
             v.tokens for v in risk_votes if v.agent_slug not in checkpoint.risk_votes
@@ -374,6 +382,7 @@ async def run_committee(
                 risk_votes=risk_votes,
                 ips_result=ips_result,
                 past_decisions=past_decisions,
+                portfolio_context=portfolio_context,
             )
             counters["tokens"] += decision.tokens
             decision = _enforce_ips_compliance(decision, ips_result)
@@ -586,6 +595,7 @@ async def _run_risk_stage(
     emit,
     *,
     existing: dict[str, RiskVoteOutput] | None = None,
+    portfolio_context: dict[str, Any] | None = None,
 ) -> list[RiskVoteOutput]:
     existing = existing or {}
     votes: list[RiskVoteOutput] = []
@@ -600,6 +610,7 @@ async def _run_risk_stage(
             debate_history=debate_history,
             ips_result=ips_result,
             risk_history=votes,
+            portfolio_context=portfolio_context,
         )
         votes.append(vote)
         await emit(
@@ -822,7 +833,21 @@ async def _build_context(symbol: str) -> dict[str, Any]:
     except Exception as exc:
         logger.warning("committee_context_build_failed", symbol=symbol, error=str(exc))
         return {"current_price": None}
-    return _context_from_intelligence_payload(payload)
+    context = _context_from_intelligence_payload(payload)
+    # Hydrate per-table snapshots the intelligence payload doesn't carry
+    # (intelligence is score-shaped; analysts need the raw rows their
+    # prompts cite by name). One narrow query per fetcher, all off the
+    # event loop.
+    indicators_raw = await asyncio.to_thread(payloads.fetch_technical_indicators, symbol)
+    if indicators_raw:
+        context["technical_indicators_raw"] = indicators_raw
+    fundamentals_raw = await asyncio.to_thread(payloads.fetch_fundamental_snapshot, symbol)
+    if fundamentals_raw:
+        context["fundamentals_raw"] = fundamentals_raw
+    news_raw = await asyncio.to_thread(payloads.fetch_news_sentiment, symbol)
+    if news_raw:
+        context["news_raw"] = news_raw
+    return context
 
 
 def _context_from_intelligence_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -836,6 +861,7 @@ def _context_from_intelligence_payload(payload: dict[str, Any]) -> dict[str, Any
             {
                 "pillar": pillars.get("fundamental"),
                 "company": payload.get("company"),
+                "portfolio": payload.get("portfolio"),
                 "data_quality": scores.get("data_quality"),
             }
         ),

@@ -220,11 +220,17 @@ def test_committee_context_maps_symbol_intelligence_sections() -> None:
             "alerts": [{"label": "Breaking News"}],
             "recommendation": {"action": "SMALL_POSITION"},
             "decision": {"action": "SMALL_POSITION"},
+            "portfolio": {
+                "held": True,
+                "position": {"shares": 10, "weight_pct": 3.2},
+                "context": {"total_value": 100000, "num_holdings": 12},
+            },
         }
     )
 
     assert context["current_price"] == 431.12
     assert context["fundamentals"]["pillar"]["metadata"]["pe"] == 42.0
+    assert context["fundamentals"]["portfolio"]["held"] is True
     assert context["valuation"]["signal_type"] == "BUY"
     assert context["news"]["catalyst_pillar"]["score"] == 40.0
     assert context["sentiment"]["news_sentiment_label"] == "Positive"

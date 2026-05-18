@@ -227,6 +227,7 @@ async def run_trader(
     portfolio_value: float,
     current_price: float,
     past_decisions: list[PastDecisionEntry],
+    portfolio_context: dict[str, Any] | None = None,
 ) -> TradeProposal:
     """Call the trader to synthesize the debate into a trade proposal."""
     payload: dict[str, Any] = {
@@ -236,6 +237,7 @@ async def run_trader(
         "portfolio_value": portfolio_value,
         "current_price": current_price,
         "past_decisions": [d.model_dump(mode="json") for d in past_decisions],
+        "portfolio_context": portfolio_context,
         "feedback_round": False,
     }
     start = time.monotonic()
@@ -264,6 +266,7 @@ async def run_risk(
     ips_result: IpsResult,
     risk_history: list[RiskVoteOutput] | None = None,
     feedback_round: dict[str, Any] | None = None,
+    portfolio_context: dict[str, Any] | None = None,
 ) -> RiskVoteOutput:
     """Call one risk voter."""
     payload: dict[str, Any] = {
@@ -272,6 +275,7 @@ async def run_risk(
         "debate_history": [_summarize_round(r) for r in debate_history],
         "ips_result": ips_result.model_dump(mode="json"),
         "risk_history": [_summarize_risk_vote(v) for v in risk_history or []],
+        "portfolio_context": portfolio_context,
         "feedback_round": bool(feedback_round),
     }
     if feedback_round is not None:
@@ -592,12 +596,32 @@ def _context_slice_for(slug: str, context: dict[str, Any]) -> dict[str, Any]:
     Keeps payloads tight (token-aware) and signals which fields drive
     the analyst's read.
     """
+    portfolio = context.get("portfolio") or context.get("fundamentals", {}).get("portfolio")
     if slug == SLUG_FUNDAMENTALS:
-        return {k: context.get(k) for k in ("fundamentals", "valuation")}
+        return {
+            "fundamentals": context.get("fundamentals"),
+            "valuation": context.get("valuation"),
+            "fundamentals_raw": context.get("fundamentals_raw"),
+            "portfolio": portfolio,
+        }
     if slug == SLUG_NEWS:
-        return {"news": context.get("news")}
+        return {
+            "news": context.get("news"),
+            "news_raw": context.get("news_raw"),
+            "portfolio": portfolio,
+        }
     if slug == SLUG_SENTIMENT:
-        return {"sentiment": context.get("sentiment"), "options": context.get("options")}
+        return {
+            "sentiment": context.get("sentiment"),
+            "options": context.get("options"),
+            "news_raw": context.get("news_raw"),
+            "portfolio": portfolio,
+        }
     if slug == SLUG_TECHNICAL:
-        return {"ohlcv": context.get("ohlcv"), "indicators": context.get("indicators")}
+        return {
+            "ohlcv": context.get("ohlcv"),
+            "indicators": context.get("indicators"),
+            "indicators_raw": context.get("technical_indicators_raw"),
+            "portfolio": portfolio,
+        }
     return context
