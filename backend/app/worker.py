@@ -11,6 +11,7 @@ import os
 from app.hatchet_app import hatchet
 from app.workflows.agents import schedule_new_symbol_wf
 from app.workflows.catalysts import portfolio_catalyst_prewarm_wf
+from app.workflows.committee_fanout import committee_fanout_wf
 from app.workflows.data_refresh import (
     backfill_indicators_wf,
     calculate_fear_greed_wf,
@@ -150,10 +151,12 @@ def main() -> None:
             jenny_daily_household_maintenance_wf,
             # Macro calendar ingestion
             market_macro_calendar_ingestion_wf,
-            # Signal stack: L1 macro gate -> L2 scanner; universe refresh feeds both
+            # Signal stack: L1 macro gate -> L2 scanner -> L3 committee fan-out;
+            # universe refresh feeds all three.
             research_universe_refresh_wf,
             macro_gate_wf,
             scanner_wf,
+            committee_fanout_wf,
             # Events (1)
             cross_validate_insight_wf,
             # Portfolio TLH (1)

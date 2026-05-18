@@ -39,6 +39,14 @@ async def scanner_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     if output is None:
         return {"status": "skipped", "reason": "no_macro_snapshot"}
 
+    # Chain L3 committee fan-out. Imported lazily to avoid cyclic
+    # registration at Hatchet boot, mirroring how macro_gate_wf chains
+    # the scanner. ``aio_run_no_wait`` returns immediately so the
+    # scanner task isn't held open while the committee runs complete.
+    from .committee_fanout import committee_fanout_wf
+
+    await committee_fanout_wf.aio_run_no_wait(EmptyInput())
+
     return {
         "status": "ok",
         "run_id": str(output.run_id),

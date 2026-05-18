@@ -36,6 +36,7 @@ from app.api.macro_routes import router as macro_router
 from app.api.market import router as market_router
 from app.api.retirement_routes import router as retirement_router
 from app.api.scanner_routes import router as scanner_router
+from app.api.signals_routes import router as signals_router
 from app.config import settings
 from app.config.cors import build_cors_origins
 from app.logging_config import SyslogPrefixFormatter, configure_logging, get_logger
@@ -164,6 +165,7 @@ app.include_router(thesis.router)
 app.include_router(today_next.router)
 app.include_router(macro_router)
 app.include_router(scanner_router)
+app.include_router(signals_router)
 app.include_router(committee_runs.router)
 app.include_router(committee_stream.router)
 

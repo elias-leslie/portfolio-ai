@@ -43,18 +43,34 @@ def create_run(
     household_id: str | None,
     parent_run_id: str | None,
     graph_version: str,
+    source: str | None = None,
+    scanner_rank: int | None = None,
 ) -> str:
-    """Insert a fresh committee_runs row in status='pending'. Returns run_id (uuid str)."""
+    """Insert a fresh committee_runs row in status='pending'. Returns run_id (uuid str).
+
+    ``source`` / ``scanner_rank`` are populated by the Phase 3 scanner
+    fan-out workflow to mark provenance. User-triggered runs leave them
+    NULL.
+    """
     run_id = str(uuid.uuid4())
     cm = get_connection_manager()
     with cm.connection() as conn:
         conn.execute(
             """
             INSERT INTO committee_runs
-                (id, symbol, household_id, status, parent_run_id, graph_version)
-            VALUES (%s, %s, %s, 'pending', %s, %s)
+                (id, symbol, household_id, status, parent_run_id, graph_version,
+                 source, scanner_rank)
+            VALUES (%s, %s, %s, 'pending', %s, %s, %s, %s)
             """,
-            (run_id, symbol.upper(), household_id, parent_run_id, graph_version),
+            (
+                run_id,
+                symbol.upper(),
+                household_id,
+                parent_run_id,
+                graph_version,
+                source,
+                scanner_rank,
+            ),
         )
         conn.commit()
     return run_id
@@ -431,6 +447,49 @@ def list_recent_runs(
         }
         for row in rows
     ]
+
+
+def get_latest_completed_by_symbol(symbols: list[str]) -> dict[str, dict[str, Any]]:
+    """Latest ``complete``/``approved`` committee run per symbol.
+
+    Used by the L2/L3 blender to attach the freshest committee verdict
+    to a scanner symbol. Returns the run summary (id, action,
+    confidence, scanner_rank, source, completed_at) keyed by uppercase
+    symbol. Symbols without any completed run are absent from the
+    mapping.
+    """
+    if not symbols:
+        return {}
+    upper = sorted({s.upper() for s in symbols if s})
+    cm = get_connection_manager()
+    with cm.connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT ON (symbol)
+                   id, symbol, status, decision_action, confidence,
+                   source, scanner_rank, completed_at
+            FROM committee_runs
+            WHERE symbol = ANY(%s)
+              AND status IN ('complete', 'approved')
+              AND completed_at IS NOT NULL
+            ORDER BY symbol, completed_at DESC
+            """,
+            (upper,),
+        ).fetchall()
+    out: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        sym = str(row[1]).upper()
+        out[sym] = {
+            "run_id": str(row[0]),
+            "symbol": sym,
+            "status": row[2],
+            "action": row[3],
+            "confidence": float(row[4]) if row[4] is not None else None,
+            "source": row[5],
+            "scanner_rank": int(row[6]) if row[6] is not None else None,
+            "completed_at": row[7].isoformat() if isinstance(row[7], datetime) else row[7],
+        }
+    return out
 
 
 def load_past_decisions(
