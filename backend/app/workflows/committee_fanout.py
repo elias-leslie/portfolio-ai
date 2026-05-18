@@ -28,7 +28,7 @@ from uuid import UUID
 
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
-from app.agents.committee import GRAPH_VERSION, cache, graph, stages
+from app.agents.committee import GRAPH_VERSION, cache, graph, readiness, stages
 from app.agents.committee import store as committee_store
 from app.agents.committee import stream as committee_stream
 from app.agents.committee.schemas import Tier1Verdict
@@ -190,8 +190,10 @@ def run_fanout(
     tier1_verdicts: list[dict[str, Any]] = []
     spawn_loop = loop
 
-    # Filter scanner rows by cache + remaining budget _before_ Tier-1, so we
-    # don't burn screener calls on symbols we'd skip anyway.
+    # Filter scanner rows by cache + readiness + remaining budget _before_
+    # Tier-1, so we don't burn screener calls on symbols we'd skip anyway.
+    # Tier-1 itself is an LLM call; the readiness gate has to fire ahead of
+    # it or the cost-saving promise is hollow.
     candidates: list[dict[str, Any]] = []
     for row in scores:
         symbol = str(row["symbol"]).upper()
@@ -204,6 +206,24 @@ def run_fanout(
                     "scanner_rank": scanner_rank,
                     "reason": decision.reason,
                     "last_run_id": decision.last_run_id,
+                }
+            )
+            continue
+        report = readiness.check_committee_readiness(symbol, now=current)
+        if not report.ok:
+            logger.info(
+                "committee_fanout_skipped_data_unready",
+                symbol=symbol,
+                scanner_rank=scanner_rank,
+                blocking=[i.check for i in report.blocking_issues],
+            )
+            skipped.append(
+                {
+                    "symbol": symbol,
+                    "scanner_rank": scanner_rank,
+                    "reason": "data_unready",
+                    "blocking_checks": [i.check for i in report.blocking_issues],
+                    "report": report.to_dict(),
                 }
             )
             continue

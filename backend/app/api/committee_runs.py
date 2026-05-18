@@ -30,7 +30,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
-from app.agents.committee import GRAPH_VERSION, graph, store, stream
+from app.agents.committee import GRAPH_VERSION, graph, readiness, store, stream
 from app.logging_config import get_logger
 from app.services import paper_trades as paper_trades_svc
 
@@ -97,6 +97,24 @@ async def start_run(
     stream to follow progress.
     """
     household_id = _resolve_household_id()
+    report = await run_in_threadpool(readiness.check_committee_readiness, payload.symbol)
+    if not report.ok:
+        logger.info(
+            "committee_run_rejected_data_unready",
+            symbol=payload.symbol.upper(),
+            blocking=[i.check for i in report.blocking_issues],
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error": "data_unready",
+                "message": (
+                    "Committee data not ready for this symbol; refusing to "
+                    "spend LLM budget on stale or missing inputs."
+                ),
+                "report": report.to_dict(),
+            },
+        )
     run_id = await run_in_threadpool(
         store.create_run,
         symbol=payload.symbol,

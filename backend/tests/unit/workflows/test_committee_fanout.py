@@ -12,9 +12,27 @@ from datetime import UTC, datetime
 from unittest.mock import patch
 from uuid import uuid4
 
+import pytest
+
 from app.agents.committee import cache as cache_mod
+from app.agents.committee.readiness import ReadinessIssue, ReadinessReport
 from app.agents.committee.schemas import Tier1Verdict
 from app.workflows import committee_fanout as fanout_mod
+
+
+@pytest.fixture(autouse=True)
+def _bypass_readiness_gate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Default to data-ready in fan-out tests; opt-in tests override below.
+
+    The fan-out kernel checks per-symbol data readiness before Tier-1.
+    Bypassing the check here keeps the existing tests focused on the
+    cache / rate-cap / Tier-1 ranking behavior they were written for.
+    """
+    monkeypatch.setattr(
+        fanout_mod.readiness,
+        "check_committee_readiness",
+        lambda symbol, **_kw: ReadinessReport(symbol=symbol.upper(), ok=True),
+    )
 
 
 def _scanner_row(symbol: str, rank: int) -> dict:
@@ -250,3 +268,77 @@ def test_fanout_keeps_only_tier1_top_k_when_loop_provided() -> None:
     assert all("score" in v and "conviction" in v for v in out.tier1_verdicts)
     # Spawned entries carry the Tier-1 score for cost-ledger attribution.
     assert all("tier1_score" in s and "tier1_conviction" in s for s in out.spawned)
+
+
+def test_data_unready_symbols_are_skipped_before_tier1(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Symbols that fail the readiness gate are dropped BEFORE Tier-1 fires.
+
+    Tier-1 itself is an LLM call; the cost-saving promise of the gate
+    only holds if unready symbols never reach the screener.
+    """
+    now = datetime(2026, 5, 17, 18, 0, tzinfo=UTC)
+    latest = {
+        "run_id": str(uuid4()),
+        "run_date": "2026-05-17",
+        "gate_zone": "FULL_DEPLOY",
+        "universe_size": 504,
+        "scored_count": 3,
+        "skip_reason": None,
+    }
+    scores = [_scanner_row("AAA", 1), _scanner_row("BAD", 2), _scanner_row("CCC", 3)]
+
+    def fake_readiness(symbol: str, **_kw: object) -> ReadinessReport:
+        if symbol == "BAD":
+            return ReadinessReport(
+                symbol="BAD",
+                ok=False,
+                issues=(
+                    ReadinessIssue(
+                        check="ohlcv_stale",
+                        severity="block",
+                        detail="latest day_bars row is 200h old (max 36h)",
+                    ),
+                ),
+            )
+        return ReadinessReport(symbol=symbol.upper(), ok=True)
+
+    monkeypatch.setattr(
+        fanout_mod.readiness, "check_committee_readiness", fake_readiness
+    )
+
+    created: list[dict] = []
+
+    def fake_create_run(**kw: object) -> str:
+        created.append(kw)
+        return f"run-{kw['symbol']}"
+
+    with patch.object(fanout_mod.scanner_repo, "get_latest_run", return_value=latest), \
+         patch.object(fanout_mod.scanner_repo, "get_scores_for_run", return_value=scores), \
+         patch.object(fanout_mod, "_count_fanout_today", return_value=0), \
+         patch.object(fanout_mod.cache, "should_run",
+                      return_value=cache_mod.CacheDecision(should_run=True, reason="no_prior_run")), \
+         patch.object(fanout_mod, "_run_tier1_batch") as tier1_mock, \
+         patch.object(fanout_mod.committee_store, "create_run", side_effect=fake_create_run):
+        out = fanout_mod.run_fanout(top_n=10, max_daily=10, now=now)
+
+    # BAD lands in skipped with reason='data_unready' and is never spawned.
+    skipped_by_reason = {s["symbol"]: s["reason"] for s in out.skipped}
+    assert skipped_by_reason.get("BAD") == "data_unready"
+    spawned_syms = [s["symbol"] for s in out.spawned]
+    assert "BAD" not in spawned_syms
+    assert set(spawned_syms) == {"AAA", "CCC"}
+
+    # The skip record carries the blocking-check names for the audit trail.
+    bad_skip = next(s for s in out.skipped if s["symbol"] == "BAD")
+    assert "ohlcv_stale" in bad_skip["blocking_checks"]
+    assert bad_skip["report"]["ok"] is False
+
+    # Tier-1 (LLM call) is only invoked once, with the ready candidates.
+    # The loop=None branch of run_fanout actually skips Tier-1 entirely;
+    # the assertion that matters is that BAD never reaches the batch.
+    if tier1_mock.called:
+        passed_candidates = tier1_mock.call_args[0][1]
+        passed_syms = {c["symbol"] for c in passed_candidates}
+        assert "BAD" not in passed_syms

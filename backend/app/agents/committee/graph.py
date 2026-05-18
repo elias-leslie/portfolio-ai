@@ -19,6 +19,7 @@ Lifetime model:
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -27,7 +28,7 @@ from typing import Any
 
 from app.logging_config import get_logger
 
-from . import GRAPH_VERSION, stages, store, stream
+from . import GRAPH_VERSION, readiness, stages, store, stream
 from . import feedback as feedback_mod
 from . import ips as ips_mod
 from .schemas import (
@@ -228,6 +229,34 @@ async def run_committee(
         )
 
         await _ensure_ohlcv(symbol)
+
+        # Belt-and-suspenders: re-check readiness after the OHLCV backfill.
+        # The API/fan-out caller may have already run the gate, but data can
+        # go stale between scheduling and execution, and the API path can be
+        # bypassed (resumes, retros). Failing here costs zero LLM calls.
+        ready_report = await asyncio.to_thread(
+            readiness.check_committee_readiness, symbol
+        )
+        if not ready_report.ok:
+            logger.warning(
+                "committee_run_data_unready",
+                run_id=run_id,
+                symbol=symbol,
+                blocking=[i.check for i in ready_report.blocking_issues],
+            )
+            error_payload = {
+                "error": "data_unready",
+                "report": ready_report.to_dict(),
+            }
+            store.mark_failed(run_id, error=json.dumps(error_payload, default=str))
+            await _cancel_ticker(ticker_task)
+            ticker_task = None
+            await emit(
+                "run.failed",
+                stage_name="system",
+                content=error_payload,
+            )
+            return
 
         await stream.check_control(run_id)
         context = await _build_context(symbol)

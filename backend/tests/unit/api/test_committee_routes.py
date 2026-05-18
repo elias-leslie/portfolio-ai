@@ -19,9 +19,25 @@ from fastapi.testclient import TestClient
 
 from app.agents.committee import store as committee_store
 from app.agents.committee import stream as committee_stream
+from app.agents.committee.readiness import ReadinessIssue, ReadinessReport
 from app.api import committee_runs as routes
 from app.api import committee_stream as stream_routes
 from app.services import paper_trades as paper_trades_svc
+
+
+@pytest.fixture(autouse=True)
+def _bypass_readiness_gate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Default to data-ready for POST /runs paths; opt-in tests override.
+
+    The route handler refuses to spend LLM budget on stale data; the
+    legacy contract tests assume data is fresh, so we satisfy the gate
+    by default and let the dedicated 422-path test below override it.
+    """
+    monkeypatch.setattr(
+        routes.readiness,
+        "check_committee_readiness",
+        lambda symbol, **_kw: ReadinessReport(symbol=symbol.upper(), ok=True),
+    )
 
 
 @pytest.fixture
@@ -71,6 +87,55 @@ def test_post_runs_creates_row_and_returns_run_id(
     assert body["status"] == "pending"
     assert "graph_version" in body
     assert created_kwargs["symbol"] == "nvda"
+
+
+def test_post_runs_rejects_with_422_when_data_unready(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient
+) -> None:
+    """POST /runs → 422 + structured report when the readiness gate fails.
+
+    No DB row is created and no runner is dispatched — the entire point
+    of the gate is to short-circuit before LLM credit is spent.
+    """
+    create_run_called = False
+
+    def fake_create_run(**_kw: Any) -> str:
+        nonlocal create_run_called
+        create_run_called = True
+        return "should-not-be-used"
+
+    monkeypatch.setattr(committee_store, "create_run", fake_create_run)
+    monkeypatch.setattr(
+        routes.readiness,
+        "check_committee_readiness",
+        lambda symbol, **_kw: ReadinessReport(
+            symbol=symbol.upper(),
+            ok=False,
+            issues=(
+                ReadinessIssue(
+                    check="ohlcv_stale",
+                    severity="block",
+                    detail="latest day_bars row is 200h old (max 36h)",
+                ),
+                ReadinessIssue(
+                    check="news_empty",
+                    severity="block",
+                    detail="no news_cache rows for symbol in last 7 days",
+                ),
+            ),
+        ),
+    )
+
+    response = client.post("/api/committee/runs", json={"symbol": "stale"})
+
+    assert response.status_code == 422
+    body = response.json()
+    detail = body["detail"]
+    assert detail["error"] == "data_unready"
+    assert detail["report"]["ok"] is False
+    blocking_checks = {i["check"] for i in detail["report"]["issues"]}
+    assert {"ohlcv_stale", "news_empty"} <= blocking_checks
+    assert create_run_called is False
 
 
 # ---------- GET /runs (list endpoint) ----------

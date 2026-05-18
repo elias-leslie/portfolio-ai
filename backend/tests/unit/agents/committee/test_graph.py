@@ -411,6 +411,16 @@ def captured_events(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
     monkeypatch.setattr(graph_mod, "_build_context", fake_build_context)
     monkeypatch.setattr(graph_mod, "_portfolio_value_estimate", lambda _hh: 500_000.0)
 
+    # Skip the data-readiness gate; it hits real tables. Individual tests
+    # that want to exercise the gate override this attribute directly.
+    from app.agents.committee.readiness import ReadinessReport
+
+    monkeypatch.setattr(
+        graph_mod.readiness,
+        "check_committee_readiness",
+        lambda symbol, **_kw: ReadinessReport(symbol=symbol.upper(), ok=True),
+    )
+
     # Stages.
     async def fake_run_analyst(slug: str, **kw: Any) -> AnalystOutput:
         return _analyst(slug)
@@ -454,6 +464,60 @@ def captured_events(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
     monkeypatch.setattr(graph_mod, "_KPI_TICK_INTERVAL", 0.05)
 
     return events
+
+
+@pytest.mark.asyncio
+async def test_runner_fails_fast_when_readiness_gate_blocks(
+    captured_events: list[dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If readiness re-check fails after OHLCV backfill, run.failed fires.
+
+    No stage.enter, no agent.output, no LLM calls — the only emitted
+    events should be run.start (or resume) and run.failed carrying the
+    structured report. This is the belt-and-suspenders that catches
+    user-triggered runs that bypassed the API check or runs where data
+    went stale between scheduling and execution.
+    """
+    from app.agents.committee.readiness import ReadinessIssue, ReadinessReport
+
+    failing_report = ReadinessReport(
+        symbol="NVDA",
+        ok=False,
+        issues=(
+            ReadinessIssue(
+                check="ohlcv_stale",
+                severity="block",
+                detail="latest day_bars row is 200h old",
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        graph_mod.readiness,
+        "check_committee_readiness",
+        lambda _symbol, **_kw: failing_report,
+    )
+
+    await committee_stream.register("run-uuid")
+    await graph_mod.run_committee(
+        run_id="run-uuid",
+        symbol="NVDA",
+        household_id=None,
+    )
+
+    types_seen = [e.get("type") for e in captured_events if "type" in e]
+    assert "run.failed" in types_seen
+    # No analyst was invoked.
+    assert not any(
+        e.get("type") == "agent.output" and e.get("stage") == "analysts"
+        for e in captured_events
+    )
+    # The failure event carries the structured report.
+    failed = next(e for e in captured_events if e.get("type") == "run.failed")
+    content = failed.get("content") or {}
+    assert content.get("error") == "data_unready"
+    assert content["report"]["ok"] is False
+    assert content["report"]["issues"][0]["check"] == "ohlcv_stale"
 
 
 @pytest.mark.asyncio
