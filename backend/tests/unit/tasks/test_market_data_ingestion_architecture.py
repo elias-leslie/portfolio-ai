@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from app.constants import ALL_MARKET_SYMBOLS, DEFAULT_DAILY_REFRESH_DAYS, PREDICTION_DRIVER_SYMBOLS
+from app.services import research_universe
 from app.tasks.ingestion import price_ingestion
 from app.tasks.market_data import historical_ohlcv_pipeline
 
@@ -36,7 +37,7 @@ class _FakeStorage:
         return self._connection
 
 
-def test_daily_ohlcv_refresh_uses_canonical_market_symbols(monkeypatch) -> None:
+def test_daily_ohlcv_refresh_unions_canonical_and_research_universe(monkeypatch) -> None:
     recorded: dict[str, object] = {}
 
     def fake_ingest(symbols: list[str], days: int, task_id: str | None = None) -> dict[str, object]:
@@ -45,11 +46,14 @@ def test_daily_ohlcv_refresh_uses_canonical_market_symbols(monkeypatch) -> None:
 
     monkeypatch.setattr(price_ingestion, "_ingest_historical_ohlcv_impl", fake_ingest)
     monkeypatch.setattr(price_ingestion, "task_cleanup", lambda _name: None)
+    # AAPL is already in ALL_MARKET_SYMBOLS; the union must dedupe so we
+    # don't hit yfinance twice for the overlap.
+    monkeypatch.setattr(research_universe, "list_active_symbols", lambda: ["AAPL", "ZTS"])
 
     result = price_ingestion.refresh_daily_ohlcv()
 
     assert result == {"status": "ok"}
-    assert recorded["symbols"] == ALL_MARKET_SYMBOLS
+    assert recorded["symbols"] == [*ALL_MARKET_SYMBOLS, "ZTS"]
     assert recorded["days"] == DEFAULT_DAILY_REFRESH_DAYS
 
 

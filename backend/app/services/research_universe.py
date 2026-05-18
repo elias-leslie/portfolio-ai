@@ -25,6 +25,10 @@ class RefreshResult:
     departed: int
     active_count: int
     source: str
+    # Symbols that need an OHLCV backfill so the L2 scanner can rank them.
+    # The workflow chains portfolio-ingest-ohlcv against this list.
+    added_symbols: tuple[str, ...] = ()
+    reactivated_symbols: tuple[str, ...] = ()
 
 
 def _active_symbols() -> set[str]:
@@ -71,6 +75,8 @@ def refresh_universe(members: Iterable[UniverseMember] | None = None) -> Refresh
 
     added = 0
     reactivated = 0
+    added_symbols: list[str] = []
+    reactivated_symbols: list[str] = []
     for symbol, m in incoming.items():
         if symbol in existing_active:
             storage.execute(
@@ -100,6 +106,7 @@ def refresh_universe(members: Iterable[UniverseMember] | None = None) -> Refresh
                 [m.source, m.sector, m.industry, m.weight, symbol],
             )
             reactivated += 1
+            reactivated_symbols.append(symbol)
         else:
             storage.execute(
                 """
@@ -110,6 +117,7 @@ def refresh_universe(members: Iterable[UniverseMember] | None = None) -> Refresh
                 [symbol, m.source, m.sector, m.industry, m.weight],
             )
             added += 1
+            added_symbols.append(symbol)
 
     departed_symbols = existing_active - incoming.keys()
     for symbol in departed_symbols:
@@ -125,6 +133,8 @@ def refresh_universe(members: Iterable[UniverseMember] | None = None) -> Refresh
         departed=len(departed_symbols),
         active_count=active_count,
         source=members_list[0].source if members_list else "none",
+        added_symbols=tuple(added_symbols),
+        reactivated_symbols=tuple(reactivated_symbols),
     )
     logger.info(
         "research_universe_refreshed",

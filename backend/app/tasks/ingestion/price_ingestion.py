@@ -71,7 +71,9 @@ def refresh_daily_ohlcv(
     analytics, dashboards, alerts, and reporting.
 
     Args:
-        symbols: List of symbols (default: canonical market symbols).
+        symbols: List of symbols (default: canonical market symbols
+            unioned with the active research universe so the L2 scanner
+            keeps full S&P 500 coverage day-over-day).
 
     Returns:
         Dict with task results:
@@ -82,7 +84,9 @@ def refresh_daily_ohlcv(
         >>> refresh_daily_ohlcv(["SPY", "QQQ", "IWM"])
     """
     if symbols is None:
-        symbols = ALL_MARKET_SYMBOLS
+        from app.services import research_universe
+
+        symbols = list(dict.fromkeys([*ALL_MARKET_SYMBOLS, *research_universe.list_active_symbols()]))
 
     task_id = str(uuid.uuid4())
     logger.info("refresh_daily_ohlcv_started", task_id=task_id, symbols=symbols)
