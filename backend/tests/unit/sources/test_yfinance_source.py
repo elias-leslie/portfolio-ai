@@ -8,7 +8,24 @@ from typing import Any
 import polars as pl
 import pytest
 
+from app.sources.yfinance_fetchers import _to_yf_symbol
 from app.sources.yfinance_source import YFinanceSource
+
+
+def test_to_yf_symbol_translates_dotted_share_classes() -> None:
+    """S&P 500 canonical form keeps dots (``BRK.B``); yfinance API needs
+    the dashed form. Storage keeps the dotted canonical."""
+    assert _to_yf_symbol("BRK.B") == "BRK-B"
+    assert _to_yf_symbol("BF.B") == "BF-B"
+
+
+def test_to_yf_symbol_passes_through_non_share_class_symbols() -> None:
+    """Only the share-class dot is rewritten. Exchange-suffix dots
+    (e.g. ``DX-Y.NYB`` — yfinance's actual canonical for ICE Dollar Index)
+    and index symbols pass through verbatim."""
+    assert _to_yf_symbol("AAPL") == "AAPL"
+    assert _to_yf_symbol("^GSPC") == "^GSPC"
+    assert _to_yf_symbol("DX-Y.NYB") == "DX-Y.NYB"
 
 
 @pytest.fixture()

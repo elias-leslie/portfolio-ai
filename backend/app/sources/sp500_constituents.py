@@ -30,6 +30,12 @@ from ..logging_config import get_logger
 logger = get_logger(__name__)
 
 WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+
+# Ticker shape Wikipedia and iShares both emit: 1-5 uppercase letters, with
+# an optional share-class suffix (e.g. ``BRK.B``, ``BF.B``). Used to reject
+# header rows like the literal string ``Symbol`` that occasionally slip
+# through a non-``<th>`` first row.
+_TICKER_RE = re.compile(r"^[A-Z]{1,5}(?:\.[A-Z])?$")
 ISHARES_IVV_URL = (
     "https://www.ishares.com/us/products/239726/ishares-core-sp-500-etf/"
     "1467271812596.ajax?fileType=csv&fileName=IVV_holdings&dataType=fund"
@@ -82,14 +88,14 @@ def _parse_wikipedia_html(html: str) -> list[UniverseMember]:
         cells = re.findall(r"<td[^>]*>(.*?)</td>", row, flags=re.DOTALL | re.IGNORECASE)
         if len(cells) < 4:
             continue
-        symbol = _strip_html(cells[0])
-        if not symbol or not symbol[0].isalpha():
+        symbol = _normalise_symbol(_strip_html(cells[0]))
+        if not _TICKER_RE.match(symbol):
             continue
         sector = _strip_html(cells[2]) or None
         industry = _strip_html(cells[3]) or None
         members.append(
             UniverseMember(
-                symbol=_normalise_symbol(symbol),
+                symbol=symbol,
                 sector=sector,
                 industry=industry,
                 weight=None,

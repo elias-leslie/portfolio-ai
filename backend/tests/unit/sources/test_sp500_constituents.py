@@ -67,10 +67,26 @@ def test_fetch_falls_back_to_seed_when_remote_fails() -> None:
     assert all(m.source == "seed" for m in members)
 
 
+def test_parse_wikipedia_html_rejects_header_row_in_tds() -> None:
+    """Wikipedia occasionally emits a header row using ``<td>`` instead of
+    ``<th>``; the ticker validator must drop it so junk like
+    ``symbol=SYMBOL, sector="GICS Sector"`` never reaches storage."""
+    html = """
+    <table id="constituents">
+        <tr><td>Symbol</td><td>Security</td><td>GICS Sector</td><td>GICS Sub-Industry</td></tr>
+        <tr><td>AAPL</td><td>Apple Inc.</td><td>Information Technology</td><td>HW</td></tr>
+        <tr><td>BRK.B</td><td>Berkshire</td><td>Financials</td><td>Multi-Sector</td></tr>
+    </table>
+    """
+    members = _parse_wikipedia_html(html)
+    symbols = {m.symbol for m in members}
+    assert symbols == {"AAPL", "BRK.B"}
+
+
 def test_fetch_returns_wikipedia_when_table_is_full() -> None:
     """A successful Wikipedia fetch >= 400 rows is preferred over the seed."""
     rows = "".join(
-        f"<tr><td>SYM{i:03d}</td><td>Co{i}</td><td>Sector</td><td>Industry</td></tr>"
+        f"<tr><td>{chr(65 + i // 26)}{chr(65 + i % 26)}</td><td>Co{i}</td><td>Sector</td><td>Industry</td></tr>"
         for i in range(450)
     )
     html = f"<table id='constituents'>{rows}</table>"
