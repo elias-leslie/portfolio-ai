@@ -387,6 +387,7 @@ async def run_pm(
     ips_result: IpsResult,
     past_decisions: list[PastDecisionEntry],
     feedback_round: dict[str, Any] | None = None,
+    portfolio_context: dict[str, Any] | None = None,
 ) -> PmDecision:
     """Call the portfolio manager for the final decision."""
     payload: dict[str, Any] = {
@@ -395,6 +396,7 @@ async def run_pm(
         "risk_votes": [v.model_dump(mode="json") for v in risk_votes],
         "ips_result": ips_result.model_dump(mode="json"),
         "past_decisions": [d.model_dump(mode="json") for d in past_decisions],
+        "portfolio_context": portfolio_context,
         "feedback_round": bool(feedback_round),
     }
     if feedback_round is not None:
@@ -594,7 +596,10 @@ def _context_slice_for(slug: str, context: dict[str, Any]) -> dict[str, Any]:
     """Hand each analyst only the slice of context they need.
 
     Keeps payloads tight (token-aware) and signals which fields drive
-    the analyst's read.
+    the analyst's read. Portfolio context is intentionally absent —
+    analysts read evidence position-blind so the synthesis layers
+    (trader / risk / PM) are the only ones biased by what we already
+    hold.
     """
     portfolio = context.get("portfolio") or context.get("fundamentals", {}).get("portfolio")
     if slug == SLUG_FUNDAMENTALS:

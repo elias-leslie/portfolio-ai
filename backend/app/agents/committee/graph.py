@@ -847,6 +847,9 @@ async def _build_context(symbol: str) -> dict[str, Any]:
     news_raw = await asyncio.to_thread(payloads.fetch_news_sentiment, symbol)
     if news_raw:
         context["news_raw"] = news_raw
+    portfolio_context = await asyncio.to_thread(payloads.fetch_portfolio_context, symbol)
+    if portfolio_context:
+        context["portfolio"] = portfolio_context
     return context
 
 
