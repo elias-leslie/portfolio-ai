@@ -14,16 +14,33 @@ class MockIntersectionObserver implements IntersectionObserver {
 global.IntersectionObserver =
   MockIntersectionObserver as unknown as typeof IntersectionObserver
 
+vi.mock('@/components/home/TodayOverviewPanel', () => ({
+  TodayOverviewPanel: () => <div>Today Overview Panel</div>,
+}))
+vi.mock('@/components/portfolio/InvestingMarketPanel', () => ({
+  InvestingMarketTrendPanels: () => <div>Today Market Pulse Panel</div>,
+}))
 vi.mock('@/components/home/HomeActionQueue', () => ({
   HomeActionQueue: () => <div>Home Action Queue</div>,
 }))
 
-vi.mock('@/components/home/TodayOverviewPanel', () => ({
-  TodayOverviewPanel: () => <div>Today Overview Panel</div>,
+vi.mock('@/components/today-next/MacroGateCard', () => ({
+  MacroGateCard: () => <div>Macro Gate Card</div>,
 }))
-
-vi.mock('@/components/home/TodayMarketPulsePanel', () => ({
-  TodayMarketPulsePanel: () => <div>Today Market Pulse Panel</div>,
+vi.mock('@/components/today-next/ScannerTable', () => ({
+  ScannerTable: () => <div>Scanner Table</div>,
+}))
+vi.mock('@/components/today-next/CommitteeFanOut', () => ({
+  CommitteeFanOut: () => <div>Committee Fan Out</div>,
+}))
+vi.mock('@/lib/hooks/useTodayNext', () => ({
+  useTodayNext: () => ({
+    data: null,
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+    isFetching: false,
+  }),
 }))
 
 vi.mock('@/lib/hooks/useHousehold', async () => {
@@ -113,7 +130,7 @@ describe('core product routes', () => {
     expect(screen.getByText('Today')).toBeInTheDocument()
     expect(screen.getByText('Today Overview Panel')).toBeInTheDocument()
     expect(screen.getByText('Today Market Pulse Panel')).toBeInTheDocument()
-    expect(screen.getByText('Home Action Queue')).toBeInTheDocument()
+    expect(screen.getByText(/Home Action Queue/i)).toBeInTheDocument()
     expect(screen.queryByText('Automation Center')).not.toBeInTheDocument()
   })
 
