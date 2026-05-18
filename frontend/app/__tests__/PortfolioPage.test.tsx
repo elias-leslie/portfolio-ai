@@ -88,22 +88,14 @@ vi.mock('@/components/portfolio/InvestingNewsPanel', () => ({
     </div>
   ),
 }))
-vi.mock('@/components/today-next/MacroGateCard', () => ({
-  MacroGateCard: () => <div>Macro Gate Card</div>,
+vi.mock('@/components/signals/SignalsTabContent', () => ({
+  SignalsTabContent: () => <div>Signals Tab Content</div>,
 }))
-vi.mock('@/components/today-next/ScannerTable', () => ({
-  ScannerTable: () => <div>Scanner Table</div>,
-}))
-vi.mock('@/components/today-next/CommitteeFanOut', () => ({
-  CommitteeFanOut: () => <div>Committee Fan Out</div>,
-}))
-vi.mock('@/lib/hooks/useTodayNext', () => ({
-  useTodayNext: () => ({
+vi.mock('@/lib/hooks/useSignals', () => ({
+  useBlendedSignals: () => ({
     data: null,
     isLoading: false,
     error: null,
-    refetch: vi.fn(),
-    isFetching: false,
   }),
 }))
 

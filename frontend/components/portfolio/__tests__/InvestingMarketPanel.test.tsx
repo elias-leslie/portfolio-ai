@@ -105,36 +105,16 @@ describe('InvestingMarketPanel', () => {
     }))
   })
 
-  it('uses the selected sector trend window for leading and lagging areas', async () => {
+  it('propagates the selected timeframe to the sector performance chart', async () => {
     const user = userEvent.setup()
     render(<InvestingMarketPanel />)
 
-    expect(
-      screen.queryByText(/strongest relative performers/i),
-    ).not.toBeInTheDocument()
-    expect(screen.queryByText(/1M default/i)).not.toBeInTheDocument()
-    expect(screen.getByText(/Sector Chart 1M/i)).toBeInTheDocument()
-    expect(
-      screen.queryByText(/weakest relative performers/i),
-    ).not.toBeInTheDocument()
     expect(screen.getByText('Sector Chart 1M')).toBeInTheDocument()
-    expect(screen.getByText(/Energy/i)).toBeInTheDocument()
-    expect(screen.getByText(/Industrials/i)).toBeInTheDocument()
-    expect(screen.getByText(/Consumer Staples/i)).toBeInTheDocument()
-    expect(screen.getByText('Sector Chart 1M')).toBeInTheDocument()
+    expect(screen.getByText('Sentiment Trend')).toBeInTheDocument()
+    expect(screen.getByText('Indicators Trend')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Switch to 1Y' }))
 
-    expect(
-      screen.getByText(
-        /Technology \+18\.4% · Communication Services \+12\.1% · Industrials \+9\.2%/i,
-      ),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(
-        /Energy -8\.6% · Healthcare -2\.2% · Consumer Discretionary \+5\.5%/i,
-      ),
-    ).toBeInTheDocument()
     expect(screen.getByText('Sector Chart 1Y')).toBeInTheDocument()
   })
 })

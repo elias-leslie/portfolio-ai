@@ -28,7 +28,6 @@ from app.api import (
     snaptrade,
     symbols,
     thesis,
-    today_next,
     watchlist,
 )
 from app.api.catalyst_routes import router as catalyst_router
@@ -162,7 +161,6 @@ app.include_router(watchlist.router, prefix="/api/watchlist")
 app.include_router(rules.router)
 app.include_router(symbols.router)
 app.include_router(thesis.router)
-app.include_router(today_next.router)
 app.include_router(macro_router)
 app.include_router(scanner_router)
 app.include_router(signals_router)

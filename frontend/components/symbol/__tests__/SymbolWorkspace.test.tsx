@@ -20,6 +20,9 @@ vi.mock('@/lib/hooks/usePortfolio', () => ({
 vi.mock('@/lib/hooks/usePreferences', () => ({
   usePreferences: () => ({ data: undefined, isLoading: false }),
 }))
+vi.mock('@/lib/hooks/useSignals', () => ({
+  useSymbolSignals: () => ({ data: undefined, isLoading: false, error: null }),
+}))
 
 describe('SymbolWorkspace', () => {
   beforeEach(() => {

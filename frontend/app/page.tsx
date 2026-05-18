@@ -6,6 +6,7 @@ import { TodayOverviewPanel } from '@/components/home/TodayOverviewPanel'
 import { InvestingMarketTrendPanels } from '@/components/portfolio/InvestingMarketPanel'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { TodayNextBanner } from '@/components/signals/TodayNextBanner'
 
 export default function Dashboard() {
   return (
@@ -17,6 +18,7 @@ export default function Dashboard() {
         size="md"
         variant="plain"
       />
+      <TodayNextBanner />
       <TodayOverviewPanel />
       <InvestingMarketTrendPanels />
     </PageContainer>
