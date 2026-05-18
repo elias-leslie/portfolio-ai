@@ -596,12 +596,9 @@ def _context_slice_for(slug: str, context: dict[str, Any]) -> dict[str, Any]:
     """Hand each analyst only the slice of context they need.
 
     Keeps payloads tight (token-aware) and signals which fields drive
-    the analyst's read. Portfolio context is intentionally absent —
-    analysts read evidence position-blind so the synthesis layers
-    (trader / risk / PM) are the only ones biased by what we already
-    hold.
+    the analyst's read.
     """
-    portfolio = context.get("portfolio") or context.get("fundamentals", {}).get("portfolio")
+    portfolio = context.get("portfolio")
     if slug == SLUG_FUNDAMENTALS:
         return {
             "fundamentals": context.get("fundamentals"),

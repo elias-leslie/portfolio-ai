@@ -170,3 +170,151 @@ async def test_run_tier1_screen_coerces_bad_enum_fields(
     assert verdict.score == pytest.approx(1.0)
     assert verdict.conviction == "low"
     assert verdict.top_factor == "other"
+
+
+# ---------- portfolio_context wiring ----------
+
+
+def _install_capturing_agent_hub_client(
+    monkeypatch: pytest.MonkeyPatch, captured: dict[str, Any], response_json: str
+) -> None:
+    """Replace AgentHubAPIClient with a fake that captures the user payload."""
+    import json as _json
+
+    class FakeAgentHubClient:
+        def __init__(self, **_kw: Any) -> None:
+            return None
+
+        async def complete_messages_async(self, **kw: Any) -> Any:
+            user_msg = kw["messages"][0]["content"]
+            captured["payload"] = _json.loads(user_msg)
+            captured["agent_slug"] = kw.get("agent_slug")
+            return type("R", (), {"content": response_json, "tokens": 1})()
+
+        async def aclose(self) -> None:
+            return None
+
+    monkeypatch.setattr(stages, "AgentHubAPIClient", FakeAgentHubClient)
+    monkeypatch.setitem(stages._llm_semaphore_cell, "sem", None)
+
+
+_PORTFOLIO_CTX_FIXTURE: dict[str, Any] = {
+    "held": True,
+    "position_in_symbol": {"shares": 10.0, "weight_pct": 8.0},
+    "target_sector": "Technology",
+    "sector_exposure_pct": 28.0,
+    "top_5_positions": [{"symbol": "NVDA", "weight_pct": 8.0, "sector": "Technology"}],
+    "cash_pct": 12.5,
+}
+
+
+@pytest.mark.asyncio
+async def test_run_trader_forwards_portfolio_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+    _install_capturing_agent_hub_client(
+        monkeypatch,
+        captured,
+        response_json=(
+            '{"action": "buy", "qty_pct": 0.05, "entry_price": 800.0, '
+            '"stop_price": 760.0, "horizon": "swing", "rationale_md": "ok"}'
+        ),
+    )
+    await stages.run_trader(
+        symbol="NVDA",
+        analyst_outputs=[],
+        debate_history=[],
+        portfolio_value=1_000_000.0,
+        current_price=800.0,
+        past_decisions=[],
+        portfolio_context=_PORTFOLIO_CTX_FIXTURE,
+    )
+    assert captured["agent_slug"] == stages.SLUG_TRADER
+    assert captured["payload"]["portfolio_context"] == _PORTFOLIO_CTX_FIXTURE
+
+
+@pytest.mark.asyncio
+async def test_run_risk_forwards_portfolio_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.agents.committee.schemas import IpsResult, TradeProposal
+
+    captured: dict[str, Any] = {}
+    _install_capturing_agent_hub_client(
+        monkeypatch,
+        captured,
+        response_json='{"vote": "approve", "score": 0.4, "narrative_md": "ok", "objections": []}',
+    )
+    proposal = TradeProposal(
+        action="buy",
+        qty_pct=0.05,
+        entry_price=800.0,
+        stop_price=760.0,
+        horizon="swing",
+        rationale_md="",
+        signers=[],
+        tokens=0,
+        latency_ms=0,
+    )
+    await stages.run_risk(
+        stages.SLUG_RISK_NEUTRAL,
+        proposal=proposal,
+        analyst_outputs=[],
+        debate_history=[],
+        ips_result=IpsResult(checks=[], all_passed=True),
+        portfolio_context=_PORTFOLIO_CTX_FIXTURE,
+    )
+    assert captured["payload"]["portfolio_context"] == _PORTFOLIO_CTX_FIXTURE
+
+
+@pytest.mark.asyncio
+async def test_run_pm_forwards_portfolio_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.agents.committee.schemas import IpsResult, TradeProposal
+
+    captured: dict[str, Any] = {}
+    _install_capturing_agent_hub_client(
+        monkeypatch,
+        captured,
+        response_json=(
+            '{"action": "buy", "qty_pct": 0.04, "confidence": 0.6, '
+            '"horizon": "swing", "rationale_md": "ok"}'
+        ),
+    )
+    proposal = TradeProposal(
+        action="buy",
+        qty_pct=0.05,
+        entry_price=800.0,
+        stop_price=760.0,
+        horizon="swing",
+        rationale_md="",
+        signers=[],
+        tokens=0,
+        latency_ms=0,
+    )
+    await stages.run_pm(
+        proposal=proposal,
+        debate_history=[],
+        risk_votes=[],
+        ips_result=IpsResult(checks=[], all_passed=True),
+        past_decisions=[],
+        portfolio_context=_PORTFOLIO_CTX_FIXTURE,
+    )
+    assert captured["payload"]["portfolio_context"] == _PORTFOLIO_CTX_FIXTURE
+    assert captured["agent_slug"] == stages.SLUG_PM
+
+
+def test_context_slice_for_includes_portfolio_for_analysts() -> None:
+    """Analyst slices include portfolio context for actionability."""
+    context = {
+        "fundamentals": {"pillar": 0.7},
+        "valuation": {"overall_score": 0.5},
+        "fundamentals_raw": {"valuation": {"pe_ratio_trailing": 30}},
+        "news": {"section": {"items": []}},
+        "news_raw": {"articles": [{"headline": "x"}]},
+        "sentiment": {},
+        "options": {},
+        "ohlcv": {},
+        "indicators": {},
+        "technical_indicators_raw": {"rsi_14": 60},
+        "portfolio": {"position_in_symbol": {"shares": 10.0}},
+    }
+    for slug in stages.ANALYST_SLUGS:
+        slice_ = stages._context_slice_for(slug, context)
+        assert slice_["portfolio"] == {"position_in_symbol": {"shares": 10.0}}
