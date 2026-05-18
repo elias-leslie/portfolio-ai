@@ -54,7 +54,12 @@ dependencies = [
     # NLP / Sentiment
     "vaderSentiment>=3.3.2",
     "snaptrade-python-sdk>=11.0.195",
+    # MCP server (stdio transport for Claude Code / Codex CLI tie-in)
+    "mcp>=1.0.0",
 ]
+
+[project.scripts]
+portfolio-ai-mcp = "app.mcp_server.__main__:main"
 
 [project.optional-dependencies]
 dev = [

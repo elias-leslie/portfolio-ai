@@ -235,6 +235,70 @@ Key endpoint groups:
 
 Full interactive docs at `http://localhost:8000/docs`.
 
+## MCP server (Claude Code / Codex CLI)
+
+Portfolio AI ships a small MCP server (`portfolio-ai-mcp`) that exposes
+read-only access to the 3-tier signal stack — L1 macro deployment gate
+(deterministic), L2 quantitative scanner (deterministic), L3 investment
+committee verdicts (AI, non-deterministic). It lets Claude Code, Codex
+CLI, or any MCP client query "today's deployment zone", "the top scanner
+candidates", or "the unified picture for NVDA" without going through the
+HTTP API.
+
+Transport is stdio — one Python process per connection — and auth is
+OS-level user trust. No write tools are exposed (the
+`trigger_committee_run` write tool is deferred until read traffic
+justifies the per-run cost).
+
+Tools:
+
+| Tool | Tier | Returns |
+|------|------|---------|
+| `get_deployment_zone()` | L1 (deterministic) | Today's zone + composite + 6 components + 7-day trend |
+| `get_deployment_history(days=90)` | L1 (deterministic) | Daily composites for the window (clamped to ≤730) |
+| `get_scanner_top(limit=25)` | L2 (deterministic) | Top-N ranked candidates from the latest run |
+| `get_committee_runs_today()` | L3 (non-deterministic) | Completed committee runs in the last 24h with verdicts |
+| `get_symbol_full_picture(ticker, days=30)` | L1+L2+L3 | Unified per-symbol view — same shape as `/api/signals/symbol/{ticker}` |
+
+### Install in Claude Code
+
+From the `backend/` directory (so `uv run` resolves the project venv):
+
+```bash
+claude mcp add portfolio-ai -- uv run portfolio-ai-mcp
+```
+
+Then in any Claude Code session:
+
+```
+/mcp
+```
+
+`portfolio-ai` will appear with the five tools listed above.
+
+### Install in Codex CLI
+
+Codex CLI reads `.mcp.json` in the current project. Copy
+[`.mcp.json.template`](./.mcp.json.template) into the consuming project
+as `.mcp.json` (the `cwd` field needs to point at this repository's
+`backend/` directory):
+
+```json
+{
+  "mcpServers": {
+    "portfolio-ai": {
+      "command": "uv",
+      "args": ["run", "portfolio-ai-mcp"],
+      "cwd": "/absolute/path/to/portfolio-ai/backend"
+    }
+  }
+}
+```
+
+The server reads the same `.env.local` / `.env` files as the rest of the
+backend (database URL, etc.), so as long as `uv run` is invoked from
+`backend/` the DB connection will work.
+
 ## Database
 
 163+ tables covering portfolio positions, watchlist intelligence, market data caching, agent runs, strategy management, backtesting, and system monitoring. Schema managed via Alembic migrations.
