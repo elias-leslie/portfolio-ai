@@ -260,12 +260,16 @@ async def run_committee(
 
         await stream.check_control(run_id)
         context = await _build_context(symbol)
-        # Portfolio context flows into trader / risk / PM only — keeping
-        # the analyst slices position-blind avoids anchoring their reads
-        # on what we already own.
+        # Portfolio context is fetched once and exposed two ways: the
+        # analyst slices reference it under "portfolio" so each analyst
+        # can flag stance overlap, and the trader / risk / PM receive
+        # it as an explicit kwarg so their sizing prompts can call out
+        # ``position_in_symbol`` and ``sector_exposure_pct`` by name.
         portfolio_context = await asyncio.to_thread(
             payloads.fetch_portfolio_context, symbol, household_id
         )
+        if portfolio_context:
+            context["portfolio"] = portfolio_context
         past_decisions = store.load_past_decisions(symbol, household_id, limit=5)
 
         # Stage 1: Analysts (concurrent — independent data slices).
