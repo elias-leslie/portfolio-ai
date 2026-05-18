@@ -32,6 +32,7 @@ from app.api import (
     watchlist,
 )
 from app.api.catalyst_routes import router as catalyst_router
+from app.api.macro_routes import router as macro_router
 from app.api.market import router as market_router
 from app.api.retirement_routes import router as retirement_router
 from app.config import settings
@@ -160,6 +161,7 @@ app.include_router(rules.router)
 app.include_router(symbols.router)
 app.include_router(thesis.router)
 app.include_router(today_next.router)
+app.include_router(macro_router)
 app.include_router(committee_runs.router)
 app.include_router(committee_stream.router)
 
