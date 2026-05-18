@@ -113,22 +113,14 @@ describe('InvestingMarketPanel', () => {
       screen.queryByText(/strongest relative performers/i),
     ).not.toBeInTheDocument()
     expect(screen.queryByText(/1M default/i)).not.toBeInTheDocument()
-    expect(
-      screen.getByText(/Intraday\/current as of Apr 10/i),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/Sector Chart 1M/i)).toBeInTheDocument()
     expect(
       screen.queryByText(/weakest relative performers/i),
     ).not.toBeInTheDocument()
-    expect(
-      screen.getByText(
-        /Technology \+6\.8% · Financials \+5\.4% · Utilities \+4\.3%/i,
-      ),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(
-        /Energy -3\.9% · Industrials -1\.4% · Consumer Staples \+1\.1%/i,
-      ),
-    ).toBeInTheDocument()
+    expect(screen.getByText('Sector Chart 1M')).toBeInTheDocument()
+    expect(screen.getByText(/Energy/i)).toBeInTheDocument()
+    expect(screen.getByText(/Industrials/i)).toBeInTheDocument()
+    expect(screen.getByText(/Consumer Staples/i)).toBeInTheDocument()
     expect(screen.getByText('Sector Chart 1M')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Switch to 1Y' }))

@@ -15,6 +15,9 @@ import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import type { WorkspaceTab } from '@/components/shared/WorkspaceTabs'
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
+import { CommitteeFanOut } from '@/components/today-next/CommitteeFanOut'
+import { MacroGateCard } from '@/components/today-next/MacroGateCard'
+import { ScannerTable } from '@/components/today-next/ScannerTable'
 import { Button } from '@/components/ui/button'
 import { AddSymbolModal } from '@/components/watchlist/AddSymbolModal'
 import { useWatchlistFilters } from '@/components/watchlist/useWatchlistFilters'
@@ -28,6 +31,7 @@ import {
 import { WatchlistTable } from '@/components/watchlist/WatchlistTable'
 import { startCommitteeRun } from '@/lib/committee/api'
 import { useAccounts, usePortfolio } from '@/lib/hooks/usePortfolio'
+import { useTodayNext } from '@/lib/hooks/useTodayNext'
 import {
   useRefreshStatus,
   useRefreshWatchlist,
@@ -111,6 +115,7 @@ function PortfolioPageContent() {
   const refreshMutation = useRefreshWatchlist()
   const totalCount = watchlistData?.items.length ?? 0
   const { data: refreshStatus } = useRefreshStatus(totalCount > 0)
+  const { data: todayNext, isLoading: signalsLoading } = useTodayNext()
 
   const {
     styleFilter,
@@ -180,6 +185,28 @@ function PortfolioPageContent() {
           positions={portfolio?.positions ?? []}
           isInputLoading={portfolioLoading || watchlistLoading}
         />
+      ),
+    },
+    {
+      value: 'signals',
+      label: 'Signals',
+      badge: todayNext?.scanner.length
+        ? String(todayNext.scanner.length)
+        : undefined,
+      content: signalsLoading ? (
+        <div className="rounded-2xl border border-border-subtle bg-surface/50 p-6 text-sm text-text-muted">
+          Loading signal stack…
+        </div>
+      ) : todayNext ? (
+        <div className="space-y-4">
+          <MacroGateCard macroGate={todayNext.macroGate} />
+          <ScannerTable candidates={todayNext.scanner} />
+          <CommitteeFanOut candidates={todayNext.committee} />
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-border-subtle bg-surface/50 p-6 text-sm text-text-muted">
+          Signal stack unavailable.
+        </div>
       ),
     },
     {
