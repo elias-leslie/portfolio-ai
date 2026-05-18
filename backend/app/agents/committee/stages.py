@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 from typing import Any
 
@@ -53,6 +54,27 @@ SLUG_PM = "portfolio-mgr-v1"
 ANALYST_SLUGS = (SLUG_FUNDAMENTALS, SLUG_NEWS, SLUG_SENTIMENT, SLUG_TECHNICAL)
 RISK_SLUGS = (SLUG_RISK_AGGRESSIVE, SLUG_RISK_CONSERVATIVE, SLUG_RISK_NEUTRAL)
 _AGENT_COMPLETION_TIMEOUT_SECONDS = 20 * 60
+
+# Per-process cap on simultaneous LLM calls. The 25-symbol fan-out otherwise
+# stampedes the same upstream model and trips provider rate limits before the
+# orchestrator's per-provider cooldown can engage. Sized to ~the agent-hub DB
+# pool floor so we never starve the DB pool either.
+_DEFAULT_LLM_CONCURRENCY = 6
+_llm_semaphore_cell: dict[str, asyncio.Semaphore | None] = {"sem": None}
+
+
+def _get_llm_semaphore() -> asyncio.Semaphore:
+    """Return the process-wide LLM concurrency semaphore (lazy-init)."""
+    sem = _llm_semaphore_cell["sem"]
+    if sem is None:
+        raw = os.environ.get("COMMITTEE_LLM_CONCURRENCY")
+        try:
+            size = max(1, int(raw)) if raw else _DEFAULT_LLM_CONCURRENCY
+        except ValueError:
+            size = _DEFAULT_LLM_CONCURRENCY
+        sem = asyncio.Semaphore(size)
+        _llm_semaphore_cell["sem"] = sem
+    return sem
 
 
 async def run_analyst(
@@ -335,18 +357,19 @@ async def _complete(slug: str, payload: dict[str, Any], *, purpose: str) -> Any:
     try:
         try:
             async with asyncio.timeout(_AGENT_COMPLETION_TIMEOUT_SECONDS):
-                return await client.complete_messages_async(
-                    agent_slug=slug,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": json.dumps(payload, default=str),
-                        }
-                    ],
-                    temperature=0.2,
-                    purpose=purpose,
-                    response_format={"type": "json_object"},
-                )
+                async with _get_llm_semaphore():
+                    return await client.complete_messages_async(
+                        agent_slug=slug,
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": json.dumps(payload, default=str),
+                            }
+                        ],
+                        temperature=0.2,
+                        purpose=purpose,
+                        response_format={"type": "json_object"},
+                    )
         except TimeoutError as exc:
             raise TimeoutError(
                 f"{purpose} timed out after {_AGENT_COMPLETION_TIMEOUT_SECONDS}s"
