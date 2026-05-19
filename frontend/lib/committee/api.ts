@@ -30,7 +30,7 @@ export interface CommitteeRunSnapshot {
   events: CommitteeEvent[]
 }
 
-export interface StartRunResponse {
+interface StartRunResponse {
   run_id: string
   symbol: string
   status: string

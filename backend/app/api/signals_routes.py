@@ -14,6 +14,7 @@ Read-only endpoints. All writes happen in the workflows
 
 from __future__ import annotations
 
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -27,6 +28,7 @@ from ..macro_gate import repository as macro_repo
 from ..scanner import blender as blender_mod
 from ..scanner import repository as scanner_repo
 from ..scanner.factors import FACTOR_NAMES
+from ..storage.connection import get_connection_manager
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/signals", tags=["signals"])
@@ -266,6 +268,145 @@ async def rank_deltas(
         threshold=blender_mod.DELTA_RANK_FLAG_THRESHOLD,
         rows=[_row_response(r, raw_by_symbol) for r in flagged],
     )
+
+
+class CommitteeCostDay(BaseModel):
+    date: str
+    fan_out_count: int
+    tier1_call_count: int
+    deep_run_count: int
+    total_tokens: int
+    est_cost_usd: float
+
+
+class CommitteeCostResponse(BaseModel):
+    days: list[CommitteeCostDay]
+
+
+@router.get("/committee/cost", response_model=CommitteeCostResponse)
+async def committee_cost(
+    days: int = Query(default=7, ge=1, le=30),
+) -> CommitteeCostResponse:
+    """Per-day committee spend rollup (last ``days`` days, oldest first).
+
+    Drives the "Today's committee cost" sparkline card. All counts come
+    from ``committee_runs`` + ``committee_events``:
+
+    - ``fan_out_count``: distinct ``parent_run_id`` values among the
+      ``source='scanner_fanout'`` rows on that date — one parent per L2
+      fan-out cycle (or simply the count of fan-out child rows when the
+      pipeline did not chain a parent).
+    - ``tier1_call_count``: ``committee_events`` rows whose
+      ``agent_slug='tier1-screener-v1'`` — one per pre-screen LLM call.
+    - ``deep_run_count``: rows in ``committee_runs`` whose status
+      reached terminal completion that day (independent of source).
+    - ``total_tokens``: ``committee_runs.tokens_total`` summed for
+      completed runs on that date + Tier-1 event tokens (Tier-1 lives in
+      the fan-out wf, not in the deep-run aggregate).
+    - ``est_cost_usd``: ``committee_runs.cost_usd`` when populated,
+      otherwise estimated from token count at $0.003 / 1k tokens (rough
+      gpt-5.5 blended I/O mix).
+    """
+    rows = await run_in_threadpool(_committee_cost_rows, days)
+    return CommitteeCostResponse(days=rows)
+
+
+def _committee_cost_rows(days: int) -> list[CommitteeCostDay]:
+    """Single round-trip per metric; assembled into per-day rows."""
+    today = datetime.now(UTC).date()
+    start = today - timedelta(days=days - 1)
+    out: dict[date, dict[str, Any]] = {
+        start + timedelta(days=i): {
+            "fan_out_count": 0,
+            "tier1_call_count": 0,
+            "deep_run_count": 0,
+            "total_tokens": 0,
+            "est_cost_usd": 0.0,
+        }
+        for i in range(days)
+    }
+
+    cm = get_connection_manager()
+    with cm.connection() as conn:
+        fan_rows = conn.execute(
+            """
+            SELECT started_at::date AS d,
+                   COUNT(DISTINCT COALESCE(parent_run_id::text, id::text)) AS fan_outs
+            FROM committee_runs
+            WHERE source = 'scanner_fanout'
+              AND started_at::date >= %s
+              AND started_at::date <= %s
+            GROUP BY started_at::date
+            """,
+            (start, today),
+        ).fetchall()
+        for row in fan_rows or []:
+            day, count = row[0], int(row[1] or 0)
+            if day in out:
+                out[day]["fan_out_count"] = count
+
+        tier1_rows = conn.execute(
+            """
+            SELECT date_trunc('day', e.ts AT TIME ZONE 'UTC')::date AS d,
+                   COUNT(*) AS calls,
+                   COALESCE(SUM(e.tokens), 0) AS toks
+            FROM committee_events e
+            WHERE e.agent_slug = 'tier1-screener-v1'
+              AND e.ts >= %s::timestamptz
+              AND e.ts <= (%s::date + INTERVAL '1 day')::timestamptz
+            GROUP BY date_trunc('day', e.ts AT TIME ZONE 'UTC')::date
+            """,
+            (start, today),
+        ).fetchall()
+        for row in tier1_rows or []:
+            day, calls, toks = row[0], int(row[1] or 0), int(row[2] or 0)
+            if day in out:
+                out[day]["tier1_call_count"] = calls
+                out[day]["total_tokens"] += toks
+
+        deep_rows = conn.execute(
+            """
+            SELECT COALESCE(completed_at, started_at)::date AS d,
+                   COUNT(*) AS runs,
+                   COALESCE(SUM(tokens_total), 0) AS toks,
+                   COALESCE(SUM(cost_usd), 0) AS cost
+            FROM committee_runs
+            WHERE status = 'complete'
+              AND COALESCE(completed_at, started_at)::date >= %s
+              AND COALESCE(completed_at, started_at)::date <= %s
+            GROUP BY COALESCE(completed_at, started_at)::date
+            """,
+            (start, today),
+        ).fetchall()
+        for row in deep_rows or []:
+            day = row[0]
+            if day not in out:
+                continue
+            out[day]["deep_run_count"] = int(row[1] or 0)
+            out[day]["total_tokens"] += int(row[2] or 0)
+            out[day]["est_cost_usd"] = float(row[3] or 0.0)
+
+    return [
+        CommitteeCostDay(
+            date=day.isoformat(),
+            fan_out_count=metrics["fan_out_count"],
+            tier1_call_count=metrics["tier1_call_count"],
+            deep_run_count=metrics["deep_run_count"],
+            total_tokens=metrics["total_tokens"],
+            est_cost_usd=(
+                metrics["est_cost_usd"]
+                if metrics["est_cost_usd"] > 0
+                else round(metrics["total_tokens"] * _COMMITTEE_RATE_PER_TOKEN_USD, 4)
+            ),
+        )
+        for day, metrics in sorted(out.items())
+    ]
+
+
+# Fallback cost estimate when committee_runs.cost_usd is unpopulated.
+# $3 per 1M tokens is a rough blended I/O rate for gpt-5.5 — wrong by
+# less than ~2x in either direction for any realistic split.
+_COMMITTEE_RATE_PER_TOKEN_USD = 0.000003
 
 
 @router.get("/symbol/{ticker}", response_model=SymbolUnifiedResponse)

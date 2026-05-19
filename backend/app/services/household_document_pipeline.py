@@ -220,6 +220,72 @@ def _receipt_line_items_reconcile(
     return any(_close_money(line_total, candidate) for candidate in candidates)
 
 
+def _receipt_line_item_row(
+    *,
+    document: HouseholdDocument,
+    receipt_index: int,
+    line_index: int,
+    raw_item: dict[str, object],
+    context: dict[str, str | None],
+) -> dict[str, str | None] | None:
+    description = _string_value(raw_item.get("description") or raw_item.get("name"))
+    amount = _string_value(_first_present_value(raw_item, ("amount", "total", "price")))
+    receipt_date = context["receipt_date"]
+    if not description or not amount or not receipt_date:
+        return None
+    return {
+        "Document ID": document.id,
+        "External Row ID": f"{document.id}:{receipt_index}:{line_index}",
+        "Receipt Index": str(receipt_index),
+        "Line Index": str(line_index),
+        "Order Date": receipt_date,
+        "Merchant": context["merchant"],
+        "Product Name": description,
+        "Description": description,
+        "Total Amount": amount,
+        "Unit Price": _string_value(raw_item.get("unit_price")) or amount,
+        "Original Quantity": _string_value(raw_item.get("quantity")) or "1",
+        "Currency": context["currency"] or "USD",
+        "Payment Method": context["payment_method"],
+        "Account Mask": context["account_mask"],
+        "Account Label": context["account_label"],
+        "Receipt Total": context["receipt_total"],
+        "Source": "receipt_line_item",
+    }
+
+
+def _append_receipt_line_item_rows(
+    rows: list[dict[str, str | None]],
+    *,
+    document: HouseholdDocument,
+    receipt_index: int,
+    line_items: object,
+    context: dict[str, str | None],
+) -> None:
+    if not isinstance(line_items, list):
+        return
+    if not _receipt_line_items_reconcile(
+        line_items=line_items,
+        receipt_total=context["receipt_total"],
+        subtotal=context["subtotal"],
+        tax_amount=context["tax_amount"],
+        declared_items_sold=context["declared_items_sold"],
+    ):
+        return
+    for line_index, raw_item in enumerate(line_items):
+        if not isinstance(raw_item, dict):
+            continue
+        row = _receipt_line_item_row(
+            document=document,
+            receipt_index=receipt_index,
+            line_index=line_index,
+            raw_item=raw_item,
+            context=context,
+        )
+        if row is not None:
+            rows.append(row)
+
+
 def _receipt_line_item_rows(
     *,
     document: HouseholdDocument,
@@ -230,62 +296,6 @@ def _receipt_line_item_rows(
         return []
 
     rows: list[dict[str, str | None]] = []
-
-    def append_items(
-        *,
-        receipt_index: int,
-        merchant: str | None,
-        receipt_date: str | None,
-        receipt_total: str | None,
-        currency: str | None,
-        payment_method: str | None,
-        account_mask: str | None,
-        account_label: str | None,
-        subtotal: str | None,
-        tax_amount: str | None,
-        declared_items_sold: str | None,
-        line_items: object,
-    ) -> None:
-        if not isinstance(line_items, list):
-            return
-        if not _receipt_line_items_reconcile(
-            line_items=line_items,
-            receipt_total=receipt_total,
-            subtotal=subtotal,
-            tax_amount=tax_amount,
-            declared_items_sold=declared_items_sold,
-        ):
-            return
-        for line_index, raw_item in enumerate(line_items):
-            if not isinstance(raw_item, dict):
-                continue
-            description = _string_value(raw_item.get("description") or raw_item.get("name"))
-            amount = _string_value(_first_present_value(raw_item, ("amount", "total", "price")))
-            if not description or not amount or not receipt_date:
-                continue
-            rows.append(
-                {
-                    "Document ID": document.id,
-                    "External Row ID": f"{document.id}:{receipt_index}:{line_index}",
-                    "Receipt Index": str(receipt_index),
-                    "Line Index": str(line_index),
-                    "Order Date": receipt_date,
-                    "Merchant": merchant,
-                    "Product Name": description,
-                    "Description": description,
-                    "Total Amount": amount,
-                    "Unit Price": _string_value(raw_item.get("unit_price")) or amount,
-                    "Original Quantity": _string_value(raw_item.get("quantity")) or "1",
-                    "Currency": currency or "USD",
-                    "Payment Method": payment_method,
-                    "Account Mask": account_mask,
-                    "Account Label": account_label,
-                    "Receipt Total": receipt_total,
-                    "Source": "receipt_line_item",
-                }
-            )
-
-    raw_transactions = structured_data.get("transactions")
     review_checks = _review_checks_dict(reviewed)
     itemization_checks = review_checks.get("itemization")
     itemization_checks = itemization_checks if isinstance(itemization_checks, dict) else {}
@@ -297,63 +307,66 @@ def _receipt_line_item_rows(
         itemization_checks,
         ("declared_items_sold", "items_sold"),
     )
+    raw_transactions = structured_data.get("transactions")
     if isinstance(raw_transactions, list):
         for receipt_index, raw_transaction in enumerate(raw_transactions):
             if not isinstance(raw_transaction, dict):
                 continue
-            merchant = _string_value(raw_transaction.get("merchant")) or _string_value(
-                structured_data.get("merchant")
-            )
-            account_mask = _string_value(raw_transaction.get("account_mask"))
             payment_method = _string_value(raw_transaction.get("payment_method"))
+            account_mask = _string_value(raw_transaction.get("account_mask"))
             account_label = (
                 _string_value(structured_data.get("upload_account_label"))
                 or _string_value(structured_data.get("account_hint"))
-                or " ".join(
-                    part
-                    for part in (payment_method, account_mask)
-                    if part
-                )
+                or " ".join(part for part in (payment_method, account_mask) if part)
                 or None
             )
-            append_items(
+            _append_receipt_line_item_rows(
+                rows,
+                document=document,
                 receipt_index=receipt_index,
-                merchant=merchant,
-                receipt_date=_string_value(raw_transaction.get("date")),
-                receipt_total=_string_value(raw_transaction.get("amount")),
-                currency=_string_value(raw_transaction.get("currency"))
-                or _string_value(structured_data.get("currency")),
-                payment_method=payment_method,
-                account_mask=account_mask,
-                account_label=account_label,
-                subtotal=_string_value(
-                    _first_present_value(raw_transaction, ("subtotal", "subtotal_amount", "pre_tax_total"))
-                ),
-                tax_amount=_string_value(
-                    _first_present_value(raw_transaction, ("tax_amount", "sales_tax", "tax", "total_tax"))
-                ),
-                declared_items_sold=_string_value(
-                    _first_present_value(raw_transaction, ("declared_items_sold", "items_sold"))
-                    or review_declared_items_sold
-                    or structured_declared_items_sold
-                ),
                 line_items=raw_transaction.get("line_items"),
+                context={
+                    "merchant": _string_value(raw_transaction.get("merchant"))
+                    or _string_value(structured_data.get("merchant")),
+                    "receipt_date": _string_value(raw_transaction.get("date")),
+                    "receipt_total": _string_value(raw_transaction.get("amount")),
+                    "currency": _string_value(raw_transaction.get("currency"))
+                    or _string_value(structured_data.get("currency")),
+                    "payment_method": payment_method,
+                    "account_mask": account_mask,
+                    "account_label": account_label,
+                    "subtotal": _string_value(
+                        _first_present_value(raw_transaction, ("subtotal", "subtotal_amount", "pre_tax_total"))
+                    ),
+                    "tax_amount": _string_value(
+                        _first_present_value(raw_transaction, ("tax_amount", "sales_tax", "tax", "total_tax"))
+                    ),
+                    "declared_items_sold": _string_value(
+                        _first_present_value(raw_transaction, ("declared_items_sold", "items_sold"))
+                        or review_declared_items_sold
+                        or structured_declared_items_sold
+                    ),
+                },
             )
 
-    append_items(
+    _append_receipt_line_item_rows(
+        rows,
+        document=document,
         receipt_index=0,
-        merchant=_string_value(structured_data.get("merchant")),
-        receipt_date=_string_value(structured_data.get("statement_period")),
-        receipt_total=_string_value(structured_data.get("total_amount")),
-        currency=_string_value(structured_data.get("currency")),
-        payment_method=_string_value(structured_data.get("payment_method")),
-        account_mask=_string_value(structured_data.get("account_mask")),
-        account_label=_string_value(structured_data.get("upload_account_label"))
-        or _string_value(structured_data.get("account_hint")),
-        subtotal=_string_value(_first_present_value(structured_data, ("subtotal", "subtotal_amount", "pre_tax_total"))),
-        tax_amount=_string_value(_first_present_value(structured_data, ("tax_amount", "sales_tax", "tax", "total_tax"))),
-        declared_items_sold=_string_value(review_declared_items_sold or structured_declared_items_sold),
         line_items=structured_data.get("line_items"),
+        context={
+            "merchant": _string_value(structured_data.get("merchant")),
+            "receipt_date": _string_value(structured_data.get("statement_period")),
+            "receipt_total": _string_value(structured_data.get("total_amount")),
+            "currency": _string_value(structured_data.get("currency")),
+            "payment_method": _string_value(structured_data.get("payment_method")),
+            "account_mask": _string_value(structured_data.get("account_mask")),
+            "account_label": _string_value(structured_data.get("upload_account_label"))
+            or _string_value(structured_data.get("account_hint")),
+            "subtotal": _string_value(_first_present_value(structured_data, ("subtotal", "subtotal_amount", "pre_tax_total"))),
+            "tax_amount": _string_value(_first_present_value(structured_data, ("tax_amount", "sales_tax", "tax", "total_tax"))),
+            "declared_items_sold": _string_value(review_declared_items_sold or structured_declared_items_sold),
+        },
     )
     return rows
 
@@ -703,6 +716,299 @@ def _is_duplicate_import_validation(
     )
 
 
+def _find_duplicate_document_by_hash(
+    service: HouseholdFinanceService,
+    content_sha256: str,
+) -> HouseholdDocument | None:
+    with service.storage.connection() as conn:
+        row = fetch_duplicate_document_row(conn, content_sha256)
+    if row is None:
+        return None
+    return row_to_document(
+        row,
+        to_float=to_float,
+        iso=iso,
+        iso_or_none=iso_or_none,
+    )
+
+
+def _load_latest_review_payload(
+    service: HouseholdFinanceService,
+    *,
+    document: HouseholdDocument,
+) -> dict[str, object] | None:
+    with service.storage.connection() as conn:
+        row = conn.execute(
+            """
+            SELECT summary, confidence, extracted_text, structured_data
+            FROM household_document_reviews
+            WHERE document_id = %s
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            [document.id],
+        ).fetchone()
+    if row is None:
+        return None
+    reviewed = {
+        "source_type": document.source_type,
+        "document_type": document.document_type,
+        "summary": row[0] if row[0] is not None else None,
+        "confidence": to_float(row[1]),
+        "extracted_text": row[2] if isinstance(row[2], str) else "",
+        "structured_data": row[3] if isinstance(row[3], dict) else {},
+    }
+    return _normalized_review_payload(reviewed=reviewed, document=document)
+
+
+def _enriched_import_summary(
+    service: HouseholdFinanceService,
+    *,
+    document: HouseholdDocument,
+    dataset_type: str,
+    inserted: int,
+    duplicates: int,
+) -> dict[str, object]:
+    enrichment_summary = service.product_enrichment_service.enrich_import_rows(
+        service,
+        document_id=document.id,
+        dataset_type=dataset_type,
+    )
+    return {
+        "dataset_type": dataset_type,
+        "inserted": inserted,
+        "duplicates": duplicates,
+        "enrichment": enrichment_summary,
+    }
+
+
+def _import_receipt_line_item_rows(
+    service: HouseholdFinanceService,
+    *,
+    document: HouseholdDocument,
+    rows: list[dict[str, str | None]],
+) -> dict[str, object]:
+    dataset_type = "receipt_line_items"
+    inserted = duplicates = 0
+    now = datetime.now(UTC).isoformat()
+    with service.storage.connection() as conn:
+        for row in rows:
+            result = upsert_receipt_line_item_row(
+                conn,
+                row=row,
+                document_id=document.id,
+                now=now,
+            )
+            inserted += result is True
+            duplicates += result is False
+        update_import_summary(
+            conn,
+            document_id=document.id,
+            dataset_type=dataset_type,
+            inserted=inserted,
+            duplicates=duplicates,
+        )
+        conn.commit()
+    return _enriched_import_summary(
+        service,
+        document=document,
+        dataset_type=dataset_type,
+        inserted=inserted,
+        duplicates=duplicates,
+    )
+
+
+def _import_csv_rows(
+    service: HouseholdFinanceService,
+    *,
+    document: HouseholdDocument,
+    dataset_type: str,
+    stored_path: str,
+) -> dict[str, object]:
+    now = datetime.now(UTC).isoformat()
+    with Path(stored_path).open("r", encoding="utf-8", errors="ignore", newline="") as fh:
+        rows = list(DictReader(fh))
+    inserted = duplicates = 0
+    with service.storage.connection() as conn:
+        for row in rows:
+            result = upsert_import_row(
+                conn, row=row, document_id=document.id, dataset_type=dataset_type, now=now,
+            )
+            inserted += result is True
+            duplicates += result is False
+        update_import_summary(
+            conn, document_id=document.id, dataset_type=dataset_type,
+            inserted=inserted, duplicates=duplicates,
+        )
+        conn.commit()
+    return _enriched_import_summary(
+        service,
+        document=document,
+        dataset_type=dataset_type,
+        inserted=inserted,
+        duplicates=duplicates,
+    )
+
+
+def _import_document_rows(
+    service: HouseholdFinanceService,
+    *,
+    document: HouseholdDocument,
+    reviewed: dict[str, object],
+) -> dict[str, object]:
+    dataset_type = detect_import_dataset(document=document, reviewed=reviewed)
+    if dataset_type is None:
+        rows = _receipt_line_item_rows(document=document, reviewed=reviewed)
+        if not rows:
+            return {"dataset_type": None, "inserted": 0, "duplicates": 0}
+        return _import_receipt_line_item_rows(service, document=document, rows=rows)
+    stored_path = document.metadata.get("stored_path")
+    if not isinstance(stored_path, str) or not stored_path:
+        return {"dataset_type": dataset_type, "inserted": 0, "duplicates": 0}
+    return _import_csv_rows(
+        service,
+        document=document,
+        dataset_type=dataset_type,
+        stored_path=stored_path,
+    )
+
+
+def _audit_transactions(
+    service: HouseholdFinanceService,
+    *,
+    document_id: str,
+) -> dict[str, object]:
+    transaction_audit_service = getattr(service, "transaction_audit_service", None)
+    if transaction_audit_service is None:
+        return {}
+    return transaction_audit_service.audit_transactions(
+        service,
+        document_id=document_id,
+        limit=120,
+    )
+
+
+def _transaction_summary_with_audit(
+    transaction_summary: dict[str, object],
+    audit_summary: dict[str, object],
+) -> dict[str, object]:
+    return {
+        **transaction_summary,
+        "audit_reviewed": int(audit_summary.get("reviewed") or 0),
+        "audit_auto_fixed": int(audit_summary.get("auto_fixed") or 0),
+        "audit_agent_fixed": int(audit_summary.get("agent_fixed") or 0),
+        "audit_flagged": int(audit_summary.get("flagged") or 0),
+    }
+
+
+def _sync_account_registry(service: HouseholdFinanceService) -> dict[str, int]:
+    registry_service = getattr(service, "account_registry_service", None)
+    if registry_service is None:
+        return {}
+    return registry_service.sync_registry(service, limit=1000)
+
+
+def _sync_portfolio_positions(
+    service: HouseholdFinanceService,
+    *,
+    document: HouseholdDocument,
+    reviewed: dict[str, object],
+) -> dict[str, int]:
+    sync_service = getattr(service, "portfolio_position_sync_service", None)
+    if sync_service is None:
+        return {}
+    return sync_service.sync_from_reviewed_accounts(
+        service,
+        document=document,
+        reviewed=reviewed,
+    )
+
+
+def _sync_portfolio_transactions(
+    service: HouseholdFinanceService,
+    *,
+    document: HouseholdDocument,
+    reviewed: dict[str, object],
+) -> dict[str, int]:
+    sync_service = getattr(service, "portfolio_transaction_sync_service", None)
+    if sync_service is None:
+        return {}
+    return sync_service.sync_from_reviewed_accounts(
+        service,
+        document=document,
+        reviewed=reviewed,
+    )
+
+
+def _merge_review_planning_items(
+    service: HouseholdFinanceService,
+    *,
+    document: HouseholdDocument,
+    reviewed: dict[str, object],
+) -> tuple[int, int, str | None]:
+    planning_items = reviewed.get("planning_items")
+    if not isinstance(planning_items, list):
+        return 0, 0, None
+    dict_items = [item for item in planning_items if isinstance(item, dict)]
+    if not dict_items or not _should_merge_planning_items(reviewed):
+        return 0, len(dict_items), None
+    try:
+        service.merge_planning_items(
+            items=dict_items,
+            provenance="document_review",
+            source_document_id=document.id,
+        )
+    except Exception as exc:
+        logger.warning(
+            "household_document_planning_merge_skipped",
+            document_id=document.id,
+            error=str(exc),
+        )
+        return 0, len(dict_items), str(exc)
+    return len(dict_items), 0, None
+
+
+def _inferred_value_count(reviewed: dict[str, object]) -> int:
+    raw_inferred_values = reviewed.get("inferred_values")
+    if not isinstance(raw_inferred_values, list):
+        return 0
+    return sum(
+        1
+        for inferred in raw_inferred_values
+        if isinstance(inferred, dict)
+        and str(inferred.get("field_name") or "").strip() in FIELD_LABELS
+    )
+
+
+def _append_review_impacts(
+    impacts: list[str],
+    *,
+    import_summary: dict[str, object],
+    transaction_summary: dict[str, object],
+    evidence_account_count: int,
+    portfolio_position_summary: dict[str, int],
+    planning_count: int,
+    inferred_count: int,
+) -> None:
+    if (import_summary.get("inserted") or 0) > 0:
+        impacts.append("imports")
+    if (transaction_summary.get("inserted") or 0) > 0 or (transaction_summary.get("updated") or 0) > 0:
+        impacts.append("transactions")
+    if evidence_account_count > 0:
+        impacts.append("accounts")
+    if (
+        portfolio_position_summary.get("positions_inserted", 0) > 0
+        or portfolio_position_summary.get("positions_updated", 0) > 0
+        or portfolio_position_summary.get("positions_deleted", 0) > 0
+        or portfolio_position_summary.get("cash_updated", 0) > 0
+    ):
+        impacts.append("portfolio_positions")
+    if planning_count > 0:
+        impacts.append("planning")
+    if inferred_count > 0:
+        impacts.append("inferences")
+
+
 class HouseholdDocumentPipeline:
     """Persist household uploads and review outcomes."""
 
@@ -730,7 +1036,8 @@ class HouseholdDocumentPipeline:
         content = await read_household_upload_limited(upload)
         content_sha256 = hashlib.sha256(content).hexdigest()
 
-        duplicate = self.find_duplicate_document_by_hash(service, content_sha256)
+        find_duplicate = getattr(self, "find_duplicate_document_by_hash", _find_duplicate_document_by_hash)
+        duplicate = find_duplicate(service, content_sha256)
         if duplicate is not None:
             if household_account_id or account_label:
                 rebound_metadata = {
@@ -798,22 +1105,6 @@ class HouseholdDocumentPipeline:
             raise RuntimeError("Failed to persist uploaded document")
         return document
 
-    def find_duplicate_document_by_hash(
-        self,
-        service: HouseholdFinanceService,
-        content_sha256: str,
-    ) -> HouseholdDocument | None:
-        with service.storage.connection() as conn:
-            row = fetch_duplicate_document_row(conn, content_sha256)
-        if row is None:
-            return None
-        return row_to_document(
-            row,
-            to_float=to_float,
-            iso=iso,
-            iso_or_none=iso_or_none,
-        )
-
     def review_document(
         self,
         service: HouseholdFinanceService,
@@ -838,19 +1129,6 @@ class HouseholdDocumentPipeline:
             )
             with service.storage.connection() as conn:
                 mark_review_failed(conn, document_id=document_id, now=datetime.now(UTC).isoformat())
-
-    def review_documents(
-        self,
-        service: HouseholdFinanceService,
-        document_ids: list[str],
-        review_session_id: str | None = None,
-    ) -> None:
-        for document_id in document_ids:
-            self.review_document(
-                service,
-                document_id,
-                review_session_id=review_session_id,
-            )
 
     def process_document_review(
         self,
@@ -940,43 +1218,12 @@ class HouseholdDocumentPipeline:
             )
             conn.commit()
 
-    def _load_latest_review_payload(
-        self,
-        service: HouseholdFinanceService,
-        *,
-        document: HouseholdDocument,
-    ) -> dict[str, object] | None:
-        with service.storage.connection() as conn:
-            row = conn.execute(
-                """
-                SELECT summary, confidence, extracted_text, structured_data
-                FROM household_document_reviews
-                WHERE document_id = %s
-                ORDER BY created_at DESC
-                LIMIT 1
-                """,
-                [document.id],
-            ).fetchone()
-        if row is None:
-            return None
-        structured_data = row[3] if isinstance(row[3], dict) else {}
-        extracted_text = row[2] if isinstance(row[2], str) else ""
-        reviewed = {
-            "source_type": document.source_type,
-            "document_type": document.document_type,
-            "summary": row[0] if row[0] is not None else None,
-            "confidence": to_float(row[1]),
-            "extracted_text": extracted_text,
-            "structured_data": structured_data,
-        }
-        return _normalized_review_payload(reviewed=reviewed, document=document)
-
     def _recover_review_from_latest_persisted_review(
         self,
         service: HouseholdFinanceService,
         document: HouseholdDocument,
     ) -> bool:
-        reviewed = self._load_latest_review_payload(service, document=document)
+        reviewed = _load_latest_review_payload(service, document=document)
         if reviewed is None:
             logger.warning(
                 "household_document_latest_review_missing_for_recovery",
@@ -1122,82 +1369,6 @@ class HouseholdDocumentPipeline:
                 )
             conn.commit()
 
-    def import_document_rows(
-        self,
-        service: HouseholdFinanceService,
-        *,
-        document: HouseholdDocument,
-        reviewed: dict[str, object],
-    ) -> dict[str, object]:
-        dataset_type = detect_import_dataset(document=document, reviewed=reviewed)
-        if dataset_type is None:
-            rows = _receipt_line_item_rows(document=document, reviewed=reviewed)
-            if not rows:
-                return {"dataset_type": None, "inserted": 0, "duplicates": 0}
-            dataset_type = "receipt_line_items"
-            inserted = duplicates = 0
-            now = datetime.now(UTC).isoformat()
-            with service.storage.connection() as conn:
-                for row in rows:
-                    result = upsert_receipt_line_item_row(
-                        conn,
-                        row=row,
-                        document_id=document.id,
-                        now=now,
-                    )
-                    inserted += result is True
-                    duplicates += result is False
-                update_import_summary(
-                    conn,
-                    document_id=document.id,
-                    dataset_type=dataset_type,
-                    inserted=inserted,
-                    duplicates=duplicates,
-                )
-                conn.commit()
-            enrichment_summary = service.product_enrichment_service.enrich_import_rows(
-                service,
-                document_id=document.id,
-                dataset_type=dataset_type,
-            )
-            return {
-                "dataset_type": dataset_type,
-                "inserted": inserted,
-                "duplicates": duplicates,
-                "enrichment": enrichment_summary,
-            }
-        stored_path = document.metadata.get("stored_path")
-        if not isinstance(stored_path, str) or not stored_path:
-            return {"dataset_type": dataset_type, "inserted": 0, "duplicates": 0}
-
-        now = datetime.now(UTC).isoformat()
-        with Path(stored_path).open("r", encoding="utf-8", errors="ignore", newline="") as fh:
-            rows = list(DictReader(fh))
-        inserted = duplicates = 0
-        with service.storage.connection() as conn:
-            for row in rows:
-                result = upsert_import_row(
-                    conn, row=row, document_id=document.id, dataset_type=dataset_type, now=now,
-                )
-                inserted += result is True
-                duplicates += result is False
-            update_import_summary(
-                conn, document_id=document.id, dataset_type=dataset_type,
-                inserted=inserted, duplicates=duplicates,
-            )
-            conn.commit()
-        enrichment_summary = service.product_enrichment_service.enrich_import_rows(
-            service,
-            document_id=document.id,
-            dataset_type=dataset_type,
-        )
-        return {
-            "dataset_type": dataset_type,
-            "inserted": inserted,
-            "duplicates": duplicates,
-            "enrichment": enrichment_summary,
-        }
-
     def apply_review_outputs(
         self,
         service: HouseholdFinanceService,
@@ -1211,128 +1382,59 @@ class HouseholdDocumentPipeline:
             document=document,
             reviewed=reviewed,
         )
-        import_summary = self.import_document_rows(service, document=document, reviewed=reviewed)
+        import_summary = _import_document_rows(service, document=document, reviewed=reviewed)
         transaction_summary = service.transaction_service.import_document_transactions(
             document=document,
             reviewed=reviewed,
         )
-        transaction_audit_summary: dict[str, object] = {}
-        transaction_audit_service = getattr(service, "transaction_audit_service", None)
-        if transaction_audit_service is not None:
-            transaction_audit_summary = transaction_audit_service.audit_transactions(
-                service,
-                document_id=document.id,
-                limit=120,
-            )
-        transaction_summary = {
-            **transaction_summary,
-            "audit_reviewed": int(transaction_audit_summary.get("reviewed") or 0),
-            "audit_auto_fixed": int(transaction_audit_summary.get("auto_fixed") or 0),
-            "audit_agent_fixed": int(transaction_audit_summary.get("agent_fixed") or 0),
-            "audit_flagged": int(transaction_audit_summary.get("flagged") or 0),
-        }
+        transaction_summary = _transaction_summary_with_audit(
+            transaction_summary,
+            _audit_transactions(service, document_id=document.id),
+        )
         evidence_account_count = service.evidence_service.replace_document_accounts(
             service,
             document=document,
             reviewed=reviewed,
         )
-        registry_summary: dict[str, int] = {}
-        registry_service = getattr(service, "account_registry_service", None)
-        if registry_service is not None:
-            registry_summary = registry_service.sync_registry(service, limit=1000)
-        portfolio_position_summary: dict[str, int] = {}
-        portfolio_position_sync_service = getattr(
+        registry_summary = _sync_account_registry(service)
+        portfolio_position_summary = _sync_portfolio_positions(
             service,
-            "portfolio_position_sync_service",
-            None,
+            document=document,
+            reviewed=reviewed,
         )
-        if portfolio_position_sync_service is not None:
-            portfolio_position_summary = (
-                portfolio_position_sync_service.sync_from_reviewed_accounts(
-                    service,
-                    document=document,
-                    reviewed=reviewed,
-                )
-            )
-        portfolio_transaction_summary: dict[str, int] = {}
-        portfolio_transaction_sync_service = getattr(
+        portfolio_transaction_summary = _sync_portfolio_transactions(
             service,
-            "portfolio_transaction_sync_service",
-            None,
+            document=document,
+            reviewed=reviewed,
         )
-        if portfolio_transaction_sync_service is not None:
-            portfolio_transaction_summary = (
-                portfolio_transaction_sync_service.sync_from_reviewed_accounts(
-                    service,
-                    document=document,
-                    reviewed=reviewed,
-                )
-            )
-        planning_items = reviewed.get("planning_items")
-        planning_count = 0
-        planning_skipped = 0
-        planning_error: str | None = None
-        if isinstance(planning_items, list):
-            dict_items = [item for item in planning_items if isinstance(item, dict)]
-            if dict_items and _should_merge_planning_items(reviewed):
-                try:
-                    service.merge_planning_items(
-                        items=dict_items,
-                        provenance="document_review",
-                        source_document_id=document.id,
-                    )
-                    planning_count = len(dict_items)
-                except Exception as exc:
-                    planning_skipped = len(dict_items)
-                    planning_error = str(exc)
-                    logger.warning(
-                        "household_document_planning_merge_skipped",
-                        document_id=document.id,
-                        error=str(exc),
-                    )
-            else:
-                planning_skipped = len(dict_items)
-        inferred_count = 0
-        raw_inferred_values = reviewed.get("inferred_values")
-        if not isinstance(raw_inferred_values, list):
-            raw_inferred_values = []
-        for inferred in raw_inferred_values:
-            if not isinstance(inferred, dict):
-                continue
-            if str(inferred.get("field_name") or "").strip() in FIELD_LABELS:
-                inferred_count += 1
-
+        planning_count, planning_skipped, planning_error = _merge_review_planning_items(
+            service,
+            document=document,
+            reviewed=reviewed,
+        )
+        inferred_count = _inferred_value_count(reviewed)
         impacts: list[str] = []
-        if (import_summary.get("inserted") or 0) > 0:
-            impacts.append("imports")
-        if (transaction_summary.get("inserted") or 0) > 0 or (transaction_summary.get("updated") or 0) > 0:
-            impacts.append("transactions")
-        if evidence_account_count > 0:
-            impacts.append("accounts")
-        if (
-            portfolio_position_summary.get("positions_inserted", 0) > 0
-            or portfolio_position_summary.get("positions_updated", 0) > 0
-            or portfolio_position_summary.get("positions_deleted", 0) > 0
-            or portfolio_position_summary.get("cash_updated", 0) > 0
-        ):
-            impacts.append("portfolio_positions")
-        if planning_count > 0:
-            impacts.append("planning")
-        if inferred_count > 0:
-            impacts.append("inferences")
+        _append_review_impacts(
+            impacts,
+            import_summary=import_summary,
+            transaction_summary=transaction_summary,
+            evidence_account_count=evidence_account_count,
+            portfolio_position_summary=portfolio_position_summary,
+            planning_count=planning_count,
+            inferred_count=inferred_count,
+        )
         duplicate_import_validation = _is_duplicate_import_validation(
             import_summary=import_summary,
-            transaction_summary=cast(dict[str, object], transaction_summary),
+            transaction_summary=transaction_summary,
             evidence_account_count=evidence_account_count,
             planning_count=planning_count,
             inferred_count=inferred_count,
         )
         if duplicate_import_validation:
             impacts.append("imports")
-        status = "applied" if impacts else "incomplete"
 
         return {
-            "status": status,
+            "status": "applied" if impacts else "incomplete",
             "impacts": impacts,
             "imports": import_summary,
             "transactions": transaction_summary,
