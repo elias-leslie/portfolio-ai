@@ -235,8 +235,19 @@ async def run_committee(
         # The API/fan-out caller may have already run the gate, but data can
         # go stale between scheduling and execution, and the API path can be
         # bypassed (resumes, retros). Failing here costs zero LLM calls.
+        # Source has to match the original caller's: scanner_fanout runs
+        # don't have a watchlist_snapshot, so re-checking with the default
+        # manual source would reject them after the fundamentals fetch
+        # already succeeded.
+        run_source = "manual"
+        try:
+            provenance = await asyncio.to_thread(store.get_run_provenance, run_id)
+            if provenance and provenance.get("source") == "scanner_fanout":
+                run_source = "scanner_fanout"
+        except Exception:
+            logger.exception("committee_readiness_source_lookup_failed", run_id=run_id)
         ready_report = await asyncio.to_thread(
-            readiness.check_committee_readiness, symbol
+            readiness.check_committee_readiness, symbol, source=run_source
         )
         if not ready_report.ok:
             logger.warning(
