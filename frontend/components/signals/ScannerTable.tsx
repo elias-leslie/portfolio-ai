@@ -22,6 +22,14 @@ const FACTOR_LABELS: Record<(typeof FACTOR_KEYS)[number], string> = {
   short_interest_decline: 'SI↓',
 }
 
+const FACTOR_CAMEL_KEYS: Record<(typeof FACTOR_KEYS)[number], string> = {
+  mom_xover: 'momXover',
+  vol_surge: 'volSurge',
+  rs_vs_spy: 'rsVsSpy',
+  high_52w_proximity: 'high52wProximity',
+  short_interest_decline: 'shortInterestDecline',
+}
+
 type SortKey =
   | 'blendedRank'
   | 'scannerRank'
@@ -43,7 +51,7 @@ function FactorBar({ value }: { value: number | null }) {
   if (value === null || value === undefined) {
     return <span className="text-[10px] text-text-muted/60">—</span>
   }
-  const pct = Math.max(0, Math.min(1, value)) * 100
+  const pct = Math.max(0, Math.min(100, value))
   const tone =
     pct >= 70 ? 'bg-success/70' : pct >= 40 ? 'bg-warning/70' : 'bg-danger/70'
   return (
@@ -57,6 +65,13 @@ function FactorBar({ value }: { value: number | null }) {
       />
     </div>
   )
+}
+
+function factorPercentile(
+  percentiles: Record<string, number | null> | undefined,
+  key: (typeof FACTOR_KEYS)[number],
+): number | null {
+  return percentiles?.[key] ?? percentiles?.[FACTOR_CAMEL_KEYS[key]] ?? null
 }
 
 function SortHeader({
@@ -291,7 +306,7 @@ export function ScannerTable({
                   {!compact
                     ? FACTOR_KEYS.map((key) => (
                         <td key={key} className="px-2 py-2.5">
-                          <FactorBar value={pcts?.[key] ?? null} />
+                          <FactorBar value={factorPercentile(pcts, key)} />
                         </td>
                       ))
                     : null}
