@@ -155,7 +155,6 @@ def build_import_center(documents: list[Any], planning: Any) -> ImportCenter:
 def update_overview_action(overview: HouseholdOverview, title: str) -> HouseholdOverview:
     return overview.model_copy(update={"next_best_action": title})
 
-
 def _apply_account_freshness_visibility_cap(
     visibility_score: int,
     account_summaries: list[Any],
@@ -189,21 +188,6 @@ def _format_issue_counts(parts: list[str]) -> str:
     if len(parts) == 2:
         return f"{parts[0]} and {parts[1]}"
     return f"{', '.join(parts[:-1])}, and {parts[-1]}"
-
-
-def _latest_visible_date(
-    accounts: list[Any],
-    *,
-    attr_name: str,
-) -> str | None:
-    return max(
-        (
-            str(getattr(account, attr_name))
-            for account in accounts
-            if getattr(account, attr_name, None)
-        ),
-        default=None,
-    )
 
 
 def _overview_totals_from_account_summaries(
@@ -258,220 +242,95 @@ def _overview_totals_from_account_summaries(
     )
 
 
-def _net_worth_trust(
-    account_summaries: list[Any],
-) -> tuple[str, str]:
+def _net_worth_trust(account_summaries: list[Any]) -> tuple[str, str]:
     if not account_summaries:
-        return (
-            "unavailable",
-            "Net worth is not available yet because Jenny has not matched any balance-bearing accounts.",
-        )
+        return ("unavailable", "Net worth is not available yet because Jenny has not matched any balance-bearing accounts.")
 
-    visible_accounts = [
-        account
-        for account in account_summaries
-        if account.current_value is not None
-    ]
-    currentish_accounts = [
-        account
-        for account in visible_accounts
-        if account.balance_freshness_status in {"fresh", "aging"}
-    ]
+    visible_accounts = [account for account in account_summaries if account.current_value is not None]
     if not visible_accounts:
-        return (
-            "unavailable",
-            "Net worth is not available yet because Jenny does not have any usable balance evidence.",
-        )
+        return ("unavailable", "Net worth is not available yet because Jenny does not have any usable balance evidence.")
 
-    missing_balance_count = sum(
-        1
-        for account in account_summaries
-        if account.current_value is None
-        or account.balance_freshness_status == "needs_evidence"
-    )
-    stale_balance_count = sum(
-        1
-        for account in account_summaries
-        if account.balance_freshness_status == "stale"
-    )
-    aging_balance_count = sum(
-        1
-        for account in account_summaries
-        if account.balance_freshness_status == "aging"
-    )
-    candidate_count = sum(
-        1
-        for account in account_summaries
-        if account.match_status == "candidate"
-    )
-    latest_balance_at = _latest_visible_date(
-        visible_accounts,
-        attr_name="last_balance_at",
-    )
-    as_of_detail = (
-        f" Latest visible balance date {latest_balance_at[:10]}."
-        if latest_balance_at is not None
-        else ""
-    )
+    currentish_accounts = [account for account in visible_accounts if account.balance_freshness_status in {"fresh", "aging"}]
+    missing_balance_count = sum(1 for account in account_summaries if account.current_value is None or account.balance_freshness_status == "needs_evidence")
+    stale_balance_count = sum(1 for account in account_summaries if account.balance_freshness_status == "stale")
+    aging_balance_count = sum(1 for account in account_summaries if account.balance_freshness_status == "aging")
+    candidate_count = sum(1 for account in account_summaries if account.match_status == "candidate")
+    latest_balance_at = max((str(account.last_balance_at) for account in visible_accounts if account.last_balance_at), default=None)
+    as_of_detail = f" Latest visible balance date {latest_balance_at[:10]}." if latest_balance_at is not None else ""
 
     estimate_issue_parts: list[str] = []
     if missing_balance_count > 0:
-        estimate_issue_parts.append(
-            f"{missing_balance_count} {_pluralize(missing_balance_count, 'account')} missing current balances"
-        )
+        estimate_issue_parts.append(f"{missing_balance_count} {_pluralize(missing_balance_count, 'account')} missing current balances")
     if candidate_count > 0:
-        estimate_issue_parts.append(
-            f"{candidate_count} possible {_pluralize(candidate_count, 'account')} still need confirmation"
-        )
+        estimate_issue_parts.append(f"{candidate_count} possible {_pluralize(candidate_count, 'account')} still need confirmation")
     if stale_balance_count > 0:
-        estimate_issue_parts.append(
-            f"{stale_balance_count} {_pluralize(stale_balance_count, 'account')} stale"
-        )
+        estimate_issue_parts.append(f"{stale_balance_count} {_pluralize(stale_balance_count, 'account')} stale")
     if estimate_issue_parts and (missing_balance_count > 0 or candidate_count > 0):
         return (
             "known",
-            (
-                f"Known net worth from {len(visible_accounts)} of {len(account_summaries)} tracked "
-                f"{_pluralize(len(account_summaries), 'account')}. "
-                f"{_format_issue_counts(estimate_issue_parts).capitalize()}."
-                f"{as_of_detail}"
-            ),
+            f"Known net worth from {len(visible_accounts)} of {len(account_summaries)} tracked "
+            f"{_pluralize(len(account_summaries), 'account')}. "
+            f"{_format_issue_counts(estimate_issue_parts).capitalize()}.{as_of_detail}",
         )
+
     refresh_count = stale_balance_count + aging_balance_count
     if refresh_count > 0:
         return (
             "stale",
-            (
-                f"Known net worth subtotal from {len(visible_accounts)} tracked "
-                f"{_pluralize(len(visible_accounts), 'account')}. "
-                f"{refresh_count} {_pluralize(refresh_count, 'account')} should refresh before review."
-                f"{as_of_detail}"
-            ),
+            f"Known net worth subtotal from {len(visible_accounts)} tracked {_pluralize(len(visible_accounts), 'account')}. "
+            f"{refresh_count} {_pluralize(refresh_count, 'account')} should refresh before review.{as_of_detail}",
         )
-
-    if latest_balance_at is not None:
-        return (
-            "current",
-            f"Net worth reflects {len(currentish_accounts)} covered {_pluralize(len(currentish_accounts), 'account')} through {latest_balance_at[:10]}.",
-        )
-    return (
-        "current",
-        f"Net worth reflects {len(currentish_accounts)} covered {_pluralize(len(currentish_accounts), 'account')}.",
-    )
+    detail = f"Net worth reflects {len(currentish_accounts)} covered {_pluralize(len(currentish_accounts), 'account')}"
+    detail += f" through {latest_balance_at[:10]}." if latest_balance_at is not None else "."
+    return ("current", detail)
 
 
-def _monthly_spend_trust(
-    account_summaries: list[Any],
-    statement_freshness: dict[str, Any],
-) -> tuple[str, str]:
-    spend_accounts = [
-        account
-        for account in account_summaries
-        if account.money_role == "spend_driver"
-    ]
+def _monthly_spend_trust(account_summaries: list[Any], statement_freshness: dict[str, Any]) -> tuple[str, str]:
+    spend_accounts = [account for account in account_summaries if account.money_role == "spend_driver"]
     if not spend_accounts:
-        return (
-            "unavailable",
-            "Monthly spend is not available yet because Jenny does not have any checking, card, or debt accounts with transaction history.",
-        )
+        return ("unavailable", "Monthly spend is not available yet because Jenny does not have any checking, card, or debt accounts with transaction history.")
 
-    fresh_transaction_count = sum(
-        1
-        for account in spend_accounts
-        if account.transaction_freshness_status == "fresh"
-    )
-    aging_transaction_count = sum(
-        1
-        for account in spend_accounts
-        if account.transaction_freshness_status == "aging"
-    )
-    stale_transaction_count = sum(
-        1
-        for account in spend_accounts
-        if account.transaction_freshness_status == "stale"
-    )
-    missing_transaction_count = sum(
-        1
-        for account in spend_accounts
-        if account.transaction_freshness_status == "needs_evidence"
-    )
-    historical_transaction_count = sum(
-        1
-        for account in spend_accounts
-        if account.last_transaction_at is not None
-        or account.transaction_freshness_status in {"fresh", "aging", "stale"}
-    )
+    fresh_count = sum(1 for account in spend_accounts if account.transaction_freshness_status == "fresh")
+    aging_count = sum(1 for account in spend_accounts if account.transaction_freshness_status == "aging")
+    stale_count = sum(1 for account in spend_accounts if account.transaction_freshness_status == "stale")
+    missing_count = sum(1 for account in spend_accounts if account.transaction_freshness_status == "needs_evidence")
+    historical_count = sum(1 for account in spend_accounts if account.last_transaction_at is not None or account.transaction_freshness_status in {"fresh", "aging", "stale"})
     latest_transaction_date = statement_freshness.get("most_recent_date")
     days_since_latest = statement_freshness.get("days_since_latest")
     gap_months = statement_freshness.get("gap_months") or []
     coverage_months = int(statement_freshness.get("coverage_months") or 0)
-    visible_spend_accounts = max(
-        fresh_transaction_count + aging_transaction_count + stale_transaction_count,
-        historical_transaction_count,
-    )
-    latest_suffix = (
-        f" Latest covered transaction date {latest_transaction_date}."
-        if latest_transaction_date is not None
-        else ""
-    )
+    visible_spend_accounts = max(fresh_count + aging_count + stale_count, historical_count)
+    latest_suffix = f" Latest covered transaction date {latest_transaction_date}." if latest_transaction_date is not None else ""
 
     if coverage_months <= 0 and visible_spend_accounts <= 0:
-        return (
-            "unavailable",
-            "Monthly spend is not available yet because Jenny does not have any usable spending history.",
-        )
+        return ("unavailable", "Monthly spend is not available yet because Jenny does not have any usable spending history.")
 
     issue_parts: list[str] = []
-    if missing_transaction_count > 0:
-        issue_parts.append(
-            f"{missing_transaction_count} {_pluralize(missing_transaction_count, 'spending account')} missing transactions"
-        )
-    if stale_transaction_count > 0:
-        issue_parts.append(
-            f"{stale_transaction_count} {_pluralize(stale_transaction_count, 'spending account')} stale"
-        )
+    if missing_count > 0:
+        issue_parts.append(f"{missing_count} {_pluralize(missing_count, 'spending account')} missing transactions")
+    if stale_count > 0:
+        issue_parts.append(f"{stale_count} {_pluralize(stale_count, 'spending account')} stale")
     if gap_months:
         issue_parts.append(str(gap_months[0]).lower())
     if days_since_latest is None:
         issue_parts.append("latest covered transaction date unknown")
     elif days_since_latest > 7:
         issue_parts.append(f"latest covered transaction is {days_since_latest} days old")
-    if fresh_transaction_count + aging_transaction_count <= 0 and visible_spend_accounts > 0:
+    if fresh_count + aging_count <= 0 and visible_spend_accounts > 0:
         return (
             "stale",
-            (
-                f"Monthly spend subtotal is based on older history from {visible_spend_accounts} of "
-                f"{len(spend_accounts)} spending {_pluralize(len(spend_accounts), 'account')}."
-                f"{latest_suffix} Refresh before using it for a weekly review."
-            ),
+            f"Monthly spend subtotal is based on older history from {visible_spend_accounts} of {len(spend_accounts)} "
+            f"spending {_pluralize(len(spend_accounts), 'account')}.{latest_suffix} Refresh before using it for a weekly review.",
         )
     if issue_parts:
         return (
             "estimated",
-            (
-                f"Monthly spend estimate from {visible_spend_accounts} of {len(spend_accounts)} spending "
-                f"{_pluralize(len(spend_accounts), 'account')}. "
-                f"{_format_issue_counts(issue_parts).capitalize()}."
-                f"{latest_suffix}"
-            ),
+            f"Monthly spend estimate from {visible_spend_accounts} of {len(spend_accounts)} spending {_pluralize(len(spend_accounts), 'account')}. "
+            f"{_format_issue_counts(issue_parts).capitalize()}.{latest_suffix}",
         )
-    if aging_transaction_count > 0:
-        return (
-            "stale",
-            (
-                f"Monthly spend subtotal comes from {fresh_transaction_count + aging_transaction_count} covered "
-                f"spending {_pluralize(fresh_transaction_count + aging_transaction_count, 'account')}, "
-                f"but {aging_transaction_count} should refresh before weekly review."
-                f"{latest_suffix}"
-            ),
-        )
-
-    detail = (
-        f"Monthly spend reflects {fresh_transaction_count} covered "
-        f"{_pluralize(fresh_transaction_count, 'spending account')}"
-        f"{f' through {latest_transaction_date}' if latest_transaction_date else ''}."
-    )
-    return ("current", detail)
+    if aging_count > 0:
+        return ("stale", f"Monthly spend subtotal comes from {fresh_count + aging_count} covered spending {_pluralize(fresh_count + aging_count, 'account')}, but {aging_count} should refresh before weekly review.{latest_suffix}")
+    return ("current", f"Monthly spend reflects {fresh_count} covered {_pluralize(fresh_count, 'spending account')}{f' through {latest_transaction_date}' if latest_transaction_date else ''}.")
 
 
 def build_jenny_needs(
@@ -480,10 +339,9 @@ def build_jenny_needs(
     confirmed_facts: dict[str, str], detected_accounts: list[dict[str, str]],
     freshness: dict[str, Any], categorization_queue: list[Any],
 ) -> list[JennyNeed]:
-    coverage_months = freshness.get("coverage_months", 0)
     days_since_latest = freshness.get("days_since_latest")
     return [
-        *_jenny_statement_needs(coverage_months, days_since_latest),
+        *_jenny_statement_needs(freshness.get("coverage_months", 0), days_since_latest),
         *_jenny_confirmation_needs(confirmed_facts, planning, profile),
         *_jenny_account_question_needs(detected_accounts, questions),
         *_jenny_retirement_category_needs(profile, categorization_queue),
@@ -506,53 +364,30 @@ def build_overview(
 ) -> tuple[HouseholdOverview, float, float, float, float]:
     summary_totals = _overview_totals_from_account_summaries(account_summaries)
     if summary_totals is not None:
-        (
-            invested_assets,
-            cash_reserve,
-            retirement_assets,
-            taxable_assets,
-            total_tracked_assets,
-            liabilities_total,
-        ) = summary_totals
+        invested_assets, cash_reserve, retirement_assets, taxable_assets, total_tracked_assets, liabilities_total = summary_totals
     else:
         invested_assets = sum(holdings_by_account.values())
         cash_reserve = sum(a.cash_balance for a in accounts)
-        retirement_assets = 0.0
-        taxable_assets = 0.0
-        for account in accounts:
-            account_total = account.cash_balance + holdings_by_account.get(account.id, 0.0)
-            if account.account_type in RETIREMENT_ACCOUNT_TYPES:
-                retirement_assets += account_total
-            if account.account_type in TAXABLE_ACCOUNT_TYPES:
-                taxable_assets += account_total
-    evidence_totals = service.evidence_service.totals_by_group(evidence_accounts) if service is not None else {
-        "cash": 0.0,
-        "retirement": 0.0,
-        "taxable": 0.0,
-        "education": 0.0,
-        "debt": 0.0,
-        "credit": 0.0,
-        "other": 0.0,
-    }
-    asset_evidence_bump = 0.0
-    if cash_reserve <= 0:
-        cash_fallback = evidence_totals.get("cash", 0.0)
-        cash_reserve += cash_fallback
-        asset_evidence_bump += cash_fallback
-    if retirement_assets <= 0:
-        retirement_fallback = evidence_totals.get("retirement", 0.0)
-        retirement_assets += retirement_fallback
-        invested_assets += retirement_fallback
-        asset_evidence_bump += retirement_fallback
-    if taxable_assets <= 0:
-        taxable_fallback = evidence_totals.get("taxable", 0.0) + evidence_totals.get("education", 0.0)
-        taxable_assets += taxable_fallback
-        invested_assets += taxable_fallback
-        asset_evidence_bump += taxable_fallback
-    if invested_assets <= 0:
-        other_fallback = evidence_totals.get("other", 0.0)
-        invested_assets += other_fallback
-        asset_evidence_bump += other_fallback
+        retirement_assets = sum(
+            account.cash_balance + holdings_by_account.get(account.id, 0.0)
+            for account in accounts
+            if account.account_type in RETIREMENT_ACCOUNT_TYPES
+        )
+        taxable_assets = sum(
+            account.cash_balance + holdings_by_account.get(account.id, 0.0)
+            for account in accounts
+            if account.account_type in TAXABLE_ACCOUNT_TYPES
+        )
+    evidence_totals = service.evidence_service.totals_by_group(evidence_accounts) if service is not None else dict.fromkeys(("cash", "retirement", "taxable", "education", "debt", "credit", "other"), 0.0)
+    cash_fallback = evidence_totals.get("cash", 0.0) if cash_reserve <= 0 else 0.0
+    retirement_fallback = evidence_totals.get("retirement", 0.0) if retirement_assets <= 0 else 0.0
+    taxable_fallback = (evidence_totals.get("taxable", 0.0) + evidence_totals.get("education", 0.0)) if taxable_assets <= 0 else 0.0
+    other_fallback = evidence_totals.get("other", 0.0) if invested_assets <= 0 else 0.0
+    cash_reserve += cash_fallback
+    retirement_assets += retirement_fallback
+    taxable_assets += taxable_fallback
+    invested_assets += retirement_fallback + taxable_fallback + other_fallback
+    asset_evidence_bump = cash_fallback + retirement_fallback + taxable_fallback + other_fallback
     if summary_totals is None:
         total_tracked_assets = invested_assets + cash_reserve
         liabilities_total = evidence_totals.get("debt", 0.0) + evidence_totals.get("credit", 0.0)
@@ -716,7 +551,8 @@ def build_portfolio_context(
 # Brief & progression
 # ---------------------------------------------------------------------------
 
-def _found_items(executive: Any, resolved_values: list[HouseholdResolvedValue]) -> list[str]:
+def build_progression(*, reports: HouseholdReports, resolved_values: list[HouseholdResolvedValue], profile: HouseholdProfile) -> JennyProgression:
+    executive = reports.executive
     found: list[str] = []
     if executive.recurring_merchant_count > 0:
         s = "s" if executive.recurring_merchant_count != 1 else ""
@@ -731,12 +567,6 @@ def _found_items(executive: Any, resolved_values: list[HouseholdResolvedValue]) 
     if inferred_count > 0:
         s = "s" if inferred_count != 1 else ""
         found.append(f"{inferred_count} profile value{s} auto-resolved from your data")
-    return found
-
-
-def build_progression(*, reports: HouseholdReports, resolved_values: list[HouseholdResolvedValue], profile: HouseholdProfile) -> JennyProgression:
-    executive = reports.executive
-    found = _found_items(executive, resolved_values)
     profile_fields = {"monthly_net_income_target", "monthly_essential_target", "monthly_discretionary_target", "monthly_savings_target", "target_retirement_age", "target_retirement_spend"}
     confirmed_fields = {rv.field_name for rv in resolved_values if rv.source == "user" and rv.field_name in profile_fields}
     all_known = fields_with_confident_inferences(resolved_values, threshold=0.7) | confirmed_fields
