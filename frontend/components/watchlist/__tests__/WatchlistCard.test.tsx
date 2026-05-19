@@ -111,23 +111,20 @@ describe('WatchlistCard', () => {
       'href',
       '/symbols/MSFT?tab=decision',
     )
-    expect(screen.getByRole('link', { name: 'Workspace' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Open' })).toHaveAttribute(
       'href',
       '/symbols/MSFT?tab=decision',
     )
     expect(screen.getByText('Portfolio')).toBeInTheDocument()
     expect(screen.getByText('Data quality 91%')).toBeInTheDocument()
     expect(screen.getByText(/Refreshing 2\/5/i)).toBeInTheDocument()
-    expect(screen.getByText('Live price snapshot')).toBeInTheDocument()
     expect(screen.getByText('$410.12')).toBeInTheDocument()
     expect(screen.getByText('+1.25%')).toBeInTheDocument()
-    expect(screen.getByText('🟢 Setup BUY')).toBeInTheDocument()
-    expect(screen.getByText('Current decision')).toBeInTheDocument()
+    expect(screen.getByText('🟢 BUY')).toBeInTheDocument()
+    expect(screen.getByText('Decision')).toBeInTheDocument()
     expect(screen.getByText('Exit this position')).toBeInTheDocument()
-    expect(
-      screen.getByText(/jenny alert · critical · reduce risk now\./i),
-    ).toBeInTheDocument()
-    expect(screen.getByText('Style Trend')).toBeInTheDocument()
+    expect(screen.getByText(/reduce risk now\./i)).toBeInTheDocument()
+    expect(screen.getByText('Trend')).toBeInTheDocument()
     expect(screen.getByText('Earnings soon')).toBeInTheDocument()
     expect(screen.getByText('History item-1')).toBeInTheDocument()
   })

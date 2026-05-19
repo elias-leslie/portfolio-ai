@@ -28,7 +28,6 @@ import {
   getWatchlistPriceSnapshot,
 } from '@/components/watchlist/watchlistTableUtils'
 import type { RefreshStatus, WatchlistItem } from '@/lib/api/watchlist'
-import { formatDecisionMeta } from '@/lib/decision'
 import { cn } from '@/lib/utils'
 
 interface WatchlistCardProps {
@@ -70,9 +69,11 @@ export function WatchlistCard({
       ?.slice()
       .sort((left, right) => right.priority - left.priority)
       .slice(0, 2) ?? []
-  const decisionMeta = formatDecisionMeta(item.decision, {
-    includeTimestamp: false,
-  })
+  const priceMetadata = item.currentScore?.price.metadata
+  const source = priceMetadata?.source
+  const showSourceBadge =
+    item.currentScore?.price.stale ||
+    (typeof source === 'string' && source.toLowerCase() !== 'yfinance')
 
   return (
     <div
@@ -113,14 +114,13 @@ export function WatchlistCard({
               />
             )}
           </div>
-          {item.currentScore?.price.metadata?.source &&
-          typeof item.currentScore.price.metadata.source === 'string' ? (
+          {showSourceBadge && typeof source === 'string' ? (
             <SourceBadge
-              source={item.currentScore.price.metadata.source}
-              stale={item.currentScore.price.stale}
+              source={source}
+              stale={item.currentScore?.price.stale}
               priority={
-                typeof item.currentScore.price.metadata.priority === 'number'
-                  ? item.currentScore.price.metadata.priority
+                typeof priceMetadata?.priority === 'number'
+                  ? priceMetadata.priority
                   : undefined
               }
             />
@@ -133,7 +133,7 @@ export function WatchlistCard({
             size="sm"
             className="h-8 px-2 text-xs"
           >
-            <Link href={`/symbols/${item.symbol}?tab=decision`}>Workspace</Link>
+            <Link href={`/symbols/${item.symbol}?tab=decision`}>Open</Link>
           </Button>
           <Button
             data-testid="watchlist-card-expand"
@@ -171,12 +171,12 @@ export function WatchlistCard({
               signalDisplay.color,
             )}
           >
-            {signalDisplay.icon} Setup {signalDisplay.label}
+            {signalDisplay.icon} {signalDisplay.label}
           </span>
         ) : null}
         {item.recommendedStyle ? (
           <span className="rounded-full border border-border/40 bg-surface/80 px-2 py-1">
-            Style {item.recommendedStyle}
+            {item.recommendedStyle}
           </span>
         ) : null}
         {riskConfig ? (
@@ -216,13 +216,12 @@ export function WatchlistCard({
       {item.decision ? (
         <div className="mb-3 rounded-2xl border border-border/40 bg-surface-muted/20 px-3 py-2.5">
           <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
-            Current decision
+            Decision
           </p>
           <p className="mt-1 text-sm font-semibold text-text">
             {item.decision.headline}
           </p>
           <p className="mt-1 text-xs text-text-muted">
-            {decisionMeta ? `${decisionMeta} · ` : ''}
             {item.decision.summary}
           </p>
         </div>
@@ -230,7 +229,6 @@ export function WatchlistCard({
 
       {priceSnapshot ? (
         <div className="mb-3 rounded-2xl border border-border/40 bg-surface-muted/20 px-3 py-2.5">
-          <p className="text-xs text-text-muted">Live price snapshot</p>
           <div className="mt-1 flex items-baseline justify-between gap-3">
             <p className="text-base font-semibold text-text">
               {priceSnapshot.priceLabel}

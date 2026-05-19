@@ -187,15 +187,7 @@ export function DeploymentZoneHero() {
         ) : isLoading ? (
           <span>Loading macro gate snapshot…</span>
         ) : (
-          <span>
-            Daily run · next refresh after 17:30 ET ·{' '}
-            <Link
-              href="/portfolio?tab=signals"
-              className="text-primary hover:underline"
-            >
-              See ranked candidates →
-            </Link>
-          </span>
+          <span>Next refresh after 17:30 ET</span>
         )}
       </div>
     </section>

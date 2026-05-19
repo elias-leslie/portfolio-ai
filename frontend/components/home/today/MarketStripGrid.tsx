@@ -197,14 +197,9 @@ export function MarketStripGrid({
   return (
     <section className="@container rounded-2xl border border-border/35 bg-surface/35 p-3.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
-            Market Strip
-          </p>
-          <h3 className="mt-1 font-display text-base tracking-tight text-text">
-            Tape that matters to this portfolio
-          </h3>
-        </div>
+        <h3 className="font-display text-base tracking-tight text-text">
+          Market Strip
+        </h3>
         <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">
           {timestamp ? (
             <>

@@ -230,7 +230,6 @@ function PortfolioPageContent() {
     <PageContainer className="space-y-6 py-8">
       <PageHeader
         title="Investing"
-        description="Market, news, symbols, and holdings."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button

@@ -83,10 +83,11 @@ export function MarketSummaryGrid({
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
             Market
           </p>
-          <h3 className="mt-1 text-sm font-medium leading-5 text-text">
-            {market?.narrative ??
-              'Market, benchmark, sector, news, and sentiment data.'}
-          </h3>
+          {market?.narrative ? (
+            <h3 className="mt-1 text-sm font-medium leading-5 text-text">
+              {market.narrative}
+            </h3>
+          ) : null}
         </div>
         <div className="flex max-w-full flex-wrap gap-2">
           <Badge

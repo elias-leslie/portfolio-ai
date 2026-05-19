@@ -956,11 +956,7 @@ export function InvestingNewsPanel({
 
   if (isInputLoading) {
     return (
-      <SectionCard
-        title="News"
-        description="This panel stays quiet unless the news is specific to your holdings, watchlist, or market context."
-        variant="surface"
-      >
+      <SectionCard title="News" variant="surface">
         <div
           aria-busy="true"
           className="rounded-2xl border border-border/40 bg-surface-muted/15 px-5 py-8 text-sm text-text-muted"
@@ -973,11 +969,7 @@ export function InvestingNewsPanel({
 
   if (groups.length === 0) {
     return (
-      <SectionCard
-        title="News"
-        description="This panel stays quiet unless the news is specific to your holdings, watchlist, or market context."
-        variant="surface"
-      >
+      <SectionCard title="News" variant="surface">
         <div className="space-y-4">
           <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/15 px-5 py-8 text-sm text-text-muted">
             {audit.reviewedCount === 0

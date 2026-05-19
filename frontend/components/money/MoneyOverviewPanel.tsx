@@ -420,13 +420,11 @@ export function MoneyOverviewPanel({
     .slice(0, 2)
   const decisionBoardDescription = (
     <>
-      Current household money reads. Dashboard generated{' '}
-      <RelativeTime value={dashboard.generatedAt} />. Drill deeper in spending,
-      levers, accounts, and intake.
+      Generated <RelativeTime value={dashboard.generatedAt} />.
     </>
   )
   const safeSpendSummary = spendTrustDegraded
-    ? 'Calculated from visible cash and plan, but stale account evidence blocks current safe-to-spend guidance.'
+    ? 'Stale account data; refresh before relying on this.'
     : 'Discretionary spend room against visible cash, due-soon bills, and the current plan.'
   const needsAmount = dashboard.reports.executive.averageMonthlyEssentials
   const wantsAmount = dashboard.reports.executive.averageMonthlyDiscretionary
@@ -536,9 +534,7 @@ export function MoneyOverviewPanel({
           <div className="grid gap-4 xl:grid-cols-2">
             <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-text">
-                  Why this month feels tight
-                </p>
+                <p className="text-sm font-semibold text-text">Budget Pace</p>
                 <div className="flex flex-wrap items-center gap-2">
                   {spendTrustDegraded ? (
                     <InfoBadge
@@ -578,9 +574,7 @@ export function MoneyOverviewPanel({
 
             <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-text">
-                  Safe to spend this weekend
-                </p>
+                <p className="text-sm font-semibold text-text">Safe to Spend</p>
                 <div className="flex flex-wrap items-center gap-2">
                   {spendTrustDegraded ? (
                     <InfoBadge
@@ -694,7 +688,7 @@ export function MoneyOverviewPanel({
             <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-semibold text-text">
-                  Where to save next
+                  Savings Levers
                 </p>
                 <Badge
                   variant={decisionBadgeVariant(
@@ -707,10 +701,6 @@ export function MoneyOverviewPanel({
               </div>
               <p className="mt-3 text-2xl font-semibold text-text">
                 {priceInsights.length + merchantHighlights.length}
-              </p>
-              <p className="mt-1 text-sm text-text-muted">
-                Price moves, merchant patterns, and Jenny follow-ups worth
-                checking first.
               </p>
               <div className="mt-3 space-y-2">
                 {saveNowLines.length === 0 ? (

@@ -37,7 +37,6 @@ export function TodayOverviewPanel() {
     <SectionCard
       variant="surface"
       title="Overview"
-      description="Household state, market tape, and next moves in one compact rail."
       padding="sm"
       headerClassName="px-5 py-4"
     >

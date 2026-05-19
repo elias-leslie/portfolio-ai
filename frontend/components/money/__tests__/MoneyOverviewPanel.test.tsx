@@ -309,10 +309,10 @@ describe('MoneyOverviewPanel', () => {
     render(<MoneyOverviewPanel dashboard={dashboard} />)
 
     expect(screen.getByText('Decision Board')).toBeInTheDocument()
-    expect(screen.getByText('Why this month feels tight')).toBeInTheDocument()
-    expect(screen.getByText('Safe to spend this weekend')).toBeInTheDocument()
+    expect(screen.getByText('Budget Pace')).toBeInTheDocument()
+    expect(screen.getByText('Safe to Spend')).toBeInTheDocument()
     expect(screen.getByText('Want vs need')).toBeInTheDocument()
-    expect(screen.getByText('Where to save next')).toBeInTheDocument()
+    expect(screen.getAllByText('Savings Levers').length).toBeGreaterThan(0)
     expect(screen.getByText('+$500')).toBeInTheDocument()
     expect(screen.getByText('$0')).toBeInTheDocument()
     expect(screen.getByText('$4,700 / $1,800')).toBeInTheDocument()
@@ -334,7 +334,7 @@ describe('MoneyOverviewPanel', () => {
     expect(screen.getByText('Where Money Went')).toBeInTheDocument()
     expect(screen.getByText('Recurring Bills')).toBeInTheDocument()
     expect(screen.getByText('Duke Energy')).toBeInTheDocument()
-    expect(screen.getByText('Savings Levers')).toBeInTheDocument()
+    expect(screen.getAllByText('Savings Levers').length).toBeGreaterThan(0)
     expect(screen.getAllByText(/honey - 32oz/i)).toHaveLength(2)
     expect(
       screen.getByText(/track repeat amazon items against walmart/i),
@@ -460,9 +460,7 @@ describe('MoneyOverviewPanel', () => {
     expect(screen.queryByText('Safe')).not.toBeInTheDocument()
     expect(screen.getByText('Review')).toBeInTheDocument()
     expect(
-      screen.getByText(
-        'Calculated from visible cash and plan, but stale account evidence blocks current safe-to-spend guidance.',
-      ),
+      screen.getByText('Stale account data; refresh before relying on this.'),
     ).toBeInTheDocument()
     expect(screen.getByText('Refresh blockers')).toBeInTheDocument()
     expect(

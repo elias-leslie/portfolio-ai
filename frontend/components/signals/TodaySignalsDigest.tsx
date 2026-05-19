@@ -183,7 +183,6 @@ function WatchlistAlertsColumn() {
         <h3 className="font-display italic text-sm tracking-tight text-text">
           Watchlist alerts
         </h3>
-        <DeterministicBadge label="DETERMINISTIC" className="text-[9px]" />
       </div>
       {error ? (
         <p className="text-xs text-danger">
@@ -229,12 +228,7 @@ function WatchlistAlertsColumn() {
 
 export function TodaySignalsDigest() {
   return (
-    <SectionCard
-      variant="surface"
-      title="Today's signals"
-      description="Three lanes: deterministic scanner, AI committee, and watchlist alerts."
-      padding="md"
-    >
+    <SectionCard variant="surface" title="Today's signals" padding="md">
       <div className="grid gap-5 md:grid-cols-3">
         <ScannerTopColumn />
         <CommitteeTodayColumn />

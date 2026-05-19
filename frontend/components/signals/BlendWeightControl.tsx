@@ -89,9 +89,8 @@ export function BlendWeightControl({
         aria-label="Scanner versus committee blend weight"
       />
       {!compact ? (
-        <p className="mt-2 text-[11px] leading-relaxed text-text-muted">
-          Move toward scanner for deterministic factor-driven ranking. Move
-          toward committee to give the AI verdict more weight. Stored per user.
+        <p className="mt-2 text-[11px] text-text-muted">
+          Scanner weight / committee weight
         </p>
       ) : null}
     </div>

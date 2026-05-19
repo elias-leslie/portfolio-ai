@@ -41,7 +41,7 @@ type SortKey =
 
 interface ScannerTableProps {
   rows: BlendedRow[]
-  /** Per-symbol factor percentiles, keyed by symbol → { factor_key: 0-1 }. */
+  /** Per-symbol factor percentiles, keyed by symbol → { factor_key: 0-100 }. */
   factorPercentilesBySymbol?: Record<string, Record<string, number | null>>
   /** Compact mode used by /portfolio Signals tab. */
   compact?: boolean
