@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { useBlendedSignals, useScannerLatest } from '@/lib/hooks/useSignals'
 import { BlendWeightControl, loadStoredScannerPct } from './BlendWeightControl'
+import { CommitteeCostCard } from './CommitteeCostCard'
 import { DeploymentZoneHero } from './DeploymentZoneHero'
 import { ScannerTable } from './ScannerTable'
 
@@ -33,6 +34,8 @@ export function SignalsTabContent() {
   return (
     <div className="space-y-4">
       <DeploymentZoneHero />
+
+      <CommitteeCostCard />
 
       <SectionCard
         variant="surface"
