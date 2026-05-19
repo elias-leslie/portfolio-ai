@@ -10,6 +10,7 @@ from typing import Any
 
 import requests
 import yfinance as yf
+from curl_cffi import requests as curl_requests
 
 from app.constants import DEFAULT_HTTP_TIMEOUT
 from app.logging_config import get_logger
@@ -20,9 +21,12 @@ PUTCALL_SYMBOLS = ["SPY", "QQQ", "IWM"]
 PUTCALL_EXPIRATIONS = 5
 
 
-def _fetch_symbol_volumes(symbol: str) -> tuple[float, float, dict[str, Any]] | None:
+def _fetch_symbol_volumes(
+    symbol: str,
+    session: curl_requests.Session,
+) -> tuple[float, float, dict[str, Any]] | None:
     """Fetch call/put volumes for one symbol. Returns (call_vol, put_vol, data) or None."""
-    yf_obj = yf.Ticker(symbol)
+    yf_obj = yf.Ticker(symbol, session=session)
     expirations = yf_obj.options[:PUTCALL_EXPIRATIONS]
     sym_call_vol = 0.0
     sym_put_vol = 0.0
@@ -49,16 +53,20 @@ def _calculate_putcall_from_yfinance() -> dict[str, Any] | None:
         total_call_vol = 0.0
         total_put_vol = 0.0
         symbol_data: dict[str, dict[str, float]] = {}
-        for symbol in PUTCALL_SYMBOLS:
-            try:
-                result = _fetch_symbol_volumes(symbol)
-                if result:
-                    call_v, put_v, data = result
-                    symbol_data[symbol] = data
-                    total_call_vol += call_v
-                    total_put_vol += put_v
-            except Exception as e:
-                logger.warning("putcall_symbol_failed", symbol=symbol, error=str(e))
+        session = curl_requests.Session(impersonate="chrome")
+        try:
+            for symbol in PUTCALL_SYMBOLS:
+                try:
+                    result = _fetch_symbol_volumes(symbol, session)
+                    if result:
+                        call_v, put_v, data = result
+                        symbol_data[symbol] = data
+                        total_call_vol += call_v
+                        total_put_vol += put_v
+                except Exception as e:
+                    logger.warning("putcall_symbol_failed", symbol=symbol, error=str(e))
+        finally:
+            session.close()
         if total_call_vol == 0:
             logger.warning("yfinance_putcall_no_volume")
             return None

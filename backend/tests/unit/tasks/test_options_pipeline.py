@@ -61,7 +61,14 @@ class TestCalculatePutcallFromYfinance:
 
     def test_happy_path_all_symbols_successful(self, mock_yf_ticker: MagicMock) -> None:
         """Test successful calculation with data from all symbols."""
-        with patch("app.tasks.market_data.options_pipeline.yf.Ticker", return_value=mock_yf_ticker):
+        mock_session = MagicMock()
+        with (
+            patch(
+                "app.tasks.market_data._putcall_sources.curl_requests.Session",
+                return_value=mock_session,
+            ),
+            patch("app.tasks.market_data.options_pipeline.yf.Ticker", return_value=mock_yf_ticker),
+        ):
             result = _calculate_putcall_from_yfinance()
 
         assert result is not None
@@ -88,12 +95,13 @@ class TestCalculatePutcallFromYfinance:
             assert result["symbol_ratios"][symbol]["call_volume"] == 50000.0  # 10k * 5
             assert result["symbol_ratios"][symbol]["put_volume"] == 40000.0  # 8k * 5
             assert result["symbol_ratios"][symbol]["ratio"] == pytest.approx(0.8, rel=0.01)
+        mock_session.close.assert_called_once()
 
     def test_partial_symbol_success(self, mock_yf_ticker: MagicMock) -> None:
         """Test calculation when one symbol fails but others succeed."""
         call_count = 0
 
-        def mock_ticker_with_failure(symbol: str) -> MagicMock:
+        def mock_ticker_with_failure(symbol: str, **_: object) -> MagicMock:
             nonlocal call_count
             call_count += 1
             if call_count == 2:  # Second symbol (QQQ) fails

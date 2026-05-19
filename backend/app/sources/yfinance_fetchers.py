@@ -9,12 +9,14 @@ import datetime as dt
 import json
 import os
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
 import polars as pl
 import yfinance as yf
+from curl_cffi import requests as curl_requests
 
 from ..logging_config import get_logger
 from .base import DatasetRequest, standardize_dates
@@ -55,6 +57,20 @@ def _to_yf_symbol(symbol: str) -> str:
     return symbol
 
 
+@contextmanager
+def _managed_yf_session() -> Iterator[Any]:
+    """Create one yfinance HTTP session for a fetch operation and close it."""
+    session = curl_requests.Session(impersonate="chrome")
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+def _ticker(symbol: str, session: Any) -> Any:
+    return yf.Ticker(_to_yf_symbol(symbol), session=session)
+
+
 def fetch_day_bars(request: DatasetRequest) -> pl.DataFrame | None:
     """Fetch daily OHLCV bars from yfinance."""
     frames: list[pl.DataFrame] = []
@@ -67,33 +83,34 @@ def fetch_day_bars(request: DatasetRequest) -> pl.DataFrame | None:
         end_date=end_date.isoformat(),
     )
 
-    for symbol in request.symbols:
-        try:
-            yf_obj = yf.Ticker(_to_yf_symbol(symbol))
-            # NOTE: yfinance end parameter is EXCLUSIVE, so add 1 day to include end_date
-            hist = yf_obj.history(
-                start=start_date.isoformat(),
-                end=(end_date + dt.timedelta(days=1)).isoformat(),
-                auto_adjust=True,  # Adjust for splits/dividends
-            )
+    with _managed_yf_session() as session:
+        for symbol in request.symbols:
+            try:
+                yf_obj = _ticker(symbol, session)
+                # NOTE: yfinance end parameter is EXCLUSIVE, so add 1 day to include end_date
+                hist = yf_obj.history(
+                    start=start_date.isoformat(),
+                    end=(end_date + dt.timedelta(days=1)).isoformat(),
+                    auto_adjust=True,  # Adjust for splits/dividends
+                )
 
-            if hist.empty:
-                logger.debug("yfinance_no_data", symbol=symbol)
+                if hist.empty:
+                    logger.debug("yfinance_no_data", symbol=symbol)
+                    continue
+
+                df = parse_ohlcv_to_polars(hist, symbol, request.ingest_run_id)
+                frames.append(df)
+
+                logger.debug("yfinance_fetch_success", symbol=symbol, rows=len(df))
+
+            except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
+                logger.warning(
+                    "yfinance_fetch_error",
+                    symbol=symbol,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
                 continue
-
-            df = parse_ohlcv_to_polars(hist, symbol, request.ingest_run_id)
-            frames.append(df)
-
-            logger.debug("yfinance_fetch_success", symbol=symbol, rows=len(df))
-
-        except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
-            logger.warning(
-                "yfinance_fetch_error",
-                symbol=symbol,
-                error=str(e),
-                error_type=type(e).__name__,
-            )
-            continue
 
     if not frames:
         logger.warning("yfinance_no_data_fetched")
@@ -121,35 +138,36 @@ def fetch_reference_payload(symbols: Iterable[str], as_of: dt.date) -> pl.DataFr
         as_of_date=as_of.isoformat(),
     )
 
-    for symbol in symbol_list:
-        try:
-            yf_obj = yf.Ticker(_to_yf_symbol(symbol))
-            info = yf_obj.info
+    with _managed_yf_session() as session:
+        for symbol in symbol_list:
+            try:
+                yf_obj = _ticker(symbol, session)
+                info = yf_obj.info
 
-            if not info:
-                logger.debug("yfinance_no_reference_data", symbol=symbol)
+                if not info:
+                    logger.debug("yfinance_no_reference_data", symbol=symbol)
+                    continue
+
+                payload_dict = build_reference_payload(symbol, info)
+                records.append(
+                    {
+                        "symbol": symbol,
+                        "as_of_date": as_of,
+                        "payload": json.dumps(payload_dict),
+                        "source": "yfinance",
+                    }
+                )
+
+                logger.debug("yfinance_reference_fetched", symbol=symbol)
+
+            except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
+                logger.warning(
+                    "yfinance_reference_error",
+                    symbol=symbol,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
                 continue
-
-            payload_dict = build_reference_payload(symbol, info)
-            records.append(
-                {
-                    "symbol": symbol,
-                    "as_of_date": as_of,
-                    "payload": json.dumps(payload_dict),
-                    "source": "yfinance",
-                }
-            )
-
-            logger.debug("yfinance_reference_fetched", symbol=symbol)
-
-        except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
-            logger.warning(
-                "yfinance_reference_error",
-                symbol=symbol,
-                error=str(e),
-                error_type=type(e).__name__,
-            )
-            continue
 
     if not records:
         logger.warning("yfinance_no_reference_data_fetched")
@@ -169,35 +187,36 @@ def fetch_news_payload(
 
     symbol_list = list(symbols) or ["__MARKET__"]
 
-    for symbol in symbol_list:
-        is_market = symbol in (None, "__MARKET__")
-        target_symbol = MARKET_SYMBOL if is_market else symbol
+    with _managed_yf_session() as session:
+        for symbol in symbol_list:
+            is_market = symbol in (None, "__MARKET__")
+            target_symbol = MARKET_SYMBOL if is_market else symbol
 
-        try:
-            news_items = yf.Ticker(_to_yf_symbol(target_symbol)).get_news()
-        except (ValueError, KeyError, TypeError, AttributeError, OSError) as exc:  # pragma: no cover - passthrough to fallback vendors
-            logger.warning(
-                "yfinance_news_error",
+            try:
+                news_items = _ticker(target_symbol, session).get_news()
+            except (ValueError, KeyError, TypeError, AttributeError, OSError) as exc:  # pragma: no cover - passthrough to fallback vendors
+                logger.warning(
+                    "yfinance_news_error",
+                    symbol=target_symbol,
+                    error=str(exc),
+                    error_type=type(exc).__name__,
+                )
+                continue
+
+            if not news_items:
+                logger.debug("yfinance_news_empty", symbol=target_symbol)
+                continue
+
+            for item in news_items:
+                parsed = parse_news_item(item, symbol, is_market, start_utc, end_utc)
+                if parsed:
+                    records.append(parsed)
+
+            logger.debug(
+                "yfinance_news_fetched",
                 symbol=target_symbol,
-                error=str(exc),
-                error_type=type(exc).__name__,
+                articles=len(news_items),
             )
-            continue
-
-        if not news_items:
-            logger.debug("yfinance_news_empty", symbol=target_symbol)
-            continue
-
-        for item in news_items:
-            parsed = parse_news_item(item, symbol, is_market, start_utc, end_utc)
-            if parsed:
-                records.append(parsed)
-
-        logger.debug(
-            "yfinance_news_fetched",
-            symbol=target_symbol,
-            articles=len(news_items),
-        )
 
     if not records:
         logger.info("yfinance_news_no_articles", symbols=symbol_list)
@@ -209,9 +228,10 @@ def fetch_news_payload(
 def fetch_cash_flow_data(symbol: str) -> dict[str, Any] | None:
     """Fetch cash flow statement data for a symbol."""
     try:
-        yf_obj = yf.Ticker(_to_yf_symbol(symbol))
-        cf = yf_obj.cashflow
-        info = yf_obj.info
+        with _managed_yf_session() as session:
+            yf_obj = _ticker(symbol, session)
+            cf = yf_obj.cashflow
+            info = yf_obj.info
         return parse_cash_flow_data(cf, info, symbol)
     except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
         logger.warning("cash_flow_fetch_failed", symbol=symbol, error=str(e), error_type=type(e).__name__)
@@ -221,8 +241,9 @@ def fetch_cash_flow_data(symbol: str) -> dict[str, Any] | None:
 def fetch_insider_transactions(symbol: str) -> list[dict[str, Any]]:
     """Fetch insider transactions for a symbol."""
     try:
-        yf_obj = yf.Ticker(_to_yf_symbol(symbol))
-        insiders = yf_obj.insider_transactions
+        with _managed_yf_session() as session:
+            yf_obj = _ticker(symbol, session)
+            insiders = yf_obj.insider_transactions
         transactions = parse_insider_transactions(insiders, symbol)
         logger.debug("insider_transactions_fetched", symbol=symbol, count=len(transactions))
         return transactions
@@ -234,9 +255,10 @@ def fetch_insider_transactions(symbol: str) -> list[dict[str, Any]]:
 def fetch_institutional_holders(symbol: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Fetch institutional holders for a symbol."""
     try:
-        yf_obj = yf.Ticker(_to_yf_symbol(symbol))
-        holders_df = yf_obj.institutional_holders
-        info = yf_obj.info
+        with _managed_yf_session() as session:
+            yf_obj = _ticker(symbol, session)
+            holders_df = yf_obj.institutional_holders
+            info = yf_obj.info
         holders, summary = parse_institutional_holders(holders_df, info, symbol)
         logger.debug("institutional_holders_fetched", symbol=symbol, count=len(holders))
         return holders, summary
@@ -248,8 +270,9 @@ def fetch_institutional_holders(symbol: str) -> tuple[list[dict[str, Any]], dict
 def fetch_short_interest(symbol: str) -> dict[str, Any] | None:
     """Fetch short interest data for a symbol."""
     try:
-        yf_obj = yf.Ticker(_to_yf_symbol(symbol))
-        info = yf_obj.info
+        with _managed_yf_session() as session:
+            yf_obj = _ticker(symbol, session)
+            info = yf_obj.info
         return parse_short_interest(info, symbol)
     except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
         logger.warning("short_interest_fetch_failed", symbol=symbol, error=str(e), error_type=type(e).__name__)
@@ -266,11 +289,12 @@ def fetch_quarterly_fundamentals(symbol: str) -> dict[str, Any] | None:
     handle itself fails.
     """
     try:
-        yf_obj = yf.Ticker(_to_yf_symbol(symbol))
-        quarterly_income = yf_obj.quarterly_income_stmt
-        quarterly_balance = yf_obj.quarterly_balance_sheet
-        quarterly_cashflow = yf_obj.quarterly_cashflow
-        info = yf_obj.info or {}
+        with _managed_yf_session() as session:
+            yf_obj = _ticker(symbol, session)
+            quarterly_income = yf_obj.quarterly_income_stmt
+            quarterly_balance = yf_obj.quarterly_balance_sheet
+            quarterly_cashflow = yf_obj.quarterly_cashflow
+            info = yf_obj.info or {}
     except (ValueError, KeyError, TypeError, AttributeError, OSError) as exc:
         logger.warning(
             "yfinance_quarterly_fundamentals_fetch_failed",
@@ -311,12 +335,13 @@ def fetch_sector_history(
 ) -> list[tuple[dt.date, float]]:
     """Fetch historical close prices for a sector ETF."""
     try:
-        ticker = yf.Ticker(_to_yf_symbol(symbol))
-        hist = ticker.history(
-            start=start_date.isoformat(),
-            end=(end_date + dt.timedelta(days=1)).isoformat(),
-            auto_adjust=True,
-        )
+        with _managed_yf_session() as session:
+            ticker = _ticker(symbol, session)
+            hist = ticker.history(
+                start=start_date.isoformat(),
+                end=(end_date + dt.timedelta(days=1)).isoformat(),
+                auto_adjust=True,
+            )
 
         if hist.empty:
             logger.debug("yfinance_sector_no_data", symbol=symbol)

@@ -28,12 +28,52 @@ def test_to_yf_symbol_passes_through_non_share_class_symbols() -> None:
     assert _to_yf_symbol("DX-Y.NYB") == "DX-Y.NYB"
 
 
+def test_yfinance_reference_fetch_closes_http_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reference fetches should not leave yfinance curl sessions open."""
+    from app.sources import yfinance_fetchers
+
+    sessions: list[Any] = []
+
+    class DummySession:
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    class DummyTicker:
+        def __init__(self, symbol: str, *, session: Any) -> None:
+            assert session is sessions[-1]
+            self.symbol = symbol
+            self.info = {"regularMarketPrice": 123.45}
+
+    def session_factory(**_: Any) -> DummySession:
+        session = DummySession()
+        sessions.append(session)
+        return session
+
+    monkeypatch.setattr(yfinance_fetchers.curl_requests, "Session", session_factory)
+    monkeypatch.setattr(yfinance_fetchers.yf, "Ticker", DummyTicker)
+    monkeypatch.setattr(
+        yfinance_fetchers,
+        "build_reference_payload",
+        lambda symbol, info: {"symbol": symbol, "price": info["regularMarketPrice"]},
+    )
+
+    df = yfinance_fetchers.fetch_reference_payload(["AAPL"], dt.date(2026, 1, 2))
+
+    assert df is not None
+    assert df["symbol"].to_list() == ["AAPL"]
+    assert sessions and sessions[0].closed
+
+
 @pytest.fixture()
 def mock_ticker(monkeypatch: pytest.MonkeyPatch) -> Any:
     """Patch yfinance.Ticker for news calls and return accessor."""
 
     class DummyTicker:
-        def __init__(self, symbol: str) -> None:
+        def __init__(self, symbol: str, **_: Any) -> None:
             self.symbol = symbol
             self._news: list[dict[str, Any]] = []
 
@@ -42,9 +82,9 @@ def mock_ticker(monkeypatch: pytest.MonkeyPatch) -> Any:
 
     dummy_instances: dict[str, DummyTicker] = {}
 
-    def ticker_factory(symbol: str) -> DummyTicker:
+    def ticker_factory(symbol: str, **kwargs: Any) -> DummyTicker:
         if symbol not in dummy_instances:
-            dummy_instances[symbol] = DummyTicker(symbol)
+            dummy_instances[symbol] = DummyTicker(symbol, **kwargs)
         return dummy_instances[symbol]
 
     import yfinance as _yf
