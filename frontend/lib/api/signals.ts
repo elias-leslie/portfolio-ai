@@ -126,3 +126,24 @@ export function fetchSymbolSignals(
     `/api/signals/symbol/${encodeURIComponent(ticker)}?days=${days}`,
   )
 }
+
+// ── /api/signals/committee/cost ──────────────────────────────────────────────
+
+export interface CommitteeCostDay {
+  date: string
+  fan_out_count: number
+  tier1_call_count: number
+  deep_run_count: number
+  total_tokens: number
+  est_cost_usd: number
+}
+
+export interface CommitteeCostResponse {
+  days: CommitteeCostDay[]
+}
+
+export function fetchCommitteeCost(days = 7): Promise<CommitteeCostResponse> {
+  return apiRequest<CommitteeCostResponse>(
+    `/api/signals/committee/cost?days=${days}`,
+  )
+}
