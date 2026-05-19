@@ -17,6 +17,7 @@ import pytest
 from app.agents.committee import cache as cache_mod
 from app.agents.committee.readiness import ReadinessIssue, ReadinessReport
 from app.agents.committee.schemas import Tier1Verdict
+from app.models.preferences import ScannerFanoutSettings
 from app.workflows import committee_fanout as fanout_mod
 
 
@@ -27,7 +28,8 @@ def _bypass_readiness_gate(monkeypatch: pytest.MonkeyPatch) -> None:
     The fan-out kernel checks per-symbol data readiness before Tier-1
     and pulls on-demand fundamentals for each Tier-1 survivor.
     Bypassing both keeps existing tests focused on the cache / rate-cap
-    / Tier-1 ranking behavior they were written for.
+    / Tier-1 ranking behavior they were written for. The scanner-fanout
+    settings loader is stubbed so tests don't reach for the DB row.
     """
     monkeypatch.setattr(
         fanout_mod.readiness,
@@ -38,6 +40,13 @@ def _bypass_readiness_gate(monkeypatch: pytest.MonkeyPatch) -> None:
         fanout_mod.candidate_fundamentals,
         "fetch_candidate_fundamentals",
         lambda symbol, **_kw: {"symbol": symbol.upper(), "stub": True},
+    )
+    monkeypatch.setattr(
+        fanout_mod,
+        "get_scanner_fanout_settings",
+        lambda: ScannerFanoutSettings(
+            enabled=True, top_n=25, tier1_keep=8, max_daily=25, cache_ttl_hours=24,
+        ),
     )
 
 
@@ -95,7 +104,7 @@ def test_cache_hits_skip_individual_symbols() -> None:
         created.append(kw)
         return f"run-{kw['symbol']}"
 
-    def fake_should_run(ticker: str, *, current_zone: str, now=None):
+    def fake_should_run(ticker: str, *, current_zone: str, now=None, ttl_hours=24):
         # BBB is cached fresh; AAA and CCC are eligible.
         if ticker == "BBB":
             return cache_mod.CacheDecision(should_run=False, reason="fresh_within_ttl",
@@ -253,13 +262,14 @@ def test_fanout_keeps_only_tier1_top_k_when_loop_provided() -> None:
          patch.object(fanout_mod.scanner_repo, "get_scores_for_run", return_value=scores), \
          patch.object(fanout_mod, "_count_fanout_today", return_value=0), \
          patch.object(fanout_mod, "_run_tier1_batch", return_value=fake_verdicts) as t1, \
-         patch.object(fanout_mod, "_int_env", side_effect=lambda name, default: 2 if name == "COMMITTEE_TIER1_KEEP" else default), \
          patch.object(fanout_mod.cache, "should_run",
                       return_value=cache_mod.CacheDecision(should_run=True, reason="no_prior_run")), \
          patch.object(fanout_mod, "asyncio") as asyncio_mock, \
          patch.object(fanout_mod.committee_store, "create_run", side_effect=fake_create_run):
         asyncio_mock.run_coroutine_threadsafe.return_value = object()
-        out = fanout_mod.run_fanout(top_n=10, max_daily=10, now=now, loop=sentinel_loop)
+        out = fanout_mod.run_fanout(
+            top_n=10, max_daily=10, tier1_keep=2, now=now, loop=sentinel_loop,
+        )
 
     # Tier-1 was invoked once with the candidate list.
     t1.assert_called_once()
@@ -429,3 +439,36 @@ def test_readiness_check_called_with_scanner_fanout_source(
 
     assert seen_kwargs, "readiness check was never invoked"
     assert any(kw.get("source") == "scanner_fanout" for kw in seen_kwargs)
+
+
+def test_workflow_short_circuits_when_master_toggle_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """committee_fanout_wf returns {status: skipped, reason: disabled} when off.
+
+    The kernel must not be invoked — toggling the master flag is the user's
+    cost guard, so we verify run_fanout was never reached.
+    """
+    from app.workflows.models import EmptyInput
+
+    monkeypatch.setattr(
+        fanout_mod,
+        "get_scanner_fanout_settings",
+        lambda: ScannerFanoutSettings(
+            enabled=False,
+            top_n=25,
+            tier1_keep=8,
+            max_daily=25,
+            cache_ttl_hours=24,
+        ),
+    )
+
+    import asyncio as _asyncio
+
+    with patch.object(fanout_mod, "run_fanout") as run_fanout_mock:
+        result = _asyncio.run(
+            fanout_mod.committee_fanout_wf.aio_mock_run(input=EmptyInput())
+        )
+
+    assert result == {"status": "skipped", "reason": "disabled"}
+    run_fanout_mock.assert_not_called()

@@ -21,8 +21,11 @@ vi.mock('@/components/portfolio/InvestingMarketPanel', () => ({
   InvestingMarketTrendPanels: () => <div>Today Market Pulse Panel</div>,
 }))
 
-vi.mock('@/components/signals/TodayNextBanner', () => ({
-  TodayNextBanner: () => <div>Today Next Banner</div>,
+vi.mock('@/components/signals/DeploymentZoneHero', () => ({
+  DeploymentZoneHero: () => <div>Deployment Zone Hero</div>,
+}))
+vi.mock('@/components/signals/TodaySignalsDigest', () => ({
+  TodaySignalsDigest: () => <div>Today Signals Digest</div>,
 }))
 
 vi.mock('@/lib/hooks/useHousehold', async () => {
@@ -110,9 +113,10 @@ describe('core product routes', () => {
     render(<HomePage />)
 
     expect(screen.getByText('Today')).toBeInTheDocument()
+    expect(screen.getByText('Deployment Zone Hero')).toBeInTheDocument()
     expect(screen.getByText('Today Overview Panel')).toBeInTheDocument()
+    expect(screen.getByText('Today Signals Digest')).toBeInTheDocument()
     expect(screen.getByText('Today Market Pulse Panel')).toBeInTheDocument()
-    expect(screen.getByText('Today Next Banner')).toBeInTheDocument()
     expect(screen.queryByText('Automation Center')).not.toBeInTheDocument()
   })
 

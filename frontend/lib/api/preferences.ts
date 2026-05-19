@@ -2,7 +2,7 @@
  * User preferences API client functions
  */
 
-import { get, post } from './client'
+import { get, post, put } from './client'
 
 // Weight configuration types (migration 019)
 export interface ScoreWeights {
@@ -157,4 +157,23 @@ export async function updatePreferences(
   data: PreferencesUpdate,
 ): Promise<PreferencesResponse> {
   return post<PreferencesResponse>('/api/preferences', data)
+}
+
+// L3 committee fan-out controls (master toggle + four numeric knobs).
+export interface ScannerFanoutSettings {
+  enabled: boolean
+  topN: number
+  tier1Keep: number
+  maxDaily: number
+  cacheTtlHours: number
+}
+
+export async function fetchScannerFanoutSettings(): Promise<ScannerFanoutSettings> {
+  return get<ScannerFanoutSettings>('/api/preferences/scanner-fanout')
+}
+
+export async function updateScannerFanoutSettings(
+  settings: ScannerFanoutSettings,
+): Promise<ScannerFanoutSettings> {
+  return put<ScannerFanoutSettings>('/api/preferences/scanner-fanout', settings)
 }

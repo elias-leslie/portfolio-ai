@@ -10,8 +10,10 @@ from pydantic import ValidationError
 
 from app.models.preferences import PreferencesUpdate
 from app.services.preferences_service import (
+    SCANNER_FANOUT_DEFAULTS,
     dict_to_preferences_response,
     get_automation_preferences,
+    get_scanner_fanout_settings,
     update_preferences,
 )
 
@@ -329,4 +331,71 @@ def test_update_preferences_allows_clearing_automation_overrides(monkeypatch) ->
             "scheduled_ml_labeling_enabled": None,
             "scheduled_strategy_research_enabled": None,
         }
+    )
+
+
+def test_scanner_fanout_settings_fall_back_to_env_when_db_row_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When the DB row's columns are NULL, env vars win over hard-coded defaults."""
+    # Pretend the row exists but every scanner_fanout_* column is NULL.
+    monkeypatch.setattr(
+        "app.services.preferences_service.get_or_create_automation_preferences",
+        lambda: {
+            "id": "default",
+            "scanner_fanout_enabled": None,
+            "scanner_fanout_top_n": None,
+            "scanner_fanout_tier1_keep": None,
+            "scanner_fanout_max_daily": None,
+            "scanner_fanout_cache_ttl_hours": None,
+        },
+    )
+    monkeypatch.setenv("SCANNER_FANOUT_ENABLED", "false")
+    monkeypatch.setenv("COMMITTEE_FANOUT_TOP_N", "7")
+    monkeypatch.setenv("COMMITTEE_TIER1_KEEP", "3")
+    monkeypatch.setenv("COMMITTEE_FANOUT_MAX_DAILY", "11")
+    monkeypatch.setenv("COMMITTEE_FANOUT_CACHE_TTL_HOURS", "48")
+
+    settings = get_scanner_fanout_settings()
+
+    assert settings.enabled is False
+    assert settings.top_n == 7
+    assert settings.tier1_keep == 3
+    assert settings.max_daily == 11
+    assert settings.cache_ttl_hours == 48
+
+
+def test_scanner_fanout_settings_fall_back_to_constant_defaults_without_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No DB value, no env var → hard-coded defaults are returned."""
+    monkeypatch.setattr(
+        "app.services.preferences_service.get_or_create_automation_preferences",
+        lambda: {
+            "id": "default",
+            "scanner_fanout_enabled": None,
+            "scanner_fanout_top_n": None,
+            "scanner_fanout_tier1_keep": None,
+            "scanner_fanout_max_daily": None,
+            "scanner_fanout_cache_ttl_hours": None,
+        },
+    )
+    for key in (
+        "SCANNER_FANOUT_ENABLED",
+        "COMMITTEE_FANOUT_TOP_N",
+        "COMMITTEE_TIER1_KEEP",
+        "COMMITTEE_FANOUT_MAX_DAILY",
+        "COMMITTEE_FANOUT_CACHE_TTL_HOURS",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+    settings = get_scanner_fanout_settings()
+
+    assert settings.enabled is bool(SCANNER_FANOUT_DEFAULTS["scanner_fanout_enabled"])
+    assert settings.top_n == SCANNER_FANOUT_DEFAULTS["scanner_fanout_top_n"]
+    assert settings.tier1_keep == SCANNER_FANOUT_DEFAULTS["scanner_fanout_tier1_keep"]
+    assert settings.max_daily == SCANNER_FANOUT_DEFAULTS["scanner_fanout_max_daily"]
+    assert (
+        settings.cache_ttl_hours
+        == SCANNER_FANOUT_DEFAULTS["scanner_fanout_cache_ttl_hours"]
     )

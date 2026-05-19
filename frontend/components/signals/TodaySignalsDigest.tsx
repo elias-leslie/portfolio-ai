@@ -27,7 +27,7 @@ function ScannerTopColumn() {
   const rows = data?.rows ?? []
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 border-l-2 border-[#00f5ff]/30 pl-4">
       <div className="flex items-center justify-between">
         <h3 className="font-display italic text-sm tracking-tight text-text">
           Scanner top 5
@@ -116,7 +116,7 @@ function CommitteeTodayColumn() {
   }, [])
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 border-l-2 border-[#a855f7]/30 pl-4">
       <div className="flex items-center justify-between">
         <h3 className="font-display italic text-sm tracking-tight text-text">
           Committee verdicts today
@@ -178,7 +178,7 @@ function WatchlistAlertsColumn() {
     .slice(0, 3)
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 border-l-2 border-[#00f5ff]/30 pl-4">
       <div className="flex items-center justify-between">
         <h3 className="font-display italic text-sm tracking-tight text-text">
           Watchlist alerts

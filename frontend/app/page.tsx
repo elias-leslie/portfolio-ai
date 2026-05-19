@@ -6,20 +6,22 @@ import { TodayOverviewPanel } from '@/components/home/TodayOverviewPanel'
 import { InvestingMarketTrendPanels } from '@/components/portfolio/InvestingMarketPanel'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
-import { TodayNextBanner } from '@/components/signals/TodayNextBanner'
+import { DeploymentZoneHero } from '@/components/signals/DeploymentZoneHero'
+import { TodaySignalsDigest } from '@/components/signals/TodaySignalsDigest'
 
 export default function Dashboard() {
   return (
-    <PageContainer className="space-y-4 py-5">
+    <PageContainer className="space-y-6 py-5">
       <PageHeader
         title="Today"
-        description="One-screen command board for household position, market tape, and next moves."
+        description="Macro gate, household snapshot, today's signal lanes, and market tape — one screen, ready to act."
         eyebrow="Daily Briefing"
         size="md"
         variant="plain"
       />
-      <TodayNextBanner />
+      <DeploymentZoneHero />
       <TodayOverviewPanel />
+      <TodaySignalsDigest />
       <InvestingMarketTrendPanels />
     </PageContainer>
   )

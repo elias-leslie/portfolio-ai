@@ -92,10 +92,10 @@ export function DeploymentZoneHero() {
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border/40 bg-surface/50 backdrop-blur-sm">
-      <div className="flex flex-col gap-3 border-b border-border/40 px-6 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <Zap className="h-4 w-4 text-text-muted" />
-          <h2 className="font-display italic text-lg tracking-tight text-text">
+      <div className="flex flex-col gap-3 border-b border-border-subtle/60 px-6 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2.5">
+          <Zap className="h-3.5 w-3.5 text-text-muted/70" />
+          <h2 className="font-display italic text-base tracking-tight text-text">
             Deployment Zone
           </h2>
           <DeterministicBadge />

@@ -11,6 +11,13 @@ const nextConfig: NextConfig = {
   ...(allowedDevOrigins.length ? { allowedDevOrigins } : {}),
   // Don't redirect trailing slashes - let FastAPI middleware normalize them
   skipTrailingSlashRedirect: true,
+  async redirects() {
+    return [
+      // /today-next contents were promoted to the root Today page in 2026-05.
+      // Preserve any shared bookmarks with a permanent redirect.
+      { source: '/today-next', destination: '/', permanent: true },
+    ]
+  },
   // WebSocket routing still needs a rewrite because route handlers cannot proxy
   // upgrade requests. Regular /api/* and /health/* traffic uses file-based
   // route handlers so API_URL is resolved at runtime instead of build time.

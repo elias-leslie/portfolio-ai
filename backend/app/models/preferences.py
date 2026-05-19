@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # Constants
 ALLOWED_NEWS_LOOKBACK_HOURS = (6, 12, 24, 48)
@@ -279,3 +279,50 @@ class ScoringWeightsUpdate(BaseModel):
             raise ValueError(msg)
 
         return v
+
+
+SCANNER_FANOUT_TOP_N_MIN = 1
+SCANNER_FANOUT_TOP_N_MAX = 100
+SCANNER_FANOUT_TIER1_KEEP_MIN = 1
+SCANNER_FANOUT_TIER1_KEEP_MAX = 100
+SCANNER_FANOUT_MAX_DAILY_MIN = 0
+SCANNER_FANOUT_MAX_DAILY_MAX = 100
+SCANNER_FANOUT_CACHE_TTL_MIN = 1
+SCANNER_FANOUT_CACHE_TTL_MAX = 168
+
+
+class ScannerFanoutSettings(BaseModel):
+    """L3 committee fan-out runtime controls (master toggle + four knobs)."""
+
+    enabled: bool = Field(..., description="Master toggle for the scanner fan-out pipeline")
+    top_n: int = Field(
+        ...,
+        ge=SCANNER_FANOUT_TOP_N_MIN,
+        le=SCANNER_FANOUT_TOP_N_MAX,
+        description="Scanner candidates considered (1-100)",
+    )
+    tier1_keep: int = Field(
+        ...,
+        ge=SCANNER_FANOUT_TIER1_KEEP_MIN,
+        le=SCANNER_FANOUT_TIER1_KEEP_MAX,
+        description="Tier-1 survivors that proceed to deep runs",
+    )
+    max_daily: int = Field(
+        ...,
+        ge=SCANNER_FANOUT_MAX_DAILY_MIN,
+        le=SCANNER_FANOUT_MAX_DAILY_MAX,
+        description="Hard daily cap on deep runs",
+    )
+    cache_ttl_hours: int = Field(
+        ...,
+        ge=SCANNER_FANOUT_CACHE_TTL_MIN,
+        le=SCANNER_FANOUT_CACHE_TTL_MAX,
+        description="Per-symbol dedup window in hours",
+    )
+
+    @model_validator(mode="after")
+    def _validate_tier1_keep_bounded_by_top_n(self) -> ScannerFanoutSettings:
+        if self.tier1_keep > self.top_n:
+            msg = "tier1_keep must be <= top_n"
+            raise ValueError(msg)
+        return self

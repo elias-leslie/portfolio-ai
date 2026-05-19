@@ -19,7 +19,6 @@ return.
 from __future__ import annotations
 
 import asyncio
-import os
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from importlib import import_module
@@ -42,17 +41,13 @@ from app.agents.committee.schemas import Tier1Verdict
 from app.hatchet_app import hatchet
 from app.logging_config import get_logger
 from app.scanner import repository as scanner_repo
+from app.services.preferences_service import get_scanner_fanout_settings
 from app.storage.connection import get_connection_manager
 
 from .models import EmptyInput
 
 logger = get_logger(__name__)
 
-DEFAULT_TOP_N = 25
-DEFAULT_MAX_DAILY = 25  # belt-and-braces in addition to top-N
-# How many of the scanner top-N survive Tier-1 and trigger the deep committee.
-# Sized to the funnel literature (cheap pre-filter → deep dive shortlist).
-DEFAULT_TIER1_KEEP = 8
 _CONVICTION_RANK: dict[str, int] = {"high": 2, "mid": 1, "low": 0}
 
 # Worker-process registry of spawned tasks; mirrors
@@ -85,6 +80,14 @@ class FanoutOutput:
     ),
 )
 async def committee_fanout_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    # Master toggle lives in the same DB-backed preferences table the
+    # jenny operator flag uses; checking it inside the workflow body
+    # (not at cron registration) lets a UI toggle take effect without
+    # restarting the worker.
+    settings = await asyncio.to_thread(get_scanner_fanout_settings)
+    if not settings.enabled:
+        logger.info("committee_fanout_skipped_disabled")
+        return {"status": "skipped", "reason": "disabled"}
     loop = asyncio.get_running_loop()
     output = await asyncio.to_thread(run_fanout, loop=loop)
     payload: dict[str, Any] = {
@@ -108,6 +111,8 @@ def run_fanout(
     *,
     top_n: int | None = None,
     max_daily: int | None = None,
+    tier1_keep: int | None = None,
+    cache_ttl_hours: int | None = None,
     now: datetime | None = None,
     loop: asyncio.AbstractEventLoop | None = None,
 ) -> FanoutOutput:
@@ -119,12 +124,21 @@ def run_fanout(
     spawns but does not start them. That guard keeps the function
     testable without a live worker.
     """
-    top_n = top_n if top_n is not None else _int_env("COMMITTEE_FANOUT_TOP_N", DEFAULT_TOP_N)
-    max_daily = (
-        max_daily
-        if max_daily is not None
-        else _int_env("COMMITTEE_FANOUT_MAX_DAILY", DEFAULT_MAX_DAILY)
-    )
+    if (
+        top_n is None
+        or max_daily is None
+        or tier1_keep is None
+        or cache_ttl_hours is None
+    ):
+        settings = get_scanner_fanout_settings()
+        top_n = top_n if top_n is not None else settings.top_n
+        max_daily = max_daily if max_daily is not None else settings.max_daily
+        tier1_keep = tier1_keep if tier1_keep is not None else settings.tier1_keep
+        cache_ttl_hours = (
+            cache_ttl_hours
+            if cache_ttl_hours is not None
+            else settings.cache_ttl_hours
+        )
     current = (now or datetime.now(tz=UTC)).astimezone(UTC)
 
     latest = scanner_repo.get_latest_run()
@@ -205,7 +219,12 @@ def run_fanout(
     for row in scores:
         symbol = str(row["symbol"]).upper()
         scanner_rank = int(row["rank"])
-        decision = cache.should_run(symbol, current_zone=gate_zone, now=current)
+        decision = cache.should_run(
+            symbol,
+            current_zone=gate_zone,
+            now=current,
+            ttl_hours=cache_ttl_hours,
+        )
         if not decision.should_run:
             skipped.append(
                 {
@@ -252,7 +271,6 @@ def run_fanout(
 
     # Tier-1 cheap pre-screen: only when there's a running loop to await on.
     # Tests pass loop=None and fall back to scanner-rank ordering.
-    tier1_keep = _int_env("COMMITTEE_TIER1_KEEP", DEFAULT_TIER1_KEEP)
     if spawn_loop is not None and candidates:
         verdicts = _run_tier1_batch(spawn_loop, candidates, gate_zone=gate_zone)
         ranked = _rank_candidates_by_tier1(candidates, verdicts)
@@ -585,11 +603,3 @@ def _parse_date(value: object) -> date | None:
     return None
 
 
-def _int_env(name: str, default: int) -> int:
-    raw = os.environ.get(name)
-    if not raw:
-        return default
-    try:
-        return max(0, int(raw))
-    except ValueError:
-        return default
