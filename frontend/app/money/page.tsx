@@ -120,79 +120,59 @@ function isPlanningFocus(
   return Boolean(focus && planningFocusSections.has(focus))
 }
 
-function resolveRequestedUtility(
-  requested: string | null | undefined,
-): MoneyUtility | null {
-  return requested === 'planning' || requested === 'data-services'
-    ? requested
-    : null
+type MoneyRouteState = {
+  openUtility: MoneyUtility | null
+  focusedReview: MoneyFocus | null
+  selectedAccountId: string | null
+  selectedQuestionId: string | null
+  selectedIntent: MoneyIntent | null
 }
 
-function readRequestedUtility(): MoneyUtility | null {
-  if (typeof window === 'undefined') {
-    return null
-  }
-
-  return resolveRequestedUtility(
-    new URLSearchParams(window.location.search).get('utility'),
-  )
+function resolveRequestedUtility(value: string | null): MoneyUtility | null {
+  return value === 'planning' || value === 'data-services' ? value : null
 }
 
-function resolveRequestedFocus(
-  requested: string | null | undefined,
-): MoneyFocus | null {
+function resolveRequestedFocus(value: string | null): MoneyFocus | null {
   if (
-    requested === 'date-quality' ||
-    requested === 'clarifications' ||
-    requested === 'account-coverage' ||
-    requested === 'discovered-accounts' ||
-    planningFocusSections.has(requested ?? '')
+    value === 'date-quality' ||
+    value === 'clarifications' ||
+    value === 'account-coverage' ||
+    value === 'discovered-accounts' ||
+    planningFocusSections.has(value ?? '')
   ) {
-    return requested as MoneyFocus
+    return value as MoneyFocus
   }
   return null
 }
 
-function readRequestedFocus(): MoneyFocus | null {
-  if (typeof window === 'undefined') {
-    return null
-  }
-
-  return resolveRequestedFocus(
-    new URLSearchParams(window.location.search).get('focus'),
-  )
+function resolveRequestedIntent(value: string | null): MoneyIntent | null {
+  return value === 'evidence' || value === 'review' ? value : null
 }
 
-function resolveRequestedIntent(
-  requested: string | null | undefined,
-): MoneyIntent | null {
-  return requested === 'evidence' || requested === 'review' ? requested : null
+function resolveMoneyRouteState(
+  searchParams: URLSearchParams,
+): MoneyRouteState {
+  return {
+    openUtility: resolveRequestedUtility(searchParams.get('utility')),
+    focusedReview: resolveRequestedFocus(searchParams.get('focus')),
+    selectedAccountId: searchParams.get('account'),
+    selectedQuestionId: searchParams.get('question'),
+    selectedIntent: resolveRequestedIntent(searchParams.get('intent')),
+  }
 }
 
-function readRequestedIntent(): MoneyIntent | null {
+function readMoneyRouteState(): MoneyRouteState {
   if (typeof window === 'undefined') {
-    return null
+    return {
+      openUtility: null,
+      focusedReview: null,
+      selectedAccountId: null,
+      selectedQuestionId: null,
+      selectedIntent: null,
+    }
   }
 
-  return resolveRequestedIntent(
-    new URLSearchParams(window.location.search).get('intent'),
-  )
-}
-
-function readRequestedAccountId(): string | null {
-  if (typeof window === 'undefined') {
-    return null
-  }
-
-  return new URLSearchParams(window.location.search).get('account')
-}
-
-function readRequestedQuestionId(): string | null {
-  if (typeof window === 'undefined') {
-    return null
-  }
-
-  return new URLSearchParams(window.location.search).get('question')
+  return resolveMoneyRouteState(new URLSearchParams(window.location.search))
 }
 
 function syncUtilityToLocation(
@@ -218,21 +198,15 @@ function syncUtilityToLocation(
 }
 
 function MoneyPageContent() {
-  const [openUtility, setOpenUtilityState] = useState<MoneyUtility | null>(
-    readRequestedUtility,
-  )
-  const [focusedReview, setFocusedReview] = useState<MoneyFocus | null>(
-    readRequestedFocus,
-  )
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
-    readRequestedAccountId,
-  )
-  const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(
-    readRequestedQuestionId,
-  )
-  const [selectedIntent, setSelectedIntent] = useState<MoneyIntent | null>(
-    readRequestedIntent,
-  )
+  const [routeState, setRouteState] =
+    useState<MoneyRouteState>(readMoneyRouteState)
+  const {
+    openUtility,
+    focusedReview,
+    selectedAccountId,
+    selectedQuestionId,
+    selectedIntent,
+  } = routeState
   const {
     data: dashboard,
     isLoading,
@@ -256,25 +230,16 @@ function MoneyPageContent() {
         currentUrl.searchParams.set('tab', 'intake')
         window.history.replaceState(window.history.state, '', currentUrl)
       }
-      const requestedFocus = readRequestedFocus()
-      setFocusedReview((current) =>
-        current === requestedFocus ? current : requestedFocus,
-      )
-      setOpenUtilityState((current) => {
-        const requested = readRequestedUtility()
-        return current === requested ? current : requested
-      })
-      const requestedAccountId = readRequestedAccountId()
-      setSelectedAccountId((current) =>
-        current === requestedAccountId ? current : requestedAccountId,
-      )
-      const requestedIntent = readRequestedIntent()
-      setSelectedIntent((current) =>
-        current === requestedIntent ? current : requestedIntent,
-      )
-      const requestedQuestionId = readRequestedQuestionId()
-      setSelectedQuestionId((current) =>
-        current === requestedQuestionId ? current : requestedQuestionId,
+
+      const nextRouteState = resolveMoneyRouteState(currentUrl.searchParams)
+      setRouteState((current) =>
+        current.openUtility === nextRouteState.openUtility &&
+        current.focusedReview === nextRouteState.focusedReview &&
+        current.selectedAccountId === nextRouteState.selectedAccountId &&
+        current.selectedQuestionId === nextRouteState.selectedQuestionId &&
+        current.selectedIntent === nextRouteState.selectedIntent
+          ? current
+          : nextRouteState,
       )
     }
 
@@ -293,8 +258,11 @@ function MoneyPageContent() {
       nextUtility === 'planning' && isPlanningFocus(focusedReview)
         ? focusedReview
         : null
-    setOpenUtilityState(nextUtility)
-    setFocusedReview(nextFocus)
+    setRouteState((current) => ({
+      ...current,
+      openUtility: nextUtility,
+      focusedReview: nextFocus,
+    }))
     syncUtilityToLocation(nextUtility, nextFocus)
   }
 
@@ -384,8 +352,12 @@ function MoneyPageContent() {
         <MoneyRetirementPanel
           dashboard={dashboard}
           onEditTargets={() => {
-            setFocusedReview('retirement')
-            setOpenUtility('planning')
+            setRouteState((current) => ({
+              ...current,
+              focusedReview: 'retirement',
+              openUtility: 'planning',
+            }))
+            syncUtilityToLocation('planning', 'retirement')
           }}
         />
       ),
