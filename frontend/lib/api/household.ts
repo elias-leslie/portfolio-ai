@@ -775,37 +775,36 @@ export interface HouseholdTransactionCategoryUpdate {
   applyToMerchant?: boolean
 }
 
-export async function fetchHouseholdDashboard(
-  options: RequestInit = {},
-): Promise<HouseholdFinanceDashboard> {
-  return get<HouseholdFinanceDashboard>('/api/household/dashboard', options)
+type Endpoint<P extends unknown[], T> = (...args: P) => Promise<T>
+
+function getEndpoint<T>(path: string): Endpoint<[RequestInit?], T> {
+  return (options: RequestInit = {}) => get<T>(path, options)
 }
 
-export async function fetchHouseholdProfile(): Promise<HouseholdProfile> {
-  return get<HouseholdProfile>('/api/household/profile')
+function postEndpoint<Payload, T>(path: string): Endpoint<[Payload], T> {
+  return (payload: Payload) => post<T>(path, payload)
 }
 
-export async function updateHouseholdProfile(
-  payload: HouseholdProfileUpdate,
-): Promise<HouseholdProfile> {
-  return post<HouseholdProfile>('/api/household/profile', payload)
-}
-
-export async function fetchHouseholdPlanning(): Promise<HouseholdPlanningSnapshot> {
-  return get<HouseholdPlanningSnapshot>('/api/household/planning')
-}
-
-export async function updateHouseholdPlanning(
-  payload: HouseholdPlanningUpdate,
-): Promise<HouseholdPlanningSnapshot> {
-  return post<HouseholdPlanningSnapshot>('/api/household/planning', payload)
-}
-
-export async function fetchHouseholdDocuments(
-  options: RequestInit = {},
-): Promise<HouseholdDocumentList> {
-  return get<HouseholdDocumentList>('/api/intake/evidence', options)
-}
+export const fetchHouseholdDashboard = getEndpoint<HouseholdFinanceDashboard>(
+  '/api/household/dashboard',
+)
+export const fetchHouseholdProfile = getEndpoint<HouseholdProfile>(
+  '/api/household/profile',
+)
+export const updateHouseholdProfile = postEndpoint<
+  HouseholdProfileUpdate,
+  HouseholdProfile
+>('/api/household/profile')
+export const fetchHouseholdPlanning = getEndpoint<HouseholdPlanningSnapshot>(
+  '/api/household/planning',
+)
+export const updateHouseholdPlanning = postEndpoint<
+  HouseholdPlanningUpdate,
+  HouseholdPlanningSnapshot
+>('/api/household/planning')
+export const fetchHouseholdDocuments = getEndpoint<HouseholdDocumentList>(
+  '/api/intake/evidence',
+)
 
 export async function fetchHouseholdLedger(
   params?: {
@@ -868,15 +867,13 @@ export async function fetchHouseholdNetWorthTrend(
   )
 }
 
-export async function fetchHouseholdQuestions(): Promise<HouseholdQuestionList> {
-  return get<HouseholdQuestionList>('/api/household/questions')
-}
-
-export async function createHouseholdTrackedAccount(
-  payload: HouseholdTrackedAccountInput,
-): Promise<HouseholdTrackedAccount> {
-  return post<HouseholdTrackedAccount>('/api/household/accounts', payload)
-}
+export const fetchHouseholdQuestions = getEndpoint<HouseholdQuestionList>(
+  '/api/household/questions',
+)
+export const createHouseholdTrackedAccount = postEndpoint<
+  HouseholdTrackedAccountInput,
+  HouseholdTrackedAccount
+>('/api/household/accounts')
 
 export async function updateHouseholdTrackedAccount(
   accountId: string,
@@ -991,9 +988,9 @@ export async function answerHouseholdQuestion(
   )
 }
 
-export async function fetchConfirmedFacts(): Promise<HouseholdConfirmedFact[]> {
-  return get<HouseholdConfirmedFact[]>('/api/household/facts')
-}
+export const fetchConfirmedFacts = getEndpoint<HouseholdConfirmedFact[]>(
+  '/api/household/facts',
+)
 
 export async function confirmFact(
   factKey: string,
