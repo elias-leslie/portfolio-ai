@@ -21,6 +21,8 @@ from typing import Any
 from app.logging_config import get_logger
 from app.storage.connection import get_connection_manager
 
+from . import candidate_fundamentals as _candidate_fundamentals
+
 logger = get_logger(__name__)
 
 
@@ -250,6 +252,12 @@ def fetch_fundamental_snapshot(symbol: str) -> dict[str, Any] | None:
             }
         )
 
+    # On-demand candidate snapshot — present for scanner-sourced runs after
+    # the fan-out's per-candidate fetch step. Includes the L3 spec fields
+    # (gross/operating/net margins, ROE/ROIC, D/E, EV/EBITDA, YoY growth)
+    # that the watchlist-scoped cron does not ingest.
+    candidate_quarterly = _candidate_fundamentals.latest_snapshot(upper_symbol)
+
     sections = {
         "company": company,
         "valuation": valuation,
@@ -257,16 +265,22 @@ def fetch_fundamental_snapshot(symbol: str) -> dict[str, Any] | None:
         "health": health,
         "earnings_surprise_history": earnings_history or None,
         "watchlist": watchlist,
+        "candidate_quarterly": candidate_quarterly,
     }
     populated = {k: v for k, v in sections.items() if v}
     if not populated:
         return None
 
+    # Literature gaps only matter when the on-demand snapshot is absent;
+    # the candidate_quarterly section carries those fields directly.
+    remaining_gaps = (
+        list(_FUNDAMENTALS_LITERATURE_GAPS) if candidate_quarterly is None else []
+    )
     logger.info(
         "committee_payload_fundamental_coverage",
         symbol=upper_symbol,
         sources=sorted(populated.keys()),
-        literature_gaps=list(_FUNDAMENTALS_LITERATURE_GAPS),
+        literature_gaps=remaining_gaps,
     )
     return populated
 

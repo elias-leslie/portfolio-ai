@@ -117,6 +117,34 @@ def mark_complete(run_id: str, *, decision: PmDecision, tokens_total: int, cost_
         conn.commit()
 
 
+def set_blended_rank(run_id: str, blended_rank: float) -> None:
+    """Persist the 60/40 quant+committee blend on a completed scanner-sourced run."""
+    cm = get_connection_manager()
+    with cm.connection() as conn:
+        conn.execute(
+            "UPDATE committee_runs SET blended_rank=%s WHERE id=%s",
+            (round(float(blended_rank), 2), run_id),
+        )
+        conn.commit()
+
+
+def get_run_provenance(run_id: str) -> dict[str, Any] | None:
+    """Return source + scanner_rank + symbol for a run, or ``None`` if missing.
+
+    Used by the blender to look up the L2 ``composite_pct`` of a
+    scanner-sourced run without threading it through the runner.
+    """
+    cm = get_connection_manager()
+    with cm.connection() as conn:
+        row = conn.execute(
+            "SELECT symbol, source, scanner_rank FROM committee_runs WHERE id=%s",
+            (run_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    return {"symbol": row[0], "source": row[1], "scanner_rank": row[2]}
+
+
 def mark_aborted(run_id: str, *, reason: str) -> None:
     cm = get_connection_manager()
     with cm.connection() as conn:

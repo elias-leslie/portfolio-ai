@@ -34,6 +34,8 @@ class _FakeCursor:
             self._next = self._rows.get("watchlist_snapshots")
         elif "from news_cache" in sql_lower:
             self._next = self._rows.get("news_cache")
+        elif "from candidate_fundamentals_snapshots" in sql_lower:
+            self._next = self._rows.get("candidate_fundamentals_snapshots")
         else:
             raise AssertionError(f"unexpected query: {sql}")
         return self
@@ -309,3 +311,108 @@ def test_empty_symbol_blocks_without_querying(
     report = readiness.check_committee_readiness("   ")
     assert report.ok is False
     assert report.blocking_issues[0].check == "symbol_invalid"
+
+
+# ---------- source-aware (scanner_fanout) gate ----------
+
+
+def _fresh_candidate_fundamentals_row() -> tuple[Any, ...]:
+    fetched = _NOW - dt.timedelta(hours=2)
+    return (fetched, True, None)
+
+
+def test_scanner_fanout_uses_candidate_fundamentals_not_watchlist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Scanner-sourced runs read candidate_fundamentals_snapshots, skip watchlist."""
+    rows = _all_fresh_rows()
+    # Watchlist row is absent — this would block a manual run but must not
+    # block a scanner_fanout run.
+    rows["watchlist_snapshots"] = None
+    rows["candidate_fundamentals_snapshots"] = _fresh_candidate_fundamentals_row()
+    _install_fake_cm(monkeypatch, rows)
+
+    report = readiness.check_committee_readiness(
+        "CSCO", now=_NOW, source="scanner_fanout"
+    )
+    assert report.ok is True
+    checks = {i.check for i in report.issues}
+    assert "watchlist_snapshot_missing" not in checks
+
+
+def test_scanner_fanout_blocks_when_candidate_fundamentals_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = _all_fresh_rows()
+    rows["watchlist_snapshots"] = None
+    rows["candidate_fundamentals_snapshots"] = None
+    _install_fake_cm(monkeypatch, rows)
+
+    report = readiness.check_committee_readiness(
+        "CSCO", now=_NOW, source="scanner_fanout"
+    )
+    assert report.ok is False
+    assert any(
+        i.check == "candidate_fundamentals_missing" for i in report.blocking_issues
+    )
+
+
+def test_scanner_fanout_blocks_when_candidate_fundamentals_stale(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = _all_fresh_rows()
+    rows["watchlist_snapshots"] = None
+    # 48h old > 24h block ceiling.
+    rows["candidate_fundamentals_snapshots"] = (
+        _NOW - dt.timedelta(hours=48),
+        True,
+        None,
+    )
+    _install_fake_cm(monkeypatch, rows)
+
+    report = readiness.check_committee_readiness(
+        "CSCO", now=_NOW, source="scanner_fanout"
+    )
+    assert report.ok is False
+    assert any(
+        i.check == "candidate_fundamentals_stale" for i in report.blocking_issues
+    )
+
+
+def test_scanner_fanout_blocks_when_yfinance_fetch_marked_failed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = _all_fresh_rows()
+    rows["watchlist_snapshots"] = None
+    rows["candidate_fundamentals_snapshots"] = (
+        _NOW - dt.timedelta(hours=2),
+        False,
+        "HTTP 429 rate limited",
+    )
+    _install_fake_cm(monkeypatch, rows)
+
+    report = readiness.check_committee_readiness(
+        "CSCO", now=_NOW, source="scanner_fanout"
+    )
+    assert report.ok is False
+    assert any(
+        i.check == "candidate_fundamentals_fetch_failed"
+        for i in report.blocking_issues
+    )
+
+
+def test_manual_source_unchanged_still_blocks_on_missing_watchlist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Manual runs still require the watchlist snapshot (the user-curated contract)."""
+    rows = _all_fresh_rows()
+    rows["watchlist_snapshots"] = None
+    # A candidate snapshot exists, but a manual run shouldn't look at it.
+    rows["candidate_fundamentals_snapshots"] = _fresh_candidate_fundamentals_row()
+    _install_fake_cm(monkeypatch, rows)
+
+    report = readiness.check_committee_readiness("NVDA", now=_NOW)  # source defaults to "manual"
+    assert report.ok is False
+    assert any(
+        i.check == "watchlist_snapshot_missing" for i in report.blocking_issues
+    )

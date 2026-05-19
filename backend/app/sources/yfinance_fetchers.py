@@ -25,6 +25,7 @@ from .yfinance_parsers import (
     parse_institutional_holders,
     parse_news_item,
     parse_ohlcv_to_polars,
+    parse_quarterly_fundamentals,
     parse_short_interest,
 )
 
@@ -253,6 +254,38 @@ def fetch_short_interest(symbol: str) -> dict[str, Any] | None:
     except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
         logger.warning("short_interest_fetch_failed", symbol=symbol, error=str(e), error_type=type(e).__name__)
         return None
+
+
+def fetch_quarterly_fundamentals(symbol: str) -> dict[str, Any] | None:
+    """One-shot pull of quarterly income/balance/cashflow + info for L3.
+
+    Used by ``fetch_candidate_fundamentals`` at fan-out time, separate
+    from the weekly watchlist ingestion path. Returns the dict produced
+    by ``parse_quarterly_fundamentals`` (every field nullable so the
+    analyst can reason from partial data) or ``None`` if the ticker
+    handle itself fails.
+    """
+    try:
+        yf_obj = yf.Ticker(_to_yf_symbol(symbol))
+        quarterly_income = yf_obj.quarterly_income_stmt
+        quarterly_balance = yf_obj.quarterly_balance_sheet
+        quarterly_cashflow = yf_obj.quarterly_cashflow
+        info = yf_obj.info or {}
+    except (ValueError, KeyError, TypeError, AttributeError, OSError) as exc:
+        logger.warning(
+            "yfinance_quarterly_fundamentals_fetch_failed",
+            symbol=symbol,
+            error=str(exc),
+            error_type=type(exc).__name__,
+        )
+        return None
+    return parse_quarterly_fundamentals(
+        symbol=symbol,
+        quarterly_income=quarterly_income,
+        quarterly_balance=quarterly_balance,
+        quarterly_cashflow=quarterly_cashflow,
+        info=info,
+    )
 
 
 def fetch_all_fundamental_data(symbol: str) -> dict[str, Any]:

@@ -20,6 +20,7 @@ from .yfinance_fetchers import (
     fetch_insider_transactions,
     fetch_institutional_holders,
     fetch_news_payload,
+    fetch_quarterly_fundamentals,
     fetch_reference_payload,
     fetch_sector_history,
     fetch_short_interest,
@@ -154,6 +155,16 @@ class YFinanceSource(BaseSource):
             Dict with all fundamental data
         """
         return fetch_all_fundamental_data(symbol)
+
+    def fetch_quarterly_fundamentals(self, symbol: str) -> dict[str, Any] | None:
+        """Pull 4-8 quarters of income/balance/cashflow + derived ratios.
+
+        Used by the L3 fan-out fetcher on each Tier-1 survivor. Separate
+        from ``fetch_all_fundamental_data`` because it returns the
+        spec field bundle (margins, ROE/ROIC, D/E, YoY growth) rather
+        than a per-table aggregation tuned for the weekly cron.
+        """
+        return fetch_quarterly_fundamentals(symbol)
 
     def fetch_sector_history(
         self,

@@ -28,7 +28,14 @@ from uuid import UUID
 
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
-from app.agents.committee import GRAPH_VERSION, cache, graph, readiness, stages
+from app.agents.committee import (
+    GRAPH_VERSION,
+    cache,
+    candidate_fundamentals,
+    graph,
+    readiness,
+    stages,
+)
 from app.agents.committee import store as committee_store
 from app.agents.committee import stream as committee_stream
 from app.agents.committee.schemas import Tier1Verdict
@@ -209,20 +216,34 @@ def run_fanout(
                 }
             )
             continue
-        report = readiness.check_committee_readiness(symbol, now=current)
-        if not report.ok:
+        # Pre-fundamentals check: OHLCV + indicators + news must be present.
+        # Fundamentals are pulled on-demand below; the post-fetch gate runs
+        # again on the Tier-1 survivors only.
+        report = readiness.check_committee_readiness(
+            symbol, now=current, source="scanner_fanout"
+        )
+        blocking_pre = {i.check for i in report.blocking_issues}
+        # The fundamentals-missing block is expected at this stage — we
+        # haven't fetched yet. Any other block is a real input gap that
+        # disqualifies the candidate before Tier-1.
+        non_fundamentals_blocks = blocking_pre - {
+            "candidate_fundamentals_missing",
+            "candidate_fundamentals_stale",
+            "candidate_fundamentals_fetch_failed",
+        }
+        if non_fundamentals_blocks:
             logger.info(
                 "committee_fanout_skipped_data_unready",
                 symbol=symbol,
                 scanner_rank=scanner_rank,
-                blocking=[i.check for i in report.blocking_issues],
+                blocking=sorted(non_fundamentals_blocks),
             )
             skipped.append(
                 {
                     "symbol": symbol,
                     "scanner_rank": scanner_rank,
                     "reason": "data_unready",
-                    "blocking_checks": [i.check for i in report.blocking_issues],
+                    "blocking_checks": sorted(non_fundamentals_blocks),
                     "report": report.to_dict(),
                 }
             )
@@ -262,6 +283,28 @@ def run_fanout(
         ordered = ranked[:tier1_keep]
     else:
         ordered = candidates
+
+    # On-demand fundamentals: pull 4 quarters + derived ratios for each
+    # Tier-1 survivor before spawning the deep run. Failures bump the
+    # candidate to skipped[] so we never spawn a deep run on a symbol
+    # the analyst can't ground its decision in.
+    ordered_with_fundamentals: list[dict[str, Any]] = []
+    for entry in ordered:
+        symbol = entry["symbol"]
+        payload = candidate_fundamentals.fetch_candidate_fundamentals(symbol)
+        if payload is None:
+            skipped.append(
+                {
+                    "symbol": symbol,
+                    "scanner_rank": entry["scanner_rank"],
+                    "reason": "fundamentals_fetch_failed",
+                    "tier1_score": entry.get("tier1_score"),
+                    "tier1_conviction": entry.get("tier1_conviction"),
+                }
+            )
+            continue
+        ordered_with_fundamentals.append(entry)
+    ordered = ordered_with_fundamentals
 
     for entry in ordered:
         symbol = entry["symbol"]

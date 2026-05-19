@@ -24,14 +24,20 @@ from app.workflows import committee_fanout as fanout_mod
 def _bypass_readiness_gate(monkeypatch: pytest.MonkeyPatch) -> None:
     """Default to data-ready in fan-out tests; opt-in tests override below.
 
-    The fan-out kernel checks per-symbol data readiness before Tier-1.
-    Bypassing the check here keeps the existing tests focused on the
-    cache / rate-cap / Tier-1 ranking behavior they were written for.
+    The fan-out kernel checks per-symbol data readiness before Tier-1
+    and pulls on-demand fundamentals for each Tier-1 survivor.
+    Bypassing both keeps existing tests focused on the cache / rate-cap
+    / Tier-1 ranking behavior they were written for.
     """
     monkeypatch.setattr(
         fanout_mod.readiness,
         "check_committee_readiness",
         lambda symbol, **_kw: ReadinessReport(symbol=symbol.upper(), ok=True),
+    )
+    monkeypatch.setattr(
+        fanout_mod.candidate_fundamentals,
+        "fetch_candidate_fundamentals",
+        lambda symbol, **_kw: {"symbol": symbol.upper(), "stub": True},
     )
 
 
@@ -342,3 +348,84 @@ def test_data_unready_symbols_are_skipped_before_tier1(
         passed_candidates = tier1_mock.call_args[0][1]
         passed_syms = {c["symbol"] for c in passed_candidates}
         assert "BAD" not in passed_syms
+
+
+def test_fundamentals_fetch_failure_skips_candidate_before_spawn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If on-demand fundamentals fail for a Tier-1 survivor, no deep run is spawned."""
+    now = datetime(2026, 5, 17, 18, 0, tzinfo=UTC)
+    latest = {
+        "run_id": str(uuid4()),
+        "run_date": "2026-05-17",
+        "gate_zone": "FULL_DEPLOY",
+        "universe_size": 504,
+        "scored_count": 3,
+        "skip_reason": None,
+    }
+    scores = [_scanner_row("GOOD", 1), _scanner_row("BAD_FUND", 2), _scanner_row("OK", 3)]
+
+    def fake_fetch(symbol: str, **_kw: object) -> dict | None:
+        return None if symbol == "BAD_FUND" else {"symbol": symbol, "stub": True}
+
+    monkeypatch.setattr(
+        fanout_mod.candidate_fundamentals,
+        "fetch_candidate_fundamentals",
+        fake_fetch,
+    )
+
+    created: list[dict] = []
+
+    def fake_create_run(**kw: object) -> str:
+        created.append(kw)
+        return f"run-{kw['symbol']}"
+
+    with patch.object(fanout_mod.scanner_repo, "get_latest_run", return_value=latest), \
+         patch.object(fanout_mod.scanner_repo, "get_scores_for_run", return_value=scores), \
+         patch.object(fanout_mod, "_count_fanout_today", return_value=0), \
+         patch.object(fanout_mod.cache, "should_run",
+                      return_value=cache_mod.CacheDecision(should_run=True, reason="no_prior_run")), \
+         patch.object(fanout_mod.committee_store, "create_run", side_effect=fake_create_run):
+        out = fanout_mod.run_fanout(top_n=10, max_daily=10, now=now)
+
+    spawned_syms = [s["symbol"] for s in out.spawned]
+    assert "BAD_FUND" not in spawned_syms
+    assert set(spawned_syms) == {"GOOD", "OK"}
+    bad = next(s for s in out.skipped if s["symbol"] == "BAD_FUND")
+    assert bad["reason"] == "fundamentals_fetch_failed"
+
+
+def test_readiness_check_called_with_scanner_fanout_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify the readiness gate is invoked with source='scanner_fanout' from the fan-out path."""
+    now = datetime(2026, 5, 17, 18, 0, tzinfo=UTC)
+    latest = {
+        "run_id": str(uuid4()),
+        "run_date": "2026-05-17",
+        "gate_zone": "FULL_DEPLOY",
+        "universe_size": 504,
+        "scored_count": 1,
+        "skip_reason": None,
+    }
+    scores = [_scanner_row("AAA", 1)]
+    seen_kwargs: list[dict] = []
+
+    def fake_readiness(symbol: str, **kw: object) -> ReadinessReport:
+        seen_kwargs.append(dict(kw))
+        return ReadinessReport(symbol=symbol.upper(), ok=True)
+
+    monkeypatch.setattr(
+        fanout_mod.readiness, "check_committee_readiness", fake_readiness
+    )
+
+    with patch.object(fanout_mod.scanner_repo, "get_latest_run", return_value=latest), \
+         patch.object(fanout_mod.scanner_repo, "get_scores_for_run", return_value=scores), \
+         patch.object(fanout_mod, "_count_fanout_today", return_value=0), \
+         patch.object(fanout_mod.cache, "should_run",
+                      return_value=cache_mod.CacheDecision(should_run=True, reason="no_prior_run")), \
+         patch.object(fanout_mod.committee_store, "create_run", return_value="run-AAA"):
+        fanout_mod.run_fanout(top_n=10, max_daily=10, now=now)
+
+    assert seen_kwargs, "readiness check was never invoked"
+    assert any(kw.get("source") == "scanner_fanout" for kw in seen_kwargs)

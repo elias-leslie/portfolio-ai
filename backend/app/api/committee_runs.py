@@ -97,7 +97,9 @@ async def start_run(
     stream to follow progress.
     """
     household_id = _resolve_household_id()
-    report = await run_in_threadpool(readiness.check_committee_readiness, payload.symbol)
+    report = await run_in_threadpool(
+        readiness.check_committee_readiness, payload.symbol, source="manual"
+    )
     if not report.ok:
         logger.info(
             "committee_run_rejected_data_unready",

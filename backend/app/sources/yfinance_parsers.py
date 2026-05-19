@@ -8,6 +8,7 @@ from __future__ import annotations
 import contextlib
 import datetime as dt
 import json
+import math
 
 import pandas as pd
 import polars as pl
@@ -371,4 +372,205 @@ def parse_short_interest(info: dict[str, object], symbol: str) -> dict[str, obje
         "short_percent_of_outstanding": short_pct_outstanding,
         "short_prior_month": info.get("sharesShortPriorMonth"),
         "short_pct_change": info.get("sharesShortPreviousMonthDate"),  # This is actually a date
+    }
+
+
+# Quarterly statement row labels yfinance returns. Kept in one place
+# because pandas frames don't carry a schema and yfinance occasionally
+# adds/drops rows between minor releases — a single lookup table makes
+# the breakage visible if it happens.
+_INCOME_ROWS = {
+    "revenue": ("Total Revenue", "TotalRevenue"),
+    "gross_profit": ("Gross Profit", "GrossProfit"),
+    "operating_income": ("Operating Income", "OperatingIncome"),
+    "net_income": ("Net Income", "NetIncome", "Net Income Common Stockholders"),
+    "ebit": ("EBIT",),
+    "ebitda": ("EBITDA", "Normalized EBITDA"),
+    "tax_provision": ("Tax Provision", "Income Tax Expense"),
+    "diluted_eps": ("Diluted EPS", "DilutedEPS", "Basic EPS"),
+}
+_BALANCE_ROWS = {
+    "total_debt": ("Total Debt", "TotalDebt"),
+    "stockholders_equity": ("Stockholders Equity", "Total Equity Gross Minority Interest"),
+    "accounts_receivable": ("Accounts Receivable", "Receivables"),
+    "total_assets": ("Total Assets",),
+}
+_CASHFLOW_ROWS = {
+    "operating_cash_flow": ("Operating Cash Flow", "Total Cash From Operating Activities"),
+    "free_cash_flow": ("Free Cash Flow",),
+    "capital_expenditure": ("Capital Expenditure", "Capital Expenditures"),
+}
+
+
+def _pick_row(df: pd.DataFrame, candidates: tuple[str, ...]) -> pd.Series | None:
+    if df is None or df.empty:
+        return None
+    for label in candidates:
+        if label in df.index:
+            row = df.loc[label]
+            # Duplicated index labels yield a DataFrame; we only want the
+            # first matching row in that case so downstream code can read
+            # values positionally.
+            if isinstance(row, pd.DataFrame):
+                row = row.iloc[0]
+            return row
+    return None
+
+
+def _safe_float(value: object) -> float | None:
+    if value is None:
+        return None
+    try:
+        as_float = float(value)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(as_float):
+        return None
+    return as_float
+
+
+def _last_n_values(series: pd.Series | None, n: int = 4) -> list[float | None]:
+    if series is None:
+        return []
+    # yfinance returns columns oldest-last in some versions, newest-last in
+    # others. Sorting by the column (period-end date) makes the orientation
+    # explicit so we always read newest-first.
+    try:
+        sorted_series = series.sort_index(ascending=False)
+    except (TypeError, ValueError):
+        sorted_series = series
+    return [_safe_float(v) for v in list(sorted_series.iloc[:n])]
+
+
+def _ratio(numerator: object, denominator: object) -> float | None:
+    n = _safe_float(numerator)
+    d = _safe_float(denominator)
+    if n is None or d is None or d == 0:
+        return None
+    return n / d
+
+
+def _yoy_growth(values: list[float | None]) -> float | None:
+    """YoY growth from a list of 4 sequential quarters vs the prior 4.
+
+    Needs at least 5 entries (current quarter + same quarter prior year).
+    Returns ``(current_q / year_ago_q) - 1`` so a 12% YoY gain is 0.12.
+    """
+    if len(values) < 5:
+        return None
+    current = values[0]
+    year_ago = values[4]
+    if current is None or year_ago is None or year_ago == 0:
+        return None
+    return (current / year_ago) - 1
+
+
+def parse_quarterly_fundamentals(
+    *,
+    symbol: str,
+    quarterly_income: pd.DataFrame | None,
+    quarterly_balance: pd.DataFrame | None,
+    quarterly_cashflow: pd.DataFrame | None,
+    info: dict[str, object],
+) -> dict[str, object]:
+    """Compute the L3-spec field bundle for one candidate.
+
+    Returns every field the L3 analyst prompt cites, filling with ``None``
+    when a row is missing from the yfinance frames. The caller decides
+    whether to block on missingness (the readiness gate sees the absence)
+    or hand the partial payload to the analyst with the gap declared.
+    """
+    revenue = _pick_row(quarterly_income, _INCOME_ROWS["revenue"])
+    gross_profit = _pick_row(quarterly_income, _INCOME_ROWS["gross_profit"])
+    operating_income = _pick_row(quarterly_income, _INCOME_ROWS["operating_income"])
+    net_income = _pick_row(quarterly_income, _INCOME_ROWS["net_income"])
+    ebit = _pick_row(quarterly_income, _INCOME_ROWS["ebit"])
+    ebitda = _pick_row(quarterly_income, _INCOME_ROWS["ebitda"])
+    tax_provision = _pick_row(quarterly_income, _INCOME_ROWS["tax_provision"])
+    diluted_eps = _pick_row(quarterly_income, _INCOME_ROWS["diluted_eps"])
+
+    total_debt = _pick_row(quarterly_balance, _BALANCE_ROWS["total_debt"])
+    stockholders_equity = _pick_row(
+        quarterly_balance, _BALANCE_ROWS["stockholders_equity"]
+    )
+    accounts_receivable = _pick_row(
+        quarterly_balance, _BALANCE_ROWS["accounts_receivable"]
+    )
+
+    operating_cash_flow = _pick_row(
+        quarterly_cashflow, _CASHFLOW_ROWS["operating_cash_flow"]
+    )
+    free_cash_flow = _pick_row(quarterly_cashflow, _CASHFLOW_ROWS["free_cash_flow"])
+    capital_expenditure = _pick_row(
+        quarterly_cashflow, _CASHFLOW_ROWS["capital_expenditure"]
+    )
+
+    revenue_8q = _last_n_values(revenue, n=8)
+    net_income_8q = _last_n_values(net_income, n=8)
+    eps_8q = _last_n_values(diluted_eps, n=8)
+    ar_8q = _last_n_values(accounts_receivable, n=8)
+
+    latest_revenue = revenue_8q[0] if revenue_8q else None
+    latest_gross = _safe_float(gross_profit.iloc[0]) if gross_profit is not None else None
+    latest_op_income = (
+        _safe_float(operating_income.iloc[0]) if operating_income is not None else None
+    )
+    latest_net_income = net_income_8q[0] if net_income_8q else None
+    latest_total_debt = _safe_float(total_debt.iloc[0]) if total_debt is not None else None
+    latest_equity = (
+        _safe_float(stockholders_equity.iloc[0])
+        if stockholders_equity is not None
+        else None
+    )
+    latest_ebit = _safe_float(ebit.iloc[0]) if ebit is not None else None
+    latest_tax = _safe_float(tax_provision.iloc[0]) if tax_provision is not None else None
+
+    nopat = None
+    if latest_ebit is not None and latest_net_income is not None:
+        # Effective tax rate from latest quarter; fall back to 0.21 (US statutory)
+        # if the tax row is missing or pre-tax income is zero. ROIC is a noisy
+        # number on a single quarter regardless — the analyst treats it as one
+        # input among many.
+        pretax = latest_net_income + (latest_tax or 0.0)
+        tax_rate = 0.21
+        if pretax and latest_tax is not None and pretax != 0:
+            tax_rate = max(0.0, min(latest_tax / pretax, 0.5))
+        nopat = latest_ebit * (1.0 - tax_rate)
+    invested_capital = None
+    if latest_total_debt is not None and latest_equity is not None:
+        invested_capital = latest_total_debt + latest_equity
+
+    market_cap = _safe_float(info.get("marketCap"))
+    ev_ebitda_from_info = _safe_float(info.get("enterpriseToEbitda"))
+    roe_from_info = _safe_float(info.get("returnOnEquity"))
+
+    return {
+        "symbol": symbol,
+        "as_of": dt.datetime.now(dt.UTC).isoformat(),
+        "revenue_ttm": (
+            sum(v for v in revenue_8q[:4] if v is not None)
+            if any(v is not None for v in revenue_8q[:4])
+            else None
+        ),
+        "revenue_4q": revenue_8q[:4],
+        "net_income_4q": net_income_8q[:4],
+        "operating_cash_flow_4q": _last_n_values(operating_cash_flow, n=4),
+        "free_cash_flow_4q": _last_n_values(free_cash_flow, n=4),
+        "capital_expenditure_4q": _last_n_values(capital_expenditure, n=4),
+        "gross_margin": _ratio(latest_gross, latest_revenue),
+        "operating_margin": _ratio(latest_op_income, latest_revenue),
+        "net_margin": _ratio(latest_net_income, latest_revenue),
+        "roe": roe_from_info if roe_from_info is not None else _ratio(latest_net_income, latest_equity),
+        "roic": _ratio(nopat, invested_capital),
+        "debt_to_equity": _ratio(latest_total_debt, latest_equity),
+        "market_cap": market_cap,
+        "ev_ebitda": ev_ebitda_from_info,
+        "ebitda_latest": _safe_float(ebitda.iloc[0]) if ebitda is not None else None,
+        "revenue_growth_yoy": _yoy_growth(revenue_8q),
+        "eps_growth_yoy": _yoy_growth(eps_8q),
+        "ar_growth_vs_revenue_growth": (
+            (_yoy_growth(ar_8q) - _yoy_growth(revenue_8q))
+            if _yoy_growth(ar_8q) is not None and _yoy_growth(revenue_8q) is not None
+            else None
+        ),
     }

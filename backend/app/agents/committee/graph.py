@@ -27,8 +27,9 @@ from importlib import import_module
 from typing import Any
 
 from app.logging_config import get_logger
+from app.scanner import repository as scanner_repo
 
-from . import GRAPH_VERSION, payloads, readiness, stages, store, stream
+from . import GRAPH_VERSION, blender, payloads, readiness, stages, store, stream
 from . import feedback as feedback_mod
 from . import ips as ips_mod
 from .schemas import (
@@ -433,16 +434,27 @@ async def run_committee(
 
         await _cancel_ticker(ticker_task)
         ticker_task = None
+
+        # 60/40 blender — only fires for scanner-sourced runs (the L3 spec
+        # wants the deep verdict re-ranked against the L2 quant composite
+        # for the funnel's final ordering). Manual runs are user-curated
+        # and don't have a scanner_rank to blend with.
+        blend = _maybe_compute_blended_rank(run_id=run_id, decision=decision)
+
         elapsed_ms = int((time.monotonic() - started_at) * 1000)
+        complete_content: dict[str, Any] = {
+            "decision": decision.model_dump(mode="json"),
+            "tokens_total": int(counters["tokens"]),
+            "cost_usd": counters["cost_usd"],
+            "elapsed_ms": elapsed_ms,
+        }
+        if blend is not None:
+            complete_content["blended_rank"] = blend["blended_rank"]
+            complete_content["blend_components"] = blend
         await emit(
             "run.complete",
             stage_name="system",
-            content={
-                "decision": decision.model_dump(mode="json"),
-                "tokens_total": int(counters["tokens"]),
-                "cost_usd": counters["cost_usd"],
-                "elapsed_ms": elapsed_ms,
-            },
+            content=complete_content,
         )
 
     except asyncio.CancelledError:
@@ -973,6 +985,51 @@ def _portfolio_value_estimate(household_id: str | None) -> float:
             """,
         ).fetchone()
     return float(row[0]) if row and row[0] is not None else 0.0
+
+
+def _maybe_compute_blended_rank(
+    *, run_id: str, decision: PmDecision
+) -> dict[str, float | str] | None:
+    """60/40 blend the PM decision with the L2 quant composite for scanner runs.
+
+    Returns ``None`` for manual runs (no scanner provenance) and for
+    scanner runs where the latest ``signal_scanner_scores`` row for the
+    symbol cannot be located. Logs on the no-row path so a silent
+    coverage gap is visible.
+    """
+    try:
+        provenance = store.get_run_provenance(run_id)
+    except Exception:
+        logger.exception("blender_provenance_lookup_failed", run_id=run_id)
+        return None
+    if provenance is None or provenance.get("source") != "scanner_fanout":
+        return None
+    symbol = str(provenance["symbol"]).upper()
+    try:
+        history = scanner_repo.get_history_for_symbol(symbol, days=7)
+    except Exception:
+        logger.exception("blender_scanner_lookup_failed", run_id=run_id, symbol=symbol)
+        return None
+    if not history:
+        logger.warning(
+            "blender_skipped_no_scanner_row",
+            run_id=run_id,
+            symbol=symbol,
+        )
+        return None
+    composite_pct = history[0].get("composite_pct")
+    if composite_pct is None:
+        return None
+    blend = blender.describe_blend(
+        action=decision.action,
+        confidence=float(decision.confidence),
+        composite_pct=float(composite_pct),
+    )
+    try:
+        store.set_blended_rank(run_id, float(blend["blended_rank"]))
+    except Exception:
+        logger.exception("blender_persist_failed", run_id=run_id, symbol=symbol)
+    return blend
 
 
 def _enforce_ips_compliance(decision: PmDecision, ips_result: IpsResult) -> PmDecision:
