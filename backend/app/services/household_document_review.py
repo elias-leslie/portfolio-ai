@@ -61,27 +61,27 @@ def _receipt_structured_data(reviewed: dict[str, Any]) -> dict[str, Any]:
     return structured_data if isinstance(structured_data, dict) else {}
 
 
+def _count_receipt_line_items(line_items: object) -> int:
+    if not isinstance(line_items, list):
+        return 0
+    return sum(
+        1
+        for item in line_items
+        if isinstance(item, dict) and (item.get("description") or item.get("name"))
+    )
+
+
 def _receipt_line_item_count(reviewed: dict[str, Any]) -> int:
     structured_data = _receipt_structured_data(reviewed)
-
-    def count_items(line_items: object) -> int:
-        if not isinstance(line_items, list):
-            return 0
-        count = 0
-        for item in line_items:
-            if not isinstance(item, dict):
-                continue
-            if item.get("description") or item.get("name"):
-                count += 1
-        return count
-
-    count = count_items(structured_data.get("line_items"))
+    count = _count_receipt_line_items(structured_data.get("line_items"))
     transactions = structured_data.get("transactions")
-    if isinstance(transactions, list):
-        for transaction in transactions:
-            if isinstance(transaction, dict):
-                count += count_items(transaction.get("line_items"))
-    return count
+    if not isinstance(transactions, list):
+        return count
+    return count + sum(
+        _count_receipt_line_items(transaction.get("line_items"))
+        for transaction in transactions
+        if isinstance(transaction, dict)
+    )
 
 
 def _declared_receipt_items_sold(extracted_text: str | None) -> int | None:
@@ -232,7 +232,13 @@ class HouseholdDocumentReviewService(HouseholdDocumentContextMixin, HouseholdDoc
             extracted_text=extracted_text,
         )
         household_context = self._build_household_context(baseline_review=baseline, extracted_text=extracted_text)
-        signature_fallback: dict[str, Any] | None = None
+        payload = {
+            "document_id": document_id,
+            "filename": filename,
+            "source_type": baseline["source_type"],
+            "document_type": baseline["document_type"],
+            "content_type": content_type,
+        }
         signature_result = self._signature_result(
             baseline=baseline,
             household_context=household_context,
@@ -241,8 +247,9 @@ class HouseholdDocumentReviewService(HouseholdDocumentContextMixin, HouseholdDoc
             prior_review=prior_review,
             reconciliation_summary=reconciliation_summary,
         )
+        signature_fallback: dict[str, Any] | None = None
         if signature_result is not None:
-            if not AGENT_HUB_ENABLED or not _needs_receipt_vision_retry(
+            if not self._needs_vision_retry(
                 reviewed=signature_result,
                 extracted_text=extracted_text,
                 content_type=content_type,
@@ -257,73 +264,30 @@ class HouseholdDocumentReviewService(HouseholdDocumentContextMixin, HouseholdDoc
             )
 
         if AGENT_HUB_ENABLED:
-            reviewed = self._review_with_llm(
-                payload={
-                    "document_id": document_id,
-                    "filename": filename,
-                    "source_type": baseline["source_type"],
-                    "document_type": baseline["document_type"],
-                    "content_type": content_type,
-                },
+            reviewed = self._llm_review_result(
+                payload=payload,
                 stored_path=stored_path,
                 content_type=content_type,
                 extracted_text=extracted_text,
-                baseline_review=baseline,
+                baseline=baseline,
                 household_context=household_context,
+                filename=filename,
                 prior_review=prior_review,
                 reconciliation_summary=reconciliation_summary,
                 review_session_id=review_session_id,
             )
             if reviewed is not None:
-                finalized_review = self._finalize_review(
-                    reviewed=self._merge_llm_result(reviewed, baseline, extracted_text),
+                return self._review_with_receipt_vision_retry(
+                    finalized_review=reviewed,
+                    payload=payload,
+                    stored_path=stored_path,
+                    content_type=content_type,
+                    extracted_text=extracted_text,
                     baseline=baseline,
                     household_context=household_context,
                     filename=filename,
-                    extracted_text=extracted_text,
-                    review_strategy="agent",
+                    review_session_id=review_session_id,
                 )
-                if _needs_receipt_vision_retry(
-                    reviewed=finalized_review,
-                    extracted_text=extracted_text,
-                    content_type=content_type,
-                    stored_path=stored_path,
-                ):
-                    vision_reviewed = self._review_with_llm(
-                        payload={
-                            "document_id": document_id,
-                            "filename": filename,
-                            "source_type": baseline["source_type"],
-                            "document_type": baseline["document_type"],
-                            "content_type": content_type,
-                        },
-                        stored_path=stored_path,
-                        content_type=content_type,
-                        extracted_text=extracted_text,
-                        baseline_review=baseline,
-                        household_context=household_context,
-                        prior_review=finalized_review,
-                        reconciliation_summary=_receipt_vision_retry_summary(
-                            reviewed=finalized_review,
-                            extracted_text=extracted_text,
-                        ),
-                        review_session_id=review_session_id,
-                        include_image=True,
-                    )
-                    if vision_reviewed is not None:
-                        vision_finalized = self._finalize_review(
-                            reviewed=self._merge_llm_result(vision_reviewed, baseline, extracted_text),
-                            baseline=baseline,
-                            household_context=household_context,
-                            filename=filename,
-                            extracted_text=extracted_text,
-                            review_strategy="agent_vision",
-                        )
-                        return _prefer_vision_receipt_review(
-                            text_review=finalized_review,
-                            vision_review=vision_finalized,
-                        )
-                return finalized_review
 
         if signature_fallback is not None:
             return signature_fallback
@@ -339,6 +303,103 @@ class HouseholdDocumentReviewService(HouseholdDocumentContextMixin, HouseholdDoc
             filename=filename,
             extracted_text=extracted_text,
             review_strategy="baseline",
+        )
+
+    @staticmethod
+    def _needs_vision_retry(
+        *,
+        reviewed: dict[str, Any],
+        extracted_text: str | None,
+        content_type: str | None,
+        stored_path: Path,
+    ) -> bool:
+        return bool(AGENT_HUB_ENABLED) and _needs_receipt_vision_retry(
+            reviewed=reviewed,
+            extracted_text=extracted_text,
+            content_type=content_type,
+            stored_path=stored_path,
+        )
+
+    def _llm_review_result(
+        self,
+        *,
+        payload: dict[str, Any],
+        stored_path: Path,
+        content_type: str | None,
+        extracted_text: str | None,
+        baseline: dict[str, Any],
+        household_context: dict[str, Any] | None,
+        filename: str,
+        prior_review: dict[str, Any] | None,
+        reconciliation_summary: dict[str, Any] | None,
+        review_session_id: str | None,
+        include_image: bool = False,
+    ) -> dict[str, Any] | None:
+        reviewed = self._review_with_llm(
+            payload=payload,
+            stored_path=stored_path,
+            content_type=content_type,
+            extracted_text=extracted_text,
+            baseline_review=baseline,
+            household_context=household_context,
+            prior_review=prior_review,
+            reconciliation_summary=reconciliation_summary,
+            review_session_id=review_session_id,
+            include_image=include_image,
+        )
+        if reviewed is None:
+            return None
+        return self._finalize_review(
+            reviewed=self._merge_llm_result(reviewed, baseline, extracted_text),
+            baseline=baseline,
+            household_context=household_context,
+            filename=filename,
+            extracted_text=extracted_text,
+            review_strategy="agent_vision" if include_image else "agent",
+        )
+
+    def _review_with_receipt_vision_retry(
+        self,
+        *,
+        finalized_review: dict[str, Any],
+        payload: dict[str, Any],
+        stored_path: Path,
+        content_type: str | None,
+        extracted_text: str | None,
+        baseline: dict[str, Any],
+        household_context: dict[str, Any] | None,
+        filename: str,
+        review_session_id: str | None,
+    ) -> dict[str, Any]:
+        if not _needs_receipt_vision_retry(
+            reviewed=finalized_review,
+            extracted_text=extracted_text,
+            content_type=content_type,
+            stored_path=stored_path,
+        ):
+            return finalized_review
+
+        vision_finalized = self._llm_review_result(
+            payload=payload,
+            stored_path=stored_path,
+            content_type=content_type,
+            extracted_text=extracted_text,
+            baseline=baseline,
+            household_context=household_context,
+            filename=filename,
+            prior_review=finalized_review,
+            reconciliation_summary=_receipt_vision_retry_summary(
+                reviewed=finalized_review,
+                extracted_text=extracted_text,
+            ),
+            review_session_id=review_session_id,
+            include_image=True,
+        )
+        if vision_finalized is None:
+            return finalized_review
+        return _prefer_vision_receipt_review(
+            text_review=finalized_review,
+            vision_review=vision_finalized,
         )
 
     def _signature_result(
@@ -472,17 +533,21 @@ class HouseholdDocumentReviewService(HouseholdDocumentContextMixin, HouseholdDoc
         )
         reviewed["review_checks"] = self._normalize_review_checks(reviewed=reviewed, extracted_text=extracted_text)
         if source_type == "receipt" or document_type == "receipt":
-            review_checks = reviewed["review_checks"]
-            itemization = review_checks.get("itemization")
-            itemization = dict(itemization) if isinstance(itemization, dict) else {}
-            declared_items_sold = _declared_receipt_items_sold(extracted_text)
-            if declared_items_sold is not None:
-                itemization.setdefault("declared_items_sold", declared_items_sold)
-            itemization.setdefault("line_item_count", _receipt_line_item_count(reviewed))
-            if itemization:
-                review_checks["itemization"] = itemization
+            self._finalize_receipt_itemization(reviewed=reviewed, extracted_text=extracted_text)
         reviewed["_review_strategy"] = review_strategy
         return reviewed
+
+    @staticmethod
+    def _finalize_receipt_itemization(*, reviewed: dict[str, Any], extracted_text: str | None) -> None:
+        review_checks = reviewed["review_checks"]
+        itemization = review_checks.get("itemization")
+        itemization = dict(itemization) if isinstance(itemization, dict) else {}
+        declared_items_sold = _declared_receipt_items_sold(extracted_text)
+        if declared_items_sold is not None:
+            itemization.setdefault("declared_items_sold", declared_items_sold)
+        itemization.setdefault("line_item_count", _receipt_line_item_count(reviewed))
+        if itemization:
+            review_checks["itemization"] = itemization
 
     def _reconcile_reviewed_accounts(
         self,
@@ -499,6 +564,24 @@ class HouseholdDocumentReviewService(HouseholdDocumentContextMixin, HouseholdDoc
         if not isinstance(raw_accounts, list) or not raw_accounts or not isinstance(related_accounts, list) or not related_accounts:
             return reviewed
 
+        canonical_matches = self._canonical_matches(
+            raw_accounts=raw_accounts,
+            related_accounts=related_accounts,
+            reviewed=reviewed,
+            filename=filename,
+        )
+        if canonical_matches:
+            self._set_canonical_review_checks(reviewed=reviewed, canonical_matches=canonical_matches)
+        return reviewed
+
+    def _canonical_matches(
+        self,
+        *,
+        raw_accounts: list[Any],
+        related_accounts: list[Any],
+        reviewed: dict[str, Any],
+        filename: str,
+    ) -> list[dict[str, Any]]:
         canonical_matches: list[dict[str, Any]] = []
         default_source_type = str(reviewed.get("source_type") or "")
         default_document_type = str(reviewed.get("document_type") or "")
@@ -514,13 +597,14 @@ class HouseholdDocumentReviewService(HouseholdDocumentContextMixin, HouseholdDoc
             )
             if match is not None:
                 canonical_matches.append(self._apply_canonical_match(raw_account=raw_account, match=match, filename=filename))
+        return canonical_matches
 
-        if canonical_matches:
-            review_checks = dict(reviewed.get("review_checks")) if isinstance(reviewed.get("review_checks"), dict) else {}
-            review_checks["canonical_match_count"] = len(canonical_matches)
-            review_checks["canonical_matches"] = canonical_matches
-            reviewed["review_checks"] = review_checks
-        return reviewed
+    @staticmethod
+    def _set_canonical_review_checks(*, reviewed: dict[str, Any], canonical_matches: list[dict[str, Any]]) -> None:
+        review_checks = dict(reviewed.get("review_checks")) if isinstance(reviewed.get("review_checks"), dict) else {}
+        review_checks["canonical_match_count"] = len(canonical_matches)
+        review_checks["canonical_matches"] = canonical_matches
+        reviewed["review_checks"] = review_checks
 
     def _best_related_account_match(
         self,
