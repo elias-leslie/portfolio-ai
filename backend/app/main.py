@@ -39,6 +39,7 @@ from app.api.signals_routes import router as signals_router
 from app.config import settings
 from app.config.cors import build_cors_origins
 from app.logging_config import SyslogPrefixFormatter, configure_logging, get_logger
+from app.services.strategy_lab_scheduler import create_strategy_lab_scheduler
 from app.storage import get_storage
 from app.storage.credential_loader import load_credentials_from_database
 
@@ -106,10 +107,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Load API credentials from database into environment variables
     load_credentials_from_database()
 
+    scheduler = None
     if not os.getenv("PYTEST_RUNNING"):
         await committee_runs.resume_incomplete_runs()
+        scheduler = create_strategy_lab_scheduler()
+        scheduler.start()
+        logger.info("strategy_lab_evaluator_scheduler_started")
 
     yield
+
+    if scheduler is not None:
+        scheduler.shutdown(wait=False)
 
     # Shutdown (placeholder for future cleanup logic)
     logger.info("platform_shutting_down")
