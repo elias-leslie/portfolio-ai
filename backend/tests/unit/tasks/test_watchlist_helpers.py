@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import datetime as dt
 import time
 from contextlib import nullcontext
 from unittest.mock import MagicMock
 
-from app.tasks._watchlist_helpers import execute_refresh, get_refresh_interval
+from app.tasks._watchlist_helpers import check_interval, execute_refresh, get_refresh_interval
 from app.watchlist.refresh_data_fetchers import fetch_auxiliary_data
 
 
@@ -85,3 +86,48 @@ def test_get_refresh_interval_clamps_legacy_values() -> None:
     interval = get_refresh_interval(storage, "default")
 
     assert interval == 15
+
+
+def test_get_refresh_interval_logs_routine_preference_at_debug(monkeypatch) -> None:
+    storage = MagicMock()
+    logger = MagicMock()
+    mock_conn = MagicMock()
+    mock_conn.execute.return_value.fetchone.return_value = (15, False)
+    mock_conn.__enter__.return_value = mock_conn
+    mock_conn.__exit__.return_value = False
+    storage.connection.return_value = mock_conn
+    monkeypatch.setattr("app.tasks._watchlist_helpers.logger", logger)
+
+    interval = get_refresh_interval(storage, "default")
+
+    assert interval == 15
+    logger.debug.assert_called_once_with(
+        "watchlist_refresh_using_default",
+        account_id="default",
+        refresh_interval_minutes=15,
+    )
+    logger.info.assert_not_called()
+
+
+def test_check_interval_logs_expected_skip_at_debug(monkeypatch) -> None:
+    logger = MagicMock()
+    monkeypatch.setattr("app.tasks._watchlist_helpers.logger", logger)
+
+    result = check_interval(
+        last_refresh=dt.datetime.now(dt.UTC) - dt.timedelta(minutes=2),
+        refresh_interval_minutes=15,
+        force=False,
+        task_id="task-123",
+        account_id="default",
+        skip_check_start=time.perf_counter(),
+        start_time=time.time(),
+    )
+
+    assert result is not None
+    assert result["skipped"] is True
+    assert result["reason"] == "refresh_interval_not_met"
+    logger.debug.assert_called_once()
+    assert logger.debug.call_args.args == ("refresh_watchlist_scores_skipped",)
+    assert logger.debug.call_args.kwargs["status"] == "skipped"
+    assert logger.debug.call_args.kwargs["reason"] == "refresh_interval_not_met"
+    logger.info.assert_not_called()

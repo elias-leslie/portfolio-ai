@@ -98,9 +98,11 @@ def test_get_hatchet_primes_sdk_env_from_settings(monkeypatch) -> None:
 def test_worker_registers_macro_calendar_and_ohlcv_workflows(monkeypatch) -> None:
     worker = MagicMock()
     hatchet = MagicMock()
+    configure_logging = MagicMock()
     hatchet.worker.return_value = worker
     exit_mock = MagicMock(side_effect=SystemExit(0))
     monkeypatch.setattr("app.worker.hatchet", hatchet)
+    monkeypatch.setattr("app.worker.configure_logging", configure_logging)
     monkeypatch.setattr("app.worker.os._exit", exit_mock)
 
     with pytest.raises(SystemExit):
@@ -110,6 +112,7 @@ def test_worker_registers_macro_calendar_and_ohlcv_workflows(monkeypatch) -> Non
     workflow_names = {workflow.name for workflow in workflows}
     assert "portfolio-market-macro-calendar-ingestion" in workflow_names
     assert "portfolio-refresh-ohlcv" in workflow_names
+    configure_logging.assert_called_once_with()
     assert worker.handle_kill is False
     worker.start.assert_called_once_with()
     exit_mock.assert_called_once_with(0)

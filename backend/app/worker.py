@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 
 from app.hatchet_app import hatchet
+from app.logging_config import configure_logging
 from app.workflows.agents import schedule_new_symbol_wf
 from app.workflows.catalysts import portfolio_catalyst_prewarm_wf
 from app.workflows.committee_fanout import committee_fanout_wf
@@ -86,6 +87,7 @@ from app.workflows.watchlist import (
 
 
 def main() -> None:
+    configure_logging()
     worker = hatchet.worker(
         "portfolio-worker",
         workflows=[

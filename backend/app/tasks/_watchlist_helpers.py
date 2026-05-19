@@ -16,7 +16,7 @@ from app.services.preferences_service import get_automation_preferences
 from app.storage import PortfolioStorage, get_storage
 from app.tasks.types import WatchlistResultDict
 from app.utils.market_hours import is_market_hours
-from app.utils.task_logging import log_task_skip, task_logger
+from app.utils.task_logging import task_logger
 from app.watchlist.scoring_service import (
     refresh_watchlist_scores as refresh_watchlist_scores_service,
 )
@@ -44,7 +44,7 @@ def get_refresh_interval(storage: PortfolioStorage, account_id: str) -> int:
         ).fetchone()
 
     if not result:
-        logger.info("watchlist_refresh_no_preferences", account_id=account_id, refresh_interval_minutes=15)
+        logger.debug("watchlist_refresh_no_preferences", account_id=account_id, refresh_interval_minutes=15)
         return 15
 
     raw_minutes = int(result[0]) if result[0] is not None else MIN_WATCHLIST_REFRESH_MINUTES
@@ -57,7 +57,7 @@ def get_refresh_interval(storage: PortfolioStorage, account_id: str) -> int:
             applied_refresh_minutes=minutes,
         )
     event = "watchlist_refresh_using_override" if result[1] else "watchlist_refresh_using_default"
-    logger.info(event, account_id=account_id, refresh_interval_minutes=minutes)
+    logger.debug(event, account_id=account_id, refresh_interval_minutes=minutes)
     return minutes
 
 
@@ -180,16 +180,16 @@ def check_interval(
     if minutes_since_refresh >= refresh_interval_minutes:
         return None
 
-    log_task_skip(
+    logger.debug(
+        "refresh_watchlist_scores_skipped",
         task_name="refresh_watchlist_scores",
         task_id=task_id,
+        status="skipped",
         reason="refresh_interval_not_met",
-        duration_ms=(time.perf_counter() - skip_check_start) * 1000,
-        extra_fields={
-            "account_id": account_id,
-            "minutes_since_refresh": round(minutes_since_refresh, 1),
-            "refresh_interval_minutes": refresh_interval_minutes,
-        },
+        duration_ms=round((time.perf_counter() - skip_check_start) * 1000, 2),
+        account_id=account_id,
+        minutes_since_refresh=round(minutes_since_refresh, 1),
+        refresh_interval_minutes=refresh_interval_minutes,
     )
     return build_skip_result(task_id, minutes_since_refresh, refresh_interval_minutes, start_time)
 
