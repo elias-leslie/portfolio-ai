@@ -265,6 +265,23 @@ class TestBaseHTTPClient:
         mock_httpx_client.close.assert_called_once()
 
     @patch("app.sources.base_http_client.httpx.Client")
+    @patch("app.sources.base_http_client.httpx.Limits")
+    def test_init_can_disable_keepalive_pool(self, mock_limits_class: Mock, mock_httpx_class: Mock) -> None:
+        """Initialization can cap keepalive connections for sources that leak idle sockets."""
+        limits = Mock()
+        mock_limits_class.return_value = limits
+
+        client = MockHTTPClient(
+            api_key="test_key",
+            rate_calls_per_minute=60,
+            max_keepalive_connections=0,
+        )
+
+        mock_limits_class.assert_called_once_with(max_keepalive_connections=0)
+        mock_httpx_class.assert_called_once_with(timeout=30, limits=limits)
+        client.close()
+
+    @patch("app.sources.base_http_client.httpx.Client")
     def test_request_success(self, mock_httpx_class: Mock) -> None:
         """Successful request returns parsed JSON."""
         # Setup mock client

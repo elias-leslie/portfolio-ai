@@ -202,6 +202,7 @@ class BaseHTTPClient(ABC):
         rate_calls_per_minute: int | None = None,
         rate_calls_per_day: int | None = None,
         timeout: float = DEFAULT_HTTP_TIMEOUT,
+        max_keepalive_connections: int | None = None,
     ) -> None:
         """Initialize HTTP client.
 
@@ -210,6 +211,7 @@ class BaseHTTPClient(ABC):
             rate_calls_per_minute: Maximum requests per minute (None = no limit)
             rate_calls_per_day: Maximum requests per day (None = no limit)
             timeout: Request timeout in seconds (default: 30)
+            max_keepalive_connections: Optional per-client keepalive pool cap
 
         Raises:
             RuntimeError: If API key not provided and not in environment
@@ -221,7 +223,11 @@ class BaseHTTPClient(ABC):
             raise RuntimeError(f"{env_var} is not set")
 
         # Initialize HTTP client
-        self._client = httpx.Client(timeout=timeout)
+        if max_keepalive_connections is None:
+            self._client = httpx.Client(timeout=timeout)
+        else:
+            limits = httpx.Limits(max_keepalive_connections=max_keepalive_connections)
+            self._client = httpx.Client(timeout=timeout, limits=limits)
 
         # Initialize rate limiter
         self._rate_limiter = RateLimiter(

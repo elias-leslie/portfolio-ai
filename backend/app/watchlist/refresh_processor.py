@@ -37,7 +37,6 @@ from .refresh_builders import (
 from .refresh_data_fetchers import (
     fetch_auxiliary_data,
     fetch_fundamentals_and_earnings,
-    fetch_strategy_sharpe,
 )
 from .refresh_narrative import generate_narrative_and_trade_levels
 from .scoring import calculate_watchlist_scores
@@ -176,9 +175,6 @@ def process_symbol_snapshot(
         avg_volume_50d=avg_volume_20d,  # Using 20d avg as proxy for 50d
     )
 
-    # Step 4.7: Fetch strategy performance for feedback loop (auto-002)
-    strategy_sharpe = fetch_strategy_sharpe(storage, symbol)
-
     # Step 5: Calculate scores (6-pillar: price/technical/fundamental/catalyst/options_flow/performance)
     breakdown = calculate_watchlist_scores(
         WatchlistScoreInputs(
@@ -190,7 +186,6 @@ def process_symbol_snapshot(
             options_data=options_data,
             symbol_in_active_sector=symbol_in_active_sector_flag,
             volume_relative=volume_rel,
-            strategy_sharpe=strategy_sharpe,  # auto-002: Performance feedback loop
             weights=default_weights,
             now=now,
             stale_ttl_minutes=stale_ttl_minutes,

@@ -39,7 +39,12 @@ class PolygonClient(BaseHTTPClient):
         Raises:
             RuntimeError: If API key not provided and not in environment
         """
-        super().__init__(api_key=api_key, rate_calls_per_minute=5, timeout=timeout)
+        super().__init__(
+            api_key=api_key,
+            rate_calls_per_minute=5,
+            timeout=timeout,
+            max_keepalive_connections=0,
+        )
 
     def get_api_key_env_var(self) -> str:
         """Return environment variable name for API key."""

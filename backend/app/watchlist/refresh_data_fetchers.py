@@ -177,23 +177,3 @@ def fetch_auxiliary_data(
 
     return current_volume, avg_volume_20d, sma_5_prev, news_sentiment_value, news_bundle
 
-
-def fetch_strategy_sharpe(storage: PortfolioStorage, symbol: str) -> float | None:
-    """Fetch 30-day rolling Sharpe from active strategy for symbol (auto-002)."""
-    try:
-        with storage.connection() as conn:
-            result = conn.execute(
-                "SELECT sp.sharpe_ratio_30d FROM strategy_definitions sd"
-                " JOIN strategy_performance sp ON sd.id = sp.strategy_id"
-                " WHERE sd.symbol = %s AND sd.status = 'active'"
-                " ORDER BY sp.date DESC LIMIT 1",
-                (symbol,),
-            ).fetchone()
-        if result and result[0] is not None:
-            sharpe = float(result[0])
-            logger.debug("strategy_sharpe_fetched", symbol=symbol, sharpe_30d=sharpe)
-            return sharpe
-        return None
-    except Exception as e:
-        logger.warning("strategy_sharpe_fetch_failed", symbol=symbol, error=str(e))
-        return None
