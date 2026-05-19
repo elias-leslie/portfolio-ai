@@ -432,7 +432,7 @@ def _replacement_index() -> dict[str, ReplacementSecurity]:
             asset_class=str(entry.get("asset_class", "")),
             name=str(entry.get("name", "")),
             rationale=entry.get("rationale"),
-            confidence=str(entry.get("confidence", "approximate")),  # type: ignore[arg-type]
+            confidence=str(entry.get("confidence", "approximate")),
         )
         index.setdefault(from_sym, forward)
         reverse = ReplacementSecurity(

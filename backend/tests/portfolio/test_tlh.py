@@ -304,9 +304,9 @@ def _make_analyzer(
     prices: dict[str, float] | None = None,
 ) -> tuple[TLHAnalyzer, _FakeStore]:
     storage = _FakeStorage()
-    ledger = TransactionLedger(storage)  # type: ignore[arg-type]
+    ledger = TransactionLedger(storage)
     fetcher = _FakePriceFetcher(prices or {})
-    analyzer = TLHAnalyzer(storage, ledger, fetcher)  # type: ignore[arg-type]
+    analyzer = TLHAnalyzer(storage, ledger, fetcher)
     return analyzer, storage.store
 
 

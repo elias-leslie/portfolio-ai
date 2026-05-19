@@ -419,7 +419,7 @@ async def test_duplicate_upload_rebinds_existing_document_to_selected_account() 
         get_document=Mock(return_value=refreshed),
         storage=SimpleNamespace(connection=Mock(return_value=context_manager)),
     )
-    pipeline.find_duplicate_document_by_hash = Mock(return_value=existing)  # type: ignore[method-assign]
+    pipeline.find_duplicate_document_by_hash = Mock(return_value=existing)
     upload = SimpleNamespace(
         filename="positions.csv",
         content_type="text/csv",

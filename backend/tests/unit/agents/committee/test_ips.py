@@ -12,7 +12,7 @@ from app.agents.committee.schemas import TradeProposal
 
 def _proposal(action: str, qty_pct: float) -> TradeProposal:
     return TradeProposal(
-        action=action,  # type: ignore[arg-type]
+        action=action,
         qty_pct=qty_pct,
         entry_price=100.0,
         stop_price=None,
