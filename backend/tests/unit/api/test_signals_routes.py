@@ -183,3 +183,106 @@ def test_symbol_unified_missing_committee_returns_null_block() -> None:
     assert body["committee"] is None
     assert body["scanner"] == []
     assert body["macro"]["components"]["term"] is None
+
+
+def test_committee_cost_route_assembles_per_day_rollup() -> None:
+    """The cost endpoint returns one CommitteeCostDay per requested day."""
+
+    def fake_rows(_days: int) -> list:
+        import app.api.signals_routes as mod
+
+        return [
+            mod.CommitteeCostDay(
+                date="2026-05-18",
+                fan_out_count=1,
+                tier1_call_count=25,
+                deep_run_count=5,
+                total_tokens=18_750,
+                est_cost_usd=0.0563,
+            )
+        ]
+
+    with patch("app.api.signals_routes._committee_cost_rows", side_effect=fake_rows):
+        client = _build_client()
+        resp = client.get("/api/signals/committee/cost?days=1")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body == {
+        "days": [
+            {
+                "date": "2026-05-18",
+                "fan_out_count": 1,
+                "tier1_call_count": 25,
+                "deep_run_count": 5,
+                "total_tokens": 18_750,
+                "est_cost_usd": 0.0563,
+            }
+        ]
+    }
+
+
+def test_committee_cost_rows_estimates_cost_when_runs_have_zero_cost() -> None:
+    """If committee_runs.cost_usd is 0, fall back to per-token estimate."""
+    import datetime as dt
+
+    import pytest as _pytest
+
+    import app.api.signals_routes as mod
+
+    class _FakeCursor:
+        def __init__(self, rows: list) -> None:
+            self._rows = rows
+
+        def fetchall(self) -> list:
+            return self._rows
+
+    class _FakeConn:
+        def __init__(self, rows_by_marker: dict) -> None:
+            self._rows = rows_by_marker
+
+        def execute(self, sql: str, _params: Any) -> _FakeCursor:
+            if "source = 'scanner_fanout'" in sql:
+                return _FakeCursor(self._rows.get("fanout", []))
+            if "tier1-screener-v1" in sql:
+                return _FakeCursor(self._rows.get("tier1", []))
+            if "status = 'complete'" in sql:
+                return _FakeCursor(self._rows.get("deep", []))
+            raise AssertionError(f"unexpected SQL: {sql}")
+
+    class _Ctx:
+        def __init__(self, conn: _FakeConn) -> None:
+            self._conn = conn
+
+        def __enter__(self) -> _FakeConn:
+            return self._conn
+
+        def __exit__(self, *_e: Any) -> bool:
+            return False
+
+    class _FakeCM:
+        def __init__(self, conn: _FakeConn) -> None:
+            self._conn = conn
+
+        def connection(self) -> _Ctx:
+            return _Ctx(self._conn)
+
+    today = dt.datetime.now(dt.UTC).date()
+    rows = {
+        "fanout": [(today, 2)],
+        "tier1": [(today, 25, 10_000)],
+        "deep": [(today, 5, 5_000, 0)],
+    }
+    cm = _FakeCM(_FakeConn(rows))
+    with patch("app.api.signals_routes.get_connection_manager", return_value=cm):
+        out = mod._committee_cost_rows(days=1)
+
+    assert len(out) == 1
+    row = out[0]
+    assert row.fan_out_count == 2
+    assert row.tier1_call_count == 25
+    assert row.deep_run_count == 5
+    # Tier-1 tokens (10k) + deep-run tokens (5k) = 15k; cost_usd was 0
+    # so the response uses the per-token fallback (15_000 * 3e-6).
+    assert row.total_tokens == 15_000
+    assert row.est_cost_usd == _pytest.approx(15_000 * 0.000003, abs=1e-4)
