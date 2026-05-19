@@ -86,14 +86,14 @@ def test_get_llm_semaphore_honors_env_override(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("COMMITTEE_LLM_CONCURRENCY", "3")
     monkeypatch.setitem(stages._llm_semaphore_cell, "sem", None)
     sem = stages._get_llm_semaphore()
-    assert sem._value == 3  # type: ignore[attr-defined]
+    assert sem._value == 3
 
 
 def test_get_llm_semaphore_falls_back_to_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("COMMITTEE_LLM_CONCURRENCY", raising=False)
     monkeypatch.setitem(stages._llm_semaphore_cell, "sem", None)
     sem = stages._get_llm_semaphore()
-    assert sem._value == stages._DEFAULT_LLM_CONCURRENCY  # type: ignore[attr-defined]
+    assert sem._value == stages._DEFAULT_LLM_CONCURRENCY
 
 
 @pytest.mark.asyncio
@@ -109,6 +109,7 @@ async def test_run_tier1_screen_parses_response_shape(
 
         async def complete_messages_async(self, **kw: Any) -> Any:
             captured.update(kw)
+            captured["payload"] = __import__("json").loads(kw["messages"][0]["content"])
             return type("R", (), {
                 "content": '{"score": 0.72, "conviction": "high", "top_factor": "mom_xover", "one_line_rationale": "Decisive multi-factor setup."}',
                 "tokens": 42,
@@ -135,6 +136,8 @@ async def test_run_tier1_screen_parses_response_shape(
     assert verdict.agent_slug == stages.SLUG_TIER1
     # Concurrency cap shouldn't be re-bound by a second call.
     assert captured["agent_slug"] == stages.SLUG_TIER1
+    assert "signal_sleeve" in captured["payload"]
+    assert "cluster_weights" in captured["payload"]
 
 
 @pytest.mark.asyncio

@@ -21,6 +21,7 @@ from typing import Any, cast
 from app.agents.clients.agent_hub_client import AgentHubAPIClient
 from app.logging_config import get_logger
 
+from .cluster_weights import latest_cluster_weight_payload
 from .schemas import (
     AnalystOutput,
     Conviction,
@@ -38,6 +39,7 @@ from .schemas import (
     Tier1Verdict,
     TradeProposal,
 )
+from .signal_sleeve import apply_signal_sleeve, build_signal_sleeve
 
 logger = get_logger(__name__)
 
@@ -113,25 +115,36 @@ async def run_tier1_screen(
     ~one LLM call per symbol, gated by the same concurrency semaphore
     as every other committee call.
     """
+    signal_sleeve = build_signal_sleeve(
+        scanner_factors=scanner_factors,
+        context_bundle=context_bundle,
+    )
     payload: dict[str, Any] = {
         "symbol": symbol,
         "gate_zone": gate_zone,
         "scanner_factors": scanner_factors,
         "context_bundle": context_bundle,
+        "signal_sleeve": signal_sleeve.to_payload(),
+        "cluster_weights": latest_cluster_weight_payload(),
     }
     start = time.monotonic()
     raw = await _complete(SLUG_TIER1, payload, purpose=f"committee.tier1.{symbol}")
     latency_ms = int((time.monotonic() - start) * 1000)
     parsed = _parse_json_content(raw)
-    score = _coerce_score(parsed.get("score"), low=-1.0, high=1.0)
+    score = apply_signal_sleeve(
+        _coerce_score(parsed.get("score"), low=-1.0, high=1.0),
+        signal_sleeve,
+    )
     conviction_raw = str(parsed.get("conviction") or "low").strip().lower()
     conviction: Conviction = (
         cast(Conviction, conviction_raw) if conviction_raw in _VALID_CONVICTIONS else "low"
     )
-    top_factor_raw = str(parsed.get("top_factor") or "other").strip().lower()
+    top_factor_raw = str(parsed.get("top_factor") or signal_sleeve.top_factor or "other").strip().lower()
     top_factor: Tier1TopFactor = (
         cast(Tier1TopFactor, top_factor_raw) if top_factor_raw in _VALID_TOP_FACTORS else "other"
     )
+    if top_factor == "other" and signal_sleeve.top_factor in _VALID_TOP_FACTORS:
+        top_factor = cast(Tier1TopFactor, signal_sleeve.top_factor)
     rationale = str(parsed.get("one_line_rationale") or "").strip()
     if len(rationale) > 240:
         rationale = rationale[:237] + "..."
