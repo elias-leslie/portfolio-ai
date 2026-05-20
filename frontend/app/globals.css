@@ -24,6 +24,8 @@
   --color-gain-strong: var(--gain-strong);
   --color-loss: var(--loss);
   --color-loss-strong: var(--loss-strong);
+  --color-danger: var(--loss);
+  --color-danger-strong: var(--loss-strong);
   --color-warning: var(--warning);
   --color-warning-strong: var(--warning-strong);
   --color-neutral: var(--neutral);

@@ -9,10 +9,10 @@
 /* Flash animation for changed cells */
 @keyframes flash-update {
   0% {
-    background-color: hsl(var(--accent) / 0.3);
+    background-color: color-mix(in oklch, var(--accent) 30%, transparent);
   }
   50% {
-    background-color: hsl(var(--accent) / 0.5);
+    background-color: color-mix(in oklch, var(--accent) 50%, transparent);
   }
   100% {
     background-color: transparent;
