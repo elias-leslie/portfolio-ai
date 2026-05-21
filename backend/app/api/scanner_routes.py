@@ -1,8 +1,8 @@
 """L2 quantitative scanner API.
 
-Read-only endpoints over the persisted scanner runs + per-symbol scores.
-All numbers are deterministic — the API never recomputes; the workflow
-owns writes.
+Read endpoints expose persisted scanner runs + per-symbol scores. The
+manual run endpoint only enqueues the workflow; scanner writes still live
+inside the workflow path.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
@@ -32,6 +32,12 @@ class ScannerRunResponse(BaseModel):
     skip_reason: str | None = None
     started_at: str | None = None
     completed_at: str | None = None
+
+
+class ScannerTriggerResponse(BaseModel):
+    status: str
+    workflow: str
+    message: str
 
 
 class ScannerScoreResponse(BaseModel):
@@ -81,6 +87,39 @@ def _score_to_response(row: dict[str, Any]) -> ScannerScoreResponse:
         factor_coverage=row.get("factor_coverage"),
         factors=factors,
         percentiles=percentiles,
+    )
+
+
+async def _enqueue_scanner_workflow() -> None:
+    from ..workflows.models import EmptyInput  # noqa: PLC0415
+    from ..workflows.scanner import scanner_wf  # noqa: PLC0415
+
+    await scanner_wf.aio_run_no_wait(EmptyInput())
+
+
+@router.post(
+    "/run",
+    response_model=ScannerTriggerResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def trigger_run() -> ScannerTriggerResponse:
+    """Manually queue the L2 scanner workflow.
+
+    The scanner workflow chains committee fan-out after the scanner output is
+    persisted, so callers do not need a second trigger for the blended view.
+    """
+    try:
+        await _enqueue_scanner_workflow()
+    except Exception as exc:
+        logger.exception("scanner_manual_trigger_failed")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="scanner_trigger_failed",
+        ) from exc
+    return ScannerTriggerResponse(
+        status="queued",
+        workflow="portfolio-scanner",
+        message="Scanner run queued. Committee fan-out will follow scanner completion.",
     )
 
 

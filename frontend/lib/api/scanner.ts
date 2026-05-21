@@ -27,6 +27,19 @@ export interface ScannerLatest {
   factorOrder: string[]
 }
 
+export interface ScannerTriggerResponse {
+  status: 'queued'
+  workflow: string
+  message: string
+}
+
 export function fetchScannerLatest(limit = 50): Promise<ScannerLatest> {
   return apiRequest<ScannerLatest>(`/api/scanner/latest?limit=${limit}`)
+}
+
+export function triggerScannerRun(): Promise<ScannerTriggerResponse> {
+  return apiRequest<ScannerTriggerResponse>('/api/scanner/run', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
 }

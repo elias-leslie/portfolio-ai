@@ -1,10 +1,16 @@
 'use client'
 
-import { Clock3, Gauge, Shuffle, Sparkles } from 'lucide-react'
+import { Clock3, Gauge, PlayCircle, Shuffle, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { toast } from 'sonner'
 import { SectionCard } from '@/components/shared/SectionCard'
+import { Button } from '@/components/ui/button'
 import type { BlendedResponse, BlendedRow } from '@/lib/api/signals'
-import { useBlendedSignals, useScannerLatest } from '@/lib/hooks/useSignals'
+import {
+  useBlendedSignals,
+  useScannerLatest,
+  useTriggerScannerRun,
+} from '@/lib/hooks/useSignals'
 import { cn } from '@/lib/utils'
 import { BlendWeightControl, loadStoredScannerPct } from './BlendWeightControl'
 import { MacroGateReplayPanel } from './MacroGateReplayPanel'
@@ -256,6 +262,7 @@ export function SignalsTabContent() {
 
   const blended = useBlendedSignals({ limit: 100, ...weights })
   const scannerLatest = useScannerLatest(100)
+  const triggerScanner = useTriggerScannerRun()
 
   const factorPercentilesBySymbol = useMemo(() => {
     const out: Record<string, Record<string, number | null>> = {}
@@ -264,6 +271,17 @@ export function SignalsTabContent() {
     }
     return out
   }, [scannerLatest.data])
+
+  const handleTriggerScanner = () => {
+    triggerScanner.mutate(undefined, {
+      onSuccess: (data) => {
+        toast.success(data.message)
+      },
+      onError: (error) => {
+        toast.error(`Failed to queue scanner run: ${error.message}`)
+      },
+    })
+  }
 
   return (
     <div className="space-y-4">
@@ -281,6 +299,17 @@ export function SignalsTabContent() {
           blended.data
             ? `${blended.data.run.scoredCount} symbols ranked from run ${blended.data.run.runDate} · gate ${blended.data.run.gateZone}`
             : 'Blending the L2 scanner with the L3 committee verdict.'
+        }
+        actions={
+          <Button
+            variant="outline"
+            onClick={handleTriggerScanner}
+            disabled={triggerScanner.isPending}
+            aria-busy={triggerScanner.isPending}
+          >
+            <PlayCircle className="h-4 w-4" />
+            {triggerScanner.isPending ? 'Queueing...' : 'Run Scanner'}
+          </Button>
         }
       >
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">

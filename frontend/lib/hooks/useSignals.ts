@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   fetchMacroBacktest,
   fetchMacroCurrent,
@@ -6,7 +6,12 @@ import {
   type MacroBacktestResponse,
   type MacroSnapshot,
 } from '@/lib/api/macro'
-import { fetchScannerLatest, type ScannerLatest } from '@/lib/api/scanner'
+import {
+  fetchScannerLatest,
+  type ScannerLatest,
+  type ScannerTriggerResponse,
+  triggerScannerRun,
+} from '@/lib/api/scanner'
 import {
   type BlendedQueryArgs,
   type BlendedResponse,
@@ -46,6 +51,17 @@ export function useScannerLatest(limit = 50) {
     staleTime: 5 * ONE_MINUTE,
     refetchOnWindowFocus: false,
     retry: 1,
+  })
+}
+
+export function useTriggerScannerRun() {
+  const queryClient = useQueryClient()
+
+  return useMutation<ScannerTriggerResponse, Error>({
+    mutationFn: triggerScannerRun,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['signals'] })
+    },
   })
 }
 
