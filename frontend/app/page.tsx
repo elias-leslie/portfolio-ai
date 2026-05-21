@@ -2,12 +2,10 @@
 
 export const dynamic = 'force-dynamic'
 
-import { TodayOverviewPanel } from '@/components/home/TodayOverviewPanel'
+import { DailyBriefPanel } from '@/components/home/DailyBriefPanel'
 import { InvestingMarketTrendPanels } from '@/components/portfolio/InvestingMarketPanel'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
-import { DeploymentZoneHero } from '@/components/signals/DeploymentZoneHero'
-import { TodaySignalsDigest } from '@/components/signals/TodaySignalsDigest'
 
 export default function Dashboard() {
   return (
@@ -18,9 +16,7 @@ export default function Dashboard() {
         size="md"
         variant="plain"
       />
-      <DeploymentZoneHero />
-      <TodayOverviewPanel />
-      <TodaySignalsDigest />
+      <DailyBriefPanel />
       <InvestingMarketTrendPanels />
     </PageContainer>
   )
