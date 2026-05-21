@@ -20,6 +20,7 @@ import { useDetailedHealth } from '@/lib/hooks/useHealth'
 import { useMarketStatus } from '@/lib/hooks/useMarketIntelligence'
 import { useNewsHealth } from '@/lib/hooks/useNewsHealth'
 import { cn } from '@/lib/utils'
+import { CommitteeCostCard } from './CommitteeCostCard'
 import {
   DecisionDataHealthPanel,
   MarketTimingPanel,
@@ -309,6 +310,8 @@ export function StatusWorkspace() {
         staleMaintenanceCount > 0 ? String(staleMaintenanceCount) : undefined,
       content: (
         <div className="space-y-6">
+          <CommitteeCostCard />
+
           {healthPending ? (
             <LoadingSectionPanel
               title="Recent Auto-fixes"

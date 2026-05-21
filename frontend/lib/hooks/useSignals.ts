@@ -1,5 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchMacroCurrent, type MacroSnapshot } from '@/lib/api/macro'
+import {
+  fetchMacroBacktest,
+  fetchMacroCurrent,
+  type MacroBacktestQueryArgs,
+  type MacroBacktestResponse,
+  type MacroSnapshot,
+} from '@/lib/api/macro'
 import { fetchScannerLatest, type ScannerLatest } from '@/lib/api/scanner'
 import {
   type BlendedQueryArgs,
@@ -18,6 +24,16 @@ export function useMacroCurrent() {
     queryKey: ['signals', 'macro', 'current'],
     queryFn: fetchMacroCurrent,
     staleTime: 5 * ONE_MINUTE,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  })
+}
+
+export function useMacroBacktest(args: MacroBacktestQueryArgs = {}) {
+  return useQuery<MacroBacktestResponse>({
+    queryKey: ['signals', 'macro', 'backtest', args],
+    queryFn: () => fetchMacroBacktest(args),
+    staleTime: 10 * ONE_MINUTE,
     refetchOnWindowFocus: false,
     retry: 1,
   })

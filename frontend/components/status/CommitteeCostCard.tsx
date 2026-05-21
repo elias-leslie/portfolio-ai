@@ -37,7 +37,7 @@ export function CommitteeCostCard() {
     .join(' ')
 
   return (
-    <SectionCard variant="surface" padding="md" title="Today's committee cost">
+    <SectionCard variant="surface" padding="md" title="Committee cost">
       {error ? (
         <div className="text-sm text-danger">
           cost endpoint unavailable: {error}

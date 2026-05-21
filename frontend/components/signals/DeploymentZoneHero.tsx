@@ -103,13 +103,8 @@ export function DeploymentZoneHero() {
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
             <Link href="/portfolio?tab=signals">
-              Open Signals tab
+              Open Signals
               <ArrowRight className="ml-1 h-3.5 w-3.5" />
-            </Link>
-          </Button>
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/api/macro/backtest" target="_blank" rel="noreferrer">
-              View backtest
             </Link>
           </Button>
         </div>
