@@ -1,41 +1,22 @@
 'use client'
 
-import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
-import {
-  DEFAULT_MARKET_TIMEFRAME,
-  timeframeToDays,
-} from '@/components/market/TimeframeSelector'
 import type { HouseholdFinanceDashboard } from '@/lib/api/household'
 import type { MacroSnapshot } from '@/lib/api/macro'
 import type { PortfolioAnalytics } from '@/lib/api/portfolio'
-import type { WatchlistItem } from '@/lib/api/watchlist'
-import type { CommitteeRunListItem } from '@/lib/committee/api'
-import { fetchCommitteeRuns } from '@/lib/committee/api'
 import {
   netWorthBadgeLabel,
   normalizeQualityStatus,
   qualityLabel,
 } from '@/lib/dataQuality'
 import { formatCurrencyWhole, formatEnumLabel } from '@/lib/formatters'
-import { useHomeActionQueue } from '@/lib/hooks/useHomeActionQueue'
 import {
   useHouseholdDashboard,
   useHouseholdNetWorthTrend,
 } from '@/lib/hooks/useHousehold'
-import {
-  useMarketIntelligence,
-  useMarketStatus,
-  useSectorHistory,
-} from '@/lib/hooks/useMarketIntelligence'
+import { useMarketStatus } from '@/lib/hooks/useMarketIntelligence'
 import { usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
-import { useBlendedSignals, useMacroCurrent } from '@/lib/hooks/useSignals'
-import { useWatchlist } from '@/lib/hooks/useWatchlist'
+import { useMacroCurrent } from '@/lib/hooks/useSignals'
 import { cn } from '@/lib/utils'
-import {
-  buildLiveMarketMetrics,
-  type MarketStripMetric,
-} from './today/MarketStripGrid'
 
 interface ZoneStyle {
   label: string
@@ -65,25 +46,36 @@ const ZONE_STYLES: Record<string, ZoneStyle> = {
 const COMPONENT_LABELS: Array<{
   key: keyof MacroSnapshot['components']
   label: string
+  rawKey: keyof MacroSnapshot['raw']
+  rawLabel: string
 }> = [
-  { key: 'vix', label: 'VIX' },
-  { key: 'term', label: 'Term' },
-  { key: 'breadth', label: 'Breadth' },
-  { key: 'credit', label: 'Credit' },
-  { key: 'putcall', label: 'Put/Call' },
-  { key: 'crowding', label: 'Crowding' },
+  { key: 'vix', label: 'VIX', rawKey: 'vixClose', rawLabel: 'VIX' },
+  {
+    key: 'term',
+    label: 'Term',
+    rawKey: 'termSpreadBps',
+    rawLabel: '10Y-2Y bps',
+  },
+  {
+    key: 'breadth',
+    label: 'Breadth',
+    rawKey: 'breadthPct',
+    rawLabel: '% > 200d',
+  },
+  { key: 'credit', label: 'Credit', rawKey: 'hySpread', rawLabel: 'HY OAS' },
+  {
+    key: 'putcall',
+    label: 'Put/Call',
+    rawKey: 'putCallRatio',
+    rawLabel: 'P/C',
+  },
+  {
+    key: 'crowding',
+    label: 'Crowding',
+    rawKey: 'factorCrowdingCorr',
+    rawLabel: 'corr',
+  },
 ]
-
-function isToday(iso?: string | null): boolean {
-  if (!iso) return false
-  const date = new Date(iso)
-  const now = new Date()
-  return (
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate()
-  )
-}
 
 function formatScore(value: number | null | undefined): string {
   return typeof value === 'number' && Number.isFinite(value)
@@ -115,61 +107,6 @@ function scoreTone(value: number | null | undefined): string {
   if (value >= 70) return 'bg-gain/80'
   if (value >= 40) return 'bg-warning/80'
   return 'bg-loss/80'
-}
-
-function marketTone(metric: MarketStripMetric): string {
-  switch (metric.tone) {
-    case 'positive':
-      return 'border-gain/30 bg-gain/8'
-    case 'negative':
-      return 'border-loss/30 bg-loss/8'
-    case 'warning':
-      return 'border-warning/30 bg-warning/8'
-    default:
-      return 'border-border/35 bg-bg/25'
-  }
-}
-
-function sectorSummaryText(
-  sectors: { name: string; currentPct: number }[],
-  fallback: string,
-) {
-  if (sectors.length === 0) return fallback
-  return sectors
-    .map(
-      (sector) =>
-        `${sector.name} ${sector.currentPct >= 0 ? '+' : ''}${sector.currentPct.toFixed(1)}%`,
-    )
-    .join(' / ')
-}
-
-function useCommitteeRunsToday() {
-  const [runs, setRuns] = useState<CommitteeRunListItem[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    fetchCommitteeRuns(20)
-      .then((res) => {
-        if (cancelled) return
-        const todays = res.runs.filter((run) =>
-          isToday(run.completed_at ?? run.started_at),
-        )
-        setRuns(todays.slice(0, 3))
-        setError(null)
-      })
-      .catch((err: Error) => {
-        if (cancelled) return
-        setRuns([])
-        setError(err.message)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  return { runs, error }
 }
 
 function resolveZoneStyle(zone: string | null | undefined): ZoneStyle {
@@ -277,199 +214,162 @@ function capitalMetrics({
   ]
 }
 
-function ComponentScoreTile({
-  label,
-  value,
-}: {
-  label: string
-  value: number | null | undefined
-}) {
-  const pct =
-    typeof value === 'number' && Number.isFinite(value)
-      ? Math.max(0, Math.min(100, value))
-      : 0
-
-  return (
-    <div className="rounded-xl border border-border-subtle bg-bg/30 px-3 py-3">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-text-muted">
-        {label}
-      </p>
-      <p className="mt-1.5 font-mono text-lg tabular-nums text-text">
-        {formatScore(value)}
-      </p>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border-subtle/70">
-        <div
-          className={cn('h-full rounded-full', scoreTone(value))}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  )
+function formatRawComponent(
+  key: keyof MacroSnapshot['raw'],
+  value: number | null | undefined,
+) {
+  if (value == null || !Number.isFinite(value)) return '-'
+  switch (key) {
+    case 'vixClose':
+      return value.toFixed(2)
+    case 'termSpreadBps':
+      return `${value.toFixed(0)} bps`
+    case 'breadthPct':
+      return `${value.toFixed(1)}%`
+    case 'hySpread':
+      return `${value.toFixed(2)}%`
+    case 'putCallRatio':
+      return value.toFixed(2)
+    case 'factorCrowdingCorr':
+      return value.toFixed(2)
+    default:
+      return value.toFixed(2)
+  }
 }
 
-function ActionQueue({ watchlistItems }: { watchlistItems: WatchlistItem[] }) {
-  const {
-    data: scannerData,
-    isLoading: scannerLoading,
-    error: scannerError,
-  } = useBlendedSignals({ limit: 5 })
-  const { runs, error: committeeError } = useCommitteeRunsToday()
-  const scannerRows = scannerData?.rows ?? []
-  const alerts = watchlistItems
-    .filter((item) => (item.signalStrength ?? 0) >= 70)
-    .sort((a, b) => (b.signalStrength ?? 0) - (a.signalStrength ?? 0))
-    .slice(0, 3)
+function qualityTone(status?: string) {
+  if (status === 'missing') return 'text-loss'
+  if (status === 'stale') return 'text-warning'
+  return 'text-gain'
+}
+
+function MacroContributionBreakdown({ macro }: { macro?: MacroSnapshot }) {
+  const weights = macro?.weights ?? {}
+  const availableWeight = COMPONENT_LABELS.reduce((sum, component) => {
+    const score = macro?.components?.[component.key]
+    const weight = weights[component.key] ?? 0
+    return score == null ? sum : sum + weight
+  }, 0)
+  const rows = COMPONENT_LABELS.map((component) => {
+    const score = macro?.components?.[component.key] ?? null
+    const baseWeight = weights[component.key] ?? 0
+    const effectiveWeight =
+      score != null && availableWeight > 0 ? baseWeight / availableWeight : 0
+    const contribution = score != null ? score * effectiveWeight : null
+    const quality = macro?.componentQuality?.[component.key]
+    return {
+      ...component,
+      score,
+      rawValue: macro?.raw?.[component.rawKey] ?? null,
+      baseWeight,
+      effectiveWeight,
+      contribution,
+      quality,
+    }
+  })
+  const missingRows = rows.filter((row) => row.score == null)
 
   return (
     <div className="rounded-2xl border border-border-subtle bg-bg/20 p-4">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-text-muted">
-        Action Queue
-      </p>
-      <div className="mt-3 grid gap-3 md:grid-cols-[1.1fr_0.95fr_0.8fr]">
-        <div className="rounded-xl border border-border-subtle bg-bg/25 px-3 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold text-text">Scanner</h3>
-            <span className="whitespace-nowrap font-mono text-xs font-semibold text-warning">
-              top 5
-            </span>
-          </div>
-          <div className="mt-3 space-y-2">
-            {scannerError ? (
-              <p className="text-xs text-loss">
-                {scannerError instanceof Error
-                  ? scannerError.message
-                  : 'Scanner unavailable'}
-              </p>
-            ) : scannerLoading ? (
-              <p className="text-xs text-text-muted">Loading scanner...</p>
-            ) : scannerRows.length === 0 ? (
-              <p className="text-xs text-text-muted">No candidates today.</p>
-            ) : (
-              scannerRows.slice(0, 5).map((row) => (
-                <div
-                  key={row.symbol}
-                  className="flex items-center justify-between gap-3 text-sm"
-                >
-                  <Link
-                    href={`/symbols/${row.symbol}`}
-                    className="font-mono font-semibold text-primary hover:underline"
-                  >
-                    {row.symbol}
-                  </Link>
-                  <span className="font-mono text-xs tabular-nums text-text">
-                    #{row.blendedRank} {row.blendedScore.toFixed(1)}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-text-muted">
+            Regime Score Breakdown
+          </p>
+          <p className="mt-2 text-xs leading-5 text-text-muted">
+            Score = Σ(component score × effective weight). Missing components
+            are excluded, and the remaining weights are renormalized.
+          </p>
         </div>
-
-        <div className="rounded-xl border border-border-subtle bg-bg/25 px-3 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold text-text">Committee</h3>
-            <span className="font-mono text-xs font-semibold text-warning">
-              {runs === null ? '...' : `${runs.length} today`}
-            </span>
-          </div>
-          <div className="mt-3 space-y-2">
-            {committeeError ? (
-              <p className="text-xs text-loss">{committeeError}</p>
-            ) : runs === null ? (
-              <p className="text-xs text-text-muted">Loading verdicts...</p>
-            ) : runs.length === 0 ? (
-              <p className="text-xs text-text-muted">No verdicts today.</p>
-            ) : (
-              runs.map((run) => (
-                <div
-                  key={run.id}
-                  className="flex items-center justify-between gap-3 text-sm"
-                >
-                  <Link
-                    href={`/portfolio/committee/${run.id}`}
-                    className="font-mono font-semibold text-primary hover:underline"
-                  >
-                    {run.symbol}
-                  </Link>
-                  <span className="text-xs text-text">
-                    {run.decision_action ?? run.status}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border-subtle bg-bg/25 px-3 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold text-text">Watchlist</h3>
-            <span className="font-mono text-xs font-semibold text-warning">
-              {alerts.length > 0 ? `${alerts.length} hot` : 'quiet'}
-            </span>
-          </div>
-          <div className="mt-3 space-y-2">
-            {alerts.length === 0 ? (
-              <p className="text-xs leading-5 text-text-muted">
-                No high-strength alerts.
-              </p>
-            ) : (
-              alerts.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between gap-3 text-sm"
-                >
-                  <Link
-                    href={`/symbols/${item.symbol}`}
-                    className="font-mono font-semibold text-primary hover:underline"
-                  >
-                    {item.symbol}
-                  </Link>
-                  <span className="font-mono text-xs tabular-nums text-text">
-                    {item.signalStrength ?? '-'}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
+        <div className="rounded-xl border border-border-subtle bg-bg/30 px-3 py-2 text-right">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted">
+            Coverage
+          </p>
+          <p className="font-mono text-lg font-semibold text-text">
+            {macro?.coverage != null
+              ? `${Math.round(macro.coverage * 100)}%`
+              : '-'}
+          </p>
         </div>
       </div>
+
+      <div className="mt-4 space-y-2">
+        {rows.map((row) => {
+          const contributionPct =
+            row.contribution != null
+              ? Math.max(0, Math.min(100, row.contribution))
+              : 0
+          return (
+            <div
+              key={row.key}
+              className="rounded-xl border border-border-subtle bg-bg/25 px-3 py-3"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-text">{row.label}</p>
+                  <p className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-text-muted">
+                    {row.rawLabel}:{' '}
+                    {formatRawComponent(row.rawKey, row.rawValue)}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-right font-mono text-xs tabular-nums">
+                  <span className="text-text">
+                    Score {formatScore(row.score)}
+                  </span>
+                  <span className="text-text-muted">
+                    Base {(row.baseWeight * 100).toFixed(0)}%
+                  </span>
+                  <span className="text-text-muted">
+                    Eff {(row.effectiveWeight * 100).toFixed(1)}%
+                  </span>
+                  <span className="text-text">
+                    +
+                    {row.contribution != null
+                      ? row.contribution.toFixed(1)
+                      : '-'}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border-subtle/70">
+                <div
+                  className={cn('h-full rounded-full', scoreTone(row.score))}
+                  style={{ width: `${contributionPct}%` }}
+                />
+              </div>
+              <p className="mt-2 text-[10px] leading-4 text-text-muted">
+                <span className={qualityTone(row.quality?.status)}>
+                  {(row.quality?.status ?? 'unknown').toUpperCase()}
+                </span>
+                {row.quality?.asOf ? ` · as of ${row.quality.asOf}` : ''}
+                {row.quality?.source ? ` · ${row.quality.source}` : ''}
+                {row.quality?.reason ? ` · ${row.quality.reason}` : ''}
+              </p>
+            </div>
+          )
+        })}
+      </div>
+
+      {missingRows.length > 0 ? (
+        <p className="mt-3 rounded-xl border border-loss/25 bg-loss/8 px-3 py-2 text-xs leading-5 text-loss">
+          Missing score input: {missingRows.map((row) => row.label).join(', ')}.
+          Fix the feed or remove the component from the score; do not treat this
+          as a fully covered regime reading.
+        </p>
+      ) : null}
     </div>
   )
 }
 
-function SideContext({
+function CapitalContext({
   household,
   analytics,
-  marketMetrics,
   householdLoading,
 }: {
   household?: HouseholdFinanceDashboard
   analytics?: PortfolioAnalytics
-  marketMetrics: MarketStripMetric[]
   householdLoading: boolean
 }) {
   const { data: netWorthTrend } = useHouseholdNetWorthTrend({ days: 180 })
-  const {
-    data: sectorHistory,
-    isLoading: sectorsLoading,
-    error: sectorError,
-  } = useSectorHistory(timeframeToDays(DEFAULT_MARKET_TIMEFRAME))
-  const sortedSectors = useMemo(() => {
-    if (!sectorHistory?.sectors) return []
-    return [...sectorHistory.sectors].sort(
-      (a, b) => (b.currentPct ?? 0) - (a.currentPct ?? 0),
-    )
-  }, [sectorHistory?.sectors])
-  const leading = sectorsLoading
-    ? 'Updating leaders...'
-    : sectorError
-      ? 'Unable to rank sectors'
-      : sectorSummaryText(sortedSectors.slice(0, 3), 'Still populating')
-  const lagging = sectorsLoading
-    ? 'Updating laggards...'
-    : sectorError
-      ? 'Unable to rank sectors'
-      : sectorSummaryText(sortedSectors.slice(-3).reverse(), 'Still populating')
   const capital = capitalMetrics({
     household,
     analytics,
@@ -480,7 +380,7 @@ function SideContext({
   return (
     <div className="space-y-3 rounded-2xl border border-border-subtle bg-bg/20 p-4">
       <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-text-muted">
-        Capital Context
+        Portfolio Snapshot
       </p>
       <div className="grid grid-cols-2 gap-2">
         {capital.map((metric) => (
@@ -500,57 +400,6 @@ function SideContext({
           </div>
         ))}
       </div>
-
-      <div className="border-t border-border-subtle pt-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-text-muted">
-          Market Context
-        </p>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          {marketMetrics.map((metric) => (
-            <div
-              key={metric.key}
-              className={cn(
-                'rounded-xl border px-3 py-2.5',
-                marketTone(metric),
-              )}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  {metric.label}
-                </p>
-                {metric.changePct != null ? (
-                  <span className="font-mono text-[10px] text-text-muted">
-                    {metric.changePct > 0 ? '+' : ''}
-                    {metric.changePct.toFixed(2)}%
-                  </span>
-                ) : null}
-              </div>
-              <p className="mt-1 font-semibold leading-none tracking-tight text-text">
-                {metric.value}
-              </p>
-              <p className="mt-1 text-[10px] uppercase tracking-[0.12em] text-text-muted">
-                {metric.detail}
-              </p>
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 space-y-2 text-xs leading-5 text-text">
-          <p>
-            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
-              Leading
-            </span>
-            <br />
-            {leading}
-          </p>
-          <p>
-            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
-              Lagging
-            </span>
-            <br />
-            {lagging}
-          </p>
-        </div>
-      </div>
     </div>
   )
 }
@@ -564,18 +413,9 @@ export function DailyBriefPanel() {
   const { data: household, isLoading: householdLoading } =
     useHouseholdDashboard()
   const { data: analytics } = usePortfolioAnalytics()
-  const { data: market, isLoading: marketLoading } = useMarketIntelligence()
   const { data: marketStatus } = useMarketStatus()
-  const { data: watchlist } = useWatchlist()
-  const { data: actions } = useHomeActionQueue()
   const zoneStyle = resolveZoneStyle(macro?.zone)
-  const marketMetrics =
-    buildLiveMarketMetrics(market, {
-      marketIsOpen: marketStatus?.isOpen ?? false,
-    }) ?? []
-  const updateTimestamp =
-    market?.lastUpdated ?? macro?.computedAt ?? household?.generatedAt ?? null
-  const actionCount = actions?.actions.length ?? 0
+  const updateTimestamp = macro?.computedAt ?? household?.generatedAt ?? null
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border/40 bg-surface/50 surface-highlight backdrop-blur-sm">
@@ -588,7 +428,7 @@ export function DailyBriefPanel() {
         </p>
       </div>
 
-      <div className="grid items-start gap-4 p-4 xl:grid-cols-[minmax(18rem,0.72fr)_minmax(34rem,1.18fr)_minmax(22rem,0.78fr)]">
+      <div className="grid items-start gap-4 p-4 xl:grid-cols-[minmax(18rem,0.72fr)_minmax(36rem,1.25fr)_minmax(20rem,0.7fr)]">
         <div
           className={cn(
             'rounded-2xl border px-5 py-5 xl:min-h-[16.5rem]',
@@ -627,29 +467,11 @@ export function DailyBriefPanel() {
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-border-subtle bg-bg/20 p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-text-muted">
-              Why
-            </p>
-            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              {COMPONENT_LABELS.map(({ key, label }) => (
-                <ComponentScoreTile
-                  key={key}
-                  label={label}
-                  value={macro?.components?.[key] ?? null}
-                />
-              ))}
-            </div>
-          </div>
+        <MacroContributionBreakdown macro={macro} />
 
-          <ActionQueue watchlistItems={watchlist?.items ?? []} />
-        </div>
-
-        <SideContext
+        <CapitalContext
           household={household}
           analytics={analytics}
-          marketMetrics={marketMetrics}
           householdLoading={householdLoading}
         />
       </div>
@@ -669,14 +491,6 @@ export function DailyBriefPanel() {
             ? netWorthBadgeLabel(household.overview.netWorthStatus)
             : '-'}
         </span>
-        <span>
-          <strong className="text-text">Alerts:</strong> {actionCount} open
-        </span>
-        {marketLoading ? (
-          <span>
-            <strong className="text-text">Market:</strong> loading
-          </span>
-        ) : null}
       </div>
     </section>
   )

@@ -14,6 +14,7 @@ from datetime import date
 
 from ...logging_config import get_logger
 from ...sources.fred import FREDSource
+from ...storage.facade import get_storage
 
 logger = get_logger(__name__)
 
@@ -35,7 +36,7 @@ def fetch_latest(source: FREDSource | None = None) -> TermStructureObservation |
     source = source or FREDSource()
     if not source.is_enabled():
         logger.warning("term_structure_fred_disabled")
-        return None
+        return _fetch_latest_stored()
 
     y10 = source.get_latest_value("YIELD_10Y")
     y2 = source.get_latest_value("YIELD_2Y")
@@ -50,6 +51,36 @@ def fetch_latest(source: FREDSource | None = None) -> TermStructureObservation |
         as_of=as_of,
         yield_10y=y10[1],
         yield_2y=y2[1],
+        spread_bps=spread_bps,
+        is_inverted=spread_bps < 0,
+    )
+
+
+def _fetch_latest_stored() -> TermStructureObservation | None:
+    storage = get_storage()
+    with storage.connection() as conn:
+        row = conn.execute(
+            """
+            SELECT observation_date, yield_10y, yield_2y, spread_10y_2y
+            FROM yield_curve
+            WHERE yield_10y IS NOT NULL
+              AND yield_2y IS NOT NULL
+            ORDER BY observation_date DESC
+            LIMIT 1
+            """,
+        ).fetchone()
+    if row is None:
+        logger.warning("term_structure_stored_missing")
+        return None
+
+    y10 = float(row[1])
+    y2 = float(row[2])
+    spread = float(row[3]) if row[3] is not None else y10 - y2
+    spread_bps = spread * 100.0
+    return TermStructureObservation(
+        as_of=row[0],
+        yield_10y=y10,
+        yield_2y=y2,
         spread_bps=spread_bps,
         is_inverted=spread_bps < 0,
     )

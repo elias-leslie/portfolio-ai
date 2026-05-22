@@ -11,7 +11,9 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING
 
+from app.portfolio.price_fetcher import PriceDataFetcher
 from app.sources.fred import FREDSource
+from app.utils.market_hours import NY_TZ
 
 if TYPE_CHECKING:
     from app.storage.facade import PortfolioStorage
@@ -101,6 +103,17 @@ def fetch_market_indicators(
             close_value = row[1]
             if isinstance(date_value, dt.date) and close_value is not None:
                 vix_dict[date_value] = float(close_value)
+
+    current_vix = PriceDataFetcher(storage).fetch_price_data(["^VIX"]).get("^VIX")
+    if current_vix and current_vix.price > 0 and current_vix.cached_at:
+        quote_ts = (
+            current_vix.cached_at
+            if current_vix.cached_at.tzinfo
+            else current_vix.cached_at.replace(tzinfo=dt.UTC)
+        )
+        quote_date = quote_ts.astimezone(NY_TZ).date()
+        if start_date <= quote_date <= end_date:
+            vix_dict[quote_date] = float(current_vix.price)
 
     # Fetch HY spread data from FRED
     fred_source = FREDSource()

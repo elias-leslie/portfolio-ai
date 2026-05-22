@@ -8,7 +8,8 @@ elsewhere, so the entire macro composite can be replayed exactly off
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 from .signals import factor_crowding, spx_breadth_200d, term_structure
 
@@ -56,6 +57,7 @@ class CompositeResult:
     deployment_score: float
     zone: str
     coverage: float  # share of weighted components that produced a score
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 def normalize_vix(vix_close: float) -> float:
@@ -175,14 +177,21 @@ def classify_zone(deployment_score: float) -> str:
         return "REDUCED"
     return "DEFENSIVE"
 
-
-def build_composite(raw: RawSignals, weights: dict[str, float] | None = None) -> CompositeResult:
+def build_composite(
+    raw: RawSignals,
+    weights: dict[str, float] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> CompositeResult:
     scores = compute_component_scores(raw)
     deployment_score, coverage = compose(scores, weights=weights)
+    result_metadata = {"weights": weights or WEIGHTS}
+    if metadata:
+        result_metadata.update(metadata)
     return CompositeResult(
         raw=raw,
         scores=scores,
         deployment_score=deployment_score,
         zone=classify_zone(deployment_score),
         coverage=coverage,
+        metadata=result_metadata,
     )

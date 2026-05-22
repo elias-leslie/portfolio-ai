@@ -49,3 +49,14 @@ def test_fear_greed_history_appends_live_proxy_when_daily_close_lags(
     assert sources == ["daily_close", "live_proxy"]
     assert latest_source == "live_proxy"
     assert latest_as_of == "2026-05-04T20:09:55+00:00"
+
+
+def test_current_quote_replaces_same_day_indicator_history_row() -> None:
+    quote = SimpleNamespace(cached_at=historical_router.datetime(2026, 5, 22, 22, 7), price=16.7)
+
+    rows = historical_router._append_current_quote_row(
+        [(historical_router.date(2026, 5, 21), 16.76), (historical_router.date(2026, 5, 22), 16.9)],
+        quote,
+    )
+
+    assert rows == [(historical_router.date(2026, 5, 21), 16.76), (historical_router.date(2026, 5, 22), 16.7)]

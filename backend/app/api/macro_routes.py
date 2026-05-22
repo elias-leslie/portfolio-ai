@@ -33,6 +33,8 @@ class MacroSnapshotResponse(BaseModel):
     coverage: float | None = None
     components: dict[str, float | None]
     raw: dict[str, float | None]
+    weights: dict[str, float] = Field(default_factory=dict)
+    component_quality: dict[str, dict[str, Any]] = Field(default_factory=dict)
     computed_at: str | None = None
 
 
@@ -79,6 +81,10 @@ def _snapshot_to_response(row: dict) -> MacroSnapshotResponse:
     coverage = None
     if isinstance(raw_json, dict):
         coverage = raw_json.get("coverage")
+    weights = raw_json.get("weights") if isinstance(raw_json, dict) else None
+    component_quality = (
+        raw_json.get("component_quality") if isinstance(raw_json, dict) else None
+    )
     return MacroSnapshotResponse(
         snapshot_date=row["snapshot_date"],
         deployment_score=row["deployment_score"],
@@ -86,6 +92,8 @@ def _snapshot_to_response(row: dict) -> MacroSnapshotResponse:
         coverage=coverage,
         components=components,
         raw=raw,
+        weights=weights if isinstance(weights, dict) else dict(WEIGHTS),
+        component_quality=component_quality if isinstance(component_quality, dict) else {},
         computed_at=row.get("computed_at"),
     )
 

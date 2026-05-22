@@ -21,6 +21,17 @@ export interface MacroSnapshot {
     putCallRatio: number | null
     factorCrowdingCorr: number | null
   }
+  weights: Record<string, number>
+  componentQuality: Record<
+    string,
+    {
+      status: 'fresh' | 'stale' | 'missing'
+      asOf: string | null
+      source: string
+      cadence: string
+      reason?: string | null
+    }
+  >
   computedAt: string | null
 }
 

@@ -18,6 +18,7 @@ def upsert_snapshot(snapshot_date: date, result: CompositeResult) -> None:
         "raw": asdict(result.raw),
         "scores": asdict(result.scores),
         "coverage": result.coverage,
+        **result.metadata,
     }
     params = [
         snapshot_date,
@@ -109,6 +110,38 @@ def get_history(days: int = 730) -> list[dict]:
             """,
         ).fetchall()
     return [_row_to_dict(row) for row in rows]
+
+
+def get_latest_crowding() -> dict | None:
+    """Return the latest persisted crowding raw value and as-of date."""
+    storage = get_storage()
+    with storage.connection() as conn:
+        row = conn.execute(
+            """
+            SELECT snapshot_date, factor_crowding_corr, crowding_score, raw_json, computed_at
+            FROM signal_macro_snapshots
+            WHERE factor_crowding_corr IS NOT NULL
+            ORDER BY snapshot_date DESC
+            LIMIT 1
+            """,
+        ).fetchone()
+    if row is None:
+        return None
+
+    raw_json = row[3] if isinstance(row[3], dict) else {}
+    quality = raw_json.get("component_quality", {}) if isinstance(raw_json, dict) else {}
+    crowding_quality = quality.get("crowding", {}) if isinstance(quality, dict) else {}
+    as_of = crowding_quality.get("as_of") if isinstance(crowding_quality, dict) else None
+    if as_of is None:
+        as_of = row[0].isoformat() if isinstance(row[0], date) else row[0]
+
+    return {
+        "snapshot_date": row[0].isoformat() if isinstance(row[0], date) else row[0],
+        "factor_crowding_corr": _maybe_float(row[1]),
+        "crowding_score": _maybe_float(row[2]),
+        "as_of": as_of,
+        "computed_at": row[4].isoformat() if isinstance(row[4], datetime) else row[4],
+    }
 
 
 def _row_to_dict(row: tuple) -> dict:

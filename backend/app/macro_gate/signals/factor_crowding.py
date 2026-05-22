@@ -23,7 +23,7 @@ from ...storage.facade import get_storage
 
 logger = get_logger(__name__)
 
-LOOKBACK_DAYS = 130  # ~60-day window plus formation lookback
+LOOKBACK_DAYS = 320  # ~120 trading-day formation + 60 trading-day correlation window
 TOP_BUCKET_SIZE = 50  # cardinality of momentum long leg / short leg
 
 
@@ -75,11 +75,13 @@ def compute_crowding(window_days: int = 60) -> CrowdingObservation | None:
         logger.warning("factor_crowding_panel_insufficient", rows=len(panel))
         return None
 
-    daily_returns = panel.pct_change().dropna(how="all")
+    # Align sparse symbol panels explicitly; pandas' implicit pct_change fill is deprecated.
+    panel = panel.ffill(limit=5)
+    daily_returns = panel.pct_change(fill_method=None).dropna(how="all")
     if len(daily_returns) < window_days:
         return None
 
-    formation_returns = panel.pct_change(periods=120).iloc[-1].dropna()
+    formation_returns = panel.pct_change(periods=120, fill_method=None).iloc[-1].dropna()
     if len(formation_returns) < TOP_BUCKET_SIZE * 2:
         return None
 
@@ -87,8 +89,9 @@ def compute_crowding(window_days: int = 60) -> CrowdingObservation | None:
     momentum_short = formation_returns.nsmallest(TOP_BUCKET_SIZE).index
 
     # Reversal proxy: 60d losers (long) minus 60d winners (short)
-    reversal_long = panel.pct_change(periods=60).iloc[-1].nsmallest(TOP_BUCKET_SIZE).index
-    reversal_short = panel.pct_change(periods=60).iloc[-1].nlargest(TOP_BUCKET_SIZE).index
+    reversal_returns = panel.pct_change(periods=60, fill_method=None).iloc[-1]
+    reversal_long = reversal_returns.nsmallest(TOP_BUCKET_SIZE).index
+    reversal_short = reversal_returns.nlargest(TOP_BUCKET_SIZE).index
 
     mom_series = (
         daily_returns[momentum_long].mean(axis=1)

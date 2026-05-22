@@ -116,6 +116,8 @@ def _append_current_quote_row(rows: list[tuple[Any, ...]], quote: object | None)
         return rows
     latest_row_date = rows[-1][0] if rows else None
     latest_date = latest_row_date.date() if isinstance(latest_row_date, datetime) else latest_row_date
+    if isinstance(latest_date, date) and quote_date == latest_date:
+        return [*rows[:-1], (quote_date, float(quote_price))]
     if not isinstance(latest_date, date) or quote_date > latest_date:
         return [*rows, (quote_date, float(quote_price))]
     return rows
