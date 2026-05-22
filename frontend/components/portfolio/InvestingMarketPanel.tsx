@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { IndicatorsTrendChart } from '@/components/market/IndicatorsTrendChart'
+import { MacroRegimeDriversTrendChart } from '@/components/market/MacroRegimeDriversTrendChart'
 import { SectorPerformanceChart } from '@/components/market/SectorPerformanceChart'
 import { SentimentTrendChart } from '@/components/market/SentimentTrendChart'
 import {
@@ -24,6 +25,10 @@ export function InvestingMarketTrendPanels() {
 
   return (
     <div className="space-y-4">
+      <SectionCard variant="surface">
+        <MacroRegimeDriversTrendChart />
+      </SectionCard>
+
       <SectionCard variant="surface">
         <SentimentTrendChart />
       </SectionCard>

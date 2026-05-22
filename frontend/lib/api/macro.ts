@@ -49,6 +49,12 @@ export interface MacroBacktestResponse {
   sanity: Record<string, string>
 }
 
+export interface MacroHistoryResponse {
+  snapshots: MacroSnapshot[]
+  weights: Record<string, number>
+  zones: string[]
+}
+
 export interface MacroBacktestQueryArgs {
   start?: string
   end?: string
@@ -64,6 +70,10 @@ function buildMacroBacktestQuery(args: MacroBacktestQueryArgs = {}): string {
 
 export function fetchMacroCurrent(): Promise<MacroSnapshot> {
   return apiRequest<MacroSnapshot>('/api/macro/current')
+}
+
+export function fetchMacroHistory(days = 90): Promise<MacroHistoryResponse> {
+  return apiRequest<MacroHistoryResponse>(`/api/macro/history?days=${days}`)
 }
 
 export function fetchMacroBacktest(

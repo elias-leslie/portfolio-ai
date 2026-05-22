@@ -25,6 +25,10 @@ vi.mock('@/components/market/IndicatorsTrendChart', () => ({
   IndicatorsTrendChart: () => <div>Indicators Trend</div>,
 }))
 
+vi.mock('@/components/market/MacroRegimeDriversTrendChart', () => ({
+  MacroRegimeDriversTrendChart: () => <div>Regime Drivers Trend</div>,
+}))
+
 vi.mock('@/components/market/SectorPerformanceChart', () => ({
   SectorPerformanceChart: ({
     timeframe,
@@ -110,6 +114,7 @@ describe('InvestingMarketPanel', () => {
     render(<InvestingMarketPanel />)
 
     expect(screen.getByText('Sector Chart 1M')).toBeInTheDocument()
+    expect(screen.getByText('Regime Drivers Trend')).toBeInTheDocument()
     expect(screen.getByText('Sentiment Trend')).toBeInTheDocument()
     expect(screen.getByText('Indicators Trend')).toBeInTheDocument()
 
