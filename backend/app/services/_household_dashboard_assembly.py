@@ -109,6 +109,7 @@ _LANE_CONFIGS: list[tuple[str, str, str]] = [
     ("Savings", "Reserve dollars for investing, emergency cash, and future big-ticket items.", "monthly_savings_target"),
 ]
 _DEGRADED_ACCOUNT_FRESHNESS_STATUSES = {"aging", "stale", "needs_evidence"}
+
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
@@ -155,32 +156,26 @@ def build_import_center(documents: list[Any], planning: Any) -> ImportCenter:
 def update_overview_action(overview: HouseholdOverview, title: str) -> HouseholdOverview:
     return overview.model_copy(update={"next_best_action": title})
 
+
 def _apply_account_freshness_visibility_cap(
     visibility_score: int,
     account_summaries: list[Any],
 ) -> int:
     if not account_summaries:
         return visibility_score
-
-    degraded_count = sum(
-        1
-        for account in account_summaries
-        if account.freshness_status in _DEGRADED_ACCOUNT_FRESHNESS_STATUSES
-    )
+    degraded_count = sum(1 for a in account_summaries if a.freshness_status in _DEGRADED_ACCOUNT_FRESHNESS_STATUSES)
     if degraded_count == 0:
         return visibility_score
-
     if degraded_count * 2 >= len(account_summaries):
         return min(visibility_score, VISIBILITY_STRONG_THRESHOLD - 1)
-
     return min(visibility_score, 99)
 
 
-def _pluralize(count: int, singular: str, plural: str | None = None) -> str:
-    return singular if count == 1 else (plural or f"{singular}s")
+def _pluralize(n: int, singular: str, plural: str | None = None) -> str:
+    return singular if n == 1 else (plural or f"{singular}s")
 
 
-def _format_issue_counts(parts: list[str]) -> str:
+def _join_issues(parts: list[str]) -> str:
     if not parts:
         return ""
     if len(parts) == 1:
@@ -222,40 +217,28 @@ def _overview_totals_from_account_summaries(
         if account.asset_group in {"taxable", "education"}
     )
     cash_reserve = sum(
-        float(
-            account.cash_balance
-            if account.cash_balance is not None
-            else account.current_value or 0.0
-        )
+        float(account.cash_balance if account.cash_balance is not None else account.current_value or 0.0)
         for account in asset_accounts
-        if account.asset_group in {"cash", "taxable"}
-        and account.money_role == "spend_driver"
+        if account.asset_group in {"cash", "taxable"} and account.money_role == "spend_driver"
     )
     invested_assets = max(total_tracked_assets - cash_reserve, 0.0)
-    return (
-        invested_assets,
-        cash_reserve,
-        retirement_assets,
-        taxable_assets,
-        total_tracked_assets,
-        liabilities_total,
-    )
+    return invested_assets, cash_reserve, retirement_assets, taxable_assets, total_tracked_assets, liabilities_total
 
 
 def _net_worth_trust(account_summaries: list[Any]) -> tuple[str, str]:
     if not account_summaries:
         return ("unavailable", "Net worth is not available yet because Jenny has not matched any balance-bearing accounts.")
 
-    visible_accounts = [account for account in account_summaries if account.current_value is not None]
+    visible_accounts = [a for a in account_summaries if a.current_value is not None]
     if not visible_accounts:
         return ("unavailable", "Net worth is not available yet because Jenny does not have any usable balance evidence.")
 
-    currentish_accounts = [account for account in visible_accounts if account.balance_freshness_status in {"fresh", "aging"}]
-    missing_balance_count = sum(1 for account in account_summaries if account.current_value is None or account.balance_freshness_status == "needs_evidence")
-    stale_balance_count = sum(1 for account in account_summaries if account.balance_freshness_status == "stale")
-    aging_balance_count = sum(1 for account in account_summaries if account.balance_freshness_status == "aging")
-    candidate_count = sum(1 for account in account_summaries if account.match_status == "candidate")
-    latest_balance_at = max((str(account.last_balance_at) for account in visible_accounts if account.last_balance_at), default=None)
+    currentish_accounts = [a for a in visible_accounts if a.balance_freshness_status in {"fresh", "aging"}]
+    missing_balance_count = sum(1 for a in account_summaries if a.current_value is None or a.balance_freshness_status == "needs_evidence")
+    stale_balance_count = sum(1 for a in account_summaries if a.balance_freshness_status == "stale")
+    aging_balance_count = sum(1 for a in account_summaries if a.balance_freshness_status == "aging")
+    candidate_count = sum(1 for a in account_summaries if a.match_status == "candidate")
+    latest_balance_at = max((str(a.last_balance_at) for a in visible_accounts if a.last_balance_at), default=None)
     as_of_detail = f" Latest visible balance date {latest_balance_at[:10]}." if latest_balance_at is not None else ""
 
     estimate_issue_parts: list[str] = []
@@ -270,7 +253,7 @@ def _net_worth_trust(account_summaries: list[Any]) -> tuple[str, str]:
             "known",
             f"Known net worth from {len(visible_accounts)} of {len(account_summaries)} tracked "
             f"{_pluralize(len(account_summaries), 'account')}. "
-            f"{_format_issue_counts(estimate_issue_parts).capitalize()}.{as_of_detail}",
+            f"{_join_issues(estimate_issue_parts).capitalize()}.{as_of_detail}",
         )
 
     refresh_count = stale_balance_count + aging_balance_count
@@ -286,15 +269,15 @@ def _net_worth_trust(account_summaries: list[Any]) -> tuple[str, str]:
 
 
 def _monthly_spend_trust(account_summaries: list[Any], statement_freshness: dict[str, Any]) -> tuple[str, str]:
-    spend_accounts = [account for account in account_summaries if account.money_role == "spend_driver"]
+    spend_accounts = [a for a in account_summaries if a.money_role == "spend_driver"]
     if not spend_accounts:
         return ("unavailable", "Monthly spend is not available yet because Jenny does not have any checking, card, or debt accounts with transaction history.")
 
-    fresh_count = sum(1 for account in spend_accounts if account.transaction_freshness_status == "fresh")
-    aging_count = sum(1 for account in spend_accounts if account.transaction_freshness_status == "aging")
-    stale_count = sum(1 for account in spend_accounts if account.transaction_freshness_status == "stale")
-    missing_count = sum(1 for account in spend_accounts if account.transaction_freshness_status == "needs_evidence")
-    historical_count = sum(1 for account in spend_accounts if account.last_transaction_at is not None or account.transaction_freshness_status in {"fresh", "aging", "stale"})
+    fresh_count = sum(1 for a in spend_accounts if a.transaction_freshness_status == "fresh")
+    aging_count = sum(1 for a in spend_accounts if a.transaction_freshness_status == "aging")
+    stale_count = sum(1 for a in spend_accounts if a.transaction_freshness_status == "stale")
+    missing_count = sum(1 for a in spend_accounts if a.transaction_freshness_status == "needs_evidence")
+    historical_count = sum(1 for a in spend_accounts if a.last_transaction_at is not None or a.transaction_freshness_status in {"fresh", "aging", "stale"})
     latest_transaction_date = statement_freshness.get("most_recent_date")
     days_since_latest = statement_freshness.get("days_since_latest")
     gap_months = statement_freshness.get("gap_months") or []
@@ -326,7 +309,7 @@ def _monthly_spend_trust(account_summaries: list[Any], statement_freshness: dict
         return (
             "estimated",
             f"Monthly spend estimate from {visible_spend_accounts} of {len(spend_accounts)} spending {_pluralize(len(spend_accounts), 'account')}. "
-            f"{_format_issue_counts(issue_parts).capitalize()}.{latest_suffix}",
+            f"{_join_issues(issue_parts).capitalize()}.{latest_suffix}",
         )
     if aging_count > 0:
         return ("stale", f"Monthly spend subtotal comes from {fresh_count + aging_count} covered spending {_pluralize(fresh_count + aging_count, 'account')}, but {aging_count} should refresh before weekly review.{latest_suffix}")
@@ -350,18 +333,15 @@ def build_jenny_needs(
     ]
 
 
-def build_overview(
-    *, accounts: list[Any], live_positions: list[Any],
+def _compute_asset_totals(
+    *,
+    accounts: list[Any],
     evidence_accounts: list[HouseholdEvidenceAccount],
     account_summaries: list[Any],
-    inbox: list[Any],
-    statement_freshness: dict[str, Any],
-    reports: HouseholdReports,
-    holdings_by_account: dict[str, float], documents: list[Any],
-    questions: list[Any], resolved_values: list[HouseholdResolvedValue],
-    account_control: Any | None = None,
-    service: Any | None = None,
-) -> tuple[HouseholdOverview, float, float, float, float]:
+    holdings_by_account: dict[str, float],
+    service: Any | None,
+) -> tuple[float, float, float, float, float, float]:
+    """Return (invested, cash_reserve, retirement, taxable, total_tracked, liabilities) with evidence fallbacks."""
     summary_totals = _overview_totals_from_account_summaries(account_summaries)
     if summary_totals is not None:
         invested_assets, cash_reserve, retirement_assets, taxable_assets, total_tracked_assets, liabilities_total = summary_totals
@@ -369,16 +349,19 @@ def build_overview(
         invested_assets = sum(holdings_by_account.values())
         cash_reserve = sum(a.cash_balance for a in accounts)
         retirement_assets = sum(
-            account.cash_balance + holdings_by_account.get(account.id, 0.0)
-            for account in accounts
-            if account.account_type in RETIREMENT_ACCOUNT_TYPES
+            a.cash_balance + holdings_by_account.get(a.id, 0.0)
+            for a in accounts if a.account_type in RETIREMENT_ACCOUNT_TYPES
         )
         taxable_assets = sum(
-            account.cash_balance + holdings_by_account.get(account.id, 0.0)
-            for account in accounts
-            if account.account_type in TAXABLE_ACCOUNT_TYPES
+            a.cash_balance + holdings_by_account.get(a.id, 0.0)
+            for a in accounts if a.account_type in TAXABLE_ACCOUNT_TYPES
         )
-    evidence_totals = service.evidence_service.totals_by_group(evidence_accounts) if service is not None else dict.fromkeys(("cash", "retirement", "taxable", "education", "debt", "credit", "other"), 0.0)
+
+    evidence_totals = (
+        service.evidence_service.totals_by_group(evidence_accounts)
+        if service is not None
+        else dict.fromkeys(("cash", "retirement", "taxable", "education", "debt", "credit", "other"), 0.0)
+    )
     cash_fallback = evidence_totals.get("cash", 0.0) if cash_reserve <= 0 else 0.0
     retirement_fallback = evidence_totals.get("retirement", 0.0) if retirement_assets <= 0 else 0.0
     taxable_fallback = (evidence_totals.get("taxable", 0.0) + evidence_totals.get("education", 0.0)) if taxable_assets <= 0 else 0.0
@@ -392,80 +375,63 @@ def build_overview(
         total_tracked_assets = invested_assets + cash_reserve
         liabilities_total = evidence_totals.get("debt", 0.0) + evidence_totals.get("credit", 0.0)
     else:
-        # Account-summary path fixes total_tracked_assets from current_value rows; evidence
-        # fallbacks above add categories that aren't in those summaries, so the total must
-        # absorb them or net_worth understates by the bump amount.
+        # Account-summary path: evidence fallbacks add categories missing from summary rows,
+        # so the total must absorb them or net_worth understates by the bump amount.
         total_tracked_assets += asset_evidence_bump
-    net_worth = total_tracked_assets - liabilities_total
-    rnv = lambda field: resolved_numeric_value(resolved_values, field)  # noqa: E731
-    effective_account_count = len(account_summaries) or len(accounts) or len(evidence_accounts)
-    effective_position_count = len(live_positions) or (
-        service.evidence_service.investment_like_count(evidence_accounts) if service is not None else 0
+
+    return invested_assets, cash_reserve, retirement_assets, taxable_assets, total_tracked_assets, liabilities_total
+
+
+def build_overview(
+    *, accounts: list[Any], live_positions: list[Any],
+    evidence_accounts: list[HouseholdEvidenceAccount],
+    account_summaries: list[Any], inbox: list[Any],
+    statement_freshness: dict[str, Any], reports: HouseholdReports,
+    holdings_by_account: dict[str, float], documents: list[Any],
+    questions: list[Any], resolved_values: list[HouseholdResolvedValue],
+    account_control: Any | None = None, service: Any | None = None,
+) -> tuple[HouseholdOverview, float, float, float, float]:
+    invested, cash, retirement, taxable, total, liabilities = _compute_asset_totals(
+        accounts=accounts, evidence_accounts=evidence_accounts, account_summaries=account_summaries,
+        holdings_by_account=holdings_by_account, service=service,
     )
+    rnv = lambda field: resolved_numeric_value(resolved_values, field)  # noqa: E731
+    n_accounts = len(account_summaries) or len(accounts) or len(evidence_accounts)
+    n_positions = len(live_positions) or (service.evidence_service.investment_like_count(evidence_accounts) if service is not None else 0)
     visibility_score = _apply_account_freshness_visibility_cap(
         _call_service_override(
-            service,
-            "_compute_visibility_score",
-            compute_visibility_score,
-            account_count=effective_account_count,
-            position_count=effective_position_count,
-            cash_reserve=cash_reserve,
-            retirement_assets=retirement_assets,
-            taxable_assets=taxable_assets,
-            resolved_numeric_value=rnv,
-            document_count=len(documents),
+            service, "_compute_visibility_score", compute_visibility_score,
+            account_count=n_accounts, position_count=n_positions,
+            cash_reserve=cash, retirement_assets=retirement, taxable_assets=taxable,
+            resolved_numeric_value=rnv, document_count=len(documents),
         ),
         account_summaries,
     )
-    needs_refresh_count = sum(
-        1
-        for account in account_summaries
-        if account.freshness_status in _DEGRADED_ACCOUNT_FRESHNESS_STATUSES
-    )
-    latest_report_transaction = max((txn.date for txn in reports.recent_transactions), default=None)
-    last_transaction_date = latest_report_transaction or (
-        str(statement_freshness.get("most_recent_date")) if statement_freshness.get("most_recent_date") else None
-    )
+    latest_txn = max((txn.date for txn in reports.recent_transactions), default=None)
+    last_transaction_date = latest_txn or (str(statement_freshness.get("most_recent_date")) if statement_freshness.get("most_recent_date") else None)
     net_worth_status, net_worth_detail = _net_worth_trust(account_summaries)
     if account_control is not None and account_control.blocking_issue_count > 0:
-        net_worth_status = "blocked"
-        net_worth_detail = account_control.summary
-    monthly_spend_status, monthly_spend_detail = _monthly_spend_trust(
-        account_summaries,
-        statement_freshness,
-    )
+        net_worth_status, net_worth_detail = "blocked", account_control.summary
+    monthly_spend_status, monthly_spend_detail = _monthly_spend_trust(account_summaries, statement_freshness)
     overview = HouseholdOverview(
-        invested_assets=invested_assets, retirement_assets=retirement_assets,
-        taxable_assets=taxable_assets, cash_reserve=cash_reserve,
-        total_tracked_assets=total_tracked_assets, liabilities_total=liabilities_total,
-        net_worth=net_worth,
-        net_worth_status=net_worth_status,
-        net_worth_detail=net_worth_detail,
+        invested_assets=invested, retirement_assets=retirement, taxable_assets=taxable,
+        cash_reserve=cash, total_tracked_assets=total, liabilities_total=liabilities,
+        net_worth=total - liabilities,
+        net_worth_status=net_worth_status, net_worth_detail=net_worth_detail,
         tracked_account_count=len(account_summaries),
-        needs_refresh_count=needs_refresh_count,
-        candidate_account_count=sum(1 for account in account_summaries if account.match_status == "candidate"),
-        gap_count=sum(len(account.gap_flags) for account in account_summaries),
-        inbox_count=len(inbox),
-        coverage_months=max(
-            int(statement_freshness.get("coverage_months") or 0),
-            reports.executive.coverage_months,
-        ),
-        last_transaction_date=last_transaction_date,
-        visibility_score=visibility_score,
+        needs_refresh_count=sum(1 for a in account_summaries if a.freshness_status in _DEGRADED_ACCOUNT_FRESHNESS_STATUSES),
+        candidate_account_count=sum(1 for a in account_summaries if a.match_status == "candidate"),
+        gap_count=sum(len(a.gap_flags) for a in account_summaries), inbox_count=len(inbox),
+        coverage_months=max(int(statement_freshness.get("coverage_months") or 0), reports.executive.coverage_months),
+        last_transaction_date=last_transaction_date, visibility_score=visibility_score,
         visibility_label=_call_service_override(service, "_visibility_label", visibility_label, visibility_score),
-        monthly_spend_status=monthly_spend_status,
-        monthly_spend_detail=monthly_spend_detail,
+        monthly_spend_status=monthly_spend_status, monthly_spend_detail=monthly_spend_detail,
         next_best_action=_call_service_override(
-            service,
-            "_next_best_action",
-            next_best_action,
-            documents,
-            visibility_score,
-            questions=[q.question for q in questions],
-            resolved_numeric_value=rnv,
+            service, "_next_best_action", next_best_action, documents, visibility_score,
+            questions=[q.question for q in questions], resolved_numeric_value=rnv,
         ),
     )
-    return overview, retirement_assets, taxable_assets, cash_reserve, total_tracked_assets
+    return overview, retirement, taxable, cash, total
 
 
 def build_budget_readiness(
@@ -505,15 +471,7 @@ def build_retirement_preparedness(
             else "Retirement assets are visible, but retirement readiness still depends on real spending and future-income assumptions."
         ),
         retirement_account_share=retirement_share,
-        strengths=_call_service_override(
-            service,
-            "_retirement_strengths",
-            retirement_strengths,
-            retirement_assets,
-            taxable_assets,
-            cash_reserve,
-            rnv,
-        ),
+        strengths=_call_service_override(service, "_retirement_strengths", retirement_strengths, retirement_assets, taxable_assets, cash_reserve, rnv),
         blockers=_call_service_override(service, "_retirement_blockers", retirement_blockers, rnv, documents),
         next_steps=_call_service_override(service, "_retirement_next_steps", retirement_next_steps, rnv, documents),
     )
@@ -551,7 +509,8 @@ def build_portfolio_context(
 # Brief & progression
 # ---------------------------------------------------------------------------
 
-def build_progression(*, reports: HouseholdReports, resolved_values: list[HouseholdResolvedValue], profile: HouseholdProfile) -> JennyProgression:
+def build_jenny_brief(profile: Any, reports: Any, resolved_values: list[HouseholdResolvedValue]) -> JennyMoneyBrief:
+    """Build the Jenny money brief including a data-derived progression summary."""
     executive = reports.executive
     found: list[str] = []
     if executive.recurring_merchant_count > 0:
@@ -571,18 +530,14 @@ def build_progression(*, reports: HouseholdReports, resolved_values: list[Househ
     confirmed_fields = {rv.field_name for rv in resolved_values if rv.source == "user" and rv.field_name in profile_fields}
     all_known = fields_with_confident_inferences(resolved_values, threshold=0.7) | confirmed_fields
     if executive.coverage_months < 3:
-        working_on = "Building spending baselines \u2014 more statement history will improve accuracy"
+        working_on = "Building spending baselines — more statement history will improve accuracy"
     elif len(all_known) < len(profile_fields):
         working_on = "Refining your financial picture as more data comes in"
     else:
         working_on = "Monitoring budget pacing and identifying optimization opportunities"
-    return JennyProgression(found=found, working_on=working_on)
-
-
-def build_jenny_brief(profile: Any, reports: Any, resolved_values: list[HouseholdResolvedValue]) -> JennyMoneyBrief:
     return JennyMoneyBrief(
         headline=_JENNY_BRIEF.headline, body=_JENNY_BRIEF.body, prompts=_JENNY_BRIEF.prompts,
-        progression=build_progression(reports=reports, resolved_values=resolved_values, profile=profile),
+        progression=JennyProgression(found=found, working_on=working_on),
     )
 
 
@@ -611,11 +566,7 @@ def gather_service_data(service: Any) -> dict[str, Any]:
     # cache + on-miss vendor fetch with smart TTL (2/5/30 min based on market state).
     # The household holdings cron keeps the cache hot during market hours.
     price_data = cast(dict[str, object], service.price_fetcher.fetch_price_data(symbols)) if symbols else {}
-    account_valuations = calculate_account_valuations(
-        accounts,
-        live_positions,
-        cast(dict[str, Any], price_data),
-    )
+    account_valuations = calculate_account_valuations(accounts, live_positions, cast(dict[str, Any], price_data))
     holdings_by_account: dict[str, float] = {
         account_id: valuation.priced_positions_value
         for account_id, valuation in account_valuations.items()
@@ -625,8 +576,7 @@ def gather_service_data(service: Any) -> dict[str, Any]:
     reports = service.transaction_service.build_reports()
     return {
         "profile": profile, "planning": planning, "documents": documents, "questions": questions,
-        "evidence_accounts": evidence_accounts,
-        "tracked_accounts": tracked_accounts,
+        "evidence_accounts": evidence_accounts, "tracked_accounts": tracked_accounts,
         "accounts": accounts, "live_positions": live_positions,
         "account_valuations": account_valuations,
         "account_control": account_control_result.control,
@@ -658,34 +608,26 @@ def assemble_finance_dashboard(
     account_summaries: list[Any], discovered_accounts: list[Any], inbox: list[Any],
 ) -> HouseholdFinanceDashboard:
     profile, reports, documents, planning = d["profile"], d["reports"], d["documents"], d["planning"]
+    storage = service.storage
     return HouseholdFinanceDashboard(
         generated_at=datetime.now(UTC).isoformat(),
         overview=overview,
         account_control=d["account_control"],
         profile=profile,
         resolved_values=resolved_values,
-        budget_readiness=build_budget_readiness(
-            resolved_values=resolved_values,
-            documents=documents,
-            service=service,
-        ),
-        budget_snapshot=build_budget_snapshot(
-            profile=profile,
-            reports=reports,
-            month_to_date_spend=fetch_current_month_spend(service.storage),
-        ),
+        budget_readiness=build_budget_readiness(resolved_values=resolved_values, documents=documents, service=service),
+        budget_snapshot=build_budget_snapshot(profile=profile, reports=reports, month_to_date_spend=fetch_current_month_spend(storage)),
         retirement_preparedness=build_retirement_preparedness(
             resolved_values=resolved_values, documents=documents,
             retirement_assets=retirement_assets, taxable_assets=taxable_assets,
-            cash_reserve=cash_reserve, total_tracked_assets=total_tracked_assets,
-            service=service,
+            cash_reserve=cash_reserve, total_tracked_assets=total_tracked_assets, service=service,
         ),
         jenny_needs=jenny_needs, reports=reports,
         categorization_queue=categorization_queue, recurring_commitments=recurring_commitments,
         transaction_date_issues=transaction_date_issues,
         sinking_funds=build_sinking_funds(recurring_commitments=recurring_commitments),
         retirement_contribution_tracker=build_retirement_contribution_tracker(
-            profile=profile, estimated_monthly_contributions=fetch_monthly_retirement_contributions(service.storage),
+            profile=profile, estimated_monthly_contributions=fetch_monthly_retirement_contributions(storage),
         ),
         retirement_scenarios=build_retirement_scenarios(
             retirement_assets=retirement_assets, target_retirement_spend=profile.target_retirement_spend,
@@ -699,8 +641,7 @@ def assemble_finance_dashboard(
         questions=visible_questions,
         jenny_brief=build_jenny_brief(profile, reports, resolved_values),
         portfolio_context=build_portfolio_context(
-            total_tracked_assets=total_tracked_assets, cash_reserve=cash_reserve,
-            profile=profile, reports=reports,
+            total_tracked_assets=total_tracked_assets, cash_reserve=cash_reserve, profile=profile, reports=reports,
         ),
         planning=planning,
     )
