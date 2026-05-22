@@ -5,9 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from csv import DictReader
 from datetime import UTC, datetime
-from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -15,11 +13,49 @@ from fastapi import UploadFile
 
 from app.logging_config import get_logger
 from app.models.household_finance import HouseholdDocument
+from app.services._household_document_pipeline_accounts import (
+    apply_upload_account_binding as _apply_upload_account_binding,
+)
+from app.services._household_document_pipeline_apply import (
+    append_review_impacts as _append_review_impacts,
+)
+from app.services._household_document_pipeline_apply import (
+    audit_transactions as _audit_transactions,
+)
+from app.services._household_document_pipeline_apply import (
+    find_duplicate_document_by_hash as _find_duplicate_document_by_hash,
+)
+from app.services._household_document_pipeline_apply import (
+    import_document_rows as _import_document_rows,
+)
+from app.services._household_document_pipeline_apply import (
+    inferred_value_count as _inferred_value_count,
+)
+from app.services._household_document_pipeline_apply import (
+    is_duplicate_import_validation as _is_duplicate_import_validation,
+)
+from app.services._household_document_pipeline_apply import (
+    merge_review_planning_items as _merge_review_planning_items,
+)
+from app.services._household_document_pipeline_apply import (
+    signature_structured_data as _signature_structured_data,
+)
+from app.services._household_document_pipeline_apply import (
+    sync_account_registry as _sync_account_registry,
+)
+from app.services._household_document_pipeline_apply import (
+    sync_portfolio_positions as _sync_portfolio_positions,
+)
+from app.services._household_document_pipeline_apply import (
+    sync_portfolio_transactions as _sync_portfolio_transactions,
+)
+from app.services._household_document_pipeline_apply import (
+    transaction_summary_with_audit as _transaction_summary_with_audit,
+)
 from app.services._household_document_pipeline_db import (
     archive_prior_document_data,
     dismiss_open_document_questions,
     fetch_document_application_counts,
-    fetch_duplicate_document_row,
     insert_document_db,
     insert_inferred_values,
     insert_questions,
@@ -27,10 +63,10 @@ from app.services._household_document_pipeline_db import (
     save_upload_to_disk,
     update_document_and_log_review,
     update_document_application_summary,
-    update_import_summary,
-    upsert_import_row,
-    upsert_receipt_line_item_row,
     upsert_signature_record,
+)
+from app.services._household_document_pipeline_receipt import (  # noqa: F401
+    receipt_line_item_rows as _receipt_line_item_rows,
 )
 from app.services._household_document_pipeline_utils import (
     build_import_row_hash,
@@ -38,15 +74,9 @@ from app.services._household_document_pipeline_utils import (
     detect_import_dataset,
     normalize_financial_document_classification,
     parse_decimal,
-    parse_decimal_value,
     parse_row_date,
 )
-from app.services._household_finance_utils import iso, iso_or_none, to_float
-from app.services.household_account_identity import (
-    account_masks_match,
-    normalize_account_mask,
-)
-from app.services.household_finance_rows import FIELD_LABELS, row_to_document
+from app.services._household_finance_utils import to_float
 from app.services.household_review_agent_service import HOUSEHOLD_REVIEW_AGENT_SLUG
 from app.services.household_upload_validation import (
     read_household_upload_limited,
@@ -72,50 +102,6 @@ _ACCOUNT_EVIDENCE_SOURCE_TYPES = frozenset({"bank", "credit_card", "brokerage", 
 _ACCOUNT_EVIDENCE_DOCUMENT_TYPES = frozenset(
     {"statement", "brokerage_statement", "retirement_statement"}
 )
-_MONEY_SIGNATURE_VOLATILE_FIELDS = frozenset(
-    {
-        "activity_observed_through",
-        "as_of_date",
-        "statement_period",
-        "text_preview",
-        "total_amount",
-    }
-)
-_MONEY_SIGNATURE_ACCOUNT_VOLATILE_FIELDS = frozenset(
-    {
-        "activity_observed_through",
-        "as_of_date",
-        "balance",
-        "cash_balance",
-        "confidence",
-        "holdings_value",
-    }
-)
-_RECEIPT_RECONCILIATION_TOLERANCE = Decimal("0.05")
-
-
-def _structured_data_dict(reviewed: dict[str, object]) -> dict[str, object]:
-    structured_data = reviewed.get("structured_data")
-    return cast(dict[str, object], structured_data) if isinstance(structured_data, dict) else {}
-
-
-def _should_merge_planning_items(reviewed: dict[str, object]) -> bool:
-    source_type = str(reviewed.get("source_type") or "").strip()
-    document_type = str(reviewed.get("document_type") or "").strip()
-    structured_data = _structured_data_dict(reviewed)
-    financial_accounts = structured_data.get("financial_accounts")
-    has_financial_accounts = isinstance(financial_accounts, list) and bool(financial_accounts)
-    if has_financial_accounts:
-        return False
-    return not (
-        source_type in _ACCOUNT_EVIDENCE_SOURCE_TYPES
-        and document_type in _ACCOUNT_EVIDENCE_DOCUMENT_TYPES
-    )
-
-
-def _review_checks_dict(reviewed: dict[str, object]) -> dict[str, object]:
-    review_checks = reviewed.get("review_checks")
-    return cast(dict[str, object], review_checks) if isinstance(review_checks, dict) else {}
 
 
 def _int_value(value: object) -> int:
@@ -125,258 +111,30 @@ def _int_value(value: object) -> int:
         return 0
 
 
-def _string_value(value: object) -> str | None:
-    if value in (None, ""):
-        return None
-    text = str(value).strip()
-    return text or None
-
-
-def _first_present_value(raw: dict[str, object], keys: tuple[str, ...]) -> object:
-    for key in keys:
-        value = raw.get(key)
-        if value not in (None, ""):
-            return value
-    return None
-
-
-def _decimal_value(value: object) -> Decimal | None:
-    return parse_decimal_value(_string_value(value))
-
-
-def _close_money(left: Decimal, right: Decimal) -> bool:
-    return abs(left - right) <= _RECEIPT_RECONCILIATION_TOLERANCE
-
-
-def _receipt_line_item_amounts(line_items: object) -> list[Decimal]:
-    if not isinstance(line_items, list):
-        return []
-    amounts: list[Decimal] = []
-    for raw_item in line_items:
-        if not isinstance(raw_item, dict):
-            continue
-        description = _string_value(raw_item.get("description") or raw_item.get("name"))
-        if not description:
-            continue
-        amount = _decimal_value(_first_present_value(raw_item, ("amount", "total", "price")))
-        if amount is not None:
-            amounts.append(amount)
-    return amounts
-
-
-def _receipt_line_item_quantity_total(line_items: object) -> Decimal:
-    if not isinstance(line_items, list):
-        return Decimal("0")
-    total = Decimal("0")
-    for raw_item in line_items:
-        if not isinstance(raw_item, dict):
-            continue
-        description = _string_value(raw_item.get("description") or raw_item.get("name"))
-        amount = _decimal_value(_first_present_value(raw_item, ("amount", "total", "price")))
-        if not description or amount is None:
-            continue
-        quantity = _decimal_value(raw_item.get("quantity")) or Decimal("1")
-        total += quantity
-    return total
-
-
-def _declared_item_count(value: object) -> Decimal | None:
-    parsed = _decimal_value(value)
-    if parsed is None or parsed <= 0:
-        return None
-    return parsed
-
-
-def _receipt_items_cover_declared_count(*, line_items: object, declared_items_sold: object) -> bool:
-    declared = _declared_item_count(declared_items_sold)
-    if declared is None:
-        return True
-    return _receipt_line_item_quantity_total(line_items) >= declared
-
-
-def _receipt_line_items_reconcile(
-    *,
-    line_items: object,
-    receipt_total: object,
-    subtotal: object,
-    tax_amount: object,
-    declared_items_sold: object = None,
-) -> bool:
-    if not _receipt_items_cover_declared_count(
-        line_items=line_items,
-        declared_items_sold=declared_items_sold,
-    ):
-        return False
-    amounts = _receipt_line_item_amounts(line_items)
-    if not amounts:
-        return False
-    line_total = sum(amounts, Decimal("0"))
-    total = _decimal_value(receipt_total)
-    subtotal_amount = _decimal_value(subtotal)
-    tax = _decimal_value(tax_amount)
-    candidates = [candidate for candidate in (total, subtotal_amount) if candidate is not None]
-    if subtotal_amount is not None and tax is not None:
-        candidates.append(subtotal_amount + tax)
-    return any(_close_money(line_total, candidate) for candidate in candidates)
-
-
-def _receipt_line_item_row(
-    *,
-    document: HouseholdDocument,
-    receipt_index: int,
-    line_index: int,
-    raw_item: dict[str, object],
-    context: dict[str, str | None],
-) -> dict[str, str | None] | None:
-    description = _string_value(raw_item.get("description") or raw_item.get("name"))
-    amount = _string_value(_first_present_value(raw_item, ("amount", "total", "price")))
-    receipt_date = context["receipt_date"]
-    if not description or not amount or not receipt_date:
-        return None
-    return {
-        "Document ID": document.id,
-        "External Row ID": f"{document.id}:{receipt_index}:{line_index}",
-        "Receipt Index": str(receipt_index),
-        "Line Index": str(line_index),
-        "Order Date": receipt_date,
-        "Merchant": context["merchant"],
-        "Product Name": description,
-        "Description": description,
-        "Total Amount": amount,
-        "Unit Price": _string_value(raw_item.get("unit_price")) or amount,
-        "Original Quantity": _string_value(raw_item.get("quantity")) or "1",
-        "Currency": context["currency"] or "USD",
-        "Payment Method": context["payment_method"],
-        "Account Mask": context["account_mask"],
-        "Account Label": context["account_label"],
-        "Receipt Total": context["receipt_total"],
-        "Source": "receipt_line_item",
-    }
-
-
-def _append_receipt_line_item_rows(
-    rows: list[dict[str, str | None]],
-    *,
-    document: HouseholdDocument,
-    receipt_index: int,
-    line_items: object,
-    context: dict[str, str | None],
-) -> None:
-    if not isinstance(line_items, list):
-        return
-    if not _receipt_line_items_reconcile(
-        line_items=line_items,
-        receipt_total=context["receipt_total"],
-        subtotal=context["subtotal"],
-        tax_amount=context["tax_amount"],
-        declared_items_sold=context["declared_items_sold"],
-    ):
-        return
-    for line_index, raw_item in enumerate(line_items):
-        if not isinstance(raw_item, dict):
-            continue
-        row = _receipt_line_item_row(
-            document=document,
-            receipt_index=receipt_index,
-            line_index=line_index,
-            raw_item=raw_item,
-            context=context,
-        )
-        if row is not None:
-            rows.append(row)
-
-
-def _receipt_line_item_rows(
-    *,
-    document: HouseholdDocument,
-    reviewed: dict[str, object],
-) -> list[dict[str, str | None]]:
-    structured_data = _structured_data_dict(reviewed)
-    if str(reviewed.get("source_type") or document.source_type) != "receipt":
-        return []
-
-    rows: list[dict[str, str | None]] = []
-    review_checks = _review_checks_dict(reviewed)
-    itemization_checks = review_checks.get("itemization")
-    itemization_checks = itemization_checks if isinstance(itemization_checks, dict) else {}
-    structured_declared_items_sold = _first_present_value(
-        structured_data,
-        ("declared_items_sold", "items_sold"),
-    )
-    review_declared_items_sold = _first_present_value(
-        itemization_checks,
-        ("declared_items_sold", "items_sold"),
-    )
-    raw_transactions = structured_data.get("transactions")
-    if isinstance(raw_transactions, list):
-        for receipt_index, raw_transaction in enumerate(raw_transactions):
-            if not isinstance(raw_transaction, dict):
-                continue
-            payment_method = _string_value(raw_transaction.get("payment_method"))
-            account_mask = _string_value(raw_transaction.get("account_mask"))
-            account_label = (
-                _string_value(structured_data.get("upload_account_label"))
-                or _string_value(structured_data.get("account_hint"))
-                or " ".join(part for part in (payment_method, account_mask) if part)
-                or None
-            )
-            _append_receipt_line_item_rows(
-                rows,
-                document=document,
-                receipt_index=receipt_index,
-                line_items=raw_transaction.get("line_items"),
-                context={
-                    "merchant": _string_value(raw_transaction.get("merchant"))
-                    or _string_value(structured_data.get("merchant")),
-                    "receipt_date": _string_value(raw_transaction.get("date")),
-                    "receipt_total": _string_value(raw_transaction.get("amount")),
-                    "currency": _string_value(raw_transaction.get("currency"))
-                    or _string_value(structured_data.get("currency")),
-                    "payment_method": payment_method,
-                    "account_mask": account_mask,
-                    "account_label": account_label,
-                    "subtotal": _string_value(
-                        _first_present_value(raw_transaction, ("subtotal", "subtotal_amount", "pre_tax_total"))
-                    ),
-                    "tax_amount": _string_value(
-                        _first_present_value(raw_transaction, ("tax_amount", "sales_tax", "tax", "total_tax"))
-                    ),
-                    "declared_items_sold": _string_value(
-                        _first_present_value(raw_transaction, ("declared_items_sold", "items_sold"))
-                        or review_declared_items_sold
-                        or structured_declared_items_sold
-                    ),
-                },
-            )
-
-    _append_receipt_line_item_rows(
-        rows,
-        document=document,
-        receipt_index=0,
-        line_items=structured_data.get("line_items"),
-        context={
-            "merchant": _string_value(structured_data.get("merchant")),
-            "receipt_date": _string_value(structured_data.get("statement_period")),
-            "receipt_total": _string_value(structured_data.get("total_amount")),
-            "currency": _string_value(structured_data.get("currency")),
-            "payment_method": _string_value(structured_data.get("payment_method")),
-            "account_mask": _string_value(structured_data.get("account_mask")),
-            "account_label": _string_value(structured_data.get("upload_account_label"))
-            or _string_value(structured_data.get("account_hint")),
-            "subtotal": _string_value(_first_present_value(structured_data, ("subtotal", "subtotal_amount", "pre_tax_total"))),
-            "tax_amount": _string_value(_first_present_value(structured_data, ("tax_amount", "sales_tax", "tax", "total_tax"))),
-            "declared_items_sold": _string_value(review_declared_items_sold or structured_declared_items_sold),
-        },
-    )
-    return rows
+def _review_checks_dict(reviewed: dict[str, object]) -> dict[str, object]:
+    review_checks = reviewed.get("review_checks")
+    return cast(dict[str, object], review_checks) if isinstance(review_checks, dict) else {}
 
 
 def _reviewed_financial_accounts(reviewed: dict[str, object]) -> list[dict[str, object]]:
-    structured_data = _structured_data_dict(reviewed)
+    structured_data = reviewed.get("structured_data")
+    structured_data = cast(dict[str, object], structured_data) if isinstance(structured_data, dict) else {}
     accounts = structured_data.get("financial_accounts")
     if not isinstance(accounts, list):
         return []
-    return [cast(dict[str, object], account) for account in accounts if isinstance(account, dict)]
+    return [cast(dict[str, object], a) for a in accounts if isinstance(a, dict)]
+
+
+def _bool_value(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "yes", "1"}:
+            return True
+        if lowered in {"false", "no", "0"}:
+            return False
+    return None
 
 
 def _normalized_review_payload(
@@ -399,337 +157,6 @@ def _normalized_review_payload(
     normalized["source_type"] = source_type
     normalized["document_type"] = document_type
     return normalized
-
-
-def _clean_text(value: object) -> str:
-    return " ".join(str(value or "").strip().lower().split())
-
-
-def _account_mask_values(account: dict[str, object]) -> list[object]:
-    return [
-        value
-        for key in ("account_mask", "extracted_account_mask")
-        if normalize_account_mask(value := account.get(key))
-    ]
-
-
-def _account_matches_mask(account: dict[str, object], target_mask: object) -> bool:
-    return any(account_masks_match(mask, target_mask) for mask in _account_mask_values(account))
-
-
-def _metadata_household_account_id(document: HouseholdDocument) -> str | None:
-    metadata = document.metadata if isinstance(document.metadata, dict) else {}
-    raw = metadata.get("upload_household_account_id") or metadata.get("household_account_id")
-    text = str(raw).strip() if raw is not None else ""
-    return text or None
-
-
-def _target_account_for_upload(
-    service: HouseholdFinanceService,
-    *,
-    household_account_id: str,
-) -> dict[str, object] | None:
-    with service.storage.connection() as conn:
-        row = conn.execute(
-            """
-            SELECT
-                id,
-                canonical_label,
-                source_type,
-                asset_group,
-                account_type,
-                institution_name,
-                owner_name,
-                account_mask,
-                primary_identity_key
-            FROM household_accounts
-            WHERE id = %s
-            LIMIT 1
-            """,
-            [household_account_id],
-        ).fetchone()
-    if row is None:
-        return None
-    return {
-        "household_account_id": str(row[0]),
-        "canonical_label": str(row[1] or ""),
-        "source_type": str(row[2] or ""),
-        "asset_group": str(row[3] or ""),
-        "account_type": str(row[4] or ""),
-        "institution_name": str(row[5] or "") or None,
-        "owner_name": str(row[6] or "") or None,
-        "account_mask": str(row[7] or "") or None,
-        "primary_identity_key": str(row[8] or "") or None,
-    }
-
-
-def _account_conflicts_with_target(
-    account: dict[str, object],
-    target: dict[str, object],
-) -> list[str]:
-    conflicts: list[str] = []
-    target_mask = target.get("account_mask")
-    if (
-        _account_mask_values(account)
-        and normalize_account_mask(target_mask)
-        and not _account_matches_mask(account, target_mask)
-    ):
-        conflicts.append("account_mask")
-
-    account_source = _clean_text(account.get("source_type"))
-    target_source = _clean_text(target.get("source_type"))
-    if account_source and target_source and account_source != target_source:
-        conflicts.append("source_type")
-
-    account_type = _clean_text(account.get("account_type"))
-    target_type = _clean_text(target.get("account_type"))
-    if account_type and target_type and account_type != target_type:
-        conflicts.append("account_type")
-
-    return conflicts
-
-
-def _account_matches_target(
-    account: dict[str, object],
-    target: dict[str, object],
-) -> bool:
-    conflicts = _account_conflicts_with_target(account, target)
-    if conflicts:
-        return False
-    if _account_matches_mask(account, target.get("account_mask")):
-        return True
-    account_name = _clean_text(account.get("account_name") or account.get("account_hint"))
-    target_label = _clean_text(target.get("canonical_label"))
-    if account_name and target_label and (
-        account_name in target_label or target_label in account_name
-    ):
-        return True
-    account_institution = _clean_text(account.get("institution_name") or account.get("institution"))
-    target_institution = _clean_text(target.get("institution_name"))
-    return bool(account_institution and target_institution and account_institution == target_institution)
-
-
-def _bind_account_to_upload_target(
-    account: dict[str, object],
-    target: dict[str, object],
-) -> None:
-    account["household_account_id"] = target["household_account_id"]
-    if target.get("primary_identity_key") and not account.get("match_key"):
-        account["match_key"] = target["primary_identity_key"]
-    for account_key, target_key in (
-        ("source_type", "source_type"),
-        ("asset_group", "asset_group"),
-        ("account_type", "account_type"),
-        ("institution_name", "institution_name"),
-        ("owner_name", "owner_name"),
-        ("account_mask", "account_mask"),
-    ):
-        if not account.get(account_key) and target.get(target_key):
-            account[account_key] = target[target_key]
-    if not account.get("account_name") and target.get("canonical_label"):
-        account["account_name"] = target["canonical_label"]
-
-
-def _clear_upload_binding_ambiguity(reviewed: dict[str, object]) -> None:
-    reviewed["questions"] = []
-    review_checks = dict(reviewed.get("review_checks")) if isinstance(reviewed.get("review_checks"), dict) else {}
-    review_checks["ambiguity_remaining"] = False
-    review_checks.pop("ambiguity_reason", None)
-    reviewed["review_checks"] = review_checks
-
-
-def _upload_target_question(
-    *,
-    target: dict[str, object],
-    reason: str,
-) -> dict[str, object]:
-    target_label = str(target.get("canonical_label") or "the selected account")
-    return {
-        "field_name": None,
-        "question": (
-            f"This upload was sent to {target_label}, but Jenny could not safely "
-            f"attach it there because {reason}. Which account should this evidence update?"
-        ),
-        "priority": "high",
-        "question_format": "long_text",
-        "recommendation": "Confirm the correct account or upload the matching account evidence.",
-        "rationale": "Account-scoped uploads must not silently update the wrong account.",
-    }
-
-
-def _append_upload_binding_question(
-    reviewed: dict[str, object],
-    *,
-    target: dict[str, object],
-    reason: str,
-) -> None:
-    questions = reviewed.get("questions")
-    if not isinstance(questions, list):
-        questions = []
-    question = _upload_target_question(target=target, reason=reason)
-    if not any(isinstance(item, dict) and item.get("question") == question["question"] for item in questions):
-        questions.append(question)
-    reviewed["questions"] = questions
-    review_checks = dict(reviewed.get("review_checks")) if isinstance(reviewed.get("review_checks"), dict) else {}
-    review_checks["ambiguity_remaining"] = True
-    review_checks["ambiguity_reason"] = reason
-    reviewed["review_checks"] = review_checks
-
-
-def _apply_upload_account_binding(
-    service: HouseholdFinanceService,
-    *,
-    document: HouseholdDocument,
-    reviewed: dict[str, object],
-) -> dict[str, object]:
-    household_account_id = _metadata_household_account_id(document)
-    if household_account_id is None:
-        return reviewed
-    target = _target_account_for_upload(
-        service,
-        household_account_id=household_account_id,
-    )
-    if target is None:
-        return reviewed
-
-    reviewed = dict(reviewed)
-    structured_data = reviewed.get("structured_data")
-    if not isinstance(structured_data, dict):
-        structured_data = {}
-    else:
-        structured_data = dict(structured_data)
-    reviewed["structured_data"] = structured_data
-    structured_data["upload_household_account_id"] = household_account_id
-    structured_data["upload_account_label"] = target.get("canonical_label")
-
-    raw_accounts = structured_data.get("financial_accounts")
-    if not isinstance(raw_accounts, list) or not raw_accounts:
-        _append_upload_binding_question(
-            reviewed,
-            target=target,
-            reason="the document did not expose an account identity or balance row",
-        )
-        return reviewed
-
-    accounts = [
-        dict(account) if isinstance(account, dict) else account
-        for account in raw_accounts
-    ]
-    structured_data["financial_accounts"] = accounts
-    account_dicts = [account for account in accounts if isinstance(account, dict)]
-    if len(account_dicts) == 1:
-        account = account_dicts[0]
-        conflicts = _account_conflicts_with_target(account, target)
-        if conflicts:
-            _append_upload_binding_question(
-                reviewed,
-                target=target,
-                reason=f"document {', '.join(conflicts)} did not match the selected account",
-            )
-            return reviewed
-        _bind_account_to_upload_target(account, target)
-        _clear_upload_binding_ambiguity(reviewed)
-        return reviewed
-
-    bound_count = 0
-    for account in account_dicts:
-        if _account_matches_target(account, target):
-            _bind_account_to_upload_target(account, target)
-            bound_count += 1
-    if bound_count == 0:
-        _append_upload_binding_question(
-            reviewed,
-            target=target,
-            reason="none of the parsed accounts matched the selected account",
-        )
-    else:
-        _clear_upload_binding_ambiguity(reviewed)
-    return reviewed
-
-
-def _signature_structured_data(reviewed: dict[str, object], document: HouseholdDocument) -> dict[str, object]:
-    structured_data = _structured_data_dict(reviewed)
-    if not structured_data:
-        return {}
-    source_type = str(reviewed.get("source_type") or document.source_type or "")
-    if source_type not in _ACCOUNT_EVIDENCE_SOURCE_TYPES:
-        return structured_data
-    sanitized: dict[str, object] = {}
-    for key, value in structured_data.items():
-        if key in _MONEY_SIGNATURE_VOLATILE_FIELDS:
-            continue
-        if key == "financial_accounts" and isinstance(value, list):
-            stable_accounts: list[dict[str, object]] = []
-            for raw_account in value:
-                if not isinstance(raw_account, dict):
-                    continue
-                stable_account = {
-                    account_key: account_value
-                    for account_key, account_value in raw_account.items()
-                    if account_key not in _MONEY_SIGNATURE_ACCOUNT_VOLATILE_FIELDS
-                    and account_value not in (None, "", [], {})
-                }
-                if stable_account:
-                    stable_accounts.append(stable_account)
-            if stable_accounts:
-                sanitized[key] = stable_accounts
-            continue
-        if value not in (None, "", [], {}):
-            sanitized[key] = value
-    return sanitized
-
-
-def _bool_value(value: object) -> bool | None:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in {"true", "yes", "1"}:
-            return True
-        if lowered in {"false", "no", "0"}:
-            return False
-    return None
-
-
-def _is_duplicate_import_validation(
-    *,
-    import_summary: dict[str, object],
-    transaction_summary: dict[str, object],
-    evidence_account_count: int,
-    planning_count: int,
-    inferred_count: int,
-) -> bool:
-    inserted = int(import_summary.get("inserted") or 0)
-    duplicates = int(import_summary.get("duplicates") or 0)
-    dataset_type = str(import_summary.get("dataset_type") or "").strip()
-    transaction_changes = int(transaction_summary.get("inserted") or 0) + int(
-        transaction_summary.get("updated") or 0
-    )
-    return (
-        inserted == 0
-        and duplicates > 0
-        and bool(dataset_type)
-        and transaction_changes == 0
-        and evidence_account_count == 0
-        and planning_count == 0
-        and inferred_count == 0
-    )
-
-
-def _find_duplicate_document_by_hash(
-    service: HouseholdFinanceService,
-    content_sha256: str,
-) -> HouseholdDocument | None:
-    with service.storage.connection() as conn:
-        row = fetch_duplicate_document_row(conn, content_sha256)
-    if row is None:
-        return None
-    return row_to_document(
-        row,
-        to_float=to_float,
-        iso=iso,
-        iso_or_none=iso_or_none,
-    )
 
 
 def _load_latest_review_payload(
@@ -761,252 +188,9 @@ def _load_latest_review_payload(
     return _normalized_review_payload(reviewed=reviewed, document=document)
 
 
-def _enriched_import_summary(
-    service: HouseholdFinanceService,
-    *,
-    document: HouseholdDocument,
-    dataset_type: str,
-    inserted: int,
-    duplicates: int,
-) -> dict[str, object]:
-    enrichment_summary = service.product_enrichment_service.enrich_import_rows(
-        service,
-        document_id=document.id,
-        dataset_type=dataset_type,
-    )
-    return {
-        "dataset_type": dataset_type,
-        "inserted": inserted,
-        "duplicates": duplicates,
-        "enrichment": enrichment_summary,
-    }
-
-
-def _import_receipt_line_item_rows(
-    service: HouseholdFinanceService,
-    *,
-    document: HouseholdDocument,
-    rows: list[dict[str, str | None]],
-) -> dict[str, object]:
-    dataset_type = "receipt_line_items"
-    inserted = duplicates = 0
-    now = datetime.now(UTC).isoformat()
-    with service.storage.connection() as conn:
-        for row in rows:
-            result = upsert_receipt_line_item_row(
-                conn,
-                row=row,
-                document_id=document.id,
-                now=now,
-            )
-            inserted += result is True
-            duplicates += result is False
-        update_import_summary(
-            conn,
-            document_id=document.id,
-            dataset_type=dataset_type,
-            inserted=inserted,
-            duplicates=duplicates,
-        )
-        conn.commit()
-    return _enriched_import_summary(
-        service,
-        document=document,
-        dataset_type=dataset_type,
-        inserted=inserted,
-        duplicates=duplicates,
-    )
-
-
-def _import_csv_rows(
-    service: HouseholdFinanceService,
-    *,
-    document: HouseholdDocument,
-    dataset_type: str,
-    stored_path: str,
-) -> dict[str, object]:
-    now = datetime.now(UTC).isoformat()
-    with Path(stored_path).open("r", encoding="utf-8", errors="ignore", newline="") as fh:
-        rows = list(DictReader(fh))
-    inserted = duplicates = 0
-    with service.storage.connection() as conn:
-        for row in rows:
-            result = upsert_import_row(
-                conn, row=row, document_id=document.id, dataset_type=dataset_type, now=now,
-            )
-            inserted += result is True
-            duplicates += result is False
-        update_import_summary(
-            conn, document_id=document.id, dataset_type=dataset_type,
-            inserted=inserted, duplicates=duplicates,
-        )
-        conn.commit()
-    return _enriched_import_summary(
-        service,
-        document=document,
-        dataset_type=dataset_type,
-        inserted=inserted,
-        duplicates=duplicates,
-    )
-
-
-def _import_document_rows(
-    service: HouseholdFinanceService,
-    *,
-    document: HouseholdDocument,
-    reviewed: dict[str, object],
-) -> dict[str, object]:
-    dataset_type = detect_import_dataset(document=document, reviewed=reviewed)
-    if dataset_type is None:
-        rows = _receipt_line_item_rows(document=document, reviewed=reviewed)
-        if not rows:
-            return {"dataset_type": None, "inserted": 0, "duplicates": 0}
-        return _import_receipt_line_item_rows(service, document=document, rows=rows)
-    stored_path = document.metadata.get("stored_path")
-    if not isinstance(stored_path, str) or not stored_path:
-        return {"dataset_type": dataset_type, "inserted": 0, "duplicates": 0}
-    return _import_csv_rows(
-        service,
-        document=document,
-        dataset_type=dataset_type,
-        stored_path=stored_path,
-    )
-
-
-def _audit_transactions(
-    service: HouseholdFinanceService,
-    *,
-    document_id: str,
-) -> dict[str, object]:
-    transaction_audit_service = getattr(service, "transaction_audit_service", None)
-    if transaction_audit_service is None:
-        return {}
-    return transaction_audit_service.audit_transactions(
-        service,
-        document_id=document_id,
-        limit=120,
-    )
-
-
-def _transaction_summary_with_audit(
-    transaction_summary: dict[str, object],
-    audit_summary: dict[str, object],
-) -> dict[str, object]:
-    return {
-        **transaction_summary,
-        "audit_reviewed": int(audit_summary.get("reviewed") or 0),
-        "audit_auto_fixed": int(audit_summary.get("auto_fixed") or 0),
-        "audit_agent_fixed": int(audit_summary.get("agent_fixed") or 0),
-        "audit_flagged": int(audit_summary.get("flagged") or 0),
-    }
-
-
-def _sync_account_registry(service: HouseholdFinanceService) -> dict[str, int]:
-    registry_service = getattr(service, "account_registry_service", None)
-    if registry_service is None:
-        return {}
-    return registry_service.sync_registry(service, limit=1000)
-
-
-def _sync_portfolio_positions(
-    service: HouseholdFinanceService,
-    *,
-    document: HouseholdDocument,
-    reviewed: dict[str, object],
-) -> dict[str, int]:
-    sync_service = getattr(service, "portfolio_position_sync_service", None)
-    if sync_service is None:
-        return {}
-    return sync_service.sync_from_reviewed_accounts(
-        service,
-        document=document,
-        reviewed=reviewed,
-    )
-
-
-def _sync_portfolio_transactions(
-    service: HouseholdFinanceService,
-    *,
-    document: HouseholdDocument,
-    reviewed: dict[str, object],
-) -> dict[str, int]:
-    sync_service = getattr(service, "portfolio_transaction_sync_service", None)
-    if sync_service is None:
-        return {}
-    return sync_service.sync_from_reviewed_accounts(
-        service,
-        document=document,
-        reviewed=reviewed,
-    )
-
-
-def _merge_review_planning_items(
-    service: HouseholdFinanceService,
-    *,
-    document: HouseholdDocument,
-    reviewed: dict[str, object],
-) -> tuple[int, int, str | None]:
-    planning_items = reviewed.get("planning_items")
-    if not isinstance(planning_items, list):
-        return 0, 0, None
-    dict_items = [item for item in planning_items if isinstance(item, dict)]
-    if not dict_items or not _should_merge_planning_items(reviewed):
-        return 0, len(dict_items), None
-    try:
-        service.merge_planning_items(
-            items=dict_items,
-            provenance="document_review",
-            source_document_id=document.id,
-        )
-    except Exception as exc:
-        logger.warning(
-            "household_document_planning_merge_skipped",
-            document_id=document.id,
-            error=str(exc),
-        )
-        return 0, len(dict_items), str(exc)
-    return len(dict_items), 0, None
-
-
-def _inferred_value_count(reviewed: dict[str, object]) -> int:
-    raw_inferred_values = reviewed.get("inferred_values")
-    if not isinstance(raw_inferred_values, list):
-        return 0
-    return sum(
-        1
-        for inferred in raw_inferred_values
-        if isinstance(inferred, dict)
-        and str(inferred.get("field_name") or "").strip() in FIELD_LABELS
-    )
-
-
-def _append_review_impacts(
-    impacts: list[str],
-    *,
-    import_summary: dict[str, object],
-    transaction_summary: dict[str, object],
-    evidence_account_count: int,
-    portfolio_position_summary: dict[str, int],
-    planning_count: int,
-    inferred_count: int,
-) -> None:
-    if (import_summary.get("inserted") or 0) > 0:
-        impacts.append("imports")
-    if (transaction_summary.get("inserted") or 0) > 0 or (transaction_summary.get("updated") or 0) > 0:
-        impacts.append("transactions")
-    if evidence_account_count > 0:
-        impacts.append("accounts")
-    if (
-        portfolio_position_summary.get("positions_inserted", 0) > 0
-        or portfolio_position_summary.get("positions_updated", 0) > 0
-        or portfolio_position_summary.get("positions_deleted", 0) > 0
-        or portfolio_position_summary.get("cash_updated", 0) > 0
-    ):
-        impacts.append("portfolio_positions")
-    if planning_count > 0:
-        impacts.append("planning")
-    if inferred_count > 0:
-        impacts.append("inferences")
+# ---------------------------------------------------------------------------
+# Main pipeline class
+# ---------------------------------------------------------------------------
 
 
 class HouseholdDocumentPipeline:
@@ -1039,36 +223,13 @@ class HouseholdDocumentPipeline:
         find_duplicate = getattr(self, "find_duplicate_document_by_hash", _find_duplicate_document_by_hash)
         duplicate = find_duplicate(service, content_sha256)
         if duplicate is not None:
-            if household_account_id or account_label:
-                rebound_metadata = {
-                    "duplicate_rebound": True,
-                    "duplicate_rebound_at": datetime.now(UTC).isoformat(),
-                }
-                if household_account_id:
-                    rebound_metadata["upload_household_account_id"] = household_account_id
-                if review_session_id:
-                    rebound_metadata["review_session_id"] = review_session_id
-                with service.storage.connection() as conn:
-                    conn.execute(
-                        """
-                        UPDATE household_documents
-                        SET account_label = COALESCE(%s, account_label),
-                            metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
-                        WHERE id = %s
-                        """,
-                        [
-                            account_label,
-                            json.dumps(rebound_metadata),
-                            duplicate.id,
-                        ],
-                    )
-                    conn.commit()
-                refreshed_duplicate = service.get_document(duplicate.id)
-                if refreshed_duplicate is not None:
-                    duplicate = refreshed_duplicate
-            duplicate.metadata["duplicate_detected"] = True
-            duplicate.metadata["duplicate_reason"] = "exact_content_match"
-            return duplicate
+            return self._handle_duplicate_upload(
+                service,
+                duplicate=duplicate,
+                account_label=account_label,
+                household_account_id=household_account_id,
+                review_session_id=review_session_id,
+            )
 
         inferred_source, inferred_type, confidence = classify_document(
             filename=filename,
@@ -1078,8 +239,7 @@ class HouseholdDocumentPipeline:
         )
         upload_root = service._upload_root()
         stored_path = save_upload_to_disk(
-            content, document_id=document_id, filename=filename,
-            upload_dir=upload_root,
+            content, document_id=document_id, filename=filename, upload_dir=upload_root,
         )
         now = datetime.now(UTC).isoformat()
         metadata: dict[str, object] = {
@@ -1105,6 +265,42 @@ class HouseholdDocumentPipeline:
             raise RuntimeError("Failed to persist uploaded document")
         return document
 
+    def _handle_duplicate_upload(
+        self,
+        service: HouseholdFinanceService,
+        *,
+        duplicate: HouseholdDocument,
+        account_label: str | None,
+        household_account_id: str | None,
+        review_session_id: str | None,
+    ) -> HouseholdDocument:
+        if household_account_id or account_label:
+            rebound_metadata: dict[str, object] = {
+                "duplicate_rebound": True,
+                "duplicate_rebound_at": datetime.now(UTC).isoformat(),
+            }
+            if household_account_id:
+                rebound_metadata["upload_household_account_id"] = household_account_id
+            if review_session_id:
+                rebound_metadata["review_session_id"] = review_session_id
+            with service.storage.connection() as conn:
+                conn.execute(
+                    """
+                    UPDATE household_documents
+                    SET account_label = COALESCE(%s, account_label),
+                        metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+                    WHERE id = %s
+                    """,
+                    [account_label, json.dumps(rebound_metadata), duplicate.id],
+                )
+                conn.commit()
+            refreshed = service.get_document(duplicate.id)
+            if refreshed is not None:
+                duplicate = refreshed
+        duplicate.metadata["duplicate_detected"] = True
+        duplicate.metadata["duplicate_reason"] = "exact_content_match"
+        return duplicate
+
     def review_document(
         self,
         service: HouseholdFinanceService,
@@ -1113,16 +309,10 @@ class HouseholdDocumentPipeline:
     ) -> None:
         document = service.get_document(document_id)
         if document is None:
-            logger.warning(
-                "household_document_missing_for_review", document_id=document_id
-            )
+            logger.warning("household_document_missing_for_review", document_id=document_id)
             return
         try:
-            self.process_document_review(
-                service,
-                document,
-                review_session_id=review_session_id,
-            )
+            self.process_document_review(service, document, review_session_id=review_session_id)
         except Exception as exc:
             logger.exception(
                 "household_document_review_failed", document_id=document_id, error=str(exc)
@@ -1149,21 +339,35 @@ class HouseholdDocumentPipeline:
             )
             self._recover_review_from_latest_persisted_review(service, document)
             return
+        self._run_review_loop(service, document=document, stored_file=stored_file, review_session_id=review_session_id)
 
+    def _resolve_review_session_id(
+        self,
+        document: HouseholdDocument,
+        review_session_id: str | None,
+    ) -> str | None:
+        if isinstance(review_session_id, str) and review_session_id.strip():
+            return review_session_id
+        metadata_session_id = document.metadata.get("review_session_id")
+        if isinstance(metadata_session_id, str) and metadata_session_id.strip():
+            return metadata_session_id
+        return None
+
+    def _run_review_loop(
+        self,
+        service: HouseholdFinanceService,
+        *,
+        document: HouseholdDocument,
+        stored_file: Path,
+        review_session_id: str | None,
+    ) -> None:
+        resolved_session_id = self._resolve_review_session_id(document, review_session_id)
         attempts = 0
         max_attempts = 2
         prior_review: dict[str, object] | None = None
         reconciliation_summary: dict[str, object] | None = None
-        metadata_session_id = document.metadata.get("review_session_id")
-        resolved_review_session_id = (
-            review_session_id
-            if isinstance(review_session_id, str) and review_session_id.strip()
-            else (
-                metadata_session_id
-                if isinstance(metadata_session_id, str) and metadata_session_id.strip()
-                else None
-            )
-        )
+        application_summary: dict[str, object] = {}
+
         while True:
             now = datetime.now(UTC).isoformat()
             reviewed = service.review_service.review(
@@ -1175,40 +379,33 @@ class HouseholdDocumentPipeline:
                 document_type=document.document_type,
                 prior_review=prior_review,
                 reconciliation_summary=reconciliation_summary,
-                review_session_id=resolved_review_session_id,
+                review_session_id=resolved_session_id,
             )
-            reviewed = _apply_upload_account_binding(
-                service,
-                document=document,
-                reviewed=reviewed,
-            )
+            reviewed = _apply_upload_account_binding(service, document=document, reviewed=reviewed)
             self._persist_review(service, document=document, reviewed=reviewed, now=now)
-            application_summary = self.apply_review_outputs(
-                service, document=document, reviewed=reviewed
-            )
+            application_summary = self.apply_review_outputs(service, document=document, reviewed=reviewed)
             reconciliation_summary = self._build_reconciliation_summary(
-                document=document,
-                reviewed=reviewed,
-                application_summary=application_summary,
+                document=document, reviewed=reviewed, application_summary=application_summary,
             )
             if reconciliation_summary["status"] != "clear":
                 application_summary["needs_follow_up"] = True
-            if (
+            should_retry = (
                 attempts + 1 < max_attempts
                 and reconciliation_summary.get("retry_recommended") is True
                 and str(reviewed.get("_review_strategy") or "") != "agent_vision"
-            ):
-                attempts += 1
-                prior_review = reviewed
-                continue
-            self.upsert_document_signatures(
-                service,
-                document=document,
-                reviewed=reviewed,
-                application_summary=application_summary,
-                reconciliation_summary=reconciliation_summary,
             )
-            break
+            if not should_retry:
+                break
+            attempts += 1
+            prior_review = reviewed
+
+        self.upsert_document_signatures(
+            service,
+            document=document,
+            reviewed=reviewed,
+            application_summary=application_summary,
+            reconciliation_summary=reconciliation_summary,
+        )
         with service.storage.connection() as conn:
             update_document_application_summary(
                 conn,
@@ -1230,20 +427,10 @@ class HouseholdDocumentPipeline:
                 document_id=document.id,
             )
             return False
-        reviewed = _apply_upload_account_binding(
-            service,
-            document=document,
-            reviewed=reviewed,
-        )
-        application_summary = self.apply_review_outputs(
-            service,
-            document=document,
-            reviewed=reviewed,
-        )
+        reviewed = _apply_upload_account_binding(service, document=document, reviewed=reviewed)
+        application_summary = self.apply_review_outputs(service, document=document, reviewed=reviewed)
         reconciliation_summary = self._build_reconciliation_summary(
-            document=document,
-            reviewed=reviewed,
-            application_summary=application_summary,
+            document=document, reviewed=reviewed, application_summary=application_summary,
         )
         if reconciliation_summary["status"] != "clear":
             application_summary["needs_follow_up"] = True
@@ -1292,7 +479,6 @@ class HouseholdDocumentPipeline:
             "assigned_review_agent_slug": HOUSEHOLD_REVIEW_AGENT_SLUG,
             "review_agent_applied": review_strategy == "agent",
         }
-
         with service.storage.connection() as conn:
             dismiss_open_document_questions(conn, document_id=document.id, now=now)
             update_document_and_log_review(
@@ -1331,10 +517,7 @@ class HouseholdDocumentPipeline:
         application_summary: dict[str, object] | None = None,
         reconciliation_summary: dict[str, object] | None = None,
     ) -> None:
-        if (
-            isinstance(application_summary, dict)
-            and application_summary.get("status") != "applied"
-        ):
+        if isinstance(application_summary, dict) and application_summary.get("status") != "applied":
             return
         if isinstance(reconciliation_summary, dict):
             if str(reconciliation_summary.get("status") or "") != "clear":
@@ -1349,9 +532,6 @@ class HouseholdDocumentPipeline:
         )
         if not signature_candidates:
             return
-        structured_data = reviewed.get("structured_data")
-        if not isinstance(structured_data, dict):
-            structured_data = {}
         signature_structured_data = _signature_structured_data(reviewed, document)
         shared = {
             "source_type": str(reviewed.get("source_type") or document.source_type),
@@ -1377,40 +557,22 @@ class HouseholdDocumentPipeline:
         reviewed: dict[str, object],
     ) -> dict[str, object]:
         reviewed = _normalized_review_payload(reviewed=reviewed, document=document)
-        reviewed = _apply_upload_account_binding(
-            service,
-            document=document,
-            reviewed=reviewed,
-        )
+        reviewed = _apply_upload_account_binding(service, document=document, reviewed=reviewed)
         import_summary = _import_document_rows(service, document=document, reviewed=reviewed)
         transaction_summary = service.transaction_service.import_document_transactions(
-            document=document,
-            reviewed=reviewed,
+            document=document, reviewed=reviewed,
         )
         transaction_summary = _transaction_summary_with_audit(
-            transaction_summary,
-            _audit_transactions(service, document_id=document.id),
+            transaction_summary, _audit_transactions(service, document_id=document.id)
         )
         evidence_account_count = service.evidence_service.replace_document_accounts(
-            service,
-            document=document,
-            reviewed=reviewed,
+            service, document=document, reviewed=reviewed,
         )
         registry_summary = _sync_account_registry(service)
-        portfolio_position_summary = _sync_portfolio_positions(
-            service,
-            document=document,
-            reviewed=reviewed,
-        )
-        portfolio_transaction_summary = _sync_portfolio_transactions(
-            service,
-            document=document,
-            reviewed=reviewed,
-        )
+        portfolio_position_summary = _sync_portfolio_positions(service, document=document, reviewed=reviewed)
+        portfolio_transaction_summary = _sync_portfolio_transactions(service, document=document, reviewed=reviewed)
         planning_count, planning_skipped, planning_error = _merge_review_planning_items(
-            service,
-            document=document,
-            reviewed=reviewed,
+            service, document=document, reviewed=reviewed,
         )
         inferred_count = _inferred_value_count(reviewed)
         impacts: list[str] = []
@@ -1432,7 +594,6 @@ class HouseholdDocumentPipeline:
         )
         if duplicate_import_validation:
             impacts.append("imports")
-
         return {
             "status": "applied" if impacts else "incomplete",
             "impacts": impacts,
@@ -1482,52 +643,24 @@ class HouseholdDocumentPipeline:
             + int(transaction_summary.get("held_for_date_review") or 0)
         )
         import_changes = int(import_summary.get("inserted") or 0)
-        expects_transaction_activity = _bool_value(
-            review_checks.get("expects_transaction_activity")
+        expects_transaction_activity = _build_expects_transaction_activity(
+            document=document,
+            reviewed=reviewed,
+            review_checks=review_checks,
         )
-        if expects_transaction_activity is None:
-            is_image_snapshot = str(document.content_type or "").lower().startswith("image/")
-            expects_transaction_activity = (
-                not is_image_snapshot
-                and str(reviewed.get("source_type") or "") in {"bank", "credit_card"}
-                and str(reviewed.get("document_type") or "") == "statement"
-            )
         ambiguity_remaining = _bool_value(review_checks.get("ambiguity_remaining")) or False
-        issues: list[dict[str, object]] = []
-        if expected_account_count > evidence_account_count:
-            issues.append(
-                {
-                    "code": "missing_accounts",
-                    "detail": (
-                        f"Review identified {expected_account_count} account(s) but "
-                        f"only {evidence_account_count} evidence account row(s) applied."
-                    ),
-                }
-            )
-        if expects_transaction_activity and transaction_changes == 0:
-            issues.append(
-                {
-                    "code": "missing_transactions",
-                    "detail": "Review expected transaction activity but no transaction rows applied.",
-                }
-            )
-        if (
-            str(reviewed.get("source_type") or "") in _ACCOUNT_EVIDENCE_SOURCE_TYPES
-            and import_changes == 0
-            and transaction_changes == 0
-            and evidence_account_count == 0
-        ):
-            issues.append(
-                {
-                    "code": "no_applied_outputs",
-                    "detail": "Financial evidence review produced no applied imports, transactions, or accounts.",
-                }
-            )
+        issues = _collect_reconciliation_issues(
+            expected_account_count=expected_account_count,
+            evidence_account_count=evidence_account_count,
+            expects_transaction_activity=expects_transaction_activity,
+            transaction_changes=transaction_changes,
+            import_changes=import_changes,
+            reviewed=reviewed,
+        )
         status = "clear" if not issues else "needs_retry"
-        retry_recommended = bool(issues) and not ambiguity_remaining
         return {
             "status": status,
-            "retry_recommended": retry_recommended,
+            "retry_recommended": bool(issues) and not ambiguity_remaining,
             "review_strategy": str(reviewed.get("_review_strategy") or "unknown"),
             "expected_account_count": expected_account_count,
             "evidence_account_count": evidence_account_count,
@@ -1544,24 +677,11 @@ class HouseholdDocumentPipeline:
         document: HouseholdDocument,
     ) -> dict[str, object]:
         metadata = document.metadata if isinstance(document.metadata, dict) else {}
-        existing_summary = metadata.get("application_summary")
-        existing = existing_summary if isinstance(existing_summary, dict) else {}
-        existing_imports = existing.get("imports")
-        existing_imports_dict = existing_imports if isinstance(existing_imports, dict) else {}
-        existing_transactions = existing.get("transactions")
-        existing_transactions_dict = (
-            existing_transactions if isinstance(existing_transactions, dict) else {}
-        )
-        existing_portfolio_positions = existing.get("portfolio_positions")
-        existing_portfolio_positions_dict = (
-            existing_portfolio_positions
-            if isinstance(existing_portfolio_positions, dict)
-            else {}
-        )
-        existing_account_registry = existing.get("account_registry")
-        existing_account_registry_dict = (
-            existing_account_registry if isinstance(existing_account_registry, dict) else {}
-        )
+        existing = _safe_dict(metadata.get("application_summary"))
+        existing_imports = _safe_dict(existing.get("imports"))
+        existing_transactions = _safe_dict(existing.get("transactions"))
+        existing_portfolio_positions = _safe_dict(existing.get("portfolio_positions"))
+        existing_account_registry = _safe_dict(existing.get("account_registry"))
 
         with service.storage.connection() as conn:
             counts = fetch_document_application_counts(conn, document_id=document.id)
@@ -1580,15 +700,11 @@ class HouseholdDocumentPipeline:
         if evidence_account_count > 0:
             impacts.append("accounts")
         portfolio_position_events = sum(
-            _int_value(existing_portfolio_positions_dict.get(key)) or 0
+            _int_value(existing_portfolio_positions.get(key)) or 0
             for key in (
-                "accounts_linked",
-                "cash_updated",
-                "positions_seen",
-                "positions_inserted",
-                "positions_updated",
-                "positions_unchanged",
-                "positions_deleted",
+                "accounts_linked", "cash_updated", "positions_seen",
+                "positions_inserted", "positions_updated",
+                "positions_unchanged", "positions_deleted",
             )
         )
         if portfolio_position_events > 0:
@@ -1598,8 +714,8 @@ class HouseholdDocumentPipeline:
         if inferred_count > 0:
             impacts.append("inferences")
         duplicate_import_validation = _is_duplicate_import_validation(
-            import_summary=cast(dict[str, object], existing_imports_dict),
-            transaction_summary=cast(dict[str, object], existing_transactions_dict),
+            import_summary=cast(dict[str, object], existing_imports),
+            transaction_summary=cast(dict[str, object], existing_transactions),
             evidence_account_count=evidence_account_count,
             planning_count=planning_count,
             inferred_count=inferred_count,
@@ -1611,13 +727,13 @@ class HouseholdDocumentPipeline:
             "status": "applied" if impacts else "incomplete",
             "impacts": impacts,
             "imports": {
-                "dataset_type": counts["dataset_type"] or existing_imports_dict.get("dataset_type"),
+                "dataset_type": counts["dataset_type"] or existing_imports.get("dataset_type"),
                 "inserted": import_count,
-                "duplicates": int(existing_imports_dict.get("duplicates") or 0),
+                "duplicates": int(existing_imports.get("duplicates") or 0),
             },
             "transactions": {
                 "inserted": transaction_count,
-                "updated": int(existing_transactions_dict.get("updated") or 0),
+                "updated": int(existing_transactions.get("updated") or 0),
             },
             "evidence_accounts": evidence_account_count,
             "planning_items": planning_count,
@@ -1625,8 +741,70 @@ class HouseholdDocumentPipeline:
             "needs_follow_up": not impacts,
             "no_change": duplicate_import_validation,
         }
-        if existing_account_registry_dict:
-            summary["account_registry"] = existing_account_registry_dict
-        if existing_portfolio_positions_dict:
-            summary["portfolio_positions"] = existing_portfolio_positions_dict
+        if existing_account_registry:
+            summary["account_registry"] = existing_account_registry
+        if existing_portfolio_positions:
+            summary["portfolio_positions"] = existing_portfolio_positions
         return summary
+
+
+# ---------------------------------------------------------------------------
+# Private module-level helpers
+# ---------------------------------------------------------------------------
+
+
+def _safe_dict(value: object) -> dict[str, object]:
+    return cast(dict[str, object], value) if isinstance(value, dict) else {}
+
+
+def _build_expects_transaction_activity(
+    *,
+    document: HouseholdDocument,
+    reviewed: dict[str, object],
+    review_checks: dict[str, object],
+) -> bool:
+    result = _bool_value(review_checks.get("expects_transaction_activity"))
+    if result is not None:
+        return result
+    is_image_snapshot = str(document.content_type or "").lower().startswith("image/")
+    return (
+        not is_image_snapshot
+        and str(reviewed.get("source_type") or "") in {"bank", "credit_card"}
+        and str(reviewed.get("document_type") or "") == "statement"
+    )
+
+
+def _collect_reconciliation_issues(
+    *,
+    expected_account_count: int,
+    evidence_account_count: int,
+    expects_transaction_activity: bool,
+    transaction_changes: int,
+    import_changes: int,
+    reviewed: dict[str, object],
+) -> list[dict[str, object]]:
+    issues: list[dict[str, object]] = []
+    if expected_account_count > evidence_account_count:
+        issues.append({
+            "code": "missing_accounts",
+            "detail": (
+                f"Review identified {expected_account_count} account(s) but "
+                f"only {evidence_account_count} evidence account row(s) applied."
+            ),
+        })
+    if expects_transaction_activity and transaction_changes == 0:
+        issues.append({
+            "code": "missing_transactions",
+            "detail": "Review expected transaction activity but no transaction rows applied.",
+        })
+    if (
+        str(reviewed.get("source_type") or "") in _ACCOUNT_EVIDENCE_SOURCE_TYPES
+        and import_changes == 0
+        and transaction_changes == 0
+        and evidence_account_count == 0
+    ):
+        issues.append({
+            "code": "no_applied_outputs",
+            "detail": "Financial evidence review produced no applied imports, transactions, or accounts.",
+        })
+    return issues
