@@ -2,19 +2,13 @@
 
 export const dynamic = 'force-dynamic'
 
-import { Database, Loader2, PlusCircle, Settings2 } from 'lucide-react'
+import { Database, PlusCircle, Settings2 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { HouseholdDocumentCenter } from '@/components/money/HouseholdDocumentCenter'
-import {
-  HouseholdPlanningPanels,
-  type PlanningFocusSection,
-} from '@/components/money/HouseholdPlanningPanels'
 import { JennyQuestionInbox } from '@/components/money/JennyQuestionInbox'
 import { MoneyAccountsPanel } from '@/components/money/MoneyAccountsPanel'
-import { MoneyAssumptionsDrawer } from '@/components/money/MoneyAssumptionsDrawer'
 import { MoneyBudgetPanel } from '@/components/money/MoneyBudgetPanel'
-import { MoneyDataServicesDrawer } from '@/components/money/MoneyDataServicesDrawer'
 import { MoneyLedgerPanel } from '@/components/money/MoneyLedgerPanel'
 import { MoneyLeversPanel } from '@/components/money/MoneyLeversPanel'
 import { MoneyOverviewPanel } from '@/components/money/MoneyOverviewPanel'
@@ -27,175 +21,24 @@ import type { WorkspaceTab } from '@/components/shared/WorkspaceTabs'
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
   useHouseholdDashboard,
   useHouseholdDocuments,
   useHouseholdFacts,
 } from '@/lib/hooks/useHousehold'
-import { cn } from '@/lib/utils'
-
-function LoadingState() {
-  return (
-    <div
-      className="flex min-h-72 items-center justify-center rounded-3xl border border-border/40 bg-surface-muted/20"
-      role="status"
-      aria-live="polite"
-    >
-      <div className="flex items-center gap-3 text-sm font-medium text-text-muted">
-        <Loader2 className="h-4 w-4 animate-spin text-primary" />
-        Loading money workspace...
-      </div>
-    </div>
-  )
-}
-
-function MoneyWorkspaceSkeleton() {
-  const tabLabels = [
-    'Dashboard',
-    'Budget',
-    'Levers',
-    'Retirement',
-    'Allocation',
-    'Accounts',
-    'Ledger',
-    'Intake',
-    'Review',
-  ]
-  return (
-    <div className="space-y-6" role="status" aria-live="polite">
-      <span className="sr-only">Loading money workspace</span>
-      <div className="rounded-2xl border border-border/40 bg-bg p-3 shadow-sm">
-        <div className="flex flex-wrap gap-2">
-          {tabLabels.map((label, idx) => (
-            <div
-              key={label}
-              className={cn(
-                'h-10 rounded-xl border border-border/30 bg-surface/50 px-4',
-                idx === 0 ? 'w-28 animate-pulse bg-primary/10' : 'w-24',
-                idx > 0 && 'skeleton',
-              )}
-            />
-          ))}
-        </div>
-      </div>
-      <div className="space-y-4">
-        <div className="h-44 rounded-3xl skeleton" />
-        <div className="grid gap-4 xl:grid-cols-2">
-          <div className="h-56 rounded-3xl skeleton" />
-          <div className="h-56 rounded-3xl skeleton" />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-type MoneyUtility = 'planning' | 'data-services'
-type MoneyFocus =
-  | 'date-quality'
-  | 'clarifications'
-  | 'account-coverage'
-  | 'discovered-accounts'
-  | PlanningFocusSection
-type MoneyIntent = 'evidence' | 'review'
-
-const planningFocusSections = new Set<string>([
-  'household',
-  'income',
-  'debt',
-  'housing',
-  'insurance',
-  'retirement',
-  'expenses',
-])
-
-function isPlanningFocus(
-  focus: MoneyFocus | null,
-): focus is PlanningFocusSection {
-  return Boolean(focus && planningFocusSections.has(focus))
-}
-
-type MoneyRouteState = {
-  openUtility: MoneyUtility | null
-  focusedReview: MoneyFocus | null
-  selectedAccountId: string | null
-  selectedQuestionId: string | null
-  selectedIntent: MoneyIntent | null
-}
-
-function resolveRequestedUtility(value: string | null): MoneyUtility | null {
-  return value === 'planning' || value === 'data-services' ? value : null
-}
-
-function resolveRequestedFocus(value: string | null): MoneyFocus | null {
-  if (
-    value === 'date-quality' ||
-    value === 'clarifications' ||
-    value === 'account-coverage' ||
-    value === 'discovered-accounts' ||
-    planningFocusSections.has(value ?? '')
-  ) {
-    return value as MoneyFocus
-  }
-  return null
-}
-
-function resolveRequestedIntent(value: string | null): MoneyIntent | null {
-  return value === 'evidence' || value === 'review' ? value : null
-}
-
-function resolveMoneyRouteState(
-  searchParams: URLSearchParams,
-): MoneyRouteState {
-  return {
-    openUtility: resolveRequestedUtility(searchParams.get('utility')),
-    focusedReview: resolveRequestedFocus(searchParams.get('focus')),
-    selectedAccountId: searchParams.get('account'),
-    selectedQuestionId: searchParams.get('question'),
-    selectedIntent: resolveRequestedIntent(searchParams.get('intent')),
-  }
-}
-
-function readMoneyRouteState(): MoneyRouteState {
-  if (typeof window === 'undefined') {
-    return {
-      openUtility: null,
-      focusedReview: null,
-      selectedAccountId: null,
-      selectedQuestionId: null,
-      selectedIntent: null,
-    }
-  }
-
-  return resolveMoneyRouteState(new URLSearchParams(window.location.search))
-}
-
-function syncUtilityToLocation(
-  nextUtility: MoneyUtility | null,
-  nextFocus: MoneyFocus | null = null,
-) {
-  if (typeof window === 'undefined') {
-    return
-  }
-
-  const nextUrl = new URL(window.location.href)
-  if (nextUtility) {
-    nextUrl.searchParams.set('utility', nextUtility)
-  } else {
-    nextUrl.searchParams.delete('utility')
-  }
-  if (nextUtility && nextFocus) {
-    nextUrl.searchParams.set('focus', nextFocus)
-  } else {
-    nextUrl.searchParams.delete('focus')
-  }
-  window.history.replaceState(window.history.state, '', nextUrl)
-}
+import {
+  LoadingState,
+  MoneyWorkspaceSkeleton,
+} from './_components/MoneySkeletons'
+import { MoneyUtilityDrawers } from './_components/MoneyUtilityDrawers'
+import {
+  isPlanningFocus,
+  type MoneyFocus,
+  type MoneyRouteState,
+  type MoneyUtility,
+  readMoneyRouteState,
+  resolveMoneyRouteState,
+  syncUtilityToLocation,
+} from './_components/money-route-state'
 
 function MoneyPageContent() {
   const [routeState, setRouteState] =
@@ -207,6 +50,7 @@ function MoneyPageContent() {
     selectedQuestionId,
     selectedIntent,
   } = routeState
+
   const {
     data: dashboard,
     isLoading,
@@ -221,6 +65,7 @@ function MoneyPageContent() {
     isFetching: isFetchingDocuments,
   } = useHouseholdDocuments()
   const { data: facts = [] } = useHouseholdFacts()
+
   useEffect(() => {
     const syncFromLocation = () => {
       const currentUrl = new URL(window.location.href)
@@ -254,7 +99,7 @@ function MoneyPageContent() {
   }, [])
 
   const setOpenUtility = (nextUtility: MoneyUtility | null) => {
-    const nextFocus =
+    const nextFocus: MoneyFocus | null =
       nextUtility === 'planning' && isPlanningFocus(focusedReview)
         ? focusedReview
         : null
@@ -294,9 +139,8 @@ function MoneyPageContent() {
   }
 
   const documentItems = documents?.items ?? []
-  const openQuestions = dashboard.questions.filter(
-    (question) => !question.answeredAt,
-  )
+  const openQuestions = dashboard.questions.filter((q) => !q.answeredAt)
+
   const intakeContent = documentsError ? (
     <LoadErrorState
       title="Failed to load intake documents."
@@ -478,60 +322,13 @@ function MoneyPageContent() {
         tabs={tabs}
       />
 
-      <Dialog
-        open={openUtility === 'planning'}
-        onOpenChange={(open) => setOpenUtility(open ? 'planning' : null)}
-      >
-        <DialogContent className="left-auto right-0 top-0 h-dvh max-w-[min(980px,100vw)] translate-x-0 translate-y-0 rounded-none border-l border-border/45 p-0 sm:max-w-[min(980px,100vw)]">
-          <div className="max-h-dvh overflow-y-auto p-6">
-            <DialogHeader>
-              <DialogTitle>Assumptions</DialogTitle>
-              <DialogDescription>
-                Confirm what Jenny found, override it when needed, and keep the
-                manual finance inputs in one minimal workspace.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="mt-4">
-              <MoneyAssumptionsDrawer
-                profile={dashboard.profile}
-                resolvedValues={dashboard.resolvedValues}
-                facts={facts}
-                planningContent={
-                  isPlanningFocus(focusedReview) &&
-                  focusedReview !== 'income' &&
-                  focusedReview !== 'retirement' ? (
-                    <HouseholdPlanningPanels
-                      dashboard={dashboard}
-                      focusedSection={focusedReview}
-                    />
-                  ) : undefined
-                }
-              />
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={openUtility === 'data-services'}
-        modal={false}
-        onOpenChange={(open) => setOpenUtility(open ? 'data-services' : null)}
-      >
-        <DialogContent className="left-auto right-0 top-0 h-dvh max-w-[min(1040px,100vw)] translate-x-0 translate-y-0 rounded-none border-l border-border/45 p-0 sm:max-w-[min(1040px,100vw)]">
-          <div className="max-h-dvh overflow-y-auto p-6">
-            <DialogHeader>
-              <DialogTitle>Data Services</DialogTitle>
-              <DialogDescription>
-                External financial data connections for household accounts,
-                balances, positions, activities, and transactions.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="mt-4">
-              <MoneyDataServicesDrawer />
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <MoneyUtilityDrawers
+        openUtility={openUtility}
+        focusedReview={focusedReview}
+        dashboard={dashboard}
+        facts={facts}
+        onUtilityChange={setOpenUtility}
+      />
     </PageContainer>
   )
 }
