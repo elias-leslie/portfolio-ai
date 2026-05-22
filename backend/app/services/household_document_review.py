@@ -247,47 +247,31 @@ class HouseholdDocumentReviewService(HouseholdDocumentContextMixin, HouseholdDoc
             prior_review=prior_review,
             reconciliation_summary=reconciliation_summary,
         )
-        signature_fallback: dict[str, Any] | None = None
-        if signature_result is not None:
-            if not self._needs_vision_retry(
-                reviewed=signature_result,
-                extracted_text=extracted_text,
-                content_type=content_type,
-                stored_path=stored_path,
-            ):
-                return signature_result
-            prior_review = signature_result
-            signature_fallback = signature_result
-            reconciliation_summary = _receipt_vision_retry_summary(
-                reviewed=signature_result,
-                extracted_text=extracted_text,
-            )
+        prior_review, reconciliation_summary, signature_fallback = self._apply_signature_result(
+            signature_result=signature_result,
+            extracted_text=extracted_text,
+            content_type=content_type,
+            stored_path=stored_path,
+            prior_review=prior_review,
+            reconciliation_summary=reconciliation_summary,
+        )
+        if signature_result is not None and signature_fallback is None and prior_review is None:
+            return signature_result
 
-        if AGENT_HUB_ENABLED:
-            reviewed = self._llm_review_result(
-                payload=payload,
-                stored_path=stored_path,
-                content_type=content_type,
-                extracted_text=extracted_text,
-                baseline=baseline,
-                household_context=household_context,
-                filename=filename,
-                prior_review=prior_review,
-                reconciliation_summary=reconciliation_summary,
-                review_session_id=review_session_id,
-            )
-            if reviewed is not None:
-                return self._review_with_receipt_vision_retry(
-                    finalized_review=reviewed,
-                    payload=payload,
-                    stored_path=stored_path,
-                    content_type=content_type,
-                    extracted_text=extracted_text,
-                    baseline=baseline,
-                    household_context=household_context,
-                    filename=filename,
-                    review_session_id=review_session_id,
-                )
+        agent_result = self._try_llm_review(
+            payload=payload,
+            stored_path=stored_path,
+            content_type=content_type,
+            extracted_text=extracted_text,
+            baseline=baseline,
+            household_context=household_context,
+            filename=filename,
+            prior_review=prior_review,
+            reconciliation_summary=reconciliation_summary,
+            review_session_id=review_session_id,
+        )
+        if agent_result is not None:
+            return agent_result
 
         if signature_fallback is not None:
             return signature_fallback
@@ -303,6 +287,107 @@ class HouseholdDocumentReviewService(HouseholdDocumentContextMixin, HouseholdDoc
             filename=filename,
             extracted_text=extracted_text,
             review_strategy="baseline",
+        )
+
+    def _apply_signature_result(
+        self,
+        *,
+        signature_result: dict[str, Any] | None,
+        extracted_text: str | None,
+        content_type: str | None,
+        stored_path: Path,
+        prior_review: dict[str, Any] | None,
+        reconciliation_summary: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
+        """Return (prior_review, reconciliation_summary, signature_fallback) after handling the signature result.
+
+        When no vision retry is needed, returns (None, None, None) to signal the caller
+        should return signature_result directly. When a retry is needed, returns the
+        signature result as the fallback and updates the reconciliation context.
+        """
+        if signature_result is None:
+            return prior_review, reconciliation_summary, None
+        needs_retry = self._needs_vision_retry(
+            reviewed=signature_result,
+            extracted_text=extracted_text,
+            content_type=content_type,
+            stored_path=stored_path,
+        )
+        if not needs_retry:
+            return None, None, None
+        return (
+            signature_result,
+            _receipt_vision_retry_summary(reviewed=signature_result, extracted_text=extracted_text),
+            signature_result,
+        )
+
+    def _finalize_llm_result(
+        self,
+        *,
+        llm_result: dict[str, Any] | None,
+        payload: dict[str, Any],
+        stored_path: Path,
+        content_type: str | None,
+        extracted_text: str | None,
+        baseline: dict[str, Any],
+        household_context: dict[str, Any] | None,
+        filename: str,
+        review_session_id: str | None,
+    ) -> dict[str, Any] | None:
+        """Apply vision retry to an LLM result. Returns None when llm_result is None."""
+        if llm_result is None:
+            return None
+        return self._review_with_receipt_vision_retry(
+            finalized_review=llm_result,
+            payload=payload,
+            stored_path=stored_path,
+            content_type=content_type,
+            extracted_text=extracted_text,
+            baseline=baseline,
+            household_context=household_context,
+            filename=filename,
+            review_session_id=review_session_id,
+        )
+
+    def _try_llm_review(
+        self,
+        *,
+        payload: dict[str, Any],
+        stored_path: Path,
+        content_type: str | None,
+        extracted_text: str | None,
+        baseline: dict[str, Any],
+        household_context: dict[str, Any] | None,
+        filename: str,
+        prior_review: dict[str, Any] | None,
+        reconciliation_summary: dict[str, Any] | None,
+        review_session_id: str | None,
+    ) -> dict[str, Any] | None:
+        """Run the LLM review path if AGENT_HUB_ENABLED, with vision retry. Returns None otherwise."""
+        if not AGENT_HUB_ENABLED:
+            return None
+        llm_result = self._llm_review_result(
+            payload=payload,
+            stored_path=stored_path,
+            content_type=content_type,
+            extracted_text=extracted_text,
+            baseline=baseline,
+            household_context=household_context,
+            filename=filename,
+            prior_review=prior_review,
+            reconciliation_summary=reconciliation_summary,
+            review_session_id=review_session_id,
+        )
+        return self._finalize_llm_result(
+            llm_result=llm_result,
+            payload=payload,
+            stored_path=stored_path,
+            content_type=content_type,
+            extracted_text=extracted_text,
+            baseline=baseline,
+            household_context=household_context,
+            filename=filename,
+            review_session_id=review_session_id,
         )
 
     @staticmethod
@@ -582,22 +667,41 @@ class HouseholdDocumentReviewService(HouseholdDocumentContextMixin, HouseholdDoc
         reviewed: dict[str, Any],
         filename: str,
     ) -> list[dict[str, Any]]:
-        canonical_matches: list[dict[str, Any]] = []
         default_source_type = str(reviewed.get("source_type") or "")
         default_document_type = str(reviewed.get("document_type") or "")
-        for raw_account in raw_accounts:
-            if not isinstance(raw_account, dict):
-                continue
-            match = self._best_related_account_match(
+        results = [
+            self._match_and_apply_account(
                 raw_account=raw_account,
                 related_accounts=related_accounts,
                 default_source_type=default_source_type,
                 default_document_type=default_document_type,
                 filename=filename,
             )
-            if match is not None:
-                canonical_matches.append(self._apply_canonical_match(raw_account=raw_account, match=match, filename=filename))
-        return canonical_matches
+            for raw_account in raw_accounts
+        ]
+        return [r for r in results if r is not None]
+
+    def _match_and_apply_account(
+        self,
+        *,
+        raw_account: Any,
+        related_accounts: list[Any],
+        default_source_type: str,
+        default_document_type: str,
+        filename: str,
+    ) -> dict[str, Any] | None:
+        if not isinstance(raw_account, dict):
+            return None
+        match = best_related_account_match(
+            raw_account=raw_account,
+            related_accounts=related_accounts,
+            default_source_type=default_source_type,
+            default_document_type=default_document_type,
+            filename=filename,
+        )
+        if match is None:
+            return None
+        return self._apply_canonical_match(raw_account=raw_account, match=match, filename=filename)
 
     @staticmethod
     def _set_canonical_review_checks(*, reviewed: dict[str, Any], canonical_matches: list[dict[str, Any]]) -> None:
@@ -635,34 +739,8 @@ class HouseholdDocumentReviewService(HouseholdDocumentContextMixin, HouseholdDoc
         if related_account.get("primary_identity_key") and not self._normalize_match_text(raw_account.get("match_key")):
             raw_account["match_key"] = related_account["primary_identity_key"]
 
-        canonical_mask = clean_text(related_account.get("account_mask"))
-        extracted_mask = clean_text(raw_account.get("account_mask"))
-        filename_mask = clean_text(derive_account_mask(None, clean_text(raw_account.get("account_name")), filename))
-        explicit_match_key = self._normalize_match_text(raw_account.get("match_key"))
-        primary_identity_key = self._normalize_match_text(related_account.get("primary_identity_key"))
-        filename_mask_applied = False
-        if filename_mask and explicit_match_key and primary_identity_key and explicit_match_key == primary_identity_key:
-            if extracted_mask and extracted_mask != filename_mask:
-                raw_account["extracted_account_mask"] = extracted_mask
-            raw_account["account_mask"] = filename_mask
-            extracted_mask = filename_mask
-            filename_mask_applied = True
-        if canonical_mask and not extracted_mask:
-            raw_account["account_mask"] = canonical_mask
-        elif canonical_mask and extracted_mask and extracted_mask != canonical_mask and not filename_mask_applied and explicit_match_key and primary_identity_key and explicit_match_key == primary_identity_key:
-            raw_account["extracted_account_mask"] = extracted_mask
-            raw_account["account_mask"] = canonical_mask
-
-        for raw_key, related_key in {
-            "institution_name": "institution_name",
-            "owner_name": "owner_name",
-            "account_type": "account_type",
-            "asset_group": "asset_group",
-        }.items():
-            if not clean_text(raw_account.get(raw_key)) and related_account.get(related_key):
-                raw_account[raw_key] = related_account[related_key]
-        if (not clean_text(raw_account.get("account_name")) or self._looks_generic_account_name(raw_account.get("account_name"))) and related_account.get("canonical_label"):
-            raw_account["account_name"] = related_account["canonical_label"]
+        self._reconcile_account_mask(raw_account=raw_account, related_account=related_account, filename=filename)
+        self._fill_missing_account_fields(raw_account=raw_account, related_account=related_account)
 
         raw_account["canonical_match_method"] = str(match["method"])
         raw_account["canonical_match_score"] = int(match["score"])
@@ -671,3 +749,88 @@ class HouseholdDocumentReviewService(HouseholdDocumentContextMixin, HouseholdDoc
             "method": str(match["method"]),
             "score": int(match["score"]),
         }
+
+    def _reconcile_account_mask(
+        self,
+        *,
+        raw_account: dict[str, Any],
+        related_account: dict[str, Any],
+        filename: str,
+    ) -> None:
+        canonical_mask = clean_text(related_account.get("account_mask"))
+        extracted_mask = clean_text(raw_account.get("account_mask"))
+        filename_mask = clean_text(derive_account_mask(None, clean_text(raw_account.get("account_name")), filename))
+        explicit_match_key = self._normalize_match_text(raw_account.get("match_key"))
+        primary_identity_key = self._normalize_match_text(related_account.get("primary_identity_key"))
+        keys_match = bool(explicit_match_key and primary_identity_key and explicit_match_key == primary_identity_key)
+
+        filename_mask_applied = self._apply_filename_mask(
+            raw_account=raw_account,
+            extracted_mask=extracted_mask,
+            filename_mask=filename_mask,
+            keys_match=keys_match,
+        )
+        extracted_mask = filename_mask if filename_mask_applied else extracted_mask
+        self._apply_canonical_mask(
+            raw_account=raw_account,
+            canonical_mask=canonical_mask,
+            extracted_mask=extracted_mask,
+            filename_mask_applied=filename_mask_applied,
+            keys_match=keys_match,
+        )
+
+    @staticmethod
+    def _apply_filename_mask(
+        *,
+        raw_account: dict[str, Any],
+        extracted_mask: str | None,
+        filename_mask: str | None,
+        keys_match: bool,
+    ) -> bool:
+        if not filename_mask or not keys_match:
+            return False
+        if extracted_mask and extracted_mask != filename_mask:
+            raw_account["extracted_account_mask"] = extracted_mask
+        raw_account["account_mask"] = filename_mask
+        return True
+
+    @staticmethod
+    def _apply_canonical_mask(
+        *,
+        raw_account: dict[str, Any],
+        canonical_mask: str | None,
+        extracted_mask: str | None,
+        filename_mask_applied: bool,
+        keys_match: bool,
+    ) -> None:
+        if not canonical_mask:
+            return
+        if not extracted_mask:
+            raw_account["account_mask"] = canonical_mask
+            return
+        if extracted_mask != canonical_mask and not filename_mask_applied and keys_match:
+            raw_account["extracted_account_mask"] = extracted_mask
+            raw_account["account_mask"] = canonical_mask
+
+    def _fill_missing_account_fields(
+        self,
+        *,
+        raw_account: dict[str, Any],
+        related_account: dict[str, Any],
+    ) -> None:
+        for field in ("institution_name", "owner_name", "account_type", "asset_group"):
+            self._fill_field_if_missing(raw_account=raw_account, related_account=related_account, field=field)
+        account_name_missing = not clean_text(raw_account.get("account_name"))
+        account_name_generic = self._looks_generic_account_name(raw_account.get("account_name"))
+        if (account_name_missing or account_name_generic) and related_account.get("canonical_label"):
+            raw_account["account_name"] = related_account["canonical_label"]
+
+    @staticmethod
+    def _fill_field_if_missing(
+        *,
+        raw_account: dict[str, Any],
+        related_account: dict[str, Any],
+        field: str,
+    ) -> None:
+        if not clean_text(raw_account.get(field)) and related_account.get(field):
+            raw_account[field] = related_account[field]
