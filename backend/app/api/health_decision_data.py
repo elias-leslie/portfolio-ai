@@ -171,7 +171,7 @@ def _build_household_decision_domain(dashboard: Any | None) -> DecisionDataDomai
     }
     last_updated = _read_field(dashboard, "generated_at", "generatedAt")
 
-    if monthly_status in {"unavailable", "missing"}:
+    if monthly_status in {"unavailable", "missing", "blocked"}:
         return _decision_domain(
             key="household_evidence",
             label="Household Evidence",
@@ -181,7 +181,17 @@ def _build_household_decision_domain(dashboard: Any | None) -> DecisionDataDomai
             last_updated=last_updated,
             evidence=evidence,
         )
-    if "stale" in {monthly_status, net_worth_status}:
+    if net_worth_status in {"unavailable", "missing", "blocked"}:
+        return _decision_domain(
+            key="household_evidence",
+            label="Household Evidence",
+            status="missing",
+            severity="critical",
+            message=net_worth_detail or "Household net-worth evidence is missing.",
+            last_updated=last_updated,
+            evidence=evidence,
+        )
+    if monthly_status == "stale":
         return _decision_domain(
             key="household_evidence",
             label="Household Evidence",
