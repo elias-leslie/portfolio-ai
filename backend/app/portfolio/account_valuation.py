@@ -22,6 +22,7 @@ class AccountValuation:
     quote_freshness_status: str
     quote_freshness_label: str
     quote_source: str | None
+    total_position_count: int = 0
 
 
 def _normalize_quote_timestamp(value: datetime | None) -> datetime | None:
@@ -93,6 +94,8 @@ def calculate_account_valuations(
         valuation = values.get(account_id)
         if valuation is None:
             continue
+        if float(getattr(position, "shares", 0.0) or 0.0) != 0.0:
+            valuation.total_position_count += 1
         price = price_data.get(str(position.symbol))
         if price is None or price.error:
             continue

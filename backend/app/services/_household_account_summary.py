@@ -480,10 +480,7 @@ def _resolve_evidence_matches(
     effective_money_role = _money_role(effective_asset_group, effective_account_type, effective_label)
     if sel.closed_zero_balance:
         effective_money_role = "net_worth_only"
-    has_live_pricing = bool(
-        portfolio_valuation is not None
-        and getattr(portfolio_valuation, "priced_position_count", 0) > 0
-    )
+    has_live_pricing = _has_complete_live_pricing(portfolio_valuation)
     return _MatchResolution(
         tracked_account=tracked_account,
         portfolio_account=portfolio_account,
@@ -634,12 +631,15 @@ def _build_portfolio_summary(
         if portfolio_valuation is not None
         else float(getattr(account, "cash_balance", 0.0) or 0.0)
     )
-    effective_current = source_current_value if source_current_value is not None else portfolio_current_value
-    effective_cash = source_cash_value if source_cash_value is not None else portfolio_cash_balance
-    has_live_pricing = (
-        portfolio_valuation is not None
-        and getattr(portfolio_valuation, "priced_position_count", 0) > 0
+    has_live_pricing = _has_complete_live_pricing(portfolio_valuation)
+    effective_current = (
+        portfolio_current_value
+        if has_live_pricing
+        else source_current_value
+        if source_current_value is not None
+        else portfolio_current_value
     )
+    effective_cash = source_cash_value if source_cash_value is not None else portfolio_cash_balance
     return HouseholdAccountSummary(
         id=_portfolio_summary_key(account),
         household_account_id=portfolio_household_account_id,
@@ -793,6 +793,16 @@ def _quote_fields(
     }
 
 
+def _has_complete_live_pricing(portfolio_valuation: Any) -> bool:
+    if portfolio_valuation is None:
+        return False
+    priced_position_count = int(getattr(portfolio_valuation, "priced_position_count", 0) or 0)
+    total_position_count = int(
+        getattr(portfolio_valuation, "total_position_count", 0) or priced_position_count
+    )
+    return priced_position_count > 0 and priced_position_count >= total_position_count
+
+
 def _resolve_effective_values(
     *,
     balance_account: HouseholdEvidenceAccount,
@@ -829,27 +839,29 @@ def _resolve_effective_values(
     )
 
     source_holdings = (
-        source_current_value - float(effective_cash or 0.0) if has_source_balance else None
+        source_current_value - float(effective_cash or 0.0)
+        if has_source_balance and not has_live_pricing
+        else None
     )
     effective_holdings = (
-        source_holdings
+        live_priced_positions_value
+        if has_live_pricing and live_priced_positions_value is not None
+        else source_holdings
         if source_holdings is not None
-        else live_priced_positions_value
-        if live_priced_positions_value is not None
         else float(balance_account.holdings_value)
         if balance_account.holdings_value is not None
         else None
     )
     effective_current = (
-        source_current_value
-        if has_source_balance
-        else live_priced_positions_value + float(effective_cash or 0.0)
+        live_priced_positions_value + float(effective_cash or 0.0)
         if has_live_pricing and live_priced_positions_value is not None
+        else source_current_value
+        if has_source_balance
         else evidence_current_value
     )
     valuation_source = (
-        "source_balance" if has_source_balance
-        else "live_quotes" if has_live_pricing
+        "live_quotes" if has_live_pricing
+        else "source_balance" if has_source_balance
         else "evidence"
     )
     return effective_current, effective_holdings, effective_cash, valuation_source

@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from app.logging_config import get_logger
 from app.storage import PortfolioStorage
 from app.utils import safe_subprocess
+from app.utils.market_hours import get_market_aware_age_hours
 
 logger = get_logger(__name__)
 
@@ -69,6 +70,7 @@ class SourceHealthPolicy:
     ok_window: timedelta = timedelta(hours=2)
     degraded_window: timedelta = timedelta(hours=24)
     monitoring_mode: Literal["continuous", "standby"] = "continuous"
+    market_data: bool = False
 
 
 @lru_cache(maxsize=1)
@@ -117,6 +119,7 @@ def _get_source_health_policies() -> dict[str, SourceHealthPolicy]:
         policies["cboe_most_active"] = SourceHealthPolicy(
             ok_window=timedelta(hours=30),
             degraded_window=timedelta(hours=48),
+            market_data=True,
             monitoring_mode=policies["cboe_most_active"].monitoring_mode,
         )
     return policies
@@ -168,7 +171,8 @@ def _determine_source_status(
     if active_policy.monitoring_mode == "standby":
         return _status_from_success_rate(success_rate)
 
-    time_since_success = datetime.now(UTC) - last_success_at
+    age = _source_age(last_success_at, active_policy)
+    time_since_success = timedelta(hours=age)
 
     if time_since_success < active_policy.ok_window:
         return _status_from_success_rate(success_rate)
@@ -201,7 +205,7 @@ def _build_source_status_reason(
         if not last_success_at:
             reason = "No successful fetch recorded."
         else:
-            time_since_success = datetime.now(UTC) - last_success_at
+            time_since_success = timedelta(hours=_source_age(last_success_at, policy))
             if time_since_success >= policy.degraded_window:
                 reason = (
                     f"Last good update is older than {_format_window(policy.degraded_window)}."
@@ -215,6 +219,14 @@ def _build_source_status_reason(
             else:
                 reason = "Source health needs review."
     return reason
+
+
+def _source_age(last_success_at: datetime, policy: SourceHealthPolicy) -> float:
+    return get_market_aware_age_hours(
+        last_update=last_success_at,
+        now=datetime.now(UTC),
+        is_market_data=policy.market_data,
+    )
 
 
 def _build_source_health_check(row: dict[str, Any], policy: SourceHealthPolicy) -> SourceHealthCheck:

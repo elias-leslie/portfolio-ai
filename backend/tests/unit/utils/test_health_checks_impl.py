@@ -104,6 +104,37 @@ def test_determine_source_status_uses_source_specific_windows(monkeypatch) -> No
     )
 
 
+class _WeekendDateTime(dt.datetime):
+    @classmethod
+    def now(cls, tz: dt.tzinfo | None = None) -> dt.datetime:
+        current = dt.datetime(2026, 5, 24, 12, 0, tzinfo=dt.UTC)
+        if tz is None:
+            return current.replace(tzinfo=None)
+        return current.astimezone(tz)
+
+
+def test_market_data_source_health_uses_market_aware_age(monkeypatch) -> None:
+    monkeypatch.setattr(health_checks_impl, "datetime", _WeekendDateTime)
+
+    health = health_checks_impl._build_source_health_check(
+        {
+            "success_count": 4,
+            "failure_count": 0,
+            "total_latency_ms": 4000,
+            "rate_limit_hits": 0,
+            "last_success_at": dt.datetime(2026, 5, 22, 21, 15, tzinfo=dt.UTC),
+        },
+        health_checks_impl.SourceHealthPolicy(
+            ok_window=dt.timedelta(hours=30),
+            degraded_window=dt.timedelta(hours=48),
+            market_data=True,
+        ),
+    )
+
+    assert health.status == "ok"
+    assert health.status_reason is None
+
+
 def test_source_health_check_explains_stale_provider_with_strong_history(monkeypatch) -> None:
     monkeypatch.setattr(health_checks_impl, "datetime", _FrozenDateTime)
 

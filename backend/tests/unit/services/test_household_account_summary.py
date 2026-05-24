@@ -1906,6 +1906,75 @@ def test_build_account_summaries_uses_source_balance_for_source_owned_cash_accou
     assert summaries[0].balance_freshness_status == "fresh"
 
 
+def test_build_account_summaries_reprices_source_owned_symbol_account() -> None:
+    portfolio_account = Account(
+        id="portfolio-tod",
+        name="Individual - TOD",
+        account_type="Taxable",
+        household_account_id="household-tod",
+        cash_balance=1000.0,
+        updated_at=datetime.now(UTC),
+    )
+    valuation = AccountValuation(
+        account_id="portfolio-tod",
+        priced_positions_value=10500.0,
+        effective_cash_balance=1000.0,
+        total_value=11500.0,
+        priced_position_count=1,
+        quote_updated_at=datetime(2026, 5, 24, 12, 0, tzinfo=UTC),
+        quote_freshness_status="fresh",
+        quote_freshness_label="Latest close",
+        quote_source="cache",
+        total_position_count=1,
+    )
+
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="acct-tod",
+                document_id="doc-tod",
+                household_account_id="household-tod",
+                source_type="brokerage",
+                asset_group="taxable",
+                account_type="brokerage",
+                institution_name="Fidelity",
+                account_name="Individual - TOD",
+                account_mask="1234",
+                owner_name=None,
+                currency="USD",
+                balance=11000.0,
+                holdings_value=10000.0,
+                cash_balance=1000.0,
+                as_of_date=_iso(1),
+                confidence=0.95,
+                metadata={},
+            )
+        ],
+        documents=[],
+        portfolio_accounts=[portfolio_account],
+        tracked_accounts=[],
+        account_valuations={"portfolio-tod": valuation},
+        source_owned_household_account_ids={"household-tod"},
+        source_owned_account_values={
+            "household-tod": {
+                "current_value": 11000.0,
+                "cash_balance": 1000.0,
+                "last_synced_at": datetime.now(UTC),
+                "account_mask": "1234",
+            }
+        },
+        holdings_by_account={"portfolio-tod": 10500.0},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    assert len(summaries) == 1
+    assert summaries[0].current_value == 11500.0
+    assert summaries[0].holdings_value == 10500.0
+    assert summaries[0].cash_balance == 1000.0
+    assert summaries[0].valuation_source == "live_quotes"
+    assert summaries[0].quote_freshness_status == "fresh"
+
+
 def test_build_account_summaries_prefers_portfolio_household_account_link_over_name_match() -> None:
     documents = [
         HouseholdDocument(
