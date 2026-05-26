@@ -391,6 +391,34 @@ export interface RetirementHoldingsCoverage {
   accounts: RetirementHoldingsCoverageAccount[]
 }
 
+export interface RetirementAccountAllocationAccount {
+  label: string
+  bucketType: string
+  accountType: string
+  currentValue: number
+  exactValue: number
+  inferredValue: number
+  cashValue: number
+  pricedPositionCount: number
+  allocationStatus: string
+  allocationLabel: string
+  allocation: Record<string, number>
+  detail: string
+}
+
+export interface RetirementAccountAllocationCoverage {
+  status: string
+  label: string
+  detail: string
+  totalValue: number
+  exactValue: number
+  inferredValue: number
+  cashValue: number
+  exactShare: number
+  assetAllocation: Record<string, number>
+  accounts: RetirementAccountAllocationAccount[]
+}
+
 export interface RetirementDrawdownYear {
   yearIndex: number
   calendarYear: number
@@ -430,6 +458,7 @@ export interface RetirementPreview {
   endingBalancePaths: Record<string, number[]>
   accountBuckets: RetirementAccountBucket[]
   holdingsCoverage: RetirementHoldingsCoverage | null
+  accountAllocationCoverage: RetirementAccountAllocationCoverage | null
   taxAssumptions: Record<string, unknown>
   returnAssumptions: Record<string, unknown>
   drawdownSchedule: RetirementDrawdownYear[]

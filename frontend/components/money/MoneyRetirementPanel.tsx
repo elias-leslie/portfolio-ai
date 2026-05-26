@@ -623,6 +623,7 @@ export function MoneyRetirementPanel({
       .filter((row) => row.value > 0)
   }, [preview?.accountBuckets])
   const holdingsCoverage = preview?.holdingsCoverage ?? null
+  const accountAllocationCoverage = preview?.accountAllocationCoverage ?? null
 
   const allocationRows = useMemo(
     () =>
@@ -1302,17 +1303,21 @@ export function MoneyRetirementPanel({
                     Current portfolio mode uses live holdings and fund
                     classification. Switch modes, then Run preview, to compare a
                     what-if allocation.
-                    {holdingsCoverage && holdingsCoverage.status !== 'exact' ? (
+                    {accountAllocationCoverage &&
+                    accountAllocationCoverage.status !== 'exact' ? (
                       <p className="mt-2">
                         Current allocation confidence:{' '}
                         <span className="font-medium text-text">
-                          {holdingsCoverage.label}
+                          {accountAllocationCoverage.label}
                         </span>{' '}
                         (
-                        {formatPercent(holdingsCoverage.exactShare * 100, {
-                          decimals: 0,
-                        })}{' '}
-                        exact holdings/cash).
+                        {formatPercent(
+                          accountAllocationCoverage.exactShare * 100,
+                          {
+                            decimals: 0,
+                          },
+                        )}{' '}
+                        exact account allocation/cash).
                       </p>
                     ) : null}
                   </div>
@@ -1565,6 +1570,21 @@ export function MoneyRetirementPanel({
                       {formatCurrencyWhole(holdingsCoverage.inferredValue)}
                     </span>
                   </div>
+                  {accountAllocationCoverage ? (
+                    <div className="flex items-center justify-between gap-3">
+                      <span>Account allocation</span>
+                      <span className="text-right text-text">
+                        {accountAllocationCoverage.label} ·{' '}
+                        {formatPercent(
+                          accountAllocationCoverage.exactShare * 100,
+                          {
+                            decimals: 0,
+                          },
+                        )}{' '}
+                        exact
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
                 {holdingsCoverage.accounts.length > 0 ? (
                   <>

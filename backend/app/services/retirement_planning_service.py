@@ -23,6 +23,8 @@ import yaml
 
 from app.logging_config import get_logger
 from app.portfolio.contracts.retirement import (
+    RetirementAccountAllocationAccount,
+    RetirementAccountAllocationCoverage,
     RetirementAccountBucket,
     RetirementDrawdownYear,
     RetirementHoldingsCoverage,
@@ -436,13 +438,20 @@ class RetirementPlanningService:
         )
         buckets = self._account_buckets_from_dashboard(dashboard)
         holdings_coverage = self._holdings_coverage_from_dashboard(dashboard)
+        account_allocation_coverage = self._account_allocation_coverage_from_dashboard(
+            dashboard,
+            inputs.asset_allocation,
+        )
         bucket_total = round(sum(bucket.current_value for bucket in buckets), 2)
         if bucket_total > 0:
             input_updates: dict[str, Any] = {"portfolio_value": bucket_total}
             if not asset_allocation and not allocation_holdings:
-                input_updates["asset_allocation"] = _allocation_with_bucket_cash(
-                    inputs.asset_allocation,
-                    buckets,
+                input_updates["asset_allocation"] = (
+                    account_allocation_coverage.asset_allocation
+                    or _allocation_with_bucket_cash(
+                        inputs.asset_allocation,
+                        buckets,
+                    )
                 )
             inputs = inputs.model_copy(update=input_updates)
         elif inputs.portfolio_value > 0:
@@ -458,7 +467,11 @@ class RetirementPlanningService:
             )
 
         return_allocation_holdings = allocation_holdings
-        if not asset_allocation and not allocation_holdings:
+        if (
+            not asset_allocation
+            and not allocation_holdings
+            and account_allocation_coverage.total_value <= 0
+        ):
             return_allocation_holdings = self._current_income_holdings(
                 cash_value=sum(
                     bucket.current_value for bucket in buckets if bucket.bucket_type == "cash"
@@ -494,10 +507,12 @@ class RetirementPlanningService:
             ending_balance_paths=sim.ending_balance_paths,
             account_buckets=buckets,
             holdings_coverage=holdings_coverage,
+            account_allocation_coverage=account_allocation_coverage,
             tax_assumptions=_tax_assumptions(tax_context, buckets=buckets, inputs=inputs),
             return_assumptions=self._return_assumptions(
                 inputs,
                 allocation_holdings=return_allocation_holdings,
+                account_allocation_coverage=account_allocation_coverage,
                 tax_context=tax_context,
                 buckets=buckets,
                 baseline_ordinary_income=baseline_ordinary_income,
@@ -836,6 +851,131 @@ class RetirementPlanningService:
             )
         return _summarize_holdings_coverage(rows)
 
+    def _account_allocation_coverage_from_dashboard(
+        self,
+        dashboard: Any,
+        fallback_allocation: dict[str, float],
+    ) -> RetirementAccountAllocationCoverage:
+        ac_mod = import_module("app.portfolio.asset_classification")
+        classifier = ac_mod.AssetClassifier(self.storage)
+        linked_ids = [
+            str(linked_id)
+            for account in getattr(dashboard, "accounts", []) or []
+            if (linked_id := getattr(account, "linked_portfolio_account_id", None))
+        ]
+        holdings_by_account = self._priced_holdings_by_account(linked_ids)
+        fallback = _non_cash_fallback_allocation(fallback_allocation, self._cma)
+        rows: list[RetirementAccountAllocationAccount] = []
+        for account in getattr(dashboard, "accounts", []) or []:
+            asset_group = str(getattr(account, "asset_group", "") or "").lower()
+            if asset_group in {"credit", "debt"}:
+                continue
+            value = float(getattr(account, "current_value", 0.0) or 0.0)
+            if value <= 0:
+                continue
+            account_type = str(getattr(account, "account_type", "") or "other")
+            label = str(getattr(account, "label", "") or "")
+            bucket_type = _bucket_type(asset_group, account_type)
+            cash_balance = min(float(getattr(account, "cash_balance", 0.0) or 0.0), value)
+            if bucket_type in {"cash", "taxable"} and cash_balance > 0:
+                cash_label = label if cash_balance >= value else f"{label} cash"
+                rows.append(
+                    RetirementAccountAllocationAccount(
+                        label=cash_label or BUCKET_LABELS["cash"],
+                        bucket_type="cash",
+                        account_type=account_type,
+                        current_value=round(cash_balance, 2),
+                        exact_value=round(cash_balance, 2),
+                        cash_value=round(cash_balance, 2),
+                        allocation_status="cash",
+                        allocation_label="Cash exact",
+                        allocation={"cash": 1.0},
+                        detail="Cash balance is modeled directly.",
+                    )
+                )
+                value = max(value - cash_balance, 0.0)
+                if value <= 0:
+                    continue
+
+            linked_id = getattr(account, "linked_portfolio_account_id", None)
+            exact_holdings = holdings_by_account.get(str(linked_id), []) if linked_id else []
+            exact_values = _class_values_from_holdings(ac_mod, classifier, exact_holdings)
+            exact_value = sum(exact_values.values())
+            if exact_value > value > 0:
+                scale = value / exact_value
+                exact_values = {
+                    asset_class: asset_value * scale
+                    for asset_class, asset_value in exact_values.items()
+                }
+                exact_value = value
+            inferred_value = max(value - exact_value, 0.0)
+            account_values = dict(exact_values)
+            if inferred_value > 0.01:
+                for asset_class, weight in fallback.items():
+                    account_values[asset_class] = account_values.get(asset_class, 0.0) + (
+                        inferred_value * weight
+                    )
+            status, status_label, detail = _account_allocation_status(
+                exact_value=exact_value,
+                inferred_value=inferred_value,
+                priced_position_count=int(getattr(account, "priced_position_count", 0) or 0),
+            )
+            rows.append(
+                RetirementAccountAllocationAccount(
+                    label=label or BUCKET_LABELS[bucket_type],
+                    bucket_type=bucket_type,
+                    account_type=account_type,
+                    current_value=round(value, 2),
+                    exact_value=round(exact_value, 2),
+                    inferred_value=round(inferred_value, 2),
+                    priced_position_count=int(getattr(account, "priced_position_count", 0) or 0),
+                    allocation_status=status,
+                    allocation_label=status_label,
+                    allocation=_values_to_allocation(account_values, self._cma),
+                    detail=detail,
+                )
+            )
+        return _summarize_account_allocation_coverage(rows, self._cma)
+
+    def _priced_holdings_by_account(
+        self,
+        account_ids: list[str],
+    ) -> dict[str, list[dict[str, Any]]]:
+        if not account_ids:
+            return {}
+        price_mod = import_module("app.portfolio.price_fetcher")
+        price_fetcher = price_mod.PriceDataFetcher(self.storage)
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT account_id, symbol, shares
+                FROM portfolio_positions
+                WHERE account_id = ANY(%s)
+                  AND position_type = 'long'
+                  AND shares > 0
+                """,
+                [sorted(set(account_ids))],
+            ).fetchall()
+        if not rows:
+            return {}
+        symbols = sorted({str(row[1]).upper() for row in rows})
+        prices = price_fetcher.fetch_cached_price_data(symbols)
+        out: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            account_id = str(row[0])
+            symbol = str(row[1]).upper()
+            shares = float(row[2] or 0.0)
+            info = prices.get(symbol)
+            if info is None or getattr(info, "error", None):
+                continue
+            price = float(getattr(info, "price", 0.0) or 0.0)
+            if price <= 0 or shares <= 0:
+                continue
+            out.setdefault(account_id, []).append(
+                {"symbol": symbol, "current_value": shares * price}
+            )
+        return out
+
     def _drawdown_schedule(
         self,
         inputs: RetirementInputs,
@@ -929,6 +1069,7 @@ class RetirementPlanningService:
         inputs: RetirementInputs,
         *,
         allocation_holdings: list[Any] | tuple[Any, ...] | None = None,
+        account_allocation_coverage: RetirementAccountAllocationCoverage | None = None,
         tax_context: FederalTaxContext | None = None,
         buckets: tuple[RetirementAccountBucket, ...] = (),
         baseline_ordinary_income: float = 0.0,
@@ -955,6 +1096,16 @@ class RetirementPlanningService:
             "cash_yield": round(cash_yield, 6),
             "cash_yield_source": DEFAULT_SPAXX_CASH_YIELD_SOURCE,
             "holding_income_yields": holding_yields,
+            "account_allocation_confidence": (
+                {
+                    "status": account_allocation_coverage.status,
+                    "label": account_allocation_coverage.label,
+                    "exact_share": account_allocation_coverage.exact_share,
+                    "detail": account_allocation_coverage.detail,
+                }
+                if account_allocation_coverage is not None
+                else None
+            ),
             **tax_drag,
         }
 
@@ -2235,6 +2386,121 @@ def _summarize_holdings_coverage(
         inferred_value=inferred_value,
         cash_value=cash_value,
         exact_share=exact_share,
+        accounts=tuple(rows),
+    )
+
+
+def _class_values_from_holdings(
+    ac_mod: Any,
+    classifier: Any,
+    holdings: list[dict[str, Any]],
+) -> dict[str, float]:
+    if not holdings:
+        return {}
+    bucketed = classifier.classify_value(
+        ac_mod.HoldingValue(symbol=row["symbol"], value=row["current_value"])
+        for row in holdings
+        if float(row.get("current_value") or 0.0) > 0
+    )
+    values = dict(bucketed.by_class)
+    unclassified = float(values.pop("unclassified", 0.0) or 0.0)
+    if unclassified > 0:
+        values["us_equity"] = values.get("us_equity", 0.0) + unclassified
+    return {
+        asset_class: float(value or 0.0)
+        for asset_class, value in values.items()
+        if float(value or 0.0) > 0
+    }
+
+
+def _values_to_allocation(values: dict[str, float], cma: dict[str, Any]) -> dict[str, float]:
+    return _normalized_asset_allocation(values, cma)
+
+
+def _non_cash_fallback_allocation(
+    allocation: dict[str, float],
+    cma: dict[str, Any],
+) -> dict[str, float]:
+    cleaned = {
+        asset_class: float(weight or 0.0)
+        for asset_class, weight in allocation.items()
+        if asset_class != "cash" and float(weight or 0.0) > 0
+    }
+    if not cleaned:
+        cleaned = {"us_equity": 1.0}
+    return _normalized_asset_allocation(cleaned, cma)
+
+
+def _account_allocation_status(
+    *,
+    exact_value: float,
+    inferred_value: float,
+    priced_position_count: int,
+) -> tuple[str, str, str]:
+    if inferred_value <= 0.01 and exact_value > 0:
+        return (
+            "exact_allocation",
+            "Exact allocation",
+            (
+                f"{priced_position_count} priced position"
+                f"{'s' if priced_position_count != 1 else ''} drive this account allocation."
+            ),
+        )
+    if exact_value > 0:
+        return (
+            "partial_allocation",
+            "Partial allocation",
+            (
+                f"{priced_position_count} priced position"
+                f"{'s' if priced_position_count != 1 else ''} plus account-level fallback assumptions."
+            ),
+        )
+    return (
+        "account_value_only",
+        "Account value only",
+        "No exact holdings are linked; allocation uses account-level fallback assumptions.",
+    )
+
+
+def _summarize_account_allocation_coverage(
+    rows: list[RetirementAccountAllocationAccount],
+    cma: dict[str, Any],
+) -> RetirementAccountAllocationCoverage:
+    if not rows:
+        return RetirementAccountAllocationCoverage()
+    total_value = round(sum(row.current_value for row in rows), 2)
+    exact_value = round(sum(row.exact_value for row in rows), 2)
+    inferred_value = round(sum(row.inferred_value for row in rows), 2)
+    cash_value = round(sum(row.cash_value for row in rows), 2)
+    exact_share = round(exact_value / total_value, 6) if total_value > 0 else 0.0
+    values_by_class: dict[str, float] = {}
+    for row in rows:
+        for asset_class, weight in row.allocation.items():
+            values_by_class[asset_class] = values_by_class.get(asset_class, 0.0) + (
+                row.current_value * float(weight or 0.0)
+            )
+    if inferred_value <= 0.01:
+        status = "exact"
+        label = "Exact account allocation"
+        detail = "All modeled account allocation comes from exact holdings or cash."
+    elif exact_value > 0:
+        status = "partial"
+        label = "Partial account allocation"
+        detail = "Exact holdings and cash are used first; account-value-only balances use fallback assumptions."
+    else:
+        status = "account_value_only"
+        label = "Account-value-only allocation"
+        detail = "No exact holdings are linked; all allocation uses account-level fallback assumptions."
+    return RetirementAccountAllocationCoverage(
+        status=status,
+        label=label,
+        detail=detail,
+        total_value=total_value,
+        exact_value=exact_value,
+        inferred_value=inferred_value,
+        cash_value=cash_value,
+        exact_share=exact_share,
+        asset_allocation=_values_to_allocation(values_by_class, cma),
         accounts=tuple(rows),
     )
 

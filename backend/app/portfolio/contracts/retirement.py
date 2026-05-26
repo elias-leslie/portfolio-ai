@@ -153,6 +153,42 @@ class RetirementHoldingsCoverage(BaseModel):
     accounts: tuple[RetirementHoldingsCoverageAccount, ...] = ()
 
 
+class RetirementAccountAllocationAccount(BaseModel):
+    """Per-account allocation row with exact-vs-inferred confidence."""
+
+    model_config = ConfigDict(frozen=True)
+
+    label: str
+    bucket_type: str
+    account_type: str
+    current_value: float = Field(0.0, ge=0.0)
+    exact_value: float = Field(0.0, ge=0.0)
+    inferred_value: float = Field(0.0, ge=0.0)
+    cash_value: float = Field(0.0, ge=0.0)
+    priced_position_count: int = Field(0, ge=0)
+    allocation_status: str
+    allocation_label: str
+    allocation: dict[str, float] = Field(default_factory=dict)
+    detail: str
+
+
+class RetirementAccountAllocationCoverage(BaseModel):
+    """Planning confidence for account/bucket-specific allocation."""
+
+    model_config = ConfigDict(frozen=True)
+
+    status: str = "no_accounts"
+    label: str = "No account allocation"
+    detail: str = "No account values are available for allocation coverage."
+    total_value: float = Field(0.0, ge=0.0)
+    exact_value: float = Field(0.0, ge=0.0)
+    inferred_value: float = Field(0.0, ge=0.0)
+    cash_value: float = Field(0.0, ge=0.0)
+    exact_share: float = Field(0.0, ge=0.0, le=1.0)
+    asset_allocation: dict[str, float] = Field(default_factory=dict)
+    accounts: tuple[RetirementAccountAllocationAccount, ...] = ()
+
+
 class RetirementDrawdownYear(BaseModel):
     """One calendar year in the deterministic drawdown schedule."""
 
@@ -209,6 +245,9 @@ class RetirementPreview(BaseModel):
     ending_balance_paths: dict[str, list[float]]
     account_buckets: tuple[RetirementAccountBucket, ...] = ()
     holdings_coverage: RetirementHoldingsCoverage = Field(default_factory=RetirementHoldingsCoverage)
+    account_allocation_coverage: RetirementAccountAllocationCoverage = Field(
+        default_factory=RetirementAccountAllocationCoverage
+    )
     tax_assumptions: dict[str, Any] = Field(default_factory=dict)
     return_assumptions: dict[str, Any] = Field(default_factory=dict)
     drawdown_schedule: tuple[RetirementDrawdownYear, ...] = ()

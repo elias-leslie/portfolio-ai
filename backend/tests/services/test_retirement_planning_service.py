@@ -557,6 +557,7 @@ def test_preview_builds_account_buckets_and_levers(
                 label="Brokerage",
                 asset_group="taxable",
                 account_type="brokerage",
+                linked_portfolio_account_id="acct-tax",
                 current_value=250_000.0,
                 holdings_value=250_000.0,
                 cash_balance=0.0,
@@ -566,6 +567,7 @@ def test_preview_builds_account_buckets_and_levers(
                 label="PCSB 457(b)",
                 asset_group="retirement",
                 account_type="governmental_457b",
+                linked_portfolio_account_id=None,
                 current_value=95_000.0,
                 holdings_value=95_000.0,
                 cash_balance=0.0,
@@ -575,6 +577,7 @@ def test_preview_builds_account_buckets_and_levers(
                 label="IRA",
                 asset_group="retirement",
                 account_type="ira",
+                linked_portfolio_account_id=None,
                 current_value=400_000.0,
                 holdings_value=400_000.0,
                 cash_balance=0.0,
@@ -584,6 +587,7 @@ def test_preview_builds_account_buckets_and_levers(
                 label="Roth",
                 asset_group="retirement",
                 account_type="roth_ira",
+                linked_portfolio_account_id=None,
                 current_value=200_000.0,
                 holdings_value=200_000.0,
                 cash_balance=0.0,
@@ -593,6 +597,7 @@ def test_preview_builds_account_buckets_and_levers(
                 label="Cash",
                 asset_group="cash",
                 account_type="savings",
+                linked_portfolio_account_id=None,
                 current_value=50_000.0,
                 holdings_value=0.0,
                 cash_balance=50_000.0,
@@ -604,6 +609,13 @@ def test_preview_builds_account_buckets_and_levers(
         RetirementPlanningService,
         "_load_money_dashboard",
         lambda _service: dashboard,
+    )
+    monkeypatch.setattr(
+        RetirementPlanningService,
+        "_priced_holdings_by_account",
+        lambda _service, _account_ids: {
+            "acct-tax": [{"symbol": "VTI", "current_value": 250_000.0}]
+        },
     )
     service = _make_service(conn)
     preview = service.preview(
@@ -628,6 +640,32 @@ def test_preview_builds_account_buckets_and_levers(
     assert coverage_by_label["Brokerage"].coverage_status == "exact_holdings"
     assert coverage_by_label["Cash"].coverage_status == "cash"
     assert coverage_by_label["IRA"].coverage_status == "account_value_only"
+    assert preview.account_allocation_coverage.status == "partial"
+    assert preview.account_allocation_coverage.exact_share == pytest.approx(
+        300_000 / 995_000,
+        abs=1e-6,
+    )
+    assert preview.account_allocation_coverage.asset_allocation["cash"] == pytest.approx(
+        50_000 / 995_000,
+        abs=1e-6,
+    )
+    assert preview.account_allocation_coverage.asset_allocation["us_equity"] == pytest.approx(
+        (250_000 + 695_000 * 0.6) / 995_000,
+        abs=1e-6,
+    )
+    assert preview.account_allocation_coverage.asset_allocation["bonds"] == pytest.approx(
+        (695_000 * 0.4) / 995_000,
+        abs=1e-6,
+    )
+    allocation_by_label = {
+        row.label: row for row in preview.account_allocation_coverage.accounts
+    }
+    assert allocation_by_label["Brokerage"].allocation_status == "exact_allocation"
+    assert allocation_by_label["Brokerage"].allocation == {"us_equity": 1.0}
+    assert allocation_by_label["IRA"].allocation_status == "account_value_only"
+    assert allocation_by_label["IRA"].allocation["us_equity"] == pytest.approx(0.6)
+    assert allocation_by_label["IRA"].allocation["bonds"] == pytest.approx(0.4)
+    assert preview.inputs.asset_allocation == preview.account_allocation_coverage.asset_allocation
     assert {bucket.bucket_type for bucket in preview.account_buckets} == {
         "cash",
         "taxable",

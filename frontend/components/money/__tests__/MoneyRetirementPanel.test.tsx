@@ -319,6 +319,52 @@ const preview: RetirementPreview = {
       },
     ],
   },
+  accountAllocationCoverage: {
+    status: 'partial',
+    label: 'Partial account allocation',
+    detail:
+      'Exact holdings and cash are used first; account-value-only balances use fallback assumptions.',
+    totalValue: 650000,
+    exactValue: 250000,
+    inferredValue: 400000,
+    cashValue: 0,
+    exactShare: 0.384615,
+    assetAllocation: {
+      usEquity: 0.753846,
+      bonds: 0.246154,
+    },
+    accounts: [
+      {
+        label: 'Brokerage',
+        bucketType: 'taxable',
+        accountType: 'brokerage',
+        currentValue: 250000,
+        exactValue: 250000,
+        inferredValue: 0,
+        cashValue: 0,
+        pricedPositionCount: 1,
+        allocationStatus: 'exact_allocation',
+        allocationLabel: 'Exact allocation',
+        allocation: { usEquity: 1 },
+        detail: '1 priced position drives this account allocation.',
+      },
+      {
+        label: 'IRA',
+        bucketType: 'pre_tax',
+        accountType: 'ira',
+        currentValue: 400000,
+        exactValue: 0,
+        inferredValue: 400000,
+        cashValue: 0,
+        pricedPositionCount: 0,
+        allocationStatus: 'account_value_only',
+        allocationLabel: 'Account value only',
+        allocation: { usEquity: 0.6, bonds: 0.4 },
+        detail:
+          'No exact holdings are linked; allocation uses account-level fallback assumptions.',
+      },
+    ],
+  },
   returnAssumptions: {
     expectedReturn: 0.052,
     incomeYield: 0.024,
@@ -445,6 +491,10 @@ describe('MoneyRetirementPanel', () => {
     expect(screen.getByText('Partial holdings')).toBeInTheDocument()
     expect(screen.getByText('Exact holdings/cash')).toBeInTheDocument()
     expect(screen.getByText('Account-value-only')).toBeInTheDocument()
+    expect(screen.getByText('Account allocation')).toBeInTheDocument()
+    expect(
+      screen.getAllByText(/Partial account allocation/).length,
+    ).toBeGreaterThan(0)
     expect(
       screen.getByRole('button', { name: /show 2 account details/i }),
     ).toBeInTheDocument()
@@ -491,6 +541,9 @@ describe('MoneyRetirementPanel', () => {
     expect(
       screen.getByText(/Fidelity SPAXX 7-day yield as of 2026-05-07/i),
     ).toBeInTheDocument()
+    expect(
+      screen.getAllByText(/Partial account allocation/).length,
+    ).toBeGreaterThan(0)
   })
 
   it('lets local knobs update the preview request', async () => {
