@@ -275,6 +275,18 @@ function formatCurrentValue(def: AssumptionFieldDef, value: unknown) {
   return String(value)
 }
 
+function parseNumericInput(rawValue: string) {
+  const normalized = rawValue
+    .trim()
+    .replace(/[$,%\s]/g, '')
+    .replace(/,/g, '')
+  const parsed = Number(normalized)
+  if (!Number.isFinite(parsed)) {
+    return null
+  }
+  return parsed
+}
+
 function parseDraftValue(
   def: AssumptionFieldDef,
   rawValue: string,
@@ -287,8 +299,8 @@ function parseDraftValue(
   if (def.type === 'text') {
     return trimmed
   }
-  const parsed = Number(trimmed)
-  if (!Number.isFinite(parsed)) {
+  const parsed = parseNumericInput(trimmed)
+  if (parsed == null) {
     throw new Error(`Enter a valid value for ${def.label.toLowerCase()}.`)
   }
   if (def.type === 'integer') {
@@ -303,6 +315,10 @@ function parseDraftValue(
   return parsed
 }
 
+function rawCadenceValue(rawValue: string) {
+  return rawValue.trim() ? parseNumericInput(rawValue) : null
+}
+
 function parseResolvedValue(def: AssumptionFieldDef, value: string | null) {
   if (!value) {
     return null
@@ -310,8 +326,8 @@ function parseResolvedValue(def: AssumptionFieldDef, value: string | null) {
   if (def.type === 'text') {
     return value
   }
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) {
+  const parsed = parseNumericInput(value)
+  if (parsed == null) {
     return null
   }
   return def.type === 'integer' ? Math.round(parsed) : parsed
@@ -350,6 +366,19 @@ export function MoneyAssumptionsDrawer({
   )
   const [noteInput, setNoteInput] = useState('')
   const [settingsDisabled, setSettingsDisabled] = useState(false)
+
+  function assumptionMetaValue(
+    def: AssumptionFieldDef,
+    cadence: IncomeCadence,
+  ) {
+    const rawValue = rawCadenceValue(draftValues[def.fieldName] ?? '')
+    return serializeAssumptionMeta({
+      note: metaMap.get(def.fieldName)?.note ?? '',
+      disabled: false,
+      cadence,
+      rawValue: def.supportsCadence ? rawValue : null,
+    })
+  }
 
   useEffect(() => {
     const nextValues: Record<string, string> = {}
@@ -410,10 +439,9 @@ export function MoneyAssumptionsDrawer({
             note: metaMap.get(def.fieldName)?.note ?? '',
             disabled: false,
             cadence,
-            rawValue:
-              def.supportsCadence && draftValues[def.fieldName]?.trim()
-                ? Number(draftValues[def.fieldName])
-                : null,
+            rawValue: def.supportsCadence
+              ? rawCadenceValue(draftValues[def.fieldName] ?? '')
+              : null,
           }),
         }),
       ])
@@ -466,11 +494,9 @@ export function MoneyAssumptionsDrawer({
         note: noteInput.trim(),
         disabled: settingsDisabled,
         cadence,
-        rawValue:
-          settingsField.supportsCadence &&
-          draftValues[settingsField.fieldName]?.trim()
-            ? Number(draftValues[settingsField.fieldName])
-            : null,
+        rawValue: settingsField.supportsCadence
+          ? rawCadenceValue(draftValues[settingsField.fieldName] ?? '')
+          : null,
       }),
     })
     if (settingsDisabled) {
@@ -487,6 +513,41 @@ export function MoneyAssumptionsDrawer({
   const hiddenFields = assumptionFields.filter(
     (def) => metaMap.get(def.fieldName)?.disabled === true,
   )
+  const draftsReady = activeFields.every((def) => def.fieldName in draftValues)
+
+  async function saveAllValues() {
+    try {
+      const updatePayload: Record<string, string | number | null> = {}
+      const cadenceMetaUpdates: Array<{
+        factKey: string
+        factValue: string
+      }> = []
+
+      for (const def of activeFields) {
+        const cadence = draftCadences[def.fieldName] ?? 'monthly'
+        updatePayload[def.profileKey] = parseDraftValue(
+          def,
+          draftValues[def.fieldName] ?? '',
+          cadence,
+        )
+        if (def.supportsCadence) {
+          cadenceMetaUpdates.push({
+            factKey: `${ASSUMPTION_META_PREFIX}${def.fieldName}`,
+            factValue: assumptionMetaValue(def, cadence),
+          })
+        }
+      }
+
+      await updateProfile.mutateAsync(updatePayload as HouseholdProfileUpdate)
+      await Promise.all(
+        cadenceMetaUpdates.map((meta) => confirmFact.mutateAsync(meta)),
+      )
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to save assumptions.',
+      )
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -542,6 +603,21 @@ export function MoneyAssumptionsDrawer({
       <SectionCard
         variant="surface"
         title="Manual inputs"
+        description="Edit several fields, then save all changes at once. Currency fields accept commas and dollar signs."
+        actions={
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => void saveAllValues()}
+            disabled={
+              !draftsReady || updateProfile.isPending || confirmFact.isPending
+            }
+          >
+            {updateProfile.isPending || confirmFact.isPending
+              ? 'Saving…'
+              : 'Save all changes'}
+          </Button>
+        }
         padding="none"
         className="overflow-hidden"
       >
