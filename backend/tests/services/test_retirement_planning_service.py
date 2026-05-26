@@ -583,6 +583,79 @@ def test_preview_builds_account_buckets_and_levers(
     assert len(preview.lever_impacts) == 3
 
 
+def test_account_buckets_split_taxable_cash_from_invested_taxable() -> None:
+    service = _make_service(_StubConn())
+    dashboard = SimpleNamespace(
+        accounts=[
+            SimpleNamespace(
+                label="Cash Management",
+                asset_group="taxable",
+                account_type="brokerage",
+                current_value=40_000.0,
+                cash_balance=40_000.0,
+            ),
+            SimpleNamespace(
+                label="Taxable Brokerage",
+                asset_group="taxable",
+                account_type="brokerage",
+                current_value=110_000.0,
+                cash_balance=10_000.0,
+            ),
+        ],
+    )
+
+    buckets = service._account_buckets_from_dashboard(dashboard)
+
+    assert sum(bucket.current_value for bucket in buckets if bucket.bucket_type == "cash") == 50_000.0
+    assert sum(bucket.current_value for bucket in buckets if bucket.bucket_type == "taxable") == 100_000.0
+
+
+def test_drawdown_first_year_starts_at_current_bucket_values() -> None:
+    service = _make_service(_StubConn())
+    inputs = RetirementInputs(
+        household_id="hh-start",
+        primary_age=49,
+        spouse_age=43,
+        retirement_age=65,
+        horizon_years=2,
+        annual_expenses=72_000.0,
+        annual_contribution=0.0,
+        portfolio_value=150_000.0,
+        asset_allocation={"us_equity": 1.0},
+        income_sources=(),
+        inflation_rate=0.025,
+        as_of_date=date(2026, 5, 26),
+    )
+
+    rows = service._drawdown_schedule(
+        inputs,
+        buckets=(
+            RetirementAccountBucket(
+                bucket_type="taxable",
+                label="Taxable",
+                account_type="brokerage",
+                tax_treatment="taxable_capital_gains_estimate",
+                current_value=100_000.0,
+                withdrawal_priority=2,
+            ),
+            RetirementAccountBucket(
+                bucket_type="pre_tax",
+                label="IRA",
+                account_type="ira",
+                tax_treatment="ordinary_income",
+                current_value=50_000.0,
+                withdrawal_priority=4,
+            ),
+        ),
+        ordinary_tax_rate=0.22,
+        capital_gains_rate=0.15,
+    )
+
+    assert rows[0].balances_by_bucket["taxable"] == 100_000.0
+    assert rows[0].balances_by_bucket["pre_tax"] == 50_000.0
+    assert rows[1].balances_by_bucket["taxable"] > 100_000.0
+
+
 def test_preview_adds_social_security_knobs_on_primary_age_timeline() -> None:
     inputs = RetirementInputs(
         household_id="hh-ss",

@@ -288,14 +288,14 @@ const preview: RetirementPreview = {
       rmdApplied: false,
       withdrawalsByBucket: {
         taxable: 74000,
-        governmental_457b: 0,
-        pre_tax: 0,
+        governmental457b: 0,
+        preTax: 0,
         roth: 0,
       },
       balancesByBucket: {
         taxable: 200000,
-        governmental_457b: 95000,
-        pre_tax: 500000,
+        governmental457b: 95000,
+        preTax: 500000,
         roth: 250000,
       },
     },
@@ -314,14 +314,14 @@ const preview: RetirementPreview = {
       rmdApplied: true,
       withdrawalsByBucket: {
         taxable: 20000,
-        governmental_457b: 0,
-        pre_tax: 45000,
+        governmental457b: 0,
+        preTax: 45000,
         roth: 0,
       },
       balancesByBucket: {
         taxable: 0,
-        governmental_457b: 90000,
-        pre_tax: 560000,
+        governmental457b: 90000,
+        preTax: 560000,
         roth: 240000,
       },
     },
@@ -363,6 +363,7 @@ describe('MoneyRetirementPanel', () => {
     expect(screen.getByText('Retire 2 years later')).toBeInTheDocument()
     expect(screen.getByText('Drawdown schedule')).toBeInTheDocument()
     expect(screen.getByText('$18,000')).toBeInTheDocument()
+    expect(screen.getByText('$45,000')).toBeInTheDocument()
   })
 
   it('lets local knobs update the preview request', async () => {

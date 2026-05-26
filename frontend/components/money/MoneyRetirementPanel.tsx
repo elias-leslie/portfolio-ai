@@ -96,6 +96,14 @@ function bucketLabel(value: string) {
   }
 }
 
+function bucketMapValue(values: Record<string, number>, bucket: string) {
+  if (bucket === 'pre_tax') return values.pre_tax ?? values.preTax ?? 0
+  if (bucket === 'governmental_457b') {
+    return values.governmental_457b ?? values.governmental457b ?? 0
+  }
+  return values[bucket] ?? 0
+}
+
 function numberInput(value: number | null | undefined, fallback = '') {
   return value == null ? fallback : String(Math.round(value))
 }
@@ -341,13 +349,16 @@ export function MoneyRetirementPanel({
     () =>
       (preview?.drawdownSchedule ?? []).map((row) => ({
         age: row.primaryAge,
-        cash: row.balancesByBucket.cash ?? 0,
-        taxable: row.balancesByBucket.taxable ?? 0,
-        governmental_457b: row.balancesByBucket.governmental_457b ?? 0,
-        pre_tax: row.balancesByBucket.pre_tax ?? 0,
-        hsa: row.balancesByBucket.hsa ?? 0,
-        roth: row.balancesByBucket.roth ?? 0,
-        other: row.balancesByBucket.other ?? 0,
+        cash: bucketMapValue(row.balancesByBucket, 'cash'),
+        taxable: bucketMapValue(row.balancesByBucket, 'taxable'),
+        governmental_457b: bucketMapValue(
+          row.balancesByBucket,
+          'governmental_457b',
+        ),
+        pre_tax: bucketMapValue(row.balancesByBucket, 'pre_tax'),
+        hsa: bucketMapValue(row.balancesByBucket, 'hsa'),
+        roth: bucketMapValue(row.balancesByBucket, 'roth'),
+        other: bucketMapValue(row.balancesByBucket, 'other'),
       })),
     [preview?.drawdownSchedule],
   )
@@ -359,13 +370,16 @@ export function MoneyRetirementPanel({
         .slice(0, 30)
         .map((row) => ({
           age: row.primaryAge,
-          cash: row.withdrawalsByBucket.cash ?? 0,
-          taxable: row.withdrawalsByBucket.taxable ?? 0,
-          governmental_457b: row.withdrawalsByBucket.governmental_457b ?? 0,
-          pre_tax: row.withdrawalsByBucket.pre_tax ?? 0,
-          hsa: row.withdrawalsByBucket.hsa ?? 0,
-          roth: row.withdrawalsByBucket.roth ?? 0,
-          other: row.withdrawalsByBucket.other ?? 0,
+          cash: bucketMapValue(row.withdrawalsByBucket, 'cash'),
+          taxable: bucketMapValue(row.withdrawalsByBucket, 'taxable'),
+          governmental_457b: bucketMapValue(
+            row.withdrawalsByBucket,
+            'governmental_457b',
+          ),
+          pre_tax: bucketMapValue(row.withdrawalsByBucket, 'pre_tax'),
+          hsa: bucketMapValue(row.withdrawalsByBucket, 'hsa'),
+          roth: bucketMapValue(row.withdrawalsByBucket, 'roth'),
+          other: bucketMapValue(row.withdrawalsByBucket, 'other'),
         })),
     [preview],
   )
@@ -1013,14 +1027,18 @@ export function MoneyRetirementPanel({
                       </td>
                       <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
                         {formatCurrency(
-                          row.withdrawalsByBucket.governmental_457b ?? 0,
+                          bucketMapValue(
+                            row.withdrawalsByBucket,
+                            'governmental_457b',
+                          ),
                           { decimals: 0 },
                         )}
                       </td>
                       <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
-                        {formatCurrency(row.withdrawalsByBucket.pre_tax ?? 0, {
-                          decimals: 0,
-                        })}
+                        {formatCurrency(
+                          bucketMapValue(row.withdrawalsByBucket, 'pre_tax'),
+                          { decimals: 0 },
+                        )}
                       </td>
                       <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
                         {formatCurrency(row.withdrawalsByBucket.roth ?? 0, {

@@ -505,11 +505,29 @@ class RetirementPlanningService:
             if value <= 0:
                 continue
             account_type = str(getattr(account, "account_type", "") or "other")
+            label = str(getattr(account, "label", "") or "")
             bucket_type = _bucket_type(asset_group, account_type)
+            if bucket_type == "taxable":
+                cash_balance = min(float(getattr(account, "cash_balance", 0.0) or 0.0), value)
+                if cash_balance > 0:
+                    cash_label = label if cash_balance >= value else f"{label} cash"
+                    buckets.append(
+                        RetirementAccountBucket(
+                            bucket_type="cash",
+                            label=cash_label or BUCKET_LABELS["cash"],
+                            account_type=account_type,
+                            tax_treatment=BUCKET_TAX_TREATMENTS["cash"],
+                            current_value=round(cash_balance, 2),
+                            withdrawal_priority=BUCKET_WITHDRAWAL_PRIORITY["cash"],
+                        )
+                    )
+                    value = max(value - cash_balance, 0.0)
+                if value <= 0:
+                    continue
             buckets.append(
                 RetirementAccountBucket(
                     bucket_type=bucket_type,
-                    label=str(getattr(account, "label", "") or BUCKET_LABELS[bucket_type]),
+                    label=label or BUCKET_LABELS[bucket_type],
                     account_type=account_type,
                     tax_treatment=BUCKET_TAX_TREATMENTS[bucket_type],
                     current_value=round(value, 2),
@@ -537,10 +555,11 @@ class RetirementPlanningService:
         rows: list[RetirementDrawdownYear] = []
         for year_index in range(inputs.horizon_years):
             primary_age = inputs.primary_age + year_index
-            for bucket in list(balances):
-                balances[bucket] = max(0.0, balances[bucket] * (1.0 + annual_return))
-            if primary_age < inputs.retirement_age and inputs.annual_contribution > 0:
-                balances[contribution_bucket] = balances.get(contribution_bucket, 0.0) + inputs.annual_contribution
+            if year_index > 0:
+                for bucket in list(balances):
+                    balances[bucket] = max(0.0, balances[bucket] * (1.0 + annual_return))
+                if primary_age < inputs.retirement_age and inputs.annual_contribution > 0:
+                    balances[contribution_bucket] = balances.get(contribution_bucket, 0.0) + inputs.annual_contribution
 
             inflation_factor = (1.0 + inputs.inflation_rate) ** year_index
             spending = inputs.annual_expenses * inflation_factor if primary_age >= inputs.retirement_age else 0.0
