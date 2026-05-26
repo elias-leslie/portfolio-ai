@@ -72,6 +72,7 @@ def run_monte_carlo(
     cma: dict[str, Any],
     trials: int,
     seed: int | None,
+    annual_contribution: float = 0.0,
 ) -> SimulationOutputs:
     """Run the simulation. Pure function for ease of testing."""
     rng = np.random.default_rng(seed)
@@ -112,6 +113,8 @@ def run_monte_carlo(
 
     for year in range(horizon_years):
         balances *= 1.0 + portfolio_returns[:, year]
+        if year < pre_retire_years and annual_contribution > 0:
+            balances += annual_contribution
         net_withdrawal = expense_path[year] - income_path[year]
         if net_withdrawal > 0:
             balances -= net_withdrawal

@@ -1,0 +1,315 @@
+'use client'
+
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
+import { describe, expect, it, vi } from 'vitest'
+import type {
+  HouseholdFinanceDashboard,
+  RetirementPreview,
+} from '@/lib/api/household'
+import { useRetirementPreview } from '@/lib/hooks/useHousehold'
+import { MoneyRetirementPanel } from '../MoneyRetirementPanel'
+
+vi.mock('@/lib/hooks/useHousehold', () => ({
+  useRetirementPreview: vi.fn(),
+}))
+
+vi.mock('recharts', () => {
+  const MockChart = ({ children }: { children?: ReactNode }) => (
+    <div>{children}</div>
+  )
+  const MockPart = () => null
+
+  return {
+    ResponsiveContainer: MockChart,
+    AreaChart: MockChart,
+    Area: MockPart,
+    BarChart: MockChart,
+    Bar: MockPart,
+    CartesianGrid: MockPart,
+    Legend: MockPart,
+    LineChart: MockChart,
+    Line: MockPart,
+    Tooltip: MockPart,
+    XAxis: MockPart,
+    YAxis: MockPart,
+  }
+})
+
+const dashboard = {
+  generatedAt: '2026-05-25T00:00:00Z',
+  overview: {
+    investedAssets: 900000,
+    retirementAssets: 600000,
+    taxableAssets: 250000,
+    cashReserve: 50000,
+    totalTrackedAssets: 900000,
+    liabilitiesTotal: 0,
+    netWorth: 900000,
+    netWorthStatus: 'current',
+    netWorthDetail: 'Current.',
+    trackedAccountCount: 4,
+    needsRefreshCount: 0,
+    candidateAccountCount: 0,
+    gapCount: 0,
+    inboxCount: 0,
+    coverageMonths: 6,
+    lastTransactionDate: '2026-05-25',
+    visibilityScore: 90,
+    visibilityLabel: 'Strong',
+    monthlySpendStatus: 'current',
+    monthlySpendDetail: 'Current.',
+    nextBestAction: 'Run retirement preview.',
+  },
+  accountControl: {
+    status: 'clear',
+    summary: 'Account source controls are clear.',
+    issueCount: 0,
+    blockingIssueCount: 0,
+    checkedAt: '2026-05-25T00:00:00Z',
+    issues: [],
+  },
+  profile: {
+    id: 'hh-test',
+    householdName: 'Household',
+    monthlyNetIncomeTarget: 10000,
+    monthlyEssentialTarget: 5000,
+    monthlyDiscretionaryTarget: 2000,
+    monthlySavingsTarget: 1500,
+    targetRetirementAge: 65,
+    targetRetirementSpend: 6000,
+    notes: null,
+    createdAt: '2026-05-25T00:00:00Z',
+    updatedAt: '2026-05-25T00:00:00Z',
+  },
+  resolvedValues: [],
+  budgetReadiness: {
+    status: 'ready_for_budgeting',
+    summary: 'Ready',
+    priorities: [],
+    missingInputs: [],
+    starterLanes: [],
+  },
+  budgetSnapshot: {
+    status: 'on_track',
+    summary: 'On track',
+    monthlyIncomeTarget: 10000,
+    monthlyPlanTotal: 8500,
+    monthlyPlanSource: 'household_profile_targets',
+    monthlyPlanSourceLabel: 'Household profile targets',
+    essentialTarget: 5000,
+    discretionaryTarget: 2000,
+    savingsTarget: 1500,
+    actualMonthlySpend: 7000,
+    actualEssentialMonthlySpend: 5000,
+    actualDiscretionaryMonthlySpend: 2000,
+    monthToDateSpend: 3000,
+    monthToDatePlan: 3200,
+    paceStatus: 'on_track',
+    paceDetail: 'On track.',
+    remainingCashAfterPlan: 1500,
+    discretionaryHeadroom: 0,
+  },
+  retirementPreparedness: {
+    status: 'scenario_ready',
+    summary: 'Retirement planning is ready.',
+    retirementAccountShare: 66,
+    strengths: [],
+    blockers: [],
+    nextSteps: [],
+  },
+  jennyNeeds: [],
+  reports: {
+    executive: {
+      headline: 'Ready',
+      summary: 'Summary',
+      averageMonthlySpend: 7000,
+      averageMonthlyEssentials: 5000,
+      averageMonthlyDiscretionary: 2000,
+      recent30DaySpend: 6900,
+      recurringMerchantCount: 3,
+      trackedExpenseCount: 20,
+      coverageMonths: 6,
+    },
+    categoryBreakdown: [],
+    merchantHighlights: [],
+    priceInsights: [],
+    monthlySpendTrend: [],
+    recentTransactions: [],
+  },
+  categorizationQueue: [],
+  recurringCommitments: [],
+  transactionDateIssues: [],
+  sinkingFunds: [],
+  retirementContributionTracker: {
+    status: 'on_track',
+    monthlyTarget: 1500,
+    estimatedMonthlyContributions: 1500,
+    monthlyGap: 0,
+    detail: 'On track.',
+  },
+  retirementScenarios: [],
+  importCenter: {
+    headline: 'Import',
+    trackedDocuments: 0,
+    parsedDocuments: 0,
+    suggestedFirstUploads: [],
+    automations: [],
+    supportedDocuments: [],
+  },
+  evidenceAccounts: [],
+  accounts: [],
+  discoveredAccounts: [],
+  inbox: [],
+  questions: [],
+  jennyBrief: { headline: 'Jenny', body: 'Body', prompts: [] },
+  planning: null,
+} as HouseholdFinanceDashboard
+
+const preview: RetirementPreview = {
+  schemaVersion: 1,
+  trustedTotals: true,
+  accountControlStatus: 'clear',
+  accountControlSummary: 'Account source controls are clear.',
+  inputs: {
+    schemaVersion: 1,
+    householdId: 'hh-test',
+    primaryAge: 50,
+    spouseAge: null,
+    retirementAge: 65,
+    horizonYears: 35,
+    annualExpenses: 72000,
+    annualContribution: 18000,
+    portfolioValue: 900000,
+    assetAllocation: { us_equity: 0.6, bonds: 0.4 },
+    incomeSources: [],
+    inflationRate: 0.025,
+    asOfDate: '2026-05-25',
+  },
+  successProbability: 0.82,
+  medianEndingBalance: 1250000,
+  sequenceOfReturnsRisk: 0.04,
+  percentiles: { p10: 100000, p50: 1250000, p90: 3000000 },
+  endingBalancePaths: {
+    p10: [900000, 850000],
+    p50: [900000, 950000],
+    p90: [900000, 1100000],
+  },
+  accountBuckets: [
+    {
+      bucketType: 'taxable',
+      label: 'Brokerage',
+      accountType: 'brokerage',
+      taxTreatment: 'taxable_capital_gains_estimate',
+      currentValue: 250000,
+      withdrawalPriority: 2,
+    },
+    {
+      bucketType: 'pre_tax',
+      label: 'IRA',
+      accountType: 'ira',
+      taxTreatment: 'ordinary_income',
+      currentValue: 400000,
+      withdrawalPriority: 3,
+    },
+    {
+      bucketType: 'roth',
+      label: 'Roth IRA',
+      accountType: 'roth_ira',
+      taxTreatment: 'tax_free_if_qualified',
+      currentValue: 200000,
+      withdrawalPriority: 5,
+    },
+  ],
+  drawdownSchedule: [
+    {
+      yearIndex: 15,
+      calendarYear: 2041,
+      primaryAge: 65,
+      spendingNeed: 72000,
+      income: 0,
+      grossWithdrawal: 74000,
+      taxEstimate: 2000,
+      netWithdrawal: 72000,
+      endingBalance: 950000,
+      rmdAmount: 0,
+      rmdApplied: false,
+      withdrawalsByBucket: { taxable: 74000, pre_tax: 0, roth: 0 },
+      balancesByBucket: { taxable: 200000, pre_tax: 500000, roth: 250000 },
+    },
+    {
+      yearIndex: 23,
+      calendarYear: 2049,
+      primaryAge: 73,
+      spendingNeed: 88000,
+      income: 30000,
+      grossWithdrawal: 65000,
+      taxEstimate: 7000,
+      netWithdrawal: 58000,
+      endingBalance: 800000,
+      rmdAmount: 18000,
+      rmdApplied: true,
+      withdrawalsByBucket: { taxable: 20000, pre_tax: 45000, roth: 0 },
+      balancesByBucket: { taxable: 0, pre_tax: 560000, roth: 240000 },
+    },
+  ],
+  leverImpacts: [
+    {
+      id: 'retire_later',
+      label: 'Retire 2 years later',
+      value: 'Age 67',
+      successProbability: 0.9,
+      deltaSuccessProbability: 0.08,
+      detail: '+8.0 percentage points versus the current preview.',
+    },
+  ],
+  firstDepletionAge: null,
+  estimatedMonthlyContributionGap: 0,
+}
+
+const usePreviewMock = vi.mocked(useRetirementPreview)
+
+describe('MoneyRetirementPanel', () => {
+  it('renders visual retirement readiness, buckets, levers, and drawdown rows', () => {
+    usePreviewMock.mockReturnValue({
+      data: preview,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    expect(screen.getByText('Retirement planner')).toBeInTheDocument()
+    expect(screen.getByText('82%')).toBeInTheDocument()
+    expect(screen.getByText('$1,250,000')).toBeInTheDocument()
+    expect(screen.getAllByText('Taxable').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Pre-tax').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Roth').length).toBeGreaterThan(0)
+    expect(screen.getByText('Retire 2 years later')).toBeInTheDocument()
+    expect(screen.getByText('Drawdown schedule')).toBeInTheDocument()
+    expect(screen.getByText('$18,000')).toBeInTheDocument()
+  })
+
+  it('lets local knobs update the preview request', async () => {
+    const user = userEvent.setup()
+    usePreviewMock.mockReturnValue({
+      data: preview,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    const retireAgeInput = screen.getByDisplayValue('65')
+    await user.clear(retireAgeInput)
+    await user.type(retireAgeInput, '66')
+    await user.click(screen.getByRole('button', { name: /run preview/i }))
+
+    expect(usePreviewMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ retirementAge: 66 }),
+    )
+  })
+})

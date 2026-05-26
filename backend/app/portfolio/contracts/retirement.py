@@ -52,6 +52,7 @@ class RetirementInputs(BaseModel):
     retirement_age: int = Field(..., ge=18, le=120)
     horizon_years: int = Field(30, ge=1, le=70)
     annual_expenses: float = Field(..., ge=0.0)
+    annual_contribution: float = Field(0.0, ge=0.0)
     portfolio_value: float = Field(..., ge=0.0)
     asset_allocation: dict[str, float] = Field(default_factory=dict)
     income_sources: tuple[RetirementIncomeSource, ...] = ()
@@ -99,3 +100,76 @@ class ScenarioResults(BaseModel):
     failure_year_distribution: dict[str, int] = Field(default_factory=dict)
     ending_balance_paths: dict[str, list[float]] | None = None
     cma_snapshot: dict[str, Any] | None = None
+
+
+class RetirementAccountBucket(BaseModel):
+    """Account-type bucket used by the visual retirement planner."""
+
+    model_config = ConfigDict(frozen=True)
+
+    bucket_type: str
+    label: str
+    account_type: str
+    tax_treatment: str
+    current_value: float = Field(0.0, ge=0.0)
+    withdrawal_priority: int = Field(..., ge=1)
+
+
+class RetirementDrawdownYear(BaseModel):
+    """One calendar year in the deterministic drawdown schedule."""
+
+    model_config = ConfigDict(frozen=True)
+
+    year_index: int = Field(..., ge=0)
+    calendar_year: int
+    primary_age: int = Field(..., ge=0, le=120)
+    spending_need: float = Field(0.0, ge=0.0)
+    income: float = Field(0.0, ge=0.0)
+    gross_withdrawal: float = Field(0.0, ge=0.0)
+    tax_estimate: float = Field(0.0, ge=0.0)
+    net_withdrawal: float = Field(0.0, ge=0.0)
+    ending_balance: float = Field(0.0, ge=0.0)
+    rmd_amount: float = Field(0.0, ge=0.0)
+    rmd_applied: bool = False
+    withdrawals_by_bucket: dict[str, float] = Field(default_factory=dict)
+    balances_by_bucket: dict[str, float] = Field(default_factory=dict)
+
+
+class RetirementLeverImpact(BaseModel):
+    """Small comparison run for a concrete planning lever."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    label: str
+    value: str
+    success_probability: float = Field(..., ge=0.0, le=1.0)
+    delta_success_probability: float
+    detail: str
+
+
+class RetirementPreview(BaseModel):
+    """Interactive Money retirement planner response.
+
+    Unlike ``ScenarioResults``, this response is not persisted. It adds
+    account-type buckets and a deterministic drawdown schedule for UI
+    exploration while reusing the Monte Carlo engine for readiness.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    schema_version: int = 1
+    trusted_totals: bool
+    account_control_status: str
+    account_control_summary: str
+    inputs: RetirementInputs
+    success_probability: float = Field(..., ge=0.0, le=1.0)
+    median_ending_balance: float
+    sequence_of_returns_risk: float = Field(..., ge=0.0, le=1.0)
+    percentiles: dict[str, float]
+    ending_balance_paths: dict[str, list[float]]
+    account_buckets: tuple[RetirementAccountBucket, ...] = ()
+    drawdown_schedule: tuple[RetirementDrawdownYear, ...] = ()
+    lever_impacts: tuple[RetirementLeverImpact, ...] = ()
+    first_depletion_age: int | None = None
+    estimated_monthly_contribution_gap: float = Field(0.0, ge=0.0)

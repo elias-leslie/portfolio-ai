@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.portfolio.contracts.retirement import (
     RetirementInputs,
+    RetirementPreview,
     ScenarioResults,
     ScenarioSummary,
 )
@@ -108,6 +109,26 @@ def stub_service(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         state["by_id"][results.summary.id] = results
         return results
 
+    def fake_preview(self: RetirementPlanningService, household_id: str, **kwargs: Any) -> RetirementPreview:
+        del self, kwargs
+        results = _make_results()
+        return RetirementPreview(
+            trusted_totals=True,
+            account_control_status="clear",
+            account_control_summary="Account source controls are clear.",
+            inputs=results.inputs.model_copy(update={"household_id": household_id}),
+            success_probability=results.summary.success_probability,
+            median_ending_balance=results.summary.median_ending_balance,
+            sequence_of_returns_risk=results.summary.sequence_of_returns_risk,
+            percentiles=results.percentiles,
+            ending_balance_paths=results.ending_balance_paths or {},
+            account_buckets=(),
+            drawdown_schedule=(),
+            lever_impacts=(),
+            first_depletion_age=None,
+            estimated_monthly_contribution_gap=0.0,
+        )
+
     def fake_list_scenarios(self: RetirementPlanningService, household_id: str, *, limit: int) -> list[ScenarioSummary]:
         del self
         return [
@@ -130,6 +151,7 @@ def stub_service(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     monkeypatch.setattr(RetirementPlanningService, "build_inputs", fake_build_inputs)
     monkeypatch.setattr(RetirementPlanningService, "run_simulation", fake_run_simulation)
     monkeypatch.setattr(RetirementPlanningService, "save_scenario", fake_save_scenario)
+    monkeypatch.setattr(RetirementPlanningService, "preview", fake_preview)
     monkeypatch.setattr(RetirementPlanningService, "list_scenarios", fake_list_scenarios)
     monkeypatch.setattr(RetirementPlanningService, "show_scenario", fake_show_scenario)
     # Reset the lru_cache so a fresh service hits our patched methods.
@@ -159,6 +181,26 @@ def test_post_rejects_excessive_trials(client: TestClient) -> None:
         json={"household_id": "hh-test", "trials": 99_999_999},
     )
     assert response.status_code == 422
+
+
+def test_post_preview_returns_account_type_planner_shape(
+    client: TestClient, stub_service: dict[str, Any]
+) -> None:
+    del stub_service
+    response = client.post(
+        "/api/retirement/preview",
+        json={
+            "household_id": "hh-test",
+            "monthly_spend": 6500,
+            "retirement_age": 64,
+            "annual_contribution": 24000,
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["trusted_totals"] is True
+    assert body["inputs"]["household_id"] == "hh-test"
+    assert body["success_probability"] == 0.82
 
 
 def test_get_list_filters_by_household(

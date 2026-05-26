@@ -5,7 +5,6 @@ import type {
 } from '../household-planning'
 import type {
   HouseholdConfirmedFact,
-  HouseholdDocument,
   HouseholdDocumentList,
   HouseholdFinanceDashboard,
   HouseholdLedger,
@@ -19,6 +18,8 @@ import type {
   HouseholdTrackedAccount,
   HouseholdTrackedAccountInput,
   HouseholdTransactionCategoryUpdate,
+  RetirementPreview,
+  RetirementPreviewRequest,
 } from './types'
 
 type Endpoint<P extends unknown[], T> = (...args: P) => Promise<T>
@@ -105,6 +106,13 @@ export async function fetchHouseholdNetWorthTrend(
   )
 }
 
+export async function fetchRetirementPreview(
+  payload: RetirementPreviewRequest,
+  options: RequestInit = {},
+): Promise<RetirementPreview> {
+  return post<RetirementPreview>('/api/retirement/preview', payload, options)
+}
+
 export async function updateHouseholdTrackedAccount(
   accountId: string,
   payload: HouseholdTrackedAccountInput,
@@ -160,4 +168,3 @@ export async function categorizeHouseholdTransaction(
     payload,
   )
 }
-

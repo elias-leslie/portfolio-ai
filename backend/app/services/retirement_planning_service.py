@@ -20,8 +20,12 @@ import yaml
 
 from app.logging_config import get_logger
 from app.portfolio.contracts.retirement import (
+    RetirementAccountBucket,
+    RetirementDrawdownYear,
     RetirementIncomeSource,
     RetirementInputs,
+    RetirementLeverImpact,
+    RetirementPreview,
     ScenarioResults,
     ScenarioSummary,
 )
@@ -40,6 +44,29 @@ DEFAULT_RETIREMENT_AGE = 65
 DEFAULT_LIST_LIMIT = 20
 MAX_LIST_LIMIT = 100
 CMA_PATH = Path(__file__).parent / "retirement_cma.yaml"
+DEFAULT_PREVIEW_TRIALS = 2_500
+RMD_START_AGE = 73
+DEFAULT_DRAWDOWN_ORDER = ("cash", "taxable", "pre_tax", "hsa", "roth", "other")
+BUCKET_WITHDRAWAL_PRIORITY = {
+    bucket: index + 1 for index, bucket in enumerate(DEFAULT_DRAWDOWN_ORDER)
+}
+BUCKET_LABELS = {
+    "cash": "Cash bridge",
+    "taxable": "Taxable brokerage",
+    "pre_tax": "Traditional retirement",
+    "roth": "Roth IRA",
+    "hsa": "HSA",
+    "other": "Other assets",
+}
+BUCKET_TAX_TREATMENTS = {
+    "cash": "already_taxed",
+    "taxable": "taxable_capital_gains_estimate",
+    "pre_tax": "ordinary_income",
+    "roth": "tax_free_if_qualified",
+    "hsa": "tax_free_for_qualified_medical",
+    "other": "planning_estimate",
+}
+TAXABLE_WITHDRAWAL_GAIN_RATIO = 0.15
 
 
 def load_cma(path: Path | None = None) -> dict[str, Any]:
@@ -74,8 +101,10 @@ class RetirementPlanningService:
         household_id: str,
         *,
         annual_expenses: float | None = None,
+        annual_contribution: float | None = None,
         retirement_age: int | None = None,
         horizon_years: int | None = None,
+        inflation_rate: float | None = None,
         as_of_date: date | None = None,
     ) -> RetirementInputs:
         """Pull inputs from household_planning + portfolio totals.
@@ -91,6 +120,8 @@ class RetirementPlanningService:
         income_sources = self._load_retirement_income_sources()
         if annual_expenses is None:
             annual_expenses = self._infer_annual_expenses(default_when_missing=72_000.0)
+        if annual_contribution is None:
+            annual_contribution = self._infer_annual_contribution()
         portfolio_value, allocation = self._portfolio_snapshot()
 
         return RetirementInputs(
@@ -100,10 +131,15 @@ class RetirementPlanningService:
             retirement_age=retirement_age or DEFAULT_RETIREMENT_AGE,
             horizon_years=horizon_years or DEFAULT_HORIZON_YEARS,
             annual_expenses=annual_expenses,
+            annual_contribution=annual_contribution,
             portfolio_value=portfolio_value,
             asset_allocation=allocation,
             income_sources=income_sources,
-            inflation_rate=float(self._cma.get("inflation_rate", 0.025)),
+            inflation_rate=(
+                inflation_rate
+                if inflation_rate is not None
+                else float(self._cma.get("inflation_rate", 0.025))
+            ),
             as_of_date=anchor,
         )
 
@@ -120,6 +156,7 @@ class RetirementPlanningService:
             portfolio_value=inputs.portfolio_value,
             asset_allocation=inputs.asset_allocation,
             annual_expenses=inputs.annual_expenses,
+            annual_contribution=inputs.annual_contribution,
             inflation_rate=inputs.inflation_rate,
             horizon_years=inputs.horizon_years,
             primary_age=inputs.primary_age,
@@ -128,6 +165,88 @@ class RetirementPlanningService:
             cma=self._cma,
             trials=trials,
             seed=seed,
+        )
+
+    def preview(
+        self,
+        household_id: str,
+        *,
+        annual_expenses: float | None = None,
+        monthly_spend: float | None = None,
+        retirement_age: int | None = None,
+        horizon_years: int | None = None,
+        annual_contribution: float | None = None,
+        inflation_rate: float | None = None,
+        trials: int = DEFAULT_PREVIEW_TRIALS,
+        seed: int | None = 7,
+        as_of_date: date | None = None,
+    ) -> RetirementPreview:
+        """Build the interactive Money retirement planner preview."""
+        dashboard = self._load_money_dashboard()
+        profile = getattr(dashboard, "profile", None)
+        if monthly_spend is None and profile is not None:
+            monthly_spend = getattr(profile, "target_retirement_spend", None)
+        if annual_expenses is None and monthly_spend is not None:
+            annual_expenses = monthly_spend * 12.0
+        if annual_contribution is None and profile is not None:
+            monthly_savings = getattr(profile, "monthly_savings_target", None)
+            annual_contribution = float(monthly_savings or 0.0) * 12.0
+        if retirement_age is None and profile is not None:
+            retirement_age = getattr(profile, "target_retirement_age", None)
+
+        inputs = self.build_inputs(
+            household_id,
+            annual_expenses=annual_expenses,
+            annual_contribution=annual_contribution,
+            retirement_age=retirement_age,
+            horizon_years=horizon_years,
+            inflation_rate=inflation_rate,
+            as_of_date=as_of_date,
+        )
+        buckets = self._account_buckets_from_dashboard(dashboard)
+        bucket_total = round(sum(bucket.current_value for bucket in buckets), 2)
+        if bucket_total > 0:
+            inputs = inputs.model_copy(update={"portfolio_value": bucket_total})
+        elif inputs.portfolio_value > 0:
+            buckets = (
+                RetirementAccountBucket(
+                    bucket_type="taxable",
+                    label="Tracked portfolio",
+                    account_type="portfolio",
+                    tax_treatment=BUCKET_TAX_TREATMENTS["taxable"],
+                    current_value=inputs.portfolio_value,
+                    withdrawal_priority=BUCKET_WITHDRAWAL_PRIORITY["taxable"],
+                ),
+            )
+
+        sim = self.run_simulation(inputs, trials=trials, seed=seed)
+        ordinary_tax_rate = _profile_tax_rate(profile)
+        capital_gains_rate = min(ordinary_tax_rate, 0.15 if ordinary_tax_rate > 0 else 0.0)
+        drawdown = self._drawdown_schedule(
+            inputs,
+            buckets=buckets,
+            ordinary_tax_rate=ordinary_tax_rate,
+            capital_gains_rate=capital_gains_rate,
+        )
+        account_control = getattr(dashboard, "account_control", None)
+        trusted_totals = not bool(getattr(account_control, "blocking_issue_count", 0))
+        return RetirementPreview(
+            trusted_totals=trusted_totals,
+            account_control_status=getattr(account_control, "status", "unknown"),
+            account_control_summary=getattr(account_control, "summary", ""),
+            inputs=inputs,
+            success_probability=sim.success_probability,
+            median_ending_balance=sim.median_ending_balance,
+            sequence_of_returns_risk=sim.sequence_of_returns_risk,
+            percentiles=sim.percentiles,
+            ending_balance_paths=sim.ending_balance_paths,
+            account_buckets=buckets,
+            drawdown_schedule=tuple(drawdown),
+            lever_impacts=self._lever_impacts(inputs, sim.success_probability, trials=trials, seed=seed),
+            first_depletion_age=_first_depletion_age(drawdown, inputs.retirement_age),
+            estimated_monthly_contribution_gap=_monthly_contribution_gap(
+                inputs, annual_return=self._expected_return(inputs.asset_allocation)
+            ),
         )
 
     def save_scenario(
@@ -325,6 +444,172 @@ class RetirementPlanningService:
             )
         return tuple(sources)
 
+    def _load_money_dashboard(self) -> Any:
+        """Load the canonical Money dashboard so account controls and values align."""
+        service_mod = import_module("app.services.household_finance_service")
+        return service_mod.HouseholdFinanceService().get_dashboard()
+
+    def _account_buckets_from_dashboard(self, dashboard: Any) -> tuple[RetirementAccountBucket, ...]:
+        buckets: list[RetirementAccountBucket] = []
+        for account in getattr(dashboard, "accounts", []) or []:
+            asset_group = str(getattr(account, "asset_group", "") or "").lower()
+            if asset_group in {"credit", "debt"}:
+                continue
+            value = float(getattr(account, "current_value", 0.0) or 0.0)
+            if value <= 0:
+                continue
+            account_type = str(getattr(account, "account_type", "") or "other")
+            bucket_type = _bucket_type(asset_group, account_type)
+            buckets.append(
+                RetirementAccountBucket(
+                    bucket_type=bucket_type,
+                    label=str(getattr(account, "label", "") or BUCKET_LABELS[bucket_type]),
+                    account_type=account_type,
+                    tax_treatment=BUCKET_TAX_TREATMENTS[bucket_type],
+                    current_value=round(value, 2),
+                    withdrawal_priority=BUCKET_WITHDRAWAL_PRIORITY[bucket_type],
+                )
+            )
+        return tuple(sorted(buckets, key=lambda b: (b.withdrawal_priority, b.label)))
+
+    def _drawdown_schedule(
+        self,
+        inputs: RetirementInputs,
+        *,
+        buckets: tuple[RetirementAccountBucket, ...],
+        ordinary_tax_rate: float,
+        capital_gains_rate: float,
+    ) -> list[RetirementDrawdownYear]:
+        annual_return = self._expected_return(inputs.asset_allocation)
+        balances = dict.fromkeys(DEFAULT_DRAWDOWN_ORDER, 0.0)
+        for bucket in buckets:
+            balances[bucket.bucket_type] = balances.get(bucket.bucket_type, 0.0) + bucket.current_value
+        if sum(balances.values()) <= 0 and inputs.portfolio_value > 0:
+            balances["taxable"] = inputs.portfolio_value
+
+        contribution_bucket = _contribution_bucket(balances)
+        rows: list[RetirementDrawdownYear] = []
+        for year_index in range(inputs.horizon_years):
+            primary_age = inputs.primary_age + year_index
+            for bucket in list(balances):
+                balances[bucket] = max(0.0, balances[bucket] * (1.0 + annual_return))
+            if primary_age < inputs.retirement_age and inputs.annual_contribution > 0:
+                balances[contribution_bucket] = balances.get(contribution_bucket, 0.0) + inputs.annual_contribution
+
+            inflation_factor = (1.0 + inputs.inflation_rate) ** year_index
+            spending = inputs.annual_expenses * inflation_factor if primary_age >= inputs.retirement_age else 0.0
+            income = _income_for_age(inputs.income_sources, primary_age, inflation_factor=inflation_factor)
+            remaining_need = max(spending - income, 0.0)
+            withdrawals = dict.fromkeys(DEFAULT_DRAWDOWN_ORDER, 0.0)
+            tax_estimate = 0.0
+            rmd_amount = _rmd_amount(balances.get("pre_tax", 0.0), primary_age)
+            if rmd_amount > 0:
+                gross = min(balances.get("pre_tax", 0.0), rmd_amount)
+                balances["pre_tax"] -= gross
+                withdrawals["pre_tax"] += gross
+                rmd_tax = gross * ordinary_tax_rate
+                tax_estimate += rmd_tax
+                remaining_need = max(0.0, remaining_need - max(0.0, gross - rmd_tax))
+
+            for bucket in DEFAULT_DRAWDOWN_ORDER:
+                if remaining_need <= 0:
+                    break
+                available = balances.get(bucket, 0.0)
+                if available <= 0:
+                    continue
+                tax_drag = _withdrawal_tax_drag(bucket, ordinary_tax_rate, capital_gains_rate)
+                gross_needed = remaining_need / max(1.0 - tax_drag, 0.01)
+                gross = min(available, gross_needed)
+                balances[bucket] = available - gross
+                withdrawals[bucket] += gross
+                tax = gross * tax_drag
+                tax_estimate += tax
+                remaining_need = max(0.0, remaining_need - max(0.0, gross - tax))
+
+            ending_balance = round(sum(balances.values()), 2)
+            gross_withdrawal = round(sum(withdrawals.values()), 2)
+            rows.append(
+                RetirementDrawdownYear(
+                    year_index=year_index,
+                    calendar_year=inputs.as_of_date.year + year_index,
+                    primary_age=primary_age,
+                    spending_need=round(spending, 2),
+                    income=round(income, 2),
+                    gross_withdrawal=gross_withdrawal,
+                    tax_estimate=round(tax_estimate, 2),
+                    net_withdrawal=round(max(0.0, gross_withdrawal - tax_estimate), 2),
+                    ending_balance=ending_balance,
+                    rmd_amount=round(rmd_amount, 2),
+                    rmd_applied=rmd_amount > 0,
+                    withdrawals_by_bucket={k: round(v, 2) for k, v in withdrawals.items()},
+                    balances_by_bucket={k: round(v, 2) for k, v in balances.items()},
+                )
+            )
+        return rows
+
+    def _expected_return(self, allocation: dict[str, float]) -> float:
+        asset_classes = self._cma.get("asset_classes", {})
+        weighted = 0.0
+        total_weight = 0.0
+        for klass, weight in allocation.items():
+            meta = asset_classes.get(klass)
+            if not meta:
+                continue
+            w = float(weight or 0.0)
+            weighted += w * float(meta.get("expected_return", 0.0) or 0.0)
+            total_weight += w
+        if total_weight > 0:
+            return weighted / total_weight
+        cash = asset_classes.get("cash", {})
+        return float(cash.get("expected_return", 0.02) or 0.02)
+
+    def _lever_impacts(
+        self,
+        inputs: RetirementInputs,
+        base_success_probability: float,
+        *,
+        trials: int,
+        seed: int | None,
+    ) -> tuple[RetirementLeverImpact, ...]:
+        scenarios = [
+            (
+                "retire_later",
+                "Retire 2 years later",
+                f"Age {min(inputs.retirement_age + 2, 120)}",
+                inputs.model_copy(update={"retirement_age": min(inputs.retirement_age + 2, 120)}),
+            ),
+            (
+                "spend_less",
+                "Spend 10% less",
+                f"${inputs.annual_expenses * 0.9 / 12:,.0f}/mo",
+                inputs.model_copy(update={"annual_expenses": round(inputs.annual_expenses * 0.9, 2)}),
+            ),
+            (
+                "save_more",
+                "Save $500/mo more",
+                f"${(inputs.annual_contribution + 6_000) / 12:,.0f}/mo",
+                inputs.model_copy(update={"annual_contribution": inputs.annual_contribution + 6_000}),
+            ),
+        ]
+        out: list[RetirementLeverImpact] = []
+        lever_trials = max(500, min(trials, 5_000))
+        for lever_id, label, value, lever_inputs in scenarios:
+            sim = self.run_simulation(lever_inputs, trials=lever_trials, seed=seed)
+            delta = sim.success_probability - base_success_probability
+            out.append(
+                RetirementLeverImpact(
+                    id=lever_id,
+                    label=label,
+                    value=value,
+                    success_probability=sim.success_probability,
+                    delta_success_probability=round(delta, 6),
+                    detail=(
+                        f"{delta * 100:+.1f} percentage points versus the current preview."
+                    ),
+                )
+            )
+        return tuple(out)
+
     def _portfolio_snapshot(self) -> tuple[float, dict[str, float]]:
         """Build (total_value, asset_class_weights) from current portfolio.
 
@@ -409,6 +694,16 @@ class RetirementPlanningService:
         # so the projection isn't dominated solely by fixed costs.
         return round(annual * 1.5, 2)
 
+    def _infer_annual_contribution(self) -> float:
+        with self.storage.connection() as conn:
+            row = conn.execute(
+                "SELECT monthly_savings_target FROM household_profiles"
+                " ORDER BY updated_at DESC LIMIT 1"
+            ).fetchone()
+        if not row or row[0] is None:
+            return 0.0
+        return round(float(row[0] or 0.0) * 12.0, 2)
+
 
 # ----------------------------------------------------------------------
 # helpers
@@ -454,3 +749,100 @@ def _coerce_json(value: Any) -> dict[str, Any] | None:
         return json.loads(raw)
     except json.JSONDecodeError:
         return None
+
+
+def _bucket_type(asset_group: str, account_type: str) -> str:
+    normalized_type = account_type.strip().lower().replace("-", "_").replace(" ", "_")
+    if "roth" in normalized_type:
+        return "roth"
+    if normalized_type == "hsa" or "health_savings" in normalized_type:
+        return "hsa"
+    if asset_group == "cash":
+        return "cash"
+    if asset_group in {"taxable", "brokerage"}:
+        return "taxable"
+    if asset_group == "retirement" or normalized_type in {"ira", "401k", "403b", "457", "retirement", "traditional_ira"}:
+        return "pre_tax"
+    return "other"
+
+
+def _profile_tax_rate(profile: Any) -> float:
+    for attr in ("effective_tax_rate", "marginal_federal_tax_rate"):
+        value = getattr(profile, attr, None)
+        if value is None:
+            continue
+        parsed = float(value or 0.0)
+        if parsed > 1:
+            parsed /= 100.0
+        if parsed > 0:
+            return min(parsed, 0.5)
+    return 0.22
+
+
+def _contribution_bucket(balances: dict[str, float]) -> str:
+    for bucket in ("pre_tax", "taxable", "cash", "roth"):
+        if balances.get(bucket, 0.0) > 0:
+            return bucket
+    return "taxable"
+
+
+def _income_for_age(
+    income_sources: tuple[RetirementIncomeSource, ...],
+    primary_age: int,
+    *,
+    inflation_factor: float,
+) -> float:
+    total = 0.0
+    for source in income_sources:
+        if primary_age < source.start_age:
+            continue
+        annual = source.monthly_amount * 12.0
+        total += annual * inflation_factor if source.inflation_adjusted else annual
+    return total
+
+
+def _rmd_amount(pre_tax_balance: float, primary_age: int) -> float:
+    if primary_age < RMD_START_AGE or pre_tax_balance <= 0:
+        return 0.0
+    # Lightweight planning estimate from the IRS Uniform Lifetime Table shape.
+    divisor = max(27.4 - (primary_age - 72), 2.0)
+    return pre_tax_balance / divisor
+
+
+def _withdrawal_tax_drag(
+    bucket: str,
+    ordinary_tax_rate: float,
+    capital_gains_rate: float,
+) -> float:
+    if bucket == "pre_tax":
+        return ordinary_tax_rate
+    if bucket == "taxable":
+        return capital_gains_rate * TAXABLE_WITHDRAWAL_GAIN_RATIO
+    return 0.0
+
+
+def _first_depletion_age(
+    drawdown: list[RetirementDrawdownYear],
+    retirement_age: int,
+) -> int | None:
+    for row in drawdown:
+        if row.primary_age >= retirement_age and row.ending_balance <= 1.0:
+            return row.primary_age
+    return None
+
+
+def _monthly_contribution_gap(
+    inputs: RetirementInputs,
+    *,
+    annual_return: float,
+) -> float:
+    years_to_retire = max(inputs.retirement_age - inputs.primary_age, 1)
+    target_assets = inputs.annual_expenses * 25.0
+    growth = (1.0 + annual_return) ** years_to_retire
+    if annual_return > 0:
+        contribution_future_value = inputs.annual_contribution * ((growth - 1.0) / annual_return)
+    else:
+        contribution_future_value = inputs.annual_contribution * years_to_retire
+    projected_assets = inputs.portfolio_value * growth + contribution_future_value
+    gap = max(0.0, target_assets - projected_assets)
+    return round(gap / (years_to_retire * 12.0), 2)

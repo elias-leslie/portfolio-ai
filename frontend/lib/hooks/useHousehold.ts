@@ -14,11 +14,13 @@ import {
   fetchHouseholdLedger,
   fetchHouseholdNetWorthTrend,
   fetchHouseholdSpending,
+  fetchRetirementPreview,
   type HouseholdDocument,
   type HouseholdDocumentUpload,
   type HouseholdPlanningUpdate,
   type HouseholdProfileUpdate,
   type HouseholdTrackedAccountInput,
+  type RetirementPreviewRequest,
   updateHouseholdPlanning,
   updateHouseholdProfile,
   updateHouseholdTrackedAccount,
@@ -141,6 +143,15 @@ export function useHouseholdNetWorthTrend(params?: { days?: number }) {
     staleTime: HOUSEHOLD_MARKET_VALUE_REFRESH_MS,
     refetchInterval: HOUSEHOLD_MARKET_VALUE_REFRESH_MS,
     refetchOnWindowFocus: true,
+  })
+}
+
+export function useRetirementPreview(params: RetirementPreviewRequest) {
+  return useQuery({
+    queryKey: ['retirement', 'preview', params],
+    queryFn: ({ signal }) => fetchRetirementPreview(params, { signal }),
+    staleTime: HOUSEHOLD_MARKET_VALUE_REFRESH_MS,
+    refetchOnWindowFocus: false,
   })
 }
 

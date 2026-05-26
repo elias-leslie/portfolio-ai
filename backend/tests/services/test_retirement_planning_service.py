@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, date, datetime
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -19,6 +20,7 @@ import numpy as np
 import pytest
 
 from app.portfolio.contracts.retirement import (
+    RetirementAccountBucket,
     RetirementIncomeSource,
     RetirementInputs,
     ScenarioResults,
@@ -164,6 +166,25 @@ def test_high_expenses_reduce_success_probability() -> None:
     assert low.success_probability > high.success_probability
 
 
+def test_pre_retirement_contributions_raise_success_probability() -> None:
+    base: dict[str, Any] = _args(
+        portfolio_value=250_000.0,
+        asset_allocation={"us_equity": 0.6, "bonds": 0.4},
+        annual_expenses=60_000.0,
+        inflation_rate=0.025,
+        horizon_years=30,
+        primary_age=50,
+        retirement_age=65,
+        income_sources=[],
+        cma=_CMA,
+        trials=2_000,
+        seed=12,
+    )
+    no_contribution = run_monte_carlo(**base)
+    with_contribution = run_monte_carlo(**base, annual_contribution=24_000.0)
+    assert with_contribution.success_probability > no_contribution.success_probability
+
+
 def test_failure_year_distribution_populates_when_failures_exist() -> None:
     out = run_monte_carlo(
         portfolio_value=20_000.0,
@@ -206,6 +227,7 @@ class _StubConn:
         housing_total: float = 0.0,
         debt_total: float = 0.0,
         insurance_total: float = 0.0,
+        monthly_savings_target: float | None = None,
     ) -> None:
         self._members = members or []
         self._income = income_sources or []
@@ -214,6 +236,7 @@ class _StubConn:
         self._housing = housing_total
         self._debt = debt_total
         self._insurance = insurance_total
+        self._monthly_savings_target = monthly_savings_target
         self.commit = MagicMock()
 
     def execute(self, sql: str, params: Any = None) -> Any:
@@ -226,6 +249,7 @@ class _StubConn:
             "from household_housing_costs": ("fetchone", (self._housing,)),
             "from household_debt_obligations": ("fetchone", (self._debt,)),
             "from household_insurance_policies": ("fetchone", (self._insurance,)),
+            "from household_profiles": ("fetchone", (self._monthly_savings_target,)),
         }
         for needle, (kind, value) in select_sources.items():
             if needle in normalized:
@@ -469,6 +493,100 @@ def test_show_returns_none_for_missing_scenario(
     conn = _StubConn()
     service = _make_service(conn)
     assert service.show_scenario("does-not-exist") is None
+
+
+def test_preview_builds_account_buckets_and_levers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    conn = _StubConn(
+        members=[("Alex", "primary", 1980, False)],
+        monthly_savings_target=1500.0,
+    )
+    _patch_portfolio_snapshot(
+        monkeypatch, total=1_000_000.0, weights={"us_equity": 0.6, "bonds": 0.4}
+    )
+    dashboard = SimpleNamespace(
+        profile=SimpleNamespace(
+            id="hh-preview",
+            target_retirement_spend=6_000.0,
+            target_retirement_age=65,
+            monthly_savings_target=1_500.0,
+            effective_tax_rate=22.0,
+            marginal_federal_tax_rate=None,
+        ),
+        account_control=SimpleNamespace(
+            status="clear",
+            summary="Account source controls are clear.",
+            blocking_issue_count=0,
+        ),
+        accounts=[
+            SimpleNamespace(label="Brokerage", asset_group="taxable", account_type="brokerage", current_value=250_000.0),
+            SimpleNamespace(label="IRA", asset_group="retirement", account_type="ira", current_value=400_000.0),
+            SimpleNamespace(label="Roth", asset_group="retirement", account_type="roth_ira", current_value=200_000.0),
+            SimpleNamespace(label="Cash", asset_group="cash", account_type="savings", current_value=50_000.0),
+        ],
+    )
+    monkeypatch.setattr(
+        RetirementPlanningService,
+        "_load_money_dashboard",
+        lambda _service: dashboard,
+    )
+    service = _make_service(conn)
+    preview = service.preview(
+        "hh-preview",
+        retirement_age=65,
+        monthly_spend=6_000.0,
+        horizon_years=25,
+        trials=500,
+        seed=5,
+        as_of_date=date(2026, 5, 9),
+    )
+    assert preview.trusted_totals is True
+    assert preview.inputs.portfolio_value == 900_000.0
+    assert {bucket.bucket_type for bucket in preview.account_buckets} == {
+        "cash",
+        "taxable",
+        "pre_tax",
+        "roth",
+    }
+    assert preview.drawdown_schedule
+    assert len(preview.lever_impacts) == 3
+
+
+def test_drawdown_schedule_applies_pre_tax_rmd_estimate() -> None:
+    service = _make_service(_StubConn())
+    inputs = RetirementInputs(
+        household_id="hh-rmd",
+        primary_age=72,
+        spouse_age=None,
+        retirement_age=72,
+        horizon_years=3,
+        annual_expenses=0.0,
+        annual_contribution=0.0,
+        portfolio_value=274_000.0,
+        asset_allocation={"cash": 1.0},
+        income_sources=(),
+        inflation_rate=0.025,
+        as_of_date=date(2026, 5, 9),
+    )
+    rows = service._drawdown_schedule(
+        inputs,
+        buckets=(
+            RetirementAccountBucket(
+                bucket_type="pre_tax",
+                label="Traditional IRA",
+                account_type="ira",
+                tax_treatment="ordinary_income",
+                current_value=274_000.0,
+                withdrawal_priority=3,
+            ),
+        ),
+        ordinary_tax_rate=0.22,
+        capital_gains_rate=0.15,
+    )
+    age_73 = next(row for row in rows if row.primary_age == 73)
+    assert age_73.rmd_applied is True
+    assert age_73.withdrawals_by_bucket["pre_tax"] > 0
 
 
 _ = SimulationOutputs

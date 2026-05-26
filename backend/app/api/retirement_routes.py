@@ -25,6 +25,7 @@ from starlette.concurrency import run_in_threadpool
 from app.logging_config import get_logger
 from app.portfolio.contracts.retirement import (
     RetirementInputs,
+    RetirementPreview,
     ScenarioResults,
     ScenarioSummary,
 )
@@ -57,9 +58,15 @@ class RunScenarioRequest(BaseModel):
     trials: int = Field(DEFAULT_TRIALS, ge=1, le=MAX_TRIALS)
     seed: int | None = Field(None)
     annual_expenses: float | None = Field(None, ge=0.0)
+    annual_contribution: float | None = Field(None, ge=0.0)
     retirement_age: int | None = Field(None, ge=18, le=120)
     horizon_years: int | None = Field(None, ge=1, le=70)
+    inflation_rate: float | None = Field(None, ge=0.0, le=0.2)
     as_of_date: date | None = None
+
+
+class PreviewRequest(RunScenarioRequest):
+    monthly_spend: float | None = Field(None, ge=0.0)
 
 
 @router.post("/scenarios")
@@ -71,8 +78,10 @@ async def run_scenario(payload: RunScenarioRequest) -> dict[str, Any]:
         inputs: RetirementInputs = service.build_inputs(
             payload.household_id,
             annual_expenses=payload.annual_expenses,
+            annual_contribution=payload.annual_contribution,
             retirement_age=payload.retirement_age,
             horizon_years=payload.horizon_years,
+            inflation_rate=payload.inflation_rate,
             as_of_date=payload.as_of_date,
         )
         sim = service.run_simulation(inputs, trials=payload.trials, seed=payload.seed)
@@ -83,6 +92,29 @@ async def run_scenario(payload: RunScenarioRequest) -> dict[str, Any]:
 
     results = await run_in_threadpool(_execute)
     return results.model_dump(mode="json")
+
+
+@router.post("/preview")
+async def preview(payload: PreviewRequest) -> dict[str, Any]:
+    """Return a non-persisted account-type-aware retirement preview."""
+    service = _service()
+
+    def _execute() -> RetirementPreview:
+        return service.preview(
+            payload.household_id,
+            annual_expenses=payload.annual_expenses,
+            monthly_spend=payload.monthly_spend,
+            retirement_age=payload.retirement_age,
+            horizon_years=payload.horizon_years,
+            annual_contribution=payload.annual_contribution,
+            inflation_rate=payload.inflation_rate,
+            trials=payload.trials,
+            seed=payload.seed,
+            as_of_date=payload.as_of_date,
+        )
+
+    preview_result = await run_in_threadpool(_execute)
+    return preview_result.model_dump(mode="json")
 
 
 @router.get("/scenarios")

@@ -1,9 +1,28 @@
 // Re-export planning types (these were re-exported before)
-export type {
-  HouseholdDocumentRequirement,
-  HouseholdPlanningSnapshot,
-  HouseholdPlanningUpdate,
-} from './household-planning'
+
+// All API endpoint functions
+export {
+  answerHouseholdQuestion,
+  askJenny,
+  categorizeHouseholdTransaction,
+  confirmFact,
+  createHouseholdTrackedAccount,
+  deleteHouseholdDocument,
+  deleteHouseholdTrackedAccount,
+  fetchConfirmedFacts,
+  fetchHouseholdDashboard,
+  fetchHouseholdDocuments,
+  fetchHouseholdLedger,
+  fetchHouseholdNetWorthTrend,
+  fetchHouseholdPlanning,
+  fetchHouseholdProfile,
+  fetchHouseholdQuestions,
+  fetchHouseholdSpending,
+  fetchRetirementPreview,
+  updateHouseholdPlanning,
+  updateHouseholdProfile,
+  updateHouseholdTrackedAccount,
+} from './household/endpoints'
 
 // All household types
 export type {
@@ -59,40 +78,24 @@ export type {
   JennyNeed,
   JennyProgression,
   PortfolioHouseholdContext,
+  RetirementAccountBucket,
+  RetirementDrawdownYear,
+  RetirementInputs,
+  RetirementLeverImpact,
   RetirementPreparedness,
+  RetirementPreview,
+  RetirementPreviewRequest,
 } from './household/types'
-
 // File validation constant and function
-export {
-  MAX_HOUSEHOLD_EVIDENCE_FILE_SIZE_BYTES,
-  validateHouseholdEvidenceFile,
-} from './household/upload'
-
 // Upload functions
 export {
+  MAX_HOUSEHOLD_EVIDENCE_FILE_SIZE_BYTES,
   uploadHouseholdDocument,
   uploadHouseholdDocuments,
+  validateHouseholdEvidenceFile,
 } from './household/upload'
-
-// All API endpoint functions
-export {
-  answerHouseholdQuestion,
-  askJenny,
-  categorizeHouseholdTransaction,
-  confirmFact,
-  createHouseholdTrackedAccount,
-  deleteHouseholdDocument,
-  deleteHouseholdTrackedAccount,
-  fetchConfirmedFacts,
-  fetchHouseholdDashboard,
-  fetchHouseholdDocuments,
-  fetchHouseholdLedger,
-  fetchHouseholdNetWorthTrend,
-  fetchHouseholdPlanning,
-  fetchHouseholdProfile,
-  fetchHouseholdQuestions,
-  fetchHouseholdSpending,
-  updateHouseholdPlanning,
-  updateHouseholdProfile,
-  updateHouseholdTrackedAccount,
-} from './household/endpoints'
+export type {
+  HouseholdDocumentRequirement,
+  HouseholdPlanningSnapshot,
+  HouseholdPlanningUpdate,
+} from './household-planning'

@@ -295,6 +295,88 @@ export interface HouseholdRetirementScenario {
   detail: string
 }
 
+export interface RetirementPreviewRequest {
+  householdId: string
+  name?: string | null
+  trials?: number
+  seed?: number | null
+  annualExpenses?: number | null
+  annualContribution?: number | null
+  monthlySpend?: number | null
+  retirementAge?: number | null
+  horizonYears?: number | null
+  inflationRate?: number | null
+  asOfDate?: string | null
+}
+
+export interface RetirementInputs {
+  schemaVersion: number
+  householdId: string
+  primaryAge: number
+  spouseAge: number | null
+  retirementAge: number
+  horizonYears: number
+  annualExpenses: number
+  annualContribution: number
+  portfolioValue: number
+  assetAllocation: Record<string, number>
+  incomeSources: Array<Record<string, unknown>>
+  inflationRate: number
+  asOfDate: string
+}
+
+export interface RetirementAccountBucket {
+  bucketType: string
+  label: string
+  accountType: string
+  taxTreatment: string
+  currentValue: number
+  withdrawalPriority: number
+}
+
+export interface RetirementDrawdownYear {
+  yearIndex: number
+  calendarYear: number
+  primaryAge: number
+  spendingNeed: number
+  income: number
+  grossWithdrawal: number
+  taxEstimate: number
+  netWithdrawal: number
+  endingBalance: number
+  rmdAmount: number
+  rmdApplied: boolean
+  withdrawalsByBucket: Record<string, number>
+  balancesByBucket: Record<string, number>
+}
+
+export interface RetirementLeverImpact {
+  id: string
+  label: string
+  value: string
+  successProbability: number
+  deltaSuccessProbability: number
+  detail: string
+}
+
+export interface RetirementPreview {
+  schemaVersion: number
+  trustedTotals: boolean
+  accountControlStatus: string
+  accountControlSummary: string
+  inputs: RetirementInputs
+  successProbability: number
+  medianEndingBalance: number
+  sequenceOfReturnsRisk: number
+  percentiles: Record<string, number>
+  endingBalancePaths: Record<string, number[]>
+  accountBuckets: RetirementAccountBucket[]
+  drawdownSchedule: RetirementDrawdownYear[]
+  leverImpacts: RetirementLeverImpact[]
+  firstDepletionAge: number | null
+  estimatedMonthlyContributionGap: number
+}
+
 export interface ImportFormat {
   label: string
   formats: string[]
