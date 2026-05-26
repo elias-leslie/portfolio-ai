@@ -527,6 +527,7 @@ export function MoneyRetirementPanel({
   const [draft, setDraft] = useState(() => defaultDraft(dashboard))
   const [plannerOpen, setPlannerOpen] = useState(false)
   const [allocationOpen, setAllocationOpen] = useState(false)
+  const [accountDetailsOpen, setAccountDetailsOpen] = useState(false)
   const [allocationMode, setAllocationMode] =
     useState<AllocationMode>('current')
   const [allocationDraft, setAllocationDraft] = useState(() =>
@@ -550,6 +551,7 @@ export function MoneyRetirementPanel({
     setDraft(nextDraft)
     setAllocationMode('current')
     setAllocationDraft(allocationDraftFromPreview(undefined))
+    setAccountDetailsOpen(false)
     setRequest(buildRequest(dashboard.profile.id, nextDraft))
   }, [dashboard])
 
@@ -1503,6 +1505,33 @@ export function MoneyRetirementPanel({
           description="Current planner buckets by tax treatment and drawdown priority."
         >
           <div className="space-y-3">
+            {bucketTotals.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/10 p-5 text-sm text-text-muted">
+                No account buckets are available yet.
+              </div>
+            ) : (
+              bucketTotals.map((bucket) => (
+                <div
+                  key={bucket.bucket}
+                  className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="h-3 w-3 rounded-full"
+                        style={{ backgroundColor: bucketColors[bucket.bucket] }}
+                      />
+                      <p className="text-sm font-semibold text-text">
+                        {bucketLabel(bucket.bucket)}
+                      </p>
+                    </div>
+                    <p className="font-mono text-sm tabular-nums text-text">
+                      {formatCurrencyWhole(bucket.value)}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
             {holdingsCoverage ? (
               <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
                 <div className="flex items-center justify-between gap-3">
@@ -1538,62 +1567,51 @@ export function MoneyRetirementPanel({
                   </div>
                 </div>
                 {holdingsCoverage.accounts.length > 0 ? (
-                  <div className="mt-4 space-y-2">
-                    {holdingsCoverage.accounts.map((account, index) => (
-                      <div
-                        key={`${account.label}-${account.bucketType}-${index}`}
-                        className="rounded-xl border border-border/25 px-3 py-2"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-medium text-text">
-                              {account.label}
-                            </p>
-                            <p className="text-xs text-text-muted">
-                              {account.coverageLabel} ·{' '}
-                              {bucketLabel(account.bucketType)}
+                  <>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="mt-4"
+                      aria-expanded={accountDetailsOpen}
+                      onClick={() => setAccountDetailsOpen((isOpen) => !isOpen)}
+                    >
+                      {accountDetailsOpen
+                        ? 'Hide account details'
+                        : `Show ${holdingsCoverage.accounts.length} account details`}
+                    </Button>
+                    {accountDetailsOpen ? (
+                      <div className="mt-4 space-y-2">
+                        {holdingsCoverage.accounts.map((account, index) => (
+                          <div
+                            key={`${account.label}-${account.bucketType}-${index}`}
+                            className="rounded-xl border border-border/25 px-3 py-2"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-medium text-text">
+                                  {account.label}
+                                </p>
+                                <p className="text-xs text-text-muted">
+                                  {account.coverageLabel} ·{' '}
+                                  {bucketLabel(account.bucketType)}
+                                </p>
+                              </div>
+                              <p className="font-mono text-sm text-text">
+                                {formatCurrencyWhole(account.currentValue)}
+                              </p>
+                            </div>
+                            <p className="mt-1 text-xs text-text-muted">
+                              {account.detail}
                             </p>
                           </div>
-                          <p className="font-mono text-sm text-text">
-                            {formatCurrencyWhole(account.currentValue)}
-                          </p>
-                        </div>
-                        <p className="mt-1 text-xs text-text-muted">
-                          {account.detail}
-                        </p>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    ) : null}
+                  </>
                 ) : null}
               </div>
             ) : null}
-            {bucketTotals.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/10 p-5 text-sm text-text-muted">
-                No account buckets are available yet.
-              </div>
-            ) : (
-              bucketTotals.map((bucket) => (
-                <div
-                  key={bucket.bucket}
-                  className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="h-3 w-3 rounded-full"
-                        style={{ backgroundColor: bucketColors[bucket.bucket] }}
-                      />
-                      <p className="text-sm font-semibold text-text">
-                        {bucketLabel(bucket.bucket)}
-                      </p>
-                    </div>
-                    <p className="font-mono text-sm tabular-nums text-text">
-                      {formatCurrencyWhole(bucket.value)}
-                    </p>
-                  </div>
-                </div>
-              ))
-            )}
           </div>
         </SectionCard>
       </div>

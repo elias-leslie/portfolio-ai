@@ -414,7 +414,8 @@ describe('MoneyRetirementPanel', () => {
     } as unknown as ReturnType<typeof useUpdateHouseholdProfile>)
   })
 
-  it('renders visual retirement readiness, buckets, levers, and drawdown rows', () => {
+  it('renders visual retirement readiness, buckets, levers, and collapsed account details', async () => {
+    const user = userEvent.setup()
     usePreviewMock.mockReturnValue({
       data: preview,
       error: null,
@@ -444,11 +445,28 @@ describe('MoneyRetirementPanel', () => {
     expect(screen.getByText('Partial holdings')).toBeInTheDocument()
     expect(screen.getByText('Exact holdings/cash')).toBeInTheDocument()
     expect(screen.getByText('Account-value-only')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /show 2 account details/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('1 priced position linked to this account.'),
+    ).not.toBeInTheDocument()
     expect(screen.getByText('Allocation sandbox')).toBeInTheDocument()
     expect(screen.getByText('Retire 2 years later')).toBeInTheDocument()
     expect(screen.getByText('Drawdown schedule')).toBeInTheDocument()
     expect(screen.getByText('$18,000')).toBeInTheDocument()
     expect(screen.getByText('$45,000')).toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', { name: /show 2 account details/i }),
+    )
+
+    expect(
+      screen.getByText('1 priced position linked to this account.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /hide account details/i }),
+    ).toBeInTheDocument()
   })
 
   it('renders transformed current allocation keys instead of zeroing them out', async () => {
