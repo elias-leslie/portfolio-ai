@@ -314,6 +314,7 @@ export interface RetirementPreviewRequest {
   annualContribution?: number | null
   assetAllocation?: Record<string, number> | null
   allocationHoldings?: Array<{ symbol: string; weight: number }> | null
+  cashYield?: number | null
   monthlySpend?: number | null
   retirementAge?: number | null
   spouseRetirementAge?: number | null
@@ -343,6 +344,7 @@ export interface RetirementInputs {
   annualContribution: number
   portfolioValue: number
   assetAllocation: Record<string, number>
+  cashYield?: number | null
   incomeSources: Array<Record<string, unknown>>
   inflationRate: number
   socialSecurityPayableRatio: number
@@ -398,6 +400,7 @@ export interface RetirementPreview {
   endingBalancePaths: Record<string, number[]>
   accountBuckets: RetirementAccountBucket[]
   taxAssumptions: Record<string, unknown>
+  returnAssumptions: Record<string, unknown>
   drawdownSchedule: RetirementDrawdownYear[]
   leverImpacts: RetirementLeverImpact[]
   firstDepletionAge: number | null

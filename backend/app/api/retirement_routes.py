@@ -66,6 +66,7 @@ class RunScenarioRequest(BaseModel):
     annual_contribution: float | None = Field(None, ge=0.0)
     asset_allocation: dict[str, float] | None = None
     allocation_holdings: list[AllocationHoldingRequest] | None = None
+    cash_yield: float | None = Field(None, ge=0.0, le=0.2)
     retirement_age: int | None = Field(None, ge=18, le=120)
     spouse_retirement_age: int | None = Field(None, ge=18, le=120)
     horizon_years: int | None = Field(None, ge=1, le=70)
@@ -98,6 +99,7 @@ async def run_scenario(payload: RunScenarioRequest) -> dict[str, Any]:
             annual_contribution=payload.annual_contribution,
             asset_allocation=payload.asset_allocation,
             allocation_holdings=payload.allocation_holdings,
+            cash_yield=payload.cash_yield,
             retirement_age=payload.retirement_age,
             spouse_retirement_age=payload.spouse_retirement_age,
             horizon_years=payload.horizon_years,
@@ -129,6 +131,7 @@ async def preview(payload: PreviewRequest) -> dict[str, Any]:
             monthly_spend=payload.monthly_spend,
             asset_allocation=payload.asset_allocation,
             allocation_holdings=payload.allocation_holdings,
+            cash_yield=payload.cash_yield,
             retirement_age=payload.retirement_age,
             spouse_retirement_age=payload.spouse_retirement_age,
             horizon_years=payload.horizon_years,

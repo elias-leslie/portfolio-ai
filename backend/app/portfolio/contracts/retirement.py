@@ -56,6 +56,7 @@ class RetirementInputs(BaseModel):
     annual_contribution: float = Field(0.0, ge=0.0)
     portfolio_value: float = Field(..., ge=0.0)
     asset_allocation: dict[str, float] = Field(default_factory=dict)
+    cash_yield: float | None = Field(None, ge=0.0, le=0.2)
     income_sources: tuple[RetirementIncomeSource, ...] = ()
     inflation_rate: float = Field(0.025, ge=0.0, le=0.2)
     social_security_payable_ratio: float = Field(1.0, ge=0.0, le=1.0)
@@ -174,6 +175,7 @@ class RetirementPreview(BaseModel):
     ending_balance_paths: dict[str, list[float]]
     account_buckets: tuple[RetirementAccountBucket, ...] = ()
     tax_assumptions: dict[str, Any] = Field(default_factory=dict)
+    return_assumptions: dict[str, Any] = Field(default_factory=dict)
     drawdown_schedule: tuple[RetirementDrawdownYear, ...] = ()
     lever_impacts: tuple[RetirementLeverImpact, ...] = ()
     first_depletion_age: int | None = None

@@ -91,6 +91,16 @@ SSA_2026_SECOND_BEND_POINT = 7_749.0
 SSA_FULL_RETIREMENT_AGE = 67
 DEFAULT_SOCIAL_SECURITY_DEPLETION_YEAR = 2033
 DEFAULT_SOCIAL_SECURITY_PAYABLE_RATIO = 0.77
+DEFAULT_SPAXX_CASH_YIELD = 0.0328
+DEFAULT_SPAXX_CASH_YIELD_SOURCE = "Fidelity SPAXX 7-day yield as of 2026-05-07"
+INCOME_YIELD_BY_ASSET_CLASS = {
+    "us_equity": 0.014,
+    "intl_equity": 0.025,
+    "bonds": 0.04,
+    "cash": DEFAULT_SPAXX_CASH_YIELD,
+    "real_estate": 0.035,
+    "alts": 0.0,
+}
 FILING_STATUS_LABELS = {
     "single": "Single",
     "married_filing_jointly": "Married filing jointly",
@@ -214,6 +224,7 @@ class RetirementPlanningService:
         annual_contribution: float | None = None,
         asset_allocation: dict[str, float] | None = None,
         allocation_holdings: list[Any] | tuple[Any, ...] | None = None,
+        cash_yield: float | None = None,
         retirement_age: int | None = None,
         spouse_retirement_age: int | None = None,
         horizon_years: int | None = None,
@@ -260,6 +271,7 @@ class RetirementPlanningService:
             annual_contribution=annual_contribution,
             portfolio_value=portfolio_value,
             asset_allocation=allocation,
+            cash_yield=_cash_yield(cash_yield),
             income_sources=income_sources,
             inflation_rate=(
                 inflation_rate
@@ -283,12 +295,13 @@ class RetirementPlanningService:
         """Run the Monte Carlo without persisting; pure compute."""
         trials = max(1, min(trials, MAX_TRIALS))
         tax_context = tax_context or _tax_context_from_profile(None, inputs)
+        cma = _cma_with_cash_yield(self._cma, inputs.cash_yield)
         if buckets:
             return _run_tax_aware_monte_carlo(
                 inputs,
                 tax_context=tax_context,
                 buckets=buckets,
-                cma=self._cma,
+                cma=cma,
                 trials=trials,
                 seed=seed,
             )
@@ -307,7 +320,7 @@ class RetirementPlanningService:
             primary_age=inputs.primary_age,
             retirement_age=_household_retirement_primary_age(inputs),
             income_sources=income_streams_from_inputs(_adjusted_sim_income_sources(inputs)),
-            cma=self._cma,
+            cma=cma,
             trials=trials,
             seed=seed,
         )
@@ -320,6 +333,7 @@ class RetirementPlanningService:
         monthly_spend: float | None = None,
         asset_allocation: dict[str, float] | None = None,
         allocation_holdings: list[Any] | tuple[Any, ...] | None = None,
+        cash_yield: float | None = None,
         retirement_age: int | None = None,
         spouse_retirement_age: int | None = None,
         horizon_years: int | None = None,
@@ -386,6 +400,7 @@ class RetirementPlanningService:
             annual_contribution=annual_contribution,
             asset_allocation=asset_allocation,
             allocation_holdings=allocation_holdings,
+            cash_yield=cash_yield,
             retirement_age=retirement_age,
             spouse_retirement_age=spouse_retirement_age,
             horizon_years=horizon_years,
@@ -407,7 +422,13 @@ class RetirementPlanningService:
         buckets = self._account_buckets_from_dashboard(dashboard)
         bucket_total = round(sum(bucket.current_value for bucket in buckets), 2)
         if bucket_total > 0:
-            inputs = inputs.model_copy(update={"portfolio_value": bucket_total})
+            input_updates: dict[str, Any] = {"portfolio_value": bucket_total}
+            if not asset_allocation and not allocation_holdings:
+                input_updates["asset_allocation"] = _allocation_with_bucket_cash(
+                    inputs.asset_allocation,
+                    buckets,
+                )
+            inputs = inputs.model_copy(update=input_updates)
         elif inputs.portfolio_value > 0:
             buckets = (
                 RetirementAccountBucket(
@@ -441,6 +462,7 @@ class RetirementPlanningService:
             ending_balance_paths=sim.ending_balance_paths,
             account_buckets=buckets,
             tax_assumptions=_tax_assumptions(tax_context, buckets=buckets, inputs=inputs),
+            return_assumptions=self._return_assumptions(inputs),
             drawdown_schedule=tuple(drawdown),
             lever_impacts=self._lever_impacts(
                 inputs,
@@ -452,7 +474,7 @@ class RetirementPlanningService:
             ),
             first_depletion_age=_first_depletion_age(drawdown, _household_retirement_primary_age(inputs)),
             estimated_monthly_contribution_gap=_monthly_contribution_gap(
-                inputs, annual_return=self._expected_return(inputs.asset_allocation)
+                inputs, annual_return=self._expected_return(inputs.asset_allocation, inputs.cash_yield)
             ),
         )
 
@@ -716,7 +738,7 @@ class RetirementPlanningService:
     ) -> list[RetirementDrawdownYear]:
         del ordinary_tax_rate, capital_gains_rate  # kept for older direct unit-call compatibility
         tax_context = tax_context or _tax_context_from_profile(None, inputs)
-        annual_return = self._expected_return(inputs.asset_allocation)
+        annual_return = self._expected_return(inputs.asset_allocation, inputs.cash_yield)
         household_retirement_age = _household_retirement_primary_age(inputs)
         balances = _bucket_balances(inputs, buckets)
         contribution_bucket = _contribution_bucket(balances)
@@ -777,8 +799,8 @@ class RetirementPlanningService:
             )
         return rows
 
-    def _expected_return(self, allocation: dict[str, float]) -> float:
-        asset_classes = self._cma.get("asset_classes", {})
+    def _expected_return(self, allocation: dict[str, float], cash_yield: float | None = None) -> float:
+        asset_classes = _cma_with_cash_yield(self._cma, cash_yield).get("asset_classes", {})
         weighted = 0.0
         total_weight = 0.0
         for klass, weight in allocation.items():
@@ -792,6 +814,15 @@ class RetirementPlanningService:
             return weighted / total_weight
         cash = asset_classes.get("cash", {})
         return float(cash.get("expected_return", 0.02) or 0.02)
+
+    def _return_assumptions(self, inputs: RetirementInputs) -> dict[str, Any]:
+        cash_yield = _cash_yield(inputs.cash_yield)
+        return {
+            "expected_return": round(self._expected_return(inputs.asset_allocation, cash_yield), 6),
+            "income_yield": round(_income_yield(inputs.asset_allocation, cash_yield), 6),
+            "cash_yield": round(cash_yield, 6),
+            "cash_yield_source": DEFAULT_SPAXX_CASH_YIELD_SOURCE,
+        }
 
     def _lever_impacts(
         self,
@@ -1153,6 +1184,77 @@ def _normalized_asset_allocation(
     if total <= 0:
         return {}
     return {asset_class: round(weight / total, 6) for asset_class, weight in cleaned.items()}
+
+
+def _cash_yield(value: float | None) -> float:
+    if value is None:
+        return DEFAULT_SPAXX_CASH_YIELD
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return DEFAULT_SPAXX_CASH_YIELD
+    if parsed <= 0:
+        return DEFAULT_SPAXX_CASH_YIELD
+    return min(parsed / 100.0 if parsed > 1.0 else parsed, 0.2)
+
+
+def _cma_with_cash_yield(cma: dict[str, Any], cash_yield: float | None) -> dict[str, Any]:
+    rate = _cash_yield(cash_yield)
+    out = dict(cma)
+    asset_classes = {
+        str(asset_class): dict(meta)
+        for asset_class, meta in (cma.get("asset_classes") or {}).items()
+        if isinstance(meta, dict)
+    }
+    cash_meta = dict(asset_classes.get("cash", {}))
+    cash_meta["expected_return"] = rate
+    asset_classes["cash"] = cash_meta
+    out["asset_classes"] = asset_classes
+    return out
+
+
+def _allocation_with_bucket_cash(
+    allocation: dict[str, float],
+    buckets: tuple[RetirementAccountBucket, ...],
+) -> dict[str, float]:
+    total = sum(float(bucket.current_value or 0.0) for bucket in buckets)
+    if total <= 0:
+        return allocation
+    cash_value = sum(
+        float(bucket.current_value or 0.0)
+        for bucket in buckets
+        if bucket.bucket_type == "cash"
+    )
+    non_cash_value = max(0.0, total - cash_value)
+    values: dict[str, float] = {}
+    source_allocation = allocation or ({"us_equity": 1.0} if non_cash_value > 0 else {})
+    for asset_class, weight in source_allocation.items():
+        values[asset_class] = values.get(asset_class, 0.0) + float(weight or 0.0) * non_cash_value
+    if cash_value > 0:
+        values["cash"] = values.get("cash", 0.0) + cash_value
+    normalized_total = sum(value for value in values.values() if value > 0)
+    if normalized_total <= 0:
+        return allocation
+    return {
+        asset_class: round(value / normalized_total, 6)
+        for asset_class, value in values.items()
+        if value > 0
+    }
+
+
+def _income_yield(allocation: dict[str, float], cash_yield: float | None) -> float:
+    yields = {**INCOME_YIELD_BY_ASSET_CLASS, "cash": _cash_yield(cash_yield)}
+    total = 0.0
+    total_weight = 0.0
+    for asset_class, weight in allocation.items():
+        w = float(weight or 0.0)
+        if w <= 0:
+            continue
+        total += w * float(yields.get(asset_class, 0.0))
+        total_weight += w
+    if total_weight <= 0:
+        return 0.0
+    return total / total_weight
 
 
 def _apply_tax_aware_withdrawals(

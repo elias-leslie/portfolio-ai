@@ -453,6 +453,7 @@ def test_build_inputs_uses_caller_overrides(
     assert inputs.retirement_age == 70
     assert inputs.horizon_years == 25
     assert inputs.asset_allocation == {"us_equity": 0.8, "cash": 0.2}
+    assert inputs.cash_yield == pytest.approx(0.0328)
 
 
 def test_run_simulation_caps_trials(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -576,6 +577,9 @@ def test_preview_builds_account_buckets_and_levers(
     )
     assert preview.trusted_totals is True
     assert preview.inputs.portfolio_value == 995_000.0
+    assert preview.inputs.asset_allocation["cash"] == pytest.approx(50_000 / 995_000, abs=1e-6)
+    assert preview.inputs.cash_yield == pytest.approx(0.0328)
+    assert preview.return_assumptions["cash_yield"] == pytest.approx(0.0328)
     assert {bucket.bucket_type for bucket in preview.account_buckets} == {
         "cash",
         "taxable",

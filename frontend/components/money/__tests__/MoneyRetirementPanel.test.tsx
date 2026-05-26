@@ -228,7 +228,8 @@ const preview: RetirementPreview = {
     annualExpenses: 72000,
     annualContribution: 18000,
     portfolioValue: 900000,
-    assetAllocation: { us_equity: 0.6, bonds: 0.4 },
+    assetAllocation: { usEquity: 0.6, bonds: 0.4 },
+    cashYield: 0.0328,
     incomeSources: [],
     inflationRate: 0.025,
     socialSecurityPayableRatio: 0.77,
@@ -278,6 +279,11 @@ const preview: RetirementPreview = {
       withdrawalPriority: 5,
     },
   ],
+  returnAssumptions: {
+    expectedReturn: 0.052,
+    incomeYield: 0.024,
+    cashYield: 0.0328,
+  },
   taxAssumptions: {
     filingStatusLabel: 'Married filing jointly',
     standardDeduction: 32200,
@@ -378,6 +384,13 @@ describe('MoneyRetirementPanel', () => {
     render(<MoneyRetirementPanel dashboard={dashboard} />)
 
     expect(screen.getByText('Retirement planner')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /expand planner/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /expand allocation/i }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Your retire age')).not.toBeInTheDocument()
     expect(screen.getByText('82%')).toBeInTheDocument()
     expect(screen.getByText('$1,250,000')).toBeInTheDocument()
     expect(screen.getAllByText('Taxable').length).toBeGreaterThan(0)
@@ -393,6 +406,24 @@ describe('MoneyRetirementPanel', () => {
     expect(screen.getByText('$45,000')).toBeInTheDocument()
   })
 
+  it('renders transformed current allocation keys instead of zeroing them out', async () => {
+    const user = userEvent.setup()
+    usePreviewMock.mockReturnValue({
+      data: preview,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    await user.click(screen.getByRole('button', { name: /expand allocation/i }))
+
+    expect(screen.getByText('60%')).toBeInTheDocument()
+    expect(screen.getByText('40%')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('3.28')).toBeInTheDocument()
+  })
+
   it('lets local knobs update the preview request', async () => {
     const user = userEvent.setup()
     usePreviewMock.mockReturnValue({
@@ -404,6 +435,7 @@ describe('MoneyRetirementPanel', () => {
 
     render(<MoneyRetirementPanel dashboard={dashboard} />)
 
+    await user.click(screen.getByRole('button', { name: /expand planner/i }))
     const retireAgeInput = screen.getByDisplayValue('65')
     await user.clear(retireAgeInput)
     await user.type(retireAgeInput, '66')
@@ -429,6 +461,7 @@ describe('MoneyRetirementPanel', () => {
 
     render(<MoneyRetirementPanel dashboard={dashboard} />)
 
+    await user.click(screen.getByRole('button', { name: /expand allocation/i }))
     await user.click(screen.getByRole('button', { name: /ticker basket/i }))
     const tickerInput = screen.getByDisplayValue(/VTI 80/)
     await user.clear(tickerInput)
@@ -476,6 +509,7 @@ describe('MoneyRetirementPanel', () => {
 
     render(<MoneyRetirementPanel dashboard={savedDashboard} />)
 
+    await user.click(screen.getByRole('button', { name: /expand planner/i }))
     const salaryInput = screen.getByDisplayValue('120000')
     await user.clear(salaryInput)
     await user.type(salaryInput, '125000')

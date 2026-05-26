@@ -70,6 +70,7 @@ const ssa2026FirstBendPoint = 1_286
 const ssa2026SecondBendPoint = 7_749
 const socialSecurityFullRetirementAge = 67
 const defaultSocialSecurityPayableRatio = 0.77
+const defaultSpaxxYieldPercent = 3.28
 
 function preparednessVariant(status: string) {
   if (status.includes('ready') || status.includes('visible')) {
@@ -169,9 +170,9 @@ function allocationDraftFromPreview(
   return Object.fromEntries(
     allocationClasses.map(({ key }) => [
       key,
-      allocation?.[key] == null
+      assetAllocationValue(allocation, key) === 0
         ? '0'
-        : String(Math.round(allocation[key] * 1000) / 10),
+        : String(Math.round(assetAllocationValue(allocation, key) * 1000) / 10),
     ]),
   ) as Record<(typeof allocationClasses)[number]['key'], string>
 }
@@ -201,6 +202,25 @@ function parseTickerMix(value: string) {
     })
     .filter((row) => row.symbol && row.weight > 0)
   return rows.length > 0 ? rows : null
+}
+
+function camelAssetClassKey(key: string) {
+  return key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase())
+}
+
+function assetAllocationValue(
+  allocation: Record<string, number> | undefined,
+  key: string,
+) {
+  return allocation?.[key] ?? allocation?.[camelAssetClassKey(key)] ?? 0
+}
+
+function returnAssumptionNumber(
+  assumptions: Record<string, unknown> | undefined,
+  key: string,
+) {
+  const value = assumptions?.[key] ?? assumptions?.[camelAssetClassKey(key)]
+  return typeof value === 'number' ? value : null
 }
 
 function estimateSocialSecurityMonthly(
@@ -370,6 +390,7 @@ function defaultDraft(dashboard: HouseholdFinanceDashboard) {
     spouseSocialSecurityAnnualEarnings: socialSecurity.spouseAnnualEarnings,
     spouseSocialSecurityStartAge: socialSecurity.spouseStartAge,
     socialSecurityPayableRatio: socialSecurity.payableRatio,
+    cashYield: percentInput(undefined, String(defaultSpaxxYieldPercent)),
   }
 }
 
@@ -390,6 +411,7 @@ function buildRequest(
     householdId,
     assetAllocation,
     allocationHoldings,
+    cashYield: parseNumber(draft.cashYield, defaultSpaxxYieldPercent) / 100,
     retirementAge: parseNumber(draft.retirementAge, 65),
     spouseRetirementAge: parseOptionalNumber(draft.spouseRetirementAge),
     monthlySpend: parseNumber(draft.monthlySpend, 6000),
@@ -471,6 +493,8 @@ export function MoneyRetirementPanel({
   onEditTargets?: () => void
 }) {
   const [draft, setDraft] = useState(() => defaultDraft(dashboard))
+  const [plannerOpen, setPlannerOpen] = useState(false)
+  const [allocationOpen, setAllocationOpen] = useState(false)
   const [allocationMode, setAllocationMode] =
     useState<AllocationMode>('current')
   const [allocationDraft, setAllocationDraft] = useState(() =>
@@ -568,7 +592,9 @@ export function MoneyRetirementPanel({
       allocationClasses.map(({ key, label }) => ({
         key,
         label,
-        value: preview?.inputs.assetAllocation[key] ?? 0,
+        value: preview
+          ? assetAllocationValue(preview.inputs.assetAllocation, key)
+          : null,
       })),
     [preview?.inputs.assetAllocation],
   )
@@ -626,6 +652,17 @@ export function MoneyRetirementPanel({
       payableRatio,
     }
   }, [draft])
+  const modeledExpectedReturn = returnAssumptionNumber(
+    preview?.returnAssumptions,
+    'expected_return',
+  )
+  const modeledIncomeYield = returnAssumptionNumber(
+    preview?.returnAssumptions,
+    'income_yield',
+  )
+  const modeledCashYield =
+    returnAssumptionNumber(preview?.returnAssumptions, 'cash_yield') ??
+    parseNumber(draft.cashYield, defaultSpaxxYieldPercent) / 100
 
   const applyDraft = () => {
     setRequest(
@@ -707,381 +744,480 @@ export function MoneyRetirementPanel({
         variant="surface"
         title="Retirement planner"
         description="Plug in the levers, then read the plan through probability, balances, and drawdowns. Tax output is a planning estimate, not tax advice."
+        padding={plannerOpen ? 'md' : 'none'}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               size="sm"
               variant="outline"
-              onClick={onEditTargets}
+              onClick={() => setPlannerOpen((open) => !open)}
             >
-              Edit saved assumptions
+              {plannerOpen ? 'Collapse planner' : 'Expand planner'}
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => void saveDraftDefaults()}
-              disabled={updateProfile.isPending}
-            >
-              {updateProfile.isPending ? 'Saving…' : 'Save assumptions'}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={applyDraft}
-              disabled={previewQuery.isFetching}
-            >
-              {previewQuery.isFetching ? 'Running…' : 'Run preview'}
-            </Button>
+            {plannerOpen ? (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={onEditTargets}
+                >
+                  Edit saved assumptions
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void saveDraftDefaults()}
+                  disabled={updateProfile.isPending}
+                >
+                  {updateProfile.isPending ? 'Saving…' : 'Save assumptions'}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={applyDraft}
+                  disabled={previewQuery.isFetching}
+                >
+                  {previewQuery.isFetching ? 'Running…' : 'Run preview'}
+                </Button>
+              </>
+            ) : null}
           </div>
         }
       >
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Your retire age
+        {plannerOpen ? (
+          <>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Your retire age
+                </p>
+                <Input
+                  className="mt-2"
+                  inputMode="numeric"
+                  value={draft.retirementAge}
+                  onChange={(event) =>
+                    updateDraft('retirementAge', event.target.value)
+                  }
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Spouse retire age
+                </p>
+                <Input
+                  className="mt-2"
+                  inputMode="numeric"
+                  value={draft.spouseRetirementAge}
+                  onChange={(event) =>
+                    updateDraft('spouseRetirementAge', event.target.value)
+                  }
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Spend / month
+                </p>
+                <Input
+                  className="mt-2"
+                  inputMode="decimal"
+                  value={draft.monthlySpend}
+                  onChange={(event) =>
+                    updateDraft('monthlySpend', event.target.value)
+                  }
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Save / month
+                </p>
+                <Input
+                  className="mt-2"
+                  inputMode="decimal"
+                  value={draft.monthlyContribution}
+                  onChange={(event) =>
+                    updateDraft('monthlyContribution', event.target.value)
+                  }
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Inflation %
+                </p>
+                <Input
+                  className="mt-2"
+                  inputMode="decimal"
+                  value={draft.inflationRate}
+                  onChange={(event) =>
+                    updateDraft('inflationRate', event.target.value)
+                  }
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Horizon years
+                </p>
+                <Input
+                  className="mt-2"
+                  inputMode="numeric"
+                  value={draft.horizonYears}
+                  onChange={(event) =>
+                    updateDraft('horizonYears', event.target.value)
+                  }
+                />
+              </div>
+            </div>
+            <div className="mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-8">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Your age
+                </p>
+                <Input
+                  className="mt-2"
+                  inputMode="numeric"
+                  value={draft.primaryAge}
+                  onChange={(event) =>
+                    updateDraft('primaryAge', event.target.value)
+                  }
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Spouse age
+                </p>
+                <Input
+                  className="mt-2"
+                  inputMode="numeric"
+                  value={draft.spouseAge}
+                  onChange={(event) =>
+                    updateDraft('spouseAge', event.target.value)
+                  }
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Your salary
+                </p>
+                <Input
+                  className="mt-2"
+                  inputMode="decimal"
+                  value={draft.primarySocialSecurityAnnualEarnings}
+                  onChange={(event) =>
+                    updateDraft(
+                      'primarySocialSecurityAnnualEarnings',
+                      event.target.value,
+                    )
+                  }
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Your SS / mo
+                </p>
+                <Input
+                  className="mt-2"
+                  inputMode="decimal"
+                  value={draft.primarySocialSecurityMonthly}
+                  onChange={(event) =>
+                    updateDraft(
+                      'primarySocialSecurityMonthly',
+                      event.target.value,
+                    )
+                  }
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Your SS age
+                </p>
+                <Input
+                  className="mt-2"
+                  inputMode="numeric"
+                  value={draft.primarySocialSecurityStartAge}
+                  onChange={(event) =>
+                    updateDraft(
+                      'primarySocialSecurityStartAge',
+                      event.target.value,
+                    )
+                  }
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Spouse salary
+                </p>
+                <Input
+                  className="mt-2"
+                  inputMode="decimal"
+                  value={draft.spouseSocialSecurityAnnualEarnings}
+                  onChange={(event) =>
+                    updateDraft(
+                      'spouseSocialSecurityAnnualEarnings',
+                      event.target.value,
+                    )
+                  }
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Spouse SS / mo
+                </p>
+                <Input
+                  className="mt-2"
+                  inputMode="decimal"
+                  value={draft.spouseSocialSecurityMonthly}
+                  onChange={(event) =>
+                    updateDraft(
+                      'spouseSocialSecurityMonthly',
+                      event.target.value,
+                    )
+                  }
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Spouse SS age
+                </p>
+                <Input
+                  className="mt-2"
+                  inputMode="numeric"
+                  value={draft.spouseSocialSecurityStartAge}
+                  onChange={(event) =>
+                    updateDraft(
+                      'spouseSocialSecurityStartAge',
+                      event.target.value,
+                    )
+                  }
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  SS payable %
+                </p>
+                <Input
+                  className="mt-2"
+                  inputMode="decimal"
+                  value={draft.socialSecurityPayableRatio}
+                  onChange={(event) =>
+                    updateDraft(
+                      'socialSecurityPayableRatio',
+                      event.target.value,
+                    )
+                  }
+                />
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-text-muted">
+              Drawdown starts when both are retired: your age{' '}
+              {fullRetirementAge}.
             </p>
-            <Input
-              className="mt-2"
-              inputMode="numeric"
-              value={draft.retirementAge}
-              onChange={(event) =>
-                updateDraft('retirementAge', event.target.value)
-              }
-            />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Spouse retire age
+            <p className="mt-3 text-xs text-text-muted">
+              Social Security included:{' '}
+              <span className="font-mono text-text">
+                {formatCurrency(socialSecurityEstimate.primary ?? 0, {
+                  decimals: 0,
+                })}
+                /mo at {socialSecurityEstimate.primaryClaimAge}
+              </span>{' '}
+              for you and{' '}
+              <span className="font-mono text-text">
+                {formatCurrency(socialSecurityEstimate.spouse ?? 0, {
+                  decimals: 0,
+                })}
+                /mo at {socialSecurityEstimate.spouseClaimAge}
+              </span>{' '}
+              for spouse. Enter exact SSA estimates when available; salary-based
+              values are rough estimates. Modeled at{' '}
+              {formatPercent(socialSecurityEstimate.payableRatio * 100, {
+                decimals: 0,
+              })}{' '}
+              of scheduled benefits after projected trust fund depletion.
             </p>
-            <Input
-              className="mt-2"
-              inputMode="numeric"
-              value={draft.spouseRetirementAge}
-              onChange={(event) =>
-                updateDraft('spouseRetirementAge', event.target.value)
-              }
-            />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Spend / month
-            </p>
-            <Input
-              className="mt-2"
-              inputMode="decimal"
-              value={draft.monthlySpend}
-              onChange={(event) =>
-                updateDraft('monthlySpend', event.target.value)
-              }
-            />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Save / month
-            </p>
-            <Input
-              className="mt-2"
-              inputMode="decimal"
-              value={draft.monthlyContribution}
-              onChange={(event) =>
-                updateDraft('monthlyContribution', event.target.value)
-              }
-            />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Inflation %
-            </p>
-            <Input
-              className="mt-2"
-              inputMode="decimal"
-              value={draft.inflationRate}
-              onChange={(event) =>
-                updateDraft('inflationRate', event.target.value)
-              }
-            />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Horizon years
-            </p>
-            <Input
-              className="mt-2"
-              inputMode="numeric"
-              value={draft.horizonYears}
-              onChange={(event) =>
-                updateDraft('horizonYears', event.target.value)
-              }
-            />
-          </div>
-        </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-8">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Your age
-            </p>
-            <Input
-              className="mt-2"
-              inputMode="numeric"
-              value={draft.primaryAge}
-              onChange={(event) =>
-                updateDraft('primaryAge', event.target.value)
-              }
-            />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Spouse age
-            </p>
-            <Input
-              className="mt-2"
-              inputMode="numeric"
-              value={draft.spouseAge}
-              onChange={(event) => updateDraft('spouseAge', event.target.value)}
-            />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Your salary
-            </p>
-            <Input
-              className="mt-2"
-              inputMode="decimal"
-              value={draft.primarySocialSecurityAnnualEarnings}
-              onChange={(event) =>
-                updateDraft(
-                  'primarySocialSecurityAnnualEarnings',
-                  event.target.value,
-                )
-              }
-            />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Your SS / mo
-            </p>
-            <Input
-              className="mt-2"
-              inputMode="decimal"
-              value={draft.primarySocialSecurityMonthly}
-              onChange={(event) =>
-                updateDraft('primarySocialSecurityMonthly', event.target.value)
-              }
-            />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Your SS age
-            </p>
-            <Input
-              className="mt-2"
-              inputMode="numeric"
-              value={draft.primarySocialSecurityStartAge}
-              onChange={(event) =>
-                updateDraft('primarySocialSecurityStartAge', event.target.value)
-              }
-            />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Spouse salary
-            </p>
-            <Input
-              className="mt-2"
-              inputMode="decimal"
-              value={draft.spouseSocialSecurityAnnualEarnings}
-              onChange={(event) =>
-                updateDraft(
-                  'spouseSocialSecurityAnnualEarnings',
-                  event.target.value,
-                )
-              }
-            />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Spouse SS / mo
-            </p>
-            <Input
-              className="mt-2"
-              inputMode="decimal"
-              value={draft.spouseSocialSecurityMonthly}
-              onChange={(event) =>
-                updateDraft('spouseSocialSecurityMonthly', event.target.value)
-              }
-            />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Spouse SS age
-            </p>
-            <Input
-              className="mt-2"
-              inputMode="numeric"
-              value={draft.spouseSocialSecurityStartAge}
-              onChange={(event) =>
-                updateDraft('spouseSocialSecurityStartAge', event.target.value)
-              }
-            />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              SS payable %
-            </p>
-            <Input
-              className="mt-2"
-              inputMode="decimal"
-              value={draft.socialSecurityPayableRatio}
-              onChange={(event) =>
-                updateDraft('socialSecurityPayableRatio', event.target.value)
-              }
-            />
-          </div>
-        </div>
-        <p className="mt-3 text-xs text-text-muted">
-          Drawdown starts when both are retired: your age {fullRetirementAge}.
-        </p>
-        <p className="mt-3 text-xs text-text-muted">
-          Social Security included:{' '}
-          <span className="font-mono text-text">
-            {formatCurrency(socialSecurityEstimate.primary ?? 0, {
-              decimals: 0,
-            })}
-            /mo at {socialSecurityEstimate.primaryClaimAge}
-          </span>{' '}
-          for you and{' '}
-          <span className="font-mono text-text">
-            {formatCurrency(socialSecurityEstimate.spouse ?? 0, {
-              decimals: 0,
-            })}
-            /mo at {socialSecurityEstimate.spouseClaimAge}
-          </span>{' '}
-          for spouse. Enter exact SSA estimates when available; salary-based
-          values are rough estimates. Modeled at{' '}
-          {formatPercent(socialSecurityEstimate.payableRatio * 100, {
-            decimals: 0,
-          })}{' '}
-          of scheduled benefits after projected trust fund depletion.
-        </p>
+          </>
+        ) : null}
       </SectionCard>
 
       <SectionCard
         variant="surface"
         title="Allocation sandbox"
         description="Run the retirement model against current holdings, an asset-class mix, or a ticker basket like VTI / BND / SPAXX."
-      >
-        <div className="flex flex-wrap gap-2">
-          {[
-            ['current', 'Current portfolio'],
-            ['classes', 'Asset classes'],
-            ['tickers', 'Ticker basket'],
-          ].map(([mode, label]) => (
-            <Button
-              key={mode}
-              type="button"
-              size="sm"
-              variant={allocationMode === mode ? 'default' : 'outline'}
-              onClick={() => setAllocationMode(mode as AllocationMode)}
-            >
-              {label}
-            </Button>
-          ))}
+        padding={allocationOpen ? 'md' : 'none'}
+        actions={
           <Button
             type="button"
             size="sm"
             variant="outline"
-            onClick={useCurrentAllocation}
+            onClick={() => setAllocationOpen((open) => !open)}
           >
-            Copy current to sliders
+            {allocationOpen ? 'Collapse allocation' : 'Expand allocation'}
           </Button>
-        </div>
-        <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-          <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Modeled allocation
-            </p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {allocationRows.map((row) => (
-                <div
-                  key={row.key}
-                  className="flex items-center justify-between rounded-xl border border-border/25 px-3 py-2 text-sm"
+        }
+      >
+        {allocationOpen ? (
+          <>
+            <div className="flex flex-wrap gap-2">
+              {[
+                ['current', 'Current portfolio'],
+                ['classes', 'Asset classes'],
+                ['tickers', 'Ticker basket'],
+              ].map(([mode, label]) => (
+                <Button
+                  key={mode}
+                  type="button"
+                  size="sm"
+                  variant={allocationMode === mode ? 'default' : 'outline'}
+                  onClick={() => setAllocationMode(mode as AllocationMode)}
                 >
-                  <span className="text-text-muted">{row.label}</span>
-                  <span className="font-mono text-text">
-                    {formatPercent(row.value * 100, { decimals: 0 })}
-                  </span>
-                </div>
+                  {label}
+                </Button>
               ))}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={useCurrentAllocation}
+              >
+                Copy current to sliders
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={applyDraft}
+                disabled={previewQuery.isFetching}
+              >
+                {previewQuery.isFetching ? 'Running…' : 'Run preview'}
+              </Button>
             </div>
-            <p className="mt-3 text-xs text-text-muted">
-              VTI, VOO, SPY, SCHD, VYM, DGRO, JEPI and common stocks map to US
-              stocks; SPAXX/FDRXX/VMFXX/SWVXX map to cash.
-            </p>
-          </div>
-          <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-            {allocationMode === 'classes' ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                    Asset-class weights
-                  </p>
-                  <p className="font-mono text-xs text-text-muted">
-                    Total {Math.round(allocationDraftTotal)}%
-                  </p>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {allocationClasses.map((assetClass) => (
-                    <label
-                      key={assetClass.key}
-                      className="text-xs text-text-muted"
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Modeled return
+                </p>
+                <p className="mt-2 font-mono text-2xl text-text">
+                  {modeledExpectedReturn == null
+                    ? '—'
+                    : formatPercent(modeledExpectedReturn * 100, {
+                        decimals: 1,
+                      })}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Income yield
+                </p>
+                <p className="mt-2 font-mono text-2xl text-text">
+                  {modeledIncomeYield == null
+                    ? '—'
+                    : formatPercent(modeledIncomeYield * 100, { decimals: 1 })}
+                </p>
+              </div>
+              <label className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4 text-xs text-text-muted">
+                SPAXX / cash yield %
+                <Input
+                  className="mt-2"
+                  inputMode="decimal"
+                  value={draft.cashYield}
+                  onChange={(event) =>
+                    updateDraft('cashYield', event.target.value)
+                  }
+                />
+                <span className="mt-2 block">
+                  Cash buckets and SPAXX ticker rows use{' '}
+                  {formatPercent(modeledCashYield * 100, { decimals: 2 })}.
+                </span>
+              </label>
+            </div>
+            <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Modeled allocation
+                </p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {allocationRows.map((row) => (
+                    <div
+                      key={row.key}
+                      className="flex items-center justify-between rounded-xl border border-border/25 px-3 py-2 text-sm"
                     >
-                      {assetClass.label}
-                      <Input
-                        className="mt-1"
-                        inputMode="decimal"
-                        value={allocationDraft[assetClass.key]}
-                        onChange={(event) =>
-                          updateAllocationDraft(
-                            assetClass.key,
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </label>
+                      <span className="text-text-muted">{row.label}</span>
+                      <span className="font-mono text-text">
+                        {row.value == null
+                          ? '—'
+                          : formatPercent(row.value * 100, { decimals: 0 })}
+                      </span>
+                    </div>
                   ))}
                 </div>
-                <p className="text-xs text-text-muted">
-                  Percentages are normalized automatically when you run the
-                  preview.
+                <p className="mt-3 text-xs text-text-muted">
+                  VTI, VOO, SPY, SCHD, VYM, DGRO, JEPI and common stocks map to
+                  US stocks; SPAXX/FDRXX/VMFXX/SWVXX map to cash.
                 </p>
               </div>
-            ) : allocationMode === 'tickers' ? (
-              <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Ticker weights
-                </p>
-                <Textarea
-                  value={tickerMix}
-                  onChange={(event) => setTickerMix(event.target.value)}
-                  rows={6}
-                  placeholder={'VTI 70\nSCHD 10\nBND 10\nSPAXX 10'}
-                />
-                <p className="text-xs text-text-muted">
-                  Enter one symbol and percentage per line. Unknown tickers fall
-                  back to US stocks in this coarse retirement model.
-                </p>
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                {allocationMode === 'classes' ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                        Asset-class weights
+                      </p>
+                      <p className="font-mono text-xs text-text-muted">
+                        Total {Math.round(allocationDraftTotal)}%
+                      </p>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {allocationClasses.map((assetClass) => (
+                        <label
+                          key={assetClass.key}
+                          className="text-xs text-text-muted"
+                        >
+                          {assetClass.label}
+                          <Input
+                            className="mt-1"
+                            inputMode="decimal"
+                            value={allocationDraft[assetClass.key]}
+                            onChange={(event) =>
+                              updateAllocationDraft(
+                                assetClass.key,
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-text-muted">
+                      Percentages are normalized automatically when you run the
+                      preview.
+                    </p>
+                  </div>
+                ) : allocationMode === 'tickers' ? (
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                      Ticker weights
+                    </p>
+                    <Textarea
+                      value={tickerMix}
+                      onChange={(event) => setTickerMix(event.target.value)}
+                      rows={6}
+                      placeholder={'VTI 70\nSCHD 10\nBND 10\nSPAXX 10'}
+                    />
+                    <p className="text-xs text-text-muted">
+                      Enter one symbol and percentage per line. Unknown tickers
+                      fall back to US stocks in this coarse retirement model.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-border/40 p-4 text-sm text-text-muted">
+                    Current portfolio mode uses live holdings and fund
+                    classification. Switch modes, then Run preview, to compare a
+                    what-if allocation.
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="rounded-xl border border-dashed border-border/40 p-4 text-sm text-text-muted">
-                Current portfolio mode uses live holdings and fund
-                classification. Switch modes, then Run preview, to compare a
-                what-if allocation.
-              </div>
-            )}
-          </div>
-        </div>
+            </div>
+          </>
+        ) : null}
       </SectionCard>
 
       {previewQuery.error ? (
