@@ -247,13 +247,21 @@ class RetirementPlanningService:
         *,
         trials: int = DEFAULT_TRIALS,
         seed: int | None = None,
+        tax_context: FederalTaxContext | None = None,
+        buckets: tuple[RetirementAccountBucket, ...] = (),
     ) -> SimulationOutputs:
         """Run the Monte Carlo without persisting; pure compute."""
         trials = max(1, min(trials, MAX_TRIALS))
+        tax_context = tax_context or _tax_context_from_profile(None, inputs)
+        tax_adjusted_expenses = _tax_adjusted_annual_expenses(
+            inputs,
+            tax_context=tax_context,
+            buckets=buckets,
+        )
         return run_monte_carlo(
             portfolio_value=inputs.portfolio_value,
             asset_allocation=inputs.asset_allocation,
-            annual_expenses=inputs.annual_expenses,
+            annual_expenses=tax_adjusted_expenses,
             annual_contribution=inputs.annual_contribution,
             inflation_rate=inputs.inflation_rate,
             horizon_years=inputs.horizon_years,
@@ -361,7 +369,7 @@ class RetirementPlanningService:
             )
 
         tax_context = _tax_context_from_profile(profile, inputs)
-        sim = self.run_simulation(inputs, trials=trials, seed=seed)
+        sim = self.run_simulation(inputs, trials=trials, seed=seed, tax_context=tax_context, buckets=buckets)
         drawdown = self._drawdown_schedule(
             inputs,
             buckets=buckets,
@@ -382,7 +390,14 @@ class RetirementPlanningService:
             account_buckets=buckets,
             tax_assumptions=_tax_assumptions(tax_context),
             drawdown_schedule=tuple(drawdown),
-            lever_impacts=self._lever_impacts(inputs, sim.success_probability, trials=trials, seed=seed),
+            lever_impacts=self._lever_impacts(
+                inputs,
+                sim.success_probability,
+                trials=trials,
+                seed=seed,
+                tax_context=tax_context,
+                buckets=buckets,
+            ),
             first_depletion_age=_first_depletion_age(drawdown, inputs.retirement_age),
             estimated_monthly_contribution_gap=_monthly_contribution_gap(
                 inputs, annual_return=self._expected_return(inputs.asset_allocation)
@@ -809,6 +824,8 @@ class RetirementPlanningService:
         *,
         trials: int,
         seed: int | None,
+        tax_context: FederalTaxContext | None = None,
+        buckets: tuple[RetirementAccountBucket, ...] = (),
     ) -> tuple[RetirementLeverImpact, ...]:
         scenarios = [
             (
@@ -833,7 +850,13 @@ class RetirementPlanningService:
         out: list[RetirementLeverImpact] = []
         lever_trials = max(500, min(trials, 5_000))
         for lever_id, label, value, lever_inputs in scenarios:
-            sim = self.run_simulation(lever_inputs, trials=lever_trials, seed=seed)
+            sim = self.run_simulation(
+                lever_inputs,
+                trials=lever_trials,
+                seed=seed,
+                tax_context=tax_context,
+                buckets=buckets,
+            )
             delta = sim.success_probability - base_success_probability
             out.append(
                 RetirementLeverImpact(
@@ -1094,6 +1117,49 @@ def _tax_context_from_profile(profile: Any, inputs: RetirementInputs) -> Federal
         state_tax_rate=_state_tax_rate_from_profile(profile),
         state_tax_source=_state_tax_source_from_profile(profile),
     )
+
+
+def _tax_adjusted_annual_expenses(
+    inputs: RetirementInputs,
+    *,
+    tax_context: FederalTaxContext,
+    buckets: tuple[RetirementAccountBucket, ...],
+) -> float:
+    if inputs.annual_expenses <= 0:
+        return 0.0
+    available: dict[str, float] = {}
+    for bucket in buckets:
+        available[bucket.bucket_type] = available.get(bucket.bucket_type, 0.0) + bucket.current_value
+    if not available and inputs.portfolio_value > 0:
+        available = {"taxable": inputs.portfolio_value}
+    withdrawals = dict.fromkeys(DEFAULT_DRAWDOWN_ORDER, 0.0)
+    remaining = inputs.annual_expenses
+    for bucket in DEFAULT_DRAWDOWN_ORDER:
+        if remaining <= 0:
+            break
+        if available and available.get(bucket, 0.0) <= 0:
+            continue
+        gross = remaining
+        withdrawals[bucket] = withdrawals.get(bucket, 0.0) + gross
+        remaining -= gross
+    tax_estimate = _federal_tax_estimate(
+        tax_context,
+        ordinary_income=withdrawals.get("pre_tax", 0.0) + withdrawals.get("governmental_457b", 0.0),
+        social_security_benefits=0.0,
+        long_term_capital_gains=withdrawals.get("taxable", 0.0) * TAXABLE_WITHDRAWAL_GAIN_RATIO,
+        primary_age=inputs.retirement_age,
+        spouse_age=(
+            inputs.spouse_age + max(0, inputs.retirement_age - inputs.primary_age)
+            if inputs.spouse_age is not None
+            else None
+        ),
+        inflation_factor=1.0,
+    )
+    penalty_estimate = sum(
+        amount * _early_withdrawal_penalty_rate(bucket, inputs.retirement_age)
+        for bucket, amount in withdrawals.items()
+    )
+    return round(inputs.annual_expenses + tax_estimate + penalty_estimate, 2)
 
 
 def _tax_assumptions(context: FederalTaxContext) -> dict[str, Any]:

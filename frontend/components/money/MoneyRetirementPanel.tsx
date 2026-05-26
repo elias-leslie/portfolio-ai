@@ -451,9 +451,9 @@ export function MoneyRetirementPanel({
 
   const drawdownRows = useMemo(
     () =>
-      (preview?.drawdownSchedule ?? [])
-        .filter((row) => row.primaryAge >= (preview?.inputs.retirementAge ?? 0))
-        .slice(0, 24),
+      (preview?.drawdownSchedule ?? []).filter(
+        (row) => row.primaryAge >= (preview?.inputs.retirementAge ?? 0),
+      ),
     [preview],
   )
 
