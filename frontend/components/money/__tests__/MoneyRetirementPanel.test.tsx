@@ -283,6 +283,7 @@ const preview: RetirementPreview = {
     expectedReturn: 0.052,
     incomeYield: 0.024,
     cashYield: 0.0328,
+    cashYieldSource: 'Fidelity SPAXX 7-day yield as of 2026-05-07',
   },
   taxAssumptions: {
     filingStatusLabel: 'Married filing jointly',
@@ -422,6 +423,12 @@ describe('MoneyRetirementPanel', () => {
     expect(screen.getByText('60%')).toBeInTheDocument()
     expect(screen.getByText('40%')).toBeInTheDocument()
     expect(screen.getByDisplayValue('3.28')).toBeInTheDocument()
+    expect(
+      screen.getByText(/success odds use total return/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Fidelity SPAXX 7-day yield as of 2026-05-07/i),
+    ).toBeInTheDocument()
   })
 
   it('lets local knobs update the preview request', async () => {
@@ -510,6 +517,15 @@ describe('MoneyRetirementPanel', () => {
     render(<MoneyRetirementPanel dashboard={savedDashboard} />)
 
     await user.click(screen.getByRole('button', { name: /expand planner/i }))
+    expect(
+      screen.getByText(/primary: rough salary estimate/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/spouse: rough salary estimate/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Replace rough salary estimates with exact SSA/i),
+    ).toBeInTheDocument()
     const salaryInput = screen.getByDisplayValue('120000')
     await user.clear(salaryInput)
     await user.type(salaryInput, '125000')

@@ -71,6 +71,7 @@ const ssa2026SecondBendPoint = 7_749
 const socialSecurityFullRetirementAge = 67
 const defaultSocialSecurityPayableRatio = 0.77
 const defaultSpaxxYieldPercent = 3.28
+const defaultSpaxxYieldSource = 'Fidelity SPAXX 7-day yield as of 2026-05-07'
 
 function preparednessVariant(status: string) {
   if (status.includes('ready') || status.includes('visible')) {
@@ -228,6 +229,14 @@ function returnAssumptionNumber(
 ) {
   const value = assumptions?.[key] ?? assumptions?.[camelAssetClassKey(key)]
   return typeof value === 'number' ? value : null
+}
+
+function returnAssumptionText(
+  assumptions: Record<string, unknown> | undefined,
+  key: string,
+) {
+  const value = assumptions?.[key] ?? assumptions?.[camelAssetClassKey(key)]
+  return typeof value === 'string' ? value : null
 }
 
 function estimateSocialSecurityMonthly(
@@ -492,6 +501,15 @@ function taxAssumptionWarnings(
     : []
 }
 
+function socialSecuritySourceLabel(
+  scheduled: number | null,
+  manualMonthly: number | null,
+) {
+  if (manualMonthly != null) return 'manual monthly estimate'
+  if (scheduled != null) return 'rough salary estimate'
+  return 'not included'
+}
+
 export function MoneyRetirementPanel({
   dashboard,
   onEditTargets,
@@ -656,6 +674,8 @@ export function MoneyRetirementPanel({
       primary:
         primaryScheduled == null ? null : primaryScheduled * payableRatio,
       spouse: spouseScheduled == null ? null : spouseScheduled * payableRatio,
+      primarySource: socialSecuritySourceLabel(primaryScheduled, primaryManual),
+      spouseSource: socialSecuritySourceLabel(spouseScheduled, spouseManual),
       primaryClaimAge,
       spouseClaimAge,
       payableRatio,
@@ -672,6 +692,9 @@ export function MoneyRetirementPanel({
   const modeledCashYield =
     returnAssumptionNumber(preview?.returnAssumptions, 'cash_yield') ??
     parseNumber(draft.cashYield, defaultSpaxxYieldPercent) / 100
+  const modeledCashYieldSource =
+    returnAssumptionText(preview?.returnAssumptions, 'cash_yield_source') ??
+    defaultSpaxxYieldSource
   const modeledTaxableIncome = returnAssumptionNumber(
     preview?.returnAssumptions,
     'estimated_taxable_income',
@@ -1052,6 +1075,18 @@ export function MoneyRetirementPanel({
               })}{' '}
               of scheduled benefits after projected trust fund depletion.
             </p>
+            <p className="mt-2 text-xs text-text-muted">
+              Social Security sources:{' '}
+              <span className="font-medium text-text">
+                primary: {socialSecurityEstimate.primarySource}
+              </span>
+              ;{' '}
+              <span className="font-medium text-text">
+                spouse: {socialSecurityEstimate.spouseSource}
+              </span>
+              . Replace rough salary estimates with exact SSA calculator values
+              for planning-grade accuracy.
+            </p>
           </>
         ) : null}
       </SectionCard>
@@ -1129,6 +1164,10 @@ export function MoneyRetirementPanel({
                     ? '—'
                     : formatPercent(modeledIncomeYield * 100, { decimals: 1 })}
                 </p>
+                <p className="mt-2 text-xs text-text-muted">
+                  Shown separately for income and tax drag; success odds use
+                  total return, so dividends and interest are not added twice.
+                </p>
               </div>
               <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
@@ -1163,6 +1202,10 @@ export function MoneyRetirementPanel({
                 <span className="mt-2 block">
                   Cash buckets and SPAXX ticker rows use{' '}
                   {formatPercent(modeledCashYield * 100, { decimals: 2 })}.
+                </span>
+                <span className="mt-2 block">
+                  Source: {modeledCashYieldSource}. This editable assumption can
+                  go stale; update it when money market yields move.
                 </span>
               </label>
             </div>
