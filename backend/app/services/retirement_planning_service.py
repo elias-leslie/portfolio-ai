@@ -213,6 +213,7 @@ class RetirementPlanningService:
         annual_expenses: float | None = None,
         annual_contribution: float | None = None,
         retirement_age: int | None = None,
+        spouse_retirement_age: int | None = None,
         horizon_years: int | None = None,
         inflation_rate: float | None = None,
         social_security_payable_ratio: float | None = None,
@@ -238,12 +239,16 @@ class RetirementPlanningService:
         if annual_contribution is None:
             annual_contribution = self._infer_annual_contribution()
         portfolio_value, allocation = self._portfolio_snapshot()
+        target_retirement_age = retirement_age or DEFAULT_RETIREMENT_AGE
+        if spouse_retirement_age is None and spouse is not None:
+            spouse_retirement_age = spouse + max(0, target_retirement_age - primary)
 
         return RetirementInputs(
             household_id=household_id,
             primary_age=primary,
             spouse_age=spouse,
-            retirement_age=retirement_age or DEFAULT_RETIREMENT_AGE,
+            retirement_age=target_retirement_age,
+            spouse_retirement_age=spouse_retirement_age,
             horizon_years=horizon_years or DEFAULT_HORIZON_YEARS,
             annual_expenses=annual_expenses,
             annual_contribution=annual_contribution,
@@ -294,7 +299,7 @@ class RetirementPlanningService:
             inflation_rate=inputs.inflation_rate,
             horizon_years=inputs.horizon_years,
             primary_age=inputs.primary_age,
-            retirement_age=inputs.retirement_age,
+            retirement_age=_household_retirement_primary_age(inputs),
             income_sources=income_streams_from_inputs(_adjusted_sim_income_sources(inputs)),
             cma=self._cma,
             trials=trials,
@@ -308,6 +313,7 @@ class RetirementPlanningService:
         annual_expenses: float | None = None,
         monthly_spend: float | None = None,
         retirement_age: int | None = None,
+        spouse_retirement_age: int | None = None,
         horizon_years: int | None = None,
         annual_contribution: float | None = None,
         inflation_rate: float | None = None,
@@ -336,6 +342,8 @@ class RetirementPlanningService:
             annual_contribution = float(monthly_savings or 0.0) * 12.0
         if retirement_age is None and profile is not None:
             retirement_age = getattr(profile, "target_retirement_age", None)
+        if spouse_retirement_age is None and profile is not None:
+            spouse_retirement_age = getattr(profile, "target_spouse_retirement_age", None)
         if horizon_years is None and profile is not None:
             horizon_years = getattr(profile, "retirement_horizon_years", None)
         if inflation_rate is None and profile is not None:
@@ -369,6 +377,7 @@ class RetirementPlanningService:
             annual_expenses=annual_expenses,
             annual_contribution=annual_contribution,
             retirement_age=retirement_age,
+            spouse_retirement_age=spouse_retirement_age,
             horizon_years=horizon_years,
             inflation_rate=inflation_rate,
             social_security_payable_ratio=social_security_payable_ratio,
@@ -431,7 +440,7 @@ class RetirementPlanningService:
                 tax_context=tax_context,
                 buckets=buckets,
             ),
-            first_depletion_age=_first_depletion_age(drawdown, inputs.retirement_age),
+            first_depletion_age=_first_depletion_age(drawdown, _household_retirement_primary_age(inputs)),
             estimated_monthly_contribution_gap=_monthly_contribution_gap(
                 inputs, annual_return=self._expected_return(inputs.asset_allocation)
             ),
@@ -698,6 +707,7 @@ class RetirementPlanningService:
         del ordinary_tax_rate, capital_gains_rate  # kept for older direct unit-call compatibility
         tax_context = tax_context or _tax_context_from_profile(None, inputs)
         annual_return = self._expected_return(inputs.asset_allocation)
+        household_retirement_age = _household_retirement_primary_age(inputs)
         balances = _bucket_balances(inputs, buckets)
         contribution_bucket = _contribution_bucket(balances)
         rows: list[RetirementDrawdownYear] = []
@@ -706,11 +716,11 @@ class RetirementPlanningService:
             if year_index > 0:
                 for bucket in list(balances):
                     balances[bucket] = max(0.0, balances[bucket] * (1.0 + annual_return))
-                if primary_age < inputs.retirement_age and inputs.annual_contribution > 0:
+                if primary_age < household_retirement_age and inputs.annual_contribution > 0:
                     balances[contribution_bucket] = balances.get(contribution_bucket, 0.0) + inputs.annual_contribution
 
             inflation_factor = (1.0 + inputs.inflation_rate) ** year_index
-            spending = inputs.annual_expenses * inflation_factor if primary_age >= inputs.retirement_age else 0.0
+            spending = inputs.annual_expenses * inflation_factor if primary_age >= household_retirement_age else 0.0
             spouse_age = inputs.spouse_age + year_index if inputs.spouse_age is not None else None
             income_components = _income_components_for_age(
                 inputs.income_sources,
@@ -783,12 +793,15 @@ class RetirementPlanningService:
         tax_context: FederalTaxContext | None = None,
         buckets: tuple[RetirementAccountBucket, ...] = (),
     ) -> tuple[RetirementLeverImpact, ...]:
+        later_update: dict[str, int] = {"retirement_age": min(inputs.retirement_age + 2, 120)}
+        if inputs.spouse_retirement_age is not None:
+            later_update["spouse_retirement_age"] = min(inputs.spouse_retirement_age + 2, 120)
         scenarios = [
             (
                 "retire_later",
-                "Retire 2 years later",
-                f"Age {min(inputs.retirement_age + 2, 120)}",
-                inputs.model_copy(update={"retirement_age": min(inputs.retirement_age + 2, 120)}),
+                "Both retire 2 years later" if inputs.spouse_retirement_age is not None else "Retire 2 years later",
+                f"Your age {later_update['retirement_age']}",
+                inputs.model_copy(update=later_update),
             ),
             (
                 "spend_less",
@@ -1204,6 +1217,7 @@ def _run_tax_aware_monte_carlo(
     cash_return = float(cma.get("asset_classes", {}).get("cash", {}).get("expected_return", 0.02) or 0.02)
     starting_balances = _bucket_balances(inputs, buckets)
     contribution_bucket = _contribution_bucket(starting_balances)
+    household_retirement_age = _household_retirement_primary_age(inputs)
     failure_year = np.full(trials, -1, dtype=np.int32)
     yearly_balances = np.empty((trials, inputs.horizon_years), dtype=np.float64)
 
@@ -1215,11 +1229,11 @@ def _run_tax_aware_monte_carlo(
             for bucket in list(balances):
                 annual_return = cash_return if bucket == "cash" else portfolio_return
                 balances[bucket] = max(0.0, balances[bucket] * (1.0 + annual_return))
-            if primary_age < inputs.retirement_age and inputs.annual_contribution > 0:
+            if primary_age < household_retirement_age and inputs.annual_contribution > 0:
                 balances[contribution_bucket] = balances.get(contribution_bucket, 0.0) + inputs.annual_contribution
 
             inflation_factor = (1.0 + inputs.inflation_rate) ** year_index
-            spending = inputs.annual_expenses * inflation_factor if primary_age >= inputs.retirement_age else 0.0
+            spending = inputs.annual_expenses * inflation_factor if primary_age >= household_retirement_age else 0.0
             spouse_age = inputs.spouse_age + year_index if inputs.spouse_age is not None else None
             income_components = _income_components_for_age(
                 inputs.income_sources,
@@ -1301,6 +1315,7 @@ def _tax_adjusted_annual_expenses(
 ) -> float:
     if inputs.annual_expenses <= 0:
         return 0.0
+    household_retirement_age = _household_retirement_primary_age(inputs)
     available: dict[str, float] = {}
     for bucket in buckets:
         available[bucket.bucket_type] = available.get(bucket.bucket_type, 0.0) + bucket.current_value
@@ -1321,16 +1336,16 @@ def _tax_adjusted_annual_expenses(
         ordinary_income=withdrawals.get("pre_tax", 0.0) + withdrawals.get("governmental_457b", 0.0),
         social_security_benefits=0.0,
         long_term_capital_gains=withdrawals.get("taxable", 0.0) * TAXABLE_WITHDRAWAL_GAIN_RATIO,
-        primary_age=inputs.retirement_age,
+        primary_age=household_retirement_age,
         spouse_age=(
-            inputs.spouse_age + max(0, inputs.retirement_age - inputs.primary_age)
+            inputs.spouse_age + max(0, household_retirement_age - inputs.primary_age)
             if inputs.spouse_age is not None
             else None
         ),
         inflation_factor=1.0,
     )
     penalty_estimate = sum(
-        amount * _early_withdrawal_penalty_rate(bucket, inputs.retirement_age)
+        amount * _early_withdrawal_penalty_rate(bucket, household_retirement_age)
         for bucket, amount in withdrawals.items()
     )
     return round(inputs.annual_expenses + tax_estimate + penalty_estimate, 2)
@@ -1430,6 +1445,19 @@ def _social_security_payable_ratio(value: float | None) -> float:
     if parsed > 1.0:
         parsed /= 100.0
     return max(0.0, min(parsed, 1.0))
+
+
+def _spouse_retirement_primary_age(inputs: RetirementInputs) -> int | None:
+    if inputs.spouse_retirement_age is None or inputs.spouse_age is None:
+        return None
+    return inputs.primary_age + max(0, inputs.spouse_retirement_age - inputs.spouse_age)
+
+
+def _household_retirement_primary_age(inputs: RetirementInputs) -> int:
+    spouse_primary_age = _spouse_retirement_primary_age(inputs)
+    if spouse_primary_age is None:
+        return inputs.retirement_age
+    return max(inputs.retirement_age, spouse_primary_age)
 
 
 def _contribution_bucket(balances: dict[str, float]) -> str:
@@ -1709,7 +1737,7 @@ def _monthly_contribution_gap(
     *,
     annual_return: float,
 ) -> float:
-    years_to_retire = max(inputs.retirement_age - inputs.primary_age, 1)
+    years_to_retire = max(_household_retirement_primary_age(inputs) - inputs.primary_age, 1)
     target_assets = inputs.annual_expenses * 25.0
     growth = (1.0 + annual_return) ** years_to_retire
     if annual_return > 0:

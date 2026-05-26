@@ -23,7 +23,7 @@ class HouseholdProfileService:
                 SELECT id, household_name, adult_count, dependent_count,
                        monthly_net_income_target, monthly_essential_target,
                        monthly_discretionary_target, monthly_savings_target,
-                       target_retirement_age, target_retirement_spend,
+                       target_retirement_age, target_spouse_retirement_age, target_retirement_spend,
                        retirement_inflation_rate, retirement_horizon_years,
                        primary_social_security_monthly, spouse_social_security_monthly,
                        primary_social_security_annual_earnings, spouse_social_security_annual_earnings,

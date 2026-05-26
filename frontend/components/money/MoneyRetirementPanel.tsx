@@ -109,6 +109,26 @@ function bucketMapValue(values: Record<string, number>, bucket: string) {
   return values[bucket] ?? 0
 }
 
+function householdRetirementAge(
+  inputs:
+    | {
+        primaryAge: number
+        spouseAge: number | null
+        retirementAge: number
+        spouseRetirementAge?: number | null
+      }
+    | undefined,
+) {
+  if (!inputs) return 0
+  if (inputs.spouseAge == null || inputs.spouseRetirementAge == null) {
+    return inputs.retirementAge
+  }
+  const spousePrimaryAge =
+    inputs.primaryAge +
+    Math.max(0, inputs.spouseRetirementAge - inputs.spouseAge)
+  return Math.max(inputs.retirementAge, spousePrimaryAge)
+}
+
 function numberInput(value: number | null | undefined, fallback = '') {
   return value == null ? fallback : String(Math.round(value))
 }
@@ -269,10 +289,17 @@ function defaultDraft(dashboard: HouseholdFinanceDashboard) {
     6000
   const ages = householdAges(dashboard)
   const socialSecurity = socialSecurityDefaults(dashboard)
+  const primaryRetirementAge = dashboard.profile.targetRetirementAge ?? 65
+  const spouseRetirementAge =
+    dashboard.profile.targetSpouseRetirementAge ??
+    (ages.primaryAge != null && ages.spouseAge != null
+      ? ages.spouseAge + Math.max(0, primaryRetirementAge - ages.primaryAge)
+      : primaryRetirementAge)
   return {
     primaryAge: numberInput(ages.primaryAge, ''),
     spouseAge: numberInput(ages.spouseAge, ''),
-    retirementAge: numberInput(dashboard.profile.targetRetirementAge, '65'),
+    retirementAge: numberInput(primaryRetirementAge, '65'),
+    spouseRetirementAge: numberInput(spouseRetirementAge, '65'),
     monthlySpend: numberInput(monthlySpend, '6000'),
     monthlyContribution: numberInput(
       dashboard.profile.monthlySavingsTarget ??
@@ -298,6 +325,7 @@ function buildRequest(
   return {
     householdId,
     retirementAge: parseNumber(draft.retirementAge, 65),
+    spouseRetirementAge: parseOptionalNumber(draft.spouseRetirementAge),
     monthlySpend: parseNumber(draft.monthlySpend, 6000),
     annualContribution: parseNumber(draft.monthlyContribution, 0) * 12,
     inflationRate: parseNumber(draft.inflationRate, 2.5) / 100,
@@ -383,6 +411,7 @@ export function MoneyRetirementPanel({
   const updateProfile = useUpdateHouseholdProfile()
   const previewQuery = useRetirementPreview(request)
   const preview = previewQuery.data
+  const fullRetirementAge = householdRetirementAge(preview?.inputs)
   const preparedness = dashboard.retirementPreparedness
   const taxWarnings = taxAssumptionWarnings(preview?.taxAssumptions)
 
@@ -429,7 +458,7 @@ export function MoneyRetirementPanel({
   const withdrawalData = useMemo(
     () =>
       (preview?.drawdownSchedule ?? [])
-        .filter((row) => row.primaryAge >= (preview?.inputs.retirementAge ?? 0))
+        .filter((row) => row.primaryAge >= fullRetirementAge)
         .slice(0, 30)
         .map((row) => ({
           age: row.primaryAge,
@@ -444,7 +473,7 @@ export function MoneyRetirementPanel({
           roth: bucketMapValue(row.withdrawalsByBucket, 'roth'),
           other: bucketMapValue(row.withdrawalsByBucket, 'other'),
         })),
-    [preview],
+    [preview, fullRetirementAge],
   )
 
   const bucketTotals = useMemo(() => {
@@ -463,9 +492,9 @@ export function MoneyRetirementPanel({
   const drawdownRows = useMemo(
     () =>
       (preview?.drawdownSchedule ?? []).filter(
-        (row) => row.primaryAge >= (preview?.inputs.retirementAge ?? 0),
+        (row) => row.primaryAge >= fullRetirementAge,
       ),
-    [preview],
+    [preview, fullRetirementAge],
   )
 
   const socialSecurityEstimate = useMemo(() => {
@@ -517,6 +546,7 @@ export function MoneyRetirementPanel({
   const saveDraftDefaults = async () => {
     const profileUpdate: HouseholdProfileUpdate = {
       targetRetirementAge: parseNumber(draft.retirementAge, 65),
+      targetSpouseRetirementAge: parseOptionalNumber(draft.spouseRetirementAge),
       targetRetirementSpend: parseNumber(draft.monthlySpend, 6000),
       monthlySavingsTarget: parseNumber(draft.monthlyContribution, 0),
       retirementInflationRate: parseNumber(draft.inflationRate, 2.5) / 100,
@@ -592,7 +622,7 @@ export function MoneyRetirementPanel({
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Retire age
+              Your retire age
             </p>
             <Input
               className="mt-2"
@@ -600,6 +630,19 @@ export function MoneyRetirementPanel({
               value={draft.retirementAge}
               onChange={(event) =>
                 updateDraft('retirementAge', event.target.value)
+              }
+            />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+              Spouse retire age
+            </p>
+            <Input
+              className="mt-2"
+              inputMode="numeric"
+              value={draft.spouseRetirementAge}
+              onChange={(event) =>
+                updateDraft('spouseRetirementAge', event.target.value)
               }
             />
           </div>
@@ -779,6 +822,9 @@ export function MoneyRetirementPanel({
             />
           </div>
         </div>
+        <p className="mt-3 text-xs text-text-muted">
+          Drawdown starts when both are retired: your age {fullRetirementAge}.
+        </p>
         <p className="mt-3 text-xs text-text-muted">
           Social Security included:{' '}
           <span className="font-mono text-text">

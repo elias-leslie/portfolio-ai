@@ -835,6 +835,47 @@ def test_drawdown_applies_social_security_payable_ratio_after_depletion_year() -
     assert rows[1].income == 9_240.0
 
 
+def test_drawdown_starts_when_later_spouse_retirement_age_arrives() -> None:
+    service = _make_service(_StubConn())
+    inputs = RetirementInputs(
+        household_id="hh-spouse-retire",
+        primary_age=50,
+        spouse_age=44,
+        retirement_age=50,
+        spouse_retirement_age=55,
+        horizon_years=12,
+        annual_expenses=72_000.0,
+        annual_contribution=12_000.0,
+        portfolio_value=200_000.0,
+        asset_allocation={"cash": 1.0},
+        income_sources=(),
+        inflation_rate=0.0,
+        as_of_date=date(2026, 5, 26),
+    )
+
+    rows = service._drawdown_schedule(
+        inputs,
+        buckets=(
+            RetirementAccountBucket(
+                bucket_type="taxable",
+                label="Brokerage",
+                account_type="brokerage",
+                tax_treatment="taxable_capital_gains_estimate",
+                current_value=200_000.0,
+                withdrawal_priority=2,
+            ),
+        ),
+    )
+
+    assert rows[0].primary_age == 50
+    assert rows[0].spending_need == 0.0
+    assert rows[10].primary_age == 60
+    assert rows[10].spending_need == 0.0
+    assert rows[11].primary_age == 61
+    assert rows[11].spending_need == 72_000.0
+    assert rows[11].gross_withdrawal > 0
+
+
 def test_drawdown_schedule_applies_pre_tax_rmd_estimate() -> None:
     service = _make_service(_StubConn())
     inputs = RetirementInputs(

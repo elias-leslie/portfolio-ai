@@ -54,6 +54,7 @@ export interface HouseholdProfile {
   monthlyDiscretionaryTarget: number | null
   monthlySavingsTarget: number | null
   targetRetirementAge: number | null
+  targetSpouseRetirementAge?: number | null
   targetRetirementSpend: number | null
   retirementInflationRate?: number | null
   retirementHorizonYears?: number | null
@@ -313,6 +314,7 @@ export interface RetirementPreviewRequest {
   annualContribution?: number | null
   monthlySpend?: number | null
   retirementAge?: number | null
+  spouseRetirementAge?: number | null
   horizonYears?: number | null
   inflationRate?: number | null
   primaryAge?: number | null
@@ -333,6 +335,7 @@ export interface RetirementInputs {
   primaryAge: number
   spouseAge: number | null
   retirementAge: number
+  spouseRetirementAge?: number | null
   horizonYears: number
   annualExpenses: number
   annualContribution: number
@@ -767,6 +770,7 @@ export interface HouseholdProfileUpdate {
   monthlyDiscretionaryTarget?: number | null
   monthlySavingsTarget?: number | null
   targetRetirementAge?: number | null
+  targetSpouseRetirementAge?: number | null
   targetRetirementSpend?: number | null
   retirementInflationRate?: number | null
   retirementHorizonYears?: number | null

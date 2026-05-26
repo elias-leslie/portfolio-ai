@@ -50,6 +50,7 @@ class RetirementInputs(BaseModel):
     primary_age: int = Field(..., ge=0, le=120)
     spouse_age: int | None = Field(None, ge=0, le=120)
     retirement_age: int = Field(..., ge=18, le=120)
+    spouse_retirement_age: int | None = Field(None, ge=18, le=120)
     horizon_years: int = Field(30, ge=1, le=70)
     annual_expenses: float = Field(..., ge=0.0)
     annual_contribution: float = Field(0.0, ge=0.0)

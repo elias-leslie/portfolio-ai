@@ -172,9 +172,17 @@ const assumptionFields: AssumptionFieldDef[] = [
   {
     fieldName: 'target_retirement_age',
     profileKey: 'targetRetirementAge',
-    label: 'Target retirement age',
+    label: 'Your retirement age',
     type: 'integer',
     hint: 'The age Jenny should use for preparedness framing.',
+    placeholder: '60',
+  },
+  {
+    fieldName: 'target_spouse_retirement_age',
+    profileKey: 'targetSpouseRetirementAge',
+    label: 'Spouse retirement age',
+    type: 'integer',
+    hint: 'Spouse work-stop age for retirement preview timing.',
     placeholder: '60',
   },
   {

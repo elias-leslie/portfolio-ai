@@ -130,6 +130,7 @@ class HouseholdProfile(BaseModel):
     monthly_discretionary_target: float | None = None
     monthly_savings_target: float | None = None
     target_retirement_age: int | None = None
+    target_spouse_retirement_age: int | None = None
     target_retirement_spend: float | None = None
     retirement_inflation_rate: float | None = None
     retirement_horizon_years: int | None = None
@@ -161,6 +162,7 @@ class HouseholdProfileUpdate(BaseModel):
     monthly_discretionary_target: float | None = None
     monthly_savings_target: float | None = None
     target_retirement_age: int | None = None
+    target_spouse_retirement_age: int | None = None
     target_retirement_spend: float | None = None
     retirement_inflation_rate: float | None = None
     retirement_horizon_years: int | None = None
