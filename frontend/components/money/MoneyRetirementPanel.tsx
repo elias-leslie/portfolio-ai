@@ -672,6 +672,14 @@ export function MoneyRetirementPanel({
   const modeledCashYield =
     returnAssumptionNumber(preview?.returnAssumptions, 'cash_yield') ??
     parseNumber(draft.cashYield, defaultSpaxxYieldPercent) / 100
+  const modeledTaxableIncome = returnAssumptionNumber(
+    preview?.returnAssumptions,
+    'estimated_taxable_income',
+  )
+  const modeledTaxDrag = returnAssumptionNumber(
+    preview?.returnAssumptions,
+    'estimated_income_tax_drag',
+  )
 
   const applyDraft = () => {
     setRequest(
@@ -1099,7 +1107,7 @@ export function MoneyRetirementPanel({
                 {previewQuery.isFetching ? 'Running…' : 'Run preview'}
               </Button>
             </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
               <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
                   Modeled return
@@ -1120,6 +1128,26 @@ export function MoneyRetirementPanel({
                   {modeledIncomeYield == null
                     ? '—'
                     : formatPercent(modeledIncomeYield * 100, { decimals: 1 })}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Taxable income
+                </p>
+                <p className="mt-2 font-mono text-2xl text-text">
+                  {modeledTaxableIncome == null
+                    ? '—'
+                    : formatCurrency(modeledTaxableIncome, { decimals: 0 })}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Income tax drag
+                </p>
+                <p className="mt-2 font-mono text-2xl text-text">
+                  {modeledTaxDrag == null
+                    ? '—'
+                    : formatCurrency(modeledTaxDrag, { decimals: 0 })}
                 </p>
               </div>
               <label className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4 text-xs text-text-muted">

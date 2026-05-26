@@ -640,9 +640,26 @@ def test_return_assumptions_use_ticker_income_yields() -> None:
             {"symbol": "SCHD", "weight": 50, "dividend_yield": 3.6},
             {"symbol": "SPAXX", "weight": 50},
         ],
+        tax_context=_tax_context_from_profile(
+            SimpleNamespace(filing_status="married_filing_jointly", state_of_residence="FL"),
+            inputs,
+        ),
+        buckets=(
+            RetirementAccountBucket(
+                bucket_type="taxable",
+                label="Taxable",
+                account_type="brokerage",
+                tax_treatment="taxable_capital_gains_estimate",
+                current_value=1_000_000.0,
+                withdrawal_priority=2,
+            ),
+        ),
+        baseline_ordinary_income=180_000.0,
     )
 
     assert assumptions["income_yield"] == pytest.approx((0.036 + 0.0328) / 2)
+    assert assumptions["estimated_taxable_income"] > 0
+    assert assumptions["estimated_income_tax_drag"] > 0
     assert assumptions["holding_income_yields"][0]["source"] == "user"
     assert assumptions["holding_income_yields"][1]["source"] == "cash_yield"
 

@@ -454,6 +454,22 @@ class RetirementPlanningService:
                 ),
             )
 
+        return_allocation_holdings = allocation_holdings
+        if not asset_allocation and not allocation_holdings:
+            return_allocation_holdings = self._current_income_holdings(
+                cash_value=sum(
+                    bucket.current_value for bucket in buckets if bucket.bucket_type == "cash"
+                )
+            )
+        baseline_ordinary_income = sum(
+            float(value or 0.0)
+            for value in (
+                primary_social_security_annual_earnings,
+                spouse_social_security_annual_earnings,
+            )
+            if value is not None and value > 0
+        )
+
         tax_context = _tax_context_from_profile(profile, inputs)
         sim = self.run_simulation(inputs, trials=trials, seed=seed, tax_context=tax_context, buckets=buckets)
         drawdown = self._drawdown_schedule(
@@ -477,7 +493,10 @@ class RetirementPlanningService:
             tax_assumptions=_tax_assumptions(tax_context, buckets=buckets, inputs=inputs),
             return_assumptions=self._return_assumptions(
                 inputs,
-                allocation_holdings=allocation_holdings,
+                allocation_holdings=return_allocation_holdings,
+                tax_context=tax_context,
+                buckets=buckets,
+                baseline_ordinary_income=baseline_ordinary_income,
             ),
             drawdown_schedule=tuple(drawdown),
             lever_impacts=self._lever_impacts(
@@ -836,6 +855,9 @@ class RetirementPlanningService:
         inputs: RetirementInputs,
         *,
         allocation_holdings: list[Any] | tuple[Any, ...] | None = None,
+        tax_context: FederalTaxContext | None = None,
+        buckets: tuple[RetirementAccountBucket, ...] = (),
+        baseline_ordinary_income: float = 0.0,
     ) -> dict[str, Any]:
         cash_yield = _cash_yield(inputs.cash_yield)
         holding_yields = self._holding_income_yields(allocation_holdings or (), cash_yield)
@@ -845,20 +867,41 @@ class RetirementPlanningService:
             )
         else:
             income_yield = _income_yield(inputs.asset_allocation, cash_yield)
+        tax_drag = _income_tax_drag_estimate(
+            inputs,
+            income_yield=income_yield,
+            holding_yields=holding_yields,
+            tax_context=tax_context,
+            buckets=buckets,
+            baseline_ordinary_income=baseline_ordinary_income,
+        )
         return {
             "expected_return": round(self._expected_return(inputs.asset_allocation, cash_yield), 6),
             "income_yield": round(income_yield, 6),
             "cash_yield": round(cash_yield, 6),
             "cash_yield_source": DEFAULT_SPAXX_CASH_YIELD_SOURCE,
             "holding_income_yields": holding_yields,
+            **tax_drag,
         }
+
+    def _current_income_holdings(self, *, cash_value: float = 0.0) -> list[dict[str, Any]]:
+        price_mod = import_module("app.portfolio.price_fetcher")
+        price_fetcher = price_mod.PriceDataFetcher(self.storage)
+        rows = [
+            {"symbol": holding["symbol"], "weight": holding["current_value"]}
+            for holding in self._holdings(price_fetcher)
+            if float(holding.get("current_value") or 0.0) > 0
+        ]
+        if cash_value > 0:
+            rows.append({"symbol": "SPAXX", "weight": cash_value})
+        return rows
 
     def _holding_income_yields(
         self,
         holdings: list[Any] | tuple[Any, ...],
         cash_yield: float,
     ) -> list[dict[str, Any]]:
-        weighted_rows: list[tuple[str, float, float, str]] = []
+        weighted_rows: list[tuple[str, float, float, str, str]] = []
         total_weight = 0.0
         for holding in holdings:
             symbol = str(_holding_field(holding, "symbol") or "").upper().strip()
@@ -873,7 +916,8 @@ class RetirementPlanningService:
                 source = "user"
             else:
                 income_yield, source = self._income_yield_for_symbol(symbol, cash_yield)
-            weighted_rows.append((symbol, weight, income_yield, source))
+            tax_category = _income_tax_category(symbol)
+            weighted_rows.append((symbol, weight, income_yield, source, tax_category))
             total_weight += weight
         if total_weight <= 0:
             return []
@@ -883,8 +927,9 @@ class RetirementPlanningService:
                 "weight": round(weight / total_weight, 6),
                 "income_yield": round(income_yield, 6),
                 "source": source,
+                "tax_category": tax_category,
             }
-            for symbol, weight, income_yield, source in weighted_rows
+            for symbol, weight, income_yield, source, tax_category in weighted_rows
         ]
 
     def _income_yield_for_symbol(self, symbol: str, cash_yield: float) -> tuple[float, str]:
@@ -1359,6 +1404,122 @@ def _income_yield(allocation: dict[str, float], cash_yield: float | None) -> flo
     if total_weight <= 0:
         return 0.0
     return total / total_weight
+
+
+def _income_tax_drag_estimate(
+    inputs: RetirementInputs,
+    *,
+    income_yield: float,
+    holding_yields: list[dict[str, Any]],
+    tax_context: FederalTaxContext | None,
+    buckets: tuple[RetirementAccountBucket, ...],
+    baseline_ordinary_income: float = 0.0,
+) -> dict[str, Any]:
+    tax_context = tax_context or _tax_context_from_profile(None, inputs)
+    total_value = sum(float(bucket.current_value or 0.0) for bucket in buckets) or inputs.portfolio_value
+    if total_value <= 0 or income_yield <= 0:
+        return _empty_tax_drag()
+    taxable_value = sum(
+        float(bucket.current_value or 0.0)
+        for bucket in buckets
+        if bucket.bucket_type in {"cash", "taxable"}
+    )
+    if not buckets:
+        taxable_value = inputs.portfolio_value
+    taxable_share = max(0.0, min(taxable_value / total_value, 1.0))
+    if taxable_share <= 0:
+        return _empty_tax_drag(taxable_asset_share=0.0)
+
+    rows = holding_yields or _asset_class_income_yield_rows(inputs.asset_allocation, inputs.cash_yield)
+    ordinary_income = 0.0
+    qualified_income = 0.0
+    for row in rows:
+        weight = float(row.get("weight") or 0.0)
+        row_yield = float(row.get("income_yield") or 0.0)
+        amount = total_value * taxable_share * weight * row_yield
+        if row.get("tax_category") == "qualified_dividend":
+            qualified_income += amount
+        else:
+            ordinary_income += amount
+
+    taxable_income = ordinary_income + qualified_income
+    base_tax = _federal_tax_estimate(
+        tax_context,
+        ordinary_income=max(0.0, baseline_ordinary_income),
+        social_security_benefits=0.0,
+        long_term_capital_gains=0.0,
+        primary_age=inputs.primary_age,
+        spouse_age=inputs.spouse_age,
+        inflation_factor=1.0,
+    )
+    tax_with_income = _federal_tax_estimate(
+        tax_context,
+        ordinary_income=max(0.0, baseline_ordinary_income) + ordinary_income,
+        social_security_benefits=0.0,
+        long_term_capital_gains=qualified_income,
+        primary_age=inputs.primary_age,
+        spouse_age=inputs.spouse_age,
+        inflation_factor=1.0,
+    )
+    tax = max(0.0, tax_with_income - base_tax)
+    return {
+        "taxable_asset_share": round(taxable_share, 6),
+        "estimated_taxable_income": round(taxable_income, 2),
+        "estimated_ordinary_income": round(ordinary_income, 2),
+        "estimated_qualified_dividends": round(qualified_income, 2),
+        "estimated_income_tax_drag": round(tax, 2),
+        "estimated_income_tax_drag_rate": round(tax / taxable_income, 6) if taxable_income > 0 else 0.0,
+        "baseline_ordinary_income": round(max(0.0, baseline_ordinary_income), 2),
+        "income_tax_drag_method": (
+            "Incremental federal estimate on taxable-account interest/dividends over entered current salary; "
+            "retirement withdrawals and Social Security are modeled separately."
+        ),
+    }
+
+
+def _empty_tax_drag(taxable_asset_share: float = 0.0) -> dict[str, Any]:
+    return {
+        "taxable_asset_share": taxable_asset_share,
+        "estimated_taxable_income": 0.0,
+        "estimated_ordinary_income": 0.0,
+        "estimated_qualified_dividends": 0.0,
+        "estimated_income_tax_drag": 0.0,
+        "estimated_income_tax_drag_rate": 0.0,
+        "baseline_ordinary_income": 0.0,
+        "income_tax_drag_method": "No taxable income drag estimated.",
+    }
+
+
+def _asset_class_income_yield_rows(
+    allocation: dict[str, float],
+    cash_yield: float | None,
+) -> list[dict[str, Any]]:
+    yields = {**INCOME_YIELD_BY_ASSET_CLASS, "cash": _cash_yield(cash_yield)}
+    return [
+        {
+            "asset_class": asset_class,
+            "weight": float(weight or 0.0),
+            "income_yield": float(yields.get(asset_class, 0.0)),
+            "source": "asset_class_default",
+            "tax_category": _income_tax_category_for_asset_class(asset_class),
+        }
+        for asset_class, weight in allocation.items()
+        if float(weight or 0.0) > 0
+    ]
+
+
+def _income_tax_category(symbol: str) -> str:
+    if symbol in CASH_EQUIVALENT_SYMBOLS:
+        return "ordinary_income"
+    ac_mod = import_module("app.portfolio.asset_classification")
+    asset_class = ac_mod.ASSET_CLASS_BY_SYMBOL.get(symbol, "us_equity")
+    return _income_tax_category_for_asset_class(asset_class)
+
+
+def _income_tax_category_for_asset_class(asset_class: str) -> str:
+    if asset_class in {"us_equity", "intl_equity"}:
+        return "qualified_dividend"
+    return "ordinary_income"
 
 
 def _apply_tax_aware_withdrawals(
