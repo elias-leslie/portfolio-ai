@@ -25,6 +25,7 @@ import { Switch } from '@/components/ui/switch'
 import type { DataFreshnessDetail } from '@/lib/api/health'
 import type { ScannerFanoutSettings } from '@/lib/api/preferences'
 import { useLiveFreshness, useRefreshAllFreshness } from '@/lib/hooks/useHealth'
+import { useHouseholdDashboard } from '@/lib/hooks/useHousehold'
 import {
   usePreferences,
   useScannerFanoutSettings,
@@ -93,6 +94,38 @@ function sortDetails(details: DataFreshnessDetail[]) {
       detail.isCritical ? 0 : detail.isStale ? 1 : 2
     return rank(a) - rank(b) || a.tableName.localeCompare(b.tableName)
   })
+}
+
+function accountControlTone(status: string | undefined) {
+  switch (status) {
+    case 'clear':
+      return { label: 'Clear', variant: 'success' as const }
+    case 'blocked':
+      return { label: 'Blocked', variant: 'error' as const }
+    case 'review':
+      return { label: 'Review', variant: 'warning' as const }
+    default:
+      return { label: 'Unknown', variant: 'secondary' as const }
+  }
+}
+
+function accountControlMessage(accountControl: {
+  status: string
+  summary: string
+  issueCount: number
+  blockingIssueCount: number
+}) {
+  if (accountControl.blockingIssueCount > 0) {
+    return `${accountControl.blockingIssueCount} account source issue${
+      accountControl.blockingIssueCount === 1 ? '' : 's'
+    } can affect totals. Fix before trusting Money and retirement totals.`
+  }
+  if (accountControl.issueCount > 0) {
+    return `${accountControl.issueCount} account source review item${
+      accountControl.issueCount === 1 ? '' : 's'
+    }. Totals use one controlled value per account, so duplicate source rows are not counted twice.`
+  }
+  return accountControl.summary
 }
 
 function shouldKickFirstOpenRefresh(
@@ -287,6 +320,7 @@ export function FreshnessStatusBadge() {
   const [open, setOpen] = useState(false)
   const freshness = useLiveFreshness()
   const refreshAll = useRefreshAllFreshness()
+  const householdDashboard = useHouseholdDashboard({ enabled: open })
   const { data: preferences } = usePreferences()
   const updatePreferences = useUpdatePreferences()
   const tone = statusTone(
@@ -302,6 +336,8 @@ export function FreshnessStatusBadge() {
     ? String(pollSeconds)
     : '300'
   const autoRefreshEnabled = pollSeconds > 0
+  const accountControl = householdDashboard.data?.accountControl
+  const accountControlStatus = accountControlTone(accountControl?.status)
 
   useEffect(() => {
     if (!preferences || !freshness.data || refreshAll.isPending) return
@@ -384,6 +420,22 @@ export function FreshnessStatusBadge() {
               <p className="text-text-muted">Overdue</p>
             </div>
           </div>
+
+          {accountControl ? (
+            <div className="mt-4 rounded-md border border-border/35 bg-background/20 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-text">
+                  Money account controls
+                </p>
+                <Badge variant={accountControlStatus.variant}>
+                  {accountControlStatus.label}
+                </Badge>
+              </div>
+              <p className="mt-1 text-[11px] text-text-muted">
+                {accountControlMessage(accountControl)}
+              </p>
+            </div>
+          ) : null}
 
           <div className="mt-4 max-h-56 space-y-2 overflow-y-auto pr-1">
             {details.map((detail) => (

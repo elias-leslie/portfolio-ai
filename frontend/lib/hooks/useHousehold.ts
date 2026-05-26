@@ -87,12 +87,13 @@ async function watchUploadedDocument(
   return latest
 }
 
-export function useHouseholdDashboard() {
+export function useHouseholdDashboard(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['household', 'dashboard'],
     queryFn: ({ signal }) => fetchHouseholdDashboard({ signal }),
     staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
     refetchOnWindowFocus: false,
+    enabled: options?.enabled ?? true,
   })
 }
 

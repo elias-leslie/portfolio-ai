@@ -488,7 +488,11 @@ describe('MoneyRetirementPanel', () => {
     expect(screen.getByText('Sensitivity checks')).toBeInTheDocument()
     expect(screen.queryByText('25x checkpoint')).not.toBeInTheDocument()
     expect(screen.queryByText(/save gap \/ month/i)).not.toBeInTheDocument()
-    expect(screen.getByText('Data confidence')).toBeInTheDocument()
+    expect(screen.queryByText('Account buckets')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/current planner buckets/i),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Data confidence')).not.toBeInTheDocument()
     expect(screen.queryByText('Tax assumptions')).not.toBeInTheDocument()
     expect(screen.queryByText('Tax model')).not.toBeInTheDocument()
     expect(screen.queryByText('Married filing jointly')).not.toBeInTheDocument()
