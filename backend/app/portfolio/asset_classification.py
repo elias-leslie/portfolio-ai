@@ -62,6 +62,11 @@ ASSET_CLASS_BY_SYMBOL: dict[str, AssetClass] = {
     "SPY": "us_equity",
     "IVV": "us_equity",
     "QQQ": "us_equity",
+    "SCHD": "us_equity",
+    "VYM": "us_equity",
+    "DGRO": "us_equity",
+    "HDV": "us_equity",
+    "JEPI": "us_equity",
     "VTV": "us_equity",
     "VUG": "us_equity",
     "VBR": "us_equity",
@@ -96,6 +101,10 @@ ASSET_CLASS_BY_SYMBOL: dict[str, AssetClass] = {
     "BIL": "cash",
     "SHV": "cash",
     "SGOV": "cash",
+    "SPAXX": "cash",
+    "FDRXX": "cash",
+    "VMFXX": "cash",
+    "SWVXX": "cash",
 }
 
 # Mapping from yfinance fund_lookthrough's ``asset_classes`` keys to
@@ -156,8 +165,8 @@ class AssetClassifier:
         if not usable:
             return ValueByClass(total_value=0.0, by_class={}, unclassified_value=0.0)
 
-        symbols = sorted({h.symbol for h in usable})
-        profiles = get_fund_lookthroughs(symbols, self.storage) if self.storage else {}
+        symbols = sorted({h.symbol for h in usable if h.symbol not in ASSET_CLASS_BY_SYMBOL})
+        profiles = get_fund_lookthroughs(symbols, self.storage) if self.storage and symbols else {}
 
         by_class: dict[str, float] = dict.fromkeys(ASSET_CLASSES, 0.0)
         for holding in usable:

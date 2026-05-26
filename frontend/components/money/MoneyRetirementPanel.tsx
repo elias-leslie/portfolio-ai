@@ -19,6 +19,7 @@ import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import type {
   HouseholdFinanceDashboard,
   HouseholdProfileUpdate,
@@ -55,6 +56,15 @@ const bucketOrder = [
   'roth',
   'other',
 ]
+const allocationClasses = [
+  { key: 'us_equity', label: 'US stocks' },
+  { key: 'intl_equity', label: 'Intl stocks' },
+  { key: 'bonds', label: 'Bonds' },
+  { key: 'cash', label: 'Cash / SPAXX' },
+  { key: 'real_estate', label: 'Real estate' },
+  { key: 'alts', label: 'Alts' },
+] as const
+type AllocationMode = 'current' | 'classes' | 'tickers'
 const ssa2026TaxableWageBase = 184_500
 const ssa2026FirstBendPoint = 1_286
 const ssa2026SecondBendPoint = 7_749
@@ -146,6 +156,51 @@ function parseNumber(value: string, fallback: number) {
 function parseOptionalNumber(value: string) {
   const parsed = Number(value)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+function parsePercentValue(value: string) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+}
+
+function allocationDraftFromPreview(
+  allocation: Record<string, number> | undefined,
+) {
+  return Object.fromEntries(
+    allocationClasses.map(({ key }) => [
+      key,
+      allocation?.[key] == null
+        ? '0'
+        : String(Math.round(allocation[key] * 1000) / 10),
+    ]),
+  ) as Record<(typeof allocationClasses)[number]['key'], string>
+}
+
+function allocationFromDraft(
+  draft: Record<(typeof allocationClasses)[number]['key'], string>,
+) {
+  const entries = allocationClasses
+    .map(({ key }) => [key, parsePercentValue(draft[key])] as const)
+    .filter(([, value]) => value > 0)
+  const total = entries.reduce((sum, [, value]) => sum + value, 0)
+  if (total <= 0) return null
+  return Object.fromEntries(entries.map(([key, value]) => [key, value / total]))
+}
+
+function parseTickerMix(value: string) {
+  const rows = value
+    .split(/\n|,/)
+    .map((row) => row.trim())
+    .filter(Boolean)
+    .map((row) => {
+      const [symbol, rawWeight] = row.split(/[:=\s]+/)
+      return {
+        symbol: (symbol ?? '').toUpperCase(),
+        weight: parsePercentValue(rawWeight ?? ''),
+      }
+    })
+    .filter((row) => row.symbol && row.weight > 0)
+  return rows.length > 0 ? rows : null
 }
 
 function estimateSocialSecurityMonthly(
@@ -321,9 +376,20 @@ function defaultDraft(dashboard: HouseholdFinanceDashboard) {
 function buildRequest(
   householdId: string,
   draft: ReturnType<typeof defaultDraft>,
+  allocationMode: AllocationMode = 'current',
+  allocationDraft?: Record<(typeof allocationClasses)[number]['key'], string>,
+  tickerMix = '',
 ): RetirementPreviewRequest {
+  const assetAllocation =
+    allocationMode === 'classes' && allocationDraft
+      ? allocationFromDraft(allocationDraft)
+      : null
+  const allocationHoldings =
+    allocationMode === 'tickers' ? parseTickerMix(tickerMix) : null
   return {
     householdId,
+    assetAllocation,
+    allocationHoldings,
     retirementAge: parseNumber(draft.retirementAge, 65),
     spouseRetirementAge: parseOptionalNumber(draft.spouseRetirementAge),
     monthlySpend: parseNumber(draft.monthlySpend, 6000),
@@ -405,6 +471,12 @@ export function MoneyRetirementPanel({
   onEditTargets?: () => void
 }) {
   const [draft, setDraft] = useState(() => defaultDraft(dashboard))
+  const [allocationMode, setAllocationMode] =
+    useState<AllocationMode>('current')
+  const [allocationDraft, setAllocationDraft] = useState(() =>
+    allocationDraftFromPreview(undefined),
+  )
+  const [tickerMix, setTickerMix] = useState('VTI 80\nBND 10\nSPAXX 10')
   const [request, setRequest] = useState<RetirementPreviewRequest>(() =>
     buildRequest(dashboard.profile.id, defaultDraft(dashboard)),
   )
@@ -418,6 +490,8 @@ export function MoneyRetirementPanel({
   useEffect(() => {
     const nextDraft = defaultDraft(dashboard)
     setDraft(nextDraft)
+    setAllocationMode('current')
+    setAllocationDraft(allocationDraftFromPreview(undefined))
     setRequest(buildRequest(dashboard.profile.id, nextDraft))
   }, [dashboard])
 
@@ -489,6 +563,20 @@ export function MoneyRetirementPanel({
       .filter((row) => row.value > 0)
   }, [preview?.accountBuckets])
 
+  const allocationRows = useMemo(
+    () =>
+      allocationClasses.map(({ key, label }) => ({
+        key,
+        label,
+        value: preview?.inputs.assetAllocation[key] ?? 0,
+      })),
+    [preview?.inputs.assetAllocation],
+  )
+  const allocationDraftTotal = allocationClasses.reduce(
+    (sum, { key }) => sum + parsePercentValue(allocationDraft[key]),
+    0,
+  )
+
   const drawdownRows = useMemo(
     () =>
       (preview?.drawdownSchedule ?? []).filter(
@@ -540,7 +628,15 @@ export function MoneyRetirementPanel({
   }, [draft])
 
   const applyDraft = () => {
-    setRequest(buildRequest(dashboard.profile.id, draft))
+    setRequest(
+      buildRequest(
+        dashboard.profile.id,
+        draft,
+        allocationMode,
+        allocationDraft,
+        tickerMix,
+      ),
+    )
   }
 
   const saveDraftDefaults = async () => {
@@ -576,11 +672,33 @@ export function MoneyRetirementPanel({
         ) / 100,
     }
     await updateProfile.mutateAsync(profileUpdate)
-    setRequest(buildRequest(dashboard.profile.id, draft))
+    setRequest(
+      buildRequest(
+        dashboard.profile.id,
+        draft,
+        allocationMode,
+        allocationDraft,
+        tickerMix,
+      ),
+    )
   }
 
   const updateDraft = (key: keyof typeof draft, value: string) => {
     setDraft((current) => ({ ...current, [key]: value }))
+  }
+
+  const updateAllocationDraft = (
+    key: (typeof allocationClasses)[number]['key'],
+    value: string,
+  ) => {
+    setAllocationDraft((current) => ({ ...current, [key]: value }))
+  }
+
+  const useCurrentAllocation = () => {
+    setAllocationMode('classes')
+    setAllocationDraft(
+      allocationDraftFromPreview(preview?.inputs.assetAllocation),
+    )
   }
 
   return (
@@ -847,6 +965,123 @@ export function MoneyRetirementPanel({
           })}{' '}
           of scheduled benefits after projected trust fund depletion.
         </p>
+      </SectionCard>
+
+      <SectionCard
+        variant="surface"
+        title="Allocation sandbox"
+        description="Run the retirement model against current holdings, an asset-class mix, or a ticker basket like VTI / BND / SPAXX."
+      >
+        <div className="flex flex-wrap gap-2">
+          {[
+            ['current', 'Current portfolio'],
+            ['classes', 'Asset classes'],
+            ['tickers', 'Ticker basket'],
+          ].map(([mode, label]) => (
+            <Button
+              key={mode}
+              type="button"
+              size="sm"
+              variant={allocationMode === mode ? 'default' : 'outline'}
+              onClick={() => setAllocationMode(mode as AllocationMode)}
+            >
+              {label}
+            </Button>
+          ))}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={useCurrentAllocation}
+          >
+            Copy current to sliders
+          </Button>
+        </div>
+        <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+              Modeled allocation
+            </p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {allocationRows.map((row) => (
+                <div
+                  key={row.key}
+                  className="flex items-center justify-between rounded-xl border border-border/25 px-3 py-2 text-sm"
+                >
+                  <span className="text-text-muted">{row.label}</span>
+                  <span className="font-mono text-text">
+                    {formatPercent(row.value * 100, { decimals: 0 })}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-text-muted">
+              VTI, VOO, SPY, SCHD, VYM, DGRO, JEPI and common stocks map to US
+              stocks; SPAXX/FDRXX/VMFXX/SWVXX map to cash.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+            {allocationMode === 'classes' ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                    Asset-class weights
+                  </p>
+                  <p className="font-mono text-xs text-text-muted">
+                    Total {Math.round(allocationDraftTotal)}%
+                  </p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {allocationClasses.map((assetClass) => (
+                    <label
+                      key={assetClass.key}
+                      className="text-xs text-text-muted"
+                    >
+                      {assetClass.label}
+                      <Input
+                        className="mt-1"
+                        inputMode="decimal"
+                        value={allocationDraft[assetClass.key]}
+                        onChange={(event) =>
+                          updateAllocationDraft(
+                            assetClass.key,
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-text-muted">
+                  Percentages are normalized automatically when you run the
+                  preview.
+                </p>
+              </div>
+            ) : allocationMode === 'tickers' ? (
+              <div className="space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Ticker weights
+                </p>
+                <Textarea
+                  value={tickerMix}
+                  onChange={(event) => setTickerMix(event.target.value)}
+                  rows={6}
+                  placeholder={'VTI 70\nSCHD 10\nBND 10\nSPAXX 10'}
+                />
+                <p className="text-xs text-text-muted">
+                  Enter one symbol and percentage per line. Unknown tickers fall
+                  back to US stocks in this coarse retirement model.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-border/40 p-4 text-sm text-text-muted">
+                Current portfolio mode uses live holdings and fund
+                classification. Switch modes, then Run preview, to compare a
+                what-if allocation.
+              </div>
+            )}
+          </div>
+        </div>
       </SectionCard>
 
       {previewQuery.error ? (

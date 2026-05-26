@@ -386,6 +386,7 @@ describe('MoneyRetirementPanel', () => {
     expect(screen.getAllByText('Roth').length).toBeGreaterThan(0)
     expect(screen.getByText('Tax model')).toBeInTheDocument()
     expect(screen.getByText('Married filing jointly')).toBeInTheDocument()
+    expect(screen.getByText('Allocation sandbox')).toBeInTheDocument()
     expect(screen.getByText('Retire 2 years later')).toBeInTheDocument()
     expect(screen.getByText('Drawdown schedule')).toBeInTheDocument()
     expect(screen.getByText('$18,000')).toBeInTheDocument()
@@ -413,6 +414,38 @@ describe('MoneyRetirementPanel', () => {
         retirementAge: 66,
         primaryAge: 49,
         spouseAge: 43,
+      }),
+    )
+  })
+
+  it('sends ticker allocation what-ifs to the preview request', async () => {
+    const user = userEvent.setup()
+    usePreviewMock.mockReturnValue({
+      data: preview,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    await user.click(screen.getByRole('button', { name: /ticker basket/i }))
+    const tickerInput = screen.getByDisplayValue(/VTI 80/)
+    await user.clear(tickerInput)
+    await user.type(
+      tickerInput,
+      'VTI 70{enter}SCHD 10{enter}BND 10{enter}SPAXX 10',
+    )
+    await user.click(screen.getByRole('button', { name: /run preview/i }))
+
+    expect(usePreviewMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        allocationHoldings: [
+          { symbol: 'VTI', weight: 70 },
+          { symbol: 'SCHD', weight: 10 },
+          { symbol: 'BND', weight: 10 },
+          { symbol: 'SPAXX', weight: 10 },
+        ],
       }),
     )
   })

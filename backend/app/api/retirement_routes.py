@@ -52,6 +52,11 @@ def _service() -> RetirementPlanningService:
     return RetirementPlanningService(_storage())
 
 
+class AllocationHoldingRequest(BaseModel):
+    symbol: str = Field(..., min_length=1, max_length=16)
+    weight: float = Field(..., ge=0.0)
+
+
 class RunScenarioRequest(BaseModel):
     household_id: str = Field(..., min_length=1, max_length=64)
     name: str | None = Field(None, max_length=128)
@@ -59,6 +64,8 @@ class RunScenarioRequest(BaseModel):
     seed: int | None = Field(None)
     annual_expenses: float | None = Field(None, ge=0.0)
     annual_contribution: float | None = Field(None, ge=0.0)
+    asset_allocation: dict[str, float] | None = None
+    allocation_holdings: list[AllocationHoldingRequest] | None = None
     retirement_age: int | None = Field(None, ge=18, le=120)
     spouse_retirement_age: int | None = Field(None, ge=18, le=120)
     horizon_years: int | None = Field(None, ge=1, le=70)
@@ -89,6 +96,8 @@ async def run_scenario(payload: RunScenarioRequest) -> dict[str, Any]:
             payload.household_id,
             annual_expenses=payload.annual_expenses,
             annual_contribution=payload.annual_contribution,
+            asset_allocation=payload.asset_allocation,
+            allocation_holdings=payload.allocation_holdings,
             retirement_age=payload.retirement_age,
             spouse_retirement_age=payload.spouse_retirement_age,
             horizon_years=payload.horizon_years,
@@ -118,6 +127,8 @@ async def preview(payload: PreviewRequest) -> dict[str, Any]:
             payload.household_id,
             annual_expenses=payload.annual_expenses,
             monthly_spend=payload.monthly_spend,
+            asset_allocation=payload.asset_allocation,
+            allocation_holdings=payload.allocation_holdings,
             retirement_age=payload.retirement_age,
             spouse_retirement_age=payload.spouse_retirement_age,
             horizon_years=payload.horizon_years,

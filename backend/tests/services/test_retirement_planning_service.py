@@ -444,6 +444,7 @@ def test_build_inputs_uses_caller_overrides(
     inputs = service.build_inputs(
         "hh-override",
         annual_expenses=50_000.0,
+        asset_allocation={"us_equity": 80, "cash": 20},
         retirement_age=70,
         horizon_years=25,
         as_of_date=date(2026, 5, 9),
@@ -451,6 +452,7 @@ def test_build_inputs_uses_caller_overrides(
     assert inputs.annual_expenses == 50_000.0
     assert inputs.retirement_age == 70
     assert inputs.horizon_years == 25
+    assert inputs.asset_allocation == {"us_equity": 0.8, "cash": 0.2}
 
 
 def test_run_simulation_caps_trials(monkeypatch: pytest.MonkeyPatch) -> None:

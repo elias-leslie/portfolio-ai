@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 
+from app.portfolio import asset_classification
 from app.portfolio.asset_classification import AssetClassifier, HoldingValue
 from app.portfolio.contracts.ips import IPSScope, IPSTarget
 from app.portfolio.ips import (
@@ -319,7 +320,25 @@ def test_classifier_primary_class_for_explicit_symbol() -> None:
     classifier = AssetClassifier(storage=None)
     assert classifier.primary_class("BND") == "bonds"
     assert classifier.primary_class("VXUS") == "intl_equity"
+    assert classifier.primary_class("SPAXX") == "cash"
     assert classifier.primary_class("ZZZ") == "unclassified"
+
+
+def test_classifier_skips_lookthrough_for_explicit_symbols(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail_lookthrough(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("explicit symbols should not need fund look-through")
+
+    monkeypatch.setattr(asset_classification, "get_fund_lookthroughs", fail_lookthrough)
+    classifier = AssetClassifier(storage=_FakeStorage())
+    out = classifier.classify_value(
+        [
+            HoldingValue(symbol="VTI", value=70.0),
+            HoldingValue(symbol="SCHD", value=10.0),
+            HoldingValue(symbol="BND", value=10.0),
+            HoldingValue(symbol="SPAXX", value=10.0),
+        ]
+    )
+    assert out.by_class == {"us_equity": 80.0, "bonds": 10.0, "cash": 10.0}
 
 
 # ----------------------------------------------------------------------

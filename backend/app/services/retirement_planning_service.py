@@ -212,6 +212,8 @@ class RetirementPlanningService:
         *,
         annual_expenses: float | None = None,
         annual_contribution: float | None = None,
+        asset_allocation: dict[str, float] | None = None,
+        allocation_holdings: list[Any] | tuple[Any, ...] | None = None,
         retirement_age: int | None = None,
         spouse_retirement_age: int | None = None,
         horizon_years: int | None = None,
@@ -239,6 +241,10 @@ class RetirementPlanningService:
         if annual_contribution is None:
             annual_contribution = self._infer_annual_contribution()
         portfolio_value, allocation = self._portfolio_snapshot()
+        if allocation_holdings:
+            allocation = self._allocation_from_holding_weights(allocation_holdings)
+        elif asset_allocation:
+            allocation = _normalized_asset_allocation(asset_allocation, self._cma)
         target_retirement_age = retirement_age or DEFAULT_RETIREMENT_AGE
         if spouse_retirement_age is None and spouse is not None:
             spouse_retirement_age = spouse + max(0, target_retirement_age - primary)
@@ -312,6 +318,8 @@ class RetirementPlanningService:
         *,
         annual_expenses: float | None = None,
         monthly_spend: float | None = None,
+        asset_allocation: dict[str, float] | None = None,
+        allocation_holdings: list[Any] | tuple[Any, ...] | None = None,
         retirement_age: int | None = None,
         spouse_retirement_age: int | None = None,
         horizon_years: int | None = None,
@@ -376,6 +384,8 @@ class RetirementPlanningService:
             household_id,
             annual_expenses=annual_expenses,
             annual_contribution=annual_contribution,
+            asset_allocation=asset_allocation,
+            allocation_holdings=allocation_holdings,
             retirement_age=retirement_age,
             spouse_retirement_age=spouse_retirement_age,
             horizon_years=horizon_years,
@@ -872,6 +882,25 @@ class RetirementPlanningService:
             weights[klass] = round(value_f / total, 6)
         return round(total, 2), weights
 
+    def _allocation_from_holding_weights(self, holdings: list[Any] | tuple[Any, ...]) -> dict[str, float]:
+        ac_mod = import_module("app.portfolio.asset_classification")
+        classifier = ac_mod.AssetClassifier(self.storage)
+        weighted_holdings = []
+        for holding in holdings:
+            symbol = str(_holding_field(holding, "symbol") or "").upper().strip()
+            weight = float(_holding_field(holding, "weight") or 0.0)
+            if not symbol or weight <= 0:
+                continue
+            weighted_holdings.append(ac_mod.HoldingValue(symbol=symbol, value=weight))
+        if not weighted_holdings:
+            return {}
+        bucketed = classifier.classify_value(weighted_holdings)
+        weights = dict(bucketed.by_class)
+        unclassified = float(weights.pop("unclassified", 0.0) or 0.0)
+        if unclassified > 0:
+            weights["us_equity"] = weights.get("us_equity", 0.0) + unclassified
+        return _normalized_asset_allocation(weights, self._cma)
+
     def _holdings(self, price_fetcher: Any) -> list[dict[str, Any]]:
         with self.storage.connection() as conn:
             rows = conn.execute(
@@ -1098,6 +1127,32 @@ def _bucket_balances(
     if sum(balances.values()) <= 0 and inputs.portfolio_value > 0:
         balances["taxable"] = inputs.portfolio_value
     return balances
+
+
+def _holding_field(holding: Any, field: str) -> Any:
+    if isinstance(holding, dict):
+        return holding.get(field)
+    return getattr(holding, field, None)
+
+
+def _normalized_asset_allocation(
+    allocation: dict[str, float],
+    cma: dict[str, Any],
+) -> dict[str, float]:
+    asset_classes = cma.get("asset_classes", {})
+    cleaned: dict[str, float] = {}
+    for asset_class, raw_weight in allocation.items():
+        key = str(asset_class or "").strip()
+        if key not in asset_classes:
+            continue
+        weight = float(raw_weight or 0.0)
+        if weight <= 0:
+            continue
+        cleaned[key] = cleaned.get(key, 0.0) + (weight / 100.0 if weight > 1.0 else weight)
+    total = sum(cleaned.values())
+    if total <= 0:
+        return {}
+    return {asset_class: round(weight / total, 6) for asset_class, weight in cleaned.items()}
 
 
 def _apply_tax_aware_withdrawals(

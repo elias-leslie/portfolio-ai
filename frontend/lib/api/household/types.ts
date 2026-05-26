@@ -312,6 +312,8 @@ export interface RetirementPreviewRequest {
   seed?: number | null
   annualExpenses?: number | null
   annualContribution?: number | null
+  assetAllocation?: Record<string, number> | null
+  allocationHoldings?: Array<{ symbol: string; weight: number }> | null
   monthlySpend?: number | null
   retirementAge?: number | null
   spouseRetirementAge?: number | null
