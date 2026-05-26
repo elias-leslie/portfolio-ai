@@ -476,7 +476,9 @@ def _resolve_evidence_matches(
         else _tracked_label(tracked_account) if tracked_account is not None
         else sel.account_label
     )
-    effective_account_type = sel.display.account_type
+    effective_account_type = (
+        tracked_account.account_type if tracked_account is not None else sel.display.account_type
+    )
     effective_money_role = _money_role(effective_asset_group, effective_account_type, effective_label)
     if sel.closed_zero_balance:
         effective_money_role = "net_worth_only"

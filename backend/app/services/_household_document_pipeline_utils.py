@@ -20,7 +20,20 @@ _SOURCE_DOCUMENT_TYPES = {
 _BANK_ACCOUNT_TYPES = frozenset({"bank", "checking", "savings"})
 _BROKERAGE_ACCOUNT_TYPES = frozenset({"brokerage", "529"})
 _RETIREMENT_ACCOUNT_TYPES = frozenset(
-    {"retirement", "ira", "roth_ira", "401k", "403b", "403_b", "457b", "457_b", "pension"}
+    {
+        "retirement",
+        "ira",
+        "roth",
+        "roth_ira",
+        "roth_401k",
+        "roth_403b",
+        "401k",
+        "403b",
+        "403_b",
+        "457b",
+        "457_b",
+        "pension",
+    }
 )
 _TRANSACTION_ACTIVITY_TERMS = (
     "activity",

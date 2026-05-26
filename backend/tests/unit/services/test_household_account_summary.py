@@ -1565,7 +1565,7 @@ def test_build_account_summaries_locked_match_key_does_not_absorb_sibling_retire
                 id="tracked-403b",
                 label="Pinellas County Schools 403(b) Plan",
                 asset_group="retirement",
-                account_type="roth",
+                account_type="roth_403b",
                 source_type="retirement",
                 match_key="evidence|pinellas county schools|pinellas county schools 403(b) plan|retirement",
                 institution_name="Pinellas County Schools",
@@ -1583,7 +1583,7 @@ def test_build_account_summaries_locked_match_key_does_not_absorb_sibling_retire
     assert len(summaries) == 2
     by_label = {summary.label: summary for summary in summaries}
     assert by_label["Pinellas County Schools 403(b) Plan"].tracked_account_id == "tracked-403b"
-    assert by_label["Pinellas County Schools 403(b) Plan"].account_type == "retirement"
+    assert by_label["Pinellas County Schools 403(b) Plan"].account_type == "roth_403b"
     assert by_label["Pinellas County Schools · Pinellas County Schools 457(b) Deferred Compensation Plan"].tracked_account_id is None
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from contextlib import contextmanager
 from unittest.mock import Mock
 
@@ -429,8 +430,71 @@ def test_update_account_preserves_linked_identity_fields_but_allows_owner_change
     assert params[0] == "Pinellas 403(b)"
     assert params[1] == "Wrong Owner"
     assert params[2] == "Renamed for display"
-    assert params[4] == "acct-1"
+    assert params[3] == "{}"
+    assert params[5] == "acct-1"
     service._ensure_unique_identity.assert_not_called()
+    fake_service.account_registry_service.sync_registry.assert_called_once_with(fake_service, limit=500)
+
+
+def test_update_account_stores_account_type_override_for_linked_canonical_account() -> None:
+    service = HouseholdTrackedAccountService()
+    existing = _tracked_account(
+        account_id="acct-403b",
+        household_account_id="household-403b",
+        label="Pinellas County Schools 403(b) Plan",
+        asset_group="retirement",
+        account_type="401k",
+        source_type="retirement",
+        match_key="identity::pinellas|403b",
+        institution_name="Pinellas County Schools",
+    )
+    updated = _tracked_account(
+        account_id="acct-403b",
+        household_account_id="household-403b",
+        label="Pinellas County Schools 403(b) Plan",
+        asset_group="retirement",
+        account_type="roth_403b",
+        source_type="retirement",
+        match_key="identity::pinellas|403b",
+        institution_name="Pinellas County Schools",
+    )
+    connection = _FakeConnection()
+    fake_service = Mock()
+    fake_service.storage = _FakeStorage(connection)
+    fake_service.account_registry_service.sync_registry = Mock()
+    service.get_account = Mock(side_effect=[existing, updated])  # type: ignore[method-assign]
+    service._get_canonical_account = Mock(  # type: ignore[method-assign]
+        return_value={
+            "id": "household-403b",
+            "primary_identity_key": "identity::pinellas|403b",
+            "canonical_label": "Pinellas County Schools 403(b) Plan",
+            "asset_group": "retirement",
+            "account_type": "401k",
+            "source_type": "retirement",
+            "institution_name": "Pinellas County Schools",
+            "owner_name": None,
+            "account_mask": None,
+        }
+    )
+
+    payload = HouseholdTrackedAccountInput(
+        household_account_id="household-403b",
+        label="Pinellas County Schools 403(b) Plan",
+        asset_group="retirement",
+        account_type="roth_403b",
+        source_type="retirement",
+        match_key="identity::pinellas|403b",
+        institution_name="Pinellas County Schools",
+        notes=None,
+    )
+
+    result = service.update_account(fake_service, "acct-403b", payload)
+
+    assert result == updated
+    _, params = connection.calls[0]
+    assert params is not None
+    assert json.loads(str(params[3])) == {"account_type_override": "roth_403b"}
+    assert params[5] == "acct-403b"
     fake_service.account_registry_service.sync_registry.assert_called_once_with(fake_service, limit=500)
 
 
@@ -488,5 +552,6 @@ def test_update_account_allows_display_owner_change_for_linked_accounts() -> Non
     assert params[0] == "Prime Visa"
     assert params[1] == "Elias"
     assert params[2] == "Updated display name only"
-    assert params[4] == "acct-2"
+    assert params[3] == "{}"
+    assert params[5] == "acct-2"
     service._ensure_unique_identity.assert_not_called()

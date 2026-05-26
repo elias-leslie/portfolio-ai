@@ -55,6 +55,10 @@ const ACCOUNT_TYPE_OPTIONS: Record<string, { value: string; label: string }[]> =
       { value: 'ira', label: 'IRA' },
       { value: 'roth', label: 'Roth IRA' },
       { value: '401k', label: '401(k)' },
+      { value: 'roth_401k', label: 'Roth 401(k)' },
+      { value: '403b', label: '403(b)' },
+      { value: 'roth_403b', label: 'Roth 403(b)' },
+      { value: '457b', label: '457(b)' },
       { value: 'hsa', label: 'HSA' },
     ],
     taxable: [{ value: 'brokerage', label: 'Brokerage' }],
@@ -153,6 +157,8 @@ export function TrackedAccountDialog({
     account && identityManagedByCanonicalAccount(account),
   )
   const showIdentityFields = !identityLocked
+  const showCanonicalTypeOverride =
+    identityLocked && form.assetGroup === 'retirement'
 
   const dialogTitle = isEditing
     ? 'Edit account'
@@ -290,6 +296,35 @@ export function TrackedAccountDialog({
                 </div>
               </div>
             </>
+          ) : null}
+
+          {showCanonicalTypeOverride ? (
+            <div className="grid gap-2">
+              <Label htmlFor="money-account-type-override">
+                Retirement account type
+              </Label>
+              <Select
+                value={form.accountType}
+                onValueChange={(accountType) =>
+                  setForm((current) => ({ ...current, accountType }))
+                }
+              >
+                <SelectTrigger id="money-account-type-override">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {accountTypeOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Use this when imported evidence identifies the account family
+                but misses tax treatment, such as Roth vs pre-tax 403(b).
+              </p>
+            </div>
           ) : null}
 
           <div className="grid gap-2">

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -48,7 +49,7 @@ class HouseholdTrackedAccountService:
                     p.household_account_id,
                     COALESCE(NULLIF(p.display_label, ''), a.canonical_label) AS label,
                     a.asset_group,
-                    a.account_type,
+                    COALESCE(NULLIF(p.metadata->>'account_type_override', ''), a.account_type) AS account_type,
                     a.source_type,
                     a.primary_identity_key AS match_key,
                     a.institution_name,
@@ -96,6 +97,7 @@ class HouseholdTrackedAccountService:
                 service,
                 account=account,
                 household_account_id=household_account_id,
+                canonical=canonical,
             )
 
         household_account_id = self._ensure_canonical_account(service, account=account)
@@ -103,6 +105,7 @@ class HouseholdTrackedAccountService:
             service,
             account=account,
             household_account_id=household_account_id,
+            canonical=None,
         )
 
     def _insert_account(
@@ -111,20 +114,23 @@ class HouseholdTrackedAccountService:
         *,
         account: dict[str, str | None],
         household_account_id: str,
+        canonical: dict[str, str | None] | None,
     ) -> HouseholdTrackedAccount:
         account_id = str(uuid.uuid4())
         now = datetime.now(UTC).isoformat()
+        metadata = self._preference_metadata(account, canonical=canonical)
         with service.storage.connection() as conn:
             conn.execute(
                 """
                 INSERT INTO household_account_preferences (
                     id, household_account_id, display_label, display_owner_name,
-                    notes, created_at, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    notes, metadata, created_at, updated_at
+                ) VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, %s)
                 ON CONFLICT (household_account_id) DO UPDATE
                 SET display_label = EXCLUDED.display_label,
                     display_owner_name = EXCLUDED.display_owner_name,
                     notes = EXCLUDED.notes,
+                    metadata = EXCLUDED.metadata,
                     hidden_at = NULL,
                     updated_at = EXCLUDED.updated_at
                 """,
@@ -134,6 +140,7 @@ class HouseholdTrackedAccountService:
                     account["label"],
                     account["owner_name"],
                     account["notes"],
+                    json.dumps(metadata),
                     now,
                     now,
                 ],
@@ -155,9 +162,11 @@ class HouseholdTrackedAccountService:
         if existing is None:
             return None
         account = self._normalize_payload(payload)
+        preference_metadata: dict[str, str] = {}
         if existing.household_account_id:
             canonical = self._get_canonical_account(service, existing.household_account_id)
             if canonical is not None:
+                preference_metadata = self._preference_metadata(account, canonical=canonical)
                 account = self._lock_account_to_canonical(account, canonical=canonical)
             else:
                 account["asset_group"] = existing.asset_group
@@ -183,6 +192,7 @@ class HouseholdTrackedAccountService:
                 SET display_label = %s,
                     display_owner_name = %s,
                     notes = %s,
+                    metadata = %s::jsonb,
                     hidden_at = NULL,
                     updated_at = %s
                 WHERE id = %s
@@ -191,6 +201,7 @@ class HouseholdTrackedAccountService:
                     account["label"],
                     account["owner_name"],
                     account["notes"],
+                    json.dumps(preference_metadata),
                     datetime.now(UTC).isoformat(),
                     account_id,
                 ],
@@ -219,7 +230,7 @@ class HouseholdTrackedAccountService:
                     p.household_account_id,
                     COALESCE(NULLIF(p.display_label, ''), a.canonical_label) AS label,
                     a.asset_group,
-                    a.account_type,
+                    COALESCE(NULLIF(p.metadata->>'account_type_override', ''), a.account_type) AS account_type,
                     a.source_type,
                     a.primary_identity_key AS match_key,
                     a.institution_name,
@@ -251,7 +262,7 @@ class HouseholdTrackedAccountService:
                     p.household_account_id,
                     COALESCE(NULLIF(p.display_label, ''), a.canonical_label) AS label,
                     a.asset_group,
-                    a.account_type,
+                    COALESCE(NULLIF(p.metadata->>'account_type_override', ''), a.account_type) AS account_type,
                     a.source_type,
                     a.primary_identity_key AS match_key,
                     a.institution_name,
@@ -424,6 +435,20 @@ class HouseholdTrackedAccountService:
             "owner_name": str(row[7]) if row[7] is not None else None,
             "account_mask": str(row[8]) if row[8] is not None else None,
         }
+
+    def _preference_metadata(
+        self,
+        account: dict[str, str | None],
+        *,
+        canonical: dict[str, str | None] | None,
+    ) -> dict[str, str]:
+        if canonical is None:
+            return {}
+        account_type = clean_text(account.get("account_type"))
+        canonical_type = clean_text(canonical.get("account_type"))
+        if account_type and canonical_type and account_type.lower() != canonical_type.lower():
+            return {"account_type_override": account_type}
+        return {}
 
     def _lock_account_to_canonical(
         self,
