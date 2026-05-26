@@ -18,6 +18,7 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import yaml
 
 from app.logging_config import get_logger
@@ -32,7 +33,11 @@ from app.portfolio.contracts.retirement import (
     ScenarioSummary,
 )
 from app.services._retirement_simulation import (
+    PERCENTILE_KEYS,
+    SEQUENCE_OF_RETURNS_HORIZON,
     SimulationOutputs,
+    _covariance_matrix,
+    _normalize_allocation,
     income_streams_from_inputs,
     run_monte_carlo,
 )
@@ -163,6 +168,15 @@ class FederalTaxContext:
     state_tax_source: str
 
 
+@dataclass(frozen=True, slots=True)
+class WithdrawalOutcome:
+    withdrawals: dict[str, float]
+    tax_estimate: float
+    penalty_estimate: float
+    rmd_amount: float
+    shortfall: float
+
+
 def load_cma(path: Path | None = None) -> dict[str, Any]:
     """Load the long-term return estimates YAML.
 
@@ -253,6 +267,15 @@ class RetirementPlanningService:
         """Run the Monte Carlo without persisting; pure compute."""
         trials = max(1, min(trials, MAX_TRIALS))
         tax_context = tax_context or _tax_context_from_profile(None, inputs)
+        if buckets:
+            return _run_tax_aware_monte_carlo(
+                inputs,
+                tax_context=tax_context,
+                buckets=buckets,
+                cma=self._cma,
+                trials=trials,
+                seed=seed,
+            )
         tax_adjusted_expenses = _tax_adjusted_annual_expenses(
             inputs,
             tax_context=tax_context,
@@ -388,7 +411,7 @@ class RetirementPlanningService:
             percentiles=sim.percentiles,
             ending_balance_paths=sim.ending_balance_paths,
             account_buckets=buckets,
-            tax_assumptions=_tax_assumptions(tax_context),
+            tax_assumptions=_tax_assumptions(tax_context, buckets=buckets),
             drawdown_schedule=tuple(drawdown),
             lever_impacts=self._lever_impacts(
                 inputs,
@@ -665,12 +688,7 @@ class RetirementPlanningService:
         del ordinary_tax_rate, capital_gains_rate  # kept for older direct unit-call compatibility
         tax_context = tax_context or _tax_context_from_profile(None, inputs)
         annual_return = self._expected_return(inputs.asset_allocation)
-        balances = dict.fromkeys(DEFAULT_DRAWDOWN_ORDER, 0.0)
-        for bucket in buckets:
-            balances[bucket.bucket_type] = balances.get(bucket.bucket_type, 0.0) + bucket.current_value
-        if sum(balances.values()) <= 0 and inputs.portfolio_value > 0:
-            balances["taxable"] = inputs.portfolio_value
-
+        balances = _bucket_balances(inputs, buckets)
         contribution_bucket = _contribution_bucket(balances)
         rows: list[RetirementDrawdownYear] = []
         for year_index in range(inputs.horizon_years):
@@ -690,94 +708,19 @@ class RetirementPlanningService:
                 inflation_factor=inflation_factor,
             )
             income = income_components["total"]
-            withdrawals = dict.fromkeys(DEFAULT_DRAWDOWN_ORDER, 0.0)
-
-            def tax_for(
-                candidate_withdrawals: dict[str, float],
-                *,
-                income_components: dict[str, float] = income_components,
-                primary_age: int = primary_age,
-                spouse_age: int | None = spouse_age,
-                inflation_factor: float = inflation_factor,
-            ) -> float:
-                ordinary_withdrawals = candidate_withdrawals.get("pre_tax", 0.0) + candidate_withdrawals.get(
-                    "governmental_457b", 0.0
-                )
-                taxable_gains = candidate_withdrawals.get("taxable", 0.0) * TAXABLE_WITHDRAWAL_GAIN_RATIO
-                return _federal_tax_estimate(
-                    tax_context,
-                    ordinary_income=income_components["ordinary"] + ordinary_withdrawals,
-                    social_security_benefits=income_components["social_security"],
-                    long_term_capital_gains=taxable_gains,
-                    primary_age=primary_age,
-                    spouse_age=spouse_age,
-                    inflation_factor=inflation_factor,
-                )
-
-            def penalty_for(
-                candidate_withdrawals: dict[str, float],
-                *,
-                primary_age: int = primary_age,
-            ) -> float:
-                return sum(
-                    amount * _early_withdrawal_penalty_rate(bucket, primary_age)
-                    for bucket, amount in candidate_withdrawals.items()
-                )
-
-            def surplus_cash(
-                candidate_withdrawals: dict[str, float],
-                *,
-                income: float = income,
-                spending: float = spending,
-            ) -> float:
-                gross_withdrawals = sum(candidate_withdrawals.values())
-                return income + gross_withdrawals - tax_for(candidate_withdrawals) - penalty_for(candidate_withdrawals) - spending
-
-            rmd_amount = _rmd_amount(
-                balances.get("pre_tax", 0.0) + balances.get("governmental_457b", 0.0),
-                primary_age,
+            outcome = _apply_tax_aware_withdrawals(
+                balances,
+                spending=spending,
+                income_components=income_components,
+                primary_age=primary_age,
+                spouse_age=spouse_age,
+                inflation_factor=inflation_factor,
+                tax_context=tax_context,
             )
-            if rmd_amount > 0:
-                remaining_rmd = rmd_amount
-                for rmd_bucket in ("pre_tax", "governmental_457b"):
-                    if remaining_rmd <= 0:
-                        break
-                    gross = min(balances.get(rmd_bucket, 0.0), remaining_rmd)
-                    if gross <= 0:
-                        continue
-                    balances[rmd_bucket] -= gross
-                    withdrawals[rmd_bucket] += gross
-                    remaining_rmd -= gross
-
-            for bucket in DEFAULT_DRAWDOWN_ORDER:
-                if surplus_cash(withdrawals) >= 0:
-                    break
-                available = balances.get(bucket, 0.0)
-                if available <= 0:
-                    continue
-                candidate = dict(withdrawals)
-                candidate[bucket] = candidate.get(bucket, 0.0) + available
-                if surplus_cash(candidate) < 0:
-                    gross = available
-                else:
-                    low = 0.0
-                    high = available
-                    for _ in range(24):
-                        midpoint = (low + high) / 2.0
-                        candidate = dict(withdrawals)
-                        candidate[bucket] = candidate.get(bucket, 0.0) + midpoint
-                        if surplus_cash(candidate) >= 0:
-                            high = midpoint
-                        else:
-                            low = midpoint
-                    gross = high
-                balances[bucket] = available - gross
-                withdrawals[bucket] += gross
+            withdrawals = outcome.withdrawals
 
             ending_balance = round(sum(balances.values()), 2)
             gross_withdrawal = round(sum(withdrawals.values()), 2)
-            tax_estimate = tax_for(withdrawals)
-            penalty_estimate = penalty_for(withdrawals)
             rows.append(
                 RetirementDrawdownYear(
                     year_index=year_index,
@@ -786,15 +729,15 @@ class RetirementPlanningService:
                     spending_need=round(spending, 2),
                     income=round(income, 2),
                     gross_withdrawal=gross_withdrawal,
-                    tax_estimate=round(tax_estimate, 2),
-                    penalty_estimate=round(penalty_estimate, 2),
+                    tax_estimate=round(outcome.tax_estimate, 2),
+                    penalty_estimate=round(outcome.penalty_estimate, 2),
                     net_withdrawal=round(
-                        max(0.0, gross_withdrawal - tax_estimate - penalty_estimate),
+                        max(0.0, gross_withdrawal - outcome.tax_estimate - outcome.penalty_estimate),
                         2,
                     ),
                     ending_balance=ending_balance,
-                    rmd_amount=round(rmd_amount, 2),
-                    rmd_applied=rmd_amount > 0,
+                    rmd_amount=round(outcome.rmd_amount, 2),
+                    rmd_applied=outcome.rmd_amount > 0,
                     withdrawals_by_bucket={k: round(v, 2) for k, v in withdrawals.items()},
                     balances_by_bucket={k: round(v, 2) for k, v in balances.items()},
                 )
@@ -1119,6 +1062,201 @@ def _tax_context_from_profile(profile: Any, inputs: RetirementInputs) -> Federal
     )
 
 
+def _bucket_balances(
+    inputs: RetirementInputs,
+    buckets: tuple[RetirementAccountBucket, ...],
+) -> dict[str, float]:
+    balances = dict.fromkeys(DEFAULT_DRAWDOWN_ORDER, 0.0)
+    for bucket in buckets:
+        balances[bucket.bucket_type] = balances.get(bucket.bucket_type, 0.0) + bucket.current_value
+    if sum(balances.values()) <= 0 and inputs.portfolio_value > 0:
+        balances["taxable"] = inputs.portfolio_value
+    return balances
+
+
+def _apply_tax_aware_withdrawals(
+    balances: dict[str, float],
+    *,
+    spending: float,
+    income_components: dict[str, float],
+    primary_age: int,
+    spouse_age: int | None,
+    inflation_factor: float,
+    tax_context: FederalTaxContext,
+) -> WithdrawalOutcome:
+    withdrawals = dict.fromkeys(DEFAULT_DRAWDOWN_ORDER, 0.0)
+
+    def tax_for(candidate_withdrawals: dict[str, float]) -> float:
+        ordinary_withdrawals = candidate_withdrawals.get("pre_tax", 0.0) + candidate_withdrawals.get(
+            "governmental_457b", 0.0
+        )
+        taxable_gains = candidate_withdrawals.get("taxable", 0.0) * TAXABLE_WITHDRAWAL_GAIN_RATIO
+        return _federal_tax_estimate(
+            tax_context,
+            ordinary_income=income_components["ordinary"] + ordinary_withdrawals,
+            social_security_benefits=income_components["social_security"],
+            long_term_capital_gains=taxable_gains,
+            primary_age=primary_age,
+            spouse_age=spouse_age,
+            inflation_factor=inflation_factor,
+        )
+
+    def penalty_for(candidate_withdrawals: dict[str, float]) -> float:
+        return sum(
+            amount * _early_withdrawal_penalty_rate(bucket, primary_age)
+            for bucket, amount in candidate_withdrawals.items()
+        )
+
+    def surplus_cash(candidate_withdrawals: dict[str, float]) -> float:
+        gross_withdrawals = sum(candidate_withdrawals.values())
+        return (
+            income_components["total"]
+            + gross_withdrawals
+            - tax_for(candidate_withdrawals)
+            - penalty_for(candidate_withdrawals)
+            - spending
+        )
+
+    rmd_amount = _rmd_amount(
+        balances.get("pre_tax", 0.0) + balances.get("governmental_457b", 0.0),
+        primary_age,
+    )
+    if rmd_amount > 0:
+        remaining_rmd = rmd_amount
+        for rmd_bucket in ("pre_tax", "governmental_457b"):
+            if remaining_rmd <= 0:
+                break
+            gross = min(balances.get(rmd_bucket, 0.0), remaining_rmd)
+            if gross <= 0:
+                continue
+            balances[rmd_bucket] -= gross
+            withdrawals[rmd_bucket] += gross
+            remaining_rmd -= gross
+
+    for bucket in DEFAULT_DRAWDOWN_ORDER:
+        if surplus_cash(withdrawals) >= 0:
+            break
+        available = balances.get(bucket, 0.0)
+        if available <= 0:
+            continue
+        candidate = dict(withdrawals)
+        candidate[bucket] = candidate.get(bucket, 0.0) + available
+        if surplus_cash(candidate) < 0:
+            gross = available
+        else:
+            low = 0.0
+            high = available
+            for _ in range(24):
+                midpoint = (low + high) / 2.0
+                candidate = dict(withdrawals)
+                candidate[bucket] = candidate.get(bucket, 0.0) + midpoint
+                if surplus_cash(candidate) >= 0:
+                    high = midpoint
+                else:
+                    low = midpoint
+            gross = high
+        balances[bucket] = available - gross
+        withdrawals[bucket] += gross
+
+    tax_estimate = tax_for(withdrawals)
+    penalty_estimate = penalty_for(withdrawals)
+    return WithdrawalOutcome(
+        withdrawals=withdrawals,
+        tax_estimate=tax_estimate,
+        penalty_estimate=penalty_estimate,
+        rmd_amount=rmd_amount,
+        shortfall=max(0.0, -surplus_cash(withdrawals)),
+    )
+
+
+def _run_tax_aware_monte_carlo(
+    inputs: RetirementInputs,
+    *,
+    tax_context: FederalTaxContext,
+    buckets: tuple[RetirementAccountBucket, ...],
+    cma: dict[str, Any],
+    trials: int,
+    seed: int | None,
+) -> SimulationOutputs:
+    rng = np.random.default_rng(seed)
+    classes, weights = _normalize_allocation(inputs.asset_allocation, cma)
+    if not classes:
+        classes = ["cash"]
+        weights = np.array([1.0])
+    cov = _covariance_matrix(classes, cma)
+    mus = np.array([float(cma["asset_classes"][c]["expected_return"]) for c in classes])
+    samples = rng.multivariate_normal(mus, cov, size=(trials, inputs.horizon_years))
+    portfolio_returns = samples @ weights
+
+    cash_return = float(cma.get("asset_classes", {}).get("cash", {}).get("expected_return", 0.02) or 0.02)
+    starting_balances = _bucket_balances(inputs, buckets)
+    contribution_bucket = _contribution_bucket(starting_balances)
+    failure_year = np.full(trials, -1, dtype=np.int32)
+    yearly_balances = np.empty((trials, inputs.horizon_years), dtype=np.float64)
+
+    for trial in range(trials):
+        balances = dict(starting_balances)
+        for year_index in range(inputs.horizon_years):
+            primary_age = inputs.primary_age + year_index
+            portfolio_return = float(portfolio_returns[trial, year_index])
+            for bucket in list(balances):
+                annual_return = cash_return if bucket == "cash" else portfolio_return
+                balances[bucket] = max(0.0, balances[bucket] * (1.0 + annual_return))
+            if primary_age < inputs.retirement_age and inputs.annual_contribution > 0:
+                balances[contribution_bucket] = balances.get(contribution_bucket, 0.0) + inputs.annual_contribution
+
+            inflation_factor = (1.0 + inputs.inflation_rate) ** year_index
+            spending = inputs.annual_expenses * inflation_factor if primary_age >= inputs.retirement_age else 0.0
+            spouse_age = inputs.spouse_age + year_index if inputs.spouse_age is not None else None
+            income_components = _income_components_for_age(
+                inputs.income_sources,
+                primary_age,
+                inflation_factor=inflation_factor,
+            )
+            outcome = _apply_tax_aware_withdrawals(
+                balances,
+                spending=spending,
+                income_components=income_components,
+                primary_age=primary_age,
+                spouse_age=spouse_age,
+                inflation_factor=inflation_factor,
+                tax_context=tax_context,
+            )
+            if outcome.shortfall > 1.0 and failure_year[trial] < 0:
+                failure_year[trial] = year_index
+            yearly_balances[trial, year_index] = max(0.0, sum(balances.values()))
+
+    success_count = int(np.sum(failure_year < 0))
+    success_probability = success_count / trials
+    median_ending = float(np.median(yearly_balances[:, -1]))
+    sor_mask = (failure_year >= 0) & (failure_year < SEQUENCE_OF_RETURNS_HORIZON)
+    sequence_risk = float(np.sum(sor_mask)) / trials
+
+    percentiles: dict[str, float] = {}
+    paths: dict[str, list[float]] = {}
+    for label, q in PERCENTILE_KEYS:
+        col = np.percentile(yearly_balances, q, axis=0)
+        percentiles[label] = float(col[-1])
+        paths[label] = [float(v) for v in col]
+
+    failure_distribution: dict[str, int] = {}
+    failures = failure_year[failure_year >= 0]
+    if failures.size:
+        bins = np.bincount(failures, minlength=inputs.horizon_years)
+        for idx, count in enumerate(bins):
+            if count:
+                failure_distribution[f"year_{idx + 1}"] = int(count)
+
+    return SimulationOutputs(
+        success_probability=round(success_probability, 6),
+        median_ending_balance=round(median_ending, 2),
+        sequence_of_returns_risk=round(sequence_risk, 6),
+        percentiles={k: round(v, 2) for k, v in percentiles.items()},
+        failure_year_distribution=failure_distribution,
+        ending_balance_paths={k: [round(x, 2) for x in v] for k, v in paths.items()},
+    )
+
+
 def _tax_adjusted_annual_expenses(
     inputs: RetirementInputs,
     *,
@@ -1162,12 +1300,21 @@ def _tax_adjusted_annual_expenses(
     return round(inputs.annual_expenses + tax_estimate + penalty_estimate, 2)
 
 
-def _tax_assumptions(context: FederalTaxContext) -> dict[str, Any]:
+def _tax_assumptions(
+    context: FederalTaxContext,
+    *,
+    buckets: tuple[RetirementAccountBucket, ...] = (),
+) -> dict[str, Any]:
     warnings = []
     if context.filing_status_source != "saved":
         warnings.append("Set filing status in saved assumptions to remove filing-status inference.")
     if context.state_tax_rate > 0:
         warnings.append("State tax is not included in the federal retirement drawdown tax estimate yet.")
+    if any(bucket.bucket_type == "governmental_457b" for bucket in buckets):
+        warnings.append(
+            "Governmental 457(b) is modeled as penalty-free after the plan owner separates from service; "
+            "confirm Pinellas plan distribution rules before relying on in-service access."
+        )
     capital_gains_zero_rate_limit, capital_gains_twenty_rate_threshold = LONG_TERM_CAPITAL_GAINS_BRACKETS_2026[
         context.filing_status
     ]
@@ -1185,6 +1332,8 @@ def _tax_assumptions(context: FederalTaxContext) -> dict[str, Any]:
         "state_tax_source": context.state_tax_source,
         "withdrawal_order": list(DEFAULT_DRAWDOWN_ORDER),
         "withdrawal_order_label": "Cash, taxable brokerage, governmental 457(b), pre-tax, HSA, Roth, then other.",
+        "governmental_457b_penalty_rate": 0.0,
+        "pre_tax_early_withdrawal_penalty_rate": 0.10,
         "method": (
             "Federal taxes are derived yearly from ordinary income, taxable Social Security, "
             "pre-tax/457(b) withdrawals, estimated taxable-brokerage gains, 2026 brackets, "

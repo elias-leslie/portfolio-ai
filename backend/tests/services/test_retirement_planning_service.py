@@ -881,6 +881,50 @@ def test_drawdown_uses_governmental_457b_before_penalized_pre_tax_before_age_60(
     assert first.penalty_estimate == round(first.withdrawals_by_bucket["pre_tax"] * 0.10, 2)
 
 
+def test_tax_aware_monte_carlo_preserves_governmental_457b_early_access() -> None:
+    service = _make_service(_StubConn())
+    inputs = RetirementInputs(
+        household_id="hh-457b-mc",
+        primary_age=55,
+        spouse_age=None,
+        retirement_age=55,
+        horizon_years=1,
+        annual_expenses=82_000.0,
+        annual_contribution=0.0,
+        portfolio_value=100_000.0,
+        asset_allocation={"cash": 1.0},
+        income_sources=(),
+        inflation_rate=0.025,
+        as_of_date=date(2026, 5, 9),
+    )
+    gov_457b = (
+        RetirementAccountBucket(
+            bucket_type="governmental_457b",
+            label="PCSB 457(b)",
+            account_type="governmental_457b",
+            tax_treatment="ordinary_income_no_10pct_early_penalty",
+            current_value=100_000.0,
+            withdrawal_priority=3,
+        ),
+    )
+    pre_tax = (
+        RetirementAccountBucket(
+            bucket_type="pre_tax",
+            label="Traditional IRA",
+            account_type="ira",
+            tax_treatment="ordinary_income",
+            current_value=100_000.0,
+            withdrawal_priority=4,
+        ),
+    )
+
+    gov_out = service.run_simulation(inputs, buckets=gov_457b, trials=50, seed=1)
+    pre_tax_out = service.run_simulation(inputs, buckets=pre_tax, trials=50, seed=1)
+
+    assert gov_out.success_probability == 1.0
+    assert pre_tax_out.success_probability == 0.0
+
+
 _ = SimulationOutputs
 _ = RetirementInputs
 _ = datetime
