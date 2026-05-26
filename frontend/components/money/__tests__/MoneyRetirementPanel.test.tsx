@@ -463,11 +463,11 @@ describe('MoneyRetirementPanel', () => {
 
     await user.click(screen.getByRole('button', { name: /expand allocation/i }))
     await user.click(screen.getByRole('button', { name: /ticker basket/i }))
-    const tickerInput = screen.getByDisplayValue(/VTI 80/)
+    const tickerInput = screen.getByDisplayValue(/SCHD 10/)
     await user.clear(tickerInput)
     await user.type(
       tickerInput,
-      'VTI 70{enter}SCHD 10{enter}BND 10{enter}SPAXX 10',
+      'VTI 70{enter}SCHD 10 3.6{enter}BND 10 4.0{enter}SPAXX 10',
     )
     await user.click(screen.getByRole('button', { name: /run preview/i }))
 
@@ -475,8 +475,8 @@ describe('MoneyRetirementPanel', () => {
       expect.objectContaining({
         allocationHoldings: [
           { symbol: 'VTI', weight: 70 },
-          { symbol: 'SCHD', weight: 10 },
-          { symbol: 'BND', weight: 10 },
+          { symbol: 'SCHD', weight: 10, dividendYield: 3.6 },
+          { symbol: 'BND', weight: 10, dividendYield: 4.0 },
           { symbol: 'SPAXX', weight: 10 },
         ],
       }),

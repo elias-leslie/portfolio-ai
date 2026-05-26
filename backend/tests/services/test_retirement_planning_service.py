@@ -618,6 +618,35 @@ def test_account_buckets_split_taxable_cash_from_invested_taxable() -> None:
     assert sum(bucket.current_value for bucket in buckets if bucket.bucket_type == "taxable") == 100_000.0
 
 
+def test_return_assumptions_use_ticker_income_yields() -> None:
+    service = _make_service(_StubConn())
+    inputs = RetirementInputs(
+        household_id="hh-yield",
+        primary_age=50,
+        spouse_age=None,
+        retirement_age=65,
+        horizon_years=30,
+        annual_expenses=72_000.0,
+        annual_contribution=0.0,
+        portfolio_value=1_000_000.0,
+        asset_allocation={"us_equity": 0.9, "cash": 0.1},
+        cash_yield=0.0328,
+        as_of_date=date(2026, 5, 9),
+    )
+
+    assumptions = service._return_assumptions(
+        inputs,
+        allocation_holdings=[
+            {"symbol": "SCHD", "weight": 50, "dividend_yield": 3.6},
+            {"symbol": "SPAXX", "weight": 50},
+        ],
+    )
+
+    assert assumptions["income_yield"] == pytest.approx((0.036 + 0.0328) / 2)
+    assert assumptions["holding_income_yields"][0]["source"] == "user"
+    assert assumptions["holding_income_yields"][1]["source"] == "cash_yield"
+
+
 def test_drawdown_first_year_starts_at_current_bucket_values() -> None:
     service = _make_service(_StubConn())
     inputs = RetirementInputs(

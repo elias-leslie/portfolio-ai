@@ -101,6 +101,19 @@ INCOME_YIELD_BY_ASSET_CLASS = {
     "real_estate": 0.035,
     "alts": 0.0,
 }
+CASH_EQUIVALENT_SYMBOLS = {"SPAXX", "FDRXX", "VMFXX", "SWVXX", "BIL", "SHV", "SGOV"}
+DEFAULT_HOLDING_INCOME_YIELDS = {
+    "VTI": 0.0106,
+    "VOO": 0.011,
+    "SPY": 0.011,
+    "SCHD": 0.036,
+    "VYM": 0.028,
+    "DGRO": 0.021,
+    "HDV": 0.034,
+    "JEPI": 0.075,
+    "BND": 0.04,
+    "AGG": 0.04,
+}
 FILING_STATUS_LABELS = {
     "single": "Single",
     "married_filing_jointly": "Married filing jointly",
@@ -462,7 +475,10 @@ class RetirementPlanningService:
             ending_balance_paths=sim.ending_balance_paths,
             account_buckets=buckets,
             tax_assumptions=_tax_assumptions(tax_context, buckets=buckets, inputs=inputs),
-            return_assumptions=self._return_assumptions(inputs),
+            return_assumptions=self._return_assumptions(
+                inputs,
+                allocation_holdings=allocation_holdings,
+            ),
             drawdown_schedule=tuple(drawdown),
             lever_impacts=self._lever_impacts(
                 inputs,
@@ -815,14 +831,90 @@ class RetirementPlanningService:
         cash = asset_classes.get("cash", {})
         return float(cash.get("expected_return", 0.02) or 0.02)
 
-    def _return_assumptions(self, inputs: RetirementInputs) -> dict[str, Any]:
+    def _return_assumptions(
+        self,
+        inputs: RetirementInputs,
+        *,
+        allocation_holdings: list[Any] | tuple[Any, ...] | None = None,
+    ) -> dict[str, Any]:
         cash_yield = _cash_yield(inputs.cash_yield)
+        holding_yields = self._holding_income_yields(allocation_holdings or (), cash_yield)
+        if holding_yields:
+            income_yield = sum(
+                float(row["weight"]) * float(row["income_yield"]) for row in holding_yields
+            )
+        else:
+            income_yield = _income_yield(inputs.asset_allocation, cash_yield)
         return {
             "expected_return": round(self._expected_return(inputs.asset_allocation, cash_yield), 6),
-            "income_yield": round(_income_yield(inputs.asset_allocation, cash_yield), 6),
+            "income_yield": round(income_yield, 6),
             "cash_yield": round(cash_yield, 6),
             "cash_yield_source": DEFAULT_SPAXX_CASH_YIELD_SOURCE,
+            "holding_income_yields": holding_yields,
         }
+
+    def _holding_income_yields(
+        self,
+        holdings: list[Any] | tuple[Any, ...],
+        cash_yield: float,
+    ) -> list[dict[str, Any]]:
+        weighted_rows: list[tuple[str, float, float, str]] = []
+        total_weight = 0.0
+        for holding in holdings:
+            symbol = str(_holding_field(holding, "symbol") or "").upper().strip()
+            weight = float(_holding_field(holding, "weight") or 0.0)
+            if not symbol or weight <= 0:
+                continue
+            provided_yield = _optional_yield(_holding_field(holding, "dividend_yield"))
+            if provided_yield is None:
+                provided_yield = _optional_yield(_holding_field(holding, "dividendYield"))
+            if provided_yield is not None:
+                income_yield = provided_yield
+                source = "user"
+            else:
+                income_yield, source = self._income_yield_for_symbol(symbol, cash_yield)
+            weighted_rows.append((symbol, weight, income_yield, source))
+            total_weight += weight
+        if total_weight <= 0:
+            return []
+        return [
+            {
+                "symbol": symbol,
+                "weight": round(weight / total_weight, 6),
+                "income_yield": round(income_yield, 6),
+                "source": source,
+            }
+            for symbol, weight, income_yield, source in weighted_rows
+        ]
+
+    def _income_yield_for_symbol(self, symbol: str, cash_yield: float) -> tuple[float, str]:
+        if symbol in CASH_EQUIVALENT_SYMBOLS:
+            return cash_yield, "cash_yield"
+        cached = self._latest_reference_dividend_yield(symbol)
+        if cached is not None:
+            return cached, "reference_cache"
+        fallback = DEFAULT_HOLDING_INCOME_YIELDS.get(symbol)
+        if fallback is not None:
+            return fallback, "default_symbol"
+        ac_mod = import_module("app.portfolio.asset_classification")
+        asset_class = ac_mod.ASSET_CLASS_BY_SYMBOL.get(symbol, "us_equity")
+        return float(INCOME_YIELD_BY_ASSET_CLASS.get(asset_class, 0.0)), "asset_class_default"
+
+    def _latest_reference_dividend_yield(self, symbol: str) -> float | None:
+        with self.storage.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT dividend_yield
+                FROM reference_cache
+                WHERE symbol = %s AND dividend_yield IS NOT NULL
+                ORDER BY as_of_date DESC, created_at DESC
+                LIMIT 1
+                """,
+                [symbol],
+            ).fetchone()
+        if row is None:
+            return None
+        return _optional_yield(row[0])
 
     def _lever_impacts(
         self,
@@ -1196,6 +1288,18 @@ def _cash_yield(value: float | None) -> float:
     if parsed <= 0:
         return DEFAULT_SPAXX_CASH_YIELD
     return min(parsed / 100.0 if parsed > 1.0 else parsed, 0.2)
+
+
+def _optional_yield(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed < 0:
+        return None
+    return min(parsed / 100.0 if parsed > 1.0 else parsed, 1.0)
 
 
 def _cma_with_cash_yield(cma: dict[str, Any], cash_yield: float | None) -> dict[str, Any]:

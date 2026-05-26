@@ -164,6 +164,11 @@ function parsePercentValue(value: string) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
 }
 
+function parseOptionalPercentValue(value: string | undefined) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
+}
+
 function allocationDraftFromPreview(
   allocation: Record<string, number> | undefined,
 ) {
@@ -194,10 +199,12 @@ function parseTickerMix(value: string) {
     .map((row) => row.trim())
     .filter(Boolean)
     .map((row) => {
-      const [symbol, rawWeight] = row.split(/[:=\s]+/)
+      const [symbol, rawWeight, rawYield] = row.split(/[:=\s]+/)
+      const dividendYield = parseOptionalPercentValue(rawYield)
       return {
         symbol: (symbol ?? '').toUpperCase(),
         weight: parsePercentValue(rawWeight ?? ''),
+        ...(dividendYield == null ? {} : { dividendYield }),
       }
     })
     .filter((row) => row.symbol && row.weight > 0)
@@ -500,7 +507,9 @@ export function MoneyRetirementPanel({
   const [allocationDraft, setAllocationDraft] = useState(() =>
     allocationDraftFromPreview(undefined),
   )
-  const [tickerMix, setTickerMix] = useState('VTI 80\nBND 10\nSPAXX 10')
+  const [tickerMix, setTickerMix] = useState(
+    'VTI 70\nSCHD 10 3.6\nBND 10 4.0\nSPAXX 10',
+  )
   const [request, setRequest] = useState<RetirementPreviewRequest>(() =>
     buildRequest(dashboard.profile.id, defaultDraft(dashboard)),
   )
@@ -1200,11 +1209,11 @@ export function MoneyRetirementPanel({
                       value={tickerMix}
                       onChange={(event) => setTickerMix(event.target.value)}
                       rows={6}
-                      placeholder={'VTI 70\nSCHD 10\nBND 10\nSPAXX 10'}
+                      placeholder={'VTI 70\nSCHD 10 3.6\nBND 10 4.0\nSPAXX 10'}
                     />
                     <p className="text-xs text-text-muted">
-                      Enter one symbol and percentage per line. Unknown tickers
-                      fall back to US stocks in this coarse retirement model.
+                      Enter symbol, weight, and optional income yield % per
+                      line. Unknown tickers fall back to US stocks.
                     </p>
                   </div>
                 ) : (

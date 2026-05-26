@@ -55,6 +55,7 @@ def _service() -> RetirementPlanningService:
 class AllocationHoldingRequest(BaseModel):
     symbol: str = Field(..., min_length=1, max_length=16)
     weight: float = Field(..., ge=0.0)
+    dividend_yield: float | None = Field(None, ge=0.0, le=100.0)
 
 
 class RunScenarioRequest(BaseModel):

@@ -313,7 +313,11 @@ export interface RetirementPreviewRequest {
   annualExpenses?: number | null
   annualContribution?: number | null
   assetAllocation?: Record<string, number> | null
-  allocationHoldings?: Array<{ symbol: string; weight: number }> | null
+  allocationHoldings?: Array<{
+    symbol: string
+    weight: number
+    dividendYield?: number | null
+  }> | null
   cashYield?: number | null
   monthlySpend?: number | null
   retirementAge?: number | null
