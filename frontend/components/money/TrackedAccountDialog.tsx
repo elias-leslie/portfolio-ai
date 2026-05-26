@@ -59,6 +59,7 @@ const ACCOUNT_TYPE_OPTIONS: Record<string, { value: string; label: string }[]> =
       { value: '403b', label: '403(b)' },
       { value: 'roth_403b', label: 'Roth 403(b)' },
       { value: '457b', label: '457(b)' },
+      { value: 'governmental_457b', label: 'Governmental 457(b)' },
       { value: 'hsa', label: 'HSA' },
     ],
     taxable: [{ value: 'brokerage', label: 'Brokerage' }],

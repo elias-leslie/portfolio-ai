@@ -10,6 +10,7 @@ outside this module.
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import UTC, date, datetime
 from importlib import import_module
@@ -46,13 +47,22 @@ MAX_LIST_LIMIT = 100
 CMA_PATH = Path(__file__).parent / "retirement_cma.yaml"
 DEFAULT_PREVIEW_TRIALS = 2_500
 RMD_START_AGE = 73
-DEFAULT_DRAWDOWN_ORDER = ("cash", "taxable", "pre_tax", "hsa", "roth", "other")
+DEFAULT_DRAWDOWN_ORDER = (
+    "cash",
+    "taxable",
+    "governmental_457b",
+    "pre_tax",
+    "hsa",
+    "roth",
+    "other",
+)
 BUCKET_WITHDRAWAL_PRIORITY = {
     bucket: index + 1 for index, bucket in enumerate(DEFAULT_DRAWDOWN_ORDER)
 }
 BUCKET_LABELS = {
     "cash": "Cash bridge",
     "taxable": "Taxable brokerage",
+    "governmental_457b": "Governmental 457(b)",
     "pre_tax": "Traditional retirement",
     "roth": "Roth IRA",
     "hsa": "HSA",
@@ -61,6 +71,7 @@ BUCKET_LABELS = {
 BUCKET_TAX_TREATMENTS = {
     "cash": "already_taxed",
     "taxable": "taxable_capital_gains_estimate",
+    "governmental_457b": "ordinary_income_no_10pct_early_penalty",
     "pre_tax": "ordinary_income",
     "roth": "tax_free_if_qualified",
     "hsa": "tax_free_for_qualified_medical",
@@ -105,6 +116,8 @@ class RetirementPlanningService:
         retirement_age: int | None = None,
         horizon_years: int | None = None,
         inflation_rate: float | None = None,
+        primary_age: int | None = None,
+        spouse_age: int | None = None,
         as_of_date: date | None = None,
     ) -> RetirementInputs:
         """Pull inputs from household_planning + portfolio totals.
@@ -116,7 +129,9 @@ class RetirementPlanningService:
         """
         anchor = as_of_date or date.today()
         members = self._load_members()
-        primary, spouse = _split_members(members, anchor.year)
+        inferred_primary, inferred_spouse = _split_members(members, anchor)
+        primary = primary_age if primary_age is not None else inferred_primary
+        spouse = spouse_age if spouse_age is not None else inferred_spouse
         income_sources = self._load_retirement_income_sources()
         if annual_expenses is None:
             annual_expenses = self._infer_annual_expenses(default_when_missing=72_000.0)
@@ -177,6 +192,12 @@ class RetirementPlanningService:
         horizon_years: int | None = None,
         annual_contribution: float | None = None,
         inflation_rate: float | None = None,
+        primary_age: int | None = None,
+        spouse_age: int | None = None,
+        primary_social_security_monthly: float | None = None,
+        spouse_social_security_monthly: float | None = None,
+        primary_social_security_start_age: int | None = None,
+        spouse_social_security_start_age: int | None = None,
         trials: int = DEFAULT_PREVIEW_TRIALS,
         seed: int | None = 7,
         as_of_date: date | None = None,
@@ -201,7 +222,16 @@ class RetirementPlanningService:
             retirement_age=retirement_age,
             horizon_years=horizon_years,
             inflation_rate=inflation_rate,
+            primary_age=primary_age,
+            spouse_age=spouse_age,
             as_of_date=as_of_date,
+        )
+        inputs = _append_preview_social_security(
+            inputs,
+            primary_monthly=primary_social_security_monthly,
+            spouse_monthly=spouse_social_security_monthly,
+            primary_start_age=primary_social_security_start_age,
+            spouse_start_age=spouse_social_security_start_age,
         )
         buckets = self._account_buckets_from_dashboard(dashboard)
         bucket_total = round(sum(bucket.current_value for bucket in buckets), 2)
@@ -405,7 +435,7 @@ class RetirementPlanningService:
     def _load_members(self) -> list[dict[str, Any]]:
         with self.storage.connection() as conn:
             rows = conn.execute(
-                "SELECT display_name, role, birth_year, is_dependent"
+                "SELECT display_name, role, relationship, birth_year, is_dependent, notes"
                 " FROM household_members"
                 " ORDER BY is_dependent ASC, role ASC"
             ).fetchall()
@@ -413,8 +443,16 @@ class RetirementPlanningService:
             {
                 "display_name": row[0],
                 "role": row[1],
-                "birth_year": row[2],
-                "is_dependent": bool(row[3]) if row[3] is not None else False,
+                "relationship": row[2] if len(row) > 4 else None,
+                "birth_year": row[3] if len(row) > 4 else row[2],
+                "is_dependent": (
+                    bool(row[4])
+                    if len(row) > 4 and row[4] is not None
+                    else bool(row[3])
+                    if len(row) > 3 and row[3] is not None
+                    else False
+                ),
+                "notes": row[5] if len(row) > 5 else None,
             }
             for row in rows
         ]
@@ -502,14 +540,25 @@ class RetirementPlanningService:
             remaining_need = max(spending - income, 0.0)
             withdrawals = dict.fromkeys(DEFAULT_DRAWDOWN_ORDER, 0.0)
             tax_estimate = 0.0
-            rmd_amount = _rmd_amount(balances.get("pre_tax", 0.0), primary_age)
+            penalty_estimate = 0.0
+            rmd_amount = _rmd_amount(
+                balances.get("pre_tax", 0.0) + balances.get("governmental_457b", 0.0),
+                primary_age,
+            )
             if rmd_amount > 0:
-                gross = min(balances.get("pre_tax", 0.0), rmd_amount)
-                balances["pre_tax"] -= gross
-                withdrawals["pre_tax"] += gross
-                rmd_tax = gross * ordinary_tax_rate
-                tax_estimate += rmd_tax
-                remaining_need = max(0.0, remaining_need - max(0.0, gross - rmd_tax))
+                remaining_rmd = rmd_amount
+                for rmd_bucket in ("pre_tax", "governmental_457b"):
+                    if remaining_rmd <= 0:
+                        break
+                    gross = min(balances.get(rmd_bucket, 0.0), remaining_rmd)
+                    if gross <= 0:
+                        continue
+                    balances[rmd_bucket] -= gross
+                    withdrawals[rmd_bucket] += gross
+                    rmd_tax = gross * ordinary_tax_rate
+                    tax_estimate += rmd_tax
+                    remaining_need = max(0.0, remaining_need - max(0.0, gross - rmd_tax))
+                    remaining_rmd -= gross
 
             for bucket in DEFAULT_DRAWDOWN_ORDER:
                 if remaining_need <= 0:
@@ -518,13 +567,16 @@ class RetirementPlanningService:
                 if available <= 0:
                     continue
                 tax_drag = _withdrawal_tax_drag(bucket, ordinary_tax_rate, capital_gains_rate)
-                gross_needed = remaining_need / max(1.0 - tax_drag, 0.01)
+                penalty_rate = _early_withdrawal_penalty_rate(bucket, primary_age)
+                gross_needed = remaining_need / max(1.0 - tax_drag - penalty_rate, 0.01)
                 gross = min(available, gross_needed)
                 balances[bucket] = available - gross
                 withdrawals[bucket] += gross
                 tax = gross * tax_drag
+                penalty = gross * penalty_rate
                 tax_estimate += tax
-                remaining_need = max(0.0, remaining_need - max(0.0, gross - tax))
+                penalty_estimate += penalty
+                remaining_need = max(0.0, remaining_need - max(0.0, gross - tax - penalty))
 
             ending_balance = round(sum(balances.values()), 2)
             gross_withdrawal = round(sum(withdrawals.values()), 2)
@@ -537,7 +589,11 @@ class RetirementPlanningService:
                     income=round(income, 2),
                     gross_withdrawal=gross_withdrawal,
                     tax_estimate=round(tax_estimate, 2),
-                    net_withdrawal=round(max(0.0, gross_withdrawal - tax_estimate), 2),
+                    penalty_estimate=round(penalty_estimate, 2),
+                    net_withdrawal=round(
+                        max(0.0, gross_withdrawal - tax_estimate - penalty_estimate),
+                        2,
+                    ),
                     ending_balance=ending_balance,
                     rmd_amount=round(rmd_amount, 2),
                     rmd_applied=rmd_amount > 0,
@@ -711,25 +767,94 @@ class RetirementPlanningService:
 
 
 def _split_members(
-    members: list[dict[str, Any]], current_year: int
+    members: list[dict[str, Any]],
+    anchor: date | int | None = None,
+    *,
+    current_year: int | None = None,
 ) -> tuple[int, int | None]:
+    if anchor is None:
+        anchor = current_year if current_year is not None else date.today()
+    current_date = date(anchor, 12, 31) if isinstance(anchor, int) else anchor
     primary_age: int | None = None
     spouse_age: int | None = None
     for row in members:
-        if row.get("is_dependent"):
+        age = _member_age(row, current_date)
+        if age is None:
             continue
-        birth_year = row.get("birth_year")
-        if birth_year is None:
-            continue
-        age = max(0, current_year - int(birth_year))
         role = (row.get("role") or "").strip().lower()
-        if primary_age is None and role in {"primary", "self", "owner"}:
+        relationship = (row.get("relationship") or "").strip().lower()
+        if row.get("is_dependent") or role in {"child", "dependent"} or relationship in {
+            "child",
+            "daughter",
+            "son",
+            "dependent",
+        }:
+            continue
+        if primary_age is None and (
+            role in {"primary", "self", "owner"}
+            or relationship in {"father", "husband", "self", "owner"}
+        ):
             primary_age = age
-        elif spouse_age is None and role in {"spouse", "partner"}:
+        elif spouse_age is None and (
+            role in {"spouse", "partner"}
+            or relationship in {"mother", "wife", "spouse", "partner"}
+        ):
             spouse_age = age
         elif primary_age is None:
             primary_age = age
     return primary_age if primary_age is not None else 50, spouse_age
+
+
+def _member_age(row: dict[str, Any], anchor: date) -> int | None:
+    birth_year = row.get("birth_year")
+    if birth_year is None:
+        return None
+    birth_month, birth_day = _member_birth_month_day(row)
+    age = anchor.year - int(birth_year)
+    if (
+        birth_month is not None
+        and birth_day is not None
+        and (anchor.month, anchor.day) < (birth_month, birth_day)
+    ):
+        age -= 1
+    return max(0, age)
+
+
+def _member_birth_month_day(row: dict[str, Any]) -> tuple[int | None, int | None]:
+    notes = str(row.get("notes") or "")
+    iso_match = re.search(
+        r"\b(?:dob|birth(?:day)?)\s*:\s*\d{4}-(\d{1,2})-(\d{1,2})\b",
+        notes,
+        re.IGNORECASE,
+    )
+    if iso_match:
+        return int(iso_match.group(1)), int(iso_match.group(2))
+    month_match = re.search(
+        r"\b(?:dob|birth(?:day)?)\s*:\s*"
+        r"(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|"
+        r"jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
+        r"\s+(\d{1,2})\b",
+        notes,
+        re.IGNORECASE,
+    )
+    if not month_match:
+        return None, None
+    month_token = month_match.group(1).lower()[:3]
+    month = {
+        "jan": 1,
+        "feb": 2,
+        "mar": 3,
+        "apr": 4,
+        "may": 5,
+        "jun": 6,
+        "jul": 7,
+        "aug": 8,
+        "sep": 9,
+        "oct": 10,
+        "nov": 11,
+        "dec": 12,
+    }[month_token]
+    return month, int(month_match.group(2))
 
 
 def _coerce_json(value: Any) -> dict[str, Any] | None:
@@ -753,17 +878,29 @@ def _coerce_json(value: Any) -> dict[str, Any] | None:
 
 def _bucket_type(asset_group: str, account_type: str) -> str:
     normalized_type = account_type.strip().lower().replace("-", "_").replace(" ", "_")
+    bucket = "other"
     if "roth" in normalized_type:
-        return "roth"
-    if normalized_type == "hsa" or "health_savings" in normalized_type:
-        return "hsa"
-    if asset_group == "cash":
-        return "cash"
-    if asset_group in {"taxable", "brokerage"}:
-        return "taxable"
-    if asset_group == "retirement" or normalized_type in {"ira", "401k", "403b", "457", "retirement", "traditional_ira"}:
-        return "pre_tax"
-    return "other"
+        bucket = "roth"
+    elif normalized_type in {"governmental_457b", "gov_457b", "457b_governmental"}:
+        bucket = "governmental_457b"
+    elif normalized_type == "hsa" or "health_savings" in normalized_type:
+        bucket = "hsa"
+    elif asset_group == "cash":
+        bucket = "cash"
+    elif asset_group in {"taxable", "brokerage"}:
+        bucket = "taxable"
+    elif asset_group == "retirement" or normalized_type in {
+        "ira",
+        "401k",
+        "403b",
+        "457",
+        "457b",
+        "457_b",
+        "retirement",
+        "traditional_ira",
+    }:
+        bucket = "pre_tax"
+    return bucket
 
 
 def _profile_tax_rate(profile: Any) -> float:
@@ -780,7 +917,7 @@ def _profile_tax_rate(profile: Any) -> float:
 
 
 def _contribution_bucket(balances: dict[str, float]) -> str:
-    for bucket in ("pre_tax", "taxable", "cash", "roth"):
+    for bucket in ("pre_tax", "governmental_457b", "taxable", "cash", "roth"):
         if balances.get(bucket, 0.0) > 0:
             return bucket
     return "taxable"
@@ -801,6 +938,58 @@ def _income_for_age(
     return total
 
 
+def _append_preview_social_security(
+    inputs: RetirementInputs,
+    *,
+    primary_monthly: float | None,
+    spouse_monthly: float | None,
+    primary_start_age: int | None,
+    spouse_start_age: int | None,
+) -> RetirementInputs:
+    provided = any(
+        value is not None
+        for value in (
+            primary_monthly,
+            spouse_monthly,
+            primary_start_age,
+            spouse_start_age,
+        )
+    )
+    if not provided:
+        return inputs
+
+    sources = [
+        source
+        for source in inputs.income_sources
+        if (source.source_type or "").lower() != "social_security"
+    ]
+    if primary_monthly is not None and primary_monthly > 0:
+        sources.append(
+            RetirementIncomeSource(
+                label="Social Security - primary",
+                source_type="social_security",
+                owner_name="primary",
+                start_age=primary_start_age or 67,
+                monthly_amount=primary_monthly,
+                inflation_adjusted=True,
+            )
+        )
+    if spouse_monthly is not None and spouse_monthly > 0 and inputs.spouse_age is not None:
+        spouse_claim_age = spouse_start_age or 67
+        primary_timeline_age = inputs.primary_age + max(0, spouse_claim_age - inputs.spouse_age)
+        sources.append(
+            RetirementIncomeSource(
+                label=f"Social Security - spouse at {spouse_claim_age}",
+                source_type="social_security",
+                owner_name="spouse",
+                start_age=primary_timeline_age,
+                monthly_amount=spouse_monthly,
+                inflation_adjusted=True,
+            )
+        )
+    return inputs.model_copy(update={"income_sources": tuple(sources)})
+
+
 def _rmd_amount(pre_tax_balance: float, primary_age: int) -> float:
     if primary_age < RMD_START_AGE or pre_tax_balance <= 0:
         return 0.0
@@ -814,10 +1003,16 @@ def _withdrawal_tax_drag(
     ordinary_tax_rate: float,
     capital_gains_rate: float,
 ) -> float:
-    if bucket == "pre_tax":
+    if bucket in {"pre_tax", "governmental_457b"}:
         return ordinary_tax_rate
     if bucket == "taxable":
         return capital_gains_rate * TAXABLE_WITHDRAWAL_GAIN_RATIO
+    return 0.0
+
+
+def _early_withdrawal_penalty_rate(bucket: str, primary_age: int) -> float:
+    if bucket == "pre_tax" and primary_age < 60:
+        return 0.10
     return 0.0
 
 

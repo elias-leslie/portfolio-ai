@@ -150,6 +150,49 @@ const dashboard = {
     detail: 'On track.',
   },
   retirementScenarios: [],
+  planning: {
+    summary: {
+      completionScore: 100,
+      readySections: 1,
+      totalSections: 1,
+      missingDocumentCount: 0,
+      highPriorityDocumentCount: 0,
+      sections: [],
+    },
+    members: [
+      {
+        id: 'member-primary',
+        displayName: 'Elias',
+        role: 'adult',
+        relationship: 'father',
+        birthYear: 1977,
+        isDependent: false,
+        livesInHousehold: true,
+        notes: 'DOB: 1977-01-11',
+        createdAt: '2026-05-25T00:00:00Z',
+        updatedAt: '2026-05-25T00:00:00Z',
+      },
+      {
+        id: 'member-spouse',
+        displayName: 'Mariana',
+        role: 'adult',
+        relationship: 'mother',
+        birthYear: 1982,
+        isDependent: false,
+        livesInHousehold: true,
+        notes: 'DOB: 1982-06-05',
+        createdAt: '2026-05-25T00:00:00Z',
+        updatedAt: '2026-05-25T00:00:00Z',
+      },
+    ],
+    incomeSources: [],
+    debtObligations: [],
+    housingCosts: [],
+    insurancePolicies: [],
+    retirementIncomeSources: [],
+    plannedExpenses: [],
+    documentRequirements: [],
+  },
   importCenter: {
     headline: 'Import',
     trackedDocuments: 0,
@@ -164,7 +207,6 @@ const dashboard = {
   inbox: [],
   questions: [],
   jennyBrief: { headline: 'Jenny', body: 'Body', prompts: [] },
-  planning: null,
 } as HouseholdFinanceDashboard
 
 const preview: RetirementPreview = {
@@ -206,6 +248,14 @@ const preview: RetirementPreview = {
       withdrawalPriority: 2,
     },
     {
+      bucketType: 'governmental_457b',
+      label: 'PCSB 457(b)',
+      accountType: 'governmental_457b',
+      taxTreatment: 'ordinary_income_no_10pct_early_penalty',
+      currentValue: 95000,
+      withdrawalPriority: 3,
+    },
+    {
       bucketType: 'pre_tax',
       label: 'IRA',
       accountType: 'ira',
@@ -231,12 +281,23 @@ const preview: RetirementPreview = {
       income: 0,
       grossWithdrawal: 74000,
       taxEstimate: 2000,
+      penaltyEstimate: 0,
       netWithdrawal: 72000,
       endingBalance: 950000,
       rmdAmount: 0,
       rmdApplied: false,
-      withdrawalsByBucket: { taxable: 74000, pre_tax: 0, roth: 0 },
-      balancesByBucket: { taxable: 200000, pre_tax: 500000, roth: 250000 },
+      withdrawalsByBucket: {
+        taxable: 74000,
+        governmental_457b: 0,
+        pre_tax: 0,
+        roth: 0,
+      },
+      balancesByBucket: {
+        taxable: 200000,
+        governmental_457b: 95000,
+        pre_tax: 500000,
+        roth: 250000,
+      },
     },
     {
       yearIndex: 23,
@@ -246,12 +307,23 @@ const preview: RetirementPreview = {
       income: 30000,
       grossWithdrawal: 65000,
       taxEstimate: 7000,
+      penaltyEstimate: 0,
       netWithdrawal: 58000,
       endingBalance: 800000,
       rmdAmount: 18000,
       rmdApplied: true,
-      withdrawalsByBucket: { taxable: 20000, pre_tax: 45000, roth: 0 },
-      balancesByBucket: { taxable: 0, pre_tax: 560000, roth: 240000 },
+      withdrawalsByBucket: {
+        taxable: 20000,
+        governmental_457b: 0,
+        pre_tax: 45000,
+        roth: 0,
+      },
+      balancesByBucket: {
+        taxable: 0,
+        governmental_457b: 90000,
+        pre_tax: 560000,
+        roth: 240000,
+      },
     },
   ],
   leverImpacts: [
@@ -285,6 +357,7 @@ describe('MoneyRetirementPanel', () => {
     expect(screen.getByText('82%')).toBeInTheDocument()
     expect(screen.getByText('$1,250,000')).toBeInTheDocument()
     expect(screen.getAllByText('Taxable').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Gov 457(b)').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Pre-tax').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Roth').length).toBeGreaterThan(0)
     expect(screen.getByText('Retire 2 years later')).toBeInTheDocument()
@@ -309,7 +382,11 @@ describe('MoneyRetirementPanel', () => {
     await user.click(screen.getByRole('button', { name: /run preview/i }))
 
     expect(usePreviewMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ retirementAge: 66 }),
+      expect.objectContaining({
+        retirementAge: 66,
+        primaryAge: 49,
+        spouseAge: 43,
+      }),
     )
   })
 })

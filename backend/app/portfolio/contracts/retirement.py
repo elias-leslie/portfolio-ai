@@ -127,6 +127,7 @@ class RetirementDrawdownYear(BaseModel):
     income: float = Field(0.0, ge=0.0)
     gross_withdrawal: float = Field(0.0, ge=0.0)
     tax_estimate: float = Field(0.0, ge=0.0)
+    penalty_estimate: float = Field(0.0, ge=0.0)
     net_withdrawal: float = Field(0.0, ge=0.0)
     ending_balance: float = Field(0.0, ge=0.0)
     rmd_amount: float = Field(0.0, ge=0.0)

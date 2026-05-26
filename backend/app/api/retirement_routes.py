@@ -62,11 +62,17 @@ class RunScenarioRequest(BaseModel):
     retirement_age: int | None = Field(None, ge=18, le=120)
     horizon_years: int | None = Field(None, ge=1, le=70)
     inflation_rate: float | None = Field(None, ge=0.0, le=0.2)
+    primary_age: int | None = Field(None, ge=18, le=120)
+    spouse_age: int | None = Field(None, ge=18, le=120)
     as_of_date: date | None = None
 
 
 class PreviewRequest(RunScenarioRequest):
     monthly_spend: float | None = Field(None, ge=0.0)
+    primary_social_security_monthly: float | None = Field(None, ge=0.0)
+    spouse_social_security_monthly: float | None = Field(None, ge=0.0)
+    primary_social_security_start_age: int | None = Field(None, ge=62, le=70)
+    spouse_social_security_start_age: int | None = Field(None, ge=62, le=70)
 
 
 @router.post("/scenarios")
@@ -82,6 +88,8 @@ async def run_scenario(payload: RunScenarioRequest) -> dict[str, Any]:
             retirement_age=payload.retirement_age,
             horizon_years=payload.horizon_years,
             inflation_rate=payload.inflation_rate,
+            primary_age=payload.primary_age,
+            spouse_age=payload.spouse_age,
             as_of_date=payload.as_of_date,
         )
         sim = service.run_simulation(inputs, trials=payload.trials, seed=payload.seed)
@@ -108,6 +116,12 @@ async def preview(payload: PreviewRequest) -> dict[str, Any]:
             horizon_years=payload.horizon_years,
             annual_contribution=payload.annual_contribution,
             inflation_rate=payload.inflation_rate,
+            primary_age=payload.primary_age,
+            spouse_age=payload.spouse_age,
+            primary_social_security_monthly=payload.primary_social_security_monthly,
+            spouse_social_security_monthly=payload.spouse_social_security_monthly,
+            primary_social_security_start_age=payload.primary_social_security_start_age,
+            spouse_social_security_start_age=payload.spouse_social_security_start_age,
             trials=payload.trials,
             seed=payload.seed,
             as_of_date=payload.as_of_date,

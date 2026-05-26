@@ -27,6 +27,7 @@ _RETIREMENT_ACCOUNT_TYPES = frozenset(
         "roth_ira",
         "roth_401k",
         "roth_403b",
+        "governmental_457b",
         "401k",
         "403b",
         "403_b",

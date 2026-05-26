@@ -34,6 +34,7 @@ import { useRetirementPreview } from '@/lib/hooks/useHousehold'
 const bucketColors: Record<string, string> = {
   cash: 'var(--color-chart-5)',
   taxable: 'var(--color-chart-1)',
+  governmental_457b: 'var(--color-warning)',
   preTax: 'var(--color-chart-2)',
   pre_tax: 'var(--color-chart-2)',
   roth: 'var(--color-chart-3)',
@@ -41,7 +42,15 @@ const bucketColors: Record<string, string> = {
   other: 'var(--color-chart-6)',
 }
 
-const bucketOrder = ['cash', 'taxable', 'pre_tax', 'hsa', 'roth', 'other']
+const bucketOrder = [
+  'cash',
+  'taxable',
+  'governmental_457b',
+  'pre_tax',
+  'hsa',
+  'roth',
+  'other',
+]
 
 function preparednessVariant(status: string) {
   if (status.includes('ready') || status.includes('visible')) {
@@ -69,6 +78,8 @@ function bucketLabel(value: string) {
       return 'Cash'
     case 'taxable':
       return 'Taxable'
+    case 'governmental_457b':
+      return 'Gov 457(b)'
     case 'pre_tax':
     case 'preTax':
       return 'Pre-tax'
@@ -95,12 +106,100 @@ function parseNumber(value: string, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
+function parseOptionalNumber(value: string) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+function memberAge(
+  member: NonNullable<HouseholdFinanceDashboard['planning']>['members'][number],
+  asOf: Date,
+) {
+  if (!member.birthYear) return null
+  let age = asOf.getFullYear() - member.birthYear
+  const isoMatch = member.notes?.match(
+    /\b(?:dob|birth(?:day)?)\s*:\s*\d{4}-(\d{1,2})-(\d{1,2})\b/i,
+  )
+  if (isoMatch) {
+    const month = Number(isoMatch[1])
+    const day = Number(isoMatch[2])
+    const asOfMonth = asOf.getMonth() + 1
+    if (
+      Number.isFinite(month) &&
+      Number.isFinite(day) &&
+      (asOfMonth < month || (asOfMonth === month && asOf.getDate() < day))
+    ) {
+      age -= 1
+    }
+  }
+  return Math.max(age, 0)
+}
+
+function householdAges(dashboard: HouseholdFinanceDashboard) {
+  const asOf = new Date(dashboard.generatedAt)
+  const adults =
+    dashboard.planning?.members.filter((member) => {
+      const role = member.role.toLowerCase()
+      const relationship = member.relationship?.toLowerCase() ?? ''
+      return (
+        !member.isDependent &&
+        !['child', 'dependent'].includes(role) &&
+        !['child', 'daughter', 'son', 'dependent'].includes(relationship)
+      )
+    }) ?? []
+  const primary =
+    adults.find((member) =>
+      ['primary', 'self', 'owner'].includes(member.role.toLowerCase()),
+    ) ??
+    adults.find((member) =>
+      ['father', 'husband', 'self', 'owner'].includes(
+        member.relationship?.toLowerCase() ?? '',
+      ),
+    )
+  const spouse =
+    adults.find((member) =>
+      ['spouse', 'partner'].includes(member.role.toLowerCase()),
+    ) ??
+    adults.find((member) =>
+      ['mother', 'wife', 'spouse', 'partner'].includes(
+        member.relationship?.toLowerCase() ?? '',
+      ),
+    )
+  return {
+    primaryAge: primary ? memberAge(primary, asOf) : null,
+    spouseAge: spouse ? memberAge(spouse, asOf) : null,
+  }
+}
+
+function socialSecurityDefaults(dashboard: HouseholdFinanceDashboard) {
+  const sources = dashboard.planning?.retirementIncomeSources ?? []
+  const socialSecurity = sources.filter(
+    (source) => source.sourceType.toLowerCase() === 'social_security',
+  )
+  const primary = socialSecurity.find((source) =>
+    (source.ownerName ?? source.label).toLowerCase().includes('primary'),
+  )
+  const spouse = socialSecurity.find((source) =>
+    (source.ownerName ?? source.label).toLowerCase().includes('spouse'),
+  )
+  return {
+    primaryMonthly: numberInput(primary?.monthlyAmount, '0'),
+    primaryStartAge: numberInput(primary?.startAge, '67'),
+    spouseMonthly: numberInput(spouse?.monthlyAmount, '0'),
+    spouseStartAge: numberInput(spouse?.startAge, '67'),
+  }
+}
+
 function defaultDraft(dashboard: HouseholdFinanceDashboard) {
   const monthlySpend =
     dashboard.profile.targetRetirementSpend ||
     dashboard.reports.executive.averageMonthlySpend ||
     6000
+  const ages = householdAges(dashboard)
+  const socialSecurity = socialSecurityDefaults(dashboard)
   return {
+    primaryAge: numberInput(ages.primaryAge, ''),
+    spouseAge: numberInput(ages.spouseAge, ''),
     retirementAge: numberInput(dashboard.profile.targetRetirementAge, '65'),
     monthlySpend: numberInput(monthlySpend, '6000'),
     monthlyContribution: numberInput(
@@ -110,6 +209,10 @@ function defaultDraft(dashboard: HouseholdFinanceDashboard) {
     ),
     inflationRate: percentInput(0.025),
     horizonYears: '35',
+    primarySocialSecurityMonthly: socialSecurity.primaryMonthly,
+    primarySocialSecurityStartAge: socialSecurity.primaryStartAge,
+    spouseSocialSecurityMonthly: socialSecurity.spouseMonthly,
+    spouseSocialSecurityStartAge: socialSecurity.spouseStartAge,
   }
 }
 
@@ -124,6 +227,20 @@ function buildRequest(
     annualContribution: parseNumber(draft.monthlyContribution, 0) * 12,
     inflationRate: parseNumber(draft.inflationRate, 2.5) / 100,
     horizonYears: parseNumber(draft.horizonYears, 35),
+    primaryAge: parseOptionalNumber(draft.primaryAge),
+    spouseAge: parseOptionalNumber(draft.spouseAge),
+    primarySocialSecurityMonthly: parseOptionalNumber(
+      draft.primarySocialSecurityMonthly,
+    ),
+    primarySocialSecurityStartAge: parseOptionalNumber(
+      draft.primarySocialSecurityStartAge,
+    ),
+    spouseSocialSecurityMonthly: parseOptionalNumber(
+      draft.spouseSocialSecurityMonthly,
+    ),
+    spouseSocialSecurityStartAge: parseOptionalNumber(
+      draft.spouseSocialSecurityStartAge,
+    ),
     trials: 2500,
     seed: 7,
   }
@@ -182,6 +299,7 @@ export function MoneyRetirementPanel({
         age: row.primaryAge,
         cash: row.balancesByBucket.cash ?? 0,
         taxable: row.balancesByBucket.taxable ?? 0,
+        governmental_457b: row.balancesByBucket.governmental_457b ?? 0,
         pre_tax: row.balancesByBucket.pre_tax ?? 0,
         hsa: row.balancesByBucket.hsa ?? 0,
         roth: row.balancesByBucket.roth ?? 0,
@@ -199,6 +317,7 @@ export function MoneyRetirementPanel({
           age: row.primaryAge,
           cash: row.withdrawalsByBucket.cash ?? 0,
           taxable: row.withdrawalsByBucket.taxable ?? 0,
+          governmental_457b: row.withdrawalsByBucket.governmental_457b ?? 0,
           pre_tax: row.withdrawalsByBucket.pre_tax ?? 0,
           hsa: row.withdrawalsByBucket.hsa ?? 0,
           roth: row.withdrawalsByBucket.roth ?? 0,
@@ -326,6 +445,84 @@ export function MoneyRetirementPanel({
               value={draft.horizonYears}
               onChange={(event) =>
                 updateDraft('horizonYears', event.target.value)
+              }
+            />
+          </div>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+              Your age
+            </p>
+            <Input
+              className="mt-2"
+              inputMode="numeric"
+              value={draft.primaryAge}
+              onChange={(event) =>
+                updateDraft('primaryAge', event.target.value)
+              }
+            />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+              Spouse age
+            </p>
+            <Input
+              className="mt-2"
+              inputMode="numeric"
+              value={draft.spouseAge}
+              onChange={(event) => updateDraft('spouseAge', event.target.value)}
+            />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+              Your SS / mo
+            </p>
+            <Input
+              className="mt-2"
+              inputMode="decimal"
+              value={draft.primarySocialSecurityMonthly}
+              onChange={(event) =>
+                updateDraft('primarySocialSecurityMonthly', event.target.value)
+              }
+            />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+              Your SS age
+            </p>
+            <Input
+              className="mt-2"
+              inputMode="numeric"
+              value={draft.primarySocialSecurityStartAge}
+              onChange={(event) =>
+                updateDraft('primarySocialSecurityStartAge', event.target.value)
+              }
+            />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+              Spouse SS / mo
+            </p>
+            <Input
+              className="mt-2"
+              inputMode="decimal"
+              value={draft.spouseSocialSecurityMonthly}
+              onChange={(event) =>
+                updateDraft('spouseSocialSecurityMonthly', event.target.value)
+              }
+            />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+              Spouse SS age
+            </p>
+            <Input
+              className="mt-2"
+              inputMode="numeric"
+              value={draft.spouseSocialSecurityStartAge}
+              onChange={(event) =>
+                updateDraft('spouseSocialSecurityStartAge', event.target.value)
               }
             />
           </div>
@@ -617,7 +814,7 @@ export function MoneyRetirementPanel({
       <SectionCard
         variant="surface"
         title="Drawdown schedule"
-        description="Year-by-year spending, income, taxes, and withdrawal source mix."
+        description="Year-by-year spending, income, taxes, early-withdrawal penalties, and withdrawal source mix."
       >
         <div className="overflow-hidden rounded-2xl border border-border/35 bg-surface-muted/10">
           <div className="overflow-auto">
@@ -630,8 +827,10 @@ export function MoneyRetirementPanel({
                     'Income',
                     'Withdrawal',
                     'Tax est.',
+                    'Penalty',
                     'Cash',
                     'Taxable',
+                    'Gov 457(b)',
                     'Pre-tax',
                     'Roth',
                     'Ending',
@@ -650,7 +849,7 @@ export function MoneyRetirementPanel({
                 {drawdownRows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={11}
+                      colSpan={13}
                       className="px-4 py-10 text-center text-sm text-text-muted"
                     >
                       Drawdown rows will appear after the preview runs.
@@ -674,6 +873,9 @@ export function MoneyRetirementPanel({
                       <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-warning">
                         {formatCurrency(row.taxEstimate, { decimals: 0 })}
                       </td>
+                      <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-warning">
+                        {formatCurrency(row.penaltyEstimate, { decimals: 0 })}
+                      </td>
                       <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
                         {formatCurrency(row.withdrawalsByBucket.cash ?? 0, {
                           decimals: 0,
@@ -683,6 +885,12 @@ export function MoneyRetirementPanel({
                         {formatCurrency(row.withdrawalsByBucket.taxable ?? 0, {
                           decimals: 0,
                         })}
+                      </td>
+                      <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
+                        {formatCurrency(
+                          row.withdrawalsByBucket.governmental_457b ?? 0,
+                          { decimals: 0 },
+                        )}
                       </td>
                       <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
                         {formatCurrency(row.withdrawalsByBucket.pre_tax ?? 0, {

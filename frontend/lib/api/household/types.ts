@@ -306,6 +306,12 @@ export interface RetirementPreviewRequest {
   retirementAge?: number | null
   horizonYears?: number | null
   inflationRate?: number | null
+  primaryAge?: number | null
+  spouseAge?: number | null
+  primarySocialSecurityMonthly?: number | null
+  spouseSocialSecurityMonthly?: number | null
+  primarySocialSecurityStartAge?: number | null
+  spouseSocialSecurityStartAge?: number | null
   asOfDate?: string | null
 }
 
@@ -342,6 +348,7 @@ export interface RetirementDrawdownYear {
   income: number
   grossWithdrawal: number
   taxEstimate: number
+  penaltyEstimate: number
   netWithdrawal: number
   endingBalance: number
   rmdAmount: number

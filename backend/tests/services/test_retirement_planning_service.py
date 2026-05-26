@@ -34,6 +34,7 @@ from app.services._retirement_simulation import (
 )
 from app.services.retirement_planning_service import (
     RetirementPlanningService,
+    _append_preview_social_security,
     _split_members,
 )
 
@@ -364,6 +365,32 @@ def test_split_members_picks_primary_and_spouse_by_role() -> None:
     assert spouse == 44
 
 
+def test_split_members_uses_relationship_and_birthday_notes_for_current_age() -> None:
+    members = [
+        {
+            "display_name": "Elias",
+            "role": "adult",
+            "relationship": "father",
+            "birth_year": 1977,
+            "notes": "DOB: 1977-01-11",
+            "is_dependent": False,
+        },
+        {
+            "display_name": "Mariana",
+            "role": "adult",
+            "relationship": "mother",
+            "birth_year": 1982,
+            "notes": "DOB: 1982-06-05",
+            "is_dependent": False,
+        },
+    ]
+
+    primary, spouse = _split_members(members, date(2026, 5, 26))
+
+    assert primary == 49
+    assert spouse == 43
+
+
 def test_split_members_falls_back_when_no_role_match() -> None:
     members = [
         {"display_name": "Alex", "role": "primary", "birth_year": None, "is_dependent": False},
@@ -521,6 +548,7 @@ def test_preview_builds_account_buckets_and_levers(
         ),
         accounts=[
             SimpleNamespace(label="Brokerage", asset_group="taxable", account_type="brokerage", current_value=250_000.0),
+            SimpleNamespace(label="PCSB 457(b)", asset_group="retirement", account_type="governmental_457b", current_value=95_000.0),
             SimpleNamespace(label="IRA", asset_group="retirement", account_type="ira", current_value=400_000.0),
             SimpleNamespace(label="Roth", asset_group="retirement", account_type="roth_ira", current_value=200_000.0),
             SimpleNamespace(label="Cash", asset_group="cash", account_type="savings", current_value=50_000.0),
@@ -542,15 +570,48 @@ def test_preview_builds_account_buckets_and_levers(
         as_of_date=date(2026, 5, 9),
     )
     assert preview.trusted_totals is True
-    assert preview.inputs.portfolio_value == 900_000.0
+    assert preview.inputs.portfolio_value == 995_000.0
     assert {bucket.bucket_type for bucket in preview.account_buckets} == {
         "cash",
         "taxable",
+        "governmental_457b",
         "pre_tax",
         "roth",
     }
     assert preview.drawdown_schedule
     assert len(preview.lever_impacts) == 3
+
+
+def test_preview_adds_social_security_knobs_on_primary_age_timeline() -> None:
+    inputs = RetirementInputs(
+        household_id="hh-ss",
+        primary_age=49,
+        spouse_age=43,
+        retirement_age=65,
+        horizon_years=30,
+        annual_expenses=72_000.0,
+        annual_contribution=0.0,
+        portfolio_value=500_000.0,
+        asset_allocation={"cash": 1.0},
+        income_sources=(),
+        inflation_rate=0.025,
+        as_of_date=date(2026, 5, 26),
+    )
+
+    updated = _append_preview_social_security(
+        inputs,
+        primary_monthly=2_500.0,
+        spouse_monthly=1_800.0,
+        primary_start_age=67,
+        spouse_start_age=67,
+    )
+
+    assert [source.label for source in updated.income_sources] == [
+        "Social Security - primary",
+        "Social Security - spouse at 67",
+    ]
+    assert updated.income_sources[0].start_age == 67
+    assert updated.income_sources[1].start_age == 73
 
 
 def test_drawdown_schedule_applies_pre_tax_rmd_estimate() -> None:
@@ -587,6 +648,52 @@ def test_drawdown_schedule_applies_pre_tax_rmd_estimate() -> None:
     age_73 = next(row for row in rows if row.primary_age == 73)
     assert age_73.rmd_applied is True
     assert age_73.withdrawals_by_bucket["pre_tax"] > 0
+
+
+def test_drawdown_uses_governmental_457b_before_penalized_pre_tax_before_age_60() -> None:
+    service = _make_service(_StubConn())
+    inputs = RetirementInputs(
+        household_id="hh-457b",
+        primary_age=55,
+        spouse_age=None,
+        retirement_age=55,
+        horizon_years=1,
+        annual_expenses=90_000.0,
+        annual_contribution=0.0,
+        portfolio_value=120_000.0,
+        asset_allocation={"cash": 1.0},
+        income_sources=(),
+        inflation_rate=0.025,
+        as_of_date=date(2026, 5, 9),
+    )
+    rows = service._drawdown_schedule(
+        inputs,
+        buckets=(
+            RetirementAccountBucket(
+                bucket_type="governmental_457b",
+                label="PCSB 457(b)",
+                account_type="governmental_457b",
+                tax_treatment="ordinary_income_no_10pct_early_penalty",
+                current_value=60_000.0,
+                withdrawal_priority=3,
+            ),
+            RetirementAccountBucket(
+                bucket_type="pre_tax",
+                label="Traditional IRA",
+                account_type="ira",
+                tax_treatment="ordinary_income",
+                current_value=60_000.0,
+                withdrawal_priority=4,
+            ),
+        ),
+        ordinary_tax_rate=0.22,
+        capital_gains_rate=0.15,
+    )
+
+    first = rows[0]
+    assert first.withdrawals_by_bucket["governmental_457b"] > 0
+    assert first.withdrawals_by_bucket["pre_tax"] > 0
+    assert first.penalty_estimate == round(first.withdrawals_by_bucket["pre_tax"] * 0.10, 2)
 
 
 _ = SimulationOutputs
