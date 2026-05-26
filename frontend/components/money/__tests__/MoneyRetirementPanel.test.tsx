@@ -231,6 +231,8 @@ const preview: RetirementPreview = {
     assetAllocation: { us_equity: 0.6, bonds: 0.4 },
     incomeSources: [],
     inflationRate: 0.025,
+    socialSecurityPayableRatio: 0.77,
+    socialSecurityDepletionYear: 2033,
     asOfDate: '2026-05-25',
   },
   successProbability: 0.82,

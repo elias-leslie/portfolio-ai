@@ -62,6 +62,7 @@ class RunScenarioRequest(BaseModel):
     retirement_age: int | None = Field(None, ge=18, le=120)
     horizon_years: int | None = Field(None, ge=1, le=70)
     inflation_rate: float | None = Field(None, ge=0.0, le=0.2)
+    social_security_payable_ratio: float | None = Field(None, ge=0.0, le=1.0)
     primary_age: int | None = Field(None, ge=18, le=120)
     spouse_age: int | None = Field(None, ge=18, le=120)
     as_of_date: date | None = None
@@ -90,6 +91,7 @@ async def run_scenario(payload: RunScenarioRequest) -> dict[str, Any]:
             retirement_age=payload.retirement_age,
             horizon_years=payload.horizon_years,
             inflation_rate=payload.inflation_rate,
+            social_security_payable_ratio=payload.social_security_payable_ratio,
             primary_age=payload.primary_age,
             spouse_age=payload.spouse_age,
             as_of_date=payload.as_of_date,
@@ -118,6 +120,7 @@ async def preview(payload: PreviewRequest) -> dict[str, Any]:
             horizon_years=payload.horizon_years,
             annual_contribution=payload.annual_contribution,
             inflation_rate=payload.inflation_rate,
+            social_security_payable_ratio=payload.social_security_payable_ratio,
             primary_age=payload.primary_age,
             spouse_age=payload.spouse_age,
             primary_social_security_monthly=payload.primary_social_security_monthly,

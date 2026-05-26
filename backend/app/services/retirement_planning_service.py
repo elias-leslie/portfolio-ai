@@ -89,6 +89,8 @@ SSA_2026_TAXABLE_WAGE_BASE = 184_500.0
 SSA_2026_FIRST_BEND_POINT = 1_286.0
 SSA_2026_SECOND_BEND_POINT = 7_749.0
 SSA_FULL_RETIREMENT_AGE = 67
+DEFAULT_SOCIAL_SECURITY_DEPLETION_YEAR = 2033
+DEFAULT_SOCIAL_SECURITY_PAYABLE_RATIO = 0.77
 FILING_STATUS_LABELS = {
     "single": "Single",
     "married_filing_jointly": "Married filing jointly",
@@ -213,6 +215,7 @@ class RetirementPlanningService:
         retirement_age: int | None = None,
         horizon_years: int | None = None,
         inflation_rate: float | None = None,
+        social_security_payable_ratio: float | None = None,
         primary_age: int | None = None,
         spouse_age: int | None = None,
         as_of_date: date | None = None,
@@ -252,6 +255,8 @@ class RetirementPlanningService:
                 if inflation_rate is not None
                 else float(self._cma.get("inflation_rate", 0.025))
             ),
+            social_security_payable_ratio=_social_security_payable_ratio(social_security_payable_ratio),
+            social_security_depletion_year=DEFAULT_SOCIAL_SECURITY_DEPLETION_YEAR,
             as_of_date=anchor,
         )
 
@@ -290,7 +295,7 @@ class RetirementPlanningService:
             horizon_years=inputs.horizon_years,
             primary_age=inputs.primary_age,
             retirement_age=inputs.retirement_age,
-            income_sources=income_streams_from_inputs(list(inputs.income_sources)),
+            income_sources=income_streams_from_inputs(_adjusted_sim_income_sources(inputs)),
             cma=self._cma,
             trials=trials,
             seed=seed,
@@ -314,6 +319,7 @@ class RetirementPlanningService:
         spouse_social_security_annual_earnings: float | None = None,
         primary_social_security_start_age: int | None = None,
         spouse_social_security_start_age: int | None = None,
+        social_security_payable_ratio: float | None = None,
         trials: int = DEFAULT_PREVIEW_TRIALS,
         seed: int | None = 7,
         as_of_date: date | None = None,
@@ -354,6 +360,9 @@ class RetirementPlanningService:
             spouse_social_security_start_age = getattr(
                 profile, "spouse_social_security_start_age", None
             )
+        if social_security_payable_ratio is None and profile is not None:
+            social_security_payable_ratio = getattr(profile, "social_security_payable_ratio", None)
+        social_security_payable_ratio = _social_security_payable_ratio(social_security_payable_ratio)
 
         inputs = self.build_inputs(
             household_id,
@@ -362,6 +371,7 @@ class RetirementPlanningService:
             retirement_age=retirement_age,
             horizon_years=horizon_years,
             inflation_rate=inflation_rate,
+            social_security_payable_ratio=social_security_payable_ratio,
             primary_age=primary_age,
             spouse_age=spouse_age,
             as_of_date=as_of_date,
@@ -411,7 +421,7 @@ class RetirementPlanningService:
             percentiles=sim.percentiles,
             ending_balance_paths=sim.ending_balance_paths,
             account_buckets=buckets,
-            tax_assumptions=_tax_assumptions(tax_context, buckets=buckets),
+            tax_assumptions=_tax_assumptions(tax_context, buckets=buckets, inputs=inputs),
             drawdown_schedule=tuple(drawdown),
             lever_impacts=self._lever_impacts(
                 inputs,
@@ -706,6 +716,9 @@ class RetirementPlanningService:
                 inputs.income_sources,
                 primary_age,
                 inflation_factor=inflation_factor,
+                calendar_year=inputs.as_of_date.year + year_index,
+                social_security_payable_ratio=inputs.social_security_payable_ratio,
+                social_security_depletion_year=inputs.social_security_depletion_year,
             )
             income = income_components["total"]
             outcome = _apply_tax_aware_withdrawals(
@@ -1212,6 +1225,9 @@ def _run_tax_aware_monte_carlo(
                 inputs.income_sources,
                 primary_age,
                 inflation_factor=inflation_factor,
+                calendar_year=inputs.as_of_date.year + year_index,
+                social_security_payable_ratio=inputs.social_security_payable_ratio,
+                social_security_depletion_year=inputs.social_security_depletion_year,
             )
             outcome = _apply_tax_aware_withdrawals(
                 balances,
@@ -1255,6 +1271,26 @@ def _run_tax_aware_monte_carlo(
         failure_year_distribution=failure_distribution,
         ending_balance_paths={k: [round(x, 2) for x in v] for k, v in paths.items()},
     )
+
+
+def _adjusted_sim_income_sources(inputs: RetirementInputs) -> list[RetirementIncomeSource]:
+    if inputs.social_security_payable_ratio >= 1.0 or inputs.social_security_depletion_year is None:
+        return list(inputs.income_sources)
+    adjusted: list[RetirementIncomeSource] = []
+    for source in inputs.income_sources:
+        if (source.source_type or "").lower() != "social_security":
+            adjusted.append(source)
+            continue
+        start_calendar_year = inputs.as_of_date.year + max(0, source.start_age - inputs.primary_age)
+        if start_calendar_year < inputs.social_security_depletion_year:
+            adjusted.append(source)
+            continue
+        adjusted.append(
+            source.model_copy(
+                update={"monthly_amount": round(source.monthly_amount * inputs.social_security_payable_ratio, 2)}
+            )
+        )
+    return adjusted
 
 
 def _tax_adjusted_annual_expenses(
@@ -1304,6 +1340,7 @@ def _tax_assumptions(
     context: FederalTaxContext,
     *,
     buckets: tuple[RetirementAccountBucket, ...] = (),
+    inputs: RetirementInputs | None = None,
 ) -> dict[str, Any]:
     warnings = []
     if context.filing_status_source != "saved":
@@ -1315,6 +1352,10 @@ def _tax_assumptions(
             "Governmental 457(b) is modeled as penalty-free after the plan owner separates from service; "
             "confirm Pinellas plan distribution rules before relying on in-service access."
         )
+    if inputs and inputs.social_security_payable_ratio < 1.0:
+        percent = round(inputs.social_security_payable_ratio * 100)
+        year = inputs.social_security_depletion_year or DEFAULT_SOCIAL_SECURITY_DEPLETION_YEAR
+        warnings.append(f"Social Security is modeled at {percent}% of scheduled benefits starting in {year}.")
     capital_gains_zero_rate_limit, capital_gains_twenty_rate_threshold = LONG_TERM_CAPITAL_GAINS_BRACKETS_2026[
         context.filing_status
     ]
@@ -1334,10 +1375,12 @@ def _tax_assumptions(
         "withdrawal_order_label": "Cash, taxable brokerage, governmental 457(b), pre-tax, HSA, Roth, then other.",
         "governmental_457b_penalty_rate": 0.0,
         "pre_tax_early_withdrawal_penalty_rate": 0.10,
+        "social_security_payable_ratio": inputs.social_security_payable_ratio if inputs else 1.0,
+        "social_security_depletion_year": inputs.social_security_depletion_year if inputs else None,
         "method": (
             "Federal taxes are derived yearly from ordinary income, taxable Social Security, "
             "pre-tax/457(b) withdrawals, estimated taxable-brokerage gains, 2026 brackets, "
-            "standard deduction, and age-65 standard deduction."
+            "standard deduction, age-65 standard deduction, and the saved Social Security payable ratio."
         ),
         "manual_rate_used": False,
         "warnings": warnings,
@@ -1380,6 +1423,15 @@ def _state_tax_source_from_profile(profile: Any) -> str:
     return "saved_marginal_state_tax_rate" if getattr(profile, "marginal_state_tax_rate", None) is not None else "not_set"
 
 
+def _social_security_payable_ratio(value: float | None) -> float:
+    if value is None:
+        return DEFAULT_SOCIAL_SECURITY_PAYABLE_RATIO
+    parsed = float(value or 0.0)
+    if parsed > 1.0:
+        parsed /= 100.0
+    return max(0.0, min(parsed, 1.0))
+
+
 def _contribution_bucket(balances: dict[str, float]) -> str:
     for bucket in ("pre_tax", "governmental_457b", "taxable", "cash", "roth"):
         if balances.get(bucket, 0.0) > 0:
@@ -1392,6 +1444,9 @@ def _income_components_for_age(
     primary_age: int,
     *,
     inflation_factor: float,
+    calendar_year: int,
+    social_security_payable_ratio: float,
+    social_security_depletion_year: int | None,
 ) -> dict[str, float]:
     total = 0.0
     social_security = 0.0
@@ -1401,11 +1456,16 @@ def _income_components_for_age(
             continue
         annual = source.monthly_amount * 12.0
         amount = annual * inflation_factor if source.inflation_adjusted else annual
-        total += amount
         if (source.source_type or "").lower() == "social_security":
+            if (
+                social_security_depletion_year is not None
+                and calendar_year >= social_security_depletion_year
+            ):
+                amount *= social_security_payable_ratio
             social_security += amount
         else:
             ordinary += amount
+        total += amount
     return {"total": total, "social_security": social_security, "ordinary": ordinary}
 
 

@@ -59,6 +59,7 @@ const ssa2026TaxableWageBase = 184_500
 const ssa2026FirstBendPoint = 1_286
 const ssa2026SecondBendPoint = 7_749
 const socialSecurityFullRetirementAge = 67
+const defaultSocialSecurityPayableRatio = 0.77
 
 function preparednessVariant(status: string) {
   if (status.includes('ready') || status.includes('visible')) {
@@ -254,6 +255,10 @@ function socialSecurityDefaults(dashboard: HouseholdFinanceDashboard) {
       profile.spouseSocialSecurityAnnualEarnings,
       '0',
     ),
+    payableRatio: percentInput(
+      profile.socialSecurityPayableRatio,
+      String(defaultSocialSecurityPayableRatio * 100),
+    ),
   }
 }
 
@@ -282,6 +287,7 @@ function defaultDraft(dashboard: HouseholdFinanceDashboard) {
     spouseSocialSecurityMonthly: socialSecurity.spouseMonthly,
     spouseSocialSecurityAnnualEarnings: socialSecurity.spouseAnnualEarnings,
     spouseSocialSecurityStartAge: socialSecurity.spouseStartAge,
+    socialSecurityPayableRatio: socialSecurity.payableRatio,
   }
 }
 
@@ -316,6 +322,11 @@ function buildRequest(
     spouseSocialSecurityStartAge: parseOptionalNumber(
       draft.spouseSocialSecurityStartAge,
     ),
+    socialSecurityPayableRatio:
+      parseNumber(
+        draft.socialSecurityPayableRatio,
+        defaultSocialSecurityPayableRatio * 100,
+      ) / 100,
     trials: 2500,
     seed: 7,
   }
@@ -470,21 +481,32 @@ export function MoneyRetirementPanel({
       draft.spouseSocialSecurityStartAge,
       socialSecurityFullRetirementAge,
     )
+    const payableRatio =
+      parseNumber(
+        draft.socialSecurityPayableRatio,
+        defaultSocialSecurityPayableRatio * 100,
+      ) / 100
+    const primaryScheduled =
+      primaryManual ??
+      estimateSocialSecurityMonthly(
+        parseOptionalNumber(draft.primarySocialSecurityAnnualEarnings),
+        primaryClaimAge,
+      )
+    const spouseScheduled =
+      spouseManual ??
+      estimateSocialSecurityMonthly(
+        parseOptionalNumber(draft.spouseSocialSecurityAnnualEarnings),
+        spouseClaimAge,
+      )
     return {
+      primaryScheduled,
+      spouseScheduled,
       primary:
-        primaryManual ??
-        estimateSocialSecurityMonthly(
-          parseOptionalNumber(draft.primarySocialSecurityAnnualEarnings),
-          primaryClaimAge,
-        ),
-      spouse:
-        spouseManual ??
-        estimateSocialSecurityMonthly(
-          parseOptionalNumber(draft.spouseSocialSecurityAnnualEarnings),
-          spouseClaimAge,
-        ),
+        primaryScheduled == null ? null : primaryScheduled * payableRatio,
+      spouse: spouseScheduled == null ? null : spouseScheduled * payableRatio,
       primaryClaimAge,
       spouseClaimAge,
+      payableRatio,
     }
   }, [draft])
 
@@ -517,6 +539,11 @@ export function MoneyRetirementPanel({
       spouseSocialSecurityStartAge: parseOptionalNumber(
         draft.spouseSocialSecurityStartAge,
       ),
+      socialSecurityPayableRatio:
+        parseNumber(
+          draft.socialSecurityPayableRatio,
+          defaultSocialSecurityPayableRatio * 100,
+        ) / 100,
     }
     await updateProfile.mutateAsync(profileUpdate)
     setRequest(buildRequest(dashboard.profile.id, draft))
@@ -738,6 +765,19 @@ export function MoneyRetirementPanel({
               }
             />
           </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+              SS payable %
+            </p>
+            <Input
+              className="mt-2"
+              inputMode="decimal"
+              value={draft.socialSecurityPayableRatio}
+              onChange={(event) =>
+                updateDraft('socialSecurityPayableRatio', event.target.value)
+              }
+            />
+          </div>
         </div>
         <p className="mt-3 text-xs text-text-muted">
           Social Security included:{' '}
@@ -755,7 +795,11 @@ export function MoneyRetirementPanel({
             /mo at {socialSecurityEstimate.spouseClaimAge}
           </span>{' '}
           for spouse. Enter exact SSA estimates when available; salary-based
-          values are rough estimates.
+          values are rough estimates. Modeled at{' '}
+          {formatPercent(socialSecurityEstimate.payableRatio * 100, {
+            decimals: 0,
+          })}{' '}
+          of scheduled benefits after projected trust fund depletion.
         </p>
       </SectionCard>
 

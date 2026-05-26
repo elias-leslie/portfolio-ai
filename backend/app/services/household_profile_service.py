@@ -28,6 +28,7 @@ class HouseholdProfileService:
                        primary_social_security_monthly, spouse_social_security_monthly,
                        primary_social_security_annual_earnings, spouse_social_security_annual_earnings,
                        primary_social_security_start_age, spouse_social_security_start_age,
+                       social_security_payable_ratio,
                        filing_status, state_of_residence, effective_tax_rate,
                        marginal_federal_tax_rate, marginal_state_tax_rate,
                        emergency_fund_target_months, emergency_fund_target_amount,

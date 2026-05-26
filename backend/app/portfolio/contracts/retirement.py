@@ -57,6 +57,8 @@ class RetirementInputs(BaseModel):
     asset_allocation: dict[str, float] = Field(default_factory=dict)
     income_sources: tuple[RetirementIncomeSource, ...] = ()
     inflation_rate: float = Field(0.025, ge=0.0, le=0.2)
+    social_security_payable_ratio: float = Field(1.0, ge=0.0, le=1.0)
+    social_security_depletion_year: int | None = Field(None, ge=1900, le=2200)
     as_of_date: date
 
 

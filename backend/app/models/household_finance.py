@@ -139,6 +139,7 @@ class HouseholdProfile(BaseModel):
     spouse_social_security_annual_earnings: float | None = None
     primary_social_security_start_age: int | None = None
     spouse_social_security_start_age: int | None = None
+    social_security_payable_ratio: float | None = None
     filing_status: str | None = None
     state_of_residence: str | None = None
     effective_tax_rate: float | None = None
@@ -169,6 +170,7 @@ class HouseholdProfileUpdate(BaseModel):
     spouse_social_security_annual_earnings: float | None = None
     primary_social_security_start_age: int | None = None
     spouse_social_security_start_age: int | None = None
+    social_security_payable_ratio: float | None = None
     filing_status: str | None = None
     state_of_residence: str | None = None
     effective_tax_rate: float | None = None

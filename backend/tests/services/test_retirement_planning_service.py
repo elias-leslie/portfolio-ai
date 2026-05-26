@@ -799,6 +799,42 @@ def test_social_security_start_age_only_does_not_clear_saved_income_sources() ->
     assert updated.income_sources == (saved_source,)
 
 
+def test_drawdown_applies_social_security_payable_ratio_after_depletion_year() -> None:
+    service = _make_service(_StubConn())
+    inputs = RetirementInputs(
+        household_id="hh-ss-haircut",
+        primary_age=65,
+        spouse_age=None,
+        retirement_age=65,
+        horizon_years=2,
+        annual_expenses=0.0,
+        annual_contribution=0.0,
+        portfolio_value=0.0,
+        asset_allocation={"cash": 1.0},
+        income_sources=(
+            RetirementIncomeSource(
+                label="Social Security",
+                source_type="social_security",
+                owner_name="primary",
+                start_age=65,
+                monthly_amount=1_000.0,
+                inflation_adjusted=False,
+            ),
+        ),
+        inflation_rate=0.0,
+        social_security_payable_ratio=0.77,
+        social_security_depletion_year=2033,
+        as_of_date=date(2032, 1, 1),
+    )
+
+    rows = service._drawdown_schedule(inputs, buckets=())
+
+    assert rows[0].calendar_year == 2032
+    assert rows[0].income == 12_000.0
+    assert rows[1].calendar_year == 2033
+    assert rows[1].income == 9_240.0
+
+
 def test_drawdown_schedule_applies_pre_tax_rmd_estimate() -> None:
     service = _make_service(_StubConn())
     inputs = RetirementInputs(

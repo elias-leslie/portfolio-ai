@@ -250,6 +250,15 @@ const assumptionFields: AssumptionFieldDef[] = [
     hint: 'Spouse age to start Social Security in retirement previews.',
     placeholder: '67',
   },
+  {
+    fieldName: 'social_security_payable_ratio',
+    profileKey: 'socialSecurityPayableRatio',
+    label: 'Social Security payable %',
+    type: 'percent',
+    hint: 'Percent of scheduled SSA benefits to model after projected trust fund depletion.',
+    placeholder: '77',
+    percentStorage: 'fraction',
+  },
 ]
 
 const cadenceOptions: Array<{ value: IncomeCadence; label: string }> = [

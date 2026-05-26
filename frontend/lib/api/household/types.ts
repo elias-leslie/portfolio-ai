@@ -63,6 +63,7 @@ export interface HouseholdProfile {
   spouseSocialSecurityAnnualEarnings?: number | null
   primarySocialSecurityStartAge?: number | null
   spouseSocialSecurityStartAge?: number | null
+  socialSecurityPayableRatio?: number | null
   filingStatus?: string | null
   stateOfResidence?: string | null
   effectiveTaxRate?: number | null
@@ -322,6 +323,7 @@ export interface RetirementPreviewRequest {
   spouseSocialSecurityAnnualEarnings?: number | null
   primarySocialSecurityStartAge?: number | null
   spouseSocialSecurityStartAge?: number | null
+  socialSecurityPayableRatio?: number | null
   asOfDate?: string | null
 }
 
@@ -338,6 +340,8 @@ export interface RetirementInputs {
   assetAllocation: Record<string, number>
   incomeSources: Array<Record<string, unknown>>
   inflationRate: number
+  socialSecurityPayableRatio: number
+  socialSecurityDepletionYear: number | null
   asOfDate: string
 }
 
@@ -772,6 +776,7 @@ export interface HouseholdProfileUpdate {
   spouseSocialSecurityAnnualEarnings?: number | null
   primarySocialSecurityStartAge?: number | null
   spouseSocialSecurityStartAge?: number | null
+  socialSecurityPayableRatio?: number | null
   filingStatus?: string | null
   stateOfResidence?: string | null
   effectiveTaxRate?: number | null
