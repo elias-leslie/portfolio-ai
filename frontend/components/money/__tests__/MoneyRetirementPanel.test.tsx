@@ -485,8 +485,19 @@ describe('MoneyRetirementPanel', () => {
     expect(screen.getAllByText('Gov 457(b)').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Pre-tax').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Roth').length).toBeGreaterThan(0)
-    expect(screen.getByText('Tax model')).toBeInTheDocument()
-    expect(screen.getByText('Married filing jointly')).toBeInTheDocument()
+    expect(screen.getByText('Sensitivity checks')).toBeInTheDocument()
+    expect(screen.queryByText('25x checkpoint')).not.toBeInTheDocument()
+    expect(screen.queryByText(/save gap \/ month/i)).not.toBeInTheDocument()
+    expect(screen.getByText('Data confidence')).toBeInTheDocument()
+    expect(screen.queryByText('Tax assumptions')).not.toBeInTheDocument()
+    expect(screen.queryByText('Tax model')).not.toBeInTheDocument()
+    expect(screen.queryByText('Married filing jointly')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('columnheader', { name: /tax est/i }),
+    ).toHaveAttribute(
+      'title',
+      expect.stringContaining('Married filing jointly'),
+    )
     expect(screen.getByText('Holdings coverage')).toBeInTheDocument()
     expect(screen.getByText('Partial holdings')).toBeInTheDocument()
     expect(screen.getByText('Exact holdings/cash')).toBeInTheDocument()

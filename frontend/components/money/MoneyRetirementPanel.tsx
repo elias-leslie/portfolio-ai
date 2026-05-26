@@ -508,6 +508,22 @@ function taxAssumptionWarnings(
     : []
 }
 
+function taxAssumptionTooltip(
+  assumptions: Record<string, unknown> | undefined,
+  warnings: string[],
+) {
+  const filingStatus =
+    taxAssumptionText(assumptions, 'filingStatusLabel') ?? 'Federal estimate'
+  const warning = warnings[0]
+  if (warning) return `${filingStatus}. ${warning}`
+
+  return `${filingStatus}. Standard deduction ${formatCurrencyWhole(
+    taxAssumptionNumber(assumptions, 'standardDeduction'),
+  )}; LTCG 0% cap ${formatCurrencyWhole(
+    taxAssumptionNumber(assumptions, 'capitalGainsZeroRateLimit'),
+  )}. Brokerage is modeled before retirement accounts.`
+}
+
 function socialSecuritySourceLabel(
   scheduled: number | null,
   manualMonthly: number | null,
@@ -545,6 +561,10 @@ export function MoneyRetirementPanel({
   const fullRetirementAge = householdRetirementAge(preview?.inputs)
   const preparedness = dashboard.retirementPreparedness
   const taxWarnings = taxAssumptionWarnings(preview?.taxAssumptions)
+  const taxEstimateTooltip = taxAssumptionTooltip(
+    preview?.taxAssumptions,
+    taxWarnings,
+  )
 
   useEffect(() => {
     const nextDraft = defaultDraft(dashboard)
@@ -1341,167 +1361,93 @@ export function MoneyRetirementPanel({
         />
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-        <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Success odds
-            </p>
-            {preview ? (
-              <Badge
-                variant={previewStatusVariant(
-                  preview.successProbability,
-                  preview.trustedTotals,
-                )}
-              >
-                {preview.trustedTotals ? 'Trusted' : 'Guarded'}
-              </Badge>
-            ) : null}
-          </div>
-          <p className="mt-3 text-3xl font-semibold text-text">
-            {preview ? percentPoints(preview.successProbability) : '—'}
-          </p>
-          <p className="mt-2 text-xs text-text-muted">
-            Monte Carlo probability for this knob set.
-          </p>
-        </div>
-        <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-            Median ending balance
-          </p>
-          <p className="mt-3 text-3xl font-semibold text-text">
-            {formatCurrencyWhole(preview?.medianEndingBalance)}
-          </p>
-          <p className="mt-2 text-xs text-text-muted">
-            P50 terminal value at horizon.
-          </p>
-        </div>
-        <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-            First depletion
-          </p>
-          <p className="mt-3 text-3xl font-semibold text-text">
-            {preview?.firstDepletionAge
-              ? `Age ${preview.firstDepletionAge}`
-              : 'None'}
-          </p>
-          <p className="mt-2 text-xs text-text-muted">
-            Deterministic drawdown schedule.
-          </p>
-        </div>
-        <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-            Save gap / month
-          </p>
-          <p className="mt-3 text-3xl font-semibold text-text">
-            {preview && preview.estimatedMonthlyContributionGap > 0
-              ? formatCurrencyWhole(preview.estimatedMonthlyContributionGap)
-              : 'Covered'}
-          </p>
-          <p className="mt-2 text-xs text-text-muted">
-            Simple 25x spend checkpoint.
-          </p>
-        </div>
-        <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-            Data guard
-          </p>
-          <p className="mt-3 text-sm font-semibold text-text">
-            {preview?.accountControlSummary || preparedness.summary}
-          </p>
-          <Badge
-            className="mt-3"
-            variant={
-              preview?.trustedTotals === false
-                ? 'warning'
-                : preparednessVariant(preparedness.status)
-            }
-          >
-            {formatEnumLabel(
-              preview?.accountControlStatus ?? preparedness.status,
-            )}
-          </Badge>
-        </div>
-        <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Tax model
-            </p>
-            <Badge variant={taxWarnings.length > 0 ? 'warning' : 'success'}>
-              {taxWarnings.length > 0 ? 'Review' : 'Derived'}
-            </Badge>
-          </div>
-          <p className="mt-3 text-sm font-semibold text-text">
-            {taxAssumptionText(preview?.taxAssumptions, 'filingStatusLabel') ??
-              'Federal estimate'}
-          </p>
-          <p className="mt-2 text-xs text-text-muted">
-            {taxWarnings[0] ??
-              `Std. deduction ${formatCurrencyWhole(
-                taxAssumptionNumber(
-                  preview?.taxAssumptions,
-                  'standardDeduction',
-                ),
-              )}; LTCG 0% cap ${formatCurrencyWhole(
-                taxAssumptionNumber(
-                  preview?.taxAssumptions,
-                  'capitalGainsZeroRateLimit',
-                ),
-              )}.`}
-          </p>
-          <p className="mt-1 text-xs text-text-muted">
-            Brokerage is modeled before retirement accounts.
-          </p>
-        </div>
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+      <div className="grid items-start gap-6 xl:grid-cols-2">
         <SectionCard
           variant="surface"
-          title="Probability bands"
-          description="Portfolio range by age. Wider bands mean return sequence risk matters more."
+          padding="md"
+          contentClassName="space-y-4"
         >
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={projectionData} margin={{ left: 8, right: 8 }}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="var(--color-border)"
-                />
-                <XAxis dataKey="age" tickLine={false} />
-                <YAxis
-                  tickFormatter={(value) =>
-                    `$${Math.round(Number(value) / 1000)}k`
-                  }
-                />
-                <Tooltip formatter={currencyTooltip} />
-                <Legend />
-                <Area
-                  type="monotone"
-                  dataKey="p90"
-                  name="P90"
-                  stroke="var(--color-chart-3)"
-                  fill="var(--color-chart-3)"
-                  fillOpacity={0.12}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="p50"
-                  name="P50"
-                  stroke="var(--color-chart-1)"
-                  fill="var(--color-chart-1)"
-                  fillOpacity={0.16}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="p10"
-                  name="P10"
-                  stroke="var(--color-warning)"
-                  dot={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                  Success odds
+                </p>
+                {preview ? (
+                  <Badge
+                    variant={previewStatusVariant(
+                      preview.successProbability,
+                      preview.trustedTotals,
+                    )}
+                  >
+                    {preview.trustedTotals ? 'Trusted' : 'Guarded'}
+                  </Badge>
+                ) : null}
+              </div>
+              <p className="mt-2 text-2xl font-semibold text-text">
+                {preview ? percentPoints(preview.successProbability) : '—'}
+              </p>
+              <p className="mt-1 text-xs text-text-muted">
+                Monte Carlo probability for this knob set.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                Median ending balance
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-text">
+                {formatCurrencyWhole(preview?.medianEndingBalance)}
+              </p>
+              <p className="mt-1 text-xs text-text-muted">
+                P50 terminal value at horizon.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                First depletion
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-text">
+                {preview?.firstDepletionAge
+                  ? `Age ${preview.firstDepletionAge}`
+                  : 'None'}
+              </p>
+              <p className="mt-1 text-xs text-text-muted">
+                Deterministic drawdown schedule.
+              </p>
+            </div>
           </div>
+
+          {(preview?.leverImpacts ?? []).length > 0 ? (
+            <div className="border-t border-border/30 pt-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                Sensitivity checks
+              </p>
+              <div className="mt-3 grid gap-3 md:grid-cols-3">
+                {(preview?.leverImpacts ?? []).map((lever) => (
+                  <div
+                    key={lever.id}
+                    className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4"
+                  >
+                    <p className="text-sm font-semibold text-text">
+                      {lever.label}
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold text-text">
+                      {formatPercent(lever.deltaSuccessProbability * 100, {
+                        decimals: 1,
+                        sign: true,
+                      })}
+                    </p>
+                    <p className="mt-1 text-xs uppercase tracking-wide text-text-muted">
+                      {lever.value}
+                    </p>
+                    <p className="mt-3 text-sm text-text-muted">
+                      {lever.detail}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </SectionCard>
 
         <SectionCard
@@ -1537,6 +1483,27 @@ export function MoneyRetirementPanel({
                 </div>
               ))
             )}
+            <div className="rounded-xl border border-border/30 bg-surface-muted/10 px-3 py-2 text-xs text-text-muted">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-semibold uppercase tracking-[0.16em]">
+                  Data confidence
+                </span>
+                <Badge
+                  variant={
+                    preview?.trustedTotals === false
+                      ? 'warning'
+                      : preparednessVariant(preparedness.status)
+                  }
+                >
+                  {formatEnumLabel(
+                    preview?.accountControlStatus ?? preparedness.status,
+                  )}
+                </Badge>
+              </div>
+              <p className="mt-1 text-text">
+                {preview?.accountControlSummary || preparedness.summary}
+              </p>
+            </div>
             {holdingsCoverage ? (
               <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
                 <div className="flex items-center justify-between gap-3">
@@ -1636,15 +1603,15 @@ export function MoneyRetirementPanel({
         </SectionCard>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid gap-6">
         <SectionCard
           variant="surface"
-          title="Account balances by age"
-          description="Stacked expected-path balances after contributions, withdrawals, tax estimates, and RMD estimates."
+          title="Probability bands"
+          description="Portfolio range by age. Wider bands mean return sequence risk matters more."
         >
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={balanceData} margin={{ left: 8, right: 8 }}>
+              <AreaChart data={projectionData} margin={{ left: 8, right: 8 }}>
                 <CartesianGrid
                   strokeDasharray="3 3"
                   stroke="var(--color-border)"
@@ -1657,18 +1624,29 @@ export function MoneyRetirementPanel({
                 />
                 <Tooltip formatter={currencyTooltip} />
                 <Legend />
-                {bucketOrder.map((bucket) => (
-                  <Area
-                    key={bucket}
-                    type="monotone"
-                    dataKey={bucket}
-                    stackId="1"
-                    name={bucketLabel(bucket)}
-                    stroke={bucketColors[bucket]}
-                    fill={bucketColors[bucket]}
-                    fillOpacity={0.55}
-                  />
-                ))}
+                <Area
+                  type="monotone"
+                  dataKey="p90"
+                  name="P90"
+                  stroke="var(--color-chart-3)"
+                  fill="var(--color-chart-3)"
+                  fillOpacity={0.12}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="p50"
+                  name="P50"
+                  stroke="var(--color-chart-1)"
+                  fill="var(--color-chart-1)"
+                  fillOpacity={0.16}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="p10"
+                  name="P10"
+                  stroke="var(--color-warning)"
+                  dot={false}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -1707,34 +1685,44 @@ export function MoneyRetirementPanel({
             </ResponsiveContainer>
           </div>
         </SectionCard>
-      </div>
 
-      <SectionCard
-        variant="surface"
-        title="Knobs and levers"
-        description="Modeled impact of simple changes against the current preview."
-      >
-        <div className="grid gap-3 md:grid-cols-3">
-          {(preview?.leverImpacts ?? []).map((lever) => (
-            <div
-              key={lever.id}
-              className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4"
-            >
-              <p className="text-sm font-semibold text-text">{lever.label}</p>
-              <p className="mt-2 text-2xl font-semibold text-text">
-                {formatPercent(lever.deltaSuccessProbability * 100, {
-                  decimals: 1,
-                  sign: true,
-                })}
-              </p>
-              <p className="mt-1 text-xs uppercase tracking-wide text-text-muted">
-                {lever.value}
-              </p>
-              <p className="mt-3 text-sm text-text-muted">{lever.detail}</p>
-            </div>
-          ))}
-        </div>
-      </SectionCard>
+        <SectionCard
+          variant="surface"
+          title="Account balances by age"
+          description="Stacked expected-path balances after contributions, withdrawals, tax estimates, and RMD estimates."
+        >
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={balanceData} margin={{ left: 8, right: 8 }}>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="var(--color-border)"
+                />
+                <XAxis dataKey="age" tickLine={false} />
+                <YAxis
+                  tickFormatter={(value) =>
+                    `$${Math.round(Number(value) / 1000)}k`
+                  }
+                />
+                <Tooltip formatter={currencyTooltip} />
+                <Legend />
+                {bucketOrder.map((bucket) => (
+                  <Area
+                    key={bucket}
+                    type="monotone"
+                    dataKey={bucket}
+                    stackId="1"
+                    name={bucketLabel(bucket)}
+                    stroke={bucketColors[bucket]}
+                    fill={bucketColors[bucket]}
+                    fillOpacity={0.55}
+                  />
+                ))}
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </SectionCard>
+      </div>
 
       <SectionCard
         variant="surface"
@@ -1747,25 +1735,26 @@ export function MoneyRetirementPanel({
               <thead className="bg-bg/95 backdrop-blur">
                 <tr>
                   {[
-                    'Age',
-                    'Spend',
-                    'Income',
-                    'Withdrawal',
-                    'Tax est.',
-                    'Penalty',
-                    'Cash',
-                    'Taxable',
-                    'Gov 457(b)',
-                    'Pre-tax',
-                    'Roth',
-                    'Ending',
-                    'RMD',
+                    { label: 'Age' },
+                    { label: 'Spend' },
+                    { label: 'Income' },
+                    { label: 'Withdrawal' },
+                    { label: 'Tax est.', title: taxEstimateTooltip },
+                    { label: 'Penalty' },
+                    { label: 'Cash' },
+                    { label: 'Taxable' },
+                    { label: 'Gov 457(b)' },
+                    { label: 'Pre-tax' },
+                    { label: 'Roth' },
+                    { label: 'Ending' },
+                    { label: 'RMD' },
                   ].map((heading) => (
                     <th
-                      key={heading}
+                      key={heading.label}
                       className="border-b border-border/35 px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.16em] text-text-muted first:text-left"
+                      title={heading.title}
                     >
-                      {heading}
+                      {heading.label}
                     </th>
                   ))}
                 </tr>
