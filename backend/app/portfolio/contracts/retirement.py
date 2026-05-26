@@ -170,6 +170,7 @@ class RetirementPreview(BaseModel):
     percentiles: dict[str, float]
     ending_balance_paths: dict[str, list[float]]
     account_buckets: tuple[RetirementAccountBucket, ...] = ()
+    tax_assumptions: dict[str, Any] = Field(default_factory=dict)
     drawdown_schedule: tuple[RetirementDrawdownYear, ...] = ()
     lever_impacts: tuple[RetirementLeverImpact, ...] = ()
     first_depletion_age: int | None = None

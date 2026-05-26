@@ -276,6 +276,12 @@ const preview: RetirementPreview = {
       withdrawalPriority: 5,
     },
   ],
+  taxAssumptions: {
+    filingStatusLabel: 'Married filing jointly',
+    standardDeduction: 32200,
+    capitalGainsZeroRateLimit: 98900,
+    warnings: [],
+  },
   drawdownSchedule: [
     {
       yearIndex: 15,
@@ -376,6 +382,8 @@ describe('MoneyRetirementPanel', () => {
     expect(screen.getAllByText('Gov 457(b)').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Pre-tax').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Roth').length).toBeGreaterThan(0)
+    expect(screen.getByText('Tax model')).toBeInTheDocument()
+    expect(screen.getByText('Married filing jointly')).toBeInTheDocument()
     expect(screen.getByText('Retire 2 years later')).toBeInTheDocument()
     expect(screen.getByText('Drawdown schedule')).toBeInTheDocument()
     expect(screen.getByText('$18,000')).toBeInTheDocument()

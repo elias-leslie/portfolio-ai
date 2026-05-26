@@ -331,6 +331,33 @@ function percentPoints(value: number) {
   return formatPercent(value * 100, { decimals: 0 })
 }
 
+function taxAssumptionText(
+  assumptions: Record<string, unknown> | undefined,
+  key: string,
+) {
+  const value = assumptions?.[key]
+  return typeof value === 'string' ? value : null
+}
+
+function taxAssumptionNumber(
+  assumptions: Record<string, unknown> | undefined,
+  key: string,
+) {
+  const value = assumptions?.[key]
+  return typeof value === 'number' ? value : null
+}
+
+function taxAssumptionWarnings(
+  assumptions: Record<string, unknown> | undefined,
+) {
+  const warnings = assumptions?.warnings
+  return Array.isArray(warnings)
+    ? warnings.filter(
+        (warning): warning is string => typeof warning === 'string',
+      )
+    : []
+}
+
 export function MoneyRetirementPanel({
   dashboard,
   onEditTargets,
@@ -346,6 +373,7 @@ export function MoneyRetirementPanel({
   const previewQuery = useRetirementPreview(request)
   const preview = previewQuery.data
   const preparedness = dashboard.retirementPreparedness
+  const taxWarnings = taxAssumptionWarnings(preview?.taxAssumptions)
 
   useEffect(() => {
     const nextDraft = defaultDraft(dashboard)
@@ -744,7 +772,7 @@ export function MoneyRetirementPanel({
         />
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
@@ -824,6 +852,37 @@ export function MoneyRetirementPanel({
               preview?.accountControlStatus ?? preparedness.status,
             )}
           </Badge>
+        </div>
+        <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+              Tax model
+            </p>
+            <Badge variant={taxWarnings.length > 0 ? 'warning' : 'success'}>
+              {taxWarnings.length > 0 ? 'Review' : 'Derived'}
+            </Badge>
+          </div>
+          <p className="mt-3 text-sm font-semibold text-text">
+            {taxAssumptionText(preview?.taxAssumptions, 'filingStatusLabel') ??
+              'Federal estimate'}
+          </p>
+          <p className="mt-2 text-xs text-text-muted">
+            {taxWarnings[0] ??
+              `Std. deduction ${formatCurrencyWhole(
+                taxAssumptionNumber(
+                  preview?.taxAssumptions,
+                  'standardDeduction',
+                ),
+              )}; LTCG 0% cap ${formatCurrencyWhole(
+                taxAssumptionNumber(
+                  preview?.taxAssumptions,
+                  'capitalGainsZeroRateLimit',
+                ),
+              )}.`}
+          </p>
+          <p className="mt-1 text-xs text-text-muted">
+            Brokerage is modeled before retirement accounts.
+          </p>
         </div>
       </div>
 

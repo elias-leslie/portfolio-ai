@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from importlib import import_module
 from pathlib import Path
@@ -78,10 +79,88 @@ BUCKET_TAX_TREATMENTS = {
     "other": "planning_estimate",
 }
 TAXABLE_WITHDRAWAL_GAIN_RATIO = 0.15
+FEDERAL_TAX_YEAR = 2026
 SSA_2026_TAXABLE_WAGE_BASE = 184_500.0
 SSA_2026_FIRST_BEND_POINT = 1_286.0
 SSA_2026_SECOND_BEND_POINT = 7_749.0
 SSA_FULL_RETIREMENT_AGE = 67
+FILING_STATUS_LABELS = {
+    "single": "Single",
+    "married_filing_jointly": "Married filing jointly",
+    "married_filing_separately": "Married filing separately",
+    "head_of_household": "Head of household",
+}
+STANDARD_DEDUCTION_2026 = {
+    "single": 16_100.0,
+    "married_filing_jointly": 32_200.0,
+    "married_filing_separately": 16_100.0,
+    "head_of_household": 24_150.0,
+}
+ADDITIONAL_STANDARD_DEDUCTION_65_2026 = {
+    "single": 2_050.0,
+    "married_filing_jointly": 1_650.0,
+    "married_filing_separately": 1_650.0,
+    "head_of_household": 2_050.0,
+}
+ORDINARY_TAX_BRACKETS_2026 = {
+    "single": (
+        (12_400.0, 0.10),
+        (50_400.0, 0.12),
+        (105_700.0, 0.22),
+        (201_775.0, 0.24),
+        (256_225.0, 0.32),
+        (640_600.0, 0.35),
+        (float("inf"), 0.37),
+    ),
+    "married_filing_jointly": (
+        (24_800.0, 0.10),
+        (100_800.0, 0.12),
+        (211_400.0, 0.22),
+        (403_550.0, 0.24),
+        (512_450.0, 0.32),
+        (768_700.0, 0.35),
+        (float("inf"), 0.37),
+    ),
+    "married_filing_separately": (
+        (12_400.0, 0.10),
+        (50_400.0, 0.12),
+        (105_700.0, 0.22),
+        (201_775.0, 0.24),
+        (256_225.0, 0.32),
+        (384_350.0, 0.35),
+        (float("inf"), 0.37),
+    ),
+    "head_of_household": (
+        (17_700.0, 0.10),
+        (67_450.0, 0.12),
+        (105_700.0, 0.22),
+        (201_750.0, 0.24),
+        (256_200.0, 0.32),
+        (640_600.0, 0.35),
+        (float("inf"), 0.37),
+    ),
+}
+LONG_TERM_CAPITAL_GAINS_BRACKETS_2026 = {
+    "single": (49_450.0, 545_500.0),
+    "married_filing_jointly": (98_900.0, 613_700.0),
+    "married_filing_separately": (49_450.0, 306_850.0),
+    "head_of_household": (66_200.0, 579_600.0),
+}
+NIIT_THRESHOLDS_2026 = {
+    "single": 200_000.0,
+    "married_filing_jointly": 250_000.0,
+    "married_filing_separately": 125_000.0,
+    "head_of_household": 200_000.0,
+}
+NO_STATE_INCOME_TAX_STATES = {"AK", "FL", "NV", "NH", "SD", "TN", "TX", "WA", "WY"}
+
+
+@dataclass(frozen=True, slots=True)
+class FederalTaxContext:
+    filing_status: str
+    filing_status_source: str
+    state_tax_rate: float
+    state_tax_source: str
 
 
 def load_cma(path: Path | None = None) -> dict[str, Any]:
@@ -281,14 +360,12 @@ class RetirementPlanningService:
                 ),
             )
 
+        tax_context = _tax_context_from_profile(profile, inputs)
         sim = self.run_simulation(inputs, trials=trials, seed=seed)
-        ordinary_tax_rate = _profile_tax_rate(profile)
-        capital_gains_rate = min(ordinary_tax_rate, 0.15 if ordinary_tax_rate > 0 else 0.0)
         drawdown = self._drawdown_schedule(
             inputs,
             buckets=buckets,
-            ordinary_tax_rate=ordinary_tax_rate,
-            capital_gains_rate=capital_gains_rate,
+            tax_context=tax_context,
         )
         account_control = getattr(dashboard, "account_control", None)
         trusted_totals = not bool(getattr(account_control, "blocking_issue_count", 0))
@@ -303,6 +380,7 @@ class RetirementPlanningService:
             percentiles=sim.percentiles,
             ending_balance_paths=sim.ending_balance_paths,
             account_buckets=buckets,
+            tax_assumptions=_tax_assumptions(tax_context),
             drawdown_schedule=tuple(drawdown),
             lever_impacts=self._lever_impacts(inputs, sim.success_probability, trials=trials, seed=seed),
             first_depletion_age=_first_depletion_age(drawdown, inputs.retirement_age),
@@ -565,9 +643,12 @@ class RetirementPlanningService:
         inputs: RetirementInputs,
         *,
         buckets: tuple[RetirementAccountBucket, ...],
-        ordinary_tax_rate: float,
-        capital_gains_rate: float,
+        tax_context: FederalTaxContext | None = None,
+        ordinary_tax_rate: float | None = None,
+        capital_gains_rate: float | None = None,
     ) -> list[RetirementDrawdownYear]:
+        del ordinary_tax_rate, capital_gains_rate  # kept for older direct unit-call compatibility
+        tax_context = tax_context or _tax_context_from_profile(None, inputs)
         annual_return = self._expected_return(inputs.asset_allocation)
         balances = dict.fromkeys(DEFAULT_DRAWDOWN_ORDER, 0.0)
         for bucket in buckets:
@@ -587,11 +668,56 @@ class RetirementPlanningService:
 
             inflation_factor = (1.0 + inputs.inflation_rate) ** year_index
             spending = inputs.annual_expenses * inflation_factor if primary_age >= inputs.retirement_age else 0.0
-            income = _income_for_age(inputs.income_sources, primary_age, inflation_factor=inflation_factor)
-            remaining_need = max(spending - income, 0.0)
+            spouse_age = inputs.spouse_age + year_index if inputs.spouse_age is not None else None
+            income_components = _income_components_for_age(
+                inputs.income_sources,
+                primary_age,
+                inflation_factor=inflation_factor,
+            )
+            income = income_components["total"]
             withdrawals = dict.fromkeys(DEFAULT_DRAWDOWN_ORDER, 0.0)
-            tax_estimate = 0.0
-            penalty_estimate = 0.0
+
+            def tax_for(
+                candidate_withdrawals: dict[str, float],
+                *,
+                income_components: dict[str, float] = income_components,
+                primary_age: int = primary_age,
+                spouse_age: int | None = spouse_age,
+                inflation_factor: float = inflation_factor,
+            ) -> float:
+                ordinary_withdrawals = candidate_withdrawals.get("pre_tax", 0.0) + candidate_withdrawals.get(
+                    "governmental_457b", 0.0
+                )
+                taxable_gains = candidate_withdrawals.get("taxable", 0.0) * TAXABLE_WITHDRAWAL_GAIN_RATIO
+                return _federal_tax_estimate(
+                    tax_context,
+                    ordinary_income=income_components["ordinary"] + ordinary_withdrawals,
+                    social_security_benefits=income_components["social_security"],
+                    long_term_capital_gains=taxable_gains,
+                    primary_age=primary_age,
+                    spouse_age=spouse_age,
+                    inflation_factor=inflation_factor,
+                )
+
+            def penalty_for(
+                candidate_withdrawals: dict[str, float],
+                *,
+                primary_age: int = primary_age,
+            ) -> float:
+                return sum(
+                    amount * _early_withdrawal_penalty_rate(bucket, primary_age)
+                    for bucket, amount in candidate_withdrawals.items()
+                )
+
+            def surplus_cash(
+                candidate_withdrawals: dict[str, float],
+                *,
+                income: float = income,
+                spending: float = spending,
+            ) -> float:
+                gross_withdrawals = sum(candidate_withdrawals.values())
+                return income + gross_withdrawals - tax_for(candidate_withdrawals) - penalty_for(candidate_withdrawals) - spending
+
             rmd_amount = _rmd_amount(
                 balances.get("pre_tax", 0.0) + balances.get("governmental_457b", 0.0),
                 primary_age,
@@ -606,31 +732,37 @@ class RetirementPlanningService:
                         continue
                     balances[rmd_bucket] -= gross
                     withdrawals[rmd_bucket] += gross
-                    rmd_tax = gross * ordinary_tax_rate
-                    tax_estimate += rmd_tax
-                    remaining_need = max(0.0, remaining_need - max(0.0, gross - rmd_tax))
                     remaining_rmd -= gross
 
             for bucket in DEFAULT_DRAWDOWN_ORDER:
-                if remaining_need <= 0:
+                if surplus_cash(withdrawals) >= 0:
                     break
                 available = balances.get(bucket, 0.0)
                 if available <= 0:
                     continue
-                tax_drag = _withdrawal_tax_drag(bucket, ordinary_tax_rate, capital_gains_rate)
-                penalty_rate = _early_withdrawal_penalty_rate(bucket, primary_age)
-                gross_needed = remaining_need / max(1.0 - tax_drag - penalty_rate, 0.01)
-                gross = min(available, gross_needed)
+                candidate = dict(withdrawals)
+                candidate[bucket] = candidate.get(bucket, 0.0) + available
+                if surplus_cash(candidate) < 0:
+                    gross = available
+                else:
+                    low = 0.0
+                    high = available
+                    for _ in range(24):
+                        midpoint = (low + high) / 2.0
+                        candidate = dict(withdrawals)
+                        candidate[bucket] = candidate.get(bucket, 0.0) + midpoint
+                        if surplus_cash(candidate) >= 0:
+                            high = midpoint
+                        else:
+                            low = midpoint
+                    gross = high
                 balances[bucket] = available - gross
                 withdrawals[bucket] += gross
-                tax = gross * tax_drag
-                penalty = gross * penalty_rate
-                tax_estimate += tax
-                penalty_estimate += penalty
-                remaining_need = max(0.0, remaining_need - max(0.0, gross - tax - penalty))
 
             ending_balance = round(sum(balances.values()), 2)
             gross_withdrawal = round(sum(withdrawals.values()), 2)
+            tax_estimate = tax_for(withdrawals)
+            penalty_estimate = penalty_for(withdrawals)
             rows.append(
                 RetirementDrawdownYear(
                     year_index=year_index,
@@ -954,17 +1086,83 @@ def _bucket_type(asset_group: str, account_type: str) -> str:
     return bucket
 
 
-def _profile_tax_rate(profile: Any) -> float:
-    for attr in ("effective_tax_rate", "marginal_federal_tax_rate"):
-        value = getattr(profile, attr, None)
-        if value is None:
-            continue
-        parsed = float(value or 0.0)
-        if parsed > 1:
-            parsed /= 100.0
-        if parsed > 0:
-            return min(parsed, 0.5)
-    return 0.22
+def _tax_context_from_profile(profile: Any, inputs: RetirementInputs) -> FederalTaxContext:
+    filing_status, filing_status_source = _filing_status_from_profile(profile, inputs.spouse_age)
+    return FederalTaxContext(
+        filing_status=filing_status,
+        filing_status_source=filing_status_source,
+        state_tax_rate=_state_tax_rate_from_profile(profile),
+        state_tax_source=_state_tax_source_from_profile(profile),
+    )
+
+
+def _tax_assumptions(context: FederalTaxContext) -> dict[str, Any]:
+    warnings = []
+    if context.filing_status_source != "saved":
+        warnings.append("Set filing status in saved assumptions to remove filing-status inference.")
+    if context.state_tax_rate > 0:
+        warnings.append("State tax is not included in the federal retirement drawdown tax estimate yet.")
+    capital_gains_zero_rate_limit, capital_gains_twenty_rate_threshold = LONG_TERM_CAPITAL_GAINS_BRACKETS_2026[
+        context.filing_status
+    ]
+    return {
+        "tax_year": FEDERAL_TAX_YEAR,
+        "filing_status": context.filing_status,
+        "filing_status_label": FILING_STATUS_LABELS[context.filing_status],
+        "filing_status_source": context.filing_status_source,
+        "standard_deduction": STANDARD_DEDUCTION_2026[context.filing_status],
+        "additional_age_65_deduction": ADDITIONAL_STANDARD_DEDUCTION_65_2026[context.filing_status],
+        "capital_gains_zero_rate_limit": capital_gains_zero_rate_limit,
+        "capital_gains_twenty_rate_threshold": capital_gains_twenty_rate_threshold,
+        "taxable_withdrawal_gain_ratio": TAXABLE_WITHDRAWAL_GAIN_RATIO,
+        "state_tax_rate": context.state_tax_rate,
+        "state_tax_source": context.state_tax_source,
+        "withdrawal_order": list(DEFAULT_DRAWDOWN_ORDER),
+        "withdrawal_order_label": "Cash, taxable brokerage, governmental 457(b), pre-tax, HSA, Roth, then other.",
+        "method": (
+            "Federal taxes are derived yearly from ordinary income, taxable Social Security, "
+            "pre-tax/457(b) withdrawals, estimated taxable-brokerage gains, 2026 brackets, "
+            "standard deduction, and age-65 standard deduction."
+        ),
+        "manual_rate_used": False,
+        "warnings": warnings,
+    }
+
+
+def _filing_status_from_profile(profile: Any, spouse_age: int | None) -> tuple[str, str]:
+    raw = str(getattr(profile, "filing_status", "") or "").strip().lower()
+    normalized = re.sub(r"[^a-z]+", "_", raw).strip("_")
+    if normalized in {"married_filing_jointly", "married_jointly", "mfj", "joint"}:
+        return "married_filing_jointly", "saved"
+    if normalized in {"married_filing_separately", "married_separately", "mfs"}:
+        return "married_filing_separately", "saved"
+    if normalized in {"head_of_household", "hoh"}:
+        return "head_of_household", "saved"
+    if normalized in {"single"}:
+        return "single", "saved"
+    if spouse_age is not None:
+        return "married_filing_jointly", "inferred_from_spouse"
+    return "single", "default"
+
+
+def _state_tax_rate_from_profile(profile: Any) -> float:
+    state = str(getattr(profile, "state_of_residence", "") or "").strip().upper()
+    if state in NO_STATE_INCOME_TAX_STATES:
+        return 0.0
+    value = getattr(profile, "marginal_state_tax_rate", None)
+    if value is None:
+        return 0.0
+    parsed = float(value or 0.0)
+    if parsed > 1:
+        parsed /= 100.0
+    return max(0.0, min(parsed, 0.2))
+
+
+def _state_tax_source_from_profile(profile: Any) -> str:
+    state = str(getattr(profile, "state_of_residence", "") or "").strip().upper()
+    if state in NO_STATE_INCOME_TAX_STATES:
+        return f"{state}_no_state_income_tax"
+    return "saved_marginal_state_tax_rate" if getattr(profile, "marginal_state_tax_rate", None) is not None else "not_set"
 
 
 def _contribution_bucket(balances: dict[str, float]) -> str:
@@ -974,19 +1172,151 @@ def _contribution_bucket(balances: dict[str, float]) -> str:
     return "taxable"
 
 
-def _income_for_age(
+def _income_components_for_age(
     income_sources: tuple[RetirementIncomeSource, ...],
     primary_age: int,
     *,
     inflation_factor: float,
-) -> float:
+) -> dict[str, float]:
     total = 0.0
+    social_security = 0.0
+    ordinary = 0.0
     for source in income_sources:
         if primary_age < source.start_age:
             continue
         annual = source.monthly_amount * 12.0
-        total += annual * inflation_factor if source.inflation_adjusted else annual
-    return total
+        amount = annual * inflation_factor if source.inflation_adjusted else annual
+        total += amount
+        if (source.source_type or "").lower() == "social_security":
+            social_security += amount
+        else:
+            ordinary += amount
+    return {"total": total, "social_security": social_security, "ordinary": ordinary}
+
+
+def _taxable_social_security(
+    *,
+    filing_status: str,
+    social_security_benefits: float,
+    other_income: float,
+) -> float:
+    if social_security_benefits <= 0:
+        return 0.0
+    if filing_status == "married_filing_jointly":
+        base_amount = 32_000.0
+        adjusted_base = 44_000.0
+    elif filing_status == "married_filing_separately":
+        base_amount = 0.0
+        adjusted_base = 0.0
+    else:
+        base_amount = 25_000.0
+        adjusted_base = 34_000.0
+    provisional_income = other_income + social_security_benefits * 0.5
+    if provisional_income <= base_amount:
+        return 0.0
+    if provisional_income <= adjusted_base:
+        return min(social_security_benefits * 0.5, (provisional_income - base_amount) * 0.5)
+    lower_tier_taxable = min(social_security_benefits * 0.5, (adjusted_base - base_amount) * 0.5)
+    return min(
+        social_security_benefits * 0.85,
+        lower_tier_taxable + (provisional_income - adjusted_base) * 0.85,
+    )
+
+
+def _federal_tax_estimate(
+    context: FederalTaxContext,
+    *,
+    ordinary_income: float,
+    social_security_benefits: float,
+    long_term_capital_gains: float,
+    primary_age: int,
+    spouse_age: int | None,
+    inflation_factor: float,
+) -> float:
+    status = context.filing_status
+    taxable_social_security = _taxable_social_security(
+        filing_status=status,
+        social_security_benefits=social_security_benefits,
+        other_income=ordinary_income + long_term_capital_gains,
+    )
+    gross_ordinary = ordinary_income + taxable_social_security
+    standard_deduction = STANDARD_DEDUCTION_2026[status] * inflation_factor
+    age_65_count = int(primary_age >= 65)
+    if status == "married_filing_jointly" and spouse_age is not None:
+        age_65_count += int(spouse_age >= 65)
+    additional_deduction = ADDITIONAL_STANDARD_DEDUCTION_65_2026[status] * inflation_factor * age_65_count
+    total_deduction = standard_deduction + additional_deduction
+    taxable_ordinary = max(0.0, gross_ordinary - total_deduction)
+    deduction_remaining = max(0.0, total_deduction - gross_ordinary)
+    taxable_capital_gains = max(0.0, long_term_capital_gains - deduction_remaining)
+    ordinary_tax = _progressive_tax(
+        taxable_ordinary,
+        ORDINARY_TAX_BRACKETS_2026[status],
+        inflation_factor=inflation_factor,
+    )
+    capital_gains_tax = _long_term_capital_gains_tax(
+        filing_status=status,
+        taxable_ordinary=taxable_ordinary,
+        taxable_capital_gains=taxable_capital_gains,
+        inflation_factor=inflation_factor,
+    )
+    niit = _niit_tax(
+        filing_status=status,
+        modified_agi=gross_ordinary + long_term_capital_gains,
+        net_investment_income=long_term_capital_gains,
+        inflation_factor=inflation_factor,
+    )
+    return max(0.0, ordinary_tax + capital_gains_tax + niit)
+
+
+def _progressive_tax(
+    taxable_income: float,
+    brackets: tuple[tuple[float, float], ...],
+    *,
+    inflation_factor: float,
+) -> float:
+    tax = 0.0
+    lower = 0.0
+    for upper, rate in brackets:
+        scaled_upper = upper if upper == float("inf") else upper * inflation_factor
+        if taxable_income <= lower:
+            break
+        taxed = min(taxable_income, scaled_upper) - lower
+        if taxed > 0:
+            tax += taxed * rate
+        lower = scaled_upper
+    return tax
+
+
+def _long_term_capital_gains_tax(
+    *,
+    filing_status: str,
+    taxable_ordinary: float,
+    taxable_capital_gains: float,
+    inflation_factor: float,
+) -> float:
+    if taxable_capital_gains <= 0:
+        return 0.0
+    zero_rate_limit, twenty_rate_limit = LONG_TERM_CAPITAL_GAINS_BRACKETS_2026[filing_status]
+    zero_rate_limit *= inflation_factor
+    twenty_rate_limit *= inflation_factor
+    remaining = taxable_capital_gains
+    zero_rate_amount = min(remaining, max(0.0, zero_rate_limit - taxable_ordinary))
+    remaining -= zero_rate_amount
+    fifteen_rate_amount = min(remaining, max(0.0, twenty_rate_limit - max(taxable_ordinary, zero_rate_limit)))
+    remaining -= fifteen_rate_amount
+    return fifteen_rate_amount * 0.15 + max(0.0, remaining) * 0.20
+
+
+def _niit_tax(
+    *,
+    filing_status: str,
+    modified_agi: float,
+    net_investment_income: float,
+    inflation_factor: float,
+) -> float:
+    threshold = NIIT_THRESHOLDS_2026[filing_status] * inflation_factor
+    return min(max(0.0, net_investment_income), max(0.0, modified_agi - threshold)) * 0.038
 
 
 def _append_preview_social_security(
@@ -1081,18 +1411,6 @@ def _rmd_amount(pre_tax_balance: float, primary_age: int) -> float:
     # Lightweight planning estimate from the IRS Uniform Lifetime Table shape.
     divisor = max(27.4 - (primary_age - 72), 2.0)
     return pre_tax_balance / divisor
-
-
-def _withdrawal_tax_drag(
-    bucket: str,
-    ordinary_tax_rate: float,
-    capital_gains_rate: float,
-) -> float:
-    if bucket in {"pre_tax", "governmental_457b"}:
-        return ordinary_tax_rate
-    if bucket == "taxable":
-        return capital_gains_rate * TAXABLE_WITHDRAWAL_GAIN_RATIO
-    return 0.0
 
 
 def _early_withdrawal_penalty_rate(bucket: str, primary_age: int) -> float:

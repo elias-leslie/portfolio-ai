@@ -388,6 +388,7 @@ export interface RetirementPreview {
   percentiles: Record<string, number>
   endingBalancePaths: Record<string, number[]>
   accountBuckets: RetirementAccountBucket[]
+  taxAssumptions: Record<string, unknown>
   drawdownSchedule: RetirementDrawdownYear[]
   leverImpacts: RetirementLeverImpact[]
   firstDepletionAge: number | null

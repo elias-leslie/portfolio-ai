@@ -36,7 +36,9 @@ from app.services.retirement_planning_service import (
     RetirementPlanningService,
     _append_preview_social_security,
     _estimate_social_security_monthly,
+    _federal_tax_estimate,
     _split_members,
+    _tax_context_from_profile,
 )
 
 
@@ -654,6 +656,40 @@ def test_drawdown_first_year_starts_at_current_bucket_values() -> None:
     assert rows[0].balances_by_bucket["taxable"] == 100_000.0
     assert rows[0].balances_by_bucket["pre_tax"] == 50_000.0
     assert rows[1].balances_by_bucket["taxable"] > 100_000.0
+
+
+def test_federal_tax_estimate_derives_rate_from_projected_income() -> None:
+    inputs = RetirementInputs(
+        household_id="hh-tax",
+        primary_age=65,
+        spouse_age=59,
+        retirement_age=65,
+        horizon_years=30,
+        annual_expenses=90_000.0,
+        annual_contribution=0.0,
+        portfolio_value=500_000.0,
+        asset_allocation={"cash": 1.0},
+        income_sources=(),
+        inflation_rate=0.025,
+        as_of_date=date(2026, 5, 26),
+    )
+    context = _tax_context_from_profile(
+        SimpleNamespace(filing_status="Married filing jointly", state_of_residence="FL"),
+        inputs,
+    )
+
+    tax = _federal_tax_estimate(
+        context,
+        ordinary_income=90_000.0,
+        social_security_benefits=0.0,
+        long_term_capital_gains=0.0,
+        primary_age=65,
+        spouse_age=59,
+        inflation_factor=1.0,
+    )
+
+    assert 0.05 < tax / 90_000.0 < 0.10
+    assert context.state_tax_rate == 0.0
 
 
 def test_preview_adds_social_security_knobs_on_primary_age_timeline() -> None:
