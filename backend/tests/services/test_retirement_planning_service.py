@@ -35,6 +35,7 @@ from app.services._retirement_simulation import (
 from app.services.retirement_planning_service import (
     RetirementPlanningService,
     _append_preview_social_security,
+    _estimate_social_security_monthly,
     _split_members,
 )
 
@@ -602,6 +603,8 @@ def test_preview_adds_social_security_knobs_on_primary_age_timeline() -> None:
         inputs,
         primary_monthly=2_500.0,
         spouse_monthly=1_800.0,
+        primary_annual_earnings=None,
+        spouse_annual_earnings=None,
         primary_start_age=67,
         spouse_start_age=67,
     )
@@ -612,6 +615,42 @@ def test_preview_adds_social_security_knobs_on_primary_age_timeline() -> None:
     ]
     assert updated.income_sources[0].start_age == 67
     assert updated.income_sources[1].start_age == 73
+
+
+def test_social_security_estimate_from_annual_earnings_feeds_income_sources() -> None:
+    inputs = RetirementInputs(
+        household_id="hh-ss-estimate",
+        primary_age=49,
+        spouse_age=43,
+        retirement_age=65,
+        horizon_years=30,
+        annual_expenses=72_000.0,
+        annual_contribution=0.0,
+        portfolio_value=500_000.0,
+        asset_allocation={"cash": 1.0},
+        income_sources=(),
+        inflation_rate=0.025,
+        as_of_date=date(2026, 5, 26),
+    )
+
+    updated = _append_preview_social_security(
+        inputs,
+        primary_monthly=None,
+        spouse_monthly=None,
+        primary_annual_earnings=120_000.0,
+        spouse_annual_earnings=80_000.0,
+        primary_start_age=67,
+        spouse_start_age=67,
+    )
+
+    assert updated.income_sources[0].monthly_amount == _estimate_social_security_monthly(
+        120_000.0,
+        claim_age=67,
+    )
+    assert updated.income_sources[1].monthly_amount == _estimate_social_security_monthly(
+        80_000.0,
+        claim_age=67,
+    )
 
 
 def test_drawdown_schedule_applies_pre_tax_rmd_estimate() -> None:

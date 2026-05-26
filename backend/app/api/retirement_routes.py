@@ -71,6 +71,8 @@ class PreviewRequest(RunScenarioRequest):
     monthly_spend: float | None = Field(None, ge=0.0)
     primary_social_security_monthly: float | None = Field(None, ge=0.0)
     spouse_social_security_monthly: float | None = Field(None, ge=0.0)
+    primary_social_security_annual_earnings: float | None = Field(None, ge=0.0)
+    spouse_social_security_annual_earnings: float | None = Field(None, ge=0.0)
     primary_social_security_start_age: int | None = Field(None, ge=62, le=70)
     spouse_social_security_start_age: int | None = Field(None, ge=62, le=70)
 
@@ -120,6 +122,8 @@ async def preview(payload: PreviewRequest) -> dict[str, Any]:
             spouse_age=payload.spouse_age,
             primary_social_security_monthly=payload.primary_social_security_monthly,
             spouse_social_security_monthly=payload.spouse_social_security_monthly,
+            primary_social_security_annual_earnings=payload.primary_social_security_annual_earnings,
+            spouse_social_security_annual_earnings=payload.spouse_social_security_annual_earnings,
             primary_social_security_start_age=payload.primary_social_security_start_age,
             spouse_social_security_start_age=payload.spouse_social_security_start_age,
             trials=payload.trials,

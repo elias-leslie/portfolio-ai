@@ -51,6 +51,10 @@ const bucketOrder = [
   'roth',
   'other',
 ]
+const ssa2026TaxableWageBase = 184_500
+const ssa2026FirstBendPoint = 1_286
+const ssa2026SecondBendPoint = 7_749
+const socialSecurityFullRetirementAge = 67
 
 function preparednessVariant(status: string) {
   if (status.includes('ready') || status.includes('visible')) {
@@ -109,6 +113,36 @@ function parseNumber(value: string, fallback: number) {
 function parseOptionalNumber(value: string) {
   const parsed = Number(value)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+function estimateSocialSecurityMonthly(
+  annualEarnings: number | null,
+  claimAge: number,
+) {
+  if (annualEarnings == null || annualEarnings <= 0) return null
+  const aime = Math.min(annualEarnings, ssa2026TaxableWageBase) / 12
+  const pia =
+    Math.min(aime, ssa2026FirstBendPoint) * 0.9 +
+    Math.max(
+      Math.min(aime, ssa2026SecondBendPoint) - ssa2026FirstBendPoint,
+      0,
+    ) *
+      0.32 +
+    Math.max(aime - ssa2026SecondBendPoint, 0) * 0.15
+  if (claimAge < socialSecurityFullRetirementAge) {
+    const monthsEarly = Math.max(
+      0,
+      (socialSecurityFullRetirementAge - claimAge) * 12,
+    )
+    const first36 = Math.min(monthsEarly, 36)
+    const extra = Math.max(monthsEarly - 36, 0)
+    return Math.max(pia - pia * (first36 * (5 / 900) + extra * (5 / 1200)), 0)
+  }
+  const monthsLate = Math.min(
+    Math.max(0, (claimAge - socialSecurityFullRetirementAge) * 12),
+    36,
+  )
+  return pia * (1 + monthsLate * (2 / 300))
 }
 
 function memberAge(
@@ -185,8 +219,10 @@ function socialSecurityDefaults(dashboard: HouseholdFinanceDashboard) {
   return {
     primaryMonthly: numberInput(primary?.monthlyAmount, '0'),
     primaryStartAge: numberInput(primary?.startAge, '67'),
+    primaryAnnualEarnings: '0',
     spouseMonthly: numberInput(spouse?.monthlyAmount, '0'),
     spouseStartAge: numberInput(spouse?.startAge, '67'),
+    spouseAnnualEarnings: '0',
   }
 }
 
@@ -210,8 +246,10 @@ function defaultDraft(dashboard: HouseholdFinanceDashboard) {
     inflationRate: percentInput(0.025),
     horizonYears: '35',
     primarySocialSecurityMonthly: socialSecurity.primaryMonthly,
+    primarySocialSecurityAnnualEarnings: socialSecurity.primaryAnnualEarnings,
     primarySocialSecurityStartAge: socialSecurity.primaryStartAge,
     spouseSocialSecurityMonthly: socialSecurity.spouseMonthly,
+    spouseSocialSecurityAnnualEarnings: socialSecurity.spouseAnnualEarnings,
     spouseSocialSecurityStartAge: socialSecurity.spouseStartAge,
   }
 }
@@ -232,11 +270,17 @@ function buildRequest(
     primarySocialSecurityMonthly: parseOptionalNumber(
       draft.primarySocialSecurityMonthly,
     ),
+    primarySocialSecurityAnnualEarnings: parseOptionalNumber(
+      draft.primarySocialSecurityAnnualEarnings,
+    ),
     primarySocialSecurityStartAge: parseOptionalNumber(
       draft.primarySocialSecurityStartAge,
     ),
     spouseSocialSecurityMonthly: parseOptionalNumber(
       draft.spouseSocialSecurityMonthly,
+    ),
+    spouseSocialSecurityAnnualEarnings: parseOptionalNumber(
+      draft.spouseSocialSecurityAnnualEarnings,
     ),
     spouseSocialSecurityStartAge: parseOptionalNumber(
       draft.spouseSocialSecurityStartAge,
@@ -347,6 +391,37 @@ export function MoneyRetirementPanel({
     [preview],
   )
 
+  const socialSecurityEstimate = useMemo(() => {
+    const primaryManual = parseOptionalNumber(
+      draft.primarySocialSecurityMonthly,
+    )
+    const spouseManual = parseOptionalNumber(draft.spouseSocialSecurityMonthly)
+    const primaryClaimAge = parseNumber(
+      draft.primarySocialSecurityStartAge,
+      socialSecurityFullRetirementAge,
+    )
+    const spouseClaimAge = parseNumber(
+      draft.spouseSocialSecurityStartAge,
+      socialSecurityFullRetirementAge,
+    )
+    return {
+      primary:
+        primaryManual ??
+        estimateSocialSecurityMonthly(
+          parseOptionalNumber(draft.primarySocialSecurityAnnualEarnings),
+          primaryClaimAge,
+        ),
+      spouse:
+        spouseManual ??
+        estimateSocialSecurityMonthly(
+          parseOptionalNumber(draft.spouseSocialSecurityAnnualEarnings),
+          spouseClaimAge,
+        ),
+      primaryClaimAge,
+      spouseClaimAge,
+    }
+  }, [draft])
+
   const applyDraft = () => {
     setRequest(buildRequest(dashboard.profile.id, draft))
   }
@@ -449,7 +524,7 @@ export function MoneyRetirementPanel({
             />
           </div>
         </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <div className="mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-8">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
               Your age
@@ -472,6 +547,22 @@ export function MoneyRetirementPanel({
               inputMode="numeric"
               value={draft.spouseAge}
               onChange={(event) => updateDraft('spouseAge', event.target.value)}
+            />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+              Your salary
+            </p>
+            <Input
+              className="mt-2"
+              inputMode="decimal"
+              value={draft.primarySocialSecurityAnnualEarnings}
+              onChange={(event) =>
+                updateDraft(
+                  'primarySocialSecurityAnnualEarnings',
+                  event.target.value,
+                )
+              }
             />
           </div>
           <div>
@@ -502,6 +593,22 @@ export function MoneyRetirementPanel({
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+              Spouse salary
+            </p>
+            <Input
+              className="mt-2"
+              inputMode="decimal"
+              value={draft.spouseSocialSecurityAnnualEarnings}
+              onChange={(event) =>
+                updateDraft(
+                  'spouseSocialSecurityAnnualEarnings',
+                  event.target.value,
+                )
+              }
+            />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
               Spouse SS / mo
             </p>
             <Input
@@ -527,6 +634,24 @@ export function MoneyRetirementPanel({
             />
           </div>
         </div>
+        <p className="mt-3 text-xs text-text-muted">
+          Social Security included:{' '}
+          <span className="font-mono text-text">
+            {formatCurrency(socialSecurityEstimate.primary ?? 0, {
+              decimals: 0,
+            })}
+            /mo at {socialSecurityEstimate.primaryClaimAge}
+          </span>{' '}
+          for you and{' '}
+          <span className="font-mono text-text">
+            {formatCurrency(socialSecurityEstimate.spouse ?? 0, {
+              decimals: 0,
+            })}
+            /mo at {socialSecurityEstimate.spouseClaimAge}
+          </span>{' '}
+          for spouse. Enter exact SSA estimates when available; salary-based
+          values are rough estimates.
+        </p>
       </SectionCard>
 
       {previewQuery.error ? (

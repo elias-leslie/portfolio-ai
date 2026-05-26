@@ -78,6 +78,10 @@ BUCKET_TAX_TREATMENTS = {
     "other": "planning_estimate",
 }
 TAXABLE_WITHDRAWAL_GAIN_RATIO = 0.15
+SSA_2026_TAXABLE_WAGE_BASE = 184_500.0
+SSA_2026_FIRST_BEND_POINT = 1_286.0
+SSA_2026_SECOND_BEND_POINT = 7_749.0
+SSA_FULL_RETIREMENT_AGE = 67
 
 
 def load_cma(path: Path | None = None) -> dict[str, Any]:
@@ -196,6 +200,8 @@ class RetirementPlanningService:
         spouse_age: int | None = None,
         primary_social_security_monthly: float | None = None,
         spouse_social_security_monthly: float | None = None,
+        primary_social_security_annual_earnings: float | None = None,
+        spouse_social_security_annual_earnings: float | None = None,
         primary_social_security_start_age: int | None = None,
         spouse_social_security_start_age: int | None = None,
         trials: int = DEFAULT_PREVIEW_TRIALS,
@@ -230,6 +236,8 @@ class RetirementPlanningService:
             inputs,
             primary_monthly=primary_social_security_monthly,
             spouse_monthly=spouse_social_security_monthly,
+            primary_annual_earnings=primary_social_security_annual_earnings,
+            spouse_annual_earnings=spouse_social_security_annual_earnings,
             primary_start_age=primary_social_security_start_age,
             spouse_start_age=spouse_social_security_start_age,
         )
@@ -943,14 +951,26 @@ def _append_preview_social_security(
     *,
     primary_monthly: float | None,
     spouse_monthly: float | None,
+    primary_annual_earnings: float | None,
+    spouse_annual_earnings: float | None,
     primary_start_age: int | None,
     spouse_start_age: int | None,
 ) -> RetirementInputs:
+    primary_claim_age = primary_start_age or SSA_FULL_RETIREMENT_AGE
+    spouse_claim_age = spouse_start_age or SSA_FULL_RETIREMENT_AGE
+    estimated_primary_monthly = primary_monthly or _estimate_social_security_monthly(
+        primary_annual_earnings,
+        claim_age=primary_claim_age,
+    )
+    estimated_spouse_monthly = spouse_monthly or _estimate_social_security_monthly(
+        spouse_annual_earnings,
+        claim_age=spouse_claim_age,
+    )
     provided = any(
         value is not None
         for value in (
-            primary_monthly,
-            spouse_monthly,
+            estimated_primary_monthly,
+            estimated_spouse_monthly,
             primary_start_age,
             spouse_start_age,
         )
@@ -963,19 +983,22 @@ def _append_preview_social_security(
         for source in inputs.income_sources
         if (source.source_type or "").lower() != "social_security"
     ]
-    if primary_monthly is not None and primary_monthly > 0:
+    if estimated_primary_monthly is not None and estimated_primary_monthly > 0:
         sources.append(
             RetirementIncomeSource(
                 label="Social Security - primary",
                 source_type="social_security",
                 owner_name="primary",
-                start_age=primary_start_age or 67,
-                monthly_amount=primary_monthly,
+                start_age=primary_claim_age,
+                monthly_amount=estimated_primary_monthly,
                 inflation_adjusted=True,
             )
         )
-    if spouse_monthly is not None and spouse_monthly > 0 and inputs.spouse_age is not None:
-        spouse_claim_age = spouse_start_age or 67
+    if (
+        estimated_spouse_monthly is not None
+        and estimated_spouse_monthly > 0
+        and inputs.spouse_age is not None
+    ):
         primary_timeline_age = inputs.primary_age + max(0, spouse_claim_age - inputs.spouse_age)
         sources.append(
             RetirementIncomeSource(
@@ -983,11 +1006,35 @@ def _append_preview_social_security(
                 source_type="social_security",
                 owner_name="spouse",
                 start_age=primary_timeline_age,
-                monthly_amount=spouse_monthly,
+                monthly_amount=estimated_spouse_monthly,
                 inflation_adjusted=True,
             )
         )
     return inputs.model_copy(update={"income_sources": tuple(sources)})
+
+
+def _estimate_social_security_monthly(
+    annual_earnings: float | None,
+    *,
+    claim_age: int,
+) -> float | None:
+    if annual_earnings is None or annual_earnings <= 0:
+        return None
+    aime = min(float(annual_earnings), SSA_2026_TAXABLE_WAGE_BASE) / 12.0
+    pia = (
+        min(aime, SSA_2026_FIRST_BEND_POINT) * 0.90
+        + max(min(aime, SSA_2026_SECOND_BEND_POINT) - SSA_2026_FIRST_BEND_POINT, 0.0) * 0.32
+        + max(aime - SSA_2026_SECOND_BEND_POINT, 0.0) * 0.15
+    )
+    if claim_age < SSA_FULL_RETIREMENT_AGE:
+        months_early = max(0, (SSA_FULL_RETIREMENT_AGE - claim_age) * 12)
+        first_36 = min(months_early, 36)
+        extra = max(months_early - 36, 0)
+        factor = 1.0 - (first_36 * (5.0 / 900.0)) - (extra * (5.0 / 1200.0))
+    else:
+        months_late = min(max(0, (claim_age - SSA_FULL_RETIREMENT_AGE) * 12), 36)
+        factor = 1.0 + months_late * (2.0 / 300.0)
+    return round(max(pia * factor, 0.0), 2)
 
 
 def _rmd_amount(pre_tax_balance: float, primary_age: int) -> float:

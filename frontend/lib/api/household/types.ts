@@ -310,6 +310,8 @@ export interface RetirementPreviewRequest {
   spouseAge?: number | null
   primarySocialSecurityMonthly?: number | null
   spouseSocialSecurityMonthly?: number | null
+  primarySocialSecurityAnnualEarnings?: number | null
+  spouseSocialSecurityAnnualEarnings?: number | null
   primarySocialSecurityStartAge?: number | null
   spouseSocialSecurityStartAge?: number | null
   asOfDate?: string | null
