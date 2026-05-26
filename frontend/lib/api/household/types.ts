@@ -365,6 +365,32 @@ export interface RetirementAccountBucket {
   withdrawalPriority: number
 }
 
+export interface RetirementHoldingsCoverageAccount {
+  label: string
+  bucketType: string
+  accountType: string
+  currentValue: number
+  exactValue: number
+  inferredValue: number
+  cashValue: number
+  pricedPositionCount: number
+  coverageStatus: string
+  coverageLabel: string
+  detail: string
+}
+
+export interface RetirementHoldingsCoverage {
+  status: string
+  label: string
+  detail: string
+  totalValue: number
+  exactValue: number
+  inferredValue: number
+  cashValue: number
+  exactShare: number
+  accounts: RetirementHoldingsCoverageAccount[]
+}
+
 export interface RetirementDrawdownYear {
   yearIndex: number
   calendarYear: number
@@ -403,6 +429,7 @@ export interface RetirementPreview {
   percentiles: Record<string, number>
   endingBalancePaths: Record<string, number[]>
   accountBuckets: RetirementAccountBucket[]
+  holdingsCoverage: RetirementHoldingsCoverage | null
   taxAssumptions: Record<string, unknown>
   returnAssumptions: Record<string, unknown>
   drawdownSchedule: RetirementDrawdownYear[]

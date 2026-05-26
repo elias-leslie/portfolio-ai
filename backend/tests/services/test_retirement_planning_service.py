@@ -553,11 +553,51 @@ def test_preview_builds_account_buckets_and_levers(
             blocking_issue_count=0,
         ),
         accounts=[
-            SimpleNamespace(label="Brokerage", asset_group="taxable", account_type="brokerage", current_value=250_000.0),
-            SimpleNamespace(label="PCSB 457(b)", asset_group="retirement", account_type="governmental_457b", current_value=95_000.0),
-            SimpleNamespace(label="IRA", asset_group="retirement", account_type="ira", current_value=400_000.0),
-            SimpleNamespace(label="Roth", asset_group="retirement", account_type="roth_ira", current_value=200_000.0),
-            SimpleNamespace(label="Cash", asset_group="cash", account_type="savings", current_value=50_000.0),
+            SimpleNamespace(
+                label="Brokerage",
+                asset_group="taxable",
+                account_type="brokerage",
+                current_value=250_000.0,
+                holdings_value=250_000.0,
+                cash_balance=0.0,
+                priced_position_count=1,
+            ),
+            SimpleNamespace(
+                label="PCSB 457(b)",
+                asset_group="retirement",
+                account_type="governmental_457b",
+                current_value=95_000.0,
+                holdings_value=95_000.0,
+                cash_balance=0.0,
+                priced_position_count=0,
+            ),
+            SimpleNamespace(
+                label="IRA",
+                asset_group="retirement",
+                account_type="ira",
+                current_value=400_000.0,
+                holdings_value=400_000.0,
+                cash_balance=0.0,
+                priced_position_count=0,
+            ),
+            SimpleNamespace(
+                label="Roth",
+                asset_group="retirement",
+                account_type="roth_ira",
+                current_value=200_000.0,
+                holdings_value=200_000.0,
+                cash_balance=0.0,
+                priced_position_count=0,
+            ),
+            SimpleNamespace(
+                label="Cash",
+                asset_group="cash",
+                account_type="savings",
+                current_value=50_000.0,
+                holdings_value=0.0,
+                cash_balance=50_000.0,
+                priced_position_count=0,
+            ),
         ],
     )
     monkeypatch.setattr(
@@ -580,6 +620,14 @@ def test_preview_builds_account_buckets_and_levers(
     assert preview.inputs.asset_allocation["cash"] == pytest.approx(50_000 / 995_000, abs=1e-6)
     assert preview.inputs.cash_yield == pytest.approx(0.0328)
     assert preview.return_assumptions["cash_yield"] == pytest.approx(0.0328)
+    assert preview.holdings_coverage.status == "partial"
+    assert preview.holdings_coverage.exact_share == pytest.approx(300_000 / 995_000, abs=1e-6)
+    assert preview.holdings_coverage.exact_value == 300_000.0
+    assert preview.holdings_coverage.inferred_value == 695_000.0
+    coverage_by_label = {row.label: row for row in preview.holdings_coverage.accounts}
+    assert coverage_by_label["Brokerage"].coverage_status == "exact_holdings"
+    assert coverage_by_label["Cash"].coverage_status == "cash"
+    assert coverage_by_label["IRA"].coverage_status == "account_value_only"
     assert {bucket.bucket_type for bucket in preview.account_buckets} == {
         "cash",
         "taxable",

@@ -279,6 +279,46 @@ const preview: RetirementPreview = {
       withdrawalPriority: 5,
     },
   ],
+  holdingsCoverage: {
+    status: 'partial',
+    label: 'Partial holdings',
+    detail:
+      'Some account value has exact holdings or cash; the rest uses account-level assumptions.',
+    totalValue: 650000,
+    exactValue: 250000,
+    inferredValue: 400000,
+    cashValue: 0,
+    exactShare: 0.384615,
+    accounts: [
+      {
+        label: 'Brokerage',
+        bucketType: 'taxable',
+        accountType: 'brokerage',
+        currentValue: 250000,
+        exactValue: 250000,
+        inferredValue: 0,
+        cashValue: 0,
+        pricedPositionCount: 1,
+        coverageStatus: 'exact_holdings',
+        coverageLabel: 'Exact holdings',
+        detail: '1 priced position linked to this account.',
+      },
+      {
+        label: 'IRA',
+        bucketType: 'pre_tax',
+        accountType: 'ira',
+        currentValue: 400000,
+        exactValue: 0,
+        inferredValue: 400000,
+        cashValue: 0,
+        pricedPositionCount: 0,
+        coverageStatus: 'account_value_only',
+        coverageLabel: 'Account value only',
+        detail:
+          'No exact holdings are linked; allocation uses portfolio-level assumptions.',
+      },
+    ],
+  },
   returnAssumptions: {
     expectedReturn: 0.052,
     incomeYield: 0.024,
@@ -400,6 +440,10 @@ describe('MoneyRetirementPanel', () => {
     expect(screen.getAllByText('Roth').length).toBeGreaterThan(0)
     expect(screen.getByText('Tax model')).toBeInTheDocument()
     expect(screen.getByText('Married filing jointly')).toBeInTheDocument()
+    expect(screen.getByText('Holdings coverage')).toBeInTheDocument()
+    expect(screen.getByText('Partial holdings')).toBeInTheDocument()
+    expect(screen.getByText('Exact holdings/cash')).toBeInTheDocument()
+    expect(screen.getByText('Account-value-only')).toBeInTheDocument()
     expect(screen.getByText('Allocation sandbox')).toBeInTheDocument()
     expect(screen.getByText('Retire 2 years later')).toBeInTheDocument()
     expect(screen.getByText('Drawdown schedule')).toBeInTheDocument()

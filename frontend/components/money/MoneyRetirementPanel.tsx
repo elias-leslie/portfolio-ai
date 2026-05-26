@@ -93,6 +93,13 @@ function previewStatusVariant(
   return 'destructive' as const
 }
 
+function holdingsCoverageVariant(status: string | undefined) {
+  if (status === 'exact') return 'success' as const
+  if (status === 'partial') return 'warning' as const
+  if (status === 'account_value_only') return 'warning' as const
+  return 'outline' as const
+}
+
 function bucketLabel(value: string) {
   switch (value) {
     case 'cash':
@@ -613,6 +620,7 @@ export function MoneyRetirementPanel({
       .map((bucket) => ({ bucket, value: totals.get(bucket) ?? 0 }))
       .filter((row) => row.value > 0)
   }, [preview?.accountBuckets])
+  const holdingsCoverage = preview?.holdingsCoverage ?? null
 
   const allocationRows = useMemo(
     () =>
@@ -1292,6 +1300,19 @@ export function MoneyRetirementPanel({
                     Current portfolio mode uses live holdings and fund
                     classification. Switch modes, then Run preview, to compare a
                     what-if allocation.
+                    {holdingsCoverage && holdingsCoverage.status !== 'exact' ? (
+                      <p className="mt-2">
+                        Current allocation confidence:{' '}
+                        <span className="font-medium text-text">
+                          {holdingsCoverage.label}
+                        </span>{' '}
+                        (
+                        {formatPercent(holdingsCoverage.exactShare * 100, {
+                          decimals: 0,
+                        })}{' '}
+                        exact holdings/cash).
+                      </p>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -1482,6 +1503,70 @@ export function MoneyRetirementPanel({
           description="Current planner buckets by tax treatment and drawdown priority."
         >
           <div className="space-y-3">
+            {holdingsCoverage ? (
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                    Holdings coverage
+                  </p>
+                  <Badge
+                    variant={holdingsCoverageVariant(holdingsCoverage.status)}
+                  >
+                    {holdingsCoverage.label}
+                  </Badge>
+                </div>
+                <p className="mt-3 font-mono text-2xl text-text">
+                  {formatPercent(holdingsCoverage.exactShare * 100, {
+                    decimals: 0,
+                  })}
+                </p>
+                <p className="mt-2 text-xs text-text-muted">
+                  {holdingsCoverage.detail}
+                </p>
+                <div className="mt-3 grid gap-2 text-xs text-text-muted">
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Exact holdings/cash</span>
+                    <span className="font-mono text-text">
+                      {formatCurrencyWhole(holdingsCoverage.exactValue)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Account-value-only</span>
+                    <span className="font-mono text-text">
+                      {formatCurrencyWhole(holdingsCoverage.inferredValue)}
+                    </span>
+                  </div>
+                </div>
+                {holdingsCoverage.accounts.length > 0 ? (
+                  <div className="mt-4 space-y-2">
+                    {holdingsCoverage.accounts.map((account, index) => (
+                      <div
+                        key={`${account.label}-${account.bucketType}-${index}`}
+                        className="rounded-xl border border-border/25 px-3 py-2"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium text-text">
+                              {account.label}
+                            </p>
+                            <p className="text-xs text-text-muted">
+                              {account.coverageLabel} ·{' '}
+                              {bucketLabel(account.bucketType)}
+                            </p>
+                          </div>
+                          <p className="font-mono text-sm text-text">
+                            {formatCurrencyWhole(account.currentValue)}
+                          </p>
+                        </div>
+                        <p className="mt-1 text-xs text-text-muted">
+                          {account.detail}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             {bucketTotals.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/10 p-5 text-sm text-text-muted">
                 No account buckets are available yet.

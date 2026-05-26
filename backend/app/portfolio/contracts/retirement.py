@@ -119,6 +119,40 @@ class RetirementAccountBucket(BaseModel):
     withdrawal_priority: int = Field(..., ge=1)
 
 
+class RetirementHoldingsCoverageAccount(BaseModel):
+    """Per-account confidence row for retirement allocation inputs."""
+
+    model_config = ConfigDict(frozen=True)
+
+    label: str
+    bucket_type: str
+    account_type: str
+    current_value: float = Field(0.0, ge=0.0)
+    exact_value: float = Field(0.0, ge=0.0)
+    inferred_value: float = Field(0.0, ge=0.0)
+    cash_value: float = Field(0.0, ge=0.0)
+    priced_position_count: int = Field(0, ge=0)
+    coverage_status: str
+    coverage_label: str
+    detail: str
+
+
+class RetirementHoldingsCoverage(BaseModel):
+    """Planning confidence for current-account holdings coverage."""
+
+    model_config = ConfigDict(frozen=True)
+
+    status: str = "no_accounts"
+    label: str = "No accounts"
+    detail: str = "No account values are available for holdings coverage."
+    total_value: float = Field(0.0, ge=0.0)
+    exact_value: float = Field(0.0, ge=0.0)
+    inferred_value: float = Field(0.0, ge=0.0)
+    cash_value: float = Field(0.0, ge=0.0)
+    exact_share: float = Field(0.0, ge=0.0, le=1.0)
+    accounts: tuple[RetirementHoldingsCoverageAccount, ...] = ()
+
+
 class RetirementDrawdownYear(BaseModel):
     """One calendar year in the deterministic drawdown schedule."""
 
@@ -174,6 +208,7 @@ class RetirementPreview(BaseModel):
     percentiles: dict[str, float]
     ending_balance_paths: dict[str, list[float]]
     account_buckets: tuple[RetirementAccountBucket, ...] = ()
+    holdings_coverage: RetirementHoldingsCoverage = Field(default_factory=RetirementHoldingsCoverage)
     tax_assumptions: dict[str, Any] = Field(default_factory=dict)
     return_assumptions: dict[str, Any] = Field(default_factory=dict)
     drawdown_schedule: tuple[RetirementDrawdownYear, ...] = ()

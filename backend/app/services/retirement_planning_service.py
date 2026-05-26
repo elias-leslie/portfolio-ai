@@ -25,6 +25,8 @@ from app.logging_config import get_logger
 from app.portfolio.contracts.retirement import (
     RetirementAccountBucket,
     RetirementDrawdownYear,
+    RetirementHoldingsCoverage,
+    RetirementHoldingsCoverageAccount,
     RetirementIncomeSource,
     RetirementInputs,
     RetirementLeverImpact,
@@ -433,6 +435,7 @@ class RetirementPlanningService:
             spouse_start_age=spouse_social_security_start_age,
         )
         buckets = self._account_buckets_from_dashboard(dashboard)
+        holdings_coverage = self._holdings_coverage_from_dashboard(dashboard)
         bucket_total = round(sum(bucket.current_value for bucket in buckets), 2)
         if bucket_total > 0:
             input_updates: dict[str, Any] = {"portfolio_value": bucket_total}
@@ -490,6 +493,7 @@ class RetirementPlanningService:
             percentiles=sim.percentiles,
             ending_balance_paths=sim.ending_balance_paths,
             account_buckets=buckets,
+            holdings_coverage=holdings_coverage,
             tax_assumptions=_tax_assumptions(tax_context, buckets=buckets, inputs=inputs),
             return_assumptions=self._return_assumptions(
                 inputs,
@@ -761,6 +765,76 @@ class RetirementPlanningService:
                 )
             )
         return tuple(sorted(buckets, key=lambda b: (b.withdrawal_priority, b.label)))
+
+    def _holdings_coverage_from_dashboard(self, dashboard: Any) -> RetirementHoldingsCoverage:
+        rows: list[RetirementHoldingsCoverageAccount] = []
+        for account in getattr(dashboard, "accounts", []) or []:
+            asset_group = str(getattr(account, "asset_group", "") or "").lower()
+            if asset_group in {"credit", "debt"}:
+                continue
+            value = float(getattr(account, "current_value", 0.0) or 0.0)
+            if value <= 0:
+                continue
+            account_type = str(getattr(account, "account_type", "") or "other")
+            label = str(getattr(account, "label", "") or "")
+            bucket_type = _bucket_type(asset_group, account_type)
+            cash_balance = min(float(getattr(account, "cash_balance", 0.0) or 0.0), value)
+            if bucket_type in {"cash", "taxable"} and cash_balance > 0:
+                cash_label = label if cash_balance >= value else f"{label} cash"
+                rows.append(
+                    RetirementHoldingsCoverageAccount(
+                        label=cash_label or BUCKET_LABELS["cash"],
+                        bucket_type="cash",
+                        account_type=account_type,
+                        current_value=round(cash_balance, 2),
+                        exact_value=round(cash_balance, 2),
+                        cash_value=round(cash_balance, 2),
+                        priced_position_count=0,
+                        coverage_status="cash",
+                        coverage_label="Cash exact",
+                        detail="Cash balance is modeled directly.",
+                    )
+                )
+                value = max(value - cash_balance, 0.0)
+                if value <= 0:
+                    continue
+            priced_count = int(getattr(account, "priced_position_count", 0) or 0)
+            holdings_value = getattr(account, "holdings_value", None)
+            if priced_count > 0:
+                exact_value = min(value, float(holdings_value if holdings_value is not None else value))
+                inferred_value = max(value - exact_value, 0.0)
+                status = "partial_holdings" if inferred_value > 0.01 else "exact_holdings"
+                rows.append(
+                    RetirementHoldingsCoverageAccount(
+                        label=label or BUCKET_LABELS[bucket_type],
+                        bucket_type=bucket_type,
+                        account_type=account_type,
+                        current_value=round(value, 2),
+                        exact_value=round(exact_value, 2),
+                        inferred_value=round(inferred_value, 2),
+                        priced_position_count=priced_count,
+                        coverage_status=status,
+                        coverage_label="Partial holdings" if status == "partial_holdings" else "Exact holdings",
+                        detail=(
+                            f"{priced_count} priced position"
+                            f"{'s' if priced_count != 1 else ''} linked to this account."
+                        ),
+                    )
+                )
+                continue
+            rows.append(
+                RetirementHoldingsCoverageAccount(
+                    label=label or BUCKET_LABELS[bucket_type],
+                    bucket_type=bucket_type,
+                    account_type=account_type,
+                    current_value=round(value, 2),
+                    inferred_value=round(value, 2),
+                    coverage_status="account_value_only",
+                    coverage_label="Account value only",
+                    detail="No exact holdings are linked; allocation uses portfolio-level assumptions.",
+                )
+            )
+        return _summarize_holdings_coverage(rows)
 
     def _drawdown_schedule(
         self,
@@ -2128,6 +2202,41 @@ def _estimate_social_security_monthly(
         months_late = min(max(0, (claim_age - SSA_FULL_RETIREMENT_AGE) * 12), 36)
         factor = 1.0 + months_late * (2.0 / 300.0)
     return round(max(pia * factor, 0.0), 2)
+
+
+def _summarize_holdings_coverage(
+    rows: list[RetirementHoldingsCoverageAccount],
+) -> RetirementHoldingsCoverage:
+    if not rows:
+        return RetirementHoldingsCoverage()
+    total_value = round(sum(row.current_value for row in rows), 2)
+    exact_value = round(sum(row.exact_value for row in rows), 2)
+    inferred_value = round(sum(row.inferred_value for row in rows), 2)
+    cash_value = round(sum(row.cash_value for row in rows), 2)
+    exact_share = round(exact_value / total_value, 6) if total_value > 0 else 0.0
+    if inferred_value <= 0.01:
+        status = "exact"
+        label = "Exact holdings"
+        detail = "All modeled account value has exact holdings or cash coverage."
+    elif exact_value > 0:
+        status = "partial"
+        label = "Partial holdings"
+        detail = "Some account value has exact holdings or cash; the rest uses account-level assumptions."
+    else:
+        status = "account_value_only"
+        label = "Account value only"
+        detail = "No exact holdings are linked; allocation uses account-level assumptions."
+    return RetirementHoldingsCoverage(
+        status=status,
+        label=label,
+        detail=detail,
+        total_value=total_value,
+        exact_value=exact_value,
+        inferred_value=inferred_value,
+        cash_value=cash_value,
+        exact_share=exact_share,
+        accounts=tuple(rows),
+    )
 
 
 def _rmd_amount(pre_tax_balance: float, primary_age: int) -> float:
