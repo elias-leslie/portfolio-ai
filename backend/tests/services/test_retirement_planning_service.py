@@ -726,6 +726,43 @@ def test_social_security_estimate_from_annual_earnings_feeds_income_sources() ->
     )
 
 
+def test_social_security_start_age_only_does_not_clear_saved_income_sources() -> None:
+    saved_source = RetirementIncomeSource(
+        label="Saved Social Security",
+        source_type="social_security",
+        owner_name="primary",
+        start_age=67,
+        monthly_amount=2_000.0,
+        inflation_adjusted=True,
+    )
+    inputs = RetirementInputs(
+        household_id="hh-ss-saved",
+        primary_age=49,
+        spouse_age=43,
+        retirement_age=65,
+        horizon_years=30,
+        annual_expenses=72_000.0,
+        annual_contribution=0.0,
+        portfolio_value=500_000.0,
+        asset_allocation={"cash": 1.0},
+        income_sources=(saved_source,),
+        inflation_rate=0.025,
+        as_of_date=date(2026, 5, 26),
+    )
+
+    updated = _append_preview_social_security(
+        inputs,
+        primary_monthly=None,
+        spouse_monthly=None,
+        primary_annual_earnings=None,
+        spouse_annual_earnings=None,
+        primary_start_age=70,
+        spouse_start_age=67,
+    )
+
+    assert updated.income_sources == (saved_source,)
+
+
 def test_drawdown_schedule_applies_pre_tax_rmd_estimate() -> None:
     service = _make_service(_StubConn())
     inputs = RetirementInputs(

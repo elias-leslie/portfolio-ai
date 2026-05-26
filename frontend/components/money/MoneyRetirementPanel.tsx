@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type {
   HouseholdFinanceDashboard,
+  HouseholdProfileUpdate,
   RetirementPreviewRequest,
 } from '@/lib/api/household'
 import {
@@ -29,7 +30,10 @@ import {
   formatEnumLabel,
   formatPercent,
 } from '@/lib/formatters'
-import { useRetirementPreview } from '@/lib/hooks/useHousehold'
+import {
+  useRetirementPreview,
+  useUpdateHouseholdProfile,
+} from '@/lib/hooks/useHousehold'
 
 const bucketColors: Record<string, string> = {
   cash: 'var(--color-chart-5)',
@@ -214,6 +218,7 @@ function householdAges(dashboard: HouseholdFinanceDashboard) {
 }
 
 function socialSecurityDefaults(dashboard: HouseholdFinanceDashboard) {
+  const profile = dashboard.profile
   const sources = dashboard.planning?.retirementIncomeSources ?? []
   const socialSecurity = sources.filter(
     (source) => source.sourceType.toLowerCase() === 'social_security',
@@ -225,12 +230,30 @@ function socialSecurityDefaults(dashboard: HouseholdFinanceDashboard) {
     (source.ownerName ?? source.label).toLowerCase().includes('spouse'),
   )
   return {
-    primaryMonthly: numberInput(primary?.monthlyAmount, '0'),
-    primaryStartAge: numberInput(primary?.startAge, '67'),
-    primaryAnnualEarnings: '0',
-    spouseMonthly: numberInput(spouse?.monthlyAmount, '0'),
-    spouseStartAge: numberInput(spouse?.startAge, '67'),
-    spouseAnnualEarnings: '0',
+    primaryMonthly: numberInput(
+      profile.primarySocialSecurityMonthly ?? primary?.monthlyAmount,
+      '0',
+    ),
+    primaryStartAge: numberInput(
+      profile.primarySocialSecurityStartAge ?? primary?.startAge,
+      '67',
+    ),
+    primaryAnnualEarnings: numberInput(
+      profile.primarySocialSecurityAnnualEarnings,
+      '0',
+    ),
+    spouseMonthly: numberInput(
+      profile.spouseSocialSecurityMonthly ?? spouse?.monthlyAmount,
+      '0',
+    ),
+    spouseStartAge: numberInput(
+      profile.spouseSocialSecurityStartAge ?? spouse?.startAge,
+      '67',
+    ),
+    spouseAnnualEarnings: numberInput(
+      profile.spouseSocialSecurityAnnualEarnings,
+      '0',
+    ),
   }
 }
 
@@ -251,8 +274,8 @@ function defaultDraft(dashboard: HouseholdFinanceDashboard) {
         dashboard.retirementContributionTracker.estimatedMonthlyContributions,
       '0',
     ),
-    inflationRate: percentInput(0.025),
-    horizonYears: '35',
+    inflationRate: percentInput(dashboard.profile.retirementInflationRate),
+    horizonYears: numberInput(dashboard.profile.retirementHorizonYears, '35'),
     primarySocialSecurityMonthly: socialSecurity.primaryMonthly,
     primarySocialSecurityAnnualEarnings: socialSecurity.primaryAnnualEarnings,
     primarySocialSecurityStartAge: socialSecurity.primaryStartAge,
@@ -319,6 +342,7 @@ export function MoneyRetirementPanel({
   const [request, setRequest] = useState<RetirementPreviewRequest>(() =>
     buildRequest(dashboard.profile.id, defaultDraft(dashboard)),
   )
+  const updateProfile = useUpdateHouseholdProfile()
   const previewQuery = useRetirementPreview(request)
   const preview = previewQuery.data
   const preparedness = dashboard.retirementPreparedness
@@ -440,6 +464,36 @@ export function MoneyRetirementPanel({
     setRequest(buildRequest(dashboard.profile.id, draft))
   }
 
+  const saveDraftDefaults = async () => {
+    const profileUpdate: HouseholdProfileUpdate = {
+      targetRetirementAge: parseNumber(draft.retirementAge, 65),
+      targetRetirementSpend: parseNumber(draft.monthlySpend, 6000),
+      monthlySavingsTarget: parseNumber(draft.monthlyContribution, 0),
+      retirementInflationRate: parseNumber(draft.inflationRate, 2.5) / 100,
+      retirementHorizonYears: parseNumber(draft.horizonYears, 35),
+      primarySocialSecurityMonthly: parseOptionalNumber(
+        draft.primarySocialSecurityMonthly,
+      ),
+      primarySocialSecurityAnnualEarnings: parseOptionalNumber(
+        draft.primarySocialSecurityAnnualEarnings,
+      ),
+      primarySocialSecurityStartAge: parseOptionalNumber(
+        draft.primarySocialSecurityStartAge,
+      ),
+      spouseSocialSecurityMonthly: parseOptionalNumber(
+        draft.spouseSocialSecurityMonthly,
+      ),
+      spouseSocialSecurityAnnualEarnings: parseOptionalNumber(
+        draft.spouseSocialSecurityAnnualEarnings,
+      ),
+      spouseSocialSecurityStartAge: parseOptionalNumber(
+        draft.spouseSocialSecurityStartAge,
+      ),
+    }
+    await updateProfile.mutateAsync(profileUpdate)
+    setRequest(buildRequest(dashboard.profile.id, draft))
+  }
+
   const updateDraft = (key: keyof typeof draft, value: string) => {
     setDraft((current) => ({ ...current, [key]: value }))
   }
@@ -459,6 +513,15 @@ export function MoneyRetirementPanel({
               onClick={onEditTargets}
             >
               Edit saved assumptions
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void saveDraftDefaults()}
+              disabled={updateProfile.isPending}
+            >
+              {updateProfile.isPending ? 'Saving…' : 'Save assumptions'}
             </Button>
             <Button
               type="button"

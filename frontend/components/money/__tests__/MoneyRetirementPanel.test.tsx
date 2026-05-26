@@ -3,16 +3,20 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   HouseholdFinanceDashboard,
   RetirementPreview,
 } from '@/lib/api/household'
-import { useRetirementPreview } from '@/lib/hooks/useHousehold'
+import {
+  useRetirementPreview,
+  useUpdateHouseholdProfile,
+} from '@/lib/hooks/useHousehold'
 import { MoneyRetirementPanel } from '../MoneyRetirementPanel'
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useRetirementPreview: vi.fn(),
+  useUpdateHouseholdProfile: vi.fn(),
 }))
 
 vi.mock('recharts', () => {
@@ -341,8 +345,20 @@ const preview: RetirementPreview = {
 }
 
 const usePreviewMock = vi.mocked(useRetirementPreview)
+const useUpdateProfileMock = vi.mocked(useUpdateHouseholdProfile)
+const updateProfileMutateAsync = vi.fn()
 
 describe('MoneyRetirementPanel', () => {
+  beforeEach(() => {
+    usePreviewMock.mockReset()
+    updateProfileMutateAsync.mockReset()
+    updateProfileMutateAsync.mockResolvedValue({})
+    useUpdateProfileMock.mockReturnValue({
+      mutateAsync: updateProfileMutateAsync,
+      isPending: false,
+    } as unknown as ReturnType<typeof useUpdateHouseholdProfile>)
+  })
+
   it('renders visual retirement readiness, buckets, levers, and drawdown rows', () => {
     usePreviewMock.mockReturnValue({
       data: preview,
@@ -387,6 +403,52 @@ describe('MoneyRetirementPanel', () => {
         retirementAge: 66,
         primaryAge: 49,
         spouseAge: 43,
+      }),
+    )
+  })
+
+  it('loads saved Social Security assumptions and persists the current knob set', async () => {
+    const user = userEvent.setup()
+    const savedDashboard = {
+      ...dashboard,
+      profile: {
+        ...dashboard.profile,
+        targetRetirementAge: 50,
+        targetRetirementSpend: 7500,
+        monthlySavingsTarget: 0,
+        retirementInflationRate: 0.03,
+        retirementHorizonYears: 40,
+        primarySocialSecurityAnnualEarnings: 120000,
+        primarySocialSecurityStartAge: 70,
+        spouseSocialSecurityAnnualEarnings: 85000,
+        spouseSocialSecurityStartAge: 67,
+      },
+    } as HouseholdFinanceDashboard
+    usePreviewMock.mockReturnValue({
+      data: preview,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    render(<MoneyRetirementPanel dashboard={savedDashboard} />)
+
+    const salaryInput = screen.getByDisplayValue('120000')
+    await user.clear(salaryInput)
+    await user.type(salaryInput, '125000')
+    await user.click(screen.getByRole('button', { name: /save assumptions/i }))
+
+    expect(updateProfileMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetRetirementAge: 50,
+        targetRetirementSpend: 7500,
+        monthlySavingsTarget: 0,
+        retirementInflationRate: 0.03,
+        retirementHorizonYears: 40,
+        primarySocialSecurityAnnualEarnings: 125000,
+        primarySocialSecurityStartAge: 70,
+        spouseSocialSecurityAnnualEarnings: 85000,
+        spouseSocialSecurityStartAge: 67,
       }),
     )
   })

@@ -55,6 +55,14 @@ export interface HouseholdProfile {
   monthlySavingsTarget: number | null
   targetRetirementAge: number | null
   targetRetirementSpend: number | null
+  retirementInflationRate?: number | null
+  retirementHorizonYears?: number | null
+  primarySocialSecurityMonthly?: number | null
+  spouseSocialSecurityMonthly?: number | null
+  primarySocialSecurityAnnualEarnings?: number | null
+  spouseSocialSecurityAnnualEarnings?: number | null
+  primarySocialSecurityStartAge?: number | null
+  spouseSocialSecurityStartAge?: number | null
   filingStatus?: string | null
   stateOfResidence?: string | null
   effectiveTaxRate?: number | null
@@ -755,6 +763,14 @@ export interface HouseholdProfileUpdate {
   monthlySavingsTarget?: number | null
   targetRetirementAge?: number | null
   targetRetirementSpend?: number | null
+  retirementInflationRate?: number | null
+  retirementHorizonYears?: number | null
+  primarySocialSecurityMonthly?: number | null
+  spouseSocialSecurityMonthly?: number | null
+  primarySocialSecurityAnnualEarnings?: number | null
+  spouseSocialSecurityAnnualEarnings?: number | null
+  primarySocialSecurityStartAge?: number | null
+  spouseSocialSecurityStartAge?: number | null
   filingStatus?: string | null
   stateOfResidence?: string | null
   effectiveTaxRate?: number | null

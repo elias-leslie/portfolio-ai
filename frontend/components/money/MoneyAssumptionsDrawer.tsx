@@ -60,6 +60,7 @@ type AssumptionFieldDef = {
   placeholder?: string
   acceptsFoundValue?: boolean
   supportsCadence?: boolean
+  percentStorage?: 'fraction'
 }
 
 const assumptionFields: AssumptionFieldDef[] = [
@@ -184,6 +185,71 @@ const assumptionFields: AssumptionFieldDef[] = [
     hint: 'Expected monthly lifestyle cost once work income stops.',
     placeholder: '9000',
   },
+  {
+    fieldName: 'retirement_inflation_rate',
+    profileKey: 'retirementInflationRate',
+    label: 'Retirement inflation rate',
+    type: 'percent',
+    hint: 'Default inflation assumption for retirement previews.',
+    placeholder: '2.5',
+    percentStorage: 'fraction',
+  },
+  {
+    fieldName: 'retirement_horizon_years',
+    profileKey: 'retirementHorizonYears',
+    label: 'Retirement horizon years',
+    type: 'integer',
+    hint: 'How many years the retirement preview should project.',
+    placeholder: '35',
+  },
+  {
+    fieldName: 'primary_social_security_annual_earnings',
+    profileKey: 'primarySocialSecurityAnnualEarnings',
+    label: 'Your Social Security salary',
+    type: 'currency',
+    hint: 'Annual earnings used for the rough Social Security estimate.',
+    placeholder: '120000',
+  },
+  {
+    fieldName: 'primary_social_security_monthly',
+    profileKey: 'primarySocialSecurityMonthly',
+    label: 'Your Social Security monthly',
+    type: 'currency',
+    hint: 'Exact monthly SSA estimate, when known.',
+    placeholder: '2800',
+  },
+  {
+    fieldName: 'primary_social_security_start_age',
+    profileKey: 'primarySocialSecurityStartAge',
+    label: 'Your Social Security age',
+    type: 'integer',
+    hint: 'Age to start Social Security in retirement previews.',
+    placeholder: '67',
+  },
+  {
+    fieldName: 'spouse_social_security_annual_earnings',
+    profileKey: 'spouseSocialSecurityAnnualEarnings',
+    label: 'Spouse Social Security salary',
+    type: 'currency',
+    hint: 'Annual earnings used for the rough spouse Social Security estimate.',
+    placeholder: '90000',
+  },
+  {
+    fieldName: 'spouse_social_security_monthly',
+    profileKey: 'spouseSocialSecurityMonthly',
+    label: 'Spouse Social Security monthly',
+    type: 'currency',
+    hint: 'Exact monthly SSA estimate for spouse, when known.',
+    placeholder: '2200',
+  },
+  {
+    fieldName: 'spouse_social_security_start_age',
+    profileKey: 'spouseSocialSecurityStartAge',
+    label: 'Spouse Social Security age',
+    type: 'integer',
+    hint: 'Spouse age to start Social Security in retirement previews.',
+    placeholder: '67',
+  },
 ]
 
 const cadenceOptions: Array<{ value: IncomeCadence; label: string }> = [
@@ -200,7 +266,8 @@ function formatCurrentValue(def: AssumptionFieldDef, value: unknown) {
     return formatCurrency(value, { decimals: 0 })
   }
   if (def.type === 'percent' && typeof value === 'number') {
-    return `${value}%`
+    const displayValue = def.percentStorage === 'fraction' ? value * 100 : value
+    return `${displayValue}%`
   }
   if (def.fieldName === 'target_retirement_age' && typeof value === 'number') {
     return `Age ${value}`
@@ -229,6 +296,9 @@ function parseDraftValue(
   }
   if (def.supportsCadence) {
     return monthlyValueFromCadence(parsed, cadence)
+  }
+  if (def.type === 'percent' && def.percentStorage === 'fraction') {
+    return parsed / 100
   }
   return parsed
 }
@@ -297,6 +367,14 @@ export function MoneyAssumptionsDrawer({
           cadenceValueFromMonthly(currentValue, cadence) ??
           null
         nextValues[def.fieldName] = raw == null ? '' : String(raw)
+        continue
+      }
+      if (
+        def.type === 'percent' &&
+        def.percentStorage === 'fraction' &&
+        typeof currentValue === 'number'
+      ) {
+        nextValues[def.fieldName] = String(currentValue * 100)
         continue
       }
       nextValues[def.fieldName] =

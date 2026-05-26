@@ -220,6 +220,30 @@ class RetirementPlanningService:
             annual_contribution = float(monthly_savings or 0.0) * 12.0
         if retirement_age is None and profile is not None:
             retirement_age = getattr(profile, "target_retirement_age", None)
+        if horizon_years is None and profile is not None:
+            horizon_years = getattr(profile, "retirement_horizon_years", None)
+        if inflation_rate is None and profile is not None:
+            inflation_rate = getattr(profile, "retirement_inflation_rate", None)
+        if primary_social_security_monthly is None and profile is not None:
+            primary_social_security_monthly = getattr(profile, "primary_social_security_monthly", None)
+        if spouse_social_security_monthly is None and profile is not None:
+            spouse_social_security_monthly = getattr(profile, "spouse_social_security_monthly", None)
+        if primary_social_security_annual_earnings is None and profile is not None:
+            primary_social_security_annual_earnings = getattr(
+                profile, "primary_social_security_annual_earnings", None
+            )
+        if spouse_social_security_annual_earnings is None and profile is not None:
+            spouse_social_security_annual_earnings = getattr(
+                profile, "spouse_social_security_annual_earnings", None
+            )
+        if primary_social_security_start_age is None and profile is not None:
+            primary_social_security_start_age = getattr(
+                profile, "primary_social_security_start_age", None
+            )
+        if spouse_social_security_start_age is None and profile is not None:
+            spouse_social_security_start_age = getattr(
+                profile, "spouse_social_security_start_age", None
+            )
 
         inputs = self.build_inputs(
             household_id,
@@ -986,13 +1010,8 @@ def _append_preview_social_security(
         claim_age=spouse_claim_age,
     )
     provided = any(
-        value is not None
-        for value in (
-            estimated_primary_monthly,
-            estimated_spouse_monthly,
-            primary_start_age,
-            spouse_start_age,
-        )
+        value is not None and value > 0
+        for value in (estimated_primary_monthly, estimated_spouse_monthly)
     )
     if not provided:
         return inputs
