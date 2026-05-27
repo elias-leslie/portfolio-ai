@@ -368,13 +368,27 @@ const preview: RetirementPreview = {
   returnAssumptions: {
     expectedReturn: 0.052,
     incomeYield: 0.024,
+    incomeYieldFreshnessStatus: 'fresh',
+    incomeYieldFreshnessLabel: 'Yields are current',
     cashYield: 0.0328,
-    cashYieldSource: 'Fidelity SPAXX 7-day yield as of 2026-05-07',
+    cashYieldSource: 'Fidelity SPAXX 7-day yield',
+    cashYieldAsOf: '2026-05-07',
+    cashYieldFreshnessStatus: 'aging',
+    cashYieldFreshnessLabel: '19 days old (as of May 7, 2026)',
+    dividendTaxCharacter: {
+      basis: 'assumption',
+      detail:
+        'Qualified vs. ordinary dividend treatment is assumed from fund type; no per-fund tax-character source is available.',
+    },
   },
   taxAssumptions: {
     filingStatusLabel: 'Married filing jointly',
     standardDeduction: 32200,
     capitalGainsZeroRateLimit: 98900,
+    taxableWithdrawalGainRatio: 0.42,
+    taxableWithdrawalGainRatioSource: 'tax_lots',
+    taxableWithdrawalGainRatioDetail:
+      'Embedded gain estimated from your taxable cost basis (42% of taxable withdrawals taxed as long-term gains).',
     warnings: [],
   },
   drawdownSchedule: [
@@ -439,6 +453,24 @@ const preview: RetirementPreview = {
       successProbability: 0.9,
       deltaSuccessProbability: 0.08,
       detail: '+8.0 percentage points versus the current preview.',
+    },
+  ],
+  accountRules: [
+    {
+      bucketType: 'governmental_457b',
+      label: 'Governmental 457(b)',
+      taxTreatment: 'Ordinary income, no early-withdrawal penalty',
+      earlyAccess:
+        'Penalty-free at any age after you separate from service; taxed as ordinary income.',
+      rmd: 'Required minimum distributions begin at 73.',
+    },
+    {
+      bucketType: 'roth',
+      label: 'Roth',
+      taxTreatment: 'Tax-free if qualified',
+      earlyAccess:
+        'Contributions withdrawable anytime; earnings tax-free after 59½ and the 5-year rule.',
+      rmd: 'Roth IRAs have no lifetime RMDs for the original owner.',
     },
   ],
   firstDepletionAge: null,
@@ -534,6 +566,40 @@ describe('MoneyRetirementPanel', () => {
     ).toBeInTheDocument()
   })
 
+  it('surfaces account rules, lots-derived gain ratio, and yield freshness', async () => {
+    const user = userEvent.setup()
+    usePreviewMock.mockReturnValue({
+      data: preview,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    // Account-rule cards render without expanding any section.
+    expect(screen.getByText('How each account is treated')).toBeInTheDocument()
+    expect(
+      screen.getByText(/Penalty-free at any age after you separate/),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Roth IRAs have no lifetime RMDs/),
+    ).toBeInTheDocument()
+
+    // Lots-derived gain ratio is labeled as sourced from cost basis.
+    expect(screen.getByText('From your cost basis')).toBeInTheDocument()
+    expect(
+      screen.getByText(/Embedded gain estimated from your taxable cost basis/),
+    ).toBeInTheDocument()
+
+    // Yield freshness badges live inside the allocation sandbox.
+    await user.click(screen.getByRole('button', { name: /expand allocation/i }))
+    expect(screen.getByText('Yields are current')).toBeInTheDocument()
+    expect(
+      screen.getByText('19 days old (as of May 7, 2026)'),
+    ).toBeInTheDocument()
+  })
+
   it('renders transformed current allocation keys instead of zeroing them out', async () => {
     const user = userEvent.setup()
     usePreviewMock.mockReturnValue({
@@ -553,9 +619,7 @@ describe('MoneyRetirementPanel', () => {
     expect(
       screen.getByText(/success odds use total return/i),
     ).toBeInTheDocument()
-    expect(
-      screen.getByText(/Fidelity SPAXX 7-day yield as of 2026-05-07/i),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/Fidelity SPAXX 7-day yield/i)).toBeInTheDocument()
     expect(
       screen.getAllByText(/Partial account allocation/).length,
     ).toBeGreaterThan(0)

@@ -79,6 +79,7 @@ export type {
   JennyProgression,
   PortfolioHouseholdContext,
   RetirementAccountBucket,
+  RetirementAccountRule,
   RetirementDrawdownYear,
   RetirementInputs,
   RetirementLeverImpact,

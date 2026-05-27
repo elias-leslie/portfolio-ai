@@ -33,12 +33,19 @@ from app.services._retirement_simulation import (
     run_monte_carlo,
 )
 from app.services.retirement_planning_service import (
+    DEFAULT_SPAXX_CASH_YIELD_AS_OF,
+    TAXABLE_WITHDRAWAL_GAIN_RATIO,
     RetirementPlanningService,
+    _account_rule_explanations,
+    _aggregate_income_yield_freshness,
     _append_preview_social_security,
+    _effective_gain_ratio,
     _estimate_social_security_monthly,
     _federal_tax_estimate,
     _split_members,
+    _tax_assumptions,
     _tax_context_from_profile,
+    _yield_freshness,
 )
 
 
@@ -232,10 +239,14 @@ class _StubConn:
         debt_total: float = 0.0,
         insurance_total: float = 0.0,
         monthly_savings_target: float | None = None,
+        tax_lots: list[tuple[Any, ...]] | None = None,
+        reference_yields: list[tuple[Any, ...]] | None = None,
     ) -> None:
         self._members = members or []
         self._income = income_sources or []
         self._positions = positions or []
+        self._tax_lots = tax_lots or []
+        self._reference_yields = reference_yields or []
         self._scenarios = scenarios if scenarios is not None else []
         self._housing = housing_total
         self._debt = debt_total
@@ -254,11 +265,20 @@ class _StubConn:
             "from household_debt_obligations": ("fetchone", (self._debt,)),
             "from household_insurance_policies": ("fetchone", (self._insurance,)),
             "from household_profiles": ("fetchone", (self._monthly_savings_target,)),
+            "from portfolio_tax_lots": ("fetchall", self._tax_lots),
         }
         for needle, (kind, value) in select_sources.items():
             if needle in normalized:
                 getattr(cursor, kind).return_value = value
                 return cursor
+        if "from reference_cache" in normalized:
+            symbol = params[0] if params else None
+            match = next(
+                (row for row in self._reference_yields if row and row[0] == symbol),
+                None,
+            )
+            cursor.fetchone.return_value = None if match is None else match[1:]
+            return cursor
         if normalized.startswith("insert into retirement_scenarios"):
             return self._handle_insert_scenario(cursor, params)
         if "from retirement_scenarios" in normalized:
@@ -1138,6 +1158,192 @@ def test_tax_aware_monte_carlo_preserves_governmental_457b_early_access() -> Non
 
     assert gov_out.success_probability == 1.0
     assert pre_tax_out.success_probability == 0.0
+
+
+class _FakePriceInfo:
+    def __init__(self, price: float) -> None:
+        self.price = price
+        self.error = None
+
+
+class _FakePriceFetcher:
+    def __init__(self, prices: dict[str, float]) -> None:
+        self._prices = prices
+
+    def fetch_cached_price_data(self, symbols: list[str]) -> dict[str, _FakePriceInfo]:
+        return {sym: _FakePriceInfo(self._prices[sym]) for sym in symbols if sym in self._prices}
+
+
+def _patch_price_fetcher(monkeypatch: pytest.MonkeyPatch, prices: dict[str, float]) -> None:
+    price_mod = __import__("app.portfolio.price_fetcher", fromlist=["PriceDataFetcher"])
+    monkeypatch.setattr(
+        price_mod, "PriceDataFetcher", lambda _storage: _FakePriceFetcher(prices)
+    )
+
+
+# ------------------------------------------------------------------
+# yield freshness + dividend tax-character disclosure
+# ------------------------------------------------------------------
+
+
+def test_yield_freshness_buckets_by_age() -> None:
+    anchor = date(2026, 5, 26)
+    assert _yield_freshness(date(2026, 5, 20), anchor)[0] == "fresh"
+    assert _yield_freshness(date(2026, 4, 20), anchor)[0] == "aging"
+    assert _yield_freshness(date(2026, 1, 1), anchor)[0] == "stale"
+    assert _yield_freshness(None, anchor) == ("needs_evidence", "Planning assumption")
+
+
+def test_aggregate_income_yield_freshness_reports_worst() -> None:
+    rows = [
+        {"freshness_status": "fresh"},
+        {"freshness_status": "stale"},
+        {"freshness_status": "aging"},
+    ]
+    assert _aggregate_income_yield_freshness(rows)[0] == "stale"
+    assert _aggregate_income_yield_freshness([])[0] == "needs_evidence"
+
+
+def test_return_assumptions_surface_yield_freshness_and_tax_character() -> None:
+    service = _make_service(
+        _StubConn(reference_yields=[("VYM", 0.028, date(2026, 5, 20))])
+    )
+    inputs = RetirementInputs(
+        household_id="hh-fresh",
+        primary_age=50,
+        spouse_age=None,
+        retirement_age=65,
+        horizon_years=30,
+        annual_expenses=72_000.0,
+        annual_contribution=0.0,
+        portfolio_value=1_000_000.0,
+        asset_allocation={"us_equity": 0.9, "cash": 0.1},
+        cash_yield=0.0328,
+        as_of_date=date(2026, 5, 26),
+    )
+    assumptions = service._return_assumptions(
+        inputs,
+        allocation_holdings=[{"symbol": "VYM", "weight": 100}],
+        tax_context=_tax_context_from_profile(
+            SimpleNamespace(filing_status="single", state_of_residence="FL"), inputs
+        ),
+    )
+    row = assumptions["holding_income_yields"][0]
+    assert row["source"] == "reference_cache"
+    assert row["as_of"] == "2026-05-20"
+    assert row["freshness_status"] == "fresh"
+    assert assumptions["income_yield_freshness_status"] == "fresh"
+    assert assumptions["cash_yield_as_of"] == DEFAULT_SPAXX_CASH_YIELD_AS_OF.isoformat()
+    assert assumptions["dividend_tax_character"]["basis"] == "assumption"
+
+
+# ------------------------------------------------------------------
+# taxable embedded gain ratio from tax lots
+# ------------------------------------------------------------------
+
+
+def test_effective_gain_ratio_prefers_lots_over_default() -> None:
+    base = RetirementInputs(
+        household_id="hh-g",
+        primary_age=50,
+        spouse_age=None,
+        retirement_age=65,
+        horizon_years=30,
+        annual_expenses=60_000.0,
+        annual_contribution=0.0,
+        portfolio_value=500_000.0,
+        asset_allocation={"us_equity": 1.0},
+        as_of_date=date(2026, 5, 26),
+    )
+    assert _effective_gain_ratio(base) == TAXABLE_WITHDRAWAL_GAIN_RATIO
+    with_lots = base.model_copy(update={"taxable_gain_ratio": 0.42})
+    assert _effective_gain_ratio(with_lots) == 0.42
+    # A genuine zero-gain ratio must not fall back to the planning default.
+    no_gain = base.model_copy(update={"taxable_gain_ratio": 0.0})
+    assert _effective_gain_ratio(no_gain) == 0.0
+
+
+def test_taxable_embedded_gain_ratio_from_lots(monkeypatch: pytest.MonkeyPatch) -> None:
+    # 100 shares cost $60/sh ($6,000 basis), now worth $100/sh ($10,000) → 40% gain.
+    conn = _StubConn(tax_lots=[("VTI", 100.0, 6_000.0)])
+    service = _make_service(conn)
+    _patch_price_fetcher(monkeypatch, {"VTI": 100.0})
+    result = service._taxable_embedded_gain_ratio(["acct-tax"])
+    assert result is not None
+    ratio, meta = result
+    assert ratio == pytest.approx(0.4)
+    assert meta["cost_basis"] == 6_000.0
+    assert meta["market_value"] == 10_000.0
+
+
+def test_taxable_embedded_gain_ratio_none_without_lots() -> None:
+    service = _make_service(_StubConn())
+    assert service._taxable_embedded_gain_ratio(["acct-tax"]) is None
+    assert service._taxable_embedded_gain_ratio([]) is None
+
+
+def test_tax_assumptions_report_lots_gain_ratio() -> None:
+    inputs = RetirementInputs(
+        household_id="hh-t",
+        primary_age=50,
+        spouse_age=None,
+        retirement_age=65,
+        horizon_years=30,
+        annual_expenses=60_000.0,
+        annual_contribution=0.0,
+        portfolio_value=500_000.0,
+        asset_allocation={"us_equity": 1.0},
+        taxable_gain_ratio=0.4,
+        as_of_date=date(2026, 5, 26),
+    )
+    context = _tax_context_from_profile(
+        SimpleNamespace(filing_status="single", state_of_residence="FL"), inputs
+    )
+    assumptions = _tax_assumptions(
+        context,
+        inputs=inputs,
+        gain_ratio_meta={"cost_basis": 6_000.0, "market_value": 10_000.0},
+    )
+    assert assumptions["taxable_withdrawal_gain_ratio"] == 0.4
+    assert assumptions["taxable_withdrawal_gain_ratio_source"] == "tax_lots"
+    assert assumptions["taxable_cost_basis"] == 6_000.0
+
+    default_assumptions = _tax_assumptions(context, inputs=None)
+    assert default_assumptions["taxable_withdrawal_gain_ratio"] == TAXABLE_WITHDRAWAL_GAIN_RATIO
+    assert default_assumptions["taxable_withdrawal_gain_ratio_source"] == "planning_assumption"
+
+
+# ------------------------------------------------------------------
+# plan-specific rule explanations
+# ------------------------------------------------------------------
+
+
+def test_account_rule_explanations_cover_present_buckets() -> None:
+    buckets = (
+        RetirementAccountBucket(
+            bucket_type="governmental_457b",
+            label="PCSB 457(b)",
+            account_type="governmental_457b",
+            tax_treatment="ordinary_income_no_10pct_early_penalty",
+            current_value=95_000.0,
+            withdrawal_priority=3,
+        ),
+        RetirementAccountBucket(
+            bucket_type="roth",
+            label="Roth IRA",
+            account_type="roth_ira",
+            tax_treatment="tax_free_if_qualified",
+            current_value=50_000.0,
+            withdrawal_priority=6,
+        ),
+    )
+    rules = _account_rule_explanations(buckets)
+    by_type = {rule.bucket_type: rule for rule in rules}
+    assert set(by_type) == {"governmental_457b", "roth"}
+    assert "separate from service" in by_type["governmental_457b"].early_access
+    assert by_type["governmental_457b"].rmd.startswith("Required minimum")
+    assert "no lifetime RMDs" in by_type["roth"].rmd
+    assert by_type["roth"].tax_treatment == "Tax-free if qualified"
 
 
 _ = SimulationOutputs

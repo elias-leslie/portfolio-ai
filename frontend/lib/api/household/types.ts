@@ -445,6 +445,25 @@ export interface RetirementLeverImpact {
   detail: string
 }
 
+export interface RetirementAccountRule {
+  bucketType: string
+  label: string
+  taxTreatment: string
+  earlyAccess: string
+  rmd: string
+}
+
+export interface RetirementHoldingIncomeYield {
+  symbol: string
+  weight: number
+  incomeYield: number
+  source: string
+  taxCategory: string
+  asOf: string | null
+  freshnessStatus: string
+  freshnessLabel: string
+}
+
 export interface RetirementPreview {
   schemaVersion: number
   trustedTotals: boolean
@@ -462,6 +481,7 @@ export interface RetirementPreview {
   taxAssumptions: Record<string, unknown>
   returnAssumptions: Record<string, unknown>
   drawdownSchedule: RetirementDrawdownYear[]
+  accountRules: RetirementAccountRule[]
   leverImpacts: RetirementLeverImpact[]
   firstDepletionAge: number | null
   estimatedMonthlyContributionGap: number

@@ -57,6 +57,7 @@ class RetirementInputs(BaseModel):
     portfolio_value: float = Field(..., ge=0.0)
     asset_allocation: dict[str, float] = Field(default_factory=dict)
     cash_yield: float | None = Field(None, ge=0.0, le=0.2)
+    taxable_gain_ratio: float | None = Field(None, ge=0.0, le=1.0)
     income_sources: tuple[RetirementIncomeSource, ...] = ()
     inflation_rate: float = Field(0.025, ge=0.0, le=0.2)
     social_security_payable_ratio: float = Field(1.0, ge=0.0, le=1.0)
@@ -210,6 +211,23 @@ class RetirementDrawdownYear(BaseModel):
     balances_by_bucket: dict[str, float] = Field(default_factory=dict)
 
 
+class RetirementAccountRule(BaseModel):
+    """Plain-language audit of how one account bucket is modeled.
+
+    Sourced from the F5 constants (withdrawal order, penalty rates, RMD
+    age, tax treatment) so the planner can explain its assumptions
+    without making advice claims.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    bucket_type: str
+    label: str
+    tax_treatment: str
+    early_access: str
+    rmd: str
+
+
 class RetirementLeverImpact(BaseModel):
     """Small comparison run for a concrete planning lever."""
 
@@ -251,6 +269,7 @@ class RetirementPreview(BaseModel):
     tax_assumptions: dict[str, Any] = Field(default_factory=dict)
     return_assumptions: dict[str, Any] = Field(default_factory=dict)
     drawdown_schedule: tuple[RetirementDrawdownYear, ...] = ()
+    account_rules: tuple[RetirementAccountRule, ...] = ()
     lever_impacts: tuple[RetirementLeverImpact, ...] = ()
     first_depletion_age: int | None = None
     estimated_monthly_contribution_gap: float = Field(0.0, ge=0.0)

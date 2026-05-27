@@ -14,6 +14,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { freshnessToneClass } from '@/components/money/moneyAccountsUtils'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
@@ -23,6 +24,7 @@ import { Textarea } from '@/components/ui/textarea'
 import type {
   HouseholdFinanceDashboard,
   HouseholdProfileUpdate,
+  RetirementAccountRule,
   RetirementPreviewRequest,
 } from '@/lib/api/household'
 import {
@@ -723,6 +725,31 @@ export function MoneyRetirementPanel({
     preview?.returnAssumptions,
     'estimated_income_tax_drag',
   )
+  const incomeYieldFreshnessStatus = returnAssumptionText(
+    preview?.returnAssumptions,
+    'income_yield_freshness_status',
+  )
+  const incomeYieldFreshnessLabel = returnAssumptionText(
+    preview?.returnAssumptions,
+    'income_yield_freshness_label',
+  )
+  const cashYieldFreshnessStatus = returnAssumptionText(
+    preview?.returnAssumptions,
+    'cash_yield_freshness_status',
+  )
+  const cashYieldFreshnessLabel = returnAssumptionText(
+    preview?.returnAssumptions,
+    'cash_yield_freshness_label',
+  )
+  const gainRatioSource = taxAssumptionText(
+    preview?.taxAssumptions,
+    'taxableWithdrawalGainRatioSource',
+  )
+  const gainRatioDetail = taxAssumptionText(
+    preview?.taxAssumptions,
+    'taxableWithdrawalGainRatioDetail',
+  )
+  const accountRules: RetirementAccountRule[] = preview?.accountRules ?? []
 
   const applyDraft = () => {
     setRequest(
@@ -1184,6 +1211,15 @@ export function MoneyRetirementPanel({
                     ? '—'
                     : formatPercent(modeledIncomeYield * 100, { decimals: 1 })}
                 </p>
+                {incomeYieldFreshnessLabel ? (
+                  <span
+                    className={`mt-2 inline-block rounded-full border px-2 py-0.5 text-[11px] font-medium ${freshnessToneClass(
+                      incomeYieldFreshnessStatus,
+                    )}`}
+                  >
+                    {incomeYieldFreshnessLabel}
+                  </span>
+                ) : null}
                 <p className="mt-2 text-xs text-text-muted">
                   Shown separately for income and tax drag; success odds use
                   total return, so dividends and interest are not added twice.
@@ -1224,8 +1260,19 @@ export function MoneyRetirementPanel({
                   {formatPercent(modeledCashYield * 100, { decimals: 2 })}.
                 </span>
                 <span className="mt-2 block">
-                  Source: {modeledCashYieldSource}. This editable assumption can
-                  go stale; update it when money market yields move.
+                  Source: {modeledCashYieldSource}.
+                </span>
+                {cashYieldFreshnessLabel ? (
+                  <span
+                    className={`mt-2 inline-block rounded-full border px-2 py-0.5 text-[11px] font-medium ${freshnessToneClass(
+                      cashYieldFreshnessStatus,
+                    )}`}
+                  >
+                    {cashYieldFreshnessLabel}
+                  </span>
+                ) : null}
+                <span className="mt-2 block">
+                  Editable — update it when money-market yields move.
                 </span>
               </label>
             </div>
@@ -1803,7 +1850,55 @@ export function MoneyRetirementPanel({
             </table>
           </div>
         </div>
+        {gainRatioDetail ? (
+          <p className="mt-3 text-xs text-text-muted">
+            <span
+              className={`mr-2 inline-block rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                gainRatioSource === 'tax_lots'
+                  ? freshnessToneClass('fresh')
+                  : freshnessToneClass('needs_evidence')
+              }`}
+            >
+              {gainRatioSource === 'tax_lots'
+                ? 'From your cost basis'
+                : 'Planning assumption'}
+            </span>
+            {gainRatioDetail}
+          </p>
+        ) : null}
       </SectionCard>
+
+      {accountRules.length > 0 ? (
+        <SectionCard
+          variant="surface"
+          title="How each account is treated"
+          description="What the planner assumes for early access and required distributions per account type. Planning context, not tax advice."
+        >
+          <div className="grid gap-3 md:grid-cols-2">
+            {accountRules.map((rule) => (
+              <div
+                key={rule.bucketType}
+                className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-text">
+                    {rule.label}
+                  </p>
+                  <Badge variant="outline">{rule.taxTreatment}</Badge>
+                </div>
+                <p className="mt-2 text-xs text-text-muted">
+                  <span className="font-medium text-text">Early access:</span>{' '}
+                  {rule.earlyAccess}
+                </p>
+                <p className="mt-1 text-xs text-text-muted">
+                  <span className="font-medium text-text">RMDs:</span>{' '}
+                  {rule.rmd}
+                </p>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      ) : null}
     </div>
   )
 }

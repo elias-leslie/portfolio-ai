@@ -26,6 +26,7 @@ from app.portfolio.contracts.retirement import (
     RetirementAccountAllocationAccount,
     RetirementAccountAllocationCoverage,
     RetirementAccountBucket,
+    RetirementAccountRule,
     RetirementDrawdownYear,
     RetirementHoldingsCoverage,
     RetirementHoldingsCoverageAccount,
@@ -89,6 +90,48 @@ BUCKET_TAX_TREATMENTS = {
 }
 TAXABLE_WITHDRAWAL_GAIN_RATIO = 0.15
 FEDERAL_TAX_YEAR = 2026
+# Plain-language audit of how each bucket is modeled, keyed by bucket type.
+# Kept terse on purpose: one early-access line and one RMD line each, sourced
+# from the constants above — no advice, just what the simulation assumes.
+BUCKET_RULE_EXPLANATIONS: dict[str, dict[str, str]] = {
+    "cash": {
+        "early_access": "Already-taxed cash; no withdrawal penalty.",
+        "rmd": "Not subject to RMDs.",
+    },
+    "taxable": {
+        "early_access": "No early-withdrawal penalty; only realized gains are taxed, at long-term rates.",
+        "rmd": "Not subject to RMDs.",
+    },
+    "governmental_457b": {
+        "early_access": "Penalty-free at any age after you separate from service; taxed as ordinary income.",
+        "rmd": "Required minimum distributions begin at 73.",
+    },
+    "pre_tax": {
+        "early_access": "10% penalty on withdrawals before 59½ (limited exceptions); taxed as ordinary income.",
+        "rmd": "Required minimum distributions begin at 73.",
+    },
+    "roth": {
+        "early_access": "Contributions withdrawable anytime; earnings tax-free after 59½ and the 5-year rule.",
+        "rmd": "Roth IRAs have no lifetime RMDs for the original owner.",
+    },
+    "hsa": {
+        "early_access": "Tax-free for qualified medical costs; 20% penalty plus tax on non-medical use before 65.",
+        "rmd": "Not subject to RMDs; after 65 non-medical withdrawals are taxed as ordinary income.",
+    },
+    "other": {
+        "early_access": "Modeled with planning-grade assumptions; confirm the specific account's rules.",
+        "rmd": "RMD treatment depends on the underlying account type.",
+    },
+}
+BUCKET_TAX_TREATMENT_LABELS: dict[str, str] = {
+    "already_taxed": "Already taxed",
+    "taxable_capital_gains_estimate": "Long-term capital gains on realized gains",
+    "ordinary_income_no_10pct_early_penalty": "Ordinary income, no early-withdrawal penalty",
+    "ordinary_income": "Ordinary income",
+    "tax_free_if_qualified": "Tax-free if qualified",
+    "tax_free_for_qualified_medical": "Tax-free for qualified medical",
+    "planning_estimate": "Planning estimate",
+}
 SSA_2026_TAXABLE_WAGE_BASE = 184_500.0
 SSA_2026_FIRST_BEND_POINT = 1_286.0
 SSA_2026_SECOND_BEND_POINT = 7_749.0
@@ -96,7 +139,11 @@ SSA_FULL_RETIREMENT_AGE = 67
 DEFAULT_SOCIAL_SECURITY_DEPLETION_YEAR = 2033
 DEFAULT_SOCIAL_SECURITY_PAYABLE_RATIO = 0.77
 DEFAULT_SPAXX_CASH_YIELD = 0.0328
-DEFAULT_SPAXX_CASH_YIELD_SOURCE = "Fidelity SPAXX 7-day yield as of 2026-05-07"
+DEFAULT_SPAXX_CASH_YIELD_AS_OF = date(2026, 5, 7)
+DEFAULT_SPAXX_CASH_YIELD_SOURCE = "Fidelity SPAXX 7-day yield"
+# Freshness windows (days) shared with the frontend freshnessTone palette.
+YIELD_FRESH_MAX_DAYS = 14
+YIELD_AGING_MAX_DAYS = 45
 INCOME_YIELD_BY_ASSET_CLASS = {
     "us_equity": 0.014,
     "intl_equity": 0.025,
@@ -215,6 +262,48 @@ def load_cma(path: Path | None = None) -> dict[str, Any]:
     target = path or CMA_PATH
     with target.open("r", encoding="utf-8") as fh:
         return yaml.safe_load(fh) or {}
+
+
+def _yield_freshness(as_of: date | None, anchor: date) -> tuple[str, str]:
+    """Map a yield's as-of date to a (status, label) the UI can colour.
+
+    Status values match the frontend ``freshnessTone`` palette so the
+    planner reuses the existing badge styling rather than inventing one.
+    A missing ``as_of`` means the number is a hardcoded planning
+    assumption, not observed market data.
+    """
+    if as_of is None:
+        return "needs_evidence", "Planning assumption"
+    age_days = max((anchor - as_of).days, 0)
+    if age_days <= YIELD_FRESH_MAX_DAYS:
+        return "fresh", f"As of {as_of:%b %-d, %Y}"
+    if age_days <= YIELD_AGING_MAX_DAYS:
+        return "aging", f"{age_days} days old (as of {as_of:%b %-d, %Y})"
+    return "stale", f"Stale — as of {as_of:%b %-d, %Y}"
+
+
+# Worst-first so the rollup reflects the least-trustworthy input.
+_FRESHNESS_PRIORITY = ("stale", "needs_evidence", "aging", "fresh", "not_applicable")
+_FRESHNESS_ROLLUP_LABELS = {
+    "stale": "Some yields are stale",
+    "needs_evidence": "Some yields use planning assumptions",
+    "aging": "Some yields are aging",
+    "fresh": "Yields are current",
+    "not_applicable": "Yields entered by you",
+}
+
+
+def _aggregate_income_yield_freshness(
+    holding_yields: list[dict[str, Any]],
+) -> tuple[str, str]:
+    """Roll per-holding yield freshness into one status for the income card."""
+    statuses = {str(row.get("freshness_status") or "fresh") for row in holding_yields}
+    if not statuses:
+        return "needs_evidence", "Income yield uses planning assumptions"
+    for status in _FRESHNESS_PRIORITY:
+        if status in statuses:
+            return status, _FRESHNESS_ROLLUP_LABELS[status]
+    return "fresh", _FRESHNESS_ROLLUP_LABELS["fresh"]
 
 
 class RetirementPlanningService:
@@ -466,6 +555,22 @@ class RetirementPlanningService:
                 ),
             )
 
+        taxable_account_ids = [
+            str(linked_id)
+            for account in getattr(dashboard, "accounts", []) or []
+            if _bucket_type(
+                str(getattr(account, "asset_group", "") or "").lower(),
+                str(getattr(account, "account_type", "") or "other"),
+            )
+            == "taxable"
+            and (linked_id := getattr(account, "linked_portfolio_account_id", None))
+        ]
+        gain_ratio_result = self._taxable_embedded_gain_ratio(taxable_account_ids)
+        gain_ratio_meta: dict[str, Any] | None = None
+        if gain_ratio_result is not None:
+            gain_ratio_value, gain_ratio_meta = gain_ratio_result
+            inputs = inputs.model_copy(update={"taxable_gain_ratio": gain_ratio_value})
+
         return_allocation_holdings = allocation_holdings
         if (
             not asset_allocation
@@ -508,7 +613,9 @@ class RetirementPlanningService:
             account_buckets=buckets,
             holdings_coverage=holdings_coverage,
             account_allocation_coverage=account_allocation_coverage,
-            tax_assumptions=_tax_assumptions(tax_context, buckets=buckets, inputs=inputs),
+            tax_assumptions=_tax_assumptions(
+                tax_context, buckets=buckets, inputs=inputs, gain_ratio_meta=gain_ratio_meta
+            ),
             return_assumptions=self._return_assumptions(
                 inputs,
                 allocation_holdings=return_allocation_holdings,
@@ -518,6 +625,7 @@ class RetirementPlanningService:
                 baseline_ordinary_income=baseline_ordinary_income,
             ),
             drawdown_schedule=tuple(drawdown),
+            account_rules=_account_rule_explanations(buckets),
             lever_impacts=self._lever_impacts(
                 inputs,
                 sim.success_probability,
@@ -976,6 +1084,65 @@ class RetirementPlanningService:
             )
         return out
 
+    def _taxable_embedded_gain_ratio(
+        self, taxable_account_ids: list[str]
+    ) -> tuple[float, dict[str, Any]] | None:
+        """Blended unrealized-gain share of taxable lots, or None if unknown.
+
+        Uses ``portfolio_tax_lots`` (remaining open shares and their
+        cost basis) priced against the cached quote so taxable-brokerage
+        withdrawals tax only the embedded gain instead of a flat planning
+        ratio. Returns ``None`` when no priced lots exist so the caller
+        can fall back visibly to the planning assumption.
+        """
+        account_ids = sorted({str(a) for a in taxable_account_ids if a})
+        if not account_ids:
+            return None
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT symbol,
+                       SUM(remaining_shares) AS shares,
+                       SUM(remaining_shares * cost_per_share) AS cost
+                FROM portfolio_tax_lots
+                WHERE account_id = ANY(%s)
+                  AND remaining_shares > 0
+                  AND disposed_at IS NULL
+                GROUP BY symbol
+                """,
+                [account_ids],
+            ).fetchall()
+        if not rows:
+            return None
+        price_mod = import_module("app.portfolio.price_fetcher")
+        price_fetcher = price_mod.PriceDataFetcher(self.storage)
+        symbols = sorted({str(row[0]).upper() for row in rows})
+        prices = price_fetcher.fetch_cached_price_data(symbols)
+        market_value = 0.0
+        cost_basis = 0.0
+        priced_symbols = 0
+        for symbol, shares, cost in rows:
+            sym = str(symbol).upper()
+            shares_f = float(shares or 0.0)
+            info = prices.get(sym)
+            if shares_f <= 0 or info is None or getattr(info, "error", None):
+                continue
+            price = float(getattr(info, "price", 0.0) or 0.0)
+            if price <= 0:
+                continue
+            market_value += shares_f * price
+            cost_basis += float(cost or 0.0)
+            priced_symbols += 1
+        if market_value <= 0 or priced_symbols == 0:
+            return None
+        gain_ratio = max(0.0, min((market_value - cost_basis) / market_value, 1.0))
+        meta = {
+            "market_value": round(market_value, 2),
+            "cost_basis": round(cost_basis, 2),
+            "lot_symbol_count": priced_symbols,
+        }
+        return round(gain_ratio, 6), meta
+
     def _drawdown_schedule(
         self,
         inputs: RetirementInputs,
@@ -988,6 +1155,7 @@ class RetirementPlanningService:
         del ordinary_tax_rate, capital_gains_rate  # kept for older direct unit-call compatibility
         tax_context = tax_context or _tax_context_from_profile(None, inputs)
         annual_return = self._expected_return(inputs.asset_allocation, inputs.cash_yield)
+        gain_ratio = _effective_gain_ratio(inputs)
         household_retirement_age = _household_retirement_primary_age(inputs)
         balances = _bucket_balances(inputs, buckets)
         contribution_bucket = _contribution_bucket(balances)
@@ -1020,6 +1188,7 @@ class RetirementPlanningService:
                 spouse_age=spouse_age,
                 inflation_factor=inflation_factor,
                 tax_context=tax_context,
+                gain_ratio=gain_ratio,
             )
             withdrawals = outcome.withdrawals
 
@@ -1075,7 +1244,10 @@ class RetirementPlanningService:
         baseline_ordinary_income: float = 0.0,
     ) -> dict[str, Any]:
         cash_yield = _cash_yield(inputs.cash_yield)
-        holding_yields = self._holding_income_yields(allocation_holdings or (), cash_yield)
+        anchor = inputs.as_of_date
+        holding_yields = self._holding_income_yields(
+            allocation_holdings or (), cash_yield, anchor=anchor
+        )
         if holding_yields:
             income_yield = sum(
                 float(row["weight"]) * float(row["income_yield"]) for row in holding_yields
@@ -1090,11 +1262,27 @@ class RetirementPlanningService:
             buckets=buckets,
             baseline_ordinary_income=baseline_ordinary_income,
         )
+        cash_freshness_status, cash_freshness_label = _yield_freshness(
+            DEFAULT_SPAXX_CASH_YIELD_AS_OF, anchor
+        )
+        income_freshness = _aggregate_income_yield_freshness(holding_yields)
         return {
             "expected_return": round(self._expected_return(inputs.asset_allocation, cash_yield), 6),
             "income_yield": round(income_yield, 6),
+            "income_yield_freshness_status": income_freshness[0],
+            "income_yield_freshness_label": income_freshness[1],
             "cash_yield": round(cash_yield, 6),
             "cash_yield_source": DEFAULT_SPAXX_CASH_YIELD_SOURCE,
+            "cash_yield_as_of": DEFAULT_SPAXX_CASH_YIELD_AS_OF.isoformat(),
+            "cash_yield_freshness_status": cash_freshness_status,
+            "cash_yield_freshness_label": cash_freshness_label,
+            "dividend_tax_character": {
+                "basis": "assumption",
+                "detail": (
+                    "Qualified vs. ordinary dividend treatment is assumed from fund type; "
+                    "no per-fund tax-character source is available."
+                ),
+            },
             "holding_income_yields": holding_yields,
             "account_allocation_confidence": (
                 {
@@ -1125,8 +1313,11 @@ class RetirementPlanningService:
         self,
         holdings: list[Any] | tuple[Any, ...],
         cash_yield: float,
+        *,
+        anchor: date | None = None,
     ) -> list[dict[str, Any]]:
-        weighted_rows: list[tuple[str, float, float, str, str]] = []
+        anchor = anchor or date.today()
+        weighted_rows: list[tuple[str, float, float, str, str, date | None]] = []
         total_weight = 0.0
         for holding in holdings:
             symbol = str(_holding_field(holding, "symbol") or "").upper().strip()
@@ -1139,42 +1330,55 @@ class RetirementPlanningService:
             if provided_yield is not None:
                 income_yield = provided_yield
                 source = "user"
+                as_of: date | None = None
             else:
-                income_yield, source = self._income_yield_for_symbol(symbol, cash_yield)
+                income_yield, source, as_of = self._income_yield_for_symbol(symbol, cash_yield)
             tax_category = _income_tax_category(symbol)
-            weighted_rows.append((symbol, weight, income_yield, source, tax_category))
+            weighted_rows.append((symbol, weight, income_yield, source, tax_category, as_of))
             total_weight += weight
         if total_weight <= 0:
             return []
-        return [
-            {
-                "symbol": symbol,
-                "weight": round(weight / total_weight, 6),
-                "income_yield": round(income_yield, 6),
-                "source": source,
-                "tax_category": tax_category,
-            }
-            for symbol, weight, income_yield, source, tax_category in weighted_rows
-        ]
+        rows: list[dict[str, Any]] = []
+        for symbol, weight, income_yield, source, tax_category, as_of in weighted_rows:
+            freshness_as_of = as_of if source in {"reference_cache", "cash_yield"} else None
+            if source == "user":
+                freshness_status, freshness_label = "not_applicable", "Entered by you"
+            else:
+                freshness_status, freshness_label = _yield_freshness(freshness_as_of, anchor)
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "weight": round(weight / total_weight, 6),
+                    "income_yield": round(income_yield, 6),
+                    "source": source,
+                    "tax_category": tax_category,
+                    "as_of": as_of.isoformat() if as_of is not None else None,
+                    "freshness_status": freshness_status,
+                    "freshness_label": freshness_label,
+                }
+            )
+        return rows
 
-    def _income_yield_for_symbol(self, symbol: str, cash_yield: float) -> tuple[float, str]:
+    def _income_yield_for_symbol(
+        self, symbol: str, cash_yield: float
+    ) -> tuple[float, str, date | None]:
         if symbol in CASH_EQUIVALENT_SYMBOLS:
-            return cash_yield, "cash_yield"
+            return cash_yield, "cash_yield", DEFAULT_SPAXX_CASH_YIELD_AS_OF
         cached = self._latest_reference_dividend_yield(symbol)
         if cached is not None:
-            return cached, "reference_cache"
+            return cached[0], "reference_cache", cached[1]
         fallback = DEFAULT_HOLDING_INCOME_YIELDS.get(symbol)
         if fallback is not None:
-            return fallback, "default_symbol"
+            return fallback, "default_symbol", None
         ac_mod = import_module("app.portfolio.asset_classification")
         asset_class = ac_mod.ASSET_CLASS_BY_SYMBOL.get(symbol, "us_equity")
-        return float(INCOME_YIELD_BY_ASSET_CLASS.get(asset_class, 0.0)), "asset_class_default"
+        return float(INCOME_YIELD_BY_ASSET_CLASS.get(asset_class, 0.0)), "asset_class_default", None
 
-    def _latest_reference_dividend_yield(self, symbol: str) -> float | None:
+    def _latest_reference_dividend_yield(self, symbol: str) -> tuple[float, date | None] | None:
         with self.storage.connection() as conn:
             row = conn.execute(
                 """
-                SELECT dividend_yield
+                SELECT dividend_yield, as_of_date
                 FROM reference_cache
                 WHERE symbol = %s AND dividend_yield IS NOT NULL
                 ORDER BY as_of_date DESC, created_at DESC
@@ -1184,7 +1388,13 @@ class RetirementPlanningService:
             ).fetchone()
         if row is None:
             return None
-        return _optional_yield(row[0])
+        cached_yield = _optional_yield(row[0])
+        if cached_yield is None:
+            return None
+        as_of = row[1] if len(row) > 1 else None
+        if isinstance(as_of, datetime):
+            as_of = as_of.date()
+        return cached_yield, as_of if isinstance(as_of, date) else None
 
     def _lever_impacts(
         self,
@@ -1747,6 +1957,13 @@ def _income_tax_category_for_asset_class(asset_class: str) -> str:
     return "ordinary_income"
 
 
+def _effective_gain_ratio(inputs: RetirementInputs) -> float:
+    """Lots-derived embedded-gain ratio when known, else planning default."""
+    if inputs.taxable_gain_ratio is not None:
+        return inputs.taxable_gain_ratio
+    return TAXABLE_WITHDRAWAL_GAIN_RATIO
+
+
 def _apply_tax_aware_withdrawals(
     balances: dict[str, float],
     *,
@@ -1756,6 +1973,7 @@ def _apply_tax_aware_withdrawals(
     spouse_age: int | None,
     inflation_factor: float,
     tax_context: FederalTaxContext,
+    gain_ratio: float = TAXABLE_WITHDRAWAL_GAIN_RATIO,
 ) -> WithdrawalOutcome:
     withdrawals = dict.fromkeys(DEFAULT_DRAWDOWN_ORDER, 0.0)
 
@@ -1763,7 +1981,7 @@ def _apply_tax_aware_withdrawals(
         ordinary_withdrawals = candidate_withdrawals.get("pre_tax", 0.0) + candidate_withdrawals.get(
             "governmental_457b", 0.0
         )
-        taxable_gains = candidate_withdrawals.get("taxable", 0.0) * TAXABLE_WITHDRAWAL_GAIN_RATIO
+        taxable_gains = candidate_withdrawals.get("taxable", 0.0) * gain_ratio
         return _federal_tax_estimate(
             tax_context,
             ordinary_income=income_components["ordinary"] + ordinary_withdrawals,
@@ -1852,6 +2070,7 @@ def _run_tax_aware_monte_carlo(
     seed: int | None,
 ) -> SimulationOutputs:
     rng = np.random.default_rng(seed)
+    gain_ratio = _effective_gain_ratio(inputs)
     classes, weights = _normalize_allocation(inputs.asset_allocation, cma)
     if not classes:
         classes = ["cash"]
@@ -1898,6 +2117,7 @@ def _run_tax_aware_monte_carlo(
                 spouse_age=spouse_age,
                 inflation_factor=inflation_factor,
                 tax_context=tax_context,
+                gain_ratio=gain_ratio,
             )
             if outcome.shortfall > 1.0 and failure_year[trial] < 0:
                 failure_year[trial] = year_index
@@ -1982,7 +2202,7 @@ def _tax_adjusted_annual_expenses(
         tax_context,
         ordinary_income=withdrawals.get("pre_tax", 0.0) + withdrawals.get("governmental_457b", 0.0),
         social_security_benefits=0.0,
-        long_term_capital_gains=withdrawals.get("taxable", 0.0) * TAXABLE_WITHDRAWAL_GAIN_RATIO,
+        long_term_capital_gains=withdrawals.get("taxable", 0.0) * _effective_gain_ratio(inputs),
         primary_age=household_retirement_age,
         spouse_age=(
             inputs.spouse_age + max(0, household_retirement_age - inputs.primary_age)
@@ -1998,11 +2218,40 @@ def _tax_adjusted_annual_expenses(
     return round(inputs.annual_expenses + tax_estimate + penalty_estimate, 2)
 
 
+def _account_rule_explanations(
+    buckets: tuple[RetirementAccountBucket, ...],
+) -> tuple[RetirementAccountRule, ...]:
+    """One concise rule card per bucket type present in the plan."""
+    rules: list[RetirementAccountRule] = []
+    seen: set[str] = set()
+    for bucket in sorted(buckets, key=lambda b: b.withdrawal_priority):
+        bucket_type = bucket.bucket_type
+        if bucket_type in seen:
+            continue
+        seen.add(bucket_type)
+        explanation = BUCKET_RULE_EXPLANATIONS.get(bucket_type)
+        if explanation is None:
+            continue
+        rules.append(
+            RetirementAccountRule(
+                bucket_type=bucket_type,
+                label=BUCKET_LABELS.get(bucket_type, bucket.label),
+                tax_treatment=BUCKET_TAX_TREATMENT_LABELS.get(
+                    bucket.tax_treatment, bucket.tax_treatment
+                ),
+                early_access=explanation["early_access"],
+                rmd=explanation["rmd"],
+            )
+        )
+    return tuple(rules)
+
+
 def _tax_assumptions(
     context: FederalTaxContext,
     *,
     buckets: tuple[RetirementAccountBucket, ...] = (),
     inputs: RetirementInputs | None = None,
+    gain_ratio_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     warnings = []
     if context.filing_status_source != "saved":
@@ -2021,6 +2270,24 @@ def _tax_assumptions(
     capital_gains_zero_rate_limit, capital_gains_twenty_rate_threshold = LONG_TERM_CAPITAL_GAINS_BRACKETS_2026[
         context.filing_status
     ]
+    lots_derived_gain_ratio = inputs is not None and inputs.taxable_gain_ratio is not None
+    effective_gain_ratio = (
+        inputs.taxable_gain_ratio
+        if lots_derived_gain_ratio and inputs is not None
+        else TAXABLE_WITHDRAWAL_GAIN_RATIO
+    )
+    if lots_derived_gain_ratio:
+        gain_ratio_source = "tax_lots"
+        gain_ratio_detail = (
+            f"Embedded gain estimated from your taxable cost basis "
+            f"({round(effective_gain_ratio * 100)}% of taxable withdrawals taxed as long-term gains)."
+        )
+    else:
+        gain_ratio_source = "planning_assumption"
+        gain_ratio_detail = (
+            f"No taxable cost-basis lots found; assuming {round(effective_gain_ratio * 100)}% "
+            "of each taxable withdrawal is a long-term gain."
+        )
     return {
         "tax_year": FEDERAL_TAX_YEAR,
         "filing_status": context.filing_status,
@@ -2030,7 +2297,11 @@ def _tax_assumptions(
         "additional_age_65_deduction": ADDITIONAL_STANDARD_DEDUCTION_65_2026[context.filing_status],
         "capital_gains_zero_rate_limit": capital_gains_zero_rate_limit,
         "capital_gains_twenty_rate_threshold": capital_gains_twenty_rate_threshold,
-        "taxable_withdrawal_gain_ratio": TAXABLE_WITHDRAWAL_GAIN_RATIO,
+        "taxable_withdrawal_gain_ratio": round(effective_gain_ratio, 6),
+        "taxable_withdrawal_gain_ratio_source": gain_ratio_source,
+        "taxable_withdrawal_gain_ratio_detail": gain_ratio_detail,
+        "taxable_cost_basis": (gain_ratio_meta or {}).get("cost_basis"),
+        "taxable_market_value": (gain_ratio_meta or {}).get("market_value"),
         "state_tax_rate": context.state_tax_rate,
         "state_tax_source": context.state_tax_source,
         "withdrawal_order": list(DEFAULT_DRAWDOWN_ORDER),
