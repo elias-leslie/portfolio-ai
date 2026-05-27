@@ -127,9 +127,13 @@ def collect_signals(snapshot_date: date | None = None) -> CollectedSignals:
         "component_quality": {
             "vix": _quality(
                 value=raw.vix_close,
-                as_of=fear_greed.as_of if fear_greed else None,
+                as_of=fear_greed.vix_as_of if fear_greed else None,
                 source="fear_greed_inputs.vix_close",
                 cadence="daily_after_close",
+                stale=fear_greed.vix_stale if fear_greed else False,
+                reason="Carried forward from the last trading day's close."
+                if fear_greed and fear_greed.vix_stale
+                else None,
             ),
             "term": _quality(
                 value=raw.term_spread_bps,
@@ -145,9 +149,13 @@ def collect_signals(snapshot_date: date | None = None) -> CollectedSignals:
             ),
             "credit": _quality(
                 value=raw.hy_spread,
-                as_of=fear_greed.as_of if fear_greed else None,
+                as_of=fear_greed.hy_spread_as_of if fear_greed else None,
                 source="fear_greed_inputs.hy_spread",
                 cadence="daily_after_close",
+                stale=fear_greed.hy_spread_stale if fear_greed else False,
+                reason="Carried forward from the last trading day's close."
+                if fear_greed and fear_greed.hy_spread_stale
+                else None,
             ),
             "putcall": _quality(
                 value=raw.put_call_ratio,

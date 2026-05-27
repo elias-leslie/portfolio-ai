@@ -4,17 +4,32 @@ The VIX, put/call ratio, and HY credit spread series are already ingested
 nightly into ``fear_greed_inputs``; the macro gate simply reads from that
 table rather than reimplementing fetchers. Normalisation is in
 ``macro_gate.scoring``.
+
+The put/call writer inserts a row for *every* calendar day (including
+weekends and market holidays), but the VIX and HY close series only update on
+trading days. To avoid reporting VIX/credit as "missing" on a non-trading day
+just because the latest row is a put/call-only skeleton, the daily-after-close
+series are coalesced to their most recent non-null observation and flagged as
+carried-forward (``*_stale``) when their as-of date trails the latest row.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from typing import TYPE_CHECKING
 
 from ...logging_config import get_logger
 from ...storage.facade import get_storage
 
+if TYPE_CHECKING:
+    from ...storage._connection_wrapper import PostgreSQLConnectionWrapper
+
 logger = get_logger(__name__)
+
+# Columns eligible for carry-forward coalescing. Hard-coded (never user input)
+# so interpolating them into SQL below is safe.
+_CARRY_FORWARD_COLUMNS = ("vix_close", "hy_spread")
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,29 +39,82 @@ class FearGreedComponents:
     put_call_ratio: float | None
     hy_spread: float | None
     breadth_pct: float | None
+    vix_as_of: date | None = None
+    hy_spread_as_of: date | None = None
+    vix_stale: bool = False
+    hy_spread_stale: bool = False
+
+
+def _latest_non_null(
+    conn: PostgreSQLConnectionWrapper, column: str, on_or_before: date | None = None
+) -> tuple[float | None, date | None]:
+    """Return the most recent non-null ``column`` value and its as-of date."""
+    if column not in _CARRY_FORWARD_COLUMNS:
+        raise ValueError(f"unexpected carry-forward column: {column}")
+    if on_or_before is None:
+        row = conn.execute(
+            f"""
+            SELECT {column}, as_of_date
+            FROM fear_greed_inputs
+            WHERE {column} IS NOT NULL
+            ORDER BY as_of_date DESC
+            LIMIT 1
+            """,
+        ).fetchone()
+    else:
+        row = conn.execute(
+            f"""
+            SELECT {column}, as_of_date
+            FROM fear_greed_inputs
+            WHERE {column} IS NOT NULL
+              AND as_of_date <= %s
+            ORDER BY as_of_date DESC
+            LIMIT 1
+            """,
+            [on_or_before],
+        ).fetchone()
+    if row is None or row[0] is None:
+        return None, None
+    as_of = row[1] if isinstance(row[1], date) else None
+    return float(row[0]), as_of
+
+
+def _build(
+    conn: PostgreSQLConnectionWrapper,
+    latest_row: tuple,
+    on_or_before: date | None,
+) -> FearGreedComponents:
+    latest_date = latest_row[0]
+    vix_close, vix_as_of = _latest_non_null(conn, "vix_close", on_or_before)
+    hy_spread, hy_as_of = _latest_non_null(conn, "hy_spread", on_or_before)
+    return FearGreedComponents(
+        as_of=latest_date,
+        vix_close=vix_close,
+        put_call_ratio=float(latest_row[1]) if latest_row[1] is not None else None,
+        hy_spread=hy_spread,
+        breadth_pct=float(latest_row[2]) if latest_row[2] is not None else None,
+        vix_as_of=vix_as_of,
+        hy_spread_as_of=hy_as_of,
+        vix_stale=vix_as_of is not None and vix_as_of < latest_date,
+        hy_spread_stale=hy_as_of is not None and hy_as_of < latest_date,
+    )
 
 
 def fetch_latest() -> FearGreedComponents | None:
     storage = get_storage()
     with storage.connection() as conn:
-        row = conn.execute(
+        latest_row = conn.execute(
             """
-            SELECT as_of_date, vix_close, put_call_ratio, hy_spread, breadth_pct
+            SELECT as_of_date, put_call_ratio, breadth_pct
             FROM fear_greed_inputs
             ORDER BY as_of_date DESC
             LIMIT 1
             """,
         ).fetchone()
-    if row is None:
-        logger.warning("fear_greed_components_empty")
-        return None
-    return FearGreedComponents(
-        as_of=row[0],
-        vix_close=float(row[1]) if row[1] is not None else None,
-        put_call_ratio=float(row[2]) if row[2] is not None else None,
-        hy_spread=float(row[3]) if row[3] is not None else None,
-        breadth_pct=float(row[4]) if row[4] is not None else None,
-    )
+        if latest_row is None:
+            logger.warning("fear_greed_components_empty")
+            return None
+        return _build(conn, latest_row, on_or_before=None)
 
 
 def fetch_on(snapshot_date: date) -> FearGreedComponents | None:
@@ -56,9 +124,9 @@ def fetch_on(snapshot_date: date) -> FearGreedComponents | None:
     """
     storage = get_storage()
     with storage.connection() as conn:
-        row = conn.execute(
+        latest_row = conn.execute(
             """
-            SELECT as_of_date, vix_close, put_call_ratio, hy_spread, breadth_pct
+            SELECT as_of_date, put_call_ratio, breadth_pct
             FROM fear_greed_inputs
             WHERE as_of_date <= %s
             ORDER BY as_of_date DESC
@@ -66,12 +134,6 @@ def fetch_on(snapshot_date: date) -> FearGreedComponents | None:
             """,
             [snapshot_date],
         ).fetchone()
-    if row is None:
-        return None
-    return FearGreedComponents(
-        as_of=row[0],
-        vix_close=float(row[1]) if row[1] is not None else None,
-        put_call_ratio=float(row[2]) if row[2] is not None else None,
-        hy_spread=float(row[3]) if row[3] is not None else None,
-        breadth_pct=float(row[4]) if row[4] is not None else None,
-    )
+        if latest_row is None:
+            return None
+        return _build(conn, latest_row, on_or_before=snapshot_date)
