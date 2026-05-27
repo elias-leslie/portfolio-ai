@@ -300,6 +300,15 @@ def _compute_freshness(
             balance_status, balance_label = _freshness_state_from_thresholds(
                 _BALANCE_FRESHNESS_THRESHOLDS, effective_asset_group, days_since=days_since_balance
             )
+            # A successful brokerage sync also refreshes activity coverage: the
+            # sync pulls transactions up through the sync time, so anchor
+            # transaction freshness to the sync whenever it is more recent than
+            # the latest document-derived transaction. Without this, source-synced
+            # spending accounts (e.g. cash management) flag "stale activity" right
+            # after a sync, because transaction freshness otherwise reads only from
+            # uploaded-statement transactions in household_transactions.
+            if days_since_transaction is None or days_since_balance < days_since_transaction:
+                days_since_transaction = days_since_balance
 
     txn_status, txn_label = _transaction_freshness_pair(effective_money_role, days_since_transaction)
     freshness_status, freshness_label = _combine_freshness(

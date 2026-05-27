@@ -1906,6 +1906,81 @@ def test_build_account_summaries_uses_source_balance_for_source_owned_cash_accou
     assert summaries[0].balance_freshness_status == "fresh"
 
 
+def test_source_sync_refreshes_transaction_freshness_for_spend_driver() -> None:
+    # A source-owned spending account (cash management) that just synced should
+    # not flag "stale activity" merely because the latest document-derived
+    # transaction is old. The successful sync is the activity-coverage anchor.
+    portfolio_account = Account(
+        id="portfolio-cma",
+        name="Cash Management (Joint WROS)",
+        account_type="Taxable",
+        household_account_id="household-cma",
+        cash_balance=41840.64,
+        updated_at=datetime.now(UTC),
+    )
+    valuation = AccountValuation(
+        account_id="portfolio-cma",
+        priced_positions_value=0.0,
+        effective_cash_balance=41840.64,
+        total_value=41840.64,
+        priced_position_count=0,
+        quote_updated_at=None,
+        quote_freshness_status="not_applicable",
+        quote_freshness_label="No live quotes",
+        quote_source=None,
+    )
+
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="acct-cma",
+                document_id="doc-cma",
+                household_account_id="household-cma",
+                source_type="brokerage",
+                asset_group="taxable",
+                account_type="brokerage",
+                institution_name="Fidelity",
+                account_name="Cash Management (Joint WROS)",
+                account_mask="Z38367298",
+                owner_name=None,
+                currency="USD",
+                balance=41840.64,
+                holdings_value=0.0,
+                cash_balance=41840.64,
+                as_of_date=_iso(20),
+                confidence=0.95,
+                metadata={},
+            )
+        ],
+        documents=[],
+        portfolio_accounts=[portfolio_account],
+        tracked_accounts=[],
+        account_valuations={"portfolio-cma": valuation},
+        source_owned_household_account_ids={"household-cma"},
+        source_owned_account_values={
+            "household-cma": {
+                "current_value": 41840.64,
+                "cash_balance": None,
+                "last_synced_at": datetime.now(UTC),
+                "account_mask": "7298",
+            }
+        },
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+        latest_transaction_dates_by_household_account={
+            "household-cma": (datetime.now(UTC) - timedelta(days=20)).date()
+        },
+    )
+
+    assert len(summaries) == 1
+    summary = summaries[0]
+    assert summary.money_role == "spend_driver"
+    assert summary.balance_freshness_status == "fresh"
+    assert summary.transaction_freshness_status == "fresh"
+    assert summary.freshness_status == "fresh"
+    assert not any(gap.code == "stale_transactions" for gap in summary.gap_flags)
+
+
 def test_build_account_summaries_reprices_source_owned_symbol_account() -> None:
     portfolio_account = Account(
         id="portfolio-tod",

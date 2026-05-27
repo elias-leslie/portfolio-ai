@@ -27,11 +27,12 @@ def _source_row(
     label: str = "Cash Management",
     institution_name: str = "Fidelity",
     account_mask: str = "1234",
+    connection_id: str = "auth-1",
 ) -> SourceAccountRow:
     return SourceAccountRow(
         source="snaptrade",
         source_account_id=source_account_id,
-        connection_id="auth-1",
+        connection_id=connection_id,
         household_account_id=household_account_id,
         account_label=label,
         institution_name=institution_name,
@@ -56,6 +57,29 @@ def test_duplicate_source_aliases_are_collapsed_without_double_counting() -> Non
     assert len(issues) == 1
     assert issues[0].code == "duplicate_source_alias"
     assert issues[0].affects_totals is False
+    assert sorted(issues[0].source_account_ids) == [
+        "snaptrade-account-1",
+        "snaptrade-account-2",
+    ]
+
+
+def test_same_account_across_connections_is_shared_not_duplicate() -> None:
+    # A joint account surfaced under two different logins (e.g. each spouse's
+    # Fidelity connection) is shared, not an accidental duplicate connection.
+    values, source_owned_ids, issues = _collapse_source_rows(
+        [
+            _source_row("snaptrade-account-1", connection_id="auth-elias"),
+            _source_row("snaptrade-account-2", connection_id="auth-marian"),
+        ]
+    )
+
+    assert source_owned_ids == {"household-cash"}
+    assert values["household-cash"]["current_value"] == Decimal("41840.64")
+    assert len(issues) == 1
+    assert issues[0].code == "shared_source_account"
+    assert issues[0].affects_totals is False
+    assert "no action is needed" in issues[0].detail
+    assert "removed" not in issues[0].detail
     assert sorted(issues[0].source_account_ids) == [
         "snaptrade-account-1",
         "snaptrade-account-2",
