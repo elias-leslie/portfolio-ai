@@ -111,6 +111,13 @@ TABLES_TO_CLEAN = [
     "agent_runs",
     # Idea outcomes
     "idea_outcomes",
+    # SnapTrade brokerage sync (children before parents; reference
+    # portfolio_accounts, so clean before it)
+    "snaptrade_activities",
+    "snaptrade_positions",
+    "snaptrade_accounts",
+    "snaptrade_connections",
+    "snaptrade_users",
     # Portfolio ledger (references portfolio_accounts and portfolio_transactions)
     "portfolio_tax_lots",
     "portfolio_transactions",

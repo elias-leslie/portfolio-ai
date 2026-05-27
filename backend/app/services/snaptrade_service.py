@@ -349,7 +349,7 @@ class SnapTradeService:
             connection_rows = conn.execute(
                 """
                 SELECT authorization_id, brokerage_name, brokerage_slug, connection_type,
-                       disabled, last_synced_at
+                       disabled, last_synced_at, owner_is_spouse, owner_name
                 FROM snaptrade_connections
                 ORDER BY updated_at DESC
                 LIMIT 20
@@ -413,6 +413,8 @@ class SnapTradeService:
                     "connection_type": str(row[3]),
                     "disabled": bool(row[4]),
                     "last_synced_at": row[5].isoformat() if isinstance(row[5], datetime) else None,
+                    "owner_is_spouse": bool(row[6]),
+                    "owner_name": str(row[7]) if row[7] else None,
                 }
                 for row in connection_rows
             ],
@@ -612,9 +614,79 @@ class SnapTradeService:
                 totals["activity_count"] = int(totals["activity_count"]) + activity_count
                 symbols.update(position_symbols)
 
+        self._reconcile_account_ownership()
         self._record_user_sync(user.user_id, has_errors=bool(totals["errors"]))
         ensure_symbols_in_watchlist(self.storage, sorted(symbols), source="snaptrade")
         return totals
+
+    def _reconcile_account_ownership(self) -> None:
+        """Derive ``portfolio_accounts.is_spouse`` from connection ownership.
+
+        An account is spouse-owned only when *every* connection that surfaces
+        it is spouse-owned (``bool_and``). A joint account visible under both
+        spouses' logins therefore stays attributed to the household
+        (``is_spouse = false``), never to one person. This is purely an
+        attribution label: it does not gate any balance, net-worth, or
+        retirement-projection total, all of which include every account.
+        """
+        with self.storage.connection() as conn:
+            conn.execute(
+                """
+                UPDATE portfolio_accounts pa
+                SET is_spouse = sub.all_spouse,
+                    updated_at = %s
+                FROM (
+                    SELECT sa.portfolio_account_id AS portfolio_account_id,
+                           bool_and(COALESCE(c.owner_is_spouse, FALSE)) AS all_spouse
+                    FROM snaptrade_accounts sa
+                    JOIN snaptrade_connections c
+                        ON c.authorization_id = sa.authorization_id
+                    WHERE sa.portfolio_account_id IS NOT NULL
+                    GROUP BY sa.portfolio_account_id
+                ) sub
+                WHERE pa.id = sub.portfolio_account_id
+                  AND pa.is_spouse IS DISTINCT FROM sub.all_spouse
+                """,
+                [_now()],
+            )
+            conn.commit()
+
+    def set_connection_owner(
+        self,
+        authorization_id: str,
+        *,
+        is_spouse: bool,
+        owner_name: str | None = None,
+    ) -> dict[str, object]:
+        """Set who owns a brokerage connection, then re-derive attribution.
+
+        Persists to ``snaptrade_connections`` (columns the sync upsert never
+        overwrites, so the choice survives re-syncs) and immediately
+        reconciles ``portfolio_accounts.is_spouse``.
+        """
+        clean_name = (owner_name or "").strip() or None
+        with self.storage.connection() as conn:
+            updated = conn.execute(
+                """
+                UPDATE snaptrade_connections
+                SET owner_is_spouse = %s,
+                    owner_name = %s,
+                    updated_at = %s
+                WHERE authorization_id = %s
+                """,
+                [bool(is_spouse), clean_name, _now(), authorization_id],
+            ).rowcount
+            conn.commit()
+        if not updated:
+            raise SnapTradeIntegrationError(
+                "Unknown brokerage connection.", status_code=404
+            )
+        self._reconcile_account_ownership()
+        return {
+            "authorization_id": authorization_id,
+            "owner_is_spouse": bool(is_spouse),
+            "owner_name": clean_name,
+        }
 
     def _ensure_source_registry(self) -> None:
         with self.storage.connection() as conn:

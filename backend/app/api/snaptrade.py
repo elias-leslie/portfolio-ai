@@ -27,6 +27,11 @@ class SnapTradeConnectionPortalRequest(BaseModel):
     broker: str | None = None
 
 
+class SnapTradeConnectionOwnerRequest(BaseModel):
+    is_spouse: bool
+    owner_name: str | None = None
+
+
 def _service() -> SnapTradeService:
     return SnapTradeService()
 
@@ -83,6 +88,23 @@ async def create_snaptrade_connection_portal(
 async def sync_snaptrade() -> dict[str, object]:
     try:
         return await run_in_threadpool(_service().sync)
+    except Exception as exc:
+        _raise_public_error(exc)
+        raise
+
+
+@router.post("/connections/{authorization_id}/owner")
+async def set_snaptrade_connection_owner(
+    authorization_id: str,
+    payload: SnapTradeConnectionOwnerRequest,
+) -> dict[str, object]:
+    try:
+        return await run_in_threadpool(
+            _service().set_connection_owner,
+            authorization_id,
+            is_spouse=payload.is_spouse,
+            owner_name=payload.owner_name,
+        )
     except Exception as exc:
         _raise_public_error(exc)
         raise
