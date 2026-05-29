@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   fetchMacroBacktest,
+  fetchMacroConditions,
   fetchMacroCurrent,
   fetchMacroHistory,
   type MacroBacktestQueryArgs,
   type MacroBacktestResponse,
+  type MacroConditionsResponse,
   type MacroHistoryResponse,
   type MacroSnapshot,
 } from '@/lib/api/macro'
@@ -30,6 +32,16 @@ export function useMacroCurrent() {
   return useQuery<MacroSnapshot>({
     queryKey: ['signals', 'macro', 'current'],
     queryFn: fetchMacroCurrent,
+    staleTime: 5 * ONE_MINUTE,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  })
+}
+
+export function useMacroConditions() {
+  return useQuery<MacroConditionsResponse>({
+    queryKey: ['signals', 'macro', 'conditions'],
+    queryFn: fetchMacroConditions,
     staleTime: 5 * ONE_MINUTE,
     refetchOnWindowFocus: false,
     retry: 1,

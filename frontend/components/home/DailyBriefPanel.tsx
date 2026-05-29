@@ -1,7 +1,20 @@
 'use client'
 
+import { Info } from 'lucide-react'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import type { HouseholdFinanceDashboard } from '@/lib/api/household'
-import type { MacroSnapshot } from '@/lib/api/macro'
+import type {
+  MacroConditionEvidence,
+  MacroConditionShift,
+  MacroConditionsResponse,
+  MacroConditionTrend,
+  MacroSnapshot,
+} from '@/lib/api/macro'
 import type { PortfolioAnalytics } from '@/lib/api/portfolio'
 import {
   netWorthBadgeLabel,
@@ -13,9 +26,8 @@ import {
   useHouseholdDashboard,
   useHouseholdNetWorthTrend,
 } from '@/lib/hooks/useHousehold'
-import { useMarketStatus } from '@/lib/hooks/useMarketIntelligence'
 import { usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
-import { useMacroCurrent } from '@/lib/hooks/useSignals'
+import { useMacroConditions, useMacroCurrent } from '@/lib/hooks/useSignals'
 import { cn } from '@/lib/utils'
 
 interface ZoneStyle {
@@ -24,22 +36,21 @@ interface ZoneStyle {
   description: string
 }
 
-const ZONE_STYLES: Record<string, ZoneStyle> = {
-  FULL_DEPLOY: {
-    label: 'Full Deploy',
+const CONDITION_STYLES: Record<string, ZoneStyle> = {
+  Calm: {
+    label: 'Calm',
     className: 'border-gain/40 bg-gain/10 text-gain',
-    description: 'Conditions support adding risk from the strongest setups.',
+    description: 'Conditions are supportive.',
   },
-  REDUCED: {
-    label: 'Reduced',
+  Caution: {
+    label: 'Caution',
     className: 'border-warning/45 bg-warning/10 text-warning',
-    description:
-      'Scan only top-quartile setups. Trim weak positions before adding risk.',
+    description: 'Conditions call for selectivity, not panic.',
   },
-  DEFENSIVE: {
-    label: 'Defensive',
+  Elevated: {
+    label: 'Elevated',
     className: 'border-loss/45 bg-loss/10 text-loss',
-    description: 'Do not add new risk until the macro gate improves.',
+    description: 'Stress is high enough to prioritize protection.',
   },
 }
 
@@ -109,19 +120,145 @@ function scoreTone(value: number | null | undefined): string {
   return 'bg-loss/80'
 }
 
-function resolveZoneStyle(zone: string | null | undefined): ZoneStyle {
-  const key = zone?.toUpperCase()
-  return (
-    (key && ZONE_STYLES[key]) || {
-      label: key ? formatEnumLabel(key) : '-',
-      className: 'border-border-subtle bg-surface/60 text-text-muted',
-      description: 'Deployment posture is loading.',
-    }
-  )
+function resolveConditionStyle(state: string | null | undefined): ZoneStyle {
+  return state && CONDITION_STYLES[state]
+    ? CONDITION_STYLES[state]
+    : {
+        label: state ?? '-',
+        className: 'border-border-subtle bg-surface/60 text-text-muted',
+        description: 'Market conditions are loading.',
+      }
 }
 
 function deploymentDate(snapshotDate: string | null | undefined): string {
   return snapshotDate ?? '-'
+}
+
+function macroZoneState(zone: string | null | undefined): string | undefined {
+  const normalized = zone?.toUpperCase()
+  if (normalized === 'FULL_DEPLOY') return 'Calm'
+  if (normalized === 'DEFENSIVE') return 'Elevated'
+  if (normalized === 'REDUCED') return 'Caution'
+  return undefined
+}
+
+function conditionBadge(
+  state: string | undefined,
+  alertActive: boolean,
+  loading: boolean,
+): string {
+  if (loading && !state) return 'Loading'
+  if (!state) return '-'
+  if (state === 'Caution' && !alertActive) {
+    return 'Caution, not emergency'
+  }
+  if (state === 'Elevated') return 'Elevated stress'
+  return state
+}
+
+function formatPercent(value: number | null | undefined): string {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? `${Math.round(value * 100)}%`
+    : '-'
+}
+
+function evidenceToneClass(tone: string): string {
+  if (tone === 'gain') return 'border-gain/30 bg-gain/8 text-gain'
+  if (tone === 'warning') return 'border-warning/35 bg-warning/8 text-warning'
+  if (tone === 'loss') return 'border-loss/35 bg-loss/8 text-loss'
+  return 'border-border-subtle bg-bg/25 text-text-muted'
+}
+
+function trendTextClass(tone: string): string {
+  if (tone === 'gain') return 'text-gain'
+  if (tone === 'warning') return 'text-warning'
+  if (tone === 'loss') return 'text-loss'
+  return 'text-text-muted'
+}
+
+function shiftToneClass(tone: string): string {
+  if (tone === 'gain') return 'border-gain/30 bg-gain/8 text-gain'
+  if (tone === 'warning') return 'border-warning/35 bg-warning/8 text-warning'
+  if (tone === 'loss') return 'border-loss/35 bg-loss/8 text-loss'
+  return 'border-border-subtle bg-bg/30 text-text-muted'
+}
+
+function Sparkline({
+  points,
+  tone,
+  className,
+}: {
+  points?: number[]
+  tone: string
+  className?: string
+}) {
+  const values = points?.filter((value) => Number.isFinite(value)) ?? []
+  if (values.length < 2) {
+    return (
+      <span className={cn('block h-4 w-10 rounded bg-current/10', className)} />
+    )
+  }
+
+  const width = 64
+  const height = 24
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = max - min || 1
+  const path = values
+    .map((value, index) => {
+      const x = (index / Math.max(values.length - 1, 1)) * width
+      const y = height - ((value - min) / range) * height
+      return `${x.toFixed(1)},${y.toFixed(1)}`
+    })
+    .join(' ')
+
+  return (
+    <svg
+      className={cn(
+        'h-4 w-10 overflow-visible',
+        trendTextClass(tone),
+        className,
+      )}
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <polyline
+        points={path}
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2.5"
+      />
+    </svg>
+  )
+}
+
+function TrendChip({
+  trend,
+  compact = false,
+}: {
+  trend?: MacroConditionTrend | null
+  compact?: boolean
+}) {
+  if (!trend || trend.direction === 'unavailable') return null
+  return (
+    <span
+      className={cn(
+        'flex shrink-0 items-center gap-1 font-mono text-[10px] uppercase tracking-[0.12em]',
+        trendTextClass(trend.tone),
+      )}
+      title={trend.summary}
+    >
+      <Sparkline
+        points={trend.sparkline}
+        tone={trend.tone}
+        className={compact ? 'h-3.5 w-8' : 'h-5 w-14'}
+      />
+      <span>{trend.changeLabel}</span>
+    </span>
+  )
 }
 
 function capitalMetrics({
@@ -360,14 +497,286 @@ function MacroContributionBreakdown({ macro }: { macro?: MacroSnapshot }) {
   )
 }
 
+function MarketConditionHero({
+  conditions,
+  macro,
+  loading,
+  error,
+}: {
+  conditions?: MacroConditionsResponse
+  macro?: MacroSnapshot
+  loading: boolean
+  error: unknown
+}) {
+  const state = conditions?.state ?? macroZoneState(macro?.zone)
+  const alertActive = conditions?.alert.active ?? state === 'Elevated'
+  const stateStyle = resolveConditionStyle(state)
+  const stressScore =
+    conditions?.stressScore ??
+    (macro?.deploymentScore != null
+      ? Math.round(100 - macro.deploymentScore)
+      : null)
+  const deploymentScore = conditions?.deploymentScore ?? macro?.deploymentScore
+  const coverage = conditions?.coverage ?? macro?.coverage
+  const summary = error
+    ? error instanceof Error
+      ? error.message
+      : 'Market conditions unavailable.'
+    : (conditions?.summary ?? stateStyle.description)
+  const actionText =
+    conditions?.actionText ??
+    'Use the macro gate as context before adding new market risk.'
+  const stressTrend = conditions?.trend?.stress
+
+  return (
+    <div
+      className={cn(
+        'rounded-2xl border px-5 py-4 xl:min-h-[14.5rem]',
+        stateStyle.className,
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="rounded-full border border-current px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] sm:px-3">
+          {conditionBadge(state, alertActive, loading)}
+        </span>
+        <span className="whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.16em] text-current/70">
+          {deploymentDate(conditions?.snapshotDate ?? macro?.snapshotDate)}
+        </span>
+      </div>
+
+      <div className="mt-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-current/70">
+          Market Stress
+        </p>
+        <div className="mt-1 flex items-baseline gap-2">
+          <span className="font-display italic text-6xl leading-none tracking-tight tabular-nums">
+            {formatScore(stressScore)}
+          </span>
+          <span className="text-sm text-current/70">/ 100</span>
+        </div>
+        {stressTrend && stressTrend.direction !== 'unavailable' ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <TrendChip trend={stressTrend} />
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-current/70">
+              {stressTrend.reversalLabel ?? stressTrend.summary}
+            </span>
+          </div>
+        ) : null}
+      </div>
+
+      <p className="mt-3 text-sm font-semibold leading-5 text-current">
+        {summary}
+      </p>
+      <p className="mt-2 text-xs leading-5 text-current/80">{actionText}</p>
+
+      <div className="mt-4 grid grid-cols-2 gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-current/75">
+        <div className="rounded-xl border border-current/20 bg-bg/15 px-3 py-2">
+          <p>Deployment</p>
+          <p className="mt-1 text-sm font-semibold tracking-normal text-current">
+            {formatScore(deploymentScore)}
+          </p>
+        </div>
+        <div className="rounded-xl border border-current/20 bg-bg/15 px-3 py-2">
+          <p>Coverage</p>
+          <p className="mt-1 text-sm font-semibold tracking-normal text-current">
+            {formatPercent(coverage)}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function BriefingList({
+  title,
+  items,
+  fallback,
+}: {
+  title: string
+  items?: string[]
+  fallback: string
+}) {
+  const displayItems = items?.length ? items.slice(0, 4) : [fallback]
+
+  return (
+    <div className="rounded-xl border border-border-subtle bg-bg/25 px-3 py-3">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
+        {title}
+      </p>
+      <ul className="mt-2 space-y-1.5 text-xs leading-5 text-text-muted">
+        {displayItems.map((item) => (
+          <li key={item} className="flex gap-2">
+            <span className="mt-[0.45rem] h-1 w-1 shrink-0 rounded-full bg-primary/70" />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function MarketShifts({ shifts }: { shifts?: MacroConditionShift[] }) {
+  const displayShifts = shifts?.length
+    ? shifts.slice(0, 3)
+    : [
+        {
+          key: 'loading',
+          label: 'Trend history loading',
+          detail: 'Waiting for market history.',
+          tone: 'neutral',
+          reversal: false,
+        },
+      ]
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
+        Market shifts
+      </span>
+      {displayShifts.map((shift) => (
+        <span
+          key={shift.key}
+          className={cn(
+            'rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]',
+            shiftToneClass(shift.tone),
+          )}
+          title={shift.detail}
+        >
+          {shift.label}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function DecisionBrief({
+  conditions,
+}: {
+  conditions?: MacroConditionsResponse
+}) {
+  const alertLabel = !conditions
+    ? 'Loading'
+    : conditions.alert.active
+      ? 'Alert active'
+      : 'No stress alert'
+
+  return (
+    <div className="rounded-2xl border border-border-subtle bg-bg/20 p-4 xl:min-h-[14.5rem]">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-text-muted">
+            Today Briefing
+          </p>
+          <p className="mt-1 text-sm font-semibold text-text">
+            What matters, what to do, and what would change the read.
+          </p>
+        </div>
+        <span
+          className={cn(
+            'w-fit rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]',
+            conditions?.alert.active
+              ? 'border-loss/35 bg-loss/8 text-loss'
+              : 'border-border-subtle bg-bg/30 text-text-muted',
+          )}
+        >
+          {alertLabel}
+        </span>
+      </div>
+
+      <MarketShifts shifts={conditions?.marketShifts} />
+
+      <div className="mt-3 grid gap-2 md:grid-cols-3">
+        <BriefingList
+          title="What matters"
+          items={conditions?.whatMatters}
+          fallback="Market evidence is loading."
+        />
+        <BriefingList
+          title="What to do"
+          items={conditions?.whatToDo}
+          fallback="Keep allocation decisions tied to the written plan."
+        />
+        <BriefingList
+          title="What changes this"
+          items={conditions?.watchItems}
+          fallback="Watch volatility, credit, breadth, and the macro score."
+        />
+      </div>
+    </div>
+  )
+}
+
+function MarketEvidenceStrip({
+  evidence,
+}: {
+  evidence?: MacroConditionEvidence[]
+}) {
+  if (!evidence?.length) {
+    return (
+      <div className="border-t border-border-subtle px-4 py-3 text-xs text-text-muted">
+        Market evidence is loading.
+      </div>
+    )
+  }
+
+  return (
+    <TooltipProvider delayDuration={150}>
+      <div className="border-t border-border-subtle px-4 py-3">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+          {evidence.map((item) => (
+            <div
+              key={item.key}
+              className={cn(
+                'rounded-xl border px-3 py-2.5',
+                evidenceToneClass(item.tone),
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-current/75">
+                  {item.label}
+                </p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="rounded-full text-current/60 transition hover:text-current focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+                      aria-label={`Explain ${item.label}`}
+                    >
+                      <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    <p className="text-xs leading-5">{item.tooltip}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <p className="mt-1 font-mono text-lg font-semibold leading-none tabular-nums text-current">
+                {item.value}
+              </p>
+              <div className="mt-1 flex items-center justify-between gap-2">
+                <p className="min-w-0 truncate text-[10px] text-current/70">
+                  {item.detail}
+                </p>
+                <TrendChip trend={item.trend} compact />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </TooltipProvider>
+  )
+}
+
 function CapitalContext({
   household,
   analytics,
   householdLoading,
+  className,
 }: {
   household?: HouseholdFinanceDashboard
   analytics?: PortfolioAnalytics
   householdLoading: boolean
+  className?: string
 }) {
   const { data: netWorthTrend } = useHouseholdNetWorthTrend({ days: 180 })
   const capital = capitalMetrics({
@@ -378,7 +787,12 @@ function CapitalContext({
   })
 
   return (
-    <div className="space-y-3 rounded-2xl border border-border-subtle bg-bg/20 p-4">
+    <div
+      className={cn(
+        'space-y-3 rounded-2xl border border-border-subtle bg-bg/20 p-4',
+        className,
+      )}
+    >
       <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-text-muted">
         Portfolio Snapshot
       </p>
@@ -410,16 +824,23 @@ export function DailyBriefPanel() {
     isLoading: macroLoading,
     error: macroError,
   } = useMacroCurrent()
+  const {
+    data: conditions,
+    isLoading: conditionsLoading,
+    error: conditionsError,
+  } = useMacroConditions()
   const { data: household, isLoading: householdLoading } =
     useHouseholdDashboard()
   const { data: analytics } = usePortfolioAnalytics()
-  const { data: marketStatus } = useMarketStatus()
-  const zoneStyle = resolveZoneStyle(macro?.zone)
-  const updateTimestamp = macro?.computedAt ?? household?.generatedAt ?? null
+  const updateTimestamp =
+    conditions?.computedAt ??
+    macro?.computedAt ??
+    household?.generatedAt ??
+    null
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border/40 bg-surface/50 surface-highlight backdrop-blur-sm">
-      <div className="flex flex-col gap-2 border-b border-border/40 px-6 py-5 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-2 border-b border-border/40 px-6 py-4 md:flex-row md:items-center md:justify-between">
         <h2 className="font-display italic text-lg tracking-tight text-text">
           Daily Brief
         </h2>
@@ -428,70 +849,36 @@ export function DailyBriefPanel() {
         </p>
       </div>
 
-      <div className="grid items-start gap-4 p-4 xl:grid-cols-[minmax(18rem,0.72fr)_minmax(36rem,1.25fr)_minmax(20rem,0.7fr)]">
-        <div
-          className={cn(
-            'rounded-2xl border px-5 py-5 xl:min-h-[16.5rem]',
-            zoneStyle.className,
-          )}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <span className="rounded-full border border-current px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em]">
-              {macroLoading && !macro ? 'Loading' : zoneStyle.label}
-            </span>
-            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-current/70">
-              {deploymentDate(macro?.snapshotDate)}
-            </span>
-          </div>
-          <div className="mt-6 flex items-baseline gap-2">
-            <span className="font-display italic text-7xl leading-none tracking-tight tabular-nums">
-              {formatScore(macro?.deploymentScore)}
-            </span>
-            <span className="text-sm text-current/70">/ 100</span>
-          </div>
-          <p className="mt-3 max-w-[31rem] text-sm leading-6 text-current/85">
-            {macroError
-              ? macroError instanceof Error
-                ? macroError.message
-                : 'Deployment posture unavailable.'
-              : zoneStyle.description}
-          </p>
-          <div className="mt-5 space-y-1 font-mono text-[11px] uppercase tracking-[0.16em] text-current/75">
-            <p>
-              Coverage{' '}
-              {macro?.coverage != null
-                ? `${Math.round(macro.coverage * 100)}%`
-                : '-'}
-            </p>
-            <p>Next refresh after 17:30 ET</p>
-          </div>
-        </div>
+      <div className="grid items-start gap-4 p-4 lg:grid-cols-[minmax(17rem,0.68fr)_minmax(34rem,1.4fr)] xl:grid-cols-[minmax(17rem,0.68fr)_minmax(34rem,1.4fr)_minmax(18rem,0.7fr)]">
+        <MarketConditionHero
+          conditions={conditions}
+          macro={macro}
+          loading={
+            (macroLoading && !macro) || (conditionsLoading && !conditions)
+          }
+          error={conditionsError ?? macroError}
+        />
 
-        <MacroContributionBreakdown macro={macro} />
+        <DecisionBrief conditions={conditions} />
 
         <CapitalContext
           household={household}
           analytics={analytics}
           householdLoading={householdLoading}
+          className="lg:col-span-2 xl:col-span-1"
         />
       </div>
 
-      <div className="flex flex-wrap gap-x-5 gap-y-1 border-t border-border-subtle px-6 py-3 text-xs text-text-muted">
-        <span>
-          <strong className="text-text">Status:</strong>{' '}
-          {marketStatus?.isOpen ? 'market open' : 'market closed'}
-        </span>
-        <span>
-          <strong className="text-text">Quotes:</strong>{' '}
-          {qualityLabel(analytics?.quoteFreshnessStatus)}
-        </span>
-        <span>
-          <strong className="text-text">Net worth:</strong>{' '}
-          {household?.overview.netWorthStatus
-            ? netWorthBadgeLabel(household.overview.netWorthStatus)
-            : '-'}
-        </span>
-      </div>
+      <MarketEvidenceStrip evidence={conditions?.evidence} />
+
+      <details className="mx-4 mb-4">
+        <summary className="cursor-pointer rounded-xl border border-border-subtle bg-bg/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted transition hover:text-text">
+          Score details
+        </summary>
+        <div className="mt-3">
+          <MacroContributionBreakdown macro={macro} />
+        </div>
+      </details>
     </section>
   )
 }

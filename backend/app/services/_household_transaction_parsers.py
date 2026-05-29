@@ -18,6 +18,7 @@ from app.services._household_merchants import (
     _classify_wells_flow,
     _is_refund_like_text,
 )
+from app.services._household_spend_filters import looks_like_investment_activity
 
 RECEIPT_CONFIDENCE = 0.9
 CHASE_STATEMENT_CONFIDENCE = 0.88
@@ -310,7 +311,9 @@ def _classify_statement_csv_flow(
             resolved_flow = "refund" if is_refund_like else "payment"
     elif any(token in normalized for token in income_tokens):
         resolved_flow = "income"
-    elif any(token in normalized for token in ("reinvestment", "reinvest", "sweep into")):
+    elif looks_like_investment_activity(description=description, merchant=description) or any(
+        token in normalized for token in ("reinvestment", "reinvest", "sweep into")
+    ):
         resolved_flow = "investment"
     elif is_refund_like:
         resolved_flow = "refund"

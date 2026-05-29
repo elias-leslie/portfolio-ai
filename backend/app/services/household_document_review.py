@@ -164,6 +164,33 @@ def _receipt_vision_retry_summary(
     }
 
 
+def _signature_result_needs_agent_verification(reviewed: dict[str, Any]) -> bool:
+    if not AGENT_HUB_ENABLED:
+        return False
+    source_type = str(reviewed.get("source_type") or "")
+    document_type = str(reviewed.get("document_type") or "")
+    if source_type not in _MONEY_SIGNATURE_SOURCE_TYPES:
+        return False
+    return document_type in {"statement", "brokerage_statement", "retirement_statement"}
+
+
+def _signature_verification_summary(reviewed: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "status": "verify_learned_signature",
+        "retry_recommended": False,
+        "prior_review_strategy": reviewed.get("_review_strategy"),
+        "issues": [
+            {
+                "code": "learned_signature_requires_financial_verification",
+                "instruction": (
+                    "Verify account count, account identities, statement dates, and balances from the uploaded "
+                    "document. Correct stale learned-signature assumptions before returning the final review."
+                ),
+            }
+        ],
+    }
+
+
 def _prefer_vision_receipt_review(
     *,
     text_review: dict[str, Any],
@@ -301,9 +328,9 @@ class HouseholdDocumentReviewService(HouseholdDocumentContextMixin, HouseholdDoc
     ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
         """Return (prior_review, reconciliation_summary, signature_fallback) after handling the signature result.
 
-        When no vision retry is needed, returns (None, None, None) to signal the caller
-        should return signature_result directly. When a retry is needed, returns the
-        signature result as the fallback and updates the reconciliation context.
+        When no retry/verification is needed, returns (None, None, None) to signal the caller
+        should return signature_result directly. When a retry or agent verification is needed,
+        returns the signature result as the fallback and updates the reconciliation context.
         """
         if signature_result is None:
             return prior_review, reconciliation_summary, None
@@ -313,6 +340,12 @@ class HouseholdDocumentReviewService(HouseholdDocumentContextMixin, HouseholdDoc
             content_type=content_type,
             stored_path=stored_path,
         )
+        if _signature_result_needs_agent_verification(signature_result):
+            return (
+                signature_result,
+                _signature_verification_summary(signature_result),
+                signature_result,
+            )
         if not needs_retry:
             return None, None, None
         return (
@@ -789,8 +822,8 @@ class HouseholdDocumentReviewService(HouseholdDocumentContextMixin, HouseholdDoc
     ) -> bool:
         if not filename_mask or not keys_match:
             return False
-        if extracted_mask and extracted_mask != filename_mask:
-            raw_account["extracted_account_mask"] = extracted_mask
+        if extracted_mask:
+            return False
         raw_account["account_mask"] = filename_mask
         return True
 

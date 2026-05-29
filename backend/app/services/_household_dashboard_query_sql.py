@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from app.services._household_spend_filters import non_spend_sql_predicate
+from app.services._household_spend_filters import (
+    investment_activity_sql_predicate,
+    non_spend_sql_predicate,
+)
 
 
 def current_transaction_date_predicate(alias: str | None = None) -> str:
@@ -13,6 +16,9 @@ def current_transaction_date_predicate(alias: str | None = None) -> str:
 _NON_SPEND_TRANSACTION_SQL = non_spend_sql_predicate(
     text_expressions=["t.description", "t.raw_merchant"],
     category_expression="t.category",
+)
+_INVESTMENT_ACTIVITY_SQL = investment_activity_sql_predicate(
+    text_expressions=["description", "raw_merchant"],
 )
 
 CATEGORIZATION_SQL = f"""
@@ -170,6 +176,7 @@ INCOME_MONTHLY_AVG_SQL = f"""
         FROM household_transactions
         WHERE flow_type = 'income'
           AND {current_transaction_date_predicate()}
+          AND NOT {_INVESTMENT_ACTIVITY_SQL}
         GROUP BY 1
     ) monthly_income
 """

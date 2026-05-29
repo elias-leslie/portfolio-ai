@@ -337,6 +337,43 @@ def test_baseline_review_splits_collegeamerica_multi_account_snapshot() -> None:
     assert structured_data["total_amount"] == "26371.00"
 
 
+def test_baseline_review_splits_collegeamerica_pdf_portfolio_snapshot() -> None:
+    payload = _baseline_review(
+        filename="Sophia_and_Nadia_529s.pdf",
+        source_type="other",
+        document_type="other",
+        extracted_text=(
+            "Your Portfolio\n"
+            "$28,727.14\n"
+            "Total Portfolio Value as of 05/27/2026\n"
+            "Investment Accounts $28,727.14\n"
+            "87595967VCSP/COLLEGEAMERICA MARIANA LESLIE OWNER FBO SOPHIA O LESLIE Account Value\n"
+            "$14,363.57\n"
+            "as of 05/27/2026\n"
+            "Capital World Growth and Income Fund (CWIAX) $81.08 177.153 $14,363.57\n"
+            "87595982VCSP/COLLEGEAMERICA MARIANA LESLIE OWNER FBO NADIA R LESLIE Account Value\n"
+            "$14,363.57\n"
+            "as of 05/27/2026\n"
+            "Capital World Growth and Income Fund (CWIAX) $81.08 177.153 $14,363.57\n"
+        ),
+    )
+    structured_data = cast(dict[str, Any], payload["structured_data"])
+    accounts = structured_data["financial_accounts"]
+
+    assert isinstance(accounts, list)
+    assert len(accounts) == 2
+    assert accounts[0]["account_mask"] == "87595967"
+    assert accounts[0]["account_name"] == "529 - Sophia O Leslie"
+    assert accounts[0]["balance"] == "14363.57"
+    assert accounts[0]["as_of_date"] == "2026-05-27"
+    assert accounts[1]["account_mask"] == "87595982"
+    assert accounts[1]["account_name"] == "529 - Nadia R Leslie"
+    assert accounts[1]["balance"] == "14363.57"
+    assert accounts[1]["as_of_date"] == "2026-05-27"
+    assert structured_data["account_hint"] == "529 college savings snapshot (2 accounts)"
+    assert structured_data["total_amount"] == "28727.14"
+
+
 def test_build_signature_candidates_skips_generic_add_anything_filename() -> None:
     service = HouseholdDocumentReviewService()
 
@@ -461,6 +498,56 @@ def test_reconcile_reviewed_accounts_reuses_canonical_credit_identity() -> None:
     assert account["account_mask"] == "9728"
     assert account["extracted_account_mask"] == "5313"
     assert reviewed["review_checks"]["canonical_match_count"] == 1
+
+
+def test_reconcile_reviewed_accounts_keeps_extracted_mask_over_filename_hint() -> None:
+    service = HouseholdDocumentReviewService(agent_service=MagicMock())
+
+    reviewed = service._reconcile_reviewed_accounts(
+        reviewed={
+            "source_type": "brokerage",
+            "document_type": "brokerage_statement",
+            "structured_data": {
+                "financial_accounts": [
+                    {
+                        "institution_name": "CollegeAmerica / VCSP",
+                        "account_name": "529 - Sophia O Leslie",
+                        "account_mask": "87595967",
+                        "owner_name": "Mariana Leslie",
+                        "account_type": "529",
+                        "asset_group": "education",
+                        "match_key": "institution-mask::collegeamerica / vcsp|87595967",
+                    }
+                ]
+            },
+        },
+        household_context={
+            "related_accounts": [
+                {
+                    "household_account_id": "household-sophia-529",
+                    "canonical_label": "529 - Sophia O Leslie",
+                    "source_type": "brokerage",
+                    "asset_group": "education",
+                    "account_type": "529",
+                    "institution_name": "CollegeAmerica / VCSP",
+                    "owner_name": "Mariana Leslie",
+                    "account_mask": "87595967",
+                    "primary_identity_key": "institution-mask::collegeamerica / vcsp|87595967",
+                    "identity_examples": [
+                        "institution-mask::collegeamerica / vcsp|87595967",
+                        "mask::87595967|education|529",
+                    ],
+                }
+            ]
+        },
+        filename="Sophia_and_Nadia_529s.pdf",
+    )
+
+    structured_data = cast(dict[str, Any], reviewed["structured_data"])
+    account = cast(dict[str, Any], structured_data["financial_accounts"][0])
+    assert account["household_account_id"] == "household-sophia-529"
+    assert account["account_mask"] == "87595967"
+    assert "extracted_account_mask" not in account
 
 
 def test_reconcile_reviewed_accounts_links_transaction_only_export_to_known_account() -> None:
@@ -753,6 +840,97 @@ def test_baseline_review_detects_frs_investment_plan_statement() -> None:
     assert "42404.62" in payload["summary"]
 
 
+def test_baseline_review_detects_frs_account_summary_paste() -> None:
+    payload = _baseline_review(
+        filename="frs-account-summary.txt",
+        source_type="other",
+        document_type="other",
+        extracted_text=(
+            "Account summary\n"
+            "Investment Plan\n"
+            "Overview\n"
+            "for Investment Plan\n"
+            "Total balance: $46,674.99\n"
+            "Vested balance\n\n"
+            "as of May 27, 2026\n"
+            "$46,674.99\n"
+            "Rate of return\n\n"
+            "(year to date)\n"
+            "10.26%\n"
+            "Total contributions\n"
+            "(year to date)\n"
+            "$0.00\n"
+            "Quick Links\n"
+        ),
+    )
+    structured_data = cast(dict[str, Any], payload["structured_data"])
+    financial_accounts = cast(list[dict[str, Any]], structured_data["financial_accounts"])
+
+    assert payload["document_type"] == "retirement_statement"
+    assert payload["source_type"] == "retirement"
+    assert structured_data["total_amount"] == "46674.99"
+    assert structured_data["statement_period"] == "2026-05-27"
+    assert financial_accounts[0]["balance"] == "46674.99"
+    assert financial_accounts[0]["holdings_value"] == "46674.99"
+    assert financial_accounts[0]["as_of_date"] == "2026-05-27"
+
+
+@patch("app.services.household_document_review.AGENT_HUB_ENABLED", True)
+@patch.object(HouseholdDocumentReviewService, "_review_with_llm", return_value=None)
+@patch.object(HouseholdDocumentReviewService, "_signature_result", return_value=None)
+@patch.object(HouseholdDocumentReviewService, "_build_household_context", return_value=None)
+def test_review_falls_back_to_frs_account_summary_when_agent_hub_fails(
+    build_household_context: MagicMock,
+    signature_result: MagicMock,
+    review_with_llm: MagicMock,
+    tmp_path: Path,
+) -> None:
+    summary_path = tmp_path / "frs-account-summary.txt"
+    summary_path.write_text(
+        (
+            "Account summary\n"
+            "Investment Plan\n"
+            "Overview\n"
+            "for Investment Plan\n"
+            "Total balance: $46,674.99\n"
+            "Vested balance\n\n"
+            "as of May 27, 2026\n"
+            "$46,674.99\n"
+            "Rate of return\n\n"
+            "(year to date)\n"
+            "10.26%\n"
+            "Total contributions\n"
+            "(year to date)\n"
+            "$0.00\n"
+            "Quick Links\n"
+        ),
+        encoding="utf-8",
+    )
+    service = HouseholdDocumentReviewService(agent_service=MagicMock())
+
+    payload = service.review(
+        document_id="doc-frs-text",
+        filename=summary_path.name,
+        stored_path=summary_path,
+        content_type="text/plain",
+        source_type="other",
+        document_type="other",
+    )
+
+    structured_data = cast(dict[str, Any], payload["structured_data"])
+    financial_accounts = cast(list[dict[str, Any]], structured_data["financial_accounts"])
+
+    assert payload["_review_strategy"] == "baseline"
+    assert payload["document_type"] == "retirement_statement"
+    assert payload["source_type"] == "retirement"
+    assert structured_data["total_amount"] == "46674.99"
+    assert financial_accounts[0]["balance"] == "46674.99"
+    assert financial_accounts[0]["as_of_date"] == "2026-05-27"
+    review_with_llm.assert_called_once()
+    signature_result.assert_called_once()
+    build_household_context.assert_called_once()
+
+
 def test_baseline_review_detects_generic_statement_csv_account_snapshot() -> None:
     payload = _baseline_review(
         filename="History_for_Account_Z38367298.csv",
@@ -885,6 +1063,7 @@ def test_baseline_review_detects_fidelity_statement_summary_csv_and_groups_accou
     assert structured_data["statement_period"] == "2026-03-31"
 
 
+@patch("app.services.household_document_review.AGENT_HUB_ENABLED", False)
 @patch.object(HouseholdDocumentReviewService, "_touch_signature")
 @patch.object(HouseholdDocumentReviewService, "_find_signature")
 def test_review_uses_baseline_account_identity_for_csv_header_signature(
@@ -1009,6 +1188,101 @@ def test_review_does_not_short_circuit_on_weak_money_filename_signature(
     assert isinstance(accounts, list)
     assert accounts[0]["account_mask"] == "5313"
     assert structured_data["provider_name"] == "Chase"
+
+
+def test_review_verifies_strong_money_signature_with_agent_hub(tmp_path: Path) -> None:
+    statement_path = tmp_path / "frs-account-summary.txt"
+    statement_path.write_text(
+        (
+            "Account summary\n"
+            "Investment Plan\n"
+            "Total balance: $46,674.99\n"
+            "Vested balance\n"
+            "as of May 27, 2026\n"
+            "$46,674.99\n"
+        ),
+        encoding="utf-8",
+    )
+    service = HouseholdDocumentReviewService(agent_service=MagicMock())
+    review_with_llm = MagicMock(
+        return_value={
+            "summary": "Agent verified FRS account summary.",
+            "source_type": "retirement",
+            "document_type": "retirement_statement",
+            "confidence": 0.99,
+            "structured_data": {
+                "provider_name": "FRS",
+                "account_hint": "FRS Investment Plan",
+                "financial_accounts": [
+                    {
+                        "institution_name": "FRS",
+                        "account_name": "Investment Plan",
+                        "account_type": "retirement",
+                        "asset_group": "retirement",
+                        "balance": "46674.99",
+                        "holdings_value": "46674.99",
+                        "as_of_date": "2026-05-27",
+                    }
+                ],
+            },
+            "inferred_values": [],
+            "questions": [],
+        }
+    )
+
+    with (
+        patch(f"{_REVIEW_MODULE}.AGENT_HUB_ENABLED", True),
+        patch.object(service, "_build_household_context", MagicMock(return_value=None)),
+        patch.object(
+            service,
+            "_find_signature",
+            MagicMock(
+                return_value={
+                    "id": "sig-frs",
+                    "signature_type": "text_prefix",
+                    "source_type": "retirement",
+                    "document_type": "retirement_statement",
+                    "merchant": None,
+                    "account_hint": "FRS Investment Plan",
+                    "confidence": 0.98,
+                    "structured_data": {
+                        "provider_name": "FRS",
+                        "financial_accounts": [
+                            {
+                                "institution_name": "FRS",
+                                "account_name": "Investment Plan",
+                                "account_type": "retirement",
+                                "asset_group": "retirement",
+                            }
+                        ],
+                    },
+                }
+            ),
+        ),
+        patch.object(service, "_touch_signature", MagicMock()) as touch_signature,
+        patch.object(service, "_review_with_llm", review_with_llm),
+    ):
+        payload = service.review(
+            document_id="doc-frs-signature",
+            filename=statement_path.name,
+            stored_path=statement_path,
+            content_type="text/plain",
+            source_type="other",
+            document_type="other",
+        )
+
+    structured_data = cast(dict[str, Any], payload["structured_data"])
+    accounts = cast(list[dict[str, Any]], structured_data["financial_accounts"])
+
+    assert payload["_review_strategy"] == "agent"
+    assert accounts[0]["balance"] == "46674.99"
+    review_with_llm.assert_called_once()
+    prior_review = review_with_llm.call_args.kwargs["prior_review"]
+    assert prior_review["_review_strategy"] == "signature"
+    assert prior_review["source_type"] == "retirement"
+    reconciliation_summary = review_with_llm.call_args.kwargs["reconciliation_summary"]
+    assert reconciliation_summary["status"] == "verify_learned_signature"
+    touch_signature.assert_called_once_with("sig-frs")
 
 
 def test_baseline_review_detects_credit_card_qfx_export() -> None:

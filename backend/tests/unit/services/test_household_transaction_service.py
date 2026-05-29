@@ -9,7 +9,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+from app.services._household_merchants import _effective_transaction_classification
 from app.services._household_report_builder import _merchant_aliases
+from app.services._household_spend_filters import is_budget_driving_expense
 from app.services._household_transaction_parsers import (
     extract_transactions,
     parse_chase_statement,
@@ -290,6 +292,126 @@ def test_extract_transactions_parses_generic_cash_management_csv(tmp_path: Path)
     assert transactions[0].metadata is not None
     assert transactions[0].metadata["source"] == "statement_csv"
     assert transactions[0].metadata["balance_after"] == "39400.59"
+
+
+def test_extract_transactions_treats_fidelity_trades_as_investment_activity(tmp_path: Path) -> None:
+    csv_path = tmp_path / "Accounts_History.csv"
+    csv_path.write_text(
+        (
+            "Run Date,Action,Symbol,Description,Type,Price ($),Quantity,Commission ($),"
+            "Fees ($),Accrued Interest ($),Amount ($),Cash Balance ($),Settlement Date\n"
+            "05/01/2026,\"YOU BOUGHT VANGUARD WORLD FD INF TECH ETF (VGT) (Cash)\",VGT,"
+            "\"VANGUARD WORLD FD INF TECH ETF\",Cash,628.56,20.576,,,,"
+            "-12933.20,26151.07,\n"
+            "05/08/2026,\"YOU SOLD VANGUARD WORLD FD INF TECH ETF (VGT) (Cash)\",VGT,"
+            "\"VANGUARD WORLD FD INF TECH ETF\",Cash,672.52,20.524,,,,"
+            "13803.39,39954.46,\n"
+        ),
+        encoding="utf-8",
+    )
+
+    transactions = extract_transactions(
+        filename=csv_path.name,
+        source_type="brokerage",
+        document_type="brokerage_statement",
+        extracted_text="Fidelity activity history",
+        structured_data={"account_hint": "Fidelity activity history"},
+        account_label="Fidelity activity history",
+        review_summary="Brokerage activity export.",
+        stored_path=csv_path,
+    )
+
+    assert [transaction.flow_type for transaction in transactions] == [
+        "investment",
+        "investment",
+    ]
+    assert [transaction.category for transaction in transactions] == [
+        "Transfers",
+        "Transfers",
+    ]
+    assert all(
+        not is_budget_driving_expense(
+            flow_type=transaction.flow_type,
+            category=transaction.category,
+            description=transaction.description,
+            merchant=transaction.raw_merchant,
+        )
+        for transaction in transactions
+    )
+
+
+def test_effective_classification_maps_plaid_taxonomy_to_compact_categories() -> None:
+    assert _effective_transaction_classification(
+        flow_type="expense",
+        raw_merchant="Kekes Breakfast Cafe",
+        description="KEKES BREAKFAST CAFE",
+        amount=40.07,
+        stored_category="Food And Drink Restaurant",
+        stored_essentiality="essential",
+        merchant_metadata=None,
+    ) == ("Dining", "discretionary")
+    assert _effective_transaction_classification(
+        flow_type="expense",
+        raw_merchant="Wayfair",
+        description="WF *WAYFAIR4311426181",
+        amount=1545.0,
+        stored_category="Home Improvement Furniture",
+        stored_essentiality="discretionary",
+        merchant_metadata=None,
+    ) == ("Home", "discretionary")
+
+
+def test_spend_total_between_uses_collapsed_canonical_rows() -> None:
+    service = HouseholdTransactionService.__new__(HouseholdTransactionService)
+    service._load_report_rows = lambda: [
+        {
+            "date": date(2026, 5, 6),
+            "merchant": "Walmart (Store #5831)",
+            "description": "Walmart receipt",
+            "amount": 278.07,
+            "category": "Household",
+            "essentiality": "mixed",
+            "account_label": "Amazon Chase (CC)",
+            "document_id": "receipt-doc",
+            "document_type": "receipt",
+            "source_type": "receipt",
+            "source_kind": "transaction",
+            "row_hash": "receipt",
+        },
+        {
+            "date": date(2026, 5, 7),
+            "merchant": "Walmart (Store #5831)",
+            "description": "Walmart",
+            "amount": 278.07,
+            "category": "Household",
+            "essentiality": "mixed",
+            "account_label": "Amazon Chase (CC)",
+            "document_id": "plaid-doc",
+            "document_type": "api_sync",
+            "source_type": "plaid",
+            "source_kind": "transaction",
+            "row_hash": "plaid",
+        },
+        {
+            "date": date(2026, 5, 8),
+            "merchant": "Amazon",
+            "description": "Amazon",
+            "amount": 40.0,
+            "category": "Retail",
+            "essentiality": "discretionary",
+            "account_label": "Amazon Chase (CC)",
+            "document_id": "plaid-doc",
+            "document_type": "api_sync",
+            "source_type": "plaid",
+            "source_kind": "transaction",
+            "row_hash": "amazon",
+        },
+    ]
+
+    assert service.spend_total_between(
+        start_date=date(2026, 5, 1),
+        end_date=date(2026, 5, 31),
+    ) == 318.07
 
 
 def test_merchant_aliases_collapse_walmart_variants() -> None:

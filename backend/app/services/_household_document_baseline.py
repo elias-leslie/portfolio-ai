@@ -352,9 +352,9 @@ def _extract_cash_management_account(text: str) -> dict[str, object] | None:
 def _extract_529_accounts(text: str) -> list[dict[str, object]] | None:
     collegeamerica_matches = list(
         re.finditer(
-            r"(?ims)^\s*(?P<mask>\d{6,})\s*\n"
+            r"(?ims)^\s*(?P<mask>\d{6,})\s*"
             r"(?P<label>VCSP/COLLEGEAMERICA[^\n]*?OWNER\s+FBO\s+(?P<name>[A-Z][A-Z .'-]+?))\s*"
-            r"(?:\t| {2,})Account Value\s*\n"
+            r"Account Value\s*\n"
             r"\$?(?P<amount>[0-9][0-9,]*\.\d{2})",
             text,
         )
@@ -448,7 +448,7 @@ def _extract_529_accounts(text: str) -> list[dict[str, object]] | None:
 
     if accounts:
         as_of_match = re.search(
-            r"as of\s*([A-Za-z]{3,9}[- ][0-9]{1,2}(?:,|-)[0-9]{4})",
+            r"as of\s*([A-Za-z]{3,9}[- ][0-9]{1,2}(?:,|-)[0-9]{4}|[0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4})",
             text,
             flags=re.IGNORECASE,
         )
@@ -474,7 +474,7 @@ def _extract_529_accounts(text: str) -> list[dict[str, object]] | None:
     if looks_generic_account_mask(account_mask):
         account_mask = None
     as_of_match = re.search(
-        r"as of\s*([A-Za-z]{3,9}[- ][0-9]{1,2}(?:,|-)[0-9]{4})",
+        r"as of\s*([A-Za-z]{3,9}[- ][0-9]{1,2}(?:,|-)[0-9]{4}|[0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4})",
         text,
         flags=re.IGNORECASE,
     )
@@ -498,10 +498,21 @@ def _extract_529_accounts(text: str) -> list[dict[str, object]] | None:
 
 
 def _extract_frs_investment_plan_account(text: str) -> dict[str, object] | None:
-    if "frs investment plan" not in text.lower():
+    text_lower = text.lower()
+    has_frs_signal = (
+        "frs investment plan" in text_lower
+        or "florida retirement system" in text_lower
+        or (
+            "investment plan" in text_lower
+            and "vested balance" in text_lower
+            and "rate of return" in text_lower
+            and "total contributions" in text_lower
+        )
+    )
+    if not has_frs_signal:
         return None
     total_balance_match = re.search(
-        r"total account balance\s*:\s*\$([0-9][0-9,]*\.\d{2})",
+        r"total\s+(?:account\s+)?balance\s*:\s*\$([0-9][0-9,]*\.\d{2})",
         text,
         flags=re.IGNORECASE,
     )
@@ -517,8 +528,15 @@ def _extract_frs_investment_plan_account(text: str) -> dict[str, object] | None:
         text,
         flags=re.IGNORECASE,
     )
+    as_of_match = re.search(
+        r"as of\s+([A-Za-z]{3,9}\s+\d{1,2},\s+\d{4})",
+        text,
+        flags=re.IGNORECASE,
+    )
     start_date = _parse_natural_date(period_match.group(1) if period_match else None)
     end_date = _parse_natural_date(period_match.group(2) if period_match else None)
+    if end_date is None:
+        end_date = _parse_natural_date(as_of_match.group(1) if as_of_match else None)
     owner_name = _display_owner_name(owner_match.group(1) if owner_match else None)
     balance = total_balance_match.group(1).replace(",", "")
     account_name = "FRS Investment Plan"
@@ -1356,7 +1374,15 @@ def _classify_by_content(
         inferred_source, inferred_document, confidence, summary = _classify_cash_management(
             extracted_text, structured_data
         )
-    elif "frs investment plan" in text_lower or "florida retirement system" in text_lower:
+    elif (
+        "frs investment plan" in text_lower
+        or "florida retirement system" in text_lower
+        or (
+            "investment plan" in text_lower
+            and "vested balance" in text_lower
+            and "total contributions" in text_lower
+        )
+    ):
         frs_statement = _classify_frs_investment_plan(extracted_text, structured_data)
         if frs_statement is not None:
             inferred_source, inferred_document, confidence, summary = frs_statement

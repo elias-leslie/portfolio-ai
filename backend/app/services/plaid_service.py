@@ -24,6 +24,7 @@ from plaid.model.products import Products
 from plaid.model.transactions_sync_request import TransactionsSyncRequest
 
 from app.logging_config import get_logger
+from app.services._household_merchants import _canonical_category_from_taxonomy
 from app.services.credential_crypto import (
     CredentialCipher,
     SecretDecryptionError,
@@ -197,11 +198,16 @@ def _account_label(
 
 
 def _transaction_flow(amount: Decimal, personal_finance_category: dict[str, object]) -> str:
-    if amount > 0:
-        return "expense"
     primary = str(personal_finance_category.get("primary") or "").upper()
+    detailed = str(personal_finance_category.get("detailed") or "").upper()
+    if amount > 0:
+        if primary == "TRANSFER_OUT":
+            return "investment" if "INVESTMENT" in detailed else "transfer_out"
+        return "expense"
     if primary == "INCOME":
         return "income"
+    if primary == "TRANSFER_IN":
+        return "transfer_in"
     return "refund"
 
 
@@ -211,23 +217,13 @@ def _transaction_category(personal_finance_category: dict[str, object]) -> tuple
         or personal_finance_category.get("primary")
         or "Uncategorized"
     )
-    category = str(raw).replace("_", " ").title()
-    primary = str(personal_finance_category.get("primary") or "").upper()
-    essentiality = (
-        "essential"
-        if primary
-        in {
-            "BANK_FEES",
-            "FOOD_AND_DRINK",
-            "GENERAL_SERVICES",
-            "LOAN_PAYMENTS",
-            "MEDICAL",
-            "RENT_AND_UTILITIES",
-            "TRANSPORTATION",
-        }
-        else "discretionary"
+    mapped = _canonical_category_from_taxonomy(category=str(raw))
+    if mapped is not None:
+        return mapped
+    return (
+        str(raw).replace("_", " ").title(),
+        "mixed",
     )
-    return category, essentiality
 
 
 class PlaidService:

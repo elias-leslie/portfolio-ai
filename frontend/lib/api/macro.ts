@@ -35,6 +35,76 @@ export interface MacroSnapshot {
   computedAt: string | null
 }
 
+export interface MacroConditionEvidence {
+  key: string
+  label: string
+  value: string
+  detail: string
+  tone: 'gain' | 'warning' | 'loss' | 'neutral' | string
+  tooltip: string
+  trend: MacroConditionTrend | null
+}
+
+export interface MacroConditionTrend {
+  key: string
+  label: string
+  direction: 'improving' | 'worsening' | 'flat' | 'unavailable' | string
+  tone: 'gain' | 'warning' | 'loss' | 'neutral' | string
+  delta: number | null
+  changeLabel: string
+  summary: string
+  windowDays: number
+  latestDate: string | null
+  priorDate: string | null
+  reversal: boolean
+  reversalLabel: string | null
+  sparkline: number[]
+}
+
+export interface MacroConditionShift {
+  key: string
+  label: string
+  detail: string
+  tone: 'gain' | 'warning' | 'loss' | 'neutral' | string
+  reversal: boolean
+}
+
+export interface MacroConditionsResponse {
+  snapshotDate: string | null
+  computedAt: string | null
+  state: 'Calm' | 'Caution' | 'Elevated' | string
+  stressScore: number | null
+  deploymentScore: number | null
+  macroZone: string | null
+  coverage: number | null
+  summary: string
+  actionText: string
+  whatMatters: string[]
+  whatToDo: string[]
+  watchItems: string[]
+  trend: Record<string, MacroConditionTrend>
+  marketShifts: MacroConditionShift[]
+  flags: string[]
+  alert: {
+    active: boolean
+    priority: 'high' | 'critical' | string | null
+    reason: string | null
+  }
+  bondSignals: {
+    asOf: string | null
+    tenYearTwoYearBps: number | null
+    tenYearThreeMonthBps: number | null
+  }
+  creditSignal: {
+    latestDate: string | null
+    latestValue: number | null
+    priorDate: string | null
+    priorValue: number | null
+    changeBps: number | null
+  }
+  evidence: MacroConditionEvidence[]
+}
+
 export interface MacroBacktestRow {
   snapshotDate: string
   deploymentScore: number
@@ -70,6 +140,10 @@ function buildMacroBacktestQuery(args: MacroBacktestQueryArgs = {}): string {
 
 export function fetchMacroCurrent(): Promise<MacroSnapshot> {
   return apiRequest<MacroSnapshot>('/api/macro/current')
+}
+
+export function fetchMacroConditions(): Promise<MacroConditionsResponse> {
+  return apiRequest<MacroConditionsResponse>('/api/macro/conditions')
 }
 
 export function fetchMacroHistory(days = 90): Promise<MacroHistoryResponse> {

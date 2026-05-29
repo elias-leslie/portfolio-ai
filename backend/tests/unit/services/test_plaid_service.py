@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
 
 from app.services import plaid_service
-from app.services.plaid_service import PlaidConfigurationError, PlaidService, _account_kind
+from app.services.plaid_service import (
+    PlaidConfigurationError,
+    PlaidService,
+    _account_kind,
+    _transaction_category,
+    _transaction_flow,
+)
 
 
 def _service() -> PlaidService:
@@ -119,6 +126,34 @@ def test_account_kind_uses_household_credit_card_taxonomy() -> None:
         "credit",
         "credit_card",
         "credit_card",
+    )
+
+
+def test_transaction_category_maps_plaid_taxonomy_to_household_taxonomy() -> None:
+    assert _transaction_category(
+        {"primary": "FOOD_AND_DRINK", "detailed": "FOOD_AND_DRINK_RESTAURANT"}
+    ) == ("Dining", "discretionary")
+    assert _transaction_category(
+        {
+            "primary": "GENERAL_MERCHANDISE",
+            "detailed": "GENERAL_MERCHANDISE_CLOTHING_AND_ACCESSORIES",
+        }
+    ) == ("Retail", "discretionary")
+    assert _transaction_category(
+        {"primary": "TRANSPORTATION", "detailed": "TRANSPORTATION_GAS"}
+    ) == ("Gas", "essential")
+
+
+def test_transaction_flow_keeps_investment_transfers_out_of_spend() -> None:
+    assert (
+        _transaction_flow(
+            Decimal("5.00"),
+            {
+                "primary": "TRANSFER_OUT",
+                "detailed": "TRANSFER_OUT_INVESTMENT_AND_RETIREMENT_FUNDS",
+            },
+        )
+        == "investment"
     )
 
 

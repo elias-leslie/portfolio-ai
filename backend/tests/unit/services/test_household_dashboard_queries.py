@@ -146,6 +146,16 @@ def test_current_fact_queries_share_current_date_guard() -> None:
     assert all("transaction_date <= CURRENT_DATE" in sql for sql in guarded_queries)
 
 
+def test_current_month_spend_excludes_brokerage_trades() -> None:
+    assert "you bought" in MONTH_SPEND_SQL.lower()
+    assert "you sold" in MONTH_SPEND_SQL.lower()
+
+
+def test_income_average_excludes_brokerage_trade_proceeds() -> None:
+    assert "you sold" in INCOME_MONTHLY_AVG_SQL.lower()
+    assert "you redeemed" in INCOME_MONTHLY_AVG_SQL.lower()
+
+
 def test_detect_unknown_accounts_skips_institution_when_known_account_exists_for_same_source_type() -> None:
     storage = _FakeStorage(
         [

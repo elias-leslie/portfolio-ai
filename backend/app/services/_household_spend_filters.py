@@ -6,6 +6,13 @@ from collections.abc import Iterable
 
 _NON_SPEND_CATEGORIES = {"transfers", "income", "cash"}
 
+_INVESTMENT_ACTIVITY_TEXT_PATTERNS = (
+    "you bought",
+    "you sold",
+    "you redeemed",
+    "reinvestment",
+)
+
 _NON_SPEND_TEXT_PATTERNS = (
     "payment thank you",
     "credit crd epay",
@@ -18,7 +25,26 @@ _NON_SPEND_TEXT_PATTERNS = (
     "ui benefit",
     "payroll",
     "atm withdrawal",
+    *_INVESTMENT_ACTIVITY_TEXT_PATTERNS,
 )
+
+
+def _normalized_text(*parts: str | None) -> str:
+    return " ".join(
+        part.strip().lower()
+        for part in parts
+        if isinstance(part, str) and part.strip()
+    )
+
+
+def looks_like_investment_activity(
+    *,
+    description: str | None,
+    merchant: str | None,
+) -> bool:
+    """Return True when a row is brokerage trading activity, not household cash flow."""
+    normalized_text = _normalized_text(description, merchant)
+    return any(pattern in normalized_text for pattern in _INVESTMENT_ACTIVITY_TEXT_PATTERNS)
 
 
 def looks_like_cash_movement(
@@ -32,11 +58,7 @@ def looks_like_cash_movement(
     if normalized_category in _NON_SPEND_CATEGORIES:
         return True
 
-    normalized_text = " ".join(
-        part.strip().lower()
-        for part in [description or "", merchant or ""]
-        if isinstance(part, str) and part.strip()
-    )
+    normalized_text = _normalized_text(description, merchant)
     return any(pattern in normalized_text for pattern in _NON_SPEND_TEXT_PATTERNS)
 
 
@@ -74,6 +96,19 @@ def non_spend_sql_predicate(
 
     for expression in text_expressions:
         for pattern in _NON_SPEND_TEXT_PATTERNS:
+            clauses.append(f"COALESCE({expression}, '') ILIKE '%%{pattern}%%'")
+
+    return "(" + " OR ".join(clauses) + ")"
+
+
+def investment_activity_sql_predicate(
+    *,
+    text_expressions: Iterable[str],
+) -> str:
+    """Build a SQL predicate that matches brokerage trading rows."""
+    clauses: list[str] = []
+    for expression in text_expressions:
+        for pattern in _INVESTMENT_ACTIVITY_TEXT_PATTERNS:
             clauses.append(f"COALESCE({expression}, '') ILIKE '%%{pattern}%%'")
 
     return "(" + " OR ".join(clauses) + ")"

@@ -27,6 +27,7 @@ type LeverOpportunity = {
   annualSavings: number
   detail: string
   tone: 'success' | 'warning' | 'outline'
+  additive: boolean
 }
 
 const leverWindows: Array<{ value: LeverWindow; label: string }> = [
@@ -274,6 +275,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
         annualSavings: monthlySavings * 12,
         detail: `${subscriptionCategory.transactionCount} subscription charges are running about ${formatCurrency(subscriptionCategory.averageMonthlySpend, { decimals: 0 })}/mo. A 20% trim frees real room fast.`,
         tone: 'warning',
+        additive: true,
       })
     }
 
@@ -295,6 +297,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
         annualSavings: monthlySavings * 12,
         detail: `${topDiscretionaryCategory.category} is ${formatCurrency(topDiscretionaryCategory.averageMonthlySpend, { decimals: 0 })}/mo and ${formatPercent(topDiscretionaryCategory.shareOfSpend * 100, { decimals: 0 })} of this window.`,
         tone: 'warning',
+        additive: topDiscretionaryCategory.category !== 'Subscriptions',
       })
     }
 
@@ -317,6 +320,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
         annualSavings: monthlySavings * 12,
         detail: `${topDiscretionaryMerchant.transactionCount} charges in this window. Merchant alone ran ${formatCurrency(topDiscretionaryMerchant.totalSpend, { decimals: 0 })}.`,
         tone: 'outline',
+        additive: false,
       })
     }
 
@@ -330,6 +334,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
         annualSavings: monthlySavings * 12,
         detail: `Top 3 merchants drive ${formatPercent(topThreeShare * 100, { decimals: 0 })} of spend here. A 5% reset on those names saves more than scattered cuts.`,
         tone: 'outline',
+        additive: false,
       })
     }
 
@@ -349,6 +354,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
         annualSavings: monthlySavings * 12,
         detail: `${bestPriceSignal.merchant} shows ${formatPercent(signalChange, { decimals: 0, sign: true })} drift by ticket or unit math. Use it as a trigger to compare, not autopilot.`,
         tone: 'warning',
+        additive: false,
       })
     }
 
@@ -366,7 +372,10 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
   ])
 
   const modeledTrimTotal = useMemo(
-    () => levers.reduce((sum, row) => sum + row.monthlySavings, 0),
+    () =>
+      levers
+        .filter((row) => row.additive)
+        .reduce((sum, row) => sum + row.monthlySavings, 0),
     [levers],
   )
 
@@ -459,13 +468,13 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
           </div>
           <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
             <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
-              Modeled trim
+              Additive trim
             </p>
             <p className="mt-2 text-base font-semibold tabular-nums text-text">
               {formatCurrency(modeledTrimTotal, { decimals: 0 })}/mo
             </p>
             <p className="mt-1 text-xs text-text-muted">
-              From top ranked levers only
+              Non-overlapping category rules
             </p>
           </div>
           <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">

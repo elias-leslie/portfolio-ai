@@ -567,6 +567,75 @@ def test_upload_account_binding_accepts_provider_prefixed_matching_mask() -> Non
     assert reviewed.get("review_checks") == {"ambiguity_remaining": False}
 
 
+def test_upload_account_binding_synthesizes_selected_balance_when_parse_missed_accounts() -> None:
+    connection = MagicMock()
+    connection.execute.return_value.fetchone.return_value = (
+        "household-frs",
+        "FRS Investment Plan",
+        "retirement",
+        "retirement",
+        "retirement",
+        "Florida Retirement System (FRS)",
+        "Elias B Leslie",
+        None,
+        "institution-label::frs|investment-plan",
+    )
+    context_manager = MagicMock()
+    context_manager.__enter__.return_value = connection
+    context_manager.__exit__.return_value = None
+    service = SimpleNamespace(storage=SimpleNamespace(connection=Mock(return_value=context_manager)))
+    document = HouseholdDocument(
+        id="doc-frs-text",
+        filename="frs-account-summary.txt",
+        source_type="other",
+        document_type="other",
+        status="parsed",
+        account_label="FRS Investment Plan",
+        content_type="text/plain",
+        file_size_bytes=10,
+        classification_confidence=0.45,
+        uploaded_at="2026-05-27T00:00:00+00:00",
+        metadata={"upload_household_account_id": "household-frs"},
+    )
+
+    reviewed = _apply_upload_account_binding(
+        service,
+        document=document,
+        reviewed={
+            "source_type": "other",
+            "document_type": "other",
+            "structured_data": {},
+            "extracted_text": (
+                "Account summary\n"
+                "Investment Plan\n"
+                "Total balance: $46,674.99\n"
+                "Vested balance\n\n"
+                "as of May 27, 2026\n"
+                "$46,674.99\n"
+            ),
+        },
+    )
+
+    structured_data = reviewed["structured_data"]
+    assert isinstance(structured_data, dict)
+    accounts = structured_data["financial_accounts"]
+    assert isinstance(accounts, list)
+    account = accounts[0]
+    assert isinstance(account, dict)
+    assert reviewed["source_type"] == "retirement"
+    assert reviewed["document_type"] == "retirement_statement"
+    assert account["household_account_id"] == "household-frs"
+    assert account["balance"] == "46674.99"
+    assert account["holdings_value"] == "46674.99"
+    assert account["as_of_date"] == "2026-05-27"
+    assert account["fallback_source"] == "account_scoped_balance_text"
+    assert reviewed.get("questions") == []
+    assert reviewed.get("review_checks") == {
+        "account_scoped_balance_fallback": True,
+        "ambiguity_remaining": False,
+    }
+
+
 def test_upload_account_binding_asks_when_selected_account_conflicts() -> None:
     connection = MagicMock()
     connection.execute.return_value.fetchone.return_value = (

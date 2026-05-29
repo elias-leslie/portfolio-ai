@@ -93,6 +93,87 @@ def test_collapse_report_rows_dedupes_phone_and_location_variants_for_same_accou
     assert collapsed[0]["document_id"] == "activity-doc"
 
 
+def test_collapse_report_rows_dedupes_statement_and_plaid_rows_on_nearby_dates() -> None:
+    collapsed = collapse_report_rows(
+        [
+            {
+                "date": date(2026, 4, 25),
+                "merchant": "KANES FURNITURE 04 | Sale",
+                "description": "KANES FURNITURE 04 | Sale",
+                "amount": 855.99,
+                "category": "Home",
+                "essentiality": "discretionary",
+                "household_account_id": "acct-1",
+                "account_label": "Amazon Chase (CC)",
+                "document_id": "statement-doc",
+                "document_type": "statement",
+                "source_type": "credit_card",
+                "source_kind": "transaction",
+                "source_document_filename": "statement.pdf",
+                "row_hash": "hash-statement",
+            },
+            {
+                "date": date(2026, 4, 26),
+                "merchant": "Kanes Furniture",
+                "description": "KANES FURNITURE 04",
+                "amount": 855.99,
+                "category": "Home",
+                "essentiality": "discretionary",
+                "household_account_id": "acct-1",
+                "account_label": "Amazon Chase (CC)",
+                "document_id": "plaid-doc",
+                "document_type": "api_sync",
+                "source_type": "plaid",
+                "source_kind": "transaction",
+                "source_document_filename": "plaid-sync",
+                "row_hash": "hash-plaid",
+            },
+        ]
+    )
+
+    assert len(collapsed) == 1
+    assert collapsed[0]["document_id"] in {"statement-doc", "plaid-doc"}
+
+
+def test_collapse_report_rows_keeps_same_source_nearby_repeat_charges() -> None:
+    collapsed = collapse_report_rows(
+        [
+            {
+                "date": date(2026, 4, 25),
+                "merchant": "Chipotle",
+                "description": "Chipotle",
+                "amount": 16.82,
+                "category": "Dining",
+                "essentiality": "discretionary",
+                "household_account_id": "acct-1",
+                "account_label": "Amazon Chase (CC)",
+                "document_id": "plaid-doc",
+                "document_type": "api_sync",
+                "source_type": "plaid",
+                "source_kind": "transaction",
+                "row_hash": "hash-1",
+            },
+            {
+                "date": date(2026, 4, 26),
+                "merchant": "Chipotle",
+                "description": "Chipotle",
+                "amount": 16.82,
+                "category": "Dining",
+                "essentiality": "discretionary",
+                "household_account_id": "acct-1",
+                "account_label": "Amazon Chase (CC)",
+                "document_id": "plaid-doc",
+                "document_type": "api_sync",
+                "source_type": "plaid",
+                "source_kind": "transaction",
+                "row_hash": "hash-2",
+            },
+        ]
+    )
+
+    assert len(collapsed) == 2
+
+
 def test_build_household_reports_uses_today_for_recent_spend_window() -> None:
     today = date.today()
 

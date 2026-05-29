@@ -336,22 +336,62 @@ def _signatures_overlap(
     )
 
 
+def _date_distance_days(existing_row: dict[str, Any], candidate_row: dict[str, Any]) -> int | None:
+    existing_date = _transaction_date(existing_row)
+    candidate_date = _transaction_date(candidate_row)
+    if existing_date is None or candidate_date is None:
+        return None
+    return abs((existing_date - candidate_date).days)
+
+
+def _same_spending_account(existing_row: dict[str, Any], candidate_row: dict[str, Any]) -> bool:
+    existing_account_id = str(existing_row.get("household_account_id") or "").strip()
+    candidate_account_id = str(candidate_row.get("household_account_id") or "").strip()
+    if existing_account_id and existing_account_id == candidate_account_id:
+        return True
+
+    existing_label = _merchant_root(str(existing_row.get("account_label") or ""))
+    candidate_label = _merchant_root(str(candidate_row.get("account_label") or ""))
+    return bool(existing_label and existing_label == candidate_label)
+
+
+def _different_evidence_sources(existing_row: dict[str, Any], candidate_row: dict[str, Any]) -> bool:
+    source_types = {
+        str(existing_row.get("source_type") or ""),
+        str(candidate_row.get("source_type") or ""),
+    }
+    document_types = {
+        str(existing_row.get("document_type") or ""),
+        str(candidate_row.get("document_type") or ""),
+    }
+    source_kinds = {
+        str(existing_row.get("source_kind") or ""),
+        str(candidate_row.get("source_kind") or ""),
+    }
+    return len(source_types) > 1 or len(document_types) > 1 or "import" in source_kinds
+
+
 def report_rows_overlap(existing_row: dict[str, Any], candidate_row: dict[str, Any]) -> bool:
     same_date = existing_row.get("date") == candidate_row.get("date")
     same_amount = (
         abs(float(existing_row.get("amount", 0.0)) - float(candidate_row.get("amount", 0.0)))
         <= 0.005
     )
-    if not (same_date and same_amount):
+    if not same_amount:
+        return False
+    near_cross_source_duplicate = (
+        _different_evidence_sources(existing_row, candidate_row)
+        and (date_distance := _date_distance_days(existing_row, candidate_row)) is not None
+        and date_distance <= 2
+    )
+    if not (same_date or near_cross_source_duplicate):
         return False
 
     existing_aliases = _merchant_aliases(str(existing_row.get("merchant") or ""))
     candidate_aliases = _merchant_aliases(str(candidate_row.get("merchant") or ""))
     shared_aliases = existing_aliases.intersection(candidate_aliases)
 
-    existing_account_id = str(existing_row.get("household_account_id") or "").strip()
-    candidate_account_id = str(candidate_row.get("household_account_id") or "").strip()
-    same_account = bool(existing_account_id and existing_account_id == candidate_account_id)
+    same_account = _same_spending_account(existing_row, candidate_row)
     signature_overlap = False
     generic_alias_overlap = False
     if same_account:
@@ -371,11 +411,14 @@ def report_rows_overlap(existing_row: dict[str, Any], candidate_row: dict[str, A
         str(existing_row.get("document_type") or ""),
         str(candidate_row.get("document_type") or ""),
     }
-    cross_source_duplicate = bool(shared_aliases) and (
+    cross_source_duplicate = near_cross_source_duplicate and bool(shared_aliases) and (
         "import" in source_kinds
         or ("receipt" in document_types and len(document_types) > 1)
     )
-    return signature_overlap or generic_alias_overlap or cross_source_duplicate
+    return (
+        (same_date or near_cross_source_duplicate)
+        and (signature_overlap or generic_alias_overlap)
+    ) or cross_source_duplicate
 
 
 def report_row_exclusion_reason(

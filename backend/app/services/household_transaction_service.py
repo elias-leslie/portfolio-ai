@@ -359,23 +359,51 @@ class HouseholdTransactionService:
             merchant_recommendation=self._merchant_recommendation,
         )
 
-    def build_spending_view(self, *, window: str = "1m") -> HouseholdSpendingView:
-        timeframe = resolve_household_time_window(window)
+    def _spend_rows_between(
+        self,
+        *,
+        start_date: date | None,
+        end_date: date,
+    ) -> list[dict[str, Any]]:
         report_rows = self._load_report_rows()
         filtered_rows = [
             row
             for row in report_rows
-            if row["date"] <= timeframe.end_date
-            and (timeframe.start_date is None or row["date"] >= timeframe.start_date)
+            if row["date"] <= end_date
+            and (start_date is None or row["date"] >= start_date)
         ]
         analytics_rows = [
             row for row in filtered_rows if row.get("source_kind") != "import"
         ]
-        spend_rows = [
+        return [
             row
             for row in collapse_report_rows(analytics_rows)
             if abs(float(row.get("signed_amount", row["amount"]))) > 0
         ]
+
+    def spend_total_between(
+        self,
+        *,
+        start_date: date | None,
+        end_date: date,
+    ) -> float:
+        return round(
+            sum(
+                float(row.get("signed_amount", row["amount"]))
+                for row in self._spend_rows_between(
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+            ),
+            2,
+        )
+
+    def build_spending_view(self, *, window: str = "1m") -> HouseholdSpendingView:
+        timeframe = resolve_household_time_window(window)
+        spend_rows = self._spend_rows_between(
+            start_date=timeframe.start_date,
+            end_date=timeframe.end_date,
+        )
 
         if not spend_rows:
             return HouseholdSpendingView(

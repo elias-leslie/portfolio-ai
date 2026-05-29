@@ -28,7 +28,6 @@ from app.services._household_dashboard_query_sql import (
     DOCUMENT_FUTURE_TRANSACTION_QUALITY_SQL,
     FUTURE_TRANSACTION_QUALITY_SQL,
     LATEST_TRANSACTION_DATE_SQL,
-    MONTH_SPEND_SQL,
     RECURRING_SQL,
     RETIREMENT_CONTRIBUTION_SQL,
     STATEMENT_FRESHNESS_SQL,
@@ -36,6 +35,7 @@ from app.services._household_dashboard_query_sql import (
 from app.services._household_dashboard_unknown_accounts import (
     detect_unknown_accounts as _detect_unknown_accounts_impl,
 )
+from app.services.household_transaction_service import HouseholdTransactionService
 
 
 def fetch_transaction_date_issues(storage: Any, limit: int = 12):
@@ -181,7 +181,13 @@ def fetch_monthly_retirement_contributions(storage: Any) -> float:
 
 
 def fetch_current_month_spend(storage: Any) -> float:
-    return _fetch_scalar_float(storage, MONTH_SPEND_SQL)
+    transaction_service = HouseholdTransactionService()
+    transaction_service.storage = storage
+    today = date.today()
+    return transaction_service.spend_total_between(
+        start_date=today.replace(day=1),
+        end_date=today,
+    )
 
 
 def _latest_transaction_dates(storage: Any, column: str) -> dict[str, date]:

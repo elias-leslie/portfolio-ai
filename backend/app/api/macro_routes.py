@@ -15,6 +15,7 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from ..logging_config import get_logger
+from ..macro_gate import conditions as macro_conditions
 from ..macro_gate import repository
 from ..macro_gate.backtest.monte_carlo import as_dict as sensitivity_as_dict
 from ..macro_gate.backtest.monte_carlo import run_sensitivity
@@ -42,6 +43,82 @@ class MacroHistoryResponse(BaseModel):
     snapshots: list[MacroSnapshotResponse]
     weights: dict[str, float]
     zones: list[str] = Field(default_factory=lambda: list(ZONES))
+
+
+class MacroConditionAlertResponse(BaseModel):
+    active: bool
+    priority: str | None = None
+    reason: str | None = None
+
+
+class MacroConditionTrendResponse(BaseModel):
+    key: str
+    label: str
+    direction: str
+    tone: str
+    delta: float | None = None
+    change_label: str
+    summary: str
+    window_days: int
+    latest_date: str | None = None
+    prior_date: str | None = None
+    reversal: bool
+    reversal_label: str | None = None
+    sparkline: list[float] = Field(default_factory=list)
+
+
+class MacroConditionShiftResponse(BaseModel):
+    key: str
+    label: str
+    detail: str
+    tone: str
+    reversal: bool = False
+
+
+class MacroConditionEvidenceResponse(BaseModel):
+    key: str
+    label: str
+    value: str
+    detail: str
+    tone: str
+    tooltip: str
+    trend: MacroConditionTrendResponse | None = None
+
+
+class MacroConditionBondSignalsResponse(BaseModel):
+    as_of: str | None = None
+    ten_year_two_year_bps: float | None = None
+    ten_year_three_month_bps: float | None = None
+
+
+class MacroConditionCreditSignalResponse(BaseModel):
+    latest_date: str | None = None
+    latest_value: float | None = None
+    prior_date: str | None = None
+    prior_value: float | None = None
+    change_bps: float | None = None
+
+
+class MacroConditionsResponse(BaseModel):
+    snapshot_date: str | None = None
+    computed_at: str | None = None
+    state: str
+    stress_score: int | None = None
+    deployment_score: float | None = None
+    macro_zone: str | None = None
+    coverage: float | None = None
+    summary: str
+    action_text: str
+    what_matters: list[str] = Field(default_factory=list)
+    what_to_do: list[str] = Field(default_factory=list)
+    watch_items: list[str] = Field(default_factory=list)
+    trend: dict[str, MacroConditionTrendResponse] = Field(default_factory=dict)
+    market_shifts: list[MacroConditionShiftResponse] = Field(default_factory=list)
+    flags: list[str] = Field(default_factory=list)
+    alert: MacroConditionAlertResponse
+    bond_signals: MacroConditionBondSignalsResponse
+    credit_signal: MacroConditionCreditSignalResponse
+    evidence: list[MacroConditionEvidenceResponse] = Field(default_factory=list)
 
 
 class BacktestResponse(BaseModel):
@@ -82,9 +159,7 @@ def _snapshot_to_response(row: dict) -> MacroSnapshotResponse:
     if isinstance(raw_json, dict):
         coverage = raw_json.get("coverage")
     weights = raw_json.get("weights") if isinstance(raw_json, dict) else None
-    component_quality = (
-        raw_json.get("component_quality") if isinstance(raw_json, dict) else None
-    )
+    component_quality = raw_json.get("component_quality") if isinstance(raw_json, dict) else None
     return MacroSnapshotResponse(
         snapshot_date=row["snapshot_date"],
         deployment_score=row["deployment_score"],
@@ -110,6 +185,21 @@ async def current() -> MacroSnapshotResponse:
     if snapshot is None:
         raise HTTPException(status_code=503, detail="macro_gate_persist_failed")
     return _snapshot_to_response(snapshot)
+
+
+@router.get("/conditions", response_model=MacroConditionsResponse)
+async def current_conditions() -> MacroConditionsResponse:
+    snapshot = await run_in_threadpool(repository.get_latest)
+    if snapshot is None:
+        # On-demand compute when no persisted row exists yet (first-run convenience).
+        gate_output = await run_in_threadpool(run_macro_gate)
+        if gate_output is None:
+            raise HTTPException(status_code=503, detail="macro_gate_inputs_unavailable")
+        snapshot = await run_in_threadpool(repository.get_latest)
+    if snapshot is None:
+        raise HTTPException(status_code=503, detail="macro_gate_persist_failed")
+    payload = await run_in_threadpool(macro_conditions.get_conditions_payload, snapshot)
+    return MacroConditionsResponse(**payload)
 
 
 @router.get("/history", response_model=MacroHistoryResponse)

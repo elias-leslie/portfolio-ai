@@ -550,6 +550,24 @@ export function MoneyRetirementPanel({
   const updateProfile = useUpdateHouseholdProfile()
   const previewQuery = useRetirementPreview(request)
   const preview = previewQuery.data
+  const pendingRequest = useMemo(
+    () =>
+      buildRequest(
+        dashboard.profile.id,
+        draft,
+        allocationMode,
+        allocationDraft,
+        tickerMix,
+      ),
+    [dashboard.profile.id, draft, allocationMode, allocationDraft, tickerMix],
+  )
+  // Edits update `draft`/allocation state but only "Run preview" pushes them
+  // into `request` (the query key), so results can lag the inputs. Flag that
+  // gap so the displayed plan isn't silently mistaken for the current knobs.
+  const hasPendingChanges = useMemo(
+    () => JSON.stringify(pendingRequest) !== JSON.stringify(request),
+    [pendingRequest, request],
+  )
   const fullRetirementAge = householdRetirementAge(preview?.inputs)
   const taxWarnings = taxAssumptionWarnings(preview?.taxAssumptions)
   const taxEstimateTooltip = taxAssumptionTooltip(
@@ -867,7 +885,11 @@ export function MoneyRetirementPanel({
                   onClick={applyDraft}
                   disabled={previewQuery.isFetching}
                 >
-                  {previewQuery.isFetching ? 'Running…' : 'Run preview'}
+                  {previewQuery.isFetching
+                    ? 'Running…'
+                    : hasPendingChanges
+                      ? 'Run preview •'
+                      : 'Run preview'}
                 </Button>
               </>
             ) : null}
@@ -884,6 +906,7 @@ export function MoneyRetirementPanel({
                 <Input
                   className="mt-2"
                   inputMode="numeric"
+                  aria-label="Your retirement age"
                   value={draft.retirementAge}
                   onChange={(event) =>
                     updateDraft('retirementAge', event.target.value)
@@ -897,6 +920,7 @@ export function MoneyRetirementPanel({
                 <Input
                   className="mt-2"
                   inputMode="numeric"
+                  aria-label="Spouse retirement age"
                   value={draft.spouseRetirementAge}
                   onChange={(event) =>
                     updateDraft('spouseRetirementAge', event.target.value)
@@ -910,6 +934,7 @@ export function MoneyRetirementPanel({
                 <Input
                   className="mt-2"
                   inputMode="decimal"
+                  aria-label="Monthly spend in retirement"
                   value={draft.monthlySpend}
                   onChange={(event) =>
                     updateDraft('monthlySpend', event.target.value)
@@ -923,6 +948,7 @@ export function MoneyRetirementPanel({
                 <Input
                   className="mt-2"
                   inputMode="decimal"
+                  aria-label="Monthly savings contribution"
                   value={draft.monthlyContribution}
                   onChange={(event) =>
                     updateDraft('monthlyContribution', event.target.value)
@@ -936,6 +962,7 @@ export function MoneyRetirementPanel({
                 <Input
                   className="mt-2"
                   inputMode="decimal"
+                  aria-label="Inflation rate percent"
                   value={draft.inflationRate}
                   onChange={(event) =>
                     updateDraft('inflationRate', event.target.value)
@@ -949,6 +976,7 @@ export function MoneyRetirementPanel({
                 <Input
                   className="mt-2"
                   inputMode="numeric"
+                  aria-label="Planning horizon in years"
                   value={draft.horizonYears}
                   onChange={(event) =>
                     updateDraft('horizonYears', event.target.value)
@@ -964,6 +992,7 @@ export function MoneyRetirementPanel({
                 <Input
                   className="mt-2"
                   inputMode="numeric"
+                  aria-label="Your current age"
                   value={draft.primaryAge}
                   onChange={(event) =>
                     updateDraft('primaryAge', event.target.value)
@@ -977,6 +1006,7 @@ export function MoneyRetirementPanel({
                 <Input
                   className="mt-2"
                   inputMode="numeric"
+                  aria-label="Spouse current age"
                   value={draft.spouseAge}
                   onChange={(event) =>
                     updateDraft('spouseAge', event.target.value)
@@ -990,6 +1020,7 @@ export function MoneyRetirementPanel({
                 <Input
                   className="mt-2"
                   inputMode="decimal"
+                  aria-label="Your annual salary for Social Security estimate"
                   value={draft.primarySocialSecurityAnnualEarnings}
                   onChange={(event) =>
                     updateDraft(
@@ -1006,6 +1037,7 @@ export function MoneyRetirementPanel({
                 <Input
                   className="mt-2"
                   inputMode="decimal"
+                  aria-label="Your monthly Social Security benefit"
                   value={draft.primarySocialSecurityMonthly}
                   onChange={(event) =>
                     updateDraft(
@@ -1022,6 +1054,7 @@ export function MoneyRetirementPanel({
                 <Input
                   className="mt-2"
                   inputMode="numeric"
+                  aria-label="Your Social Security claim age"
                   value={draft.primarySocialSecurityStartAge}
                   onChange={(event) =>
                     updateDraft(
@@ -1038,6 +1071,7 @@ export function MoneyRetirementPanel({
                 <Input
                   className="mt-2"
                   inputMode="decimal"
+                  aria-label="Spouse annual salary for Social Security estimate"
                   value={draft.spouseSocialSecurityAnnualEarnings}
                   onChange={(event) =>
                     updateDraft(
@@ -1054,6 +1088,7 @@ export function MoneyRetirementPanel({
                 <Input
                   className="mt-2"
                   inputMode="decimal"
+                  aria-label="Spouse monthly Social Security benefit"
                   value={draft.spouseSocialSecurityMonthly}
                   onChange={(event) =>
                     updateDraft(
@@ -1070,6 +1105,7 @@ export function MoneyRetirementPanel({
                 <Input
                   className="mt-2"
                   inputMode="numeric"
+                  aria-label="Spouse Social Security claim age"
                   value={draft.spouseSocialSecurityStartAge}
                   onChange={(event) =>
                     updateDraft(
@@ -1086,6 +1122,7 @@ export function MoneyRetirementPanel({
                 <Input
                   className="mt-2"
                   inputMode="decimal"
+                  aria-label="Social Security payable percent after trust fund depletion"
                   value={draft.socialSecurityPayableRatio}
                   onChange={(event) =>
                     updateDraft(
@@ -1186,7 +1223,11 @@ export function MoneyRetirementPanel({
                 onClick={applyDraft}
                 disabled={previewQuery.isFetching}
               >
-                {previewQuery.isFetching ? 'Running…' : 'Run preview'}
+                {previewQuery.isFetching
+                  ? 'Running…'
+                  : hasPendingChanges
+                    ? 'Run preview •'
+                    : 'Run preview'}
               </Button>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -1395,6 +1436,17 @@ export function MoneyRetirementPanel({
           onRetry={() => void previewQuery.refetch()}
           isRetrying={previewQuery.isFetching}
         />
+      ) : null}
+
+      {hasPendingChanges && preview ? (
+        <div
+          role="status"
+          className="rounded-2xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-text-muted"
+        >
+          Inputs changed since this plan ran — the results below reflect the
+          last preview. Click{' '}
+          <span className="font-medium text-text">Run preview</span> to refresh.
+        </div>
       ) : null}
 
       <div className="grid items-start gap-6 xl:grid-cols-2">

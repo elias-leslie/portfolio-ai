@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from app.models.household_finance import HouseholdDocument
@@ -18,6 +20,23 @@ if TYPE_CHECKING:
 # Scalar helpers
 # ---------------------------------------------------------------------------
 
+_MONEY_SOURCE_TYPES = frozenset({"bank", "credit_card", "brokerage", "retirement"})
+_SOURCE_DOCUMENT_TYPES = {
+    "bank": "statement",
+    "credit_card": "statement",
+    "brokerage": "brokerage_statement",
+    "retirement": "retirement_statement",
+}
+_BALANCE_AMOUNT_PATTERN = r"\$?\s*([0-9][0-9,]*\.\d{2})"
+_BALANCE_LABEL_PATTERNS = (
+    r"total\s+account\s+balance",
+    r"total\s+balance",
+    r"vested\s+balance",
+    r"current\s+balance",
+    r"account\s+balance",
+    r"available\s+balance",
+)
+
 
 def _clean_text(value: object) -> str:
     return " ".join(str(value or "").strip().lower().split())
@@ -28,6 +47,87 @@ def _string_value(value: object) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _normalized_money_amount(value: object) -> str | None:
+    text = _string_value(value)
+    if text is None:
+        return None
+    cleaned = text.replace(",", "").replace("$", "").strip()
+    match = re.search(r"[-+]?[0-9]+(?:\.[0-9]+)?", cleaned)
+    if match is None:
+        return None
+    return match.group(0)
+
+
+def _parse_upload_date(value: object) -> str | None:
+    text = _string_value(value)
+    if text is None:
+        return None
+    cleaned = " ".join(text.replace(",", ", ").split())
+    for pattern in (
+        "%Y-%m-%d",
+        "%Y/%m/%d",
+        "%m/%d/%Y",
+        "%m/%d/%y",
+        "%B %d, %Y",
+        "%b %d, %Y",
+    ):
+        try:
+            return datetime.strptime(cleaned, pattern).date().isoformat()
+        except ValueError:
+            continue
+    return None
+
+
+def _extract_as_of_date(reviewed: dict[str, object], structured_data: dict[str, object]) -> str | None:
+    for value in (
+        structured_data.get("as_of_date"),
+        structured_data.get("statement_period"),
+    ):
+        parsed = _parse_upload_date(value)
+        if parsed is not None:
+            return parsed
+
+    extracted_text = reviewed.get("extracted_text")
+    if not isinstance(extracted_text, str) or not extracted_text:
+        return None
+    for pattern in (
+        r"as of\s+([A-Za-z]{3,9}\s+\d{1,2},\s+\d{4})",
+        r"as of\s+([0-9]{1,2}/[0-9]{1,2}/[0-9]{2,4})",
+        r"as of\s+((?:19|20)\d{2}[-/][0-9]{1,2}[-/][0-9]{1,2})",
+    ):
+        match = re.search(pattern, extracted_text, flags=re.IGNORECASE)
+        if match is None:
+            continue
+        parsed = _parse_upload_date(match.group(1))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _extract_labeled_balance(reviewed: dict[str, object], structured_data: dict[str, object]) -> str | None:
+    extracted_text = reviewed.get("extracted_text")
+    if isinstance(extracted_text, str) and extracted_text.strip():
+        text = extracted_text.replace("\xa0", " ")
+        for label_pattern in _BALANCE_LABEL_PATTERNS:
+            match = re.search(
+                rf"{label_pattern}(?:\s+as\s+of\s+[A-Za-z0-9,/ -]+)?[\s:,\r\n]{{0,80}}{_BALANCE_AMOUNT_PATTERN}",
+                text,
+                flags=re.IGNORECASE,
+            )
+            if match is not None:
+                return _normalized_money_amount(match.group(1))
+
+    for key in ("total_amount", "balance", "account_balance"):
+        parsed = _normalized_money_amount(structured_data.get(key))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _document_type_for_source(source_type: str | None) -> str | None:
+    return _SOURCE_DOCUMENT_TYPES.get(source_type or "")
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +283,44 @@ def _bind_account_to_upload_target(
         account["account_name"] = target["canonical_label"]
 
 
+def _synthesized_account_from_upload_target(
+    reviewed: dict[str, object],
+    *,
+    structured_data: dict[str, object],
+    target: dict[str, object],
+) -> dict[str, object] | None:
+    """Build a selected-account balance snapshot when parsing found only scalar text."""
+    target_source = _string_value(target.get("source_type"))
+    if target_source not in _MONEY_SOURCE_TYPES:
+        return None
+    balance = _extract_labeled_balance(reviewed, structured_data)
+    if balance is None:
+        return None
+
+    account: dict[str, object] = {
+        "household_account_id": target["household_account_id"],
+        "source_type": target_source,
+        "asset_group": target.get("asset_group"),
+        "account_type": target.get("account_type") or target_source,
+        "institution_name": target.get("institution_name"),
+        "owner_name": target.get("owner_name"),
+        "account_mask": target.get("account_mask"),
+        "account_name": target.get("canonical_label"),
+        "balance": balance,
+        "currency": "USD",
+        "as_of_date": _extract_as_of_date(reviewed, structured_data),
+        "fallback_source": "account_scoped_balance_text",
+    }
+    if target_source in {"brokerage", "retirement"}:
+        account["holdings_value"] = balance
+    elif target_source == "bank":
+        account["cash_balance"] = balance
+    if not account.get("account_name") and structured_data.get("account_hint"):
+        account["account_name"] = structured_data.get("account_hint")
+    _bind_account_to_upload_target(account, target)
+    return {key: value for key, value in account.items() if value not in (None, "", [], {})}
+
+
 def _clear_upload_binding_ambiguity(reviewed: dict[str, object]) -> None:
     reviewed["questions"] = []
     review_checks = (
@@ -314,9 +452,34 @@ def apply_upload_account_binding(
     reviewed["structured_data"] = structured_data
     structured_data["upload_household_account_id"] = household_account_id
     structured_data["upload_account_label"] = target.get("canonical_label")
+    target_source = _string_value(target.get("source_type"))
+    if target_source in _MONEY_SOURCE_TYPES and _clean_text(reviewed.get("source_type")) in {"", "other"}:
+        reviewed["source_type"] = target_source
+    target_document_type = _document_type_for_source(target_source)
+    if target_document_type and _clean_text(reviewed.get("document_type")) in {"", "other"}:
+        reviewed["document_type"] = target_document_type
 
     raw_accounts = structured_data.get("financial_accounts")
     if not isinstance(raw_accounts, list) or not raw_accounts:
+        synthesized_account = _synthesized_account_from_upload_target(
+            reviewed,
+            structured_data=structured_data,
+            target=target,
+        )
+        if synthesized_account is not None:
+            structured_data["financial_accounts"] = [synthesized_account]
+            structured_data.setdefault("total_amount", synthesized_account["balance"])
+            if synthesized_account.get("as_of_date") and not structured_data.get("statement_period"):
+                structured_data["statement_period"] = f"As of {synthesized_account['as_of_date']}"
+            review_checks = (
+                dict(reviewed.get("review_checks"))
+                if isinstance(reviewed.get("review_checks"), dict)
+                else {}
+            )
+            review_checks["account_scoped_balance_fallback"] = True
+            reviewed["review_checks"] = review_checks
+            _clear_upload_binding_ambiguity(reviewed)
+            return reviewed
         _append_upload_binding_question(
             reviewed,
             target=target,

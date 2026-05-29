@@ -39,9 +39,11 @@ from app.services.retirement_planning_service import (
     _account_rule_explanations,
     _aggregate_income_yield_freshness,
     _append_preview_social_security,
+    _early_withdrawal_penalty_rate,
     _effective_gain_ratio,
     _estimate_social_security_monthly,
     _federal_tax_estimate,
+    _rmd_amount,
     _split_members,
     _tax_assumptions,
     _tax_context_from_profile,
@@ -1114,6 +1116,26 @@ def test_drawdown_uses_governmental_457b_before_penalized_pre_tax_before_age_60(
     assert first.withdrawals_by_bucket["governmental_457b"] > 0
     assert first.withdrawals_by_bucket["pre_tax"] > 0
     assert first.penalty_estimate == round(first.withdrawals_by_bucket["pre_tax"] * 0.10, 2)
+
+
+def test_rmd_amount_uses_irs_uniform_lifetime_divisors() -> None:
+    # Exact published divisors (effective 2022), not a linear approximation.
+    balance = 1_000_000.0
+    assert _rmd_amount(balance, 72) == pytest.approx(0.0)  # below RMD start age
+    assert _rmd_amount(balance, 73) == pytest.approx(balance / 26.5)
+    assert _rmd_amount(balance, 80) == pytest.approx(balance / 20.2)
+    assert _rmd_amount(balance, 90) == pytest.approx(balance / 12.2)
+    # Ages past the table top out at the 120+ divisor (does not over-deplete).
+    assert _rmd_amount(balance, 130) == pytest.approx(balance / 2.0)
+    assert _rmd_amount(0.0, 90) == pytest.approx(0.0)
+
+
+def test_early_withdrawal_penalty_matches_59_and_a_half_rule() -> None:
+    assert _early_withdrawal_penalty_rate("pre_tax", 58) == pytest.approx(0.10)
+    assert _early_withdrawal_penalty_rate("pre_tax", 59) == pytest.approx(0.10)
+    assert _early_withdrawal_penalty_rate("pre_tax", 60) == pytest.approx(0.0)
+    # No early-withdrawal penalty on governmental 457(b) at any age.
+    assert _early_withdrawal_penalty_rate("governmental_457b", 50) == pytest.approx(0.0)
 
 
 def test_tax_aware_monte_carlo_preserves_governmental_457b_early_access() -> None:

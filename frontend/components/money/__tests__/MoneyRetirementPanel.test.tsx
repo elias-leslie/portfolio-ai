@@ -739,4 +739,59 @@ describe('MoneyRetirementPanel', () => {
       }),
     )
   })
+
+  it('labels planner inputs for screen readers', async () => {
+    const user = userEvent.setup()
+    usePreviewMock.mockReturnValue({
+      data: preview,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    await user.click(screen.getByRole('button', { name: /expand planner/i }))
+
+    expect(
+      screen.getByRole('textbox', { name: /your retirement age/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('textbox', { name: /monthly spend in retirement/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('textbox', {
+        name: /your monthly social security benefit/i,
+      }),
+    ).toBeInTheDocument()
+  })
+
+  it('flags stale results after an edit until the preview is re-run', async () => {
+    const user = userEvent.setup()
+    usePreviewMock.mockReturnValue({
+      data: preview,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    expect(screen.queryByText(/Inputs changed since this plan ran/i)).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: /expand planner/i }))
+    const retireAgeInput = screen.getByRole('textbox', {
+      name: /your retirement age/i,
+    })
+    await user.clear(retireAgeInput)
+    await user.type(retireAgeInput, '66')
+
+    expect(
+      screen.getByText(/Inputs changed since this plan ran/i),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /run preview/i }))
+
+    expect(screen.queryByText(/Inputs changed since this plan ran/i)).toBeNull()
+  })
 })

@@ -6,10 +6,73 @@ import re
 from typing import Any
 
 from app.services._household_report_builder import _merchant_root
+from app.services._household_spend_filters import looks_like_investment_activity
 
 MIN_SUBSCRIPTION_AMOUNT = 5.0
 MAX_SUBSCRIPTION_AMOUNT = 25.0
 BILLS_AMOUNT_THRESHOLD = 800.0
+
+_PLAID_CATEGORY_MAP: dict[str, tuple[str, str]] = {
+    "BANK_FEES": ("Bills", "essential"),
+    "ENTERTAINMENT_MUSIC_AND_AUDIO": ("Subscriptions", "discretionary"),
+    "ENTERTAINMENT_OTHER_ENTERTAINMENT": ("Entertainment", "discretionary"),
+    "ENTERTAINMENT_SPORTING_EVENTS_AMUSEMENT_PARKS_AND_MUSEUMS": (
+        "Entertainment",
+        "discretionary",
+    ),
+    "ENTERTAINMENT_TV_AND_MOVIES": ("Subscriptions", "discretionary"),
+    "FOOD_AND_DRINK_FAST_FOOD": ("Dining", "discretionary"),
+    "FOOD_AND_DRINK_GROCERIES": ("Groceries", "essential"),
+    "FOOD_AND_DRINK_OTHER_FOOD_AND_DRINK": ("Dining", "discretionary"),
+    "FOOD_AND_DRINK_RESTAURANT": ("Dining", "discretionary"),
+    "GENERAL_MERCHANDISE_CLOTHING_AND_ACCESSORIES": (
+        "Retail",
+        "discretionary",
+    ),
+    "GENERAL_MERCHANDISE_CONVENIENCE_STORES": ("Retail", "discretionary"),
+    "GENERAL_MERCHANDISE_DEPARTMENT_STORES": ("Retail", "discretionary"),
+    "GENERAL_MERCHANDISE_DISCOUNT_STORES": ("Household", "mixed"),
+    "GENERAL_MERCHANDISE_ONLINE_MARKETPLACES": ("Retail", "discretionary"),
+    "GENERAL_MERCHANDISE_OTHER_GENERAL_MERCHANDISE": (
+        "Retail",
+        "discretionary",
+    ),
+    "GENERAL_MERCHANDISE_PET_SUPPLIES": ("Household", "mixed"),
+    "GENERAL_MERCHANDISE_SPORTING_GOODS": ("Retail", "discretionary"),
+    "GENERAL_MERCHANDISE_SUPERSTORES": ("Household", "mixed"),
+    "GENERAL_SERVICES_AUTOMOTIVE": ("Transportation", "essential"),
+    "GENERAL_SERVICES_EDUCATION": ("Education", "essential"),
+    "GENERAL_SERVICES_OTHER_GENERAL_SERVICES": ("Subscriptions", "discretionary"),
+    "GOVERNMENT_AND_NON_PROFIT_DONATIONS": ("Donations", "discretionary"),
+    "GOVERNMENT_AND_NON_PROFIT_GOVERNMENT_DEPARTMENTS_AND_AGENCIES": (
+        "Bills",
+        "essential",
+    ),
+    "GOVERNMENT_AND_NON_PROFIT_OTHER_GOVERNMENT_AND_NON_PROFIT": (
+        "Donations",
+        "discretionary",
+    ),
+    "HOME_IMPROVEMENT_FURNITURE": ("Home", "discretionary"),
+    "HOME_IMPROVEMENT_HARDWARE": ("Home", "discretionary"),
+    "LOAN_PAYMENTS": ("Bills", "essential"),
+    "MEDICAL": ("Healthcare", "essential"),
+    "MEDICAL_DENTAL_CARE": ("Healthcare", "essential"),
+    "MEDICAL_OTHER_MEDICAL": ("Healthcare", "essential"),
+    "MEDICAL_PHARMACIES_AND_SUPPLEMENTS": ("Healthcare", "essential"),
+    "MEDICAL_PRIMARY_CARE": ("Healthcare", "essential"),
+    "OTHER_OTHER": ("Household", "mixed"),
+    "PERSONAL_CARE_GYMS_AND_FITNESS_CENTERS": ("Fitness", "discretionary"),
+    "PERSONAL_CARE_HAIR_AND_BEAUTY": ("Personal Care", "discretionary"),
+    "RENT_AND_UTILITIES_OTHER_UTILITIES": ("Bills", "essential"),
+    "TRANSFER_OUT_INVESTMENT_AND_RETIREMENT_FUNDS": ("Transfers", "mixed"),
+    "TRANSPORTATION": ("Transportation", "essential"),
+    "TRANSPORTATION_GAS": ("Gas", "essential"),
+    "TRANSPORTATION_PARKING": ("Transportation", "essential"),
+    "TRANSPORTATION_TOLLS": ("Transportation", "essential"),
+    "TRAVEL_FLIGHTS": ("Travel", "discretionary"),
+    "TRAVEL_LODGING": ("Travel", "discretionary"),
+    "TRAVEL_OTHER_TRAVEL": ("Travel", "discretionary"),
+}
 
 
 def _canonical_merchant_name(raw_merchant: str) -> str:
@@ -32,6 +95,41 @@ def _canonical_merchant_name(raw_merchant: str) -> str:
     if "wholefoods" in collapsed:
         return "Whole Foods"
     return re.sub(r"\s+", " ", raw_merchant).strip()
+
+
+def _category_key(value: str | None) -> str:
+    return re.sub(r"[^A-Z0-9]+", "_", (value or "").strip().upper()).strip("_")
+
+
+def _canonical_category_from_taxonomy(
+    *,
+    category: str | None,
+    essentiality: str | None = None,
+) -> tuple[str, str] | None:
+    """Map upstream taxonomy labels into Portfolio AI's compact spend taxonomy."""
+    key = _category_key(category)
+    if not key:
+        return None
+    mapped = _PLAID_CATEGORY_MAP.get(key)
+    prefix_map = (
+        ("MEDICAL_", ("Healthcare", "essential")),
+        ("FOOD_AND_DRINK_", ("Dining", "discretionary")),
+        ("GENERAL_MERCHANDISE_", ("Retail", "discretionary")),
+        ("HOME_IMPROVEMENT_", ("Home", "discretionary")),
+        ("RENT_AND_UTILITIES_", ("Bills", "essential")),
+        ("TRANSPORTATION_", ("Transportation", "essential")),
+        ("TRAVEL_", ("Travel", "discretionary")),
+    )
+    if mapped is None:
+        mapped = next(
+            (classification for prefix, classification in prefix_map if key.startswith(prefix)),
+            None,
+        )
+    if mapped is None and category:
+        normalized_category = re.sub(r"\s+", " ", category).strip()
+        normalized_essentiality = (essentiality or "mixed").strip() or "mixed"
+        mapped = (normalized_category, normalized_essentiality)
+    return mapped
 
 
 def _classify_statement_flow(description: str) -> str:
@@ -143,12 +241,25 @@ def _classify_merchant(
             ["uber", "lyft", "parking", "toll", "sunpass", "jiffy lube", "valvoline", "midas", "firestone", "pep boys"],
             ("Transportation", "essential"),
         ),
-        (["lowes", "lowe s", "home depot", "menards", "ace hardware"], ("Home", "discretionary")),
+        (
+            [
+                "lowes",
+                "lowe s",
+                "home depot",
+                "menards",
+                "ace hardware",
+                "furniture",
+                "wayfair",
+            ],
+            ("Home", "discretionary"),
+        ),
         (["planet fitness", "gym", "ymca", "fitness", "largo rec", "rec center"], ("Fitness", "discretionary")),
         (
             [
+                "audible",
                 "spotify",
                 "cloudflare",
+                "pandora",
                 "prime",
                 "netflix",
                 "hulu",
@@ -156,6 +267,7 @@ def _classify_merchant(
                 "hbo",
                 "apple music",
                 "youtube",
+                "youtube premium",
                 "openai",
                 "chatgpt",
                 "claude",
@@ -209,6 +321,9 @@ def _classify_merchant(
                 "chipotle",
                 "bonefish",
                 "cantina",
+                "restaurant",
+                "breakfast",
+                "cafe",
                 "mcdonald",
                 "starbucks",
                 "dunkin",
@@ -297,6 +412,8 @@ def _effective_transaction_flow(
     normalized = (flow_type or "").strip().lower()
     if _is_refund_like_text(raw_merchant=raw_merchant, description=description):
         return "refund"
+    if looks_like_investment_activity(description=description, merchant=raw_merchant):
+        return "investment"
     if normalized:
         return normalized
     if (source_type or "").strip().lower() == "credit_card":
@@ -328,6 +445,20 @@ def _effective_transaction_classification(
     )
     stored_category_text = (stored_category or "").strip()
     stored_essentiality_text = (stored_essentiality or "").strip()
+    canonical_stored = _canonical_category_from_taxonomy(
+        category=stored_category_text,
+        essentiality=stored_essentiality_text,
+    )
+    if (
+        canonical_stored is not None
+        and canonical_stored[0] != stored_category_text
+        and canonical_stored[0] not in {"Uncategorized", ""}
+        and not _looks_like_mixed_big_box_merchant(
+            raw_merchant=raw_merchant,
+            description=description,
+        )
+    ):
+        return canonical_stored
     if (
         resolved_category == "Household"
         and stored_category_text
