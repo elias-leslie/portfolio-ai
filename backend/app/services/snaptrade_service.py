@@ -618,10 +618,37 @@ class SnapTradeService:
                     errors.append({"authorization_id": authorization_id, **payload})
                 continue
             for raw_account in accounts:
+                raw_account_dict = _dict(raw_account)
+                account_id = _string(raw_account_dict.get("id"))
+                direct_cash_balance: Decimal | None = None
+                direct_cash_currency: str | None = None
+                if account_id:
+                    try:
+                        direct_cash_balance, direct_cash_currency = self._account_cash_balance(
+                            _list(
+                                _body(
+                                    client.account_information.get_user_account_balance(
+                                        account_id=account_id,
+                                        user_id=user.user_id,
+                                        user_secret=user.user_secret,
+                                    )
+                                )
+                            ),
+                            preferred_currency=self._account_balance(raw_account_dict)[1],
+                        )
+                    except ApiException as exc:
+                        payload = _snaptrade_error_payload(exc)
+                        errors = totals["errors"]
+                        if isinstance(errors, list):
+                            errors.append(
+                                {"account_id": account_id, "surface": "balances", **payload}
+                            )
                 account = self._sync_account(
                     user=user,
-                    raw_account=_dict(raw_account),
+                    raw_account=raw_account_dict,
                     authorization_id=authorization_id,
+                    cash_balance=direct_cash_balance,
+                    cash_currency=direct_cash_currency,
                 )
                 if account is None:
                     continue
@@ -896,6 +923,8 @@ class SnapTradeService:
         user: SnapTradeUser,
         raw_account: dict[str, object],
         authorization_id: str,
+        cash_balance: Decimal | None = None,
+        cash_currency: str | None = None,
     ) -> SnapTradeNormalizedAccount | None:
         account_id = _string(raw_account.get("id"))
         if not account_id:
@@ -908,7 +937,10 @@ class SnapTradeService:
         account_mask = _redact_account_number(raw_account.get("number"))
         kind = _account_kind(name, raw_type)
         balance, currency = self._account_balance(raw_account)
-        cash_balance = self._cash_balance_from_account(raw_account)
+        cash_balance = (
+            cash_balance if cash_balance is not None else self._cash_balance_from_account(raw_account)
+        )
+        currency = currency or cash_currency
         sanitized_metadata = dict(raw_account)
         sanitized_metadata["number"] = account_mask
         with self.storage.connection() as conn:
@@ -1570,6 +1602,15 @@ class SnapTradeService:
             """,
             [float(cash_balance), synced_at, account.portfolio_account_id],
         )
+        conn.execute(
+            """
+            UPDATE snaptrade_accounts
+            SET cash_balance = %s,
+                last_synced_at = %s
+            WHERE account_id = %s
+            """,
+            [float(cash_balance), synced_at, account.account_id],
+        )
 
     @staticmethod
     def _source_cash_balance(
@@ -1629,6 +1670,32 @@ class SnapTradeService:
             if parsed is not None:
                 return parsed
         return None
+
+    @staticmethod
+    def _account_cash_balance(
+        balance_rows: Sequence[object],
+        *,
+        preferred_currency: str | None = None,
+    ) -> tuple[Decimal | None, str | None]:
+        candidates: list[tuple[str | None, Decimal]] = []
+        for row in balance_rows:
+            balance = _dict(row)
+            cash = _decimal(balance.get("cash"))
+            if cash is None:
+                continue
+            candidates.append((_currency_code(balance.get("currency")), cash))
+        if not candidates:
+            return None, preferred_currency
+
+        preferred = preferred_currency.upper() if preferred_currency else None
+        for currency, cash in candidates:
+            if preferred and currency == preferred:
+                return cash, currency
+        for currency, cash in candidates:
+            if currency == "USD":
+                return cash, currency
+        currency, cash = candidates[0]
+        return cash, currency or preferred
 
     def _normalize_position(
         self,

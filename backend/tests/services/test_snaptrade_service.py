@@ -74,6 +74,29 @@ def test_cash_balance_from_account_preserves_zero() -> None:
     )
 
 
+def test_account_cash_balance_prefers_account_currency_then_usd() -> None:
+    cash, currency = SnapTradeService._account_cash_balance(
+        [
+            {"cash": "15.00", "currency": {"code": "CAD"}},
+            {"cash": "20.00", "currency": {"code": "USD"}},
+        ],
+        preferred_currency="CAD",
+    )
+
+    assert cash == Decimal("15.00")
+    assert currency == "CAD"
+
+    cash, currency = SnapTradeService._account_cash_balance(
+        [
+            {"cash": "15.00", "currency": {"code": "CAD"}},
+            {"cash": "20.00", "currency": {"code": "USD"}},
+        ],
+    )
+
+    assert cash == Decimal("20.00")
+    assert currency == "USD"
+
+
 def test_source_cash_balance_uses_account_total_when_cash_is_missing() -> None:
     account = SnapTradeNormalizedAccount(
         account_id="acct-1",
@@ -107,6 +130,40 @@ def test_source_cash_balance_uses_account_total_when_cash_is_missing() -> None:
 
     assert SnapTradeService._source_cash_balance(account, [position]) == Decimal("9835.94")
     assert SnapTradeService._source_cash_balance(account, []) == Decimal("549593.06")
+
+
+def test_source_cash_balance_prefers_direct_broker_cash() -> None:
+    account = SnapTradeNormalizedAccount(
+        account_id="acct-1",
+        authorization_id="auth-1",
+        name="Individual - TOD",
+        institution_name="Fidelity",
+        account_mask="7544",
+        raw_type=None,
+        portfolio_account_type="Taxable",
+        balance=Decimal("549593.06"),
+        cash_balance=Decimal("72.95"),
+        currency="USD",
+        household_account_id="household-1",
+        portfolio_account_id="portfolio-1",
+        metadata={},
+    )
+    position = SnapTradeNormalizedPosition(
+        position_key="vti",
+        symbol="VTI",
+        raw_symbol=None,
+        security_id="vti",
+        security_kind=None,
+        units=Decimal("1488"),
+        price=Decimal("362.74"),
+        average_purchase_price=None,
+        market_value=Decimal("539757.12"),
+        cost_basis=None,
+        currency="USD",
+        metadata={},
+    )
+
+    assert SnapTradeService._source_cash_balance(account, [position]) == Decimal("72.95")
 
 
 def test_configure_keeps_saved_credentials_when_secret_inputs_are_blank(monkeypatch) -> None:
@@ -218,3 +275,39 @@ def test_replace_portfolio_positions_removes_unmanaged_rows_for_source_owned_acc
     assert "strategy_id IS NULL" in delete_sql
     assert "id <> ALL" in delete_sql
     assert delete_params == ["portfolio-1", ["snaptrade:acct-1:vti"]]
+
+
+def test_cash_balance_update_persists_to_source_and_portfolio_accounts() -> None:
+    account = SnapTradeNormalizedAccount(
+        account_id="acct-1",
+        authorization_id="auth-1",
+        name="Individual - TOD",
+        institution_name="Fidelity",
+        account_mask="7544",
+        raw_type=None,
+        portfolio_account_type="Taxable",
+        balance=Decimal("549593.06"),
+        cash_balance=Decimal("72.95"),
+        currency="USD",
+        household_account_id="household-1",
+        portfolio_account_id="portfolio-1",
+        metadata={},
+    )
+    conn = _RecordingConnection()
+    service = object.__new__(SnapTradeService)
+    synced_at = datetime(2026, 6, 3, 22, 0, tzinfo=UTC)
+
+    service._update_portfolio_account_cash_balance(
+        conn=conn,
+        account=account,
+        positions=[],
+        synced_at=synced_at,
+    )
+
+    assert len(conn.calls) == 2
+    portfolio_sql, portfolio_params = conn.calls[0]
+    source_sql, source_params = conn.calls[1]
+    assert "UPDATE portfolio_accounts" in portfolio_sql
+    assert portfolio_params == [72.95, synced_at, "portfolio-1"]
+    assert "UPDATE snaptrade_accounts" in source_sql
+    assert source_params == [72.95, synced_at, "acct-1"]
