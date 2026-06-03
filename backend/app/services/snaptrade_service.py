@@ -15,6 +15,9 @@ from snaptrade_client import SnapTrade
 from snaptrade_client.exceptions import ApiException
 
 from app.logging_config import get_logger
+from app.portfolio.account_valuation import mark_to_market_account_value
+from app.portfolio.models import PriceData
+from app.portfolio.price_fetcher import PriceDataFetcher
 from app.portfolio.watchlist_sync import ensure_symbols_in_watchlist
 from app.services.credential_crypto import (
     CredentialCipher,
@@ -364,6 +367,9 @@ class SnapTradeService:
                 LIMIT 20
                 """
             ).fetchall()
+            position_rows = conn.execute(
+                "SELECT account_id, symbol, units, price FROM snaptrade_positions"
+            ).fetchall()
             last_error = conn.execute(
                 """
                 SELECT last_error
@@ -385,6 +391,30 @@ class SnapTradeService:
         client_id_configured = bool(raw_credentials.get("client_id"))
         consumer_key_configured = bool(raw_credentials.get("consumer_key"))
         configured = client_id_configured and consumer_key_configured
+
+        # Re-value each account to current market price rather than displaying the
+        # broker's last-synced total. We anchor on the broker total and apply only
+        # the live price drift on holdings we can quote (double-count safe).
+        positions_by_account: dict[str, list[tuple[float, float | None, str]]] = {}
+        symbols: set[str] = set()
+        for prow in position_rows:
+            acct_id = str(prow[0])
+            symbol = str(prow[1])
+            units = float(prow[2]) if prow[2] is not None else 0.0
+            broker_price = float(prow[3]) if prow[3] is not None else None
+            positions_by_account.setdefault(acct_id, []).append((units, broker_price, symbol))
+            symbols.add(symbol)
+
+        price_data: dict[str, PriceData] = {}
+        if symbols:
+            price_data = PriceDataFetcher(self.storage).fetch_price_data(sorted(symbols))
+
+        valuations = {
+            str(row[0]): mark_to_market_account_value(
+                row[5], positions_by_account.get(str(row[0]), []), price_data
+            )
+            for row in account_rows
+        }
         return {
             "configured": configured,
             "client_id_configured": client_id_configured,
@@ -426,6 +456,13 @@ class SnapTradeService:
                     "account_mask": str(row[3]) if row[3] else None,
                     "portfolio_account_type": str(row[4]),
                     "balance": float(row[5]) if row[5] is not None else None,
+                    "market_value": valuations[str(row[0])].total_value,
+                    "valuation_source": valuations[str(row[0])].valuation_source,
+                    "quote_as_of": (
+                        valuations[str(row[0])].quote_as_of.isoformat()
+                        if valuations[str(row[0])].quote_as_of is not None
+                        else None
+                    ),
                     "cash_balance": float(row[6]) if row[6] is not None else None,
                     "currency": str(row[7]) if row[7] else None,
                     "last_synced_at": row[8].isoformat() if isinstance(row[8], datetime) else None,

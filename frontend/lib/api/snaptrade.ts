@@ -16,6 +16,9 @@ export interface SnapTradeAccount {
   accountMask: string | null
   portfolioAccountType: string
   balance: number | null
+  marketValue: number | null
+  valuationSource: 'live' | 'broker' | 'unknown'
+  quoteAsOf: string | null
   cashBalance: number | null
   currency: string | null
   lastSyncedAt: string | null

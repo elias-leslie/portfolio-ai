@@ -326,10 +326,12 @@ export function SnapTradePanel() {
               </div>
               <div className="text-left md:text-right">
                 <p className="text-sm font-semibold text-text">
-                  {formatCurrency(account.balance, account.currency)}
+                  {formatCurrency(account.marketValue ?? account.balance, account.currency)}
                 </p>
                 <p className="text-xs text-text-muted">
-                  {formatDataServiceTime(account.lastSyncedAt)}
+                  {account.valuationSource === 'live' && account.quoteAsOf
+                    ? `Live · ${formatDataServiceTime(account.quoteAsOf)}`
+                    : formatDataServiceTime(account.lastSyncedAt)}
                 </p>
               </div>
             </div>

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from app.portfolio.current_facts import calculate_current_position_fact
@@ -54,6 +56,62 @@ def _quote_freshness(quote_updated_at: datetime | None) -> tuple[str, str]:
     if age <= aging_threshold:
         return "aging", "Refresh soon"
     return "stale", "Stale quotes"
+
+
+@dataclass(slots=True)
+class MarkToMarketResult:
+    """Result of re-valuing a broker-reported account to current market price."""
+
+    total_value: float | None
+    valuation_source: str  # "live" (price drift applied) | "broker" | "unknown"
+    quote_as_of: datetime | None
+    priced_position_count: int
+
+
+def mark_to_market_account_value(
+    broker_total: float | Decimal | None,
+    positions: Iterable[tuple[float | Decimal | None, float | Decimal | None, str]],
+    price_data: dict[str, PriceData],
+) -> MarkToMarketResult:
+    """Re-value a broker account to current market: broker total + live price drift.
+
+    Anchors on the broker's most-recent reconciled total -- which already nets
+    cash, pending/unsettled activity, and any securities we cannot quote -- and
+    layers on ONLY the mark-to-market delta ``(current_price - broker_price) * units``
+    for positions we can quote live. This is double-count safe (the cash and
+    unpriceable holdings stay exactly as the broker reported them) and degrades
+    to the broker total when nothing is priceable.
+
+    ``positions`` items are ``(units, broker_snapshot_price, symbol)``. A position
+    with no broker snapshot price or no live quote contributes zero drift, i.e.
+    it keeps its broker valuation.
+    """
+    base = float(broker_total) if broker_total is not None else None
+    delta = 0.0
+    priced = 0
+    quote_times: list[datetime] = []
+    for units, broker_price, symbol in positions:
+        if not units or broker_price is None:
+            continue
+        quote = price_data.get(symbol)
+        if quote is None or quote.error or quote.price <= 0:
+            continue
+        delta += (float(quote.price) - float(broker_price)) * float(units)
+        priced += 1
+        normalized = _normalize_quote_timestamp(quote.cached_at)
+        if normalized is not None:
+            quote_times.append(normalized)
+
+    if base is None:
+        return MarkToMarketResult(None, "unknown", None, 0)
+    if priced == 0:
+        return MarkToMarketResult(base, "broker", None, 0)
+    return MarkToMarketResult(
+        total_value=base + delta,
+        valuation_source="live",
+        quote_as_of=min(quote_times) if quote_times else None,
+        priced_position_count=priced,
+    )
 
 
 def calculate_account_valuations(
