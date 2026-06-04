@@ -12,7 +12,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { MacroSnapshot } from '@/lib/api/macro'
-import { useMacroHistory } from '@/lib/hooks/useSignals'
+import { useMacroHistory } from '@/lib/hooks/useMacro'
 import { cn, formatDate } from '@/lib/utils'
 import { MarketPanelMessage } from './MarketPanelMessage'
 import {

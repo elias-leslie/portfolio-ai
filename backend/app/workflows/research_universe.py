@@ -5,8 +5,7 @@ against the upstream constituent feeds. Schedule: Mon 06:00 ET.
 
 After membership reconciliation, the workflow chains
 ``portfolio-ingest-ohlcv`` against any newly-added or reactivated symbols
-so the L2 scanner has the ~252 trading days of bars it needs to score
-them on the next ``macro_gate`` → ``scanner`` chain. Continuing-member
+so long-window technical features have enough history. Continuing-member
 prices are kept fresh by the daily ``portfolio-refresh-ohlcv`` job.
 """
 
@@ -24,9 +23,8 @@ from .models import EmptyInput, SymbolsInput
 
 RESEARCH_UNIVERSE_CRONS = ["0 11 * * 1"]  # Mon 06:00 ET == 11:00 UTC (DST-conservative; cron is UTC)
 
-# Trading-day lookback for new-arrival backfill. Scanner's longest factor
-# (52WHighProximity) needs ~252 bars; the scanner service itself fetches
-# 260 with a buffer.
+# Trading-day lookback for new-arrival backfill. Long-window technical
+# features need roughly one year of bars, with a small holiday buffer.
 NEW_ARRIVAL_BACKFILL_DAYS = TRADING_DAYS_PER_YEAR
 
 

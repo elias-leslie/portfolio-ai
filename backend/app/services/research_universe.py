@@ -25,7 +25,7 @@ class RefreshResult:
     departed: int
     active_count: int
     source: str
-    # Symbols that need an OHLCV backfill so the L2 scanner can rank them.
+    # Symbols that need an OHLCV backfill before downstream research uses them.
     # The workflow chains portfolio-ingest-ohlcv against this list.
     added_symbols: tuple[str, ...] = ()
     reactivated_symbols: tuple[str, ...] = ()

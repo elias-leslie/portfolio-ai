@@ -13,7 +13,6 @@ import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import type { WorkspaceTab } from '@/components/shared/WorkspaceTabs'
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
-import { SignalsTabContent } from '@/components/signals/SignalsTabContent'
 import { Button } from '@/components/ui/button'
 import { AddSymbolModal } from '@/components/watchlist/AddSymbolModal'
 import { useWatchlistFilters } from '@/components/watchlist/useWatchlistFilters'
@@ -26,7 +25,6 @@ import {
 } from '@/components/watchlist/WatchlistStateViews'
 import { WatchlistTable } from '@/components/watchlist/WatchlistTable'
 import { useAccounts, usePortfolio } from '@/lib/hooks/usePortfolio'
-import { useBlendedSignals } from '@/lib/hooks/useSignals'
 import {
   useRefreshStatus,
   useRefreshWatchlist,
@@ -53,7 +51,6 @@ function PortfolioPageContent() {
   const refreshMutation = useRefreshWatchlist()
   const totalCount = watchlistData?.items.length ?? 0
   const { data: refreshStatus } = useRefreshStatus(totalCount > 0)
-  const { data: blendedSignals } = useBlendedSignals({ limit: 100 })
 
   const {
     styleFilter,
@@ -124,14 +121,6 @@ function PortfolioPageContent() {
           isInputLoading={portfolioLoading || watchlistLoading}
         />
       ),
-    },
-    {
-      value: 'signals',
-      label: 'Signals',
-      badge: blendedSignals?.rows.length
-        ? String(blendedSignals.rows.length)
-        : undefined,
-      content: <SignalsTabContent />,
     },
     {
       value: 'symbols',

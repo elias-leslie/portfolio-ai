@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { SectionCard } from '@/components/shared/SectionCard'
-import { type CommitteeCostDay, fetchCommitteeCost } from '@/lib/api/signals'
+import { type CommitteeCostDay, fetchCommitteeCost } from '@/lib/api/committee'
 
 const SPARK_W = 140
 const SPARK_H = 36
@@ -27,11 +27,11 @@ export function CommitteeCostCard() {
   }, [])
 
   const today = days[days.length - 1] ?? null
-  const max = Math.max(1, ...days.map((d) => d.est_cost_usd))
+  const max = Math.max(1, ...days.map((d) => d.estCostUsd))
   const points = days
     .map((d, i) => {
       const x = (i / Math.max(1, days.length - 1)) * SPARK_W
-      const y = SPARK_H - (d.est_cost_usd / max) * SPARK_H
+      const y = SPARK_H - (d.estCostUsd / max) * SPARK_H
       return `${x.toFixed(1)},${y.toFixed(1)}`
     })
     .join(' ')
@@ -44,22 +44,8 @@ export function CommitteeCostCard() {
         </div>
       ) : (
         <div className="grid gap-4">
-          <div className="grid grid-cols-3 gap-3">
-            <Counter
-              label="Fan-out"
-              value={today?.fan_out_count ?? 0}
-              suffix="runs"
-            />
-            <Counter
-              label="Tier-1"
-              value={today?.tier1_call_count ?? 0}
-              suffix="calls"
-            />
-            <Counter
-              label="Deep"
-              value={today?.deep_run_count ?? 0}
-              suffix="runs"
-            />
+          <div className="grid gap-3">
+            <Counter label="Runs" value={today?.runCount ?? 0} suffix="runs" />
           </div>
           <div className="flex items-end justify-between gap-3">
             <div>
@@ -67,10 +53,10 @@ export function CommitteeCostCard() {
                 Today
               </div>
               <div className="mt-1 text-2xl font-semibold">
-                {formatUsd(today?.est_cost_usd ?? 0)}
+                {formatUsd(today?.estCostUsd ?? 0)}
               </div>
               <div className="text-xs text-text-muted">
-                {(today?.total_tokens ?? 0).toLocaleString()} tokens
+                {(today?.totalTokens ?? 0).toLocaleString()} tokens
               </div>
             </div>
             {days.length > 0 ? (

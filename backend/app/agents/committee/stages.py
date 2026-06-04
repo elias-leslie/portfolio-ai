@@ -16,15 +16,13 @@ import asyncio
 import json
 import os
 import time
-from typing import Any, cast
+from typing import Any
 
 from app.agents.clients.agent_hub_client import AgentHubAPIClient
 from app.logging_config import get_logger
 
-from .cluster_weights import latest_cluster_weight_payload
 from .schemas import (
     AnalystOutput,
-    Conviction,
     DebateRound,
     Evidence,
     FeedbackAgentResponse,
@@ -35,16 +33,12 @@ from .schemas import (
     RiskObjection,
     RiskVoteOutput,
     Side,
-    Tier1TopFactor,
-    Tier1Verdict,
     TradeProposal,
 )
-from .signal_sleeve import apply_signal_sleeve, build_signal_sleeve
 
 logger = get_logger(__name__)
 
 # Slug constants — single source of truth in this module.
-SLUG_TIER1 = "tier1-screener-v1"
 SLUG_FUNDAMENTALS = "fundamentals-v1"
 SLUG_NEWS = "news-grounded-v1"
 SLUG_SENTIMENT = "sentiment-grounded-v1"
@@ -84,80 +78,6 @@ def _get_llm_semaphore() -> asyncio.Semaphore:
         sem = asyncio.Semaphore(size)
         _llm_semaphore_cell["sem"] = sem
     return sem
-
-
-_VALID_CONVICTIONS: tuple[Conviction, ...] = ("low", "mid", "high")
-_VALID_TOP_FACTORS: tuple[Tier1TopFactor, ...] = (
-    "mom_xover",
-    "vol_surge",
-    "rs_vs_spy",
-    "high_52w_proximity",
-    "short_interest_decline",
-    "fundamentals",
-    "news",
-    "sentiment",
-    "other",
-)
-
-
-async def run_tier1_screen(
-    *,
-    symbol: str,
-    scanner_factors: dict[str, Any],
-    context_bundle: dict[str, Any],
-    gate_zone: str,
-) -> Tier1Verdict:
-    """One cheap pre-screen call per symbol.
-
-    Reads the L2 scanner factors plus a pre-computed context bundle and
-    returns a ``Tier1Verdict``. The fan-out caller ranks all verdicts
-    and fires the deep committee only on the top K. Designed to be
-    ~one LLM call per symbol, gated by the same concurrency semaphore
-    as every other committee call.
-    """
-    signal_sleeve = build_signal_sleeve(
-        scanner_factors=scanner_factors,
-        context_bundle=context_bundle,
-    )
-    payload: dict[str, Any] = {
-        "symbol": symbol,
-        "gate_zone": gate_zone,
-        "scanner_factors": scanner_factors,
-        "context_bundle": context_bundle,
-        "signal_sleeve": signal_sleeve.to_payload(),
-        "cluster_weights": latest_cluster_weight_payload(),
-    }
-    start = time.monotonic()
-    raw = await _complete(SLUG_TIER1, payload, purpose=f"committee.tier1.{symbol}")
-    latency_ms = int((time.monotonic() - start) * 1000)
-    parsed = _parse_json_content(raw)
-    score = apply_signal_sleeve(
-        _coerce_score(parsed.get("score"), low=-1.0, high=1.0),
-        signal_sleeve,
-    )
-    conviction_raw = str(parsed.get("conviction") or "low").strip().lower()
-    conviction: Conviction = (
-        cast(Conviction, conviction_raw) if conviction_raw in _VALID_CONVICTIONS else "low"
-    )
-    top_factor_raw = str(parsed.get("top_factor") or signal_sleeve.top_factor or "other").strip().lower()
-    top_factor: Tier1TopFactor = (
-        cast(Tier1TopFactor, top_factor_raw) if top_factor_raw in _VALID_TOP_FACTORS else "other"
-    )
-    if top_factor == "other" and signal_sleeve.top_factor in _VALID_TOP_FACTORS:
-        top_factor = cast(Tier1TopFactor, signal_sleeve.top_factor)
-    rationale = str(parsed.get("one_line_rationale") or "").strip()
-    if len(rationale) > 240:
-        rationale = rationale[:237] + "..."
-    return Tier1Verdict(
-        agent_slug=SLUG_TIER1,
-        symbol=symbol.upper(),
-        score=score,
-        conviction=conviction,
-        one_line_rationale=rationale,
-        top_factor=top_factor,
-        tokens=_tokens(raw),
-        latency_ms=latency_ms,
-    )
 
 
 async def run_analyst(

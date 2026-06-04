@@ -72,8 +72,8 @@ def refresh_daily_ohlcv(
 
     Args:
         symbols: List of symbols (default: canonical market symbols
-            unioned with the active research universe so the L2 scanner
-            keeps full S&P 500 coverage day-over-day).
+            unioned with the active research universe for broad market
+            coverage day-over-day).
 
     Returns:
         Dict with task results:

@@ -24,15 +24,17 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from app.agents.committee import GRAPH_VERSION, graph, readiness, store, stream
 from app.logging_config import get_logger
 from app.services import paper_trades as paper_trades_svc
+from app.storage import get_storage
 
 logger = get_logger(__name__)
 
@@ -86,6 +88,20 @@ class RunListResponse(BaseModel):
     runs: list[RunListItem]
 
 
+class CommitteeCostDay(BaseModel):
+    date: str
+    run_count: int
+    total_tokens: int
+    est_cost_usd: float
+
+
+class CommitteeCostResponse(BaseModel):
+    days: list[CommitteeCostDay]
+
+
+_COMMITTEE_RATE_PER_TOKEN_USD = 0.000003
+
+
 @router.post("/runs", response_model=StartRunResponse, status_code=status.HTTP_201_CREATED)
 async def start_run(
     payload: StartRunRequest, background_tasks: BackgroundTasks
@@ -97,9 +113,7 @@ async def start_run(
     stream to follow progress.
     """
     household_id = _resolve_household_id()
-    report = await run_in_threadpool(
-        readiness.check_committee_readiness, payload.symbol, source="manual"
-    )
+    report = await run_in_threadpool(readiness.check_committee_readiness, payload.symbol)
     if not report.ok:
         logger.info(
             "committee_run_rejected_data_unready",
@@ -153,6 +167,15 @@ async def list_runs(limit: int = 20) -> RunListResponse:
     clamped = max(1, min(int(limit), 100))
     rows = await run_in_threadpool(store.list_recent_runs, household_id, limit=clamped)
     return RunListResponse(runs=[RunListItem(**row) for row in rows])
+
+
+@router.get("/cost", response_model=CommitteeCostResponse)
+async def committee_cost(
+    days: int = Query(default=7, ge=1, le=30),
+) -> CommitteeCostResponse:
+    """Per-day manual committee spend rollup, oldest first."""
+    rows = await run_in_threadpool(_committee_cost_rows, days)
+    return CommitteeCostResponse(days=rows)
 
 
 @router.get("/runs/{run_id}", response_model=RunSnapshotResponse)
@@ -328,6 +351,75 @@ def _resolve_household_id() -> str | None:
     this for the shared dependency and the committee runs auto-scope.
     """
     return None
+
+
+def _committee_cost_rows(days: int) -> list[CommitteeCostDay]:
+    today = datetime.now(UTC).date()
+    start = today - timedelta(days=days - 1)
+    out: dict[date, dict[str, Any]] = {
+        start + timedelta(days=i): {
+            "run_count": 0,
+            "total_tokens": 0,
+            "est_cost_usd": 0.0,
+        }
+        for i in range(days)
+    }
+
+    with get_storage().connection() as conn:
+        has_source = _committee_runs_has_source_column(conn)
+        source_filter = "AND source IS DISTINCT FROM 'scanner_fanout'" if has_source else ""
+        rows = conn.execute(
+            f"""
+            SELECT COALESCE(completed_at, approved_at, aborted_at, started_at)::date AS d,
+                   COUNT(*) AS runs,
+                   COALESCE(SUM(tokens_total), 0) AS toks,
+                   COALESCE(SUM(cost_usd), 0) AS cost
+            FROM committee_runs
+            WHERE status IN ('complete', 'approved', 'failed', 'aborted')
+              {source_filter}
+              AND COALESCE(completed_at, approved_at, aborted_at, started_at)::date >= %s
+              AND COALESCE(completed_at, approved_at, aborted_at, started_at)::date <= %s
+            GROUP BY COALESCE(completed_at, approved_at, aborted_at, started_at)::date
+            """,
+            [start, today],
+        ).fetchall()
+
+    for row in rows or []:
+        day = row[0]
+        if day not in out:
+            continue
+        toks = int(row[2] or 0)
+        cost = float(row[3] or 0.0)
+        out[day]["run_count"] = int(row[1] or 0)
+        out[day]["total_tokens"] = toks
+        out[day]["est_cost_usd"] = (
+            cost if cost > 0 else round(toks * _COMMITTEE_RATE_PER_TOKEN_USD, 4)
+        )
+
+    return [
+        CommitteeCostDay(
+            date=day.isoformat(),
+            run_count=metrics["run_count"],
+            total_tokens=metrics["total_tokens"],
+            est_cost_usd=metrics["est_cost_usd"],
+        )
+        for day, metrics in sorted(out.items())
+    ]
+
+
+def _committee_runs_has_source_column(conn: Any) -> bool:
+    row = conn.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'committee_runs'
+              AND column_name = 'source'
+        )
+        """
+    ).fetchone()
+    return bool(row and row[0])
 
 
 def _validate_uuid(run_id: str) -> None:

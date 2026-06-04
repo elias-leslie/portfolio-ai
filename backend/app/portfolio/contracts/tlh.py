@@ -79,7 +79,7 @@ class WashSaleVerdict(BaseModel):
 
 
 class TLHCandidate(BaseModel):
-    """A single TLH opportunity surfaced by the scanner.
+    """A single TLH opportunity surfaced by the analysis engine.
 
     Default-projection fields (returned when ``detail=False``) are
     ``symbol``, ``account_id``, ``unrealized_loss``, ``unrealized_loss_pct``.

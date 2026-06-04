@@ -14,7 +14,6 @@ from uuid import uuid4
 import pytest
 
 from app.mcp_server import server as mcp_server
-from app.scanner.factors import FACTOR_NAMES
 
 # --------------------------------------------------------------- helpers
 
@@ -166,132 +165,6 @@ def test_get_deployment_history_min_clamp(monkeypatch: pytest.MonkeyPatch) -> No
     assert result["count"] == 0
 
 
-# --------------------------------------------------------------- get_scanner_top
-
-
-def test_get_scanner_top_returns_empty_when_no_runs(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_latest_run() -> dict[str, Any] | None:
-        return None
-
-    def fake_scores(run_id: Any, *, limit: int | None = None) -> list[dict[str, Any]]:
-        pytest.fail(f"should not be called when no run (run_id={run_id}, limit={limit})")
-
-    monkeypatch.setattr(mcp_server.scanner_repo, "get_latest_run", fake_latest_run)
-    monkeypatch.setattr(mcp_server.scanner_repo, "get_scores_for_run", fake_scores)
-
-    result = mcp_server.get_scanner_top()
-
-    assert result == {
-        "tier": "L2",
-        "kind": "deterministic",
-        "run": None,
-        "rows": [],
-        "factor_order": list(FACTOR_NAMES),
-    }
-
-
-def test_get_scanner_top_skips_score_fetch_on_defensive(monkeypatch: pytest.MonkeyPatch) -> None:
-    run = {
-        "run_id": str(uuid4()),
-        "run_date": "2026-05-18",
-        "gate_zone": "DEFENSIVE",
-        "gate_score": 30.0,
-        "universe_size": 503,
-        "scored_count": 0,
-        "skip_reason": "gate_defensive",
-        "started_at": "2026-05-18T17:35:00",
-        "completed_at": "2026-05-18T17:35:01",
-    }
-
-    def fake_latest_run() -> dict[str, Any]:
-        return run
-
-    def fake_scores(run_id: Any, *, limit: int | None = None) -> list[dict[str, Any]]:
-        pytest.fail(f"should not be called when defensive (run_id={run_id}, limit={limit})")
-
-    monkeypatch.setattr(mcp_server.scanner_repo, "get_latest_run", fake_latest_run)
-    monkeypatch.setattr(mcp_server.scanner_repo, "get_scores_for_run", fake_scores)
-
-    result = mcp_server.get_scanner_top(limit=50)
-
-    assert result["run"]["skip_reason"] == "gate_defensive"
-    assert result["rows"] == []
-    assert result["factor_order"] == list(FACTOR_NAMES)
-
-
-def test_get_scanner_top_shapes_scores(monkeypatch: pytest.MonkeyPatch) -> None:
-    run_id = uuid4()
-    run = {
-        "run_id": str(run_id),
-        "run_date": "2026-05-18",
-        "gate_zone": "FULL_DEPLOY",
-        "gate_score": 78.0,
-        "universe_size": 503,
-        "scored_count": 480,
-        "skip_reason": None,
-        "started_at": "2026-05-18T17:35:00",
-        "completed_at": "2026-05-18T17:38:00",
-    }
-    score_row: dict[str, Any] = {
-        "symbol": "NVDA",
-        "rank": 1,
-        "composite_pct": 96.2,
-        "factor_coverage": 1.0,
-        **dict.fromkeys(FACTOR_NAMES, 1.5),
-        **{f"{name}_pct": 92.0 for name in FACTOR_NAMES},
-    }
-    captured: dict[str, Any] = {}
-
-    def fake_latest_run() -> dict[str, Any]:
-        return run
-
-    def fake_scores(rid: Any, *, limit: int | None = None) -> list[dict[str, Any]]:
-        captured["run_id"] = rid
-        captured["limit"] = limit
-        return [score_row]
-
-    monkeypatch.setattr(mcp_server.scanner_repo, "get_latest_run", fake_latest_run)
-    monkeypatch.setattr(mcp_server.scanner_repo, "get_scores_for_run", fake_scores)
-
-    result = mcp_server.get_scanner_top(limit=10)
-
-    assert captured["run_id"] == run_id  # str -> UUID conversion happened
-    assert captured["limit"] == 10
-    assert result["rows"][0]["symbol"] == "NVDA"
-    assert result["rows"][0]["rank"] == 1
-    assert result["rows"][0]["composite_pct"] == 96.2
-    assert set(result["rows"][0]["factors"]) == set(FACTOR_NAMES)
-    assert set(result["rows"][0]["percentiles"]) == set(FACTOR_NAMES)
-    assert result["factor_order"] == list(FACTOR_NAMES)
-
-
-def test_get_scanner_top_clamps_limit(monkeypatch: pytest.MonkeyPatch) -> None:
-    run_id = uuid4()
-    run = {
-        "run_id": str(run_id), "run_date": "2026-05-18", "gate_zone": "FULL_DEPLOY",
-        "gate_score": 75.0, "universe_size": 500, "scored_count": 480,
-        "skip_reason": None, "started_at": None, "completed_at": None,
-    }
-    captured: dict[str, Any] = {}
-
-    def fake_latest_run() -> dict[str, Any]:
-        return run
-
-    def fake_scores(rid: Any, *, limit: int | None = None) -> list[dict[str, Any]]:
-        captured["rid"] = rid
-        captured["limit"] = limit
-        return []
-
-    monkeypatch.setattr(mcp_server.scanner_repo, "get_latest_run", fake_latest_run)
-    monkeypatch.setattr(mcp_server.scanner_repo, "get_scores_for_run", fake_scores)
-
-    mcp_server.get_scanner_top(limit=10_000)
-    assert captured["limit"] == 500
-
-    mcp_server.get_scanner_top(limit=0)
-    assert captured["limit"] == 1
-
-
 # --------------------------------------------------------------- get_committee_runs_today
 
 
@@ -365,22 +238,11 @@ def test_get_symbol_full_picture_rejects_empty_ticker(monkeypatch: pytest.Monkey
     assert result["error"] == "empty_ticker"
     assert result["symbol"] == ""
     assert result["macro"] is None
-    assert result["scanner"] is None
     assert result["committee"] is None
 
 
-def test_get_symbol_full_picture_unifies_three_tiers(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_symbol_full_picture_unifies_macro_and_committee(monkeypatch: pytest.MonkeyPatch) -> None:
     macro = _macro_snapshot("2026-05-18", deployment_score=72.0, zone="FULL_DEPLOY")
-    scanner_history = [
-        {
-            "run_date": "2026-05-18",
-            "gate_zone": "FULL_DEPLOY",
-            "rank": 5,
-            "composite_pct": 88.0,
-            "factor_coverage": 0.8,
-            **{f"{name}_pct": 85.0 for name in FACTOR_NAMES},
-        }
-    ]
     committee_payload = {
         "NVDA": {
             "run_id": str(uuid4()),
@@ -388,8 +250,6 @@ def test_get_symbol_full_picture_unifies_three_tiers(monkeypatch: pytest.MonkeyP
             "status": "complete",
             "action": "buy",
             "confidence": 0.82,
-            "source": "scanner_fanout",
-            "scanner_rank": 5,
             "completed_at": "2026-05-18T18:42:00+00:00",
         }
     }
@@ -399,60 +259,43 @@ def test_get_symbol_full_picture_unifies_three_tiers(monkeypatch: pytest.MonkeyP
     def fake_get_latest() -> dict[str, Any]:
         return macro
 
-    def fake_history(symbol: str, days: int) -> list[dict[str, Any]]:
-        captured["symbol"] = symbol
-        captured["days"] = days
-        return scanner_history
-
     def fake_committee(symbols: list[str]) -> dict[str, dict[str, Any]]:
         captured["symbols"] = symbols
         return committee_payload
 
     monkeypatch.setattr(mcp_server.macro_repo, "get_latest", fake_get_latest)
-    monkeypatch.setattr(mcp_server.scanner_repo, "get_history_for_symbol", fake_history)
     monkeypatch.setattr(mcp_server.committee_store, "get_latest_completed_by_symbol", fake_committee)
 
     result = mcp_server.get_symbol_full_picture(ticker=" nvda ", days=400)
 
     assert result["symbol"] == "NVDA"
-    assert captured["symbol"] == "NVDA"
-    assert captured["days"] == 365  # clamped
+    assert result["days"] == 365  # clamped for backward compatibility
     assert captured["symbols"] == ["NVDA"]
     assert result["macro"]["zone"] == "FULL_DEPLOY"
     assert result["macro"]["components"]["vix"] == 70.0
-    assert result["scanner"]["days"] == 365
-    assert result["scanner"]["history"][0]["rank"] == 5
-    assert set(result["scanner"]["history"][0]["percentiles"]) == set(FACTOR_NAMES)
     assert result["committee"]["latest"]["action"] == "buy"
-    assert result["committee"]["latest"]["scanner_rank"] == 5
 
 
 def test_get_symbol_full_picture_returns_none_committee_when_absent(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_get_latest() -> dict[str, Any] | None:
         return None
 
-    def fake_history(_symbol: str, days: int) -> list[dict[str, Any]]:
-        assert days > 0
-        return []
-
     def fake_committee(_symbols: list[str]) -> dict[str, dict[str, Any]]:
         return {}
 
     monkeypatch.setattr(mcp_server.macro_repo, "get_latest", fake_get_latest)
-    monkeypatch.setattr(mcp_server.scanner_repo, "get_history_for_symbol", fake_history)
     monkeypatch.setattr(mcp_server.committee_store, "get_latest_completed_by_symbol", fake_committee)
 
     result = mcp_server.get_symbol_full_picture(ticker="XOM")
 
     assert result["committee"]["latest"] is None
     assert result["macro"]["zone"] is None
-    assert result["scanner"]["history"] == []
 
 
 # --------------------------------------------------------------- registration
 
 
-def test_fastmcp_server_registers_all_five_tools() -> None:
+def test_fastmcp_server_registers_release_tools() -> None:
     import asyncio
 
     tools = asyncio.run(mcp_server.mcp.list_tools())
@@ -460,7 +303,6 @@ def test_fastmcp_server_registers_all_five_tools() -> None:
     assert names == {
         "get_deployment_zone",
         "get_deployment_history",
-        "get_scanner_top",
         "get_committee_runs_today",
         "get_symbol_full_picture",
     }

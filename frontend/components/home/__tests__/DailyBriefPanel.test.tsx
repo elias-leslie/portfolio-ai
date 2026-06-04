@@ -24,7 +24,7 @@ vi.mock('@/lib/hooks/usePortfolio', () => ({
   usePortfolioAnalytics: () => usePortfolioAnalyticsMock(),
 }))
 
-vi.mock('@/lib/hooks/useSignals', () => ({
+vi.mock('@/lib/hooks/useMacro', () => ({
   useMacroCurrent: () => useMacroCurrentMock(),
   useMacroConditions: () => useMacroConditionsMock(),
 }))

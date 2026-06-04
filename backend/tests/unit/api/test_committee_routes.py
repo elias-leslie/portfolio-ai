@@ -11,6 +11,7 @@ console.
 
 from __future__ import annotations
 
+from datetime import UTC, date, datetime
 from typing import Any
 
 import pytest
@@ -224,6 +225,122 @@ def test_get_runs_clamps_limit_to_one_hundred(
     response = client.get("/api/committee/runs?limit=10000")
     assert response.status_code == 200
     assert captured["limit"] == 100
+
+
+# ---------- GET /cost ----------
+
+
+def test_get_cost_returns_committee_spend_rows(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient
+) -> None:
+    def fake_committee_cost_rows(_days: int) -> list[routes.CommitteeCostDay]:
+        return [
+            routes.CommitteeCostDay(
+                date="2026-05-17",
+                run_count=0,
+                total_tokens=0,
+                est_cost_usd=0.0,
+            ),
+            routes.CommitteeCostDay(
+                date="2026-05-18",
+                run_count=2,
+                total_tokens=1000,
+                est_cost_usd=0.003,
+            ),
+        ]
+
+    monkeypatch.setattr(
+        routes,
+        "_committee_cost_rows",
+        fake_committee_cost_rows,
+    )
+
+    response = client.get("/api/committee/cost?days=2")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "days": [
+            {
+                "date": "2026-05-17",
+                "run_count": 0,
+                "total_tokens": 0,
+                "est_cost_usd": 0.0,
+            },
+            {
+                "date": "2026-05-18",
+                "run_count": 2,
+                "total_tokens": 1000,
+                "est_cost_usd": 0.003,
+            },
+        ]
+    }
+
+
+def test_committee_cost_rows_excludes_fanout_runs_before_column_drop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> datetime:
+            return datetime(2026, 5, 18, 12, 0, tzinfo=tz or UTC)
+
+    class _Cursor:
+        def __init__(
+            self,
+            row: tuple[Any, ...] | None = None,
+            rows: list[tuple[Any, ...]] | None = None,
+        ):
+            self._row = row
+            self._rows = rows or []
+
+        def fetchone(self) -> tuple[Any, ...] | None:
+            return self._row
+
+        def fetchall(self) -> list[tuple[Any, ...]]:
+            return self._rows
+
+    class _Conn:
+        def execute(self, sql: str, params: Any = None) -> _Cursor:
+            if "information_schema.columns" in sql:
+                return _Cursor(row=(True,))
+            captured["sql"] = sql
+            captured["params"] = params
+            return _Cursor(rows=[(date(2026, 5, 18), 2, 1000, 0.0)])
+
+    class _ConnCtx:
+        def __enter__(self) -> _Conn:
+            return _Conn()
+
+        def __exit__(self, *_exc: Any) -> bool:
+            return False
+
+    class _Storage:
+        def connection(self) -> _ConnCtx:
+            return _ConnCtx()
+
+    monkeypatch.setattr(routes, "datetime", FixedDateTime)
+    monkeypatch.setattr(routes, "get_storage", _Storage)
+
+    rows = routes._committee_cost_rows(2)
+
+    assert "source IS DISTINCT FROM 'scanner_fanout'" in captured["sql"]
+    assert captured["params"] == [date(2026, 5, 17), date(2026, 5, 18)]
+    assert [row.model_dump() for row in rows] == [
+        {
+            "date": "2026-05-17",
+            "run_count": 0,
+            "total_tokens": 0,
+            "est_cost_usd": 0.0,
+        },
+        {
+            "date": "2026-05-18",
+            "run_count": 2,
+            "total_tokens": 1000,
+            "est_cost_usd": 0.003,
+        },
+    ]
 
 
 # ---------- GET /runs/{id} (snapshot) ----------

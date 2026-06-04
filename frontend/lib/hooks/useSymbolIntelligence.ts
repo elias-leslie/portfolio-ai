@@ -25,7 +25,6 @@ export function useRefreshSymbolIntelligence(symbol: string) {
       fetchSymbolIntelligence(symbol, { forceQuoteRefresh: true }),
     onSuccess: (result) => {
       queryClient.setQueryData(['symbol-intelligence', symbol], result)
-      queryClient.invalidateQueries({ queryKey: ['signals', 'symbol', symbol] })
     },
     onError: (error) => {
       toast.error(

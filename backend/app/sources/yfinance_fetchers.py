@@ -282,11 +282,11 @@ def fetch_short_interest(symbol: str) -> dict[str, Any] | None:
 def fetch_quarterly_fundamentals(symbol: str) -> dict[str, Any] | None:
     """One-shot pull of quarterly income/balance/cashflow + info for L3.
 
-    Used by ``fetch_candidate_fundamentals`` at fan-out time, separate
-    from the weekly watchlist ingestion path. Returns the dict produced
-    by ``parse_quarterly_fundamentals`` (every field nullable so the
-    analyst can reason from partial data) or ``None`` if the ticker
-    handle itself fails.
+    Used by committee payload builders that need fresh one-off
+    fundamentals, separate from the weekly watchlist ingestion path.
+    Returns the dict produced by ``parse_quarterly_fundamentals`` (every
+    field nullable so the analyst can reason from partial data) or
+    ``None`` if the ticker handle itself fails.
     """
     try:
         with _managed_yf_session() as session:

@@ -88,16 +88,6 @@ vi.mock('@/components/portfolio/InvestingNewsPanel', () => ({
     </div>
   ),
 }))
-vi.mock('@/components/signals/SignalsTabContent', () => ({
-  SignalsTabContent: () => <div>Signals Tab Content</div>,
-}))
-vi.mock('@/lib/hooks/useSignals', () => ({
-  useBlendedSignals: () => ({
-    data: null,
-    isLoading: false,
-    error: null,
-  }),
-}))
 
 vi.mock('@/lib/hooks/usePortfolio', () => ({
   useAccounts: vi.fn(),

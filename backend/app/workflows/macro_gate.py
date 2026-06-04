@@ -1,8 +1,8 @@
 """L1 macro deployment gate workflow.
 
 Daily at 17:30 ET (22:30 UTC) — after the fear/greed inputs job and the
-daily OHLCV refresh have both settled. Persists the snapshot and emits
-``macro.gate.completed`` so the L2 scanner can chain off it.
+daily OHLCV refresh have both settled. Persists the snapshot used by
+Today and market-regime views.
 """
 
 from __future__ import annotations
@@ -36,13 +36,6 @@ async def macro_gate_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     output = await asyncio.to_thread(run_macro_gate)
     if output is None:
         return {"status": "skipped", "reason": "no_inputs"}
-
-    # Chain L2 scanner. Imported lazily to avoid cyclic registration at
-    # Hatchet boot. ``aio_run_no_wait`` returns immediately so the gate
-    # task isn't held open while the scanner runs.
-    from .scanner import scanner_wf
-
-    await scanner_wf.aio_run_no_wait(EmptyInput())
 
     return {
         "status": "ok",

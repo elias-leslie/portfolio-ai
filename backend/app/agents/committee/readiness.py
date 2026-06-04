@@ -14,7 +14,6 @@ returns a structured ``ReadinessReport``.
 
 Callers:
 - ``app.api.committee_runs.start_run``        — HTTP 422 with the report
-- ``app.workflows.committee_fanout.run_fanout`` — skip BEFORE Tier-1
 - ``app.agents.committee.graph.run_committee``  — belt-and-suspenders
 
 Block vs warn:
@@ -39,11 +38,9 @@ logger = get_logger(__name__)
 
 
 ReadinessSeverity = Literal["block", "warn"]
-ReadinessSource = Literal["manual", "scanner_fanout"]
-
 # Per-check policy ----------------------------------------------------------
 # OHLCV / indicators are market data: weekend-aware age is used so a Sunday
-# fan-out is not blocked just because Friday's bars are 60h old in calendar
+# run is not blocked just because Friday's bars are 60h old in calendar
 # terms. The thresholds are tighter than the cluster-wide
 # data_freshness_service alerts (24h expected) because a committee run that
 # happens to be the first to notice missing data should fail fast, not
@@ -69,10 +66,6 @@ _WATCHLIST_SNAPSHOT_CRITICAL_HOURS = 24
 # checks would false-positive on illiquid names that legitimately have no
 # coverage on a given day; 7d catches truly broken ingestion.
 _NEWS_RECENCY_DAYS = 7
-# Scanner-sourced runs use the on-demand fundamentals snapshot instead of
-# the watchlist cache. 24h matches the fan-out cadence — anything older
-# means the fetch step failed or never ran.
-_CANDIDATE_FUNDAMENTALS_STALE_HOURS = 24
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,20 +120,8 @@ def check_committee_readiness(
     symbol: str,
     *,
     now: dt.datetime | None = None,
-    source: ReadinessSource = "manual",
 ) -> ReadinessReport:
     """Run every readiness check for ``symbol``. Query-only, no LLM cost.
-
-    ``source`` selects which fundamentals layer is required:
-
-    - ``manual``         — user-curated symbols, fundamentals come from
-                            the watchlist snapshot (pre-computed pillar
-                            scores + narrative). Block when missing.
-    - ``scanner_fanout`` — L2 scanner candidates that are not in any
-                            user watchlist by definition. The L3 spec
-                            calls for an on-demand yfinance pull at
-                            fan-out time; this check looks at
-                            ``candidate_fundamentals_snapshots`` instead.
 
     Each check runs even if earlier ones failed so the report lists
     every issue at once — UI / logs can show the full picture instead
@@ -166,10 +147,7 @@ def check_committee_readiness(
     issues: list[ReadinessIssue] = []
     issues.extend(_check_ohlcv(upper_symbol, current))
     issues.extend(_check_indicators(upper_symbol, current))
-    if source == "scanner_fanout":
-        issues.extend(_check_candidate_fundamentals(upper_symbol, current))
-    else:
-        issues.extend(_check_watchlist_snapshot(upper_symbol, current))
+    issues.extend(_check_watchlist_snapshot(upper_symbol, current))
     issues.extend(_check_news(upper_symbol, current))
 
     ok = not any(i.severity == "block" for i in issues)
@@ -185,10 +163,9 @@ def assert_committee_ready(
     symbol: str,
     *,
     now: dt.datetime | None = None,
-    source: ReadinessSource = "manual",
 ) -> ReadinessReport:
     """Raise :class:`CommitteeDataUnreadyError` if the gate fails."""
-    report = check_committee_readiness(symbol, now=now, source=source)
+    report = check_committee_readiness(symbol, now=now)
     if not report.ok:
         raise CommitteeDataUnreadyError(report)
     return report
@@ -200,8 +177,8 @@ def assert_committee_ready(
 def _check_ohlcv(symbol: str, now: dt.datetime) -> list[ReadinessIssue]:
     """Block: zero rows or last bar older than the OHLCV stale ceiling.
 
-    Uses ``get_market_aware_age_hours`` so a Sunday fan-out is not
-    blocked just because Friday's bars are 60h old in calendar time.
+    Uses ``get_market_aware_age_hours`` so a Sunday run is not blocked
+    just because Friday's bars are 60h old in calendar time.
     Also requires the latest row's ``close`` to be a finite positive
     number — a row with NULL close is as good as no row to the trader.
     """
@@ -456,83 +433,6 @@ def _check_watchlist_snapshot(symbol: str, now: dt.datetime) -> list[ReadinessIs
             )
         )
     return issues
-
-
-def _check_candidate_fundamentals(
-    symbol: str, now: dt.datetime
-) -> list[ReadinessIssue]:
-    """Block when the on-demand fundamentals snapshot is missing or stale.
-
-    Scanner-sourced runs depend on a fresh ``candidate_fundamentals_snapshots``
-    row written by the fan-out's per-candidate fetch step. Absence means
-    the fetch never ran (or failed); the analyst would have to reason
-    from an empty payload.
-    """
-    cm = get_connection_manager()
-    try:
-        with cm.connection() as conn:
-            row = conn.execute(
-                """
-                SELECT fetched_at, yfinance_ok, error
-                FROM candidate_fundamentals_snapshots
-                WHERE upper(symbol) = upper(%s)
-                ORDER BY fetched_at DESC
-                LIMIT 1
-                """,
-                (symbol,),
-            ).fetchone()
-    except Exception as exc:
-        logger.exception(
-            "readiness_candidate_fundamentals_query_failed", symbol=symbol
-        )
-        return [
-            ReadinessIssue(
-                check="candidate_fundamentals_query_failed",
-                severity="block",
-                detail=f"candidate_fundamentals_snapshots query failed: {exc}",
-            )
-        ]
-    if row is None:
-        return [
-            ReadinessIssue(
-                check="candidate_fundamentals_missing",
-                severity="block",
-                detail="no candidate_fundamentals_snapshots row for symbol",
-            )
-        ]
-    fetched_at, yfinance_ok, error = row[0], bool(row[1]), row[2]
-    if not yfinance_ok:
-        return [
-            ReadinessIssue(
-                check="candidate_fundamentals_fetch_failed",
-                severity="block",
-                detail=str(error) if error else "yfinance fetch failed",
-            )
-        ]
-    if not isinstance(fetched_at, dt.datetime):
-        return [
-            ReadinessIssue(
-                check="candidate_fundamentals_invalid_time",
-                severity="block",
-                detail=f"fetched_at not a datetime: {fetched_at!r}",
-            )
-        ]
-    if fetched_at.tzinfo is None:
-        fetched_at = fetched_at.replace(tzinfo=dt.UTC)
-    age_hours = (now - fetched_at).total_seconds() / 3600
-    if age_hours > _CANDIDATE_FUNDAMENTALS_STALE_HOURS:
-        return [
-            ReadinessIssue(
-                check="candidate_fundamentals_stale",
-                severity="block",
-                detail=(
-                    f"snapshot is {age_hours:.1f}h old "
-                    f"(max {_CANDIDATE_FUNDAMENTALS_STALE_HOURS}h)"
-                ),
-                value=fetched_at.isoformat(),
-            )
-        ]
-    return []
 
 
 def _check_news(symbol: str, now: dt.datetime) -> list[ReadinessIssue]:

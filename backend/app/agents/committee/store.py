@@ -43,14 +43,8 @@ def create_run(
     household_id: str | None,
     parent_run_id: str | None,
     graph_version: str,
-    source: str | None = None,
-    scanner_rank: int | None = None,
 ) -> str:
     """Insert a fresh committee_runs row in status='pending'. Returns run_id (uuid str).
-
-    ``source`` / ``scanner_rank`` are populated by the Phase 3 scanner
-    fan-out workflow to mark provenance. User-triggered runs leave them
-    NULL.
     """
     run_id = str(uuid.uuid4())
     cm = get_connection_manager()
@@ -58,9 +52,8 @@ def create_run(
         conn.execute(
             """
             INSERT INTO committee_runs
-                (id, symbol, household_id, status, parent_run_id, graph_version,
-                 source, scanner_rank)
-            VALUES (%s, %s, %s, 'pending', %s, %s, %s, %s)
+                (id, symbol, household_id, status, parent_run_id, graph_version)
+            VALUES (%s, %s, %s, 'pending', %s, %s)
             """,
             (
                 run_id,
@@ -68,8 +61,6 @@ def create_run(
                 household_id,
                 parent_run_id,
                 graph_version,
-                source,
-                scanner_rank,
             ),
         )
         conn.commit()
@@ -115,34 +106,6 @@ def mark_complete(run_id: str, *, decision: PmDecision, tokens_total: int, cost_
             ),
         )
         conn.commit()
-
-
-def set_blended_rank(run_id: str, blended_rank: float) -> None:
-    """Persist the 60/40 quant+committee blend on a completed scanner-sourced run."""
-    cm = get_connection_manager()
-    with cm.connection() as conn:
-        conn.execute(
-            "UPDATE committee_runs SET blended_rank=%s WHERE id=%s",
-            (round(float(blended_rank), 2), run_id),
-        )
-        conn.commit()
-
-
-def get_run_provenance(run_id: str) -> dict[str, Any] | None:
-    """Return source + scanner_rank + symbol for a run, or ``None`` if missing.
-
-    Used by the blender to look up the L2 ``composite_pct`` of a
-    scanner-sourced run without threading it through the runner.
-    """
-    cm = get_connection_manager()
-    with cm.connection() as conn:
-        row = conn.execute(
-            "SELECT symbol, source, scanner_rank FROM committee_runs WHERE id=%s",
-            (run_id,),
-        ).fetchone()
-    if row is None:
-        return None
-    return {"symbol": row[0], "source": row[1], "scanner_rank": row[2]}
 
 
 def mark_aborted(run_id: str, *, reason: str) -> None:
@@ -480,11 +443,8 @@ def list_recent_runs(
 def get_latest_completed_by_symbol(symbols: list[str]) -> dict[str, dict[str, Any]]:
     """Latest ``complete``/``approved`` committee run per symbol.
 
-    Used by the L2/L3 blender to attach the freshest committee verdict
-    to a scanner symbol. Returns the run summary (id, action,
-    confidence, scanner_rank, source, completed_at) keyed by uppercase
-    symbol. Symbols without any completed run are absent from the
-    mapping.
+    Returns the run summary (id, action, confidence, completed_at) keyed
+    by uppercase symbol. Symbols without any completed run are absent.
     """
     if not symbols:
         return {}
@@ -495,7 +455,7 @@ def get_latest_completed_by_symbol(symbols: list[str]) -> dict[str, dict[str, An
             """
             SELECT DISTINCT ON (symbol)
                    id, symbol, status, decision_action, confidence,
-                   source, scanner_rank, completed_at
+                   completed_at
             FROM committee_runs
             WHERE symbol = ANY(%s)
               AND status IN ('complete', 'approved')
@@ -513,9 +473,7 @@ def get_latest_completed_by_symbol(symbols: list[str]) -> dict[str, dict[str, An
             "status": row[2],
             "action": row[3],
             "confidence": float(row[4]) if row[4] is not None else None,
-            "source": row[5],
-            "scanner_rank": int(row[6]) if row[6] is not None else None,
-            "completed_at": row[7].isoformat() if isinstance(row[7], datetime) else row[7],
+            "completed_at": row[5].isoformat() if isinstance(row[5], datetime) else row[5],
         }
     return out
 

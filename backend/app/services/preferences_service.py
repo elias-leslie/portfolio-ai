@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -13,7 +12,6 @@ from app.models.preferences import (
     MIN_WATCHLIST_REFRESH_MINUTES,
     PreferencesResponse,
     PreferencesUpdate,
-    ScannerFanoutSettings,
     ScoringWeightsUpdate,
     clamp_optional_watchlist_refresh_minutes,
     clamp_watchlist_refresh_minutes,
@@ -32,30 +30,6 @@ AUTOMATION_PREFERENCE_KEYS = (
     "scheduled_strategy_research_enabled",
     "scheduled_account_sync_enabled",
 )
-
-# Scanner-fanout (L3 committee) runtime knobs. Each DB column is nullable;
-# when NULL we fall back to the env var, then to the hard-coded default.
-SCANNER_FANOUT_DEFAULTS: dict[str, int | bool] = {
-    "scanner_fanout_enabled": True,
-    "scanner_fanout_top_n": 25,
-    "scanner_fanout_tier1_keep": 8,
-    "scanner_fanout_max_daily": 25,
-    "scanner_fanout_cache_ttl_hours": 24,
-}
-SCANNER_FANOUT_ENV_VARS: dict[str, str] = {
-    "scanner_fanout_enabled": "SCANNER_FANOUT_ENABLED",
-    "scanner_fanout_top_n": "COMMITTEE_FANOUT_TOP_N",
-    "scanner_fanout_tier1_keep": "COMMITTEE_TIER1_KEEP",
-    "scanner_fanout_max_daily": "COMMITTEE_FANOUT_MAX_DAILY",
-    "scanner_fanout_cache_ttl_hours": "COMMITTEE_FANOUT_CACHE_TTL_HOURS",
-}
-SCANNER_FANOUT_INT_KEYS = (
-    "scanner_fanout_top_n",
-    "scanner_fanout_tier1_keep",
-    "scanner_fanout_max_daily",
-    "scanner_fanout_cache_ttl_hours",
-)
-
 
 def _normalize_watchlist_refresh_preferences(prefs: dict[str, Any]) -> dict[str, Any]:
     """Clamp legacy watchlist refresh values to the supported product floor."""
@@ -152,11 +126,6 @@ def get_or_create_automation_preferences() -> dict[str, Any]:
         "scheduled_ml_labeling_enabled": None,
         "scheduled_strategy_research_enabled": None,
         "scheduled_account_sync_enabled": None,
-        "scanner_fanout_enabled": None,
-        "scanner_fanout_top_n": None,
-        "scanner_fanout_tier1_keep": None,
-        "scanner_fanout_max_daily": None,
-        "scanner_fanout_cache_ttl_hours": None,
         "created_at": now,
         "updated_at": now,
     }
@@ -432,100 +401,6 @@ def _update_automation_preferences(updates: dict[str, bool | None]) -> None:
             ],
         )
         conn.commit()
-
-
-def _coalesce_bool(stored: Any, env_var: str | None, default: bool) -> bool:
-    if stored is not None:
-        return bool(stored)
-    if env_var:
-        raw = os.environ.get(env_var)
-        if raw is not None:
-            lowered = raw.strip().lower()
-            if lowered in {"1", "true", "yes", "on"}:
-                return True
-            if lowered in {"0", "false", "no", "off"}:
-                return False
-    return default
-
-
-def _coalesce_int(stored: Any, env_var: str | None, default: int) -> int:
-    if stored is not None:
-        try:
-            return int(stored)
-        except (TypeError, ValueError):
-            pass
-    if env_var:
-        raw = os.environ.get(env_var)
-        if raw:
-            try:
-                return max(0, int(raw))
-            except ValueError:
-                pass
-    return default
-
-
-def get_scanner_fanout_settings() -> ScannerFanoutSettings:
-    """Resolve scanner-fanout settings with DB → env → constant fallback."""
-    row = get_or_create_automation_preferences()
-    enabled_default = bool(SCANNER_FANOUT_DEFAULTS["scanner_fanout_enabled"])
-    return ScannerFanoutSettings(
-        enabled=_coalesce_bool(
-            row.get("scanner_fanout_enabled"),
-            SCANNER_FANOUT_ENV_VARS["scanner_fanout_enabled"],
-            enabled_default,
-        ),
-        top_n=_coalesce_int(
-            row.get("scanner_fanout_top_n"),
-            SCANNER_FANOUT_ENV_VARS["scanner_fanout_top_n"],
-            int(SCANNER_FANOUT_DEFAULTS["scanner_fanout_top_n"]),
-        ),
-        tier1_keep=_coalesce_int(
-            row.get("scanner_fanout_tier1_keep"),
-            SCANNER_FANOUT_ENV_VARS["scanner_fanout_tier1_keep"],
-            int(SCANNER_FANOUT_DEFAULTS["scanner_fanout_tier1_keep"]),
-        ),
-        max_daily=_coalesce_int(
-            row.get("scanner_fanout_max_daily"),
-            SCANNER_FANOUT_ENV_VARS["scanner_fanout_max_daily"],
-            int(SCANNER_FANOUT_DEFAULTS["scanner_fanout_max_daily"]),
-        ),
-        cache_ttl_hours=_coalesce_int(
-            row.get("scanner_fanout_cache_ttl_hours"),
-            SCANNER_FANOUT_ENV_VARS["scanner_fanout_cache_ttl_hours"],
-            int(SCANNER_FANOUT_DEFAULTS["scanner_fanout_cache_ttl_hours"]),
-        ),
-    )
-
-
-def update_scanner_fanout_settings(
-    settings: ScannerFanoutSettings,
-) -> ScannerFanoutSettings:
-    """Persist the full scanner-fanout settings shape (PUT semantics)."""
-    get_or_create_automation_preferences()
-    with get_storage().connection() as conn:
-        conn.execute(
-            """
-            UPDATE automation_preferences
-            SET scanner_fanout_enabled = %s,
-                scanner_fanout_top_n = %s,
-                scanner_fanout_tier1_keep = %s,
-                scanner_fanout_max_daily = %s,
-                scanner_fanout_cache_ttl_hours = %s,
-                updated_at = %s
-            WHERE id = %s
-            """,
-            [
-                settings.enabled,
-                settings.top_n,
-                settings.tier1_keep,
-                settings.max_daily,
-                settings.cache_ttl_hours,
-                datetime.now(UTC),
-                USER_ID,
-            ],
-        )
-        conn.commit()
-    return get_scanner_fanout_settings()
 
 
 def get_scoring_weights() -> ScoringWeightsUpdate:

@@ -9,7 +9,7 @@ export function useTodayRefresh() {
     mutationFn: refreshToday,
     onSuccess: (result) => {
       const keys = [
-        ['signals'],
+        ['macro'],
         ['market'],
         ['portfolio'],
         ['household'],

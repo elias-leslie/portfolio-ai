@@ -171,30 +171,3 @@ class PastDecisionEntry(BaseModel):
     qty_pct: float | None = None
     realized_pnl: float | None = None
     horizon: str | None = None
-
-
-Conviction = Literal["low", "mid", "high"]
-Tier1TopFactor = Literal[
-    "mom_xover",
-    "vol_surge",
-    "rs_vs_spy",
-    "high_52w_proximity",
-    "short_interest_decline",
-    "fundamentals",
-    "news",
-    "sentiment",
-    "other",
-]
-
-
-class Tier1Verdict(BaseModel):
-    """One Tier-1 cheap pre-screen verdict for a single symbol."""
-
-    agent_slug: str
-    symbol: str
-    score: float = Field(ge=-1.0, le=1.0)
-    conviction: Conviction
-    one_line_rationale: str
-    top_factor: Tier1TopFactor
-    tokens: int = 0
-    latency_ms: int = 0

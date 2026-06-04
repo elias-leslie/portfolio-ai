@@ -8,8 +8,6 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { RelativeTime } from '@/components/shared/RelativeTime'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs'
-import { CommitteeLatestCard } from '@/components/signals/CommitteeLatestCard'
-import { MacroContextCard } from '@/components/signals/MacroContextCard'
 import { SymbolDecisionPanel } from '@/components/symbol/SymbolDecisionPanel'
 import { SymbolWorkflowPanel } from '@/components/symbol/SymbolWorkflowPanel'
 import { Button } from '@/components/ui/button'
@@ -21,7 +19,6 @@ import {
 } from '@/lib/formatters'
 import { useJennyDashboard } from '@/lib/hooks/usePortfolio'
 import { usePreferences } from '@/lib/hooks/usePreferences'
-import { useSymbolSignals } from '@/lib/hooks/useSignals'
 import {
   useRefreshSymbolIntelligence,
   useSymbolIntelligence,
@@ -42,7 +39,6 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
   const { data, isLoading, error, isFetching } =
     useSymbolIntelligence(uppercaseSymbol)
   const refreshSymbol = useRefreshSymbolIntelligence(uppercaseSymbol)
-  const { data: symbolSignals } = useSymbolSignals(uppercaseSymbol)
   const { data: jennyDashboard, error: jennyError } = useJennyDashboard()
   const { data: preferences } = usePreferences()
   const userTimezone = preferences?.displayTimezone ?? 'America/New_York'
@@ -204,20 +200,6 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
         <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
           Jenny review data is temporarily unavailable. Live symbol intelligence
           is still shown below.
-        </div>
-      ) : null}
-
-      {symbolSignals ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <MacroContextCard
-            macro={symbolSignals.macro}
-            scanner={symbolSignals.scanner}
-            symbol={uppercaseSymbol}
-          />
-          <CommitteeLatestCard
-            committee={symbolSignals.committee}
-            symbol={uppercaseSymbol}
-          />
         </div>
       ) : null}
 

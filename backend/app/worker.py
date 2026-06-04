@@ -13,7 +13,6 @@ from app.logging_config import configure_logging
 from app.workflows.account_sync import sync_accounts_wf
 from app.workflows.agents import schedule_new_symbol_wf
 from app.workflows.catalysts import portfolio_catalyst_prewarm_wf
-from app.workflows.committee_fanout import committee_fanout_wf
 from app.workflows.data_refresh import (
     backfill_indicators_wf,
     calculate_fear_greed_wf,
@@ -70,7 +69,6 @@ from app.workflows.reference import (
     yfinance_ref_wf,
 )
 from app.workflows.research_universe import research_universe_refresh_wf
-from app.workflows.scanner import scanner_wf
 from app.workflows.strategy import (
     covariance_wf,
     portfolio_snapshots_wf,
@@ -154,12 +152,9 @@ def main() -> None:
             jenny_daily_household_maintenance_wf,
             # Macro calendar ingestion
             market_macro_calendar_ingestion_wf,
-            # Signal stack: L1 macro gate -> L2 scanner -> L3 committee fan-out;
-            # universe refresh feeds all three.
+            # Macro deployment gate and its research universe feed.
             research_universe_refresh_wf,
             macro_gate_wf,
-            scanner_wf,
-            committee_fanout_wf,
             # Events (1)
             cross_validate_insight_wf,
             # Portfolio TLH (1)

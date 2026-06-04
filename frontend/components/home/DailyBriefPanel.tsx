@@ -27,8 +27,8 @@ import {
   useHouseholdDashboard,
   useHouseholdNetWorthTrend,
 } from '@/lib/hooks/useHousehold'
+import { useMacroConditions, useMacroCurrent } from '@/lib/hooks/useMacro'
 import { usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
-import { useMacroConditions, useMacroCurrent } from '@/lib/hooks/useSignals'
 import { useTodayRefresh } from '@/lib/hooks/useTodayRefresh'
 import { cn } from '@/lib/utils'
 
