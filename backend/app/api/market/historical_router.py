@@ -328,6 +328,9 @@ async def get_sector_history(
 
     # Use YFinanceSource for data access (layer separation)
     yf_source = YFinanceSource()
+    from app.api.market._core_helpers import _get_price_fetcher  # noqa: PLC0415
+
+    current_prices = _get_price_fetcher().fetch_price_data(list(SECTOR_ETFS.keys()))
 
     for symbol, name in SECTOR_ETFS.items():
         # Fetch fresh adjusted prices via YFinanceSource
@@ -340,6 +343,7 @@ async def get_sector_history(
         # Skip this sector if price change is unrealistic (data quality issue)
         if not _validate_sector_price_change(rows, symbol):
             continue
+        rows = _append_current_quote_row(rows, current_prices.get(symbol))
 
         sector_history, period_start, period_end = build_sector_history(
             symbol, name, rows, period_start, period_end

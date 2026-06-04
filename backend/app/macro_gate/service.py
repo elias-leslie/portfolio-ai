@@ -8,16 +8,22 @@ need it directly (the workflow + the read API).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from ..logging_config import get_logger
+from ..portfolio.models import PriceData
+from ..portfolio.price_fetcher import PriceDataFetcher
+from ..storage.facade import get_storage
+from ..utils.market_hours import NY_TZ
 from . import repository
 from .scoring import CompositeResult, RawSignals, build_composite
 from .signals import factor_crowding, fear_greed_components, spx_breadth_200d, term_structure
 
 logger = get_logger(__name__)
 CROWDING_CACHE_MAX_DAYS = 10
+CURRENT_QUOTE_MAX_AGE_MINUTES = 5
+VIX_SYMBOL = "^VIX"
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,10 +48,14 @@ class CrowdingSignal:
     status: str = "fresh"
 
 
+def _current_market_date() -> date:
+    return datetime.now(NY_TZ).date()
+
+
 def _quality(
     *,
     value: float | None,
-    as_of: date | None,
+    as_of: date | datetime | None,
     source: str,
     cadence: str,
     stale: bool = False,
@@ -79,7 +89,7 @@ def _cached_crowding() -> CrowdingSignal | None:
     as_of = _parse_date(cached.get("as_of"))
     if as_of is None:
         return None
-    if date.today() - as_of > timedelta(days=CROWDING_CACHE_MAX_DAYS):
+    if _current_market_date() - as_of > timedelta(days=CROWDING_CACHE_MAX_DAYS):
         return None
     return CrowdingSignal(
         value=float(cached["factor_crowding_corr"]),
@@ -104,36 +114,98 @@ def _collect_crowding(snapshot_date: date | None = None) -> CrowdingSignal | Non
     )
 
 
-def collect_signals(snapshot_date: date | None = None) -> CollectedSignals:
+def _current_quote(
+    symbol: str,
+    *,
+    force_refresh: bool = False,
+    max_age_minutes: int | None = CURRENT_QUOTE_MAX_AGE_MINUTES,
+) -> PriceData | None:
+    try:
+        quote = PriceDataFetcher(get_storage()).fetch_price_data(
+            [symbol],
+            force_refresh=force_refresh,
+            max_age_minutes=max_age_minutes,
+        ).get(symbol)
+    except Exception as exc:
+        logger.warning("macro_gate_current_quote_unavailable", symbol=symbol, error=str(exc))
+        return None
+
+    if quote is None or quote.error or quote.price <= 0:
+        logger.warning(
+            "macro_gate_current_quote_invalid",
+            symbol=symbol,
+            error=getattr(quote, "error", None),
+        )
+        return None
+    return quote
+
+
+def _vix_value(
+    *,
+    snapshot_date: date | None,
+    force_quote_refresh: bool,
+    max_age_minutes: int | None,
+) -> PriceData | None:
+    if snapshot_date is not None:
+        return None
+    return _current_quote(
+        VIX_SYMBOL,
+        force_refresh=force_quote_refresh,
+        max_age_minutes=max_age_minutes,
+    )
+
+
+def collect_signals(
+    snapshot_date: date | None = None,
+    *,
+    force_quote_refresh: bool = False,
+    current_quote_max_age_minutes: int | None = CURRENT_QUOTE_MAX_AGE_MINUTES,
+) -> CollectedSignals:
     """Gather raw signal values for today (or a backtest date)."""
     fear_greed = (
         fear_greed_components.fetch_on(snapshot_date)
         if snapshot_date is not None
         else fear_greed_components.fetch_latest()
     )
+    current_vix = _vix_value(
+        snapshot_date=snapshot_date,
+        force_quote_refresh=force_quote_refresh,
+        max_age_minutes=current_quote_max_age_minutes,
+    )
     term_obs = term_structure.fetch_latest()  # FRED is point-in-time stable enough for live use
     breadth_obs = spx_breadth_200d.compute_breadth(as_of=snapshot_date)
     crowding = _collect_crowding(snapshot_date=snapshot_date)
 
     raw = RawSignals(
-        vix_close=fear_greed.vix_close if fear_greed else None,
+        vix_close=current_vix.price if current_vix else fear_greed.vix_close if fear_greed else None,
         term_spread_bps=term_obs.spread_bps if term_obs else None,
         breadth_pct=breadth_obs.pct_above_200dma if breadth_obs else None,
         hy_spread=fear_greed.hy_spread if fear_greed else None,
         put_call_ratio=fear_greed.put_call_ratio if fear_greed else None,
         factor_crowding_corr=crowding.value if crowding else None,
     )
+    vix_source = (
+        f"price_cache.{VIX_SYMBOL} via {current_vix.source}"
+        if current_vix
+        else "fear_greed_inputs.vix_close"
+    )
+    vix_cadence = "intraday_current" if current_vix else "daily_after_close"
+    vix_reason = (
+        "Canonical current quote; historical daily close remains in fear_greed_inputs."
+        if current_vix
+        else "Carried forward from the last trading day's close."
+        if fear_greed and fear_greed.vix_stale
+        else None
+    )
     metadata = {
         "component_quality": {
             "vix": _quality(
                 value=raw.vix_close,
-                as_of=fear_greed.vix_as_of if fear_greed else None,
-                source="fear_greed_inputs.vix_close",
-                cadence="daily_after_close",
-                stale=fear_greed.vix_stale if fear_greed else False,
-                reason="Carried forward from the last trading day's close."
-                if fear_greed and fear_greed.vix_stale
-                else None,
+                as_of=current_vix.cached_at if current_vix else fear_greed.vix_as_of if fear_greed else None,
+                source=vix_source,
+                cadence=vix_cadence,
+                stale=False if current_vix else fear_greed.vix_stale if fear_greed else False,
+                reason=vix_reason,
             ),
             "term": _quality(
                 value=raw.term_spread_bps,
@@ -170,7 +242,17 @@ def collect_signals(snapshot_date: date | None = None) -> CollectedSignals:
                 cadence="weekly",
                 reason=None if crowding else "No usable factor crowding observation available.",
             ),
-        }
+        },
+        "current_quote_overlays": {
+            "vix": {
+                "symbol": VIX_SYMBOL,
+                "price": current_vix.price,
+                "cached_at": current_vix.cached_at.isoformat(),
+                "source": current_vix.source,
+            }
+            if current_vix
+            else None,
+        },
     }
     return CollectedSignals(raw=raw, metadata=metadata)
 
@@ -179,9 +261,19 @@ def collect_raw(snapshot_date: date | None = None) -> RawSignals:
     return collect_signals(snapshot_date=snapshot_date).raw
 
 
-def run(snapshot_date: date | None = None, persist: bool = True) -> GateOutput | None:
+def run(
+    snapshot_date: date | None = None,
+    persist: bool = True,
+    *,
+    force_quote_refresh: bool = False,
+    current_quote_max_age_minutes: int | None = CURRENT_QUOTE_MAX_AGE_MINUTES,
+) -> GateOutput | None:
     """Compute today's deployment zone and (optionally) persist the snapshot."""
-    collected = collect_signals(snapshot_date=snapshot_date)
+    collected = collect_signals(
+        snapshot_date=snapshot_date,
+        force_quote_refresh=force_quote_refresh,
+        current_quote_max_age_minutes=current_quote_max_age_minutes,
+    )
     raw = collected.raw
     if all(
         value is None
@@ -219,4 +311,4 @@ def run(snapshot_date: date | None = None, persist: bool = True) -> GateOutput |
 
 
 def _infer_snapshot_date(_composite: CompositeResult) -> date:
-    return date.today()
+    return _current_market_date()

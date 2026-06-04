@@ -7,7 +7,7 @@ computed off persisted ``signal_macro_snapshots`` rows.
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -22,9 +22,15 @@ from ..macro_gate.backtest.monte_carlo import run_sensitivity
 from ..macro_gate.backtest.walk_forward import replay, sanity_checks
 from ..macro_gate.scoring import WEIGHTS, ZONES
 from ..macro_gate.service import run as run_macro_gate
+from ..utils.market_hours import NY_TZ
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/macro", tags=["macro-gate"])
+CURRENT_MACRO_MAX_AGE = timedelta(minutes=5)
+
+
+def _current_market_date() -> date:
+    return datetime.now(NY_TZ).date()
 
 
 class MacroSnapshotResponse(BaseModel):
@@ -173,15 +179,60 @@ def _snapshot_to_response(row: dict) -> MacroSnapshotResponse:
     )
 
 
+def _parse_snapshot_date(value: object) -> date | None:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value.split("T")[0])
+        except ValueError:
+            return None
+    return None
+
+
+def _parse_computed_at(value: object) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    return None
+
+
+def _should_refresh_current_snapshot(snapshot: dict | None) -> bool:
+    if snapshot is None:
+        return True
+    snapshot_date = _parse_snapshot_date(snapshot.get("snapshot_date"))
+    if snapshot_date is None or snapshot_date < _current_market_date():
+        return True
+    computed_at = _parse_computed_at(snapshot.get("computed_at"))
+    if computed_at is None:
+        return True
+    return datetime.now(UTC) - computed_at.astimezone(UTC) > CURRENT_MACRO_MAX_AGE
+
+
+def _latest_snapshot_or_refresh(*, force_quote_refresh: bool = False) -> dict | None:
+    snapshot = repository.get_latest()
+    should_refresh = force_quote_refresh or _should_refresh_current_snapshot(snapshot)
+    if should_refresh:
+        gate_output = run_macro_gate(
+            force_quote_refresh=True,
+            current_quote_max_age_minutes=0,
+        )
+        if gate_output is None and snapshot is None:
+            return None
+        snapshot = repository.get_latest() or snapshot
+    return snapshot
+
+
 @router.get("/current", response_model=MacroSnapshotResponse)
 async def current() -> MacroSnapshotResponse:
-    snapshot = await run_in_threadpool(repository.get_latest)
-    if snapshot is None:
-        # On-demand compute when no persisted row exists yet (first-run convenience).
-        gate_output = await run_in_threadpool(run_macro_gate)
-        if gate_output is None:
-            raise HTTPException(status_code=503, detail="macro_gate_inputs_unavailable")
-        snapshot = await run_in_threadpool(repository.get_latest)
+    snapshot = await run_in_threadpool(_latest_snapshot_or_refresh)
     if snapshot is None:
         raise HTTPException(status_code=503, detail="macro_gate_persist_failed")
     return _snapshot_to_response(snapshot)
@@ -189,15 +240,9 @@ async def current() -> MacroSnapshotResponse:
 
 @router.get("/conditions", response_model=MacroConditionsResponse)
 async def current_conditions() -> MacroConditionsResponse:
-    snapshot = await run_in_threadpool(repository.get_latest)
+    snapshot = await run_in_threadpool(_latest_snapshot_or_refresh)
     if snapshot is None:
-        # On-demand compute when no persisted row exists yet (first-run convenience).
-        gate_output = await run_in_threadpool(run_macro_gate)
-        if gate_output is None:
-            raise HTTPException(status_code=503, detail="macro_gate_inputs_unavailable")
-        snapshot = await run_in_threadpool(repository.get_latest)
-    if snapshot is None:
-        raise HTTPException(status_code=503, detail="macro_gate_persist_failed")
+        raise HTTPException(status_code=503, detail="macro_gate_inputs_unavailable")
     payload = await run_in_threadpool(macro_conditions.get_conditions_payload, snapshot)
     return MacroConditionsResponse(**payload)
 
@@ -216,7 +261,7 @@ async def backtest(
     start: date | None = Query(default=None, description="Inclusive start date"),
     end: date | None = Query(default=None, description="Inclusive end date"),
 ) -> BacktestResponse:
-    today = date.today()
+    today = _current_market_date()
     end = end or today
     start = start or (today - timedelta(days=730))
     rows = await run_in_threadpool(replay, start, end)
@@ -244,7 +289,7 @@ async def sensitivity(
     samples: int = Query(default=1000, ge=10, le=10000),
     perturbation: float = Query(default=0.10, ge=0.0, le=0.5),
 ) -> SensitivityResponse:
-    today = date.today()
+    today = _current_market_date()
     end = end or today
     start = start or (today - timedelta(days=365))
     result = await run_in_threadpool(run_sensitivity, start, end, samples, perturbation)

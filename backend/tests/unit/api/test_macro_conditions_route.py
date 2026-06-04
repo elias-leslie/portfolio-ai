@@ -42,6 +42,7 @@ def test_macro_conditions_route_returns_today_briefing_contract() -> None:
 
     with (
         patch("app.api.macro_routes.repository.get_latest", return_value=_snapshot()),
+        patch("app.api.macro_routes.run_macro_gate", return_value=None),
         patch(
             "app.api.macro_routes.macro_conditions.get_conditions_payload",
             return_value=payload,

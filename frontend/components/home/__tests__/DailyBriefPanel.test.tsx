@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DailyBriefPanel } from '../DailyBriefPanel'
 
@@ -8,6 +8,7 @@ const useMarketStatusMock = vi.fn()
 const usePortfolioAnalyticsMock = vi.fn()
 const useMacroCurrentMock = vi.fn()
 const useMacroConditionsMock = vi.fn()
+const useTodayRefreshMock = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdDashboard: () => useHouseholdDashboardMock(),
@@ -26,6 +27,10 @@ vi.mock('@/lib/hooks/usePortfolio', () => ({
 vi.mock('@/lib/hooks/useSignals', () => ({
   useMacroCurrent: () => useMacroCurrentMock(),
   useMacroConditions: () => useMacroConditionsMock(),
+}))
+
+vi.mock('@/lib/hooks/useTodayRefresh', () => ({
+  useTodayRefresh: () => useTodayRefreshMock(),
 }))
 
 const macroSnapshot = {
@@ -242,12 +247,17 @@ describe('DailyBriefPanel', () => {
     useMarketStatusMock.mockReturnValue({
       data: { isOpen: false },
     })
+    useTodayRefreshMock.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+    })
   })
 
   it('leads Today with market conditions, plain-language guidance, and evidence', () => {
     render(<DailyBriefPanel />)
 
     expect(screen.getByText('Daily Brief')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /refresh/i })).toBeInTheDocument()
     expect(screen.getByText('Caution, not emergency')).toBeInTheDocument()
     expect(screen.getByText('Market Stress')).toBeInTheDocument()
     expect(screen.getAllByText('41').length).toBeGreaterThan(0)
@@ -267,5 +277,19 @@ describe('DailyBriefPanel', () => {
     expect(screen.getByText('10Y-3M')).toBeInTheDocument()
     expect(screen.getByText('+98 bps')).toBeInTheDocument()
     expect(screen.queryByText(/Action Queue/i)).not.toBeInTheDocument()
+  })
+
+  it('forces a Today data refresh from the header action', () => {
+    const mutate = vi.fn()
+    useTodayRefreshMock.mockReturnValue({
+      mutate,
+      isPending: false,
+    })
+
+    render(<DailyBriefPanel />)
+
+    fireEvent.click(screen.getByRole('button', { name: /refresh/i }))
+
+    expect(mutate).toHaveBeenCalledTimes(1)
   })
 })

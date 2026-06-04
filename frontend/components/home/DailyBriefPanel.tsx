@@ -1,6 +1,7 @@
 'use client'
 
-import { Info } from 'lucide-react'
+import { Info, Loader2, RefreshCw } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import {
   Tooltip,
   TooltipContent,
@@ -28,6 +29,7 @@ import {
 } from '@/lib/hooks/useHousehold'
 import { usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
 import { useMacroConditions, useMacroCurrent } from '@/lib/hooks/useSignals'
+import { useTodayRefresh } from '@/lib/hooks/useTodayRefresh'
 import { cn } from '@/lib/utils'
 
 interface ZoneStyle {
@@ -819,6 +821,7 @@ function CapitalContext({
 }
 
 export function DailyBriefPanel() {
+  const refreshToday = useTodayRefresh()
   const {
     data: macro,
     isLoading: macroLoading,
@@ -844,9 +847,27 @@ export function DailyBriefPanel() {
         <h2 className="font-display italic text-lg tracking-tight text-text">
           Daily Brief
         </h2>
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">
-          {formatTimestamp(updateTimestamp)}
-        </p>
+        <div className="flex flex-wrap items-center gap-2 md:justify-end">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">
+            {formatTimestamp(updateTimestamp)}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => refreshToday.mutate()}
+            disabled={refreshToday.isPending}
+            aria-busy={refreshToday.isPending}
+            title="Force-refresh Today with current quotes and recomputed macro conditions"
+          >
+            {refreshToday.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <div className="grid items-start gap-4 p-4 lg:grid-cols-[minmax(17rem,0.68fr)_minmax(34rem,1.4fr)] xl:grid-cols-[minmax(17rem,0.68fr)_minmax(34rem,1.4fr)_minmax(18rem,0.7fr)]">

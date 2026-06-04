@@ -46,6 +46,10 @@ def _quote_freshness(quote_updated_at: datetime | None) -> tuple[str, str]:
         fresh_threshold = timedelta(minutes=2)
         aging_threshold = timedelta(minutes=15)
         fresh_label = "Live quotes"
+    elif market_status in {"pre_market", "after_hours"}:
+        fresh_threshold = timedelta(minutes=5)
+        aging_threshold = timedelta(minutes=30)
+        fresh_label = "Extended-hours quotes"
     else:
         fresh_threshold = timedelta(hours=4)
         aging_threshold = timedelta(hours=24)

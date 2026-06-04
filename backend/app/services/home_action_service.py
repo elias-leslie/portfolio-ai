@@ -101,6 +101,13 @@ class HomeActionService:
         if not hasattr(self, "_queue_cached_at"):
             self._queue_cached_at = None
 
+    def invalidate_cache(self) -> None:
+        """Clear the short-lived Today action queue cache."""
+        self._ensure_cache_state()
+        with self._cache_lock:
+            self._queue_cache = None
+            self._queue_cached_at = None
+
     def get_action_queue(self) -> dict[str, object]:
         self._ensure_cache_state()
         with self._cache_lock:

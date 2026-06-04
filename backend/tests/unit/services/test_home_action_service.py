@@ -14,6 +14,51 @@ from app.services._home_action_sources import (
 from app.services.home_action_service import HomeActionService
 
 
+def test_invalidate_cache_clears_cached_action_queue() -> None:
+    service = object.__new__(HomeActionService)
+    service._portfolio_health_actions = lambda: [
+        {
+            "id": "old",
+            "source": "portfolio",
+            "category": "investing",
+            "priority": "high",
+            "title": "Old portfolio action",
+            "detail": "Cached before quote refresh.",
+            "action_label": "Open",
+            "href": "/portfolio",
+            "symbol": None,
+            "badge": "Old",
+        }
+    ]
+    service._jenny_actions = lambda: []
+    service._workflow_actions = lambda: []
+    service._household_actions = lambda: []
+
+    first = service.get_action_queue()
+    service._portfolio_health_actions = lambda: [
+        {
+            "id": "new",
+            "source": "portfolio",
+            "category": "investing",
+            "priority": "high",
+            "title": "New portfolio action",
+            "detail": "Rebuilt after quote refresh.",
+            "action_label": "Open",
+            "href": "/portfolio",
+            "symbol": None,
+            "badge": "New",
+        }
+    ]
+
+    assert service.get_action_queue() is first
+
+    service.invalidate_cache()
+
+    refreshed = service.get_action_queue()
+    assert refreshed is not first
+    assert refreshed["actions"][0]["title"] == "New portfolio action"
+
+
 def test_get_action_queue_sorts_and_dedupes_actions() -> None:
     service = object.__new__(HomeActionService)
     service._portfolio_health_actions = lambda: []

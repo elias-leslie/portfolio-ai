@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from importlib import import_module
 from types import SimpleNamespace
 
@@ -60,3 +61,57 @@ def test_current_quote_replaces_same_day_indicator_history_row() -> None:
     )
 
     assert rows == [(historical_router.date(2026, 5, 21), 16.76), (historical_router.date(2026, 5, 22), 16.7)]
+
+
+def test_sector_history_uses_canonical_current_quote(monkeypatch) -> None:
+    class FixedDate(historical_router.date):
+        @classmethod
+        def today(cls) -> FixedDate:
+            return cls(2026, 6, 4)
+
+    class FakeYFinanceSource:
+        def fetch_sector_history(self, symbol, start_date, end_date):
+            assert symbol == "XLK"
+            assert start_date == historical_router.date(2026, 5, 5)
+            assert end_date == historical_router.date(2026, 6, 4)
+            return [
+                (historical_router.date(2026, 5, 5), 100.0),
+                (historical_router.date(2026, 6, 4), 190.61),
+            ]
+
+    class FakePriceFetcher:
+        def fetch_price_data(self, symbols):
+            assert symbols == ["XLK"]
+            return {
+                "XLK": SimpleNamespace(
+                    cached_at=historical_router.datetime(
+                        2026,
+                        6,
+                        4,
+                        13,
+                        46,
+                        tzinfo=historical_router.UTC,
+                    ),
+                    price=190.29,
+                )
+            }
+
+    def fake_get_price_fetcher() -> FakePriceFetcher:
+        return FakePriceFetcher()
+
+    monkeypatch.setattr(historical_router, "SECTOR_ETFS", {"XLK": "Technology"})
+    monkeypatch.setattr(historical_router, "YFinanceSource", FakeYFinanceSource)
+    monkeypatch.setattr(historical_router, "date", FixedDate)
+    monkeypatch.setattr(
+        "app.api.market._core_helpers._get_price_fetcher",
+        fake_get_price_fetcher,
+    )
+
+    response = asyncio.run(
+        historical_router.get_sector_history(SimpleNamespace(), days=30)
+    )
+
+    assert response.sectors[0].symbol == "XLK"
+    assert response.sectors[0].data[-1].date == "2026-06-04"
+    assert response.sectors[0].data[-1].close == 190.29
+    assert response.sectors[0].current_pct == 90.29
