@@ -112,6 +112,31 @@ def get_history(days: int = 730) -> list[dict]:
     return [_row_to_dict(row) for row in rows]
 
 
+def get_last_known_good_score(before: date) -> float | None:
+    """Deployment score of the most recent non-degraded snapshot before ``before``.
+
+    Used to clamp a degraded (stale-input) reading so it can never report a
+    greener / more risk-on score than the last fully-trusted gate.
+    """
+    storage = get_storage()
+    with storage.connection() as conn:
+        row = conn.execute(
+            """
+            SELECT deployment_score
+            FROM signal_macro_snapshots
+            WHERE snapshot_date < %s
+              AND deployment_score IS NOT NULL
+              AND (raw_json->>'degraded') IS DISTINCT FROM 'true'
+            ORDER BY snapshot_date DESC
+            LIMIT 1
+            """,
+            [before],
+        ).fetchone()
+    if row is None or row[0] is None:
+        return None
+    return float(row[0])
+
+
 def get_latest_crowding() -> dict | None:
     """Return the latest persisted crowding raw value and as-of date."""
     storage = get_storage()

@@ -19,6 +19,7 @@ import app.sources.polygon_client as polygon_client_module
 import app.sources.twelvedata_source as twelvedata_module
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.sources.alphavantage_source import AlphaVantageSource
+from app.sources.cboe_source import CboeSource
 from app.sources.finnhub_source import FinnhubSource
 from app.sources.fmp_source import FMPSource
 from app.sources.polygon_source import PolygonSource
@@ -63,16 +64,16 @@ class TestSourceInitialization:
     """Test PriceDataFetcher source initialization logic."""
 
     def test_initializes_yfinance_only_without_api_keys(self, mock_storage: MagicMock) -> None:
-        """Test that PriceDataFetcher initializes with YFinance only when no API keys available."""
+        """Without API keys, only the keyless sources (CBOE + YFinance) initialize."""
         with patch.dict(os.environ, {}, clear=True):
             fetcher = PriceDataFetcher(mock_storage)
 
-            # Should have exactly 1 source (YFinance)
-            assert len(fetcher.multi_source_fetcher.sources) == 1
-            assert isinstance(fetcher.multi_source_fetcher.sources[0], YFinanceSource)
+            # Should have exactly 2 keyless sources: CBOE (priority 0) then YFinance
+            source_types = [type(s) for s in fetcher.multi_source_fetcher.sources]
+            assert source_types == [CboeSource, YFinanceSource]
 
     def test_initializes_all_sources_with_api_keys(self, mock_storage: MagicMock) -> None:
-        """Test that PriceDataFetcher initializes all 6 sources when API keys are available."""
+        """All sources initialize when API keys are available (CBOE + YFinance + 5 keyed)."""
         env = {
             "TWELVEDATA_API_KEY": "test_twelvedata_key",
             "FMP_API_KEY": "test_fmp_key",
@@ -84,12 +85,13 @@ class TestSourceInitialization:
         with patch.dict(os.environ, env, clear=True):
             fetcher = PriceDataFetcher(mock_storage)
 
-            # Should have exactly 6 sources
-            assert len(fetcher.multi_source_fetcher.sources) == 6
+            # Should have exactly 7 sources
+            assert len(fetcher.multi_source_fetcher.sources) == 7
 
             # Check source types (order matters - should match priority)
             source_types = [type(s) for s in fetcher.multi_source_fetcher.sources]
             assert source_types == [
+                CboeSource,
                 YFinanceSource,
                 TwelveDataSource,
                 FMPSource,
@@ -108,10 +110,11 @@ class TestSourceInitialization:
         with patch.dict(os.environ, env, clear=True):
             fetcher = PriceDataFetcher(mock_storage)
 
-            # Should have YFinance + 2 sources with keys = 3 total
-            assert len(fetcher.multi_source_fetcher.sources) == 3
+            # Should have CBOE + YFinance + 2 sources with keys = 4 total
+            assert len(fetcher.multi_source_fetcher.sources) == 4
 
             source_types = [type(s) for s in fetcher.multi_source_fetcher.sources]
+            assert CboeSource in source_types
             assert YFinanceSource in source_types
             assert PolygonSource in source_types
             assert FinnhubSource in source_types

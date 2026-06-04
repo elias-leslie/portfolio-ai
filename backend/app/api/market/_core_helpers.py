@@ -45,15 +45,19 @@ def _extract_price(data: object | None) -> float | None:
 
 
 def _extract_price_timestamp(data: object | None) -> str | None:
-    """Extract timestamp from PriceData object, returning None if data is None.
+    """Extract the most honest quote timestamp from a PriceData object.
 
-    PriceData currently only carries `cached_at` (the time we wrote the row to the
-    cache). The vendor's regularMarketTime would be more honest but isn't extracted
-    by yfinance_parsers.build_reference_payload today; threading it through the
-    payload + cache schema is out of scope for this fix. Per-indicator staleness in
-    the UI surfaces the truth that the cached timestamp can lag the underlying quote.
+    Prefers the vendor's quote time (`quote_time`, e.g. CBOE last_trade_time /
+    Yahoo regularMarketTime) so freshness reflects when the quote was actually
+    produced, falling back to `cached_at` (cache-write time) only when the source
+    did not supply a vendor timestamp.
     """
-    return data.cached_at.isoformat() if data else None
+    if not data:
+        return None
+    quote_time = getattr(data, "quote_time", None)
+    if quote_time is not None:
+        return quote_time.isoformat()
+    return data.cached_at.isoformat() if data.cached_at else None
 
 
 def _latest_price_timestamp(*items: object | None) -> str | None:
@@ -61,7 +65,7 @@ def _latest_price_timestamp(*items: object | None) -> str | None:
     for item in items:
         if not item:
             continue
-        value = getattr(item, "cached_at", None)
+        value = getattr(item, "quote_time", None) or getattr(item, "cached_at", None)
         if isinstance(value, datetime):
             timestamps.append(value if value.tzinfo else value.replace(tzinfo=UTC))
     if not timestamps:

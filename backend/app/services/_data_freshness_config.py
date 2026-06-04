@@ -13,12 +13,13 @@ class TableFreshnessConfig(TypedDict):
 
     table_name: str
     date_column: str
-    expected_hours: int  # How often data should refresh
-    critical_hours: int  # When to create alert
+    expected_hours: float  # How often data should refresh
+    critical_hours: float  # When to create alert
     market_data: bool  # Whether to skip alerts on weekends/holidays
     availability_delay_hours: NotRequired[float]  # Post-close processing window before data is expected
     where_clause: NotRequired[str]  # Optional filter for freshness checks on shared tables
     required_symbols_query: NotRequired[str]  # Optional SQL returning required symbol coverage rows
+    intraday: NotRequired[bool]  # Age against wall-clock during market hours (live quotes), not the trading day
 
 
 REQUIRED_PORTFOLIO_SYMBOLS_QUERY = """
@@ -47,6 +48,8 @@ REMEDIATION_TASKS: dict[str, str] = {
     "watchlist_snapshots": "portfolio-refresh-watchlist-scores",
     "snaptrade_accounts": "portfolio-sync-accounts",
     "plaid_accounts": "portfolio-sync-accounts",
+    # Re-running the gate refreshes the live ^VIX quote and recomputes the snapshot.
+    "price_cache": "portfolio-macro-gate",
 }
 
 # Freshness thresholds for all critical tables
@@ -163,5 +166,20 @@ TABLE_FRESHNESS_CONFIG: list[TableFreshnessConfig] = [
         "expected_hours": 24,
         "critical_hours": 72,
         "market_data": True,
+    },
+    # Canonical live-quote table. The macro gate's only intraday input is ^VIX,
+    # so the "Live (Data Feed)" badge must watch its vendor quote_time at an
+    # intraday cadence — otherwise a frozen VIX feed reads "Live" while the gate
+    # runs on a stale value. CBOE is ~15min delayed, so expected/critical leave
+    # headroom above that; market_data + intraday freeze aging outside the
+    # session so the last close is not flagged when the market is simply shut.
+    {
+        "table_name": "price_cache",
+        "date_column": "quote_time",
+        "expected_hours": 0.5,
+        "critical_hours": 1.0,
+        "market_data": True,
+        "intraday": True,
+        "where_clause": "UPPER(symbol) = '^VIX' AND quote_time IS NOT NULL",
     },
 ]

@@ -32,6 +32,8 @@ export interface MacroSnapshot {
       reason?: string | null
     }
   >
+  degraded: boolean
+  staleComponents: string[]
   computedAt: string | null
 }
 

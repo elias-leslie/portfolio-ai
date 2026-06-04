@@ -47,7 +47,7 @@ def get_cached_prices(
     df = storage.query(
         f"""
         SELECT UPPER(symbol) AS symbol, price, beta, volatility, sector, bid, ask, bid_size, ask_size,
-               cached_at, source, error
+               cached_at, quote_time, price_session, source, error
         FROM price_cache
         WHERE UPPER(symbol) IN ({placeholders})
           {cutoff_clause}

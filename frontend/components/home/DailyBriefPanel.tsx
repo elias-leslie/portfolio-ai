@@ -529,6 +529,10 @@ function MarketConditionHero({
     conditions?.actionText ??
     'Use the macro gate as context before adding new market risk.'
   const stressTrend = conditions?.trend?.stress
+  const degraded = macro?.degraded ?? false
+  const staleLabels = (macro?.staleComponents ?? [])
+    .map((key) => COMPONENT_LABELS.find((c) => c.key === key)?.label ?? key)
+    .join(', ')
 
   return (
     <div
@@ -538,9 +542,23 @@ function MarketConditionHero({
       )}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="rounded-full border border-current px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] sm:px-3">
-          {conditionBadge(state, alertActive, loading)}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full border border-current px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] sm:px-3">
+            {conditionBadge(state, alertActive, loading)}
+          </span>
+          {degraded ? (
+            <span
+              className="rounded-full border border-warning/60 bg-warning/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-warning"
+              title={
+                staleLabels
+                  ? `Stale input(s) excluded and the score held to the last trusted reading: ${staleLabels}`
+                  : 'Running on stale inputs; score held to the last trusted reading.'
+              }
+            >
+              Degraded
+            </span>
+          ) : null}
+        </div>
         <span className="whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.16em] text-current/70">
           {deploymentDate(conditions?.snapshotDate ?? macro?.snapshotDate)}
         </span>
@@ -570,6 +588,15 @@ function MarketConditionHero({
         {summary}
       </p>
       <p className="mt-2 text-xs leading-5 text-current/80">{actionText}</p>
+
+      {degraded ? (
+        <p className="mt-3 rounded-xl border border-warning/30 bg-warning/8 px-3 py-2 text-[11px] leading-4 text-warning">
+          Degraded reading: stale input
+          {staleLabels ? ` (${staleLabels})` : ''} excluded, so coverage is
+          reduced and the score is held to the last trusted gate rather than
+          reading calmer on carried-forward data.
+        </p>
+      ) : null}
 
       <div className="mt-4 grid grid-cols-2 gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-current/75">
         <div className="rounded-xl border border-current/20 bg-bg/15 px-3 py-2">

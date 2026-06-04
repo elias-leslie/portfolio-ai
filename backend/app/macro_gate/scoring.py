@@ -138,13 +138,16 @@ def compute_component_scores(raw: RawSignals) -> ComponentScores:
 def compose(
     scores: ComponentScores,
     weights: dict[str, float] | None = None,
+    excluded: frozenset[str] = frozenset(),
 ) -> tuple[float, float]:
     """Return ``(deployment_score, coverage_ratio)``.
 
-    Missing components are dropped and the remaining weights are
-    renormalised so the composite remains in [0, 100]. Coverage is the
-    share of the original weights that produced a real score — useful for
-    flagging gates computed from a partial snapshot.
+    Missing components — and any component named in ``excluded`` (e.g. a stale
+    carried-forward value the gate must not trust) — are dropped and the
+    remaining weights are renormalised so the composite remains in [0, 100].
+    Coverage is the share of the original weights that produced a real,
+    trusted score, so dropping a stale input visibly lowers coverage instead
+    of letting it pass as fully covered.
     """
     used_weights = weights or WEIGHTS
     score_lookup: dict[str, float | None] = {
@@ -159,7 +162,7 @@ def compose(
     weight_used = 0.0
     for key, weight in used_weights.items():
         value = score_lookup.get(key)
-        if value is None:
+        if value is None or key in excluded:
             continue
         weighted_sum += weight * value
         weight_used += weight
@@ -181,12 +184,22 @@ def build_composite(
     raw: RawSignals,
     weights: dict[str, float] | None = None,
     metadata: dict[str, Any] | None = None,
+    stale_keys: frozenset[str] | None = None,
 ) -> CompositeResult:
+    """Build the composite, dropping ``stale_keys`` from the trusted score.
+
+    A stale component is excluded like a missing one: it lowers coverage and is
+    flagged via ``degraded``/``stale_components`` so the deployment zone never
+    silently runs on a carried-forward value.
+    """
+    excluded = stale_keys or frozenset()
     scores = compute_component_scores(raw)
-    deployment_score, coverage = compose(scores, weights=weights)
-    result_metadata = {"weights": weights or WEIGHTS}
+    deployment_score, coverage = compose(scores, weights=weights, excluded=excluded)
+    result_metadata: dict[str, Any] = {"weights": weights or WEIGHTS}
     if metadata:
         result_metadata.update(metadata)
+    result_metadata["degraded"] = bool(excluded)
+    result_metadata["stale_components"] = sorted(excluded)
     return CompositeResult(
         raw=raw,
         scores=scores,

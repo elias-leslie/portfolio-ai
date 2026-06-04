@@ -27,12 +27,15 @@ _SESSION_FIELDS: tuple[tuple[str, str, str], ...] = (
 
 def extract_price_from_info(
     info: dict[str, object],
-) -> tuple[float | None, str | None]:
+) -> tuple[float | None, str | None, int | None]:
     """Pick the freshest price across regular / pre-market / post-market sessions.
 
-    Returns (price, session_label). Compares the *Time epoch fields and picks the
-    most recent. Falls back to currentPrice (yfinance financialData) and finally
-    previousClose when no timestamped session quote is available.
+    Returns (price, session_label, quote_epoch). Compares the *Time epoch fields
+    and picks the most recent; quote_epoch is that vendor timestamp. Falls back to
+    currentPrice (yfinance financialData) and finally previousClose when no
+    timestamped session quote is available -- those carry no quote_epoch and a
+    distinct session label so downstream consumers never mistake a carried-forward
+    prior close for a live quote.
     """
     candidates: list[tuple[int, float, str]] = []
     for price_field, time_field, label in _SESSION_FIELDS:
@@ -48,18 +51,18 @@ def extract_price_from_info(
 
     if candidates:
         candidates.sort(key=lambda row: row[0], reverse=True)
-        _, price, label = candidates[0]
-        return price, label
+        ts, price, label = candidates[0]
+        return price, label, ts
 
     current = info.get("currentPrice")
     if isinstance(current, (int, float)) and current > 0:
-        return float(current), "current_price"
+        return float(current), "current_price", None
 
     previous = info.get("previousClose")
     if isinstance(previous, (int, float)) and previous > 0:
-        return float(previous), "previous_close"
+        return float(previous), "previous_close", None
 
-    return None, None
+    return None, None, None
 
 
 def calculate_volatility_from_52w_range(info: dict[str, object]) -> float | None:
@@ -110,7 +113,12 @@ def _build_reference_metrics(info: dict[str, object]) -> dict[str, object]:
 
 def build_reference_payload(symbol: str, info: dict[str, object]) -> dict[str, object]:
     """Build reference payload from yfinance info dict."""
-    price, price_session = extract_price_from_info(info)
+    price, price_session, quote_epoch = extract_price_from_info(info)
+    quote_time = (
+        dt.datetime.fromtimestamp(quote_epoch, tz=dt.UTC).isoformat()
+        if quote_epoch
+        else None
+    )
     beta = info.get("beta")
     volatility = calculate_volatility_from_52w_range(info)
 
@@ -118,6 +126,7 @@ def build_reference_payload(symbol: str, info: dict[str, object]) -> dict[str, o
         "symbol": symbol,
         "price": price,
         "price_session": price_session,
+        "quote_time": quote_time,
         "beta": beta,
         "volatility": volatility,
         "longName": info.get("longName"),

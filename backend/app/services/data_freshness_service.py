@@ -28,6 +28,7 @@ from app.utils.market_hours import (
     get_expected_data_date,
     get_market_aware_age_hours,
     get_market_close_time,
+    is_market_hours,
     is_trading_day,
 )
 
@@ -281,6 +282,25 @@ def _coerce_to_datetime(
     return None
 
 
+def _age_hours_for_config(
+    config: TableFreshnessConfig,
+    last_update: dt.datetime,
+    now: dt.datetime,
+) -> float:
+    """Age in hours, intraday-aware for live-quote tables.
+
+    The default market-aware age works at trading-day granularity: any quote
+    stamped today reads as 0h old, which hides an intraday-frozen feed. For
+    ``intraday`` tables we age against wall-clock while the market is open so a
+    stuck quote_time trips the badge, and fall back to the trading-day calc once
+    the session closes (the last quote is then legitimately the day's value, not
+    stale).
+    """
+    if config.get("intraday") and is_market_hours(now):
+        return max(0.0, (now - last_update).total_seconds() / 3600)
+    return get_market_aware_age_hours(last_update=last_update, now=now, is_market_data=config["market_data"])
+
+
 def _stale_result(table_name: str, reason: str) -> dict[str, object]:
     return {"table_name": table_name, "last_update": None, "age_hours": None, "is_stale": True, "is_critical": True, "reason": reason}
 
@@ -305,11 +325,27 @@ def check_table_freshness(
     )
     raw = _fetch_last_update(storage, query)
     if raw is None:
+        # The live-quote cache only holds a symbol while it is actively being
+        # refreshed, so an absent intraday quote is a warning during the session
+        # (no current live value) but fine once the market is closed — the gate's
+        # own degrade path covers a genuinely missing input. Never escalate the
+        # transient gap to a critical alert.
+        if config.get("intraday"):
+            market_open = is_market_hours(now)
+            return {
+                "table_name": table_name,
+                "last_update": None,
+                "age_hours": None,
+                "is_stale": market_open,
+                "is_critical": False,
+                "reason": "no_live_quote" if market_open else None,
+                "coverage": None,
+            }
         return _stale_result(table_name, "no_data")
     last_update = _coerce_to_datetime(raw, table_name, date_column, config["market_data"])
     if last_update is None:
         return _stale_result(table_name, "invalid_date")
-    age_hours = get_market_aware_age_hours(last_update=last_update, now=now, is_market_data=config["market_data"])
+    age_hours = _age_hours_for_config(config, last_update, now)
     age_hours = max(0.0, age_hours - config.get("availability_delay_hours", 0.0))
     is_stale = age_hours > config["expected_hours"]
     is_critical = age_hours > config["critical_hours"]
@@ -473,7 +509,7 @@ def check_all_tables_freshness(storage: ConnectionManager, auto_remediate: bool 
 # ---------------------------------------------------------------------------
 
 
-def _build_error_message(table_name: str, age_hours: float | None, threshold: int, reason: str) -> str:
+def _build_error_message(table_name: str, age_hours: float | None, threshold: float, reason: str) -> str:
     if reason == "no_data":
         return f"Table '{table_name}' has no data (empty table)"
     if reason == "invalid_date":
@@ -483,7 +519,7 @@ def _build_error_message(table_name: str, age_hours: float | None, threshold: in
     return f"Table '{table_name}' freshness check failed: {reason}"
 
 
-def create_staleness_alert(table_name: str, age_hours: float | None, threshold: int, reason: str) -> None:
+def create_staleness_alert(table_name: str, age_hours: float | None, threshold: float, reason: str) -> None:
     """Create maintenance_log entry for critical staleness."""
     task_name = f"data_freshness_alert_{table_name}"
     log_id = record_maintenance_start(task_name=task_name, dry_run=False)

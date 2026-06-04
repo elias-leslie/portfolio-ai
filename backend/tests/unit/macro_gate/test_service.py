@@ -5,8 +5,19 @@ from types import SimpleNamespace
 from typing import cast
 
 from app.macro_gate import service
-from app.macro_gate.scoring import CompositeResult
+from app.macro_gate.scoring import ComponentScores, CompositeResult, RawSignals, classify_zone
 from app.portfolio.models import PriceData
+
+
+def _degraded_result(score: float) -> CompositeResult:
+    return CompositeResult(
+        raw=RawSignals(None, None, None, None, None, None),
+        scores=ComponentScores(None, None, None, None, None, None),
+        deployment_score=score,
+        zone=classify_zone(score),
+        coverage=0.75,
+        metadata={"degraded": True, "stale_components": ["vix"]},
+    )
 
 
 def test_infer_snapshot_date_uses_new_york_market_date(monkeypatch) -> None:
@@ -38,6 +49,48 @@ def test_collect_crowding_reuses_fresh_cached_observation(monkeypatch) -> None:
     assert crowding is not None
     assert crowding.value == 0.24
     assert crowding.source == "cached_weekly"
+
+
+def test_stale_component_keys_only_degrades_intraday_inputs() -> None:
+    metadata = {
+        "component_quality": {
+            "vix": {"status": "stale"},  # intraday input carried forward -> degrades
+            "credit": {"status": "stale"},  # daily T+1 lag is cadence-normal, not degrading
+            "term": {"status": "fresh"},
+            "breadth": {"status": "missing"},
+        }
+    }
+    assert service._stale_component_keys(metadata) == frozenset({"vix"})
+
+
+def test_clamp_holds_greener_degraded_reading_to_known_good(monkeypatch) -> None:
+    monkeypatch.setattr(service.repository, "get_last_known_good_score", lambda _d: 45.0)
+
+    clamped = service._clamp_degraded_to_known_good(_degraded_result(80.0), date(2026, 6, 4))
+
+    assert clamped.deployment_score == 45.0
+    assert clamped.zone == "REDUCED"
+    assert clamped.metadata["clamped_to_known_good"] is True
+    assert clamped.metadata["raw_deployment_score"] == 80.0
+
+
+def test_clamp_keeps_more_cautious_degraded_reading(monkeypatch) -> None:
+    monkeypatch.setattr(service.repository, "get_last_known_good_score", lambda _d: 45.0)
+
+    clamped = service._clamp_degraded_to_known_good(_degraded_result(30.0), date(2026, 6, 4))
+
+    assert clamped.deployment_score == 30.0
+    assert "clamped_to_known_good" not in clamped.metadata
+    assert clamped.metadata["known_good_score"] == 45.0
+
+
+def test_clamp_is_noop_without_known_good_reference(monkeypatch) -> None:
+    monkeypatch.setattr(service.repository, "get_last_known_good_score", lambda _d: None)
+
+    clamped = service._clamp_degraded_to_known_good(_degraded_result(80.0), date(2026, 6, 4))
+
+    assert clamped.deployment_score == 80.0
+    assert clamped.metadata["known_good_score"] is None
 
 
 def test_collect_signals_uses_canonical_current_vix_quote(monkeypatch) -> None:

@@ -62,6 +62,8 @@ class PriceData(BaseModel):
     bid_size: int | None = None  # Size at bid
     ask_size: int | None = None  # Size at ask
     cached_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    quote_time: datetime | None = None  # Vendor quote timestamp (not cache-write time)
+    price_session: str | None = None  # Session the price came from: regular/delayed/previous_close/...
     source: str = "yfinance"
     error: str | None = None
 

@@ -23,9 +23,10 @@ def test_extract_price_picks_post_market_when_freshest() -> None:
         "postMarketPrice": 101.5,
         "postMarketTime": 1700010000,
     }
-    price, session = extract_price_from_info(info)
+    price, session, quote_epoch = extract_price_from_info(info)
     assert price == 101.5
     assert session == "post_market"
+    assert quote_epoch == 1700010000
 
 
 def test_extract_price_picks_pre_market_when_freshest() -> None:
@@ -37,9 +38,10 @@ def test_extract_price_picks_pre_market_when_freshest() -> None:
         "postMarketPrice": 0,
         "postMarketTime": 0,
     }
-    price, session = extract_price_from_info(info)
+    price, session, quote_epoch = extract_price_from_info(info)
     assert price == 99.5
     assert session == "pre_market"
+    assert quote_epoch == 1700000000
 
 
 def test_extract_price_picks_regular_when_no_extended_quotes() -> None:
@@ -47,28 +49,32 @@ def test_extract_price_picks_regular_when_no_extended_quotes() -> None:
         "regularMarketPrice": 100.0,
         "regularMarketTime": 1700000000,
     }
-    price, session = extract_price_from_info(info)
+    price, session, quote_epoch = extract_price_from_info(info)
     assert price == 100.0
     assert session == "regular"
+    assert quote_epoch == 1700000000
 
 
 def test_extract_price_falls_back_to_current_then_previous() -> None:
-    # No timestamped session quotes — fall back to currentPrice
+    # No timestamped session quotes — fall back to currentPrice (no vendor timestamp)
     info_current: dict[str, object] = {"currentPrice": 50.0}
-    price, session = extract_price_from_info(info_current)
+    price, session, quote_epoch = extract_price_from_info(info_current)
     assert price == 50.0
     assert session == "current_price"
+    assert quote_epoch is None
 
-    # Only previousClose available
+    # Only previousClose available — carried-forward close carries no live timestamp
     info_prev: dict[str, object] = {"previousClose": 42.0}
-    price, session = extract_price_from_info(info_prev)
+    price, session, quote_epoch = extract_price_from_info(info_prev)
     assert price == 42.0
     assert session == "previous_close"
+    assert quote_epoch is None
 
     # Nothing available
-    price, session = extract_price_from_info({})
+    price, session, quote_epoch = extract_price_from_info({})
     assert price is None
     assert session is None
+    assert quote_epoch is None
 
 
 def test_build_reference_payload_threads_session_label() -> None:
@@ -81,6 +87,8 @@ def test_build_reference_payload_threads_session_label() -> None:
     payload = build_reference_payload("ABC", info)
     assert payload["price"] == 101.5
     assert payload["price_session"] == "post_market"
+    # Vendor quote timestamp (regularMarketTime/postMarketTime) threaded through as ISO
+    assert payload["quote_time"] == dt.datetime.fromtimestamp(1700010000, tz=dt.UTC).isoformat()
 
 
 # ---------- parse_quarterly_fundamentals ----------

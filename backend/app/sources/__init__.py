@@ -41,6 +41,7 @@ def initialize_data_sources() -> list[BaseSource]:
 
     # Import here to avoid circular imports (lazy loading pattern)
     from .alphavantage_source import AlphaVantageSource  # noqa: PLC0415
+    from .cboe_source import CboeSource  # noqa: PLC0415
     from .finnhub_source import FinnhubSource  # noqa: PLC0415
     from .fmp_source import FMPSource  # noqa: PLC0415
     from .polygon_source import PolygonSource  # noqa: PLC0415
@@ -50,6 +51,11 @@ def initialize_data_sources() -> list[BaseSource]:
     sources: list[BaseSource] = []
     source_names: list[str] = []
     skipped_sources: list[str] = []
+
+    # CBOE (priority 0) is the authoritative delayed feed for the index symbols it
+    # owns (VIX, ...); it serves only those and falls through for everything else.
+    sources.append(CboeSource())
+    source_names.append("cboe")
 
     # YFinanceSource doesn't require API key - always available
     sources.append(YFinanceSource())

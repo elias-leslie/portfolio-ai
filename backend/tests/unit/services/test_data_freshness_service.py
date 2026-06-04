@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 from app.services import data_freshness_service
+from app.utils.market_hours import NY_TZ
 
 
 def test_trigger_remediation_uses_backfill_workflow_for_technical_indicators(
@@ -288,6 +289,109 @@ def test_table_freshness_config_uses_live_options_and_reference_columns() -> Non
     assert config_by_table["cash_flow_metrics"]["date_column"] == "updated_at"
     assert config_by_table["financial_health_scores"]["date_column"] == "updated_at"
     assert config_by_table["symbol_risk_metrics"]["date_column"] == "as_of_date"
+
+
+def test_check_table_freshness_flags_intraday_quote_stale_during_market_hours() -> None:
+    fake_conn = Mock()
+    # quote_time 90 min before "now", both inside the regular session.
+    fake_conn.execute.return_value.fetchone.return_value = (
+        dt.datetime(2026, 3, 11, 12, 30, tzinfo=NY_TZ),
+    )
+
+    @contextmanager
+    def fake_connection():
+        yield fake_conn
+
+    fake_storage = Mock()
+    fake_storage.connection.side_effect = fake_connection
+
+    config = {
+        "table_name": "price_cache",
+        "date_column": "quote_time",
+        "expected_hours": 0.5,
+        "critical_hours": 1.0,
+        "market_data": True,
+        "intraday": True,
+        "where_clause": "UPPER(symbol) = '^VIX' AND quote_time IS NOT NULL",
+    }
+    now = dt.datetime(2026, 3, 11, 14, 0, tzinfo=NY_TZ)  # Wed, market open
+
+    result = data_freshness_service.check_table_freshness(fake_storage, config, now)
+
+    assert result["age_hours"] == 1.5
+    assert result["is_stale"] is True
+    assert result["is_critical"] is True
+    executed_query = fake_conn.execute.call_args[0][0]
+    assert "MAX(quote_time)" in executed_query
+    assert "UPPER(symbol) = '^VIX'" in executed_query
+
+
+def test_check_table_freshness_keeps_intraday_quote_fresh_after_close() -> None:
+    fake_conn = Mock()
+    # Same-day quote stamped at the session; market is now closed for the day.
+    fake_conn.execute.return_value.fetchone.return_value = (
+        dt.datetime(2026, 3, 11, 13, 0, tzinfo=NY_TZ),
+    )
+
+    @contextmanager
+    def fake_connection():
+        yield fake_conn
+
+    fake_storage = Mock()
+    fake_storage.connection.side_effect = fake_connection
+
+    config = {
+        "table_name": "price_cache",
+        "date_column": "quote_time",
+        "expected_hours": 0.5,
+        "critical_hours": 1.0,
+        "market_data": True,
+        "intraday": True,
+        "where_clause": "UPPER(symbol) = '^VIX' AND quote_time IS NOT NULL",
+    }
+    now = dt.datetime(2026, 3, 11, 18, 0, tzinfo=NY_TZ)  # after the 4pm ET close
+
+    result = data_freshness_service.check_table_freshness(fake_storage, config, now)
+
+    assert result["age_hours"] == 0.0
+    assert result["is_stale"] is False
+    assert result["is_critical"] is False
+
+
+def test_check_table_freshness_intraday_absent_quote_warns_only_during_session() -> None:
+    fake_conn = Mock()
+    fake_conn.execute.return_value.fetchone.return_value = (None,)
+
+    @contextmanager
+    def fake_connection():
+        yield fake_conn
+
+    fake_storage = Mock()
+    fake_storage.connection.side_effect = fake_connection
+
+    config = {
+        "table_name": "price_cache",
+        "date_column": "quote_time",
+        "expected_hours": 0.5,
+        "critical_hours": 1.0,
+        "market_data": True,
+        "intraday": True,
+        "where_clause": "UPPER(symbol) = '^VIX' AND quote_time IS NOT NULL",
+    }
+
+    open_result = data_freshness_service.check_table_freshness(
+        fake_storage, config, dt.datetime(2026, 3, 11, 14, 0, tzinfo=NY_TZ)
+    )
+    assert open_result["is_stale"] is True
+    assert open_result["is_critical"] is False
+    assert open_result["reason"] == "no_live_quote"
+
+    closed_result = data_freshness_service.check_table_freshness(
+        fake_storage, config, dt.datetime(2026, 3, 11, 18, 0, tzinfo=NY_TZ)
+    )
+    assert closed_result["is_stale"] is False
+    assert closed_result["is_critical"] is False
+    assert closed_result["reason"] is None
 
 
 def test_shared_remediation_workflow_runs_once_per_freshness_pass(monkeypatch) -> None:

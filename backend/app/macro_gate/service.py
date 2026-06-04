@@ -7,7 +7,7 @@ need it directly (the workflow + the read API).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -17,7 +17,7 @@ from ..portfolio.price_fetcher import PriceDataFetcher
 from ..storage.facade import get_storage
 from ..utils.market_hours import NY_TZ
 from . import repository
-from .scoring import CompositeResult, RawSignals, build_composite
+from .scoring import CompositeResult, RawSignals, build_composite, classify_zone
 from .signals import factor_crowding, fear_greed_components, spx_breadth_200d, term_structure
 
 logger = get_logger(__name__)
@@ -137,6 +137,16 @@ def _current_quote(
             error=getattr(quote, "error", None),
         )
         return None
+    # A carried-forward prior-day close must never be treated as a live quote.
+    # Reject it so collect_signals falls back to the honest "stale / carried
+    # forward" path instead of stamping yesterday's close as a fresh value.
+    if quote.price_session == "previous_close":
+        logger.warning(
+            "macro_gate_current_quote_not_live",
+            symbol=symbol,
+            price_session=quote.price_session,
+        )
+        return None
     return quote
 
 
@@ -201,7 +211,11 @@ def collect_signals(
         "component_quality": {
             "vix": _quality(
                 value=raw.vix_close,
-                as_of=current_vix.cached_at if current_vix else fear_greed.vix_as_of if fear_greed else None,
+                as_of=(current_vix.quote_time or current_vix.cached_at)
+                if current_vix
+                else fear_greed.vix_as_of
+                if fear_greed
+                else None,
                 source=vix_source,
                 cadence=vix_cadence,
                 stale=False if current_vix else fear_greed.vix_stale if fear_greed else False,
@@ -289,8 +303,15 @@ def run(
         logger.warning("macro_gate_no_inputs")
         return None
 
-    composite = build_composite(raw, metadata=collected.metadata)
+    # Stale carried-forward inputs are excluded from the trusted score (drops
+    # coverage) and clamped below so a degraded reading can never look calmer
+    # than the last fully-trusted gate. Backtests pass snapshot_date and never
+    # mark staleness, so historical replay is unaffected.
+    stale_keys = _stale_component_keys(collected.metadata) if snapshot_date is None else frozenset()
+    composite = build_composite(raw, metadata=collected.metadata, stale_keys=stale_keys)
     target_date = snapshot_date or _infer_snapshot_date(composite)
+    if stale_keys:
+        composite = _clamp_degraded_to_known_good(composite, target_date)
 
     if persist:
         repository.upsert_snapshot(target_date, composite)
@@ -307,6 +328,53 @@ def run(
         deployment_score=composite.deployment_score,
         zone=composite.zone,
         coverage=composite.coverage,
+    )
+
+
+# Only components for which we expect an intraday-current value can "degrade"
+# the gate when carried forward. The daily/weekly inputs (term, breadth, credit,
+# put/call, crowding) legitimately lag by a session — that is their cadence, not
+# staleness — so a one-day-old HY spread must not drop coverage or flag degraded.
+# A genuinely stuck daily feed is caught separately by the fear_greed_inputs
+# freshness monitor, not here.
+_INTRADAY_COMPONENTS = frozenset({"vix"})
+
+
+def _stale_component_keys(metadata: dict[str, Any]) -> frozenset[str]:
+    quality = metadata.get("component_quality", {})
+    if not isinstance(quality, dict):
+        return frozenset()
+    return frozenset(
+        key
+        for key, q in quality.items()
+        if key in _INTRADAY_COMPONENTS and isinstance(q, dict) and q.get("status") == "stale"
+    )
+
+
+def _clamp_degraded_to_known_good(composite: CompositeResult, target_date: date) -> CompositeResult:
+    """Hold a degraded reading to the last fully-trusted score if it reads greener.
+
+    Higher deployment score == more risk-on. A snapshot computed off stale
+    inputs must never report a calmer/greener regime than the last known-good
+    gate, so we clamp it down (and re-classify the zone) when it would.
+    """
+    known_good = repository.get_last_known_good_score(target_date)
+    metadata = {**composite.metadata, "known_good_score": known_good}
+    if known_good is None or composite.deployment_score <= known_good:
+        return replace(composite, metadata=metadata)
+    metadata["clamped_to_known_good"] = True
+    metadata["raw_deployment_score"] = composite.deployment_score
+    logger.info(
+        "macro_gate_degraded_clamped",
+        raw_deployment_score=round(composite.deployment_score, 2),
+        known_good_score=round(known_good, 2),
+        stale_components=composite.metadata.get("stale_components"),
+    )
+    return replace(
+        composite,
+        deployment_score=known_good,
+        zone=classify_zone(known_good),
+        metadata=metadata,
     )
 
 

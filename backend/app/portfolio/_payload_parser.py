@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 
 from ..logging_config import get_logger
 from .models import PriceData
@@ -11,6 +12,26 @@ from .sector_labels import resolve_sector_label
 logger = get_logger(__name__)
 
 _NULL_STRINGS = {"null", "n/a", "none", "nan", ""}
+
+
+def _safe_dt(val: object) -> datetime | None:
+    """Parse a vendor quote timestamp (ISO string or epoch seconds) to aware UTC."""
+    if isinstance(val, datetime):
+        return val if val.tzinfo else val.replace(tzinfo=UTC)
+    if isinstance(val, (int, float)):
+        try:
+            return datetime.fromtimestamp(float(val), tz=UTC)
+        except (ValueError, OverflowError, OSError):
+            return None
+    if isinstance(val, str):
+        text = val.strip()
+        if text and text.lower() not in _NULL_STRINGS:
+            try:
+                parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    return None
 
 
 def _safe_float(val: object) -> float | None:
@@ -69,6 +90,8 @@ def parse_payload_row(row: dict) -> PriceData:
     ask = payload.get("ask")
     bid_size = payload.get("bidSize") or payload.get("bid_size")
     ask_size = payload.get("askSize") or payload.get("ask_size")
+    price_session = payload.get("price_session")
+    quote_time = _safe_dt(payload.get("quote_time"))
 
     if price and price > 0:
         logger.info(
@@ -90,6 +113,8 @@ def parse_payload_row(row: dict) -> PriceData:
             ask=_safe_float(ask),
             bid_size=_safe_int(bid_size),
             ask_size=_safe_int(ask_size),
+            quote_time=quote_time,
+            price_session=price_session,
             source=source,
         )
 
