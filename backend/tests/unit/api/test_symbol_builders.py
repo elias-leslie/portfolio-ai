@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import math
+from datetime import UTC, datetime, timedelta
 
-from app.api.symbols.builders import build_market_section, build_news_section_from_watchlist
+from app.api.symbols.builders import (
+    build_market_section,
+    build_news_section_from_watchlist,
+    build_quote_section,
+)
 
 
 def test_build_market_section_drops_nan_sp500_change() -> None:
@@ -45,3 +50,19 @@ def test_build_news_section_from_watchlist_uses_recent_news_fallback() -> None:
     assert section.headline == "NVIDIA supplier demand stays elevated"
     assert len(section.recent_articles) == 1
     assert section.recent_articles[0].source == "Reuters"
+
+
+def test_build_quote_section_marks_fresh_canonical_quote() -> None:
+    section = build_quote_section(
+        {
+            "price": 122.04,
+            "source": "yfinance",
+            "cached_at": datetime.now(UTC) - timedelta(seconds=30),
+            "session": "pre_market",
+        }
+    )
+
+    assert section is not None
+    assert section.price == 122.04
+    assert section.freshness_status == "fresh"
+    assert section.session == "pre_market"

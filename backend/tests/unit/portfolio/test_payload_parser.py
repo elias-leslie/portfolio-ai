@@ -5,7 +5,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.portfolio._payload_parser import parse_payload_row
-from app.portfolio._price_cache import get_cached_prices
+from app.portfolio._price_cache import cache_prices, get_cached_prices
+from app.portfolio.models import PriceData
 from app.storage import PortfolioStorage
 
 
@@ -111,3 +112,29 @@ def test_get_cached_prices_can_skip_age_cutoff_for_read_paths() -> None:
 
     assert cached["NVDA"].price == 177.82
     assert storage.last_params == ["NVDA"]
+
+
+class _WriteStubStorage:
+    def __init__(self) -> None:
+        self.executed_sql: str | None = None
+        self.executed_params: list[object] | None = None
+        self.inserted_rows: list[dict[str, object]] | None = None
+
+    def execute(self, sql: str, params: list[object] | None = None) -> None:
+        self.executed_sql = sql
+        self.executed_params = params
+
+    def insert_dataframe(self, _table_name: str, df, _mode: str = "append", **_kwargs):
+        self.inserted_rows = df.to_dicts()
+
+
+def test_cache_prices_normalizes_symbols_before_writing() -> None:
+    storage = _WriteStubStorage()
+
+    cache_prices({"vgt": PriceData(symbol="vgt", price=123.45)}, storage)
+
+    assert storage.executed_sql is not None
+    assert "UPPER(symbol)" in storage.executed_sql
+    assert storage.executed_params == ["VGT"]
+    assert storage.inserted_rows is not None
+    assert storage.inserted_rows[0]["symbol"] == "VGT"

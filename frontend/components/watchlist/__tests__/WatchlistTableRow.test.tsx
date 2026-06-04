@@ -23,6 +23,15 @@ function buildItem() {
     source: 'manual' as const,
     createdAt: '2026-03-11T12:00:00Z',
     updatedAt: '2026-03-11T12:05:00Z',
+    quote: {
+      price: 411.55,
+      source: 'yfinance',
+      cachedAt: '2026-03-11T12:06:00Z',
+      session: 'open',
+      freshnessStatus: 'fresh',
+      freshnessLabel: 'Fresh quote',
+      error: null,
+    },
     riskLevel: 'Medium' as const,
     dataQuality: {
       overallPct: 91,
@@ -98,6 +107,8 @@ describe('WatchlistTableRow', () => {
     )
     expect(screen.getByText('Exit this position')).toBeInTheDocument()
     expect(screen.getByText(/Jenny alert · Critical/i)).toBeInTheDocument()
+    expect(screen.getByText('$411.55')).toBeInTheDocument()
+    expect(screen.queryByText('$410.12')).not.toBeInTheDocument()
   })
 
   it('does not toggle the row when the delete action is clicked', async () => {

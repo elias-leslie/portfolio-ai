@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from app.logging_config import get_logger
+from app.portfolio.price_fetcher import PriceDataFetcher
 from app.storage.helpers import row_to_dict, rows_to_dicts
+from app.utils.market_hours import get_market_status
 
 from .portfolio_context import fetch_symbol_portfolio_context
 
@@ -16,6 +18,53 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 _PILLARS = ["price", "technical", "fundamental", "catalyst", "options_flow"]
+_SYMBOL_QUOTE_MAX_AGE_MINUTES = 1
+
+
+def get_quote_data(
+    symbol: str,
+    storage: PortfolioStorage,
+    *,
+    force_refresh: bool = False,
+) -> dict[str, Any]:
+    """Fetch the canonical current quote from price_cache / PriceDataFetcher."""
+    normalized_symbol = symbol.upper().strip()
+    if not normalized_symbol:
+        return {}
+
+    fetcher = PriceDataFetcher(storage)
+    quote = fetcher.fetch_price_data(
+        [normalized_symbol],
+        force_refresh=force_refresh,
+        max_age_minutes=_SYMBOL_QUOTE_MAX_AGE_MINUTES,
+    ).get(normalized_symbol)
+
+    fetch_error = quote.error if quote else None
+    if quote is None or quote.price <= 0 or quote.error:
+        cached = fetcher.fetch_cached_price_data(
+            [normalized_symbol],
+            max_age_minutes=None,
+        ).get(normalized_symbol)
+        quote = cached or quote
+
+    if quote is None:
+        return {
+            "symbol": normalized_symbol,
+            "price": None,
+            "source": None,
+            "cached_at": None,
+            "session": None,
+            "error": fetch_error or "Quote unavailable",
+        }
+
+    return {
+        "symbol": quote.symbol,
+        "price": quote.price if quote.price > 0 and not quote.error else None,
+        "source": quote.source,
+        "cached_at": quote.cached_at,
+        "session": get_market_status(quote.cached_at),
+        "error": fetch_error or quote.error,
+    }
 
 
 def _extract_pillar_scores(score: dict[str, Any]) -> dict[str, Any]:
@@ -214,12 +263,16 @@ def fetch_all_data(
     watchlist_service: WatchlistService,
     include_market: bool,
     include_strategies: bool,
+    *,
+    force_quote_refresh: bool = False,
 ) -> dict[str, Any]:
     """Fetch all data sources for symbol intelligence.
 
-    Returns dict with keys: watchlist, portfolio, strategies, news, market
+    Returns dict with keys: quote, watchlist, portfolio, strategies, news, market
     """
+    quote = get_quote_data(symbol, storage, force_refresh=force_quote_refresh)
     return {
+        "quote": quote,
         "watchlist": get_watchlist_data(symbol, watchlist_service),
         "portfolio": get_portfolio_data(symbol, storage),
         "strategies": get_strategies_data(symbol, storage) if include_strategies else None,

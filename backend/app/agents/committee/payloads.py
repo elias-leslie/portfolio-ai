@@ -431,12 +431,25 @@ def fetch_portfolio_context(
                     upper(p.symbol) AS symbol,
                     SUM(p.shares) AS shares,
                     SUM(p.shares * p.cost_basis) / NULLIF(SUM(p.shares), 0) AS avg_cost,
-                    MAX(pc.price) AS price,
-                    SUM(p.shares * COALESCE(pc.price, p.cost_basis)) AS value,
+                    MAX(lpc.price) AS price,
+                    SUM(p.shares * COALESCE(lpc.price, p.cost_basis)) AS value,
                     MAX(s.sector) AS sector
                 FROM portfolio_positions p
                 JOIN portfolio_accounts a ON a.id = p.account_id
-                LEFT JOIN price_cache pc ON upper(pc.symbol) = upper(p.symbol)
+                LEFT JOIN (
+                    SELECT symbol, price
+                    FROM (
+                        SELECT
+                            upper(symbol) AS symbol,
+                            price,
+                            ROW_NUMBER() OVER (
+                                PARTITION BY upper(symbol)
+                                ORDER BY cached_at DESC
+                            ) AS rn
+                        FROM price_cache
+                    ) ranked_price_cache
+                    WHERE rn = 1
+                ) lpc ON lpc.symbol = upper(p.symbol)
                 LEFT JOIN symbols s ON upper(s.symbol) = upper(p.symbol)
                 WHERE a.account_type != 'paper'
                   AND p.position_type != 'paper'

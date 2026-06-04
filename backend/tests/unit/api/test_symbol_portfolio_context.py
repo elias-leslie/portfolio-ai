@@ -84,6 +84,8 @@ def test_symbol_portfolio_context_aggregates_multi_account_position(
     assert section.position.weight_pct == pytest.approx(97.926043)
     assert any("a.account_type != 'paper'" in query for query in storage.connection_instance.queries)
     assert any("p.position_type != 'paper'" in query for query in storage.connection_instance.queries)
+    assert any("ROW_NUMBER() OVER" in query for query in storage.connection_instance.queries)
+    assert not any("MAX(pc.price)" in query for query in storage.connection_instance.queries)
 
 
 def test_build_portfolio_section_does_not_turn_cost_basis_into_current_price() -> None:

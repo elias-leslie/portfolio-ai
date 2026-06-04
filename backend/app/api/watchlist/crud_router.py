@@ -7,7 +7,6 @@ from fastapi.concurrency import run_in_threadpool
 
 from app.api.utils import handle_api_errors, require_nonempty_df
 from app.logging_config import get_logger
-from app.middleware.cache import cache_response
 from app.storage import get_storage
 from app.utils.db_helpers import generate_uuid
 from app.utils.formatters import utc_now_iso
@@ -29,7 +28,7 @@ from app.watchlist.validators import validate_symbol
 from app.watchlist.watchlist_repository import WatchlistRepository
 from app.watchlist.watchlist_service import WatchlistService
 
-from .helpers import WATCHLIST_CACHE_TTL_SECONDS, _require_watchlist_item
+from .helpers import _require_watchlist_item
 
 logger = get_logger(__name__)
 
@@ -53,7 +52,6 @@ def _get_watchlist_repo() -> WatchlistRepository:
 
 
 @router.get("/", response_model=WatchlistListResponse)
-@cache_response(ttl=WATCHLIST_CACHE_TTL_SECONDS)
 @handle_api_errors("fetch watchlist items")
 async def list_watchlist_items(request: Request) -> WatchlistListResponse:
     """
@@ -64,6 +62,7 @@ async def list_watchlist_items(request: Request) -> WatchlistListResponse:
     Returns:
         List of watchlist items with current scores
     """
+    del request
     items = await run_in_threadpool(_get_watchlist_service().get_items_with_scores)
 
     return WatchlistListResponse(

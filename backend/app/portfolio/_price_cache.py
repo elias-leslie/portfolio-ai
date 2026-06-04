@@ -30,12 +30,15 @@ def get_cached_prices(
     Returns:
         Dictionary of valid cached PriceData entries
     """
-    if not symbols:
+    normalized_symbols = list(
+        dict.fromkeys(str(symbol).strip().upper() for symbol in symbols if str(symbol).strip())
+    )
+    if not normalized_symbols:
         return {}
 
-    placeholders = ",".join(["?" for _ in symbols])
+    placeholders = ",".join(["?" for _ in normalized_symbols])
     cutoff_clause = ""
-    params: list[object] = list(symbols)
+    params: list[object] = list(normalized_symbols)
     if cache_ttl_minutes is not None:
         cutoff_time = datetime.now(UTC) - timedelta(minutes=cache_ttl_minutes)
         cutoff_clause = "AND cached_at >= ?"
@@ -43,10 +46,10 @@ def get_cached_prices(
 
     df = storage.query(
         f"""
-        SELECT symbol, price, beta, volatility, sector, bid, ask, bid_size, ask_size,
+        SELECT UPPER(symbol) AS symbol, price, beta, volatility, sector, bid, ask, bid_size, ask_size,
                cached_at, source, error
         FROM price_cache
-        WHERE symbol IN ({placeholders})
+        WHERE UPPER(symbol) IN ({placeholders})
           {cutoff_clause}
         ORDER BY symbol, cached_at DESC
         """,
@@ -86,18 +89,29 @@ def cache_prices(
     if not price_data:
         return
 
-    rows = [data.model_dump() for data in price_data.values()]
+    canonical_data: dict[str, PriceData] = {}
+    for key, data in price_data.items():
+        raw_symbol = str(data.symbol or key).strip()
+        if not raw_symbol:
+            continue
+        symbol = raw_symbol.upper()
+        canonical_data[symbol] = data.model_copy(update={"symbol": symbol})
+
+    if not canonical_data:
+        return
+
+    rows = [data.model_dump() for data in canonical_data.values()]
     df = pl.DataFrame(rows)
 
-    # Delete existing rows for these symbols before inserting to prevent unbounded growth
-    symbols = list(price_data.keys())
+    # price_cache is the canonical current quote table: one latest row per symbol.
+    symbols = list(canonical_data.keys())
     placeholders = ",".join(["?" for _ in symbols])
-    storage.execute(f"DELETE FROM price_cache WHERE symbol IN ({placeholders})", symbols)
+    storage.execute(f"DELETE FROM price_cache WHERE UPPER(symbol) IN ({placeholders})", symbols)
 
     storage.insert_dataframe("price_cache", df, mode="append")
 
     logger.info(
         "prices_cached",
         num_cached=len(rows),
-        symbols=list(price_data.keys()),
+        symbols=symbols,
     )

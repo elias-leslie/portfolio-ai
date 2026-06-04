@@ -82,10 +82,23 @@ def fetch_symbol_portfolio_context(
                     UPPER(p.symbol) AS symbol,
                     SUM(p.shares) AS shares,
                     SUM(p.shares * p.cost_basis) / NULLIF(SUM(p.shares), 0) AS cost_basis,
-                    MAX(pc.price) AS current_price
+                    MAX(lpc.price) AS current_price
                 FROM portfolio_positions p
                 JOIN portfolio_accounts a ON a.id = p.account_id
-                LEFT JOIN price_cache pc ON UPPER(p.symbol) = UPPER(pc.symbol)
+                LEFT JOIN (
+                    SELECT symbol, price
+                    FROM (
+                        SELECT
+                            UPPER(symbol) AS symbol,
+                            price,
+                            ROW_NUMBER() OVER (
+                                PARTITION BY UPPER(symbol)
+                                ORDER BY cached_at DESC
+                            ) AS rn
+                        FROM price_cache
+                    ) ranked_price_cache
+                    WHERE rn = 1
+                ) lpc ON UPPER(p.symbol) = lpc.symbol
                 WHERE UPPER(p.symbol) IN ({placeholders})
                   AND a.account_type != 'paper'
                   AND p.position_type != 'paper'

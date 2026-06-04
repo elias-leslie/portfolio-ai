@@ -30,6 +30,15 @@ function buildItem() {
     source: 'manual' as const,
     createdAt: '2026-03-11T12:00:00Z',
     updatedAt: '2026-03-11T12:05:00Z',
+    quote: {
+      price: 411.55,
+      source: 'yfinance',
+      cachedAt: '2026-03-11T12:06:00Z',
+      session: 'open',
+      freshnessStatus: 'fresh',
+      freshnessLabel: 'Fresh quote',
+      error: null,
+    },
     riskLevel: 'Medium' as const,
     signalType: 'BUY' as const,
     recommendedStyle: 'Trend' as const,
@@ -118,8 +127,10 @@ describe('WatchlistCard', () => {
     expect(screen.getByText('Portfolio')).toBeInTheDocument()
     expect(screen.getByText('Data quality 91%')).toBeInTheDocument()
     expect(screen.getByText(/Refreshing 2\/5/i)).toBeInTheDocument()
-    expect(screen.getByText('$410.12')).toBeInTheDocument()
-    expect(screen.getByText('+1.25%')).toBeInTheDocument()
+    expect(screen.getByText('$411.55')).toBeInTheDocument()
+    expect(screen.getByText('Fresh quote')).toBeInTheDocument()
+    expect(screen.queryByText('$410.12')).not.toBeInTheDocument()
+    expect(screen.queryByText('+1.25%')).not.toBeInTheDocument()
     expect(screen.getByText('🟢 BUY')).toBeInTheDocument()
     expect(screen.getByText('Decision')).toBeInTheDocument()
     expect(screen.getByText('Exit this position')).toBeInTheDocument()

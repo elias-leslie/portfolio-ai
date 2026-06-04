@@ -22,6 +22,7 @@ from .helpers import _calculate_price_change
 from .item_enrichment import (
     build_data_quality_map,
     build_news_intelligence_map,
+    build_quote_map,
     build_watchlist_decision_map,
     enrich_data_quality,
     enrich_news_intelligence,
@@ -54,6 +55,7 @@ class WatchlistService:
 
         # Pre-fetch enrichment data for all symbols in batch (avoids N+1 queries)
         symbols = [row["symbol"] for row in items_df.iter_rows(named=True)]
+        quote_map = build_quote_map(self.storage, symbols)
         news_intel_map = build_news_intelligence_map(self.repo, symbols)
         data_quality_map = build_data_quality_map(self.storage, symbols)
 
@@ -67,6 +69,7 @@ class WatchlistService:
                 item_data["decision_generated_at"] = row.get("fetched_at")
 
             symbol = row["symbol"]
+            item_data["quote"] = quote_map.get(str(symbol).upper())
             item_data["news_intelligence"] = news_intel_map.get(symbol)
             item_data["data_quality"] = data_quality_map.get(symbol)
 
@@ -103,6 +106,7 @@ class WatchlistService:
             item_data["decision_generated_at"] = snap_row.get("fetched_at")
 
         symbol = row["symbol"]
+        item_data["quote"] = build_quote_map(self.storage, [symbol]).get(str(symbol).upper())
         enrich_news_intelligence(self.repo, symbol, item_data)
         enrich_data_quality(self.storage, symbol, item_data)
 
@@ -115,7 +119,7 @@ class WatchlistService:
 
     def refresh_scores(self, item_id: str, symbol: str) -> None:
         """Refresh scores for a single watchlist item."""
-        price_data = self.price_fetcher.fetch_price_data([symbol]).get(symbol)
+        price_data = self.price_fetcher.fetch_price_data([symbol]).get(symbol.upper())
         if not price_data or price_data.price <= 0:
             raise ValueError(f"Unable to fetch price data for {symbol}")
 

@@ -3,7 +3,7 @@
  */
 
 import { apiRequest } from './client'
-import type { SymbolDecisionSection } from './symbols'
+import type { SymbolDecisionSection, SymbolQuoteSection } from './symbols'
 
 // Types matching backend Pydantic models
 export interface ScoreComponent {
@@ -139,6 +139,7 @@ export interface WatchlistItem {
   createdAt: string
   updatedAt: string
   currentScore?: ScoreBreakdown
+  quote?: SymbolQuoteSection | null
   scoreAlert?: boolean
   // Narrative Intelligence fields
   signalType?: 'BUY' | 'HOLD' | 'AVOID' | null

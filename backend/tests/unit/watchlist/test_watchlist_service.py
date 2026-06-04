@@ -56,6 +56,20 @@ def test_get_items_with_scores_skips_decision_map_when_disabled(mocker) -> None:
         "app.watchlist._service.watchlist_service.build_data_quality_map",
         return_value={"NVDA": None},
     )
+    mocker.patch(
+        "app.watchlist._service.watchlist_service.build_quote_map",
+        return_value={
+            "NVDA": {
+                "price": 122.04,
+                "source": "yfinance",
+                "cached_at": "2026-06-04T13:15:00Z",
+                "session": "pre_market",
+                "freshness_status": "fresh",
+                "freshness_label": "Fresh quote",
+                "error": None,
+            }
+        },
+    )
     decision_mock = mocker.patch(
         "app.watchlist._service.watchlist_service.build_watchlist_decision_map",
         return_value={"NVDA": {"headline": "Buy more"}},
@@ -70,4 +84,5 @@ def test_get_items_with_scores_skips_decision_map_when_disabled(mocker) -> None:
     enrich_mock.assert_called_once()
     assert len(results) == 1
     assert results[0]["symbol"] == "NVDA"
+    assert results[0]["quote"]["price"] == 122.04
     assert results[0].get("decision") is None

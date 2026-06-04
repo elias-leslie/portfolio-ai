@@ -12,8 +12,26 @@ export function useSymbolIntelligence(symbol: string) {
     queryKey: ['symbol-intelligence', symbol],
     queryFn: () => fetchSymbolIntelligence(symbol),
     enabled: symbol.trim().length > 0,
-    staleTime: 1000 * 60,
-    refetchInterval: 1000 * 60 * 5,
+    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 60,
+  })
+}
+
+export function useRefreshSymbolIntelligence(symbol: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () =>
+      fetchSymbolIntelligence(symbol, { forceQuoteRefresh: true }),
+    onSuccess: (result) => {
+      queryClient.setQueryData(['symbol-intelligence', symbol], result)
+      queryClient.invalidateQueries({ queryKey: ['signals', 'symbol', symbol] })
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to refresh quote',
+      )
+    },
   })
 }
 

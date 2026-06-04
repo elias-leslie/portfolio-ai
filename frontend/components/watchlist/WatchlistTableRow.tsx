@@ -70,7 +70,13 @@ export function WatchlistTableRow({
   const overall = item.currentScore?.overall ?? 0
   const priceSnapshot = getWatchlistPriceSnapshot(
     item.currentScore?.price.metadata,
+    item.quote,
   )
+  const priceMetadata = item.currentScore?.price.metadata
+  const quoteSource = item.quote?.source ?? priceMetadata?.source
+  const quoteIsStale =
+    item.quote?.freshnessStatus === 'stale' ||
+    item.quote?.freshnessStatus === 'missing'
   const decisionMeta = formatDecisionMeta(item.decision, {
     includeTimestamp: false,
   })
@@ -129,15 +135,13 @@ export function WatchlistTableRow({
                   <span>Held</span>
                 </Badge>
               )}
-              {item.currentScore?.price.metadata?.source &&
-              typeof item.currentScore.price.metadata.source === 'string' ? (
+              {typeof quoteSource === 'string' ? (
                 <SourceBadge
-                  source={item.currentScore.price.metadata.source}
-                  stale={item.currentScore.price.stale}
+                  source={quoteSource}
+                  stale={quoteIsStale || item.currentScore?.price.stale}
                   priority={
-                    typeof item.currentScore.price.metadata.priority ===
-                    'number'
-                      ? item.currentScore.price.metadata.priority
+                    typeof priceMetadata?.priority === 'number'
+                      ? priceMetadata.priority
                       : undefined
                   }
                 />
@@ -184,6 +188,10 @@ export function WatchlistTableRow({
                   )}
                 >
                   {priceSnapshot.changeLabel}
+                </div>
+              ) : priceSnapshot.freshnessLabel ? (
+                <div className="text-xs text-text-muted">
+                  {priceSnapshot.freshnessLabel}
                 </div>
               ) : null}
             </div>

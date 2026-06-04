@@ -6,6 +6,7 @@ Transforms raw data into typed response sections.
 from __future__ import annotations
 
 import math
+from datetime import UTC, datetime
 from typing import Any
 
 from app.portfolio.current_facts import calculate_current_position_fact
@@ -21,6 +22,7 @@ from .models import (
     PortfolioContext,
     PortfolioSection,
     PositionInfo,
+    QuoteSection,
     ScoresSection,
     SignalSection,
     StrategiesSection,
@@ -105,6 +107,50 @@ def build_trading_section(watchlist: dict[str, Any]) -> TradingSection:
             if watchlist.get("position_size_shares") and watchlist.get("entry_price")
             else None
         ),
+    )
+
+
+def build_quote_section(quote: dict[str, Any] | None) -> QuoteSection | None:
+    """Build the canonical quote section from price_cache data."""
+    if not quote:
+        return None
+
+    price = _finite_float(quote.get("price"))
+    cached_at = quote.get("cached_at")
+    if isinstance(cached_at, datetime):
+        if cached_at.tzinfo is None:
+            cached_at = cached_at.replace(tzinfo=UTC)
+        age_seconds = max(
+            0.0,
+            (datetime.now(UTC) - cached_at.astimezone(UTC)).total_seconds(),
+        )
+    else:
+        age_seconds = None
+
+    if price is None:
+        status = "missing"
+        label = "Quote unavailable"
+    elif age_seconds is None:
+        status = "unknown"
+        label = "Quote time unavailable"
+    elif age_seconds <= 90:
+        status = "fresh"
+        label = "Fresh quote"
+    elif age_seconds <= 300:
+        status = "aging"
+        label = "Aging quote"
+    else:
+        status = "stale"
+        label = "Stale quote"
+
+    return QuoteSection(
+        price=price,
+        source=quote.get("source"),
+        cached_at=cached_at if isinstance(cached_at, datetime) else None,
+        session=quote.get("session"),
+        freshness_status=status,
+        freshness_label=label,
+        error=quote.get("error"),
     )
 
 

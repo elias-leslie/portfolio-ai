@@ -12,7 +12,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from app.api.symbols.models import DecisionSection
+from app.api.symbols.models import DecisionSection, QuoteSection
 
 from .models import NarrativeBulletsDict, NewsIntelligenceDict, RecentNewsDict
 
@@ -140,6 +140,7 @@ class WatchlistItemResponse(BaseModel):
     created_at: str
     updated_at: str
     current_score: ScoreBreakdownResponse | None = None
+    quote: QuoteSection | None = None
     score_alert: bool = False  # True if score changed >10 points in last 7 days
 
     # Narrative intelligence fields
@@ -256,6 +257,7 @@ class WatchlistItemResponse(BaseModel):
             created_at=item["created_at"],
             updated_at=item["updated_at"],
             current_score=current_score,
+            quote=QuoteSection(**item["quote"]) if item.get("quote") else None,
             score_alert=item.get("score_alert", False),
             # Narrative intelligence fields
             signal_type=item.get("signal_type"),

@@ -53,22 +53,40 @@ class PriceDataFetcher:
         sources = initialize_data_sources()
         self.multi_source_fetcher = MultiSourceFetcher(sources, storage)
 
-    def fetch_price_data(self, symbols: list[str]) -> dict[str, PriceData]:
+    def fetch_price_data(
+        self,
+        symbols: list[str],
+        *,
+        force_refresh: bool = False,
+        max_age_minutes: int | None = None,
+    ) -> dict[str, PriceData]:
         """Fetch price data for multiple symbols with caching.
 
         Args:
             symbols: List of stock symbols
+            force_refresh: When True, skip the cache and fetch fresh vendor data.
+            max_age_minutes: Optional age cutoff for cache hits. Defaults to
+                the market-session-aware TTL.
 
         Returns:
             Dictionary mapping symbol to PriceData
         """
+        unique_symbols = self._normalize_symbols(symbols)
+        if not unique_symbols:
+            return {}
+
         result: dict[str, PriceData] = {}
 
-        cache_ttl_minutes = self._cache_ttl_minutes()
-        cached_data = get_cached_prices(symbols, self.storage, cache_ttl_minutes)
-        result.update(cached_data)
+        if not force_refresh:
+            cache_ttl_minutes = (
+                self._cache_ttl_minutes() if max_age_minutes is None else max_age_minutes
+            )
+            cached_data = get_cached_prices(
+                unique_symbols, self.storage, cache_ttl_minutes
+            )
+            result.update(cached_data)
 
-        missing_symbols = [s for s in symbols if s not in result]
+        missing_symbols = [s for s in unique_symbols if s not in result]
         if missing_symbols:
             fresh_data = self._fetch_fresh_prices(missing_symbols)
             result.update(fresh_data)
@@ -90,7 +108,29 @@ class PriceDataFetcher:
         own external quote fetching; if cache is empty, callers surface missing
         or stale data instead of blocking on vendor fallbacks.
         """
-        return get_cached_prices(symbols, self.storage, max_age_minutes)
+        return get_cached_prices(self._normalize_symbols(symbols), self.storage, max_age_minutes)
+
+    def _get_cached_prices(
+        self,
+        symbols: list[str],
+        cache_ttl_minutes: int | None = None,
+    ) -> dict[str, PriceData]:
+        """Compatibility wrapper for older tests and local callers."""
+        ttl = self._cache_ttl_minutes() if cache_ttl_minutes is None else cache_ttl_minutes
+        return get_cached_prices(self._normalize_symbols(symbols), self.storage, ttl)
+
+    def _cache_prices(self, price_data: dict[str, PriceData]) -> None:
+        """Compatibility wrapper for older tests and local callers."""
+        cache_prices(price_data, self.storage)
+
+    @staticmethod
+    def _normalize_symbols(symbols: list[str]) -> list[str]:
+        """Normalize symbols once at the quote boundary."""
+        return list(
+            dict.fromkeys(
+                str(symbol).strip().upper() for symbol in symbols if str(symbol).strip()
+            )
+        )
 
     def _cache_ttl_minutes(self) -> int:
         market_status = get_market_status()

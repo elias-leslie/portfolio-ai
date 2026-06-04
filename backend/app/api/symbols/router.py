@@ -42,12 +42,12 @@ def _invalidate_symbol_read_cache(symbol: str) -> None:
 
 
 @router.get("/{symbol}/intelligence", response_model=SymbolIntelligenceResponse)
-@cache_response(ttl=120)
 async def get_symbol_intelligence(
     request: Request,
     symbol: str,
     include_market: bool = True,
     include_strategies: bool = True,
+    force_quote_refresh: bool = False,
 ) -> SymbolIntelligenceResponse:
     """Get comprehensive intelligence for a symbol.
 
@@ -67,6 +67,8 @@ async def get_symbol_intelligence(
             symbol,
             include_market,
             include_strategies,
+            True,
+            force_quote_refresh,
         )
     except Exception as e:
         logger.exception("symbol_intelligence_failed", symbol=symbol)

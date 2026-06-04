@@ -2,7 +2,10 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useJennyDashboard } from '@/lib/hooks/usePortfolio'
-import { useSymbolIntelligence } from '@/lib/hooks/useSymbolIntelligence'
+import {
+  useRefreshSymbolIntelligence,
+  useSymbolIntelligence,
+} from '@/lib/hooks/useSymbolIntelligence'
 import { SymbolWorkspace } from '../SymbolWorkspace'
 
 vi.mock('@/components/symbol/SymbolWorkflowPanel', () => ({
@@ -12,6 +15,7 @@ vi.mock('@/components/watchlist/ThesisSection', () => ({
   ThesisSection: () => <div>Thesis Section</div>,
 }))
 vi.mock('@/lib/hooks/useSymbolIntelligence', () => ({
+  useRefreshSymbolIntelligence: vi.fn(),
   useSymbolIntelligence: vi.fn(),
 }))
 vi.mock('@/lib/hooks/usePortfolio', () => ({
@@ -29,10 +33,23 @@ describe('SymbolWorkspace', () => {
     vi.clearAllMocks()
     window.history.replaceState(null, '', '/')
 
+    vi.mocked(useRefreshSymbolIntelligence).mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+    } as never)
     vi.mocked(useSymbolIntelligence).mockReturnValue({
       data: {
         symbol: 'VTI',
         generatedAt: '2026-03-10T15:30:00Z',
+        quote: {
+          price: 122.04,
+          source: 'yfinance',
+          cachedAt: '2026-03-10T15:29:30Z',
+          session: 'pre_market',
+          freshnessStatus: 'fresh',
+          freshnessLabel: 'Fresh quote',
+          error: null,
+        },
         scores: {
           overall: 78,
           signalType: 'BUY',
@@ -164,6 +181,11 @@ describe('SymbolWorkspace', () => {
       screen.queryByText(/^score 78 · buy · strength 7\/10$/i),
     ).not.toBeInTheDocument()
     expect(screen.getAllByText(/live signal model/i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/current quote/i)).toBeInTheDocument()
+    expect(screen.getByText('$122.04')).toBeInTheDocument()
+    expect(
+      screen.getByText(/yfinance · pre market · fresh quote/i),
+    ).toBeInTheDocument()
     expect(
       screen.getAllByText(/8 shares · \+1.4% · 0.2% of invested assets/i)
         .length,
@@ -534,5 +556,20 @@ describe('SymbolWorkspace', () => {
       'aria-busy',
       'true',
     )
+  })
+
+  it('forces a canonical quote refresh when Refresh is clicked', async () => {
+    const user = userEvent.setup()
+    const refresh = {
+      mutate: vi.fn(),
+      isPending: false,
+    }
+    vi.mocked(useRefreshSymbolIntelligence).mockReturnValue(refresh as never)
+
+    render(<SymbolWorkspace symbol="vti" />)
+
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+
+    expect(refresh.mutate).toHaveBeenCalledTimes(1)
   })
 })

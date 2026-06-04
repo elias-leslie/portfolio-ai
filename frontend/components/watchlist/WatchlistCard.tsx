@@ -63,6 +63,7 @@ export function WatchlistCard({
     : null
   const priceSnapshot = getWatchlistPriceSnapshot(
     item.currentScore?.price.metadata,
+    item.quote,
   )
   const highlightedIndicators =
     item.priorityIndicators
@@ -70,8 +71,12 @@ export function WatchlistCard({
       .sort((left, right) => right.priority - left.priority)
       .slice(0, 2) ?? []
   const priceMetadata = item.currentScore?.price.metadata
-  const source = priceMetadata?.source
+  const source = item.quote?.source ?? priceMetadata?.source
+  const quoteIsStale =
+    item.quote?.freshnessStatus === 'stale' ||
+    item.quote?.freshnessStatus === 'missing'
   const showSourceBadge =
+    quoteIsStale ||
     item.currentScore?.price.stale ||
     (typeof source === 'string' && source.toLowerCase() !== 'yfinance')
 
@@ -117,7 +122,7 @@ export function WatchlistCard({
           {showSourceBadge && typeof source === 'string' ? (
             <SourceBadge
               source={source}
-              stale={item.currentScore?.price.stale}
+              stale={quoteIsStale || item.currentScore?.price.stale}
               priority={
                 typeof priceMetadata?.priority === 'number'
                   ? priceMetadata.priority
@@ -241,6 +246,10 @@ export function WatchlistCard({
                 )}
               >
                 {priceSnapshot.changeLabel}
+              </p>
+            ) : priceSnapshot.freshnessLabel ? (
+              <p className="text-sm font-medium text-text-muted">
+                {priceSnapshot.freshnessLabel}
               </p>
             ) : null}
           </div>

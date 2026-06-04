@@ -16,6 +16,7 @@ from .builders import (
     build_news_section_fallback,
     build_news_section_from_watchlist,
     build_portfolio_section,
+    build_quote_section,
     build_scores_section,
     build_signal_section,
     build_strategies_section,
@@ -54,12 +55,19 @@ def build_symbol_intelligence(
     include_market: bool = True,
     include_strategies: bool = True,
     include_decision: bool = True,
+    force_quote_refresh: bool = False,
 ) -> SymbolIntelligenceResponse:
     """Build the full intelligence response synchronously."""
     symbol = symbol.upper()
     data = fetch_all_data(
-        symbol, _storage(), _watchlist_service(), include_market, include_strategies
+        symbol,
+        _storage(),
+        _watchlist_service(),
+        include_market,
+        include_strategies,
+        force_quote_refresh=force_quote_refresh,
     )
+    quote = data.get("quote")
     watchlist = data["watchlist"]
     portfolio = data["portfolio"]
     strategies = data["strategies"]
@@ -67,6 +75,7 @@ def build_symbol_intelligence(
     market = data["market"]
 
     response = SymbolIntelligenceResponse(symbol=symbol, generated_at=datetime.now(UTC))
+    response.quote = build_quote_section(quote)
 
     if watchlist:
         response.scores = build_scores_section(watchlist)

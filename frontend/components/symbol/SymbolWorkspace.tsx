@@ -22,7 +22,10 @@ import {
 import { useJennyDashboard } from '@/lib/hooks/usePortfolio'
 import { usePreferences } from '@/lib/hooks/usePreferences'
 import { useSymbolSignals } from '@/lib/hooks/useSignals'
-import { useSymbolIntelligence } from '@/lib/hooks/useSymbolIntelligence'
+import {
+  useRefreshSymbolIntelligence,
+  useSymbolIntelligence,
+} from '@/lib/hooks/useSymbolIntelligence'
 import { cn, formatDate } from '@/lib/utils'
 import {
   compareNotifications,
@@ -36,8 +39,9 @@ import {
 
 export function SymbolWorkspace({ symbol }: { symbol: string }) {
   const uppercaseSymbol = symbol.toUpperCase()
-  const { data, isLoading, error, refetch, isFetching } =
+  const { data, isLoading, error, isFetching } =
     useSymbolIntelligence(uppercaseSymbol)
+  const refreshSymbol = useRefreshSymbolIntelligence(uppercaseSymbol)
   const { data: symbolSignals } = useSymbolSignals(uppercaseSymbol)
   const { data: jennyDashboard, error: jennyError } = useJennyDashboard()
   const { data: preferences } = usePreferences()
@@ -54,6 +58,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
       (review) => review.symbol === uppercaseSymbol,
     ) ?? []
   const currentDecision = data?.decision
+  const quote = data?.quote ?? null
   const heldPosition = data?.portfolio?.position ?? null
   const newsArticleCount = data?.news?.recentArticles.length ?? 0
   const jennyAlertCount =
@@ -117,12 +122,18 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
     data?.market?.vixAsOfDate ??
     data?.market?.fearGreedAsOfDate ??
     null
+  const isRefreshingSymbol = isFetching || refreshSymbol.isPending
+  const quoteDetailParts = [
+    quote?.source ? quote.source : null,
+    quote?.session ? formatEnumLabel(quote.session) : null,
+    quote?.freshnessLabel ?? null,
+  ].filter((part): part is string => Boolean(part))
 
   if (isLoading) {
     return (
       <PageContainer className="space-y-6 py-8">
         <PageHeader title={uppercaseSymbol} />
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid gap-4 lg:grid-cols-4">
           {[...Array(4)].map((_, index) => (
             <div
               key={`symbol-skeleton-${index}`}
@@ -150,9 +161,9 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             title="Failed to load symbol intelligence."
             detail="Retry to refresh the symbol score, recommendation, and linked workflow context."
             onRetry={() => {
-              void refetch()
+              refreshSymbol.mutate()
             }}
-            isRetrying={isFetching}
+            isRetrying={isRefreshingSymbol}
           />
         </SectionCard>
       </PageContainer>
@@ -171,12 +182,17 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             </Button>
             <Button
               variant="outline"
-              onClick={() => refetch()}
-              disabled={isFetching}
-              aria-busy={isFetching}
+              onClick={() => {
+                refreshSymbol.mutate()
+              }}
+              disabled={isRefreshingSymbol}
+              aria-busy={isRefreshingSymbol}
             >
               <RefreshCw
-                className={cn('mr-2 h-4 w-4', isFetching && 'animate-spin')}
+                className={cn(
+                  'mr-2 h-4 w-4',
+                  isRefreshingSymbol && 'animate-spin',
+                )}
               />
               Refresh
             </Button>
@@ -215,6 +231,11 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             'Update time unavailable'
           )}
         </span>
+        {quote?.cachedAt ? (
+          <span className="rounded-full border border-border/40 bg-surface-muted/20 px-3 py-1">
+            Quote <RelativeTime value={quote.cachedAt} />
+          </span>
+        ) : null}
         <span className="rounded-full border border-border/40 bg-surface-muted/20 px-3 py-1">
           {formatCountLabel(alertCount, 'alert')}
         </span>
@@ -230,7 +251,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
         ) : null}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3 animate-stagger">
+      <div className="grid gap-4 lg:grid-cols-4 animate-stagger">
         <SectionCard variant="surface" title="Current Decision">
           <p className="font-display italic text-2xl text-text">
             {currentDecision?.headline ?? '—'}
@@ -256,6 +277,24 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             <p className="mt-2 text-xs uppercase tracking-[0.18em] text-text-muted">
               {formatEnumLabel(currentDecision.severity, 'Info')}
             </p>
+          ) : null}
+        </SectionCard>
+        <SectionCard variant="surface" title="Current Quote">
+          <p className="font-display italic text-2xl tabular-nums text-text">
+            {formatCurrency(quote?.price)}
+          </p>
+          <p className="mt-2 text-sm text-text-muted">
+            {quoteDetailParts.length > 0
+              ? quoteDetailParts.join(' · ')
+              : 'Canonical quote unavailable'}
+          </p>
+          {quote?.cachedAt ? (
+            <p className="mt-2 text-xs uppercase tracking-[0.16em] text-text-muted">
+              As of <RelativeTime value={quote.cachedAt} />
+            </p>
+          ) : null}
+          {quote?.error ? (
+            <p className="mt-2 text-xs text-warning">{quote.error}</p>
           ) : null}
         </SectionCard>
         <SectionCard variant="surface" title="Your Position">

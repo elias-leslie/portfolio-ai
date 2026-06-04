@@ -55,6 +55,18 @@ class TradingSection(BaseModel):
     position_size_dollars: float | None
 
 
+class QuoteSection(BaseModel):
+    """Canonical current quote for the symbol."""
+
+    price: float | None = None
+    source: str | None = None
+    cached_at: datetime | None = None
+    session: str | None = None
+    freshness_status: str
+    freshness_label: str
+    error: str | None = None
+
+
 class CompanySection(BaseModel):
     """Company fundamentals and timing."""
 
@@ -213,6 +225,7 @@ class SymbolIntelligenceResponse(BaseModel):
     scores: ScoresSection | None = None
     signal: SignalSection | None = None
     trading: TradingSection | None = None
+    quote: QuoteSection | None = None
     company: CompanySection | None = None
     trends: TrendSection | None = None
     portfolio: PortfolioSection | None = None

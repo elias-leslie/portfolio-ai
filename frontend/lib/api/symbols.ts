@@ -39,6 +39,16 @@ export interface SymbolTradingSection {
   positionSizeDollars: number | null
 }
 
+export interface SymbolQuoteSection {
+  price: number | null
+  source?: string | null
+  cachedAt?: string | null
+  session?: string | null
+  freshnessStatus: string
+  freshnessLabel: string
+  error?: string | null
+}
+
 export interface SymbolPortfolioSection {
   held: boolean
   position?: {
@@ -130,6 +140,7 @@ export interface SymbolIntelligence {
   scores?: SymbolScoresSection | null
   signal?: SymbolSignalSection | null
   trading?: SymbolTradingSection | null
+  quote?: SymbolQuoteSection | null
   portfolio?: SymbolPortfolioSection | null
   news?: SymbolNewsSection | null
   market?: SymbolMarketSection | null
@@ -184,8 +195,17 @@ export interface SymbolWorkflow {
 
 export async function fetchSymbolIntelligence(
   symbol: string,
+  options?: { forceQuoteRefresh?: boolean },
 ): Promise<SymbolIntelligence> {
-  return get<SymbolIntelligence>(`/api/symbols/${symbol}/intelligence`)
+  const params = new URLSearchParams()
+  if (options?.forceQuoteRefresh) {
+    params.set('force_quote_refresh', 'true')
+    params.set('_', String(Date.now()))
+  }
+  const query = params.toString()
+  return get<SymbolIntelligence>(
+    `/api/symbols/${symbol}/intelligence${query ? `?${query}` : ''}`,
+  )
 }
 
 export async function fetchSymbolWorkflow(

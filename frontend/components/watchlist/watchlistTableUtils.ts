@@ -4,6 +4,8 @@ export interface WatchlistPriceSnapshot {
   priceLabel: string
   changeLabel: string | null
   isPositiveChange: boolean
+  freshnessLabel: string | null
+  fromQuote: boolean
 }
 
 // Format pillar status
@@ -60,12 +62,15 @@ function toFiniteNumber(value: unknown): number | null {
 
 export function getWatchlistPriceSnapshot(
   metadata?: Record<string, unknown>,
+  quote?: { price?: number | null; freshnessLabel?: string | null } | null,
 ): WatchlistPriceSnapshot | null {
-  if (!metadata) {
+  if (!metadata && !quote) {
     return null
   }
 
-  const rawPrice = metadata.price
+  const quotePrice = toFiniteNumber(quote?.price)
+  const fromQuote = quotePrice !== null
+  const rawPrice = fromQuote ? quotePrice : metadata?.price
   const numericPrice = toFiniteNumber(rawPrice)
   const priceLabel =
     numericPrice !== null
@@ -78,7 +83,7 @@ export function getWatchlistPriceSnapshot(
     return null
   }
 
-  const rawChange = metadata.rawChangePct
+  const rawChange = fromQuote ? null : metadata?.rawChangePct
   const numericChange = toFiniteNumber(rawChange)
   const changeLabel =
     numericChange !== null
@@ -92,6 +97,8 @@ export function getWatchlistPriceSnapshot(
   return {
     priceLabel,
     changeLabel,
+    freshnessLabel: fromQuote ? (quote?.freshnessLabel ?? null) : null,
+    fromQuote,
     isPositiveChange:
       numericChange !== null
         ? numericChange >= 0
