@@ -34,6 +34,7 @@ _SNAPTRADE_SOURCE_ID = "snaptrade"
 _DEFAULT_BROKER = "FIDELITY"
 _READ_ONLY_CONNECTION_TYPE = "read"
 _SYNC_ACTIVITY_LIMIT = 1000
+_SYNC_ORDER_LOOKBACK_DAYS = 365
 _CASH_SYMBOLS = frozenset({"CASH", "FCASH", "FDRXX", "SPAXX"})
 _SYMBOL_PATTERN = re.compile(r"^[A-Z][A-Z0-9.-]{0,24}$")
 
@@ -108,6 +109,24 @@ class SnapTradeNormalizedPosition:
     average_purchase_price: Decimal | None
     market_value: Decimal | None
     cost_basis: Decimal | None
+    currency: str | None
+    metadata: dict[str, object]
+
+
+@dataclass(slots=True)
+class SnapTradeNormalizedOrder:
+    brokerage_order_id: str
+    status: str | None
+    action: str | None
+    symbol: str | None
+    raw_symbol: str | None
+    filled_quantity: Decimal | None
+    execution_price: Decimal | None
+    order_type: str | None
+    time_in_force: str | None
+    time_placed: datetime | None
+    time_updated: datetime | None
+    time_executed: datetime | None
     currency: str | None
     metadata: dict[str, object]
 
@@ -346,6 +365,7 @@ class SnapTradeService:
             account_count = conn.execute("SELECT COUNT(*) FROM snaptrade_accounts").fetchone()
             position_count = conn.execute("SELECT COUNT(*) FROM snaptrade_positions").fetchone()
             activity_count = conn.execute("SELECT COUNT(*) FROM snaptrade_activities").fetchone()
+            order_count = conn.execute("SELECT COUNT(*) FROM snaptrade_orders").fetchone()
             latest_sync = conn.execute(
                 "SELECT MAX(last_successful_sync_at) FROM snaptrade_users WHERE status = 'active'"
             ).fetchone()
@@ -431,6 +451,7 @@ class SnapTradeService:
             "account_count": int(account_count[0] or 0) if account_count else 0,
             "position_count": int(position_count[0] or 0) if position_count else 0,
             "activity_count": int(activity_count[0] or 0) if activity_count else 0,
+            "order_count": int(order_count[0] or 0) if order_count else 0,
             "last_successful_sync_at": latest_sync[0].isoformat()
             if latest_sync and isinstance(latest_sync[0], datetime)
             else None,
@@ -468,6 +489,83 @@ class SnapTradeService:
                     "last_synced_at": row[8].isoformat() if isinstance(row[8], datetime) else None,
                 }
                 for row in account_rows
+            ],
+        }
+
+    def get_orders(
+        self,
+        *,
+        account_id: str | None = None,
+        limit: int = 50,
+    ) -> dict[str, object]:
+        clean_account_id = account_id.strip() if account_id else None
+        clean_limit = max(1, min(int(limit), 200))
+        params: list[object] = []
+        where_clause = ""
+        if clean_account_id:
+            where_clause = "WHERE o.account_id = %s"
+            params.append(clean_account_id)
+        params.append(clean_limit)
+
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT
+                    o.account_id,
+                    a.name,
+                    a.institution_name,
+                    a.account_mask,
+                    o.brokerage_order_id,
+                    o.status,
+                    o.action,
+                    o.symbol,
+                    o.raw_symbol,
+                    o.filled_quantity,
+                    o.execution_price,
+                    o.order_type,
+                    o.time_in_force,
+                    o.time_placed,
+                    o.time_updated,
+                    o.time_executed,
+                    o.currency,
+                    o.last_synced_at
+                FROM snaptrade_orders o
+                JOIN snaptrade_accounts a ON a.account_id = o.account_id
+                {where_clause}
+                ORDER BY COALESCE(o.time_executed, o.time_updated, o.time_placed) DESC NULLS LAST,
+                         o.last_synced_at DESC
+                LIMIT %s
+                """,
+                params,
+            ).fetchall()
+
+        return {
+            "orders": [
+                {
+                    "account_id": str(row[0]),
+                    "account_name": str(row[1]) if row[1] else None,
+                    "institution_name": str(row[2]) if row[2] else None,
+                    "account_mask": str(row[3]) if row[3] else None,
+                    "brokerage_order_id": str(row[4]),
+                    "status": str(row[5]) if row[5] else None,
+                    "action": str(row[6]) if row[6] else None,
+                    "symbol": str(row[7]) if row[7] else None,
+                    "raw_symbol": str(row[8]) if row[8] else None,
+                    "filled_quantity": float(row[9]) if row[9] is not None else None,
+                    "execution_price": float(row[10]) if row[10] is not None else None,
+                    "order_type": str(row[11]) if row[11] else None,
+                    "time_in_force": str(row[12]) if row[12] else None,
+                    "time_placed": row[13].isoformat() if isinstance(row[13], datetime) else None,
+                    "time_updated": row[14].isoformat() if isinstance(row[14], datetime) else None,
+                    "time_executed": row[15].isoformat()
+                    if isinstance(row[15], datetime)
+                    else None,
+                    "currency": str(row[16]) if row[16] else None,
+                    "last_synced_at": row[17].isoformat()
+                    if isinstance(row[17], datetime)
+                    else None,
+                }
+                for row in rows
             ],
         }
 
@@ -569,6 +667,7 @@ class SnapTradeService:
             "account_count": 0,
             "position_count": 0,
             "activity_count": 0,
+            "order_count": 0,
             "portfolio_account_count": 0,
             "portfolio_position_count": 0,
             "errors": [],
@@ -665,6 +764,11 @@ class SnapTradeService:
                         user=user,
                         account_id=account.account_id,
                     )
+                    order_count = self._sync_orders(
+                        client=client,
+                        user=user,
+                        account_id=account.account_id,
+                    )
                 except ApiException as exc:
                     payload = _snaptrade_error_payload(exc)
                     errors = totals["errors"]
@@ -676,6 +780,7 @@ class SnapTradeService:
                     int(totals["portfolio_position_count"]) + position_count
                 )
                 totals["activity_count"] = int(totals["activity_count"]) + activity_count
+                totals["order_count"] = int(totals["order_count"]) + order_count
                 symbols.update(position_symbols)
 
         self._reconcile_account_ownership()
@@ -1214,6 +1319,81 @@ class SnapTradeService:
             conn.commit()
         return count
 
+    def _sync_orders(
+        self,
+        *,
+        client: SnapTradeReadOnlyClient,
+        user: SnapTradeUser,
+        account_id: str,
+    ) -> int:
+        orders = [
+            order
+            for raw_order in _list(
+                _body(
+                    client.account_information.get_user_account_orders(
+                        account_id=account_id,
+                        user_id=user.user_id,
+                        user_secret=user.user_secret,
+                        state="all",
+                        days=_SYNC_ORDER_LOOKBACK_DAYS,
+                    )
+                )
+            )
+            if (order := self._normalize_order(_dict(raw_order))) is not None
+        ]
+        synced_at = _now()
+        with self.storage.connection() as conn:
+            for order in orders:
+                conn.execute(
+                    """
+                    INSERT INTO snaptrade_orders (
+                        id, account_id, brokerage_order_id, status, action, symbol,
+                        raw_symbol, filled_quantity, execution_price, order_type,
+                        time_in_force, time_placed, time_updated, time_executed,
+                        currency, metadata, last_synced_at
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s::jsonb, %s
+                    )
+                    ON CONFLICT (account_id, brokerage_order_id) DO UPDATE SET
+                        status = EXCLUDED.status,
+                        action = EXCLUDED.action,
+                        symbol = EXCLUDED.symbol,
+                        raw_symbol = EXCLUDED.raw_symbol,
+                        filled_quantity = EXCLUDED.filled_quantity,
+                        execution_price = EXCLUDED.execution_price,
+                        order_type = EXCLUDED.order_type,
+                        time_in_force = EXCLUDED.time_in_force,
+                        time_placed = EXCLUDED.time_placed,
+                        time_updated = EXCLUDED.time_updated,
+                        time_executed = EXCLUDED.time_executed,
+                        currency = EXCLUDED.currency,
+                        metadata = EXCLUDED.metadata,
+                        last_synced_at = EXCLUDED.last_synced_at
+                    """,
+                    [
+                        str(uuid.uuid4()),
+                        account_id,
+                        order.brokerage_order_id,
+                        order.status,
+                        order.action,
+                        order.symbol,
+                        order.raw_symbol,
+                        order.filled_quantity,
+                        order.execution_price,
+                        order.order_type,
+                        order.time_in_force,
+                        order.time_placed,
+                        order.time_updated,
+                        order.time_executed,
+                        order.currency,
+                        _json(order.metadata),
+                        synced_at,
+                    ],
+                )
+            conn.commit()
+        return len(orders)
+
     def _resolve_household_account(
         self,
         *,
@@ -1745,6 +1925,52 @@ class SnapTradeService:
             cost_basis=cost_basis,
             currency=currency,
             metadata=raw_position,
+        )
+
+    def _normalize_order(
+        self,
+        raw_order: dict[str, object],
+    ) -> SnapTradeNormalizedOrder | None:
+        brokerage_order_id = _string(raw_order.get("brokerage_order_id")) or _string(
+            raw_order.get("id")
+        )
+        if not brokerage_order_id:
+            return None
+
+        universal_symbol = _dict(raw_order.get("universal_symbol"))
+        nested_symbol = _dict(raw_order.get("symbol"))
+        nested_universal_symbol = _dict(nested_symbol.get("symbol"))
+        symbol = (
+            _symbol(universal_symbol.get("symbol"))
+            or _symbol(nested_universal_symbol.get("symbol"))
+            or _symbol(nested_symbol.get("symbol"))
+            or _symbol(raw_order.get("symbol"))
+        )
+        raw_symbol = (
+            _string(universal_symbol.get("raw_symbol"))
+            or _string(nested_universal_symbol.get("raw_symbol"))
+            or _string(nested_symbol.get("raw_symbol"))
+        )
+        currency = (
+            _currency_code(raw_order.get("currency"))
+            or _currency_code(universal_symbol.get("currency"))
+            or _currency_code(nested_universal_symbol.get("currency"))
+        )
+        return SnapTradeNormalizedOrder(
+            brokerage_order_id=brokerage_order_id,
+            status=_string(raw_order.get("status")),
+            action=_string(raw_order.get("action")),
+            symbol=symbol,
+            raw_symbol=raw_symbol,
+            filled_quantity=_decimal(raw_order.get("filled_quantity")),
+            execution_price=_decimal(raw_order.get("execution_price")),
+            order_type=_string(raw_order.get("order_type")),
+            time_in_force=_string(raw_order.get("time_in_force")),
+            time_placed=_coerce_timestamp(raw_order.get("time_placed")),
+            time_updated=_coerce_timestamp(raw_order.get("time_updated")),
+            time_executed=_coerce_timestamp(raw_order.get("time_executed")),
+            currency=currency,
+            metadata=raw_order,
         )
 
     @staticmethod

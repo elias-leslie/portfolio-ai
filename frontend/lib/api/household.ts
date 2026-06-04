@@ -35,6 +35,7 @@ export type {
   HouseholdBudgetSnapshot,
   HouseholdCategorizationCandidate,
   HouseholdCategoryBreakdown,
+  HouseholdCategoryMonthlyTrendPoint,
   HouseholdConfirmedFact,
   HouseholdDiscoveredAccount,
   HouseholdDocument,

@@ -41,6 +41,7 @@ DEFAULT_PREFERENCES = {
     "scheduled_jenny_operator_enabled": None,
     "scheduled_ml_labeling_enabled": None,
     "scheduled_strategy_research_enabled": None,
+    "scheduled_account_sync_enabled": None,
 }
 
 
@@ -112,6 +113,9 @@ class PreferencesResponse(BaseModel):
     )
     scheduled_strategy_research_enabled: bool = Field(
         ..., description="Allow background strategy research and evolution agents to run automatically"
+    )
+    scheduled_account_sync_enabled: bool = Field(
+        ..., description="Run the recurring data-services account sync (SnapTrade, Plaid) on a schedule"
     )
 
 
@@ -201,6 +205,9 @@ class PreferencesUpdate(BaseModel):
     )
     scheduled_strategy_research_enabled: bool | None = Field(
         None, description="Allow background strategy research and evolution agents to run automatically"
+    )
+    scheduled_account_sync_enabled: bool | None = Field(
+        None, description="Run the recurring data-services account sync (SnapTrade, Plaid) on a schedule"
     )
 
     @field_validator("display_timezone")

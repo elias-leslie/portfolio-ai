@@ -543,6 +543,19 @@ export function FreshnessStatusBadge() {
             <div className="grid gap-2 pt-1">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs font-medium text-text">
+                  Account syncs (SnapTrade, Plaid)
+                </p>
+                <Switch
+                  checked={preferences?.scheduledAccountSyncEnabled ?? false}
+                  onCheckedChange={(checked) =>
+                    updatePreferences.mutate({
+                      scheduledAccountSyncEnabled: checked,
+                    })
+                  }
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-medium text-text">
                   Jenny scheduled runs
                 </p>
                 <Switch

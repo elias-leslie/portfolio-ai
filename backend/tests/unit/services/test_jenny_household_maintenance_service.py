@@ -36,6 +36,13 @@ def test_run_daily_maintenance_pass_reads_dashboard_from_household_service() -> 
     dashboard.overview.monthly_spend_status = "estimated"
     dashboard.inbox = []
     service.household_service.get_dashboard.return_value = dashboard
+    service.household_service.repair_transaction_system.return_value = {
+        "canonicalized": 0,
+        "rules_backfilled": 0,
+        "provenance_backfilled": 0,
+        "account_linked": 0,
+        "application_summaries_repaired": 0,
+    }
     cast(Any, maintenance)._replay_candidate_documents = MagicMock(
         return_value={"attempted": 0, "recovered": 0, "missing_source": 0, "unresolved": 0}
     )

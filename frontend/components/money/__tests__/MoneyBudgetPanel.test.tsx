@@ -1,6 +1,8 @@
 'use client'
 
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CATEGORY_BUDGET_PREFIX,
@@ -11,8 +13,13 @@ import { MoneyBudgetPanel } from '../MoneyBudgetPanel'
 const useHouseholdSpendingMock = vi.fn()
 const useHouseholdFactsMock = vi.fn()
 const confirmFactMutateAsync = vi.fn()
+const categorizeMutateAsync = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
+  useCategorizeHouseholdTransaction: () => ({
+    mutateAsync: categorizeMutateAsync,
+    isPending: false,
+  }),
   useHouseholdSpending: (params?: { window?: string }) =>
     useHouseholdSpendingMock(params),
   useHouseholdFacts: () => useHouseholdFactsMock(),
@@ -21,6 +28,22 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
     isPending: false,
   }),
 }))
+
+vi.mock('recharts', () => {
+  const MockChart = ({ children }: { children?: ReactNode }) => (
+    <div>{children}</div>
+  )
+  const MockPart = () => null
+
+  return {
+    ResponsiveContainer: MockChart,
+    LineChart: MockChart,
+    Line: MockPart,
+    Tooltip: MockPart,
+    XAxis: MockPart,
+    YAxis: MockPart,
+  }
+})
 
 const categories = [
   {
@@ -63,8 +86,44 @@ function mockSpending(coverageMonths = 3) {
         accountCount: 2,
       },
       categories,
-      monthlyTrend: [],
-      transactions: [],
+      monthlyTrend: [
+        { month: '2026-02', totalSpend: 5000, transactionCount: 20 },
+        { month: '2026-03', totalSpend: 5200, transactionCount: 21 },
+      ],
+      categoryMonthlyTrend: [
+        {
+          month: '2026-02',
+          category: 'Household',
+          essentiality: 'mixed',
+          totalSpend: 1400,
+          transactionCount: 10,
+        },
+        {
+          month: '2026-03',
+          category: 'Household',
+          essentiality: 'mixed',
+          totalSpend: 1600,
+          transactionCount: 20,
+        },
+      ],
+      transactions: [
+        {
+          id: 'txn-household',
+          date: '2026-03-20',
+          merchant: 'Walmart',
+          description: 'WM SUPERCENTER',
+          amount: 155.75,
+          category: 'Household',
+          essentiality: 'mixed',
+          categoryConfidence: 0.84,
+          needsCategoryReview: false,
+          accountLabel: 'Checking',
+          sourceDocumentId: 'doc-1',
+          sourceKind: 'transaction',
+          sourceType: 'bank',
+          documentType: 'statement',
+        },
+      ],
     },
     error: null,
     refetch: vi.fn(),
@@ -78,6 +137,7 @@ describe('MoneyBudgetPanel', () => {
     useHouseholdSpendingMock.mockReset()
     useHouseholdFactsMock.mockReset()
     confirmFactMutateAsync.mockReset()
+    categorizeMutateAsync.mockReset()
     useHouseholdFactsMock.mockReturnValue({ data: [] })
     mockSpending()
   })
@@ -85,19 +145,20 @@ describe('MoneyBudgetPanel', () => {
   it('reconciles top stats when rows only have found budgets', () => {
     render(<MoneyBudgetPanel />)
 
-    expect(screen.getByText('Found budget total')).toBeInTheDocument()
+    expect(screen.getByText('Suggested cap total')).toBeInTheDocument()
     expect(screen.getByText('$2,750')).toBeInTheDocument()
     expect(
-      screen.getByText('3 found rows not accepted yet.'),
+      screen.getByText('3 suggested rows not accepted yet.'),
     ).toBeInTheDocument()
-    expect(screen.getByText('Confirmed budget total')).toBeInTheDocument()
+    expect(screen.getByText('Confirmed cap total')).toBeInTheDocument()
     expect(
       screen.getByText('Manual or accepted category caps.'),
     ).toBeInTheDocument()
-    expect(screen.getByText('3 found · 0 confirmed.')).toBeInTheDocument()
-    expect(screen.getByText('2 found · 0 confirmed.')).toBeInTheDocument()
-    expect(screen.getAllByText('Found over budget')).toHaveLength(2)
-    expect(screen.getByText('Found budget')).toBeInTheDocument()
+    expect(screen.getByText('3 suggested · 0 confirmed.')).toBeInTheDocument()
+    expect(screen.getByText('2 suggested · 0 confirmed.')).toBeInTheDocument()
+    expect(screen.getAllByText('Suggested over cap')).toHaveLength(2)
+    expect(screen.getByText('Suggested cap')).toBeInTheDocument()
+    expect(screen.getByText('Category trendlines')).toBeInTheDocument()
   })
 
   it('keeps confirmed category budgets separate from found budgets', () => {
@@ -121,11 +182,11 @@ describe('MoneyBudgetPanel', () => {
 
     expect(screen.getByText('$1,650')).toBeInTheDocument()
     expect(
-      screen.getByText('2 found rows not accepted yet.'),
+      screen.getByText('2 suggested rows not accepted yet.'),
     ).toBeInTheDocument()
     expect(screen.getAllByText('$1,200')).not.toHaveLength(0)
-    expect(screen.getByText('2 found · 1 confirmed.')).toBeInTheDocument()
-    expect(screen.getByText('1 found · 1 confirmed.')).toBeInTheDocument()
+    expect(screen.getByText('2 suggested · 1 confirmed.')).toBeInTheDocument()
+    expect(screen.getByText('1 suggested · 1 confirmed.')).toBeInTheDocument()
     expect(screen.getByText('Accepted cap')).toBeInTheDocument()
     expect(screen.getAllByText('Over budget')).not.toHaveLength(0)
   })
@@ -136,9 +197,36 @@ describe('MoneyBudgetPanel', () => {
     render(<MoneyBudgetPanel />)
 
     expect(
-      screen.getByText('0 found rows not accepted yet.'),
+      screen.getByText('0 suggested rows not accepted yet.'),
     ).toBeInTheDocument()
-    expect(screen.getAllByText('0 found · 0 confirmed.')).toHaveLength(2)
+    expect(screen.getAllByText(/0 suggested · 0 confirmed/i)).toHaveLength(2)
     expect(screen.getAllByText('Needs budget')).toHaveLength(3)
+  })
+
+  it('expands category purchases and sends merchant rule recategorization', async () => {
+    const user = userEvent.setup()
+    categorizeMutateAsync.mockResolvedValue({ ok: true })
+
+    render(<MoneyBudgetPanel />)
+
+    await user.click(screen.getByRole('button', { name: /household/i }))
+    expect(screen.getByText(/WM SUPERCENTER/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Categorize' }))
+    expect(screen.getByRole('option', { name: 'Retail' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('option', { name: 'Groceries' }),
+    ).toBeInTheDocument()
+
+    await user.clear(screen.getByLabelText('Category'))
+    await user.type(screen.getByLabelText('Category'), 'Groceries')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(categorizeMutateAsync).toHaveBeenCalledWith({
+      transactionId: 'txn-household',
+      category: 'Groceries',
+      essentiality: 'mixed',
+      applyToMerchant: false,
+    })
   })
 })

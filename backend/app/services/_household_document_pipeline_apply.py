@@ -284,7 +284,7 @@ def audit_transactions(
     if transaction_audit_service is None:
         return {}
     return transaction_audit_service.audit_transactions(
-        service, document_id=document_id, limit=120
+        service, document_id=document_id, limit=1000
     )
 
 
@@ -405,6 +405,8 @@ def append_review_impacts(
         transaction_summary.get("updated") or 0
     ) > 0:
         impacts.append("transactions")
+    if (transaction_summary.get("held_for_date_review") or 0) > 0:
+        impacts.append("date_review")
     if evidence_account_count > 0:
         impacts.append("accounts")
     if (

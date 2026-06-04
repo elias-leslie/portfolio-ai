@@ -9,9 +9,11 @@ const useSnapTradeStatusMock = vi.fn()
 const configureSnapTradeMutateAsync = vi.fn()
 const createPortalMutateAsync = vi.fn()
 const syncSnapTradeMutateAsync = vi.fn()
+const useSnapTradeOrdersMock = vi.fn()
 
 vi.mock('@/lib/hooks/useSnapTrade', () => ({
   useSnapTradeStatus: () => useSnapTradeStatusMock(),
+  useSnapTradeOrders: (args: unknown) => useSnapTradeOrdersMock(args),
   useConfigureSnapTrade: () => ({
     mutateAsync: configureSnapTradeMutateAsync,
     isPending: false,
@@ -40,6 +42,7 @@ const configuredStatus = {
   accountCount: 0,
   positionCount: 0,
   activityCount: 0,
+  orderCount: 0,
   lastSuccessfulSyncAt: null,
   lastError: null,
   connections: [],
@@ -52,6 +55,11 @@ describe('SnapTradePanel', () => {
     useSnapTradeStatusMock.mockReturnValue({
       data: configuredStatus,
       isLoading: false,
+    })
+    useSnapTradeOrdersMock.mockReturnValue({
+      data: { orders: [] },
+      isLoading: false,
+      error: null,
     })
     configureSnapTradeMutateAsync.mockResolvedValue(configuredStatus)
     createPortalMutateAsync.mockResolvedValue({
@@ -93,5 +101,74 @@ describe('SnapTradePanel', () => {
       redirectUri: 'https://port.summitflow.dev/money',
       defaultBroker: 'FIDELITY',
     })
+  })
+
+  it('renders synced trade history in the SnapTrade account surface', () => {
+    useSnapTradeStatusMock.mockReturnValue({
+      data: {
+        ...configuredStatus,
+        userRegistered: true,
+        connectionCount: 1,
+        accountCount: 1,
+        positionCount: 1,
+        activityCount: 3,
+        orderCount: 2,
+        accounts: [
+          {
+            accountId: 'acct-roth',
+            name: 'ROTH IRA',
+            institutionName: 'Fidelity',
+            accountMask: '1234',
+            portfolioAccountType: 'Roth',
+            balance: 49541.96,
+            marketValue: 49541.96,
+            valuationSource: 'broker',
+            quoteAsOf: null,
+            cashBalance: 49541.96,
+            currency: 'USD',
+            lastSyncedAt: '2026-06-03T22:30:00Z',
+          },
+        ],
+      },
+      isLoading: false,
+    })
+    useSnapTradeOrdersMock.mockReturnValue({
+      data: {
+        orders: [
+          {
+            accountId: 'acct-roth',
+            accountName: 'ROTH IRA',
+            institutionName: 'Fidelity',
+            accountMask: '1234',
+            brokerageOrderId: 'order-1',
+            status: 'EXECUTED',
+            action: 'BUY',
+            symbol: 'VGT',
+            rawSymbol: 'VGT',
+            filledQuantity: 395,
+            executionPrice: 125.09,
+            orderType: 'Market',
+            timeInForce: 'Day',
+            timePlaced: '2026-06-02T04:00:00Z',
+            timeUpdated: '2026-06-02T04:00:00Z',
+            timeExecuted: '2026-06-02T04:00:00Z',
+            currency: 'USD',
+            lastSyncedAt: '2026-06-03T22:30:00Z',
+          },
+        ],
+      },
+      isLoading: false,
+      error: null,
+    })
+
+    render(<SnapTradePanel />)
+
+    expect(screen.getByText('Trade history')).toBeInTheDocument()
+    expect(screen.getByText('1 recent order')).toBeInTheDocument()
+    expect(screen.getByText('VGT')).toBeInTheDocument()
+    expect(screen.getByText('EXECUTED')).toBeInTheDocument()
+    expect(screen.getByText('BUY · Market')).toBeInTheDocument()
+    expect(screen.getByText('395 @ $125.09')).toBeInTheDocument()
+    expect(screen.getByText('$49,410.55')).toBeInTheDocument()
   })
 })

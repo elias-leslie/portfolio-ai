@@ -693,6 +693,16 @@ export interface HouseholdLedgerEntry {
   currency?: string | null
   category?: string | null
   essentiality?: string | null
+  originalCategory?: string | null
+  categorizationSource?: string | null
+  categorizationVersion?: string | null
+  categoryUpdatedAt?: string | null
+  categoryUpdatedBy?: string | null
+  sourceSystem?: string | null
+  externalTransactionId?: string | null
+  pending?: boolean
+  removed?: boolean
+  transactionRuleId?: string | null
   datasetType?: string | null
   externalRowId?: string | null
   rowHash: string
@@ -736,17 +746,33 @@ export interface HouseholdSpendingCategory {
 }
 
 export interface HouseholdSpendingTransaction {
+  id: string
   date: string
   merchant: string
   description: string
   amount: number
   category: string
   essentiality: string
+  originalCategory?: string | null
+  categorizationSource?: string | null
+  sourceSystem?: string | null
+  externalTransactionId?: string | null
+  transactionRuleId?: string | null
+  categoryConfidence?: number | null
+  needsCategoryReview?: boolean
   accountLabel?: string | null
   sourceDocumentId?: string | null
   sourceKind?: string | null
   sourceType?: string | null
   documentType?: string | null
+}
+
+export interface HouseholdCategoryMonthlyTrendPoint {
+  month: string
+  category: string
+  essentiality: string
+  totalSpend: number
+  transactionCount: number
 }
 
 export interface HouseholdSpendingSummary {
@@ -774,6 +800,7 @@ export interface HouseholdSpendingView {
   summary: HouseholdSpendingSummary
   categories: HouseholdSpendingCategory[]
   monthlyTrend: HouseholdMonthlyTrendPoint[]
+  categoryMonthlyTrend: HouseholdCategoryMonthlyTrendPoint[]
   transactions: HouseholdSpendingTransaction[]
 }
 

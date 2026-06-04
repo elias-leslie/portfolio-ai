@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -31,6 +32,11 @@ _SUSPICIOUS_TX_PATTERN = re.compile(
     r"transfer from|transfer to|venmo|cash app|cashapp|refund|return|walmart|target|"
     r"costco|sam'?s club|publix|whole foods|buc-?ee)",
     re.IGNORECASE,
+)
+_UPSTREAM_TAXONOMY_PATTERN = re.compile(
+    r"general merchandise|food and drink|transportation |entertainment |"
+    r"personal care |rent and utilities|travel |government and non profit|"
+    r"home improvement|medical "
 )
 
 
@@ -176,12 +182,14 @@ class HouseholdTransactionAuditService:
                         COALESCE(t.confidence, 0) < 0.88
                      OR COALESCE(t.metadata->'audit'->>'status', '') = 'needs_review'
                      OR CONCAT_WS(' ', COALESCE(t.description, ''), COALESCE(t.raw_merchant, '')) ~* %s
+                     OR COALESCE(t.category, '') ~* %s
                   )
             """
             params.extend(
                 [
                     datetime.now(UTC) - timedelta(days=180),
                     _SUSPICIOUS_TX_PATTERN.pattern,
+                    _UPSTREAM_TAXONOMY_PATTERN.pattern,
                 ]
             )
 
@@ -535,17 +543,112 @@ class HouseholdTransactionAuditService:
     ) -> bool:
         updated_at = datetime.now(UTC)
         with service.storage.connection() as conn:
+            merchant_row = conn.execute(
+                """
+                SELECT normalized_key
+                FROM household_merchants
+                WHERE id = %s
+                """,
+                [merchant_id],
+            ).fetchone()
+            normalized_key = str(merchant_row[0]) if merchant_row and merchant_row[0] else None
+            existing_rule = conn.execute(
+                """
+                SELECT id
+                FROM household_transaction_rules
+                WHERE merchant_id = %s
+                  AND enabled IS TRUE
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                [merchant_id],
+            ).fetchone()
+            applied_count_row = conn.execute(
+                "SELECT COUNT(*) FROM household_transactions WHERE merchant_id = %s",
+                [merchant_id],
+            ).fetchone()
+            applied_count = int(applied_count_row[0] or 0) if applied_count_row is not None else 0
+            rule_id = str(existing_rule[0]) if existing_rule is not None else str(uuid.uuid4())
+            rule_metadata = json.dumps(
+                {
+                    "source": "transaction_audit_agent",
+                    "updated_at": updated_at.isoformat(),
+                }
+            )
+            if existing_rule is None:
+                conn.execute(
+                    """
+                    INSERT INTO household_transaction_rules (
+                        id, rule_type, merchant_id, normalized_merchant_key,
+                        category, essentiality, enabled, source, applied_count,
+                        metadata, created_at, updated_at
+                    ) VALUES (
+                        %s, 'merchant', %s, %s, %s, %s, TRUE,
+                        'transaction_audit_agent', %s, %s::jsonb, %s, %s
+                    )
+                    """,
+                    [
+                        rule_id,
+                        merchant_id,
+                        normalized_key,
+                        category,
+                        essentiality,
+                        applied_count,
+                        rule_metadata,
+                        updated_at,
+                        updated_at,
+                    ],
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE household_transaction_rules
+                    SET normalized_merchant_key = COALESCE(%s, normalized_merchant_key),
+                        category = %s,
+                        essentiality = %s,
+                        source = 'transaction_audit_agent',
+                        applied_count = %s,
+                        metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
+                        updated_at = %s
+                    WHERE id = %s
+                    """,
+                    [
+                        normalized_key,
+                        category,
+                        essentiality,
+                        applied_count,
+                        rule_metadata,
+                        updated_at,
+                        rule_id,
+                    ],
+                )
             conn.execute(
                 """
                 UPDATE household_transactions
                 SET category = %s,
                     essentiality = %s,
                     confidence = GREATEST(COALESCE(confidence, 0), 0.97),
+                    original_category = COALESCE(original_category, category),
+                    categorization_source = %s,
+                    categorization_version = %s,
+                    category_updated_at = %s,
+                    category_updated_by = %s,
+                    transaction_rule_id = %s,
                     updated_at = %s
                 WHERE merchant_id = %s
                   AND flow_type = 'expense'
                 """,
-                [category, essentiality, updated_at, merchant_id],
+                [
+                    category,
+                    essentiality,
+                    "merchant_rule",
+                    "2026-05-canonical",
+                    updated_at,
+                    "transaction_audit_agent",
+                    rule_id,
+                    updated_at,
+                    merchant_id,
+                ],
             )
             row = conn.execute(
                 """
@@ -563,6 +666,7 @@ class HouseholdTransactionAuditService:
                     json.dumps(
                         {
                             "manual_rule": {
+                                "rule_id": rule_id,
                                 "category": category,
                                 "essentiality": essentiality,
                                 "updated_at": updated_at.isoformat(),
@@ -599,6 +703,11 @@ class HouseholdTransactionAuditService:
                     essentiality = %s,
                     confidence = %s,
                     metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
+                    original_category = COALESCE(original_category, category),
+                    categorization_source = %s,
+                    categorization_version = %s,
+                    category_updated_at = %s,
+                    category_updated_by = %s,
                     updated_at = %s
                 WHERE id = %s
                 """,
@@ -608,6 +717,10 @@ class HouseholdTransactionAuditService:
                     essentiality,
                     confidence,
                     metadata_payload,
+                    "transaction_audit",
+                    "2026-05-canonical",
+                    updated_at,
+                    "transaction_audit",
                     updated_at,
                     transaction_id,
                 ],

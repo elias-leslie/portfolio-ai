@@ -200,6 +200,16 @@ class HouseholdLedgerEntry(BaseModel):
     currency: str | None = None
     category: str | None = None
     essentiality: str | None = None
+    original_category: str | None = None
+    categorization_source: str | None = None
+    categorization_version: str | None = None
+    category_updated_at: str | None = None
+    category_updated_by: str | None = None
+    source_system: str | None = None
+    external_transaction_id: str | None = None
+    pending: bool = False
+    removed: bool = False
+    transaction_rule_id: str | None = None
     dataset_type: str | None = None
     external_row_id: str | None = None
     row_hash: str
@@ -243,17 +253,33 @@ class HouseholdSpendingCategory(BaseModel):
 
 
 class HouseholdSpendingTransaction(BaseModel):
+    id: str
     date: str
     merchant: str
     description: str
     amount: float
     category: str
     essentiality: str
+    original_category: str | None = None
+    categorization_source: str | None = None
+    source_system: str | None = None
+    external_transaction_id: str | None = None
+    transaction_rule_id: str | None = None
+    category_confidence: float | None = None
+    needs_category_review: bool = False
     account_label: str | None = None
     source_document_id: str | None = None
     source_kind: str | None = None
     source_type: str | None = None
     document_type: str | None = None
+
+
+class HouseholdCategoryMonthlyTrendPoint(BaseModel):
+    month: str
+    category: str
+    essentiality: str
+    total_spend: float
+    transaction_count: int
 
 
 class HouseholdSpendingSummary(BaseModel):
@@ -281,6 +307,7 @@ class HouseholdSpendingView(BaseModel):
     summary: HouseholdSpendingSummary
     categories: list[HouseholdSpendingCategory] = Field(default_factory=list)
     monthly_trend: list[HouseholdMonthlyTrendPoint] = Field(default_factory=list)
+    category_monthly_trend: list[HouseholdCategoryMonthlyTrendPoint] = Field(default_factory=list)
     transactions: list[HouseholdSpendingTransaction] = Field(default_factory=list)
 
 

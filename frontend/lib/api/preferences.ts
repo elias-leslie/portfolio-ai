@@ -58,6 +58,7 @@ export interface PreferencesResponse {
   scheduledJennyOperatorEnabled: boolean
   scheduledMlLabelingEnabled: boolean
   scheduledStrategyResearchEnabled: boolean
+  scheduledAccountSyncEnabled: boolean
   // New weight configuration fields (migration 019)
   watchlistScoreWeights?: ScoreWeights
   priceSubWeights?: PriceSubWeights
@@ -94,6 +95,7 @@ export interface PreferencesUpdate {
   scheduledJennyOperatorEnabled?: boolean
   scheduledMlLabelingEnabled?: boolean
   scheduledStrategyResearchEnabled?: boolean
+  scheduledAccountSyncEnabled?: boolean
   // New weight configuration fields (migration 019)
   watchlistScoreWeights?: ScoreWeights
   priceSubWeights?: PriceSubWeights

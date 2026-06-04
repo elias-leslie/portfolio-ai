@@ -76,8 +76,9 @@ class JennyHouseholdMaintenanceService:
         replay_stats = self._replay_candidate_documents(service)
         audit_summary = service.household_service.transaction_audit_service.audit_transactions(
             service.household_service,
-            limit=240,
+            limit=1000,
         )
+        repair_summary = service.household_service.repair_transaction_system(limit=5000)
         dashboard = service.household_service.get_dashboard()
         notification_count = self._sync_household_notifications(
             service,
@@ -90,6 +91,7 @@ class JennyHouseholdMaintenanceService:
             notification_count,
             registry_summary,
             audit_summary,
+            repair_summary,
         )
         return {
             "summary": summary,
@@ -105,6 +107,12 @@ class JennyHouseholdMaintenanceService:
             "transactions_auto_fixed": int(audit_summary.get("auto_fixed") or 0),
             "transactions_agent_fixed": int(audit_summary.get("agent_fixed") or 0),
             "transactions_flagged": int(audit_summary.get("flagged") or 0),
+            "transaction_categories_canonicalized": int(repair_summary.get("canonicalized") or 0),
+            "transaction_rules_backfilled": int(repair_summary.get("rules_backfilled") or 0),
+            "transaction_provenance_backfilled": int(repair_summary.get("provenance_backfilled") or 0),
+            "transaction_application_summaries_repaired": int(
+                repair_summary.get("application_summaries_repaired") or 0
+            ),
             "notifications_created": notification_count,
             "money_inbox_items": len(dashboard.inbox),
         }
@@ -272,6 +280,7 @@ class JennyHouseholdMaintenanceService:
         notification_count: int,
         registry_summary: dict[str, int],
         audit_summary: dict[str, int],
+        repair_summary: dict[str, int],
     ) -> str:
         overview = dashboard.overview
         return (
@@ -285,6 +294,10 @@ class JennyHouseholdMaintenanceService:
             f"Audited {audit_summary.get('reviewed', 0)} transaction row(s) "
             f"({audit_summary.get('auto_fixed', 0)} deterministic, {audit_summary.get('agent_fixed', 0)} agent fixed, "
             f"{audit_summary.get('flagged', 0)} flagged). "
+            f"Repaired {repair_summary.get('canonicalized', 0)} category row(s), "
+            f"{repair_summary.get('rules_backfilled', 0)} rule row(s), "
+            f"{repair_summary.get('provenance_backfilled', 0)} provenance row(s), and "
+            f"{repair_summary.get('application_summaries_repaired', 0)} document summaries. "
             f"Net worth is {overview.net_worth_status}; monthly spend is {overview.monthly_spend_status}; "
             f"{len(dashboard.inbox)} money blockers on file and {notification_count} open Jenny household alerts."
         )

@@ -496,6 +496,7 @@ class HouseholdDocumentPipeline:
                 extracted_text=extracted_text,
                 now=now,
             )
+            archive_prior_document_data(conn, document.id, now)
             insert_inferred_values(conn, service, document=document, reviewed=reviewed, now=now)
             insert_questions(
                 conn, service,
@@ -505,7 +506,6 @@ class HouseholdDocumentPipeline:
                 structured_data=structured_data,
                 account_hint=account_hint,
             )
-            archive_prior_document_data(conn, document.id, now)
             conn.commit()
 
     def upsert_document_signatures(
@@ -594,8 +594,11 @@ class HouseholdDocumentPipeline:
         )
         if duplicate_import_validation:
             impacts.append("imports")
-        return {
-            "status": "applied" if impacts else "incomplete",
+        status = "applied" if impacts else "incomplete"
+        if impacts == ["date_review"]:
+            status = "needs_date_review"
+        summary = {
+            "status": status,
             "impacts": impacts,
             "imports": import_summary,
             "transactions": transaction_summary,
@@ -607,9 +610,14 @@ class HouseholdDocumentPipeline:
             "planning_items_skipped": planning_skipped,
             "planning_error": planning_error,
             "inferred_values": inferred_count,
-            "needs_follow_up": not impacts,
+            "needs_follow_up": not impacts or "date_review" in impacts,
             "no_change": duplicate_import_validation,
         }
+        return self._refresh_application_summary_counts(
+            service,
+            document=document,
+            application_summary=summary,
+        )
 
     def _build_reconciliation_summary(
         self,
@@ -670,6 +678,71 @@ class HouseholdDocumentPipeline:
             "issues": issues,
         }
 
+    def _refresh_application_summary_counts(
+        self,
+        service: HouseholdFinanceService,
+        *,
+        document: HouseholdDocument,
+        application_summary: dict[str, object],
+    ) -> dict[str, object]:
+        if not hasattr(service, "storage"):
+            return application_summary
+        with service.storage.connection() as conn:
+            counts = fetch_document_application_counts(conn, document_id=document.id)
+
+        imports = _safe_dict(application_summary.get("imports"))
+        transactions = _safe_dict(application_summary.get("transactions"))
+        import_count = int(counts["import_count"])
+        transaction_count = int(counts["transaction_count"])
+        evidence_account_count = int(counts["evidence_account_count"])
+        inferred_count = int(counts["inferred_count"])
+        held_count = int(transactions.get("held_for_date_review") or 0)
+
+        impacts: list[str] = []
+        if import_count > 0:
+            impacts.append("imports")
+        if transaction_count > 0:
+            impacts.append("transactions")
+        if evidence_account_count > 0:
+            impacts.append("accounts")
+        for key in ("portfolio_positions", "portfolio_transactions"):
+            value = application_summary.get(key)
+            if isinstance(value, dict) and any(
+                int(item or 0) > 0
+                for item in value.values()
+                if isinstance(item, (int, float))
+            ):
+                impacts.append(key)
+        if int(application_summary.get("planning_items") or 0) > 0:
+            impacts.append("planning")
+        if inferred_count > 0:
+            impacts.append("inferences")
+        if held_count > 0 and "date_review" not in impacts:
+            impacts.append("date_review")
+
+        status = "applied" if impacts else "incomplete"
+        if impacts == ["date_review"]:
+            status = "needs_date_review"
+
+        return {
+            **application_summary,
+            "status": status,
+            "impacts": impacts,
+            "imports": {
+                **imports,
+                "dataset_type": counts["dataset_type"] or imports.get("dataset_type"),
+                "inserted": import_count,
+            },
+            "transactions": {
+                **transactions,
+                "inserted": transaction_count,
+                "held_for_date_review": held_count,
+            },
+            "evidence_accounts": evidence_account_count,
+            "inferred_values": inferred_count,
+            "needs_follow_up": status != "applied" or "date_review" in impacts,
+        }
+
     def describe_application_state(
         self,
         service: HouseholdFinanceService,
@@ -714,17 +787,23 @@ class HouseholdDocumentPipeline:
         if inferred_count > 0:
             impacts.append("inferences")
         duplicate_import_validation = _is_duplicate_import_validation(
-            import_summary=cast(dict[str, object], existing_imports),
-            transaction_summary=cast(dict[str, object], existing_transactions),
+            import_summary=existing_imports,
+            transaction_summary=existing_transactions,
             evidence_account_count=evidence_account_count,
             planning_count=planning_count,
             inferred_count=inferred_count,
         )
         if duplicate_import_validation:
             impacts.append("imports")
+        held_count = int(existing_transactions.get("held_for_date_review") or 0)
+        if held_count > 0:
+            impacts.append("date_review")
+        status = "applied" if impacts else "incomplete"
+        if impacts == ["date_review"]:
+            status = "needs_date_review"
 
         summary: dict[str, object] = {
-            "status": "applied" if impacts else "incomplete",
+            "status": status,
             "impacts": impacts,
             "imports": {
                 "dataset_type": counts["dataset_type"] or existing_imports.get("dataset_type"),
@@ -734,11 +813,12 @@ class HouseholdDocumentPipeline:
             "transactions": {
                 "inserted": transaction_count,
                 "updated": int(existing_transactions.get("updated") or 0),
+                "held_for_date_review": held_count,
             },
             "evidence_accounts": evidence_account_count,
             "planning_items": planning_count,
             "inferred_values": inferred_count,
-            "needs_follow_up": not impacts,
+            "needs_follow_up": status != "applied" or "date_review" in impacts,
             "no_change": duplicate_import_validation,
         }
         if existing_account_registry:

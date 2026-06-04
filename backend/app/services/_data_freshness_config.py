@@ -45,6 +45,8 @@ REMEDIATION_TASKS: dict[str, str] = {
     "financial_health_scores": "portfolio-financial-health",
     "symbol_risk_metrics": "portfolio-risk-metrics",
     "watchlist_snapshots": "portfolio-refresh-watchlist-scores",
+    "snaptrade_accounts": "portfolio-sync-accounts",
+    "plaid_accounts": "portfolio-sync-accounts",
 }
 
 # Freshness thresholds for all critical tables
@@ -143,5 +145,23 @@ TABLE_FRESHNESS_CONFIG: list[TableFreshnessConfig] = [
         "expected_hours": 24,
         "critical_hours": 72,
         "market_data": False,
+    },
+    # Data-services account aggregators. Synced 3x on weekdays
+    # (ACCOUNT_SYNC_CRONS); the longest weekday gap is overnight (~13.5h).
+    # market_data=True so weekend/holiday staleness (when no sync runs) is not
+    # flagged. Both remediate via portfolio-sync-accounts.
+    {
+        "table_name": "snaptrade_accounts",
+        "date_column": "last_synced_at",
+        "expected_hours": 24,
+        "critical_hours": 72,
+        "market_data": True,
+    },
+    {
+        "table_name": "plaid_accounts",
+        "date_column": "last_synced_at",
+        "expected_hours": 24,
+        "critical_hours": 72,
+        "market_data": True,
     },
 ]

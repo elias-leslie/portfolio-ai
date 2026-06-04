@@ -10,6 +10,7 @@ import os
 
 from app.hatchet_app import hatchet
 from app.logging_config import configure_logging
+from app.workflows.account_sync import sync_accounts_wf
 from app.workflows.agents import schedule_new_symbol_wf
 from app.workflows.catalysts import portfolio_catalyst_prewarm_wf
 from app.workflows.committee_fanout import committee_fanout_wf
@@ -167,6 +168,8 @@ def main() -> None:
             portfolio_drift_snapshot_wf,
             # Portfolio catalyst calendar (1)
             portfolio_catalyst_prewarm_wf,
+            # Data-services account sync (SnapTrade, Plaid) (1)
+            sync_accounts_wf,
         ],
     )
     worker.handle_kill = False

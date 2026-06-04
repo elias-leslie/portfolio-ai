@@ -678,6 +678,12 @@ class HouseholdAccountRegistryService:
                 self._evidence_fallback_label(evidence),
             )
             now = _now_iso()
+            # Scope the insert to a savepoint: a primary_identity_key collision must
+            # only undo this statement, not the whole sync_registry transaction. A
+            # bare conn.rollback() here would discard every account already created in
+            # this run while the in-memory canonical_accounts map kept the now-deleted
+            # ids, producing later FK violations on household_evidence_accounts.
+            conn.execute("SAVEPOINT household_account_insert")
             try:
                 conn.execute(
                     """
@@ -701,6 +707,7 @@ class HouseholdAccountRegistryService:
                         now,
                     ],
                 )
+                conn.execute("RELEASE SAVEPOINT household_account_insert")
                 account_id = proposed_id
                 created = 1
                 canonical_accounts[account_id] = HouseholdCanonicalAccount(
@@ -716,7 +723,7 @@ class HouseholdAccountRegistryService:
                     metadata={},
                 )
             except psycopg.errors.UniqueViolation:
-                conn.rollback()
+                conn.execute("ROLLBACK TO SAVEPOINT household_account_insert")
                 row = conn.execute(
                     """
                     SELECT

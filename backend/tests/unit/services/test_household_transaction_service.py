@@ -542,9 +542,9 @@ def test_import_document_transactions_keeps_transfer_categories_even_with_old_me
 
     assert result == {"inserted": 1, "updated": 0, "deleted": 0, "held_for_date_review": 0}
     assert service.storage.conn.insert_params is not None
-    assert service.storage.conn.insert_params[11] == "transfer_out"
-    assert service.storage.conn.insert_params[12] == "Transfers"
-    assert service.storage.conn.insert_params[13] == "mixed"
+    assert service.storage.conn.insert_params[12] == "transfer_out"
+    assert service.storage.conn.insert_params[13] == "Transfers"
+    assert service.storage.conn.insert_params[14] == "mixed"
 
 
 def test_build_reports_excludes_cash_movement_rows_even_when_stored_as_expense() -> None:
@@ -763,7 +763,15 @@ def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() ->
         "Amazon",
         "Walmart (Store #5831)",
     ]
+    assert [row.id for row in spending.transactions] == ["txn-amazon", "txn-grocery"]
     assert all(row.source_kind == "transaction" for row in spending.transactions)
+    assert [
+        (point.month, point.category, point.total_spend)
+        for point in spending.category_monthly_trend
+    ] == [
+        (today.strftime("%Y-%m"), "Household", 155.75),
+        (today.strftime("%Y-%m"), "Retail", 41.81),
+    ]
 
 
 def test_build_spending_view_nets_credit_card_returns_against_spend() -> None:
@@ -823,6 +831,47 @@ def test_build_spending_view_nets_credit_card_returns_against_spend() -> None:
     assert spending.categories[0].category == "Retail"
     assert spending.categories[0].total_spend == 49.16
     assert [row.amount for row in spending.transactions] == [79.98, -30.82]
+
+
+def test_build_spending_view_surfaces_unknown_category_for_review_rows() -> None:
+    today = date.today()
+    service = HouseholdTransactionService()
+    service.storage = _SequenceStorage(
+        [
+            [
+                (
+                    "txn-unknown",
+                    None,
+                    datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                    "MYSTERY POS PURCHASE",
+                    "MYSTERY POS PURCHASE",
+                    Decimal("44.12"),
+                    None,
+                    None,
+                    "expense",
+                    "Checking",
+                    "doc-unknown",
+                    "Mystery merchant",
+                    "statement",
+                    "bank",
+                    "checking.csv",
+                    "hash-unknown",
+                    {},
+                    Decimal("0.42"),
+                    {"audit": {"status": "needs_review"}},
+                ),
+            ],
+            [],
+        ]
+    )
+
+    spending = service.build_spending_view(window="1m")
+
+    assert spending.categories[0].category == "Unknown"
+    assert spending.categories[0].transaction_count == 1
+    assert spending.transactions[0].category == "Unknown"
+    assert spending.transactions[0].needs_category_review is True
+    assert spending.transactions[0].category_confidence == 0.42
 
 
 def test_build_spending_view_dedupes_same_account_statement_and_activity_rows() -> None:

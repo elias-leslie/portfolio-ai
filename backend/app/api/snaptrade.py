@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, SecretStr
 
@@ -50,6 +50,22 @@ def _raise_public_error(exc: Exception) -> None:
 async def get_snaptrade_status() -> dict[str, object]:
     try:
         return await run_in_threadpool(_service().get_status)
+    except Exception as exc:
+        _raise_public_error(exc)
+        raise
+
+
+@router.get("/orders")
+async def get_snaptrade_orders(
+    account_id: str | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+) -> dict[str, object]:
+    try:
+        return await run_in_threadpool(
+            _service().get_orders,
+            account_id=account_id,
+            limit=limit,
+        )
     except Exception as exc:
         _raise_public_error(exc)
         raise

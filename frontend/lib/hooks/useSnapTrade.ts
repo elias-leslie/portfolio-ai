@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import {
   configureSnapTrade,
   createSnapTradeConnectionPortal,
+  fetchSnapTradeOrders,
   fetchSnapTradeStatus,
   type SnapTradeConfigurePayload,
   type SnapTradePortalPayload,
@@ -22,6 +23,24 @@ export function useSnapTradeStatus() {
   return useQuery({
     queryKey: ['snaptrade', 'status'],
     queryFn: fetchSnapTradeStatus,
+    staleTime: SNAPTRADE_STALE_MS,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useSnapTradeOrders({
+  accountId,
+  enabled = true,
+  limit = 50,
+}: {
+  accountId?: string | null
+  enabled?: boolean
+  limit?: number
+} = {}) {
+  return useQuery({
+    queryKey: ['snaptrade', 'orders', accountId ?? 'all', limit],
+    queryFn: () => fetchSnapTradeOrders({ accountId, limit }),
+    enabled,
     staleTime: SNAPTRADE_STALE_MS,
     refetchOnWindowFocus: false,
   })

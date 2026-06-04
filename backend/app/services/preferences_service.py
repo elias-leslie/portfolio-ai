@@ -30,6 +30,7 @@ AUTOMATION_PREFERENCE_KEYS = (
     "scheduled_jenny_operator_enabled",
     "scheduled_ml_labeling_enabled",
     "scheduled_strategy_research_enabled",
+    "scheduled_account_sync_enabled",
 )
 
 # Scanner-fanout (L3 committee) runtime knobs. Each DB column is nullable;
@@ -80,6 +81,9 @@ def get_automation_defaults() -> dict[str, bool]:
         "scheduled_jenny_operator_enabled": False,
         "scheduled_ml_labeling_enabled": False,
         "scheduled_strategy_research_enabled": False,
+        # Recurring account sync is on by default — keeping holdings current is
+        # the expected baseline; users can pause it from the Data Feed panel.
+        "scheduled_account_sync_enabled": True,
     }
 
 
@@ -130,11 +134,12 @@ def get_or_create_automation_preferences() -> dict[str, Any]:
                 scheduled_jenny_operator_enabled,
                 scheduled_ml_labeling_enabled,
                 scheduled_strategy_research_enabled,
+                scheduled_account_sync_enabled,
                 created_at,
                 updated_at
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            [USER_ID, None, None, None, None, None, None, now, now],
+            [USER_ID, None, None, None, None, None, None, None, now, now],
         )
         conn.commit()
 
@@ -146,6 +151,7 @@ def get_or_create_automation_preferences() -> dict[str, Any]:
         "scheduled_jenny_operator_enabled": None,
         "scheduled_ml_labeling_enabled": None,
         "scheduled_strategy_research_enabled": None,
+        "scheduled_account_sync_enabled": None,
         "scanner_fanout_enabled": None,
         "scanner_fanout_top_n": None,
         "scanner_fanout_tier1_keep": None,
@@ -196,6 +202,7 @@ def dict_to_preferences_response(prefs: dict[str, Any]) -> PreferencesResponse:
         scheduled_jenny_operator_enabled=bool(automation["scheduled_jenny_operator_enabled"]["enabled"]),
         scheduled_ml_labeling_enabled=bool(automation["scheduled_ml_labeling_enabled"]["enabled"]),
         scheduled_strategy_research_enabled=bool(automation["scheduled_strategy_research_enabled"]["enabled"]),
+        scheduled_account_sync_enabled=bool(automation["scheduled_account_sync_enabled"]["enabled"]),
     )
 
 
@@ -408,6 +415,7 @@ def _update_automation_preferences(updates: dict[str, bool | None]) -> None:
                 scheduled_jenny_operator_enabled = %s,
                 scheduled_ml_labeling_enabled = %s,
                 scheduled_strategy_research_enabled = %s,
+                scheduled_account_sync_enabled = %s,
                 updated_at = %s
             WHERE id = %s
             """,
@@ -418,6 +426,7 @@ def _update_automation_preferences(updates: dict[str, bool | None]) -> None:
                 current.get("scheduled_jenny_operator_enabled"),
                 current.get("scheduled_ml_labeling_enabled"),
                 current.get("scheduled_strategy_research_enabled"),
+                current.get("scheduled_account_sync_enabled"),
                 datetime.now(UTC),
                 current["id"],
             ],

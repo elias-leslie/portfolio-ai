@@ -268,6 +268,9 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
     def update_transaction_category(self, transaction_id: str, payload: HouseholdTransactionCategoryUpdate) -> bool:
         return self.transaction_rule_service.update_transaction_category(self, transaction_id, payload)
 
+    def repair_transaction_system(self, *, limit: int = 5000) -> dict[str, int]:
+        return self.transaction_service.repair_transaction_system(limit=limit)
+
     def list_evidence_accounts(
         self,
         limit: int = 20,

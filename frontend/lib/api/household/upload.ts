@@ -73,9 +73,13 @@ function resolveFile(payload: HouseholdDocumentUpload): File {
   if (payload.file) return payload.file
   const rawText = payload.rawText?.trim()
   if (rawText) {
-    return new File([rawText], payload.filename?.trim() || 'pasted-evidence.txt', {
-      type: 'text/plain',
-    })
+    return new File(
+      [rawText],
+      payload.filename?.trim() || 'pasted-evidence.txt',
+      {
+        type: 'text/plain',
+      },
+    )
   }
   throw new Error('Upload requires a file or pasted text.')
 }
@@ -87,8 +91,10 @@ function applySharedFormFields(
   if (payload.sourceType) form.append('source_type', payload.sourceType)
   if (payload.documentType) form.append('document_type', payload.documentType)
   if (payload.accountLabel) form.append('account_label', payload.accountLabel)
-  if (payload.householdAccountId) form.append('household_account_id', payload.householdAccountId)
-  if (payload.reviewSessionId) form.append('review_session_id', payload.reviewSessionId)
+  if (payload.householdAccountId)
+    form.append('household_account_id', payload.householdAccountId)
+  if (payload.reviewSessionId)
+    form.append('review_session_id', payload.reviewSessionId)
 }
 
 export async function uploadHouseholdDocument(

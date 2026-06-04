@@ -30,6 +30,13 @@ def _coerce_metadata(value: Any) -> dict[str, Any]:
     return {}
 
 
+def _row_value(row: Any, index: int, default: Any = None) -> Any:
+    try:
+        return row[index]
+    except IndexError:
+        return default
+
+
 def _metadata_account_label(metadata: dict[str, Any]) -> str | None:
     for key in (
         "account_label",
@@ -116,7 +123,18 @@ def _transaction_sql(window_start: str | None, *, limit: int) -> tuple[str, list
             d.source_type,
             d.document_type,
             d.uploaded_at,
-            m.metadata
+            m.metadata,
+            t.original_category,
+            t.categorization_source,
+            t.categorization_version,
+            t.category_updated_at,
+            t.category_updated_by,
+            t.source_system,
+            t.external_transaction_id,
+            t.pending,
+            t.removed,
+            t.transaction_rule_id,
+            t.balance_after
         FROM household_transactions t
         LEFT JOIN household_merchants m
           ON m.id = t.merchant_id
@@ -133,6 +151,7 @@ def _transaction_sql(window_start: str | None, *, limit: int) -> tuple[str, list
         LEFT JOIN household_documents d
           ON d.id = t.document_id
         WHERE {" AND ".join(where_clauses)}
+          AND t.removed IS NOT TRUE
         ORDER BY COALESCE(t.posted_date, t.transaction_date) DESC, t.created_at DESC
         LIMIT %s
     """
@@ -214,6 +233,17 @@ class HouseholdLedgerService:
 
         for row in transaction_rows:
             metadata = _coerce_metadata(row[13])
+            balance_after = (
+                float(_row_value(row, 30))
+                if _row_value(row, 30) is not None
+                else _metadata_decimal(
+                    metadata,
+                    "balance_after",
+                    "cash_balance",
+                    "running_balance",
+                    "balance",
+                )
+            )
             amount = float(row[8]) if row[8] is not None else None
             effective_flow = _effective_transaction_flow(
                 flow_type=str(row[1] or ""),
@@ -334,14 +364,22 @@ class HouseholdLedgerService:
                 currency=str(row[9]) if row[9] is not None else None,
                 category=effective_category,
                 essentiality=effective_essentiality,
-                row_hash=str(row[12]),
-                balance_after=_metadata_decimal(
-                    metadata,
-                    "balance_after",
-                    "cash_balance",
-                    "running_balance",
-                    "balance",
+                original_category=str(_row_value(row, 20)) if _row_value(row, 20) is not None else None,
+                categorization_source=str(_row_value(row, 21)) if _row_value(row, 21) is not None else None,
+                categorization_version=str(_row_value(row, 22)) if _row_value(row, 22) is not None else None,
+                category_updated_at=iso_or_none(_row_value(row, 23)),
+                category_updated_by=str(_row_value(row, 24)) if _row_value(row, 24) is not None else None,
+                source_system=str(_row_value(row, 25)) if _row_value(row, 25) is not None else None,
+                external_transaction_id=(
+                    str(_row_value(row, 26)) if _row_value(row, 26) is not None else None
                 ),
+                pending=bool(_row_value(row, 27, False)),
+                removed=bool(_row_value(row, 28, False)),
+                transaction_rule_id=(
+                    str(_row_value(row, 29)) if _row_value(row, 29) is not None else None
+                ),
+                row_hash=str(row[12]),
+                balance_after=balance_after,
                 source_document_id=str(row[14]) if row[14] is not None else None,
                 source_document_filename=str(row[15]) if row[15] is not None else None,
                 source_type=str(row[16]) if row[16] is not None else None,

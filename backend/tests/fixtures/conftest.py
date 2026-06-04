@@ -113,6 +113,7 @@ TABLES_TO_CLEAN = [
     "idea_outcomes",
     # SnapTrade brokerage sync (children before parents; reference
     # portfolio_accounts, so clean before it)
+    "snaptrade_orders",
     "snaptrade_activities",
     "snaptrade_positions",
     "snaptrade_accounts",

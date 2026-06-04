@@ -898,7 +898,8 @@ def test_process_document_review_reapplies_latest_review_when_source_missing(
 ) -> None:
     pipeline = _PipelineStub()
     connection = MagicMock()
-    connection.execute.return_value.fetchone.return_value = (
+    latest_review_result = MagicMock()
+    latest_review_result.fetchone.return_value = (
         "Recovered statement",
         0.94,
         "Transaction history",
@@ -908,6 +909,9 @@ def test_process_document_review_reapplies_latest_review_when_source_missing(
             ]
         },
     )
+    application_counts_result = MagicMock()
+    application_counts_result.fetchone.return_value = (0, None, 2, 1, 0)
+    connection.execute.side_effect = [latest_review_result, application_counts_result]
     context_manager = MagicMock()
     context_manager.__enter__.return_value = connection
     context_manager.__exit__.return_value = None

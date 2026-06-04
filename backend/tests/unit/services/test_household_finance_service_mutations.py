@@ -16,11 +16,19 @@ def test_update_transaction_category_can_apply_rule_to_merchant() -> None:
     select_target.fetchone.return_value = ("txn-1", "merchant-1")
     update_transaction = MagicMock()
     update_transaction.fetchone.return_value = ("txn-1",)
+    select_existing_rule = MagicMock()
+    select_existing_rule.fetchone.return_value = None
+    select_applied_count = MagicMock()
+    select_applied_count.fetchone.return_value = (3,)
+    insert_rule = MagicMock()
     update_merchant_transactions = MagicMock()
     update_merchant = MagicMock()
     conn.execute.side_effect = [
         select_target,
         update_transaction,
+        select_existing_rule,
+        select_applied_count,
+        insert_rule,
         update_merchant_transactions,
         update_merchant,
     ]
@@ -35,8 +43,8 @@ def test_update_transaction_category_can_apply_rule_to_merchant() -> None:
     )
 
     assert updated is True
-    assert conn.execute.call_count == 4
-    merchant_update_sql = conn.execute.call_args_list[3].args[0]
+    assert conn.execute.call_count == 7
+    merchant_update_sql = conn.execute.call_args_list[6].args[0]
     assert "UPDATE household_merchants" in merchant_update_sql
 
 

@@ -1201,8 +1201,13 @@ class PlaidService:
         if removed:
             row_hash = hashlib.sha256(f"plaid|{transaction_id}".encode()).hexdigest()
             conn.execute(
-                "DELETE FROM household_transactions WHERE row_hash = %s",
-                [row_hash],
+                """
+                UPDATE household_transactions
+                SET removed = TRUE,
+                    updated_at = %s
+                WHERE row_hash = %s
+                """,
+                [_now(), row_hash],
             )
             conn.execute(
                 """
@@ -1247,7 +1252,7 @@ class PlaidService:
         ).fetchone()
         household_account_id = str(account_row[0]) if account_row and account_row[0] else None
         account_label = str(account_row[1]) if account_row and account_row[1] else None
-        merchant_id, canonical_name, category, essentiality, _ = (
+        merchant_id, canonical_name, category, essentiality, has_manual_rule, rule_id = (
             self.transaction_service._resolve_merchant(
                 conn=conn,
                 raw_merchant=merchant,
@@ -1255,6 +1260,7 @@ class PlaidService:
                 essentiality=essentiality,
             )
         )
+        categorization_source = "merchant_rule" if has_manual_rule else "plaid"
         row_hash = hashlib.sha256(f"plaid|{transaction_id}".encode()).hexdigest()
         authorized_date = _parse_date(transaction.get("authorized_date"))
         now = _now()
@@ -1313,10 +1319,14 @@ class PlaidService:
                 id, document_id, household_account_id, merchant_id, row_hash,
                 transaction_date, posted_date, description, raw_merchant, account_label,
                 amount, currency, flow_type, category, essentiality, confidence,
-                metadata, created_at, updated_at
+                metadata, source_system, external_transaction_id, original_category,
+                categorization_source, categorization_version, category_updated_at,
+                category_updated_by, transaction_rule_id, pending, removed, created_at,
+                updated_at
             ) VALUES (
                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                1.0, %s::jsonb, %s, %s
+                1.0, %s::jsonb, 'plaid', %s, %s, %s, %s, %s, %s, %s, %s,
+                FALSE, %s, %s
             )
             ON CONFLICT (row_hash) DO UPDATE SET
                 document_id = EXCLUDED.document_id,
@@ -1330,10 +1340,44 @@ class PlaidService:
                 amount = EXCLUDED.amount,
                 currency = EXCLUDED.currency,
                 flow_type = EXCLUDED.flow_type,
-                category = EXCLUDED.category,
-                essentiality = EXCLUDED.essentiality,
+                category = CASE
+                    WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule')
+                        THEN household_transactions.category
+                    ELSE EXCLUDED.category
+                END,
+                essentiality = CASE
+                    WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule')
+                        THEN household_transactions.essentiality
+                    ELSE EXCLUDED.essentiality
+                END,
                 confidence = EXCLUDED.confidence,
                 metadata = household_transactions.metadata || EXCLUDED.metadata,
+                source_system = 'plaid',
+                external_transaction_id = EXCLUDED.external_transaction_id,
+                original_category = COALESCE(household_transactions.original_category, EXCLUDED.original_category),
+                categorization_source = CASE
+                    WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule')
+                        THEN household_transactions.categorization_source
+                    ELSE EXCLUDED.categorization_source
+                END,
+                categorization_version = EXCLUDED.categorization_version,
+                category_updated_at = CASE
+                    WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule')
+                        THEN household_transactions.category_updated_at
+                    ELSE EXCLUDED.category_updated_at
+                END,
+                category_updated_by = CASE
+                    WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule')
+                        THEN household_transactions.category_updated_by
+                    ELSE EXCLUDED.category_updated_by
+                END,
+                transaction_rule_id = CASE
+                    WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule')
+                        THEN household_transactions.transaction_rule_id
+                    ELSE EXCLUDED.transaction_rule_id
+                END,
+                pending = EXCLUDED.pending,
+                removed = FALSE,
                 updated_at = EXCLUDED.updated_at
             """,
             [
@@ -1355,6 +1399,14 @@ class PlaidService:
                 category,
                 essentiality,
                 _json({"plaid_transaction_id": transaction_id, "plaid_item_id": item_id}),
+                transaction_id,
+                str(personal_finance_category.get("detailed") or personal_finance_category.get("primary") or ""),
+                categorization_source,
+                "2026-05-canonical",
+                now,
+                categorization_source,
+                rule_id,
+                bool(transaction.get("pending")),
                 now,
                 now,
             ],

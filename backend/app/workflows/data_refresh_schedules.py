@@ -59,3 +59,15 @@ HOUSEHOLD_HOLDINGS_REFRESH_CRONS = [
     "*/5 13-20 * * 1-5",  # regular hours (~9:30am-4pm ET both DST regimes)
     "*/15 8-12,21-23 * * 1-5",  # pre-market + after-hours
 ]
+
+# Recurring sync of "data services" account aggregators (SnapTrade, Plaid).
+# Brokerage feeds (e.g. Fidelity via SnapTrade) post holdings/activity on an
+# end-of-day cadence and both vendor APIs are rate-limited, so 3x on weekdays
+# is the sweet spot: catch overnight postings pre-market, a midday top-up, and
+# same-day fills after the close. Weekday-only; the task body is also gated on
+# the scheduled_account_sync_enabled preference so users can pause it.
+ACCOUNT_SYNC_CRONS = [
+    "0 11 * * 1-5",  # pre-market (~6am EST / 7am EDT)
+    "0 17 * * 1-5",  # midday (~12pm EST / 1pm EDT)
+    "30 21 * * 1-5",  # after close (~4:30pm EST / 5:30pm EDT)
+]

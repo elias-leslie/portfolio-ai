@@ -24,6 +24,31 @@ export interface SnapTradeAccount {
   lastSyncedAt: string | null
 }
 
+export interface SnapTradeOrder {
+  accountId: string
+  accountName: string | null
+  institutionName: string | null
+  accountMask: string | null
+  brokerageOrderId: string
+  status: string | null
+  action: string | null
+  symbol: string | null
+  rawSymbol: string | null
+  filledQuantity: number | null
+  executionPrice: number | null
+  orderType: string | null
+  timeInForce: string | null
+  timePlaced: string | null
+  timeUpdated: string | null
+  timeExecuted: string | null
+  currency: string | null
+  lastSyncedAt: string | null
+}
+
+export interface SnapTradeOrdersResponse {
+  orders: SnapTradeOrder[]
+}
+
 export interface SnapTradeStatus {
   configured: boolean
   clientIdConfigured: boolean
@@ -38,6 +63,7 @@ export interface SnapTradeStatus {
   accountCount: number
   positionCount: number
   activityCount: number
+  orderCount: number
   lastSuccessfulSyncAt: string | null
   lastError: string | null
   connections: SnapTradeConnection[]
@@ -68,6 +94,7 @@ export interface SnapTradeSyncResult {
   accountCount: number
   positionCount: number
   activityCount: number
+  orderCount: number
   portfolioAccountCount: number
   portfolioPositionCount: number
   errors: Array<Record<string, unknown>>
@@ -75,6 +102,20 @@ export interface SnapTradeSyncResult {
 
 export function fetchSnapTradeStatus(): Promise<SnapTradeStatus> {
   return get<SnapTradeStatus>('/api/snaptrade/status')
+}
+
+export function fetchSnapTradeOrders({
+  accountId,
+  limit = 50,
+}: {
+  accountId?: string | null
+  limit?: number
+} = {}): Promise<SnapTradeOrdersResponse> {
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (accountId) {
+    params.set('account_id', accountId)
+  }
+  return get<SnapTradeOrdersResponse>(`/api/snaptrade/orders?${params}`)
 }
 
 export function configureSnapTrade(

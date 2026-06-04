@@ -35,6 +35,38 @@ class _RecordingConnection:
     def execute(self, sql: str, params: list[object] | None = None) -> None:
         self.calls.append((sql, params))
 
+    def commit(self) -> None:
+        self.calls.append(("COMMIT", None))
+
+
+class _RecordingStorage:
+    def __init__(self, conn: _RecordingConnection) -> None:
+        self.conn = conn
+
+    def connection(self) -> _RecordingStorage:
+        return self
+
+    def __enter__(self) -> _RecordingConnection:
+        return self.conn
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+
+class _FakeOrderApi:
+    def __init__(self, orders: list[dict[str, object]]) -> None:
+        self.orders = orders
+        self.kwargs: dict[str, object] = {}
+
+    def get_user_account_orders(self, **kwargs: object) -> list[dict[str, object]]:
+        self.kwargs = kwargs
+        return self.orders
+
+
+class _FakeOrderClient:
+    def __init__(self, orders: list[dict[str, object]]) -> None:
+        self.account_information = _FakeOrderApi(orders)
+
 
 def test_connection_portal_is_read_only() -> None:
     kwargs = _connection_portal_kwargs(
@@ -164,6 +196,70 @@ def test_source_cash_balance_prefers_direct_broker_cash() -> None:
     )
 
     assert SnapTradeService._source_cash_balance(account, [position]) == Decimal("72.95")
+
+
+def test_normalize_order_extracts_symbol_and_execution_fields() -> None:
+    service = object.__new__(SnapTradeService)
+
+    order = service._normalize_order(
+        {
+            "brokerage_order_id": "937307326",
+            "status": "EXECUTED",
+            "action": "BUY",
+            "universal_symbol": {
+                "symbol": "VGT",
+                "raw_symbol": "VGT",
+                "currency": {"code": "USD"},
+            },
+            "filled_quantity": "395.000000000000000000",
+            "execution_price": "125.0899000000",
+            "order_type": "Market",
+            "time_in_force": "Day",
+            "time_executed": "2026-06-02T04:00:00Z",
+        }
+    )
+
+    assert order is not None
+    assert order.brokerage_order_id == "937307326"
+    assert order.symbol == "VGT"
+    assert order.raw_symbol == "VGT"
+    assert order.filled_quantity == Decimal("395.000000000000000000")
+    assert order.execution_price == Decimal("125.0899000000")
+    assert order.currency == "USD"
+    assert order.time_executed == datetime(2026, 6, 2, 4, 0, tzinfo=UTC)
+
+
+def test_sync_orders_upserts_recent_brokerage_orders() -> None:
+    conn = _RecordingConnection()
+    service = object.__new__(SnapTradeService)
+    service.storage = _RecordingStorage(conn)
+    client = _FakeOrderClient(
+        [
+            {
+                "brokerage_order_id": "order-1",
+                "status": "EXECUTED",
+                "action": "SELL",
+                "universal_symbol": {"symbol": "VTI"},
+                "filled_quantity": "2",
+                "execution_price": "400.12",
+                "time_executed": "2026-06-02T04:00:00Z",
+            }
+        ]
+    )
+
+    count = service._sync_orders(
+        client=client,
+        user=SnapTradeUser(user_id="user", user_secret="secret"),
+        account_id="acct-1",
+    )
+
+    assert count == 1
+    sql, params = conn.calls[0]
+    assert "INSERT INTO snaptrade_orders" in sql
+    assert "ON CONFLICT (account_id, brokerage_order_id)" in sql
+    assert params is not None
+    assert params[1:7] == ["acct-1", "order-1", "EXECUTED", "SELL", "VTI", None]
+    assert client.account_information.kwargs["state"] == "all"
 
 
 def test_configure_keeps_saved_credentials_when_secret_inputs_are_blank(monkeypatch) -> None:
