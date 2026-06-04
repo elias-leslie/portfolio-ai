@@ -9,18 +9,26 @@ The put/call writer inserts a row for *every* calendar day (including
 weekends and market holidays), but the VIX and HY close series only update on
 trading days. To avoid reporting VIX/credit as "missing" on a non-trading day
 just because the latest row is a put/call-only skeleton, the daily-after-close
-series are coalesced to their most recent non-null observation and flagged as
-carried-forward (``*_stale``) when their as-of date trails the latest row.
+series are coalesced to their most recent non-null observation.
+
+Staleness is judged per-series against its cadence, not merely ``as_of <
+latest_row``. HY OAS (FRED ``BAMLH0A0HYM2``) publishes one business day late, so
+a one-trading-day lag is its normal cadence, not staleness; ``hy_spread_stale``
+only fires once it trails the freshest value that *should* already be published.
+VIX is intraday: its daily close is carried-forward (``vix_stale``) whenever it
+trails the latest row, because during market hours yesterday's close is not a
+current quote.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
 from ...logging_config import get_logger
 from ...storage.facade import get_storage
+from ...utils.market_hours import get_last_trading_day
 
 if TYPE_CHECKING:
     from ...storage._connection_wrapper import PostgreSQLConnectionWrapper
@@ -79,6 +87,23 @@ def _latest_non_null(
     return float(row[0]), as_of
 
 
+def _expected_credit_floor(reference_date: date) -> date:
+    """Oldest as-of the T+1 daily HY credit series can carry within cadence.
+
+    FRED's HY OAS (``BAMLH0A0HYM2``) publishes one business day late: the value
+    for trading day D is only available on D+1, so a one-trading-day lag is the
+    series' cadence rather than staleness. Allow the credit print to trail the
+    most recent trading day by one trading day; anything older than that floor
+    is genuinely stale.
+
+    ``reference_date`` is the newest ingested ``fear_greed_inputs`` row, which
+    is already ``<= snapshot_date`` on the backtest path, so replay stays
+    point-in-time correct and the threshold needs no wall-clock.
+    """
+    most_recent_trading = get_last_trading_day(reference_date)
+    return get_last_trading_day(most_recent_trading - timedelta(days=1))
+
+
 def _build(
     conn: PostgreSQLConnectionWrapper,
     latest_row: tuple,
@@ -87,6 +112,7 @@ def _build(
     latest_date = latest_row[0]
     vix_close, vix_as_of = _latest_non_null(conn, "vix_close", on_or_before)
     hy_spread, hy_as_of = _latest_non_null(conn, "hy_spread", on_or_before)
+    credit_floor = _expected_credit_floor(latest_date)
     return FearGreedComponents(
         as_of=latest_date,
         vix_close=vix_close,
@@ -96,7 +122,7 @@ def _build(
         vix_as_of=vix_as_of,
         hy_spread_as_of=hy_as_of,
         vix_stale=vix_as_of is not None and vix_as_of < latest_date,
-        hy_spread_stale=hy_as_of is not None and hy_as_of < latest_date,
+        hy_spread_stale=hy_as_of is not None and hy_as_of < credit_floor,
     )
 
 
