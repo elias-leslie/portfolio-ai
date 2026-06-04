@@ -102,6 +102,60 @@ def test_conditions_payload_turns_reduced_gate_into_plain_language_caution() -> 
     assert payload["market_shifts"][0]["label"] == "Stress reversed worse"
 
 
+def test_conditions_payload_applies_current_tape_stress_overlay() -> None:
+    payload = conditions.build_conditions_payload(
+        _snapshot(deployment_score=65.0),
+        tape_stress=conditions.TapeStressEvidence(
+            stress_score=42,
+            as_of="2026-06-04T14:20:00+00:00",
+            sp500_change_pct=-0.8,
+            weakest_sector_symbol="XLK",
+            weakest_sector_name="Technology",
+            weakest_sector_change_pct=-2.9,
+            negative_sector_count=2,
+            sector_count=11,
+        ),
+    )
+
+    assert payload["state"] == "Caution"
+    assert payload["stress_score"] == 42
+    assert payload["deployment_score"] == 65.0
+    assert payload["flags"] == []
+    assert payload["summary"] == "Market stress is low-to-moderate, with current tape pressure."
+    assert "Do not chase the selloff" in payload["action_text"]
+    assert "equity tape is under pressure" in payload["what_matters"][0]
+    assert "Do not chase the selloff" in payload["what_to_do"][0]
+
+    evidence_by_key = {item["key"]: item for item in payload["evidence"]}
+    assert evidence_by_key["stress"]["value"] == "42"
+    assert evidence_by_key["equity_tape"]["value"] == "42"
+    assert evidence_by_key["equity_tape"]["detail"] == (
+        "S&P -0.8%, Technology -2.9%, 2/11 sectors down"
+    )
+
+
+def test_conditions_payload_escalates_on_severe_current_tape_stress() -> None:
+    payload = conditions.build_conditions_payload(
+        _snapshot(deployment_score=65.0),
+        tape_stress=conditions.TapeStressEvidence(
+            stress_score=64,
+            as_of="2026-06-04T14:20:00+00:00",
+            sp500_change_pct=-2.7,
+            weakest_sector_symbol="XLK",
+            weakest_sector_name="Technology",
+            weakest_sector_change_pct=-5.4,
+            negative_sector_count=8,
+            sector_count=11,
+        ),
+    )
+
+    assert payload["state"] == "Elevated"
+    assert payload["stress_score"] == 64
+    assert payload["flags"] == ["equity_tape_stress"]
+    assert payload["alert"]["active"] is True
+    assert payload["alert"]["priority"] == "high"
+
+
 def test_conditions_payload_escalates_only_on_severe_volatility() -> None:
     payload = conditions.build_conditions_payload(_snapshot(vix_close=30.1))
 

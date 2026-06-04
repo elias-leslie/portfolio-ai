@@ -8,7 +8,8 @@ from typing import Any
 
 import pytest
 
-from app.api.market_data_sources import calculate_daily_change_pct
+from app.api.market_data_sources import calculate_daily_change_pct, fetch_sector_data_with_changes
+from app.portfolio.models import PriceData
 
 
 class _Result:
@@ -60,3 +61,21 @@ def test_daily_change_uses_prior_close_for_same_day_close_quote() -> None:
     )
 
     assert change_pct == pytest.approx(25.0)
+
+
+def test_sector_changes_use_latest_close_for_intraday_quotes() -> None:
+    rows = [("XLK", date(2026, 6, 3), 196.23), ("XLK", date(2026, 6, 2), 198.21)]
+
+    sector_data = fetch_sector_data_with_changes(
+        _Storage(rows),
+        ["XLK"],
+        {
+            "XLK": PriceData(
+                symbol="XLK",
+                price=190.74,
+                cached_at=datetime(2026, 6, 4, 14, 23, tzinfo=UTC),
+            )
+        },
+    )
+
+    assert sector_data["XLK"][1] == pytest.approx(-2.7977373490291906)

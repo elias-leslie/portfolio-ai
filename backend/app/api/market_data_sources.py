@@ -116,11 +116,18 @@ def calculate_weekly_change_pct(
     return None
 
 
-def _fetch_prev_closes_batch(
+def _quote_market_date(value: object) -> date | None:
+    if not isinstance(value, datetime):
+        return None
+    quote_ts = value if value.tzinfo else value.replace(tzinfo=dt.UTC)
+    return quote_ts.astimezone(NY_TZ).date()
+
+
+def _fetch_recent_closes_batch(
     storage: Storage,
     sector_symbols: list[str],
-) -> dict[str, float]:
-    """Fetch previous closes for a list of symbols in a single batch query."""
+) -> dict[str, list[tuple[date, float]]]:
+    """Fetch the two most recent closes for each symbol in a single batch query."""
     params: list[
         str | int | float | bool | date | datetime | list[str | int | float | bool | None] | None
     ] = [cast(list[str | int | float | bool | None], sector_symbols)]
@@ -128,35 +135,50 @@ def _fetch_prev_closes_batch(
     with storage.connection() as conn:
         result = conn.execute(
             """
-            SELECT symbol, close
+            SELECT symbol, date, close
             FROM (
-                SELECT symbol, close, ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
+                SELECT symbol,
+                       date,
+                       close,
+                       ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
                 FROM day_bars
                 WHERE symbol = ANY(%s)
             ) ranked
-            WHERE rn = 2
+            WHERE rn <= 2
+            ORDER BY symbol, date DESC
             """,
             params,
         )
-        prev_closes: dict[str, float] = {}
+        recent_closes: dict[str, list[tuple[date, float]]] = {}
         for row in result.fetchall():
             symbol_val = row[0]
-            close_val = row[1]
-            if isinstance(symbol_val, str) and isinstance(close_val, (int, float)):
-                prev_closes[symbol_val] = float(close_val)
-    return prev_closes
+            date_val = row[1]
+            close_val = row[2]
+            if (
+                isinstance(symbol_val, str)
+                and isinstance(date_val, date)
+                and isinstance(close_val, (int, float))
+            ):
+                recent_closes.setdefault(symbol_val, []).append((date_val, float(close_val)))
+    return recent_closes
 
 
 def _sector_entry(
     current_price: PriceData | None,
-    prev_close: float | None,
+    recent_closes: list[tuple[date, float]] | None,
 ) -> tuple[float | None, float | None, str | None]:
     """Build a single sector data tuple from price data and previous close."""
     if not current_price:
         return (None, None, None)
     timestamp = current_price.cached_at.isoformat()
-    if prev_close:
-        change_pct = ((current_price.price - prev_close) / prev_close) * 100
+    closes = recent_closes or []
+    if closes:
+        latest_date, latest_close = closes[0]
+        baseline_close = latest_close
+        quote_date = _quote_market_date(current_price.cached_at)
+        if quote_date is not None and quote_date <= latest_date and len(closes) > 1:
+            baseline_close = closes[1][1]
+        change_pct = ((current_price.price - baseline_close) / baseline_close) * 100
         return (current_price.price, change_pct, timestamp)
     return (current_price.price, None, timestamp)
 
@@ -180,9 +202,9 @@ def fetch_sector_data_with_changes(
     Returns:
         Dict mapping symbol to (price, change_pct, timestamp) tuple
     """
-    prev_closes = _fetch_prev_closes_batch(storage, sector_symbols)
+    recent_closes = _fetch_recent_closes_batch(storage, sector_symbols)
     return {
-        symbol: _sector_entry(sector_price_data.get(symbol), prev_closes.get(symbol))
+        symbol: _sector_entry(sector_price_data.get(symbol), recent_closes.get(symbol))
         for symbol in sector_symbols
     }
 

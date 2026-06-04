@@ -7,10 +7,13 @@ nearby stored market evidence. It does not introduce a second scoring model.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
+from itertools import pairwise
 from typing import Any
 
+from ..constants import INDEX_SP500, SECTOR_ETFS
 from ..storage.facade import get_storage
+from ..utils.market_hours import NY_TZ
 from . import repository
 
 
@@ -28,6 +31,18 @@ class HyOasChange:
     prior_date: str | None
     prior_value: float | None
     change_bps: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class TapeStressEvidence:
+    stress_score: int
+    as_of: str | None
+    sp500_change_pct: float | None
+    weakest_sector_symbol: str | None
+    weakest_sector_name: str | None
+    weakest_sector_change_pct: float | None
+    negative_sector_count: int
+    sector_count: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +91,13 @@ def _datetime_text(value: object) -> str | None:
     return str(value)
 
 
+def _quote_market_date(value: object) -> date | None:
+    if not isinstance(value, datetime):
+        return None
+    quote_ts = value if value.tzinfo else value.replace(tzinfo=UTC)
+    return quote_ts.astimezone(NY_TZ).date()
+
+
 def _parse_date(value: object) -> date | None:
     text = _date_text(value)
     if not text:
@@ -107,8 +129,9 @@ def _fmt_change_bps(value: float | None) -> str:
 def _fmt_delta(value: float | None, precision: int, unit: str = "") -> str:
     if value is None:
         return "-"
-    sign = "+" if value > 0 else ""
-    return f"{sign}{value:.{precision}f}{unit}"
+    rounded = round(value, precision)
+    sign = "+" if rounded > 0 else ""
+    return f"{sign}{rounded:.{precision}f}{unit}"
 
 
 def _crowding_detail(score: float | None, corr: float | None) -> str:
@@ -134,12 +157,24 @@ def _stress_score(deployment_score: float | None) -> int | None:
     return round(max(0.0, min(100.0, 100.0 - deployment_score)))
 
 
+def _combined_stress_score(
+    macro_stress: int | None,
+    tape_stress: TapeStressEvidence | None,
+) -> int | None:
+    if macro_stress is None:
+        return tape_stress.stress_score if tape_stress else None
+    if tape_stress is None:
+        return macro_stress
+    return max(macro_stress, tape_stress.stress_score)
+
+
 def _severe_flags(
     *,
     deployment_score: float | None,
     vix_close: float | None,
     hy_spread: float | None,
     hy_change_bps: float | None,
+    tape_stress_score: int | None = None,
 ) -> list[str]:
     flags: list[str] = []
     if vix_close is not None and vix_close >= 30:
@@ -150,6 +185,8 @@ def _severe_flags(
         flags.append("credit_widening")
     if deployment_score is not None and deployment_score < 40:
         flags.append("defensive_deployment")
+    if tape_stress_score is not None and tape_stress_score >= 60:
+        flags.append("equity_tape_stress")
     return flags
 
 
@@ -200,6 +237,199 @@ def _evidence_tone(kind: str, value: float | None) -> str:
         else:
             tone = "gain"
     return tone
+
+
+def _stress_from_decline(decline_pct: float) -> float:
+    """Map an equity decline percentage to a 0-100 tape stress score."""
+    if decline_pct <= 0:
+        return 15.0
+    anchors = [
+        (0.0, 15.0),
+        (0.5, 30.0),
+        (1.5, 45.0),
+        (3.0, 65.0),
+        (5.0, 85.0),
+        (8.0, 95.0),
+    ]
+    for (left_x, left_y), (right_x, right_y) in pairwise(anchors):
+        if decline_pct <= right_x:
+            span = right_x - left_x
+            progress = (decline_pct - left_x) / span if span else 0.0
+            return left_y + progress * (right_y - left_y)
+    return 95.0
+
+
+def _sector_tape_stress(
+    weakest_sector_change_pct: float | None,
+    negative_sector_count: int,
+    sector_count: int,
+) -> float | None:
+    if weakest_sector_change_pct is None or sector_count <= 0:
+        return None
+    base = _stress_from_decline(-weakest_sector_change_pct)
+    negative_ratio = max(0.0, min(1.0, negative_sector_count / sector_count))
+    return base * (0.55 + 0.45 * negative_ratio)
+
+
+def _tape_detail(tape_stress: TapeStressEvidence | None) -> str:
+    if tape_stress is None:
+        return "Unavailable"
+    pieces: list[str] = []
+    if tape_stress.sp500_change_pct is not None:
+        pieces.append(f"S&P {_fmt_delta(tape_stress.sp500_change_pct, 1, '%')}")
+    if (
+        tape_stress.weakest_sector_name
+        and tape_stress.weakest_sector_change_pct is not None
+    ):
+        pieces.append(
+            f"{tape_stress.weakest_sector_name} "
+            f"{_fmt_delta(tape_stress.weakest_sector_change_pct, 1, '%')}"
+        )
+    if tape_stress.sector_count > 0:
+        pieces.append(
+            f"{tape_stress.negative_sector_count}/{tape_stress.sector_count} sectors down"
+        )
+    return ", ".join(pieces) if pieces else "Current tape pressure unavailable"
+
+
+def _as_date(value: object) -> date | None:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return None
+
+
+def _prior_close_for_quote(
+    *,
+    quote_date: date | None,
+    bars: list[tuple[date, float]],
+) -> float | None:
+    if not bars:
+        return None
+    latest_date, latest_close = bars[0]
+    if quote_date is not None and quote_date <= latest_date and len(bars) > 1:
+        return bars[1][1]
+    return latest_close
+
+
+def _current_quote_changes(symbols: list[str]) -> dict[str, tuple[float, str | None]]:
+    normalized_symbols = sorted({symbol.upper() for symbol in symbols if symbol})
+    if not normalized_symbols:
+        return {}
+
+    storage = get_storage()
+    with storage.connection() as conn:
+        quote_rows = conn.execute(
+            """
+            SELECT UPPER(symbol), price, cached_at
+            FROM price_cache
+            WHERE UPPER(symbol) = ANY(%s)
+              AND price IS NOT NULL
+              AND price > 0
+            """,
+            [normalized_symbols],
+        ).fetchall()
+        bar_rows = conn.execute(
+            """
+            SELECT symbol, date, close
+            FROM (
+                SELECT UPPER(symbol) AS symbol,
+                       date,
+                       close,
+                       ROW_NUMBER() OVER (PARTITION BY UPPER(symbol) ORDER BY date DESC) AS rn
+                FROM day_bars
+                WHERE UPPER(symbol) = ANY(%s)
+                  AND close IS NOT NULL
+                  AND close > 0
+            ) ranked
+            WHERE rn <= 2
+            ORDER BY symbol, date DESC
+            """,
+            [normalized_symbols],
+        ).fetchall()
+
+    latest_quotes: dict[str, tuple[float, datetime | None]] = {}
+    for symbol, price, cached_at in quote_rows:
+        if not isinstance(symbol, str):
+            continue
+        price_value = _maybe_float(price)
+        if price_value is None or price_value <= 0:
+            continue
+        existing = latest_quotes.get(symbol)
+        cached_dt = cached_at if isinstance(cached_at, datetime) else None
+        if existing is None:
+            latest_quotes[symbol] = (price_value, cached_dt)
+            continue
+        existing_dt = existing[1]
+        if cached_dt and (existing_dt is None or cached_dt > existing_dt):
+            latest_quotes[symbol] = (price_value, cached_dt)
+
+    bars_by_symbol: dict[str, list[tuple[date, float]]] = {}
+    for symbol, raw_date, close in bar_rows:
+        if not isinstance(symbol, str):
+            continue
+        bar_date = _as_date(raw_date)
+        close_value = _maybe_float(close)
+        if bar_date is None or close_value is None or close_value <= 0:
+            continue
+        bars_by_symbol.setdefault(symbol, []).append((bar_date, close_value))
+
+    changes: dict[str, tuple[float, str | None]] = {}
+    for symbol, (price, cached_at) in latest_quotes.items():
+        baseline = _prior_close_for_quote(
+            quote_date=_quote_market_date(cached_at),
+            bars=bars_by_symbol.get(symbol, []),
+        )
+        if baseline is None or baseline <= 0:
+            continue
+        change_pct = ((price - baseline) / baseline) * 100.0
+        changes[symbol] = (change_pct, _datetime_text(cached_at))
+    return changes
+
+
+def get_tape_stress() -> TapeStressEvidence | None:
+    """Return current equity/sector tape stress from canonical quote cache."""
+    sector_symbols = list(SECTOR_ETFS.keys())
+    changes = _current_quote_changes([INDEX_SP500, *sector_symbols])
+    if not changes:
+        return None
+
+    sp500 = changes.get(INDEX_SP500)
+    sp500_change = sp500[0] if sp500 else None
+    sp500_stress = (
+        _stress_from_decline(-sp500_change) if sp500_change is not None else None
+    )
+    sector_changes: list[tuple[str, float]] = []
+    for symbol in sector_symbols:
+        change_tuple = changes.get(symbol)
+        if change_tuple is not None:
+            sector_changes.append((symbol, change_tuple[0]))
+    weakest_sector = min(sector_changes, key=lambda row: row[1], default=None)
+    negative_sector_count = sum(1 for _, change in sector_changes if change < 0)
+    sector_stress = _sector_tape_stress(
+        weakest_sector[1] if weakest_sector else None,
+        negative_sector_count,
+        len(sector_changes),
+    )
+    stress_candidates = [
+        score for score in [sp500_stress, sector_stress] if score is not None
+    ]
+    if not stress_candidates:
+        return None
+    as_of_values = [as_of for _, as_of in changes.values() if as_of]
+    as_of = max(as_of_values) if as_of_values else None
+    weakest_symbol = weakest_sector[0] if weakest_sector else None
+    return TapeStressEvidence(
+        stress_score=round(max(stress_candidates)),
+        as_of=as_of,
+        sp500_change_pct=sp500_change,
+        weakest_sector_symbol=weakest_symbol,
+        weakest_sector_name=SECTOR_ETFS.get(weakest_symbol) if weakest_symbol else None,
+        weakest_sector_change_pct=weakest_sector[1] if weakest_sector else None,
+        negative_sector_count=negative_sector_count,
+        sector_count=len(sector_changes),
+    )
 
 
 def _empty_trend(config: TrendConfig, sparkline: list[float] | None = None) -> dict[str, Any]:
@@ -475,7 +705,11 @@ def _build_market_shifts(trends: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-def _state_copy(state: str, flags: list[str]) -> tuple[str, str]:
+def _state_copy(
+    state: str,
+    flags: list[str],
+    tape_stress: TapeStressEvidence | None = None,
+) -> tuple[str, str]:
     if state == "Elevated":
         return (
             "Market stress is elevated.",
@@ -491,6 +725,11 @@ def _state_copy(state: str, flags: list[str]) -> tuple[str, str]:
             "Market stress is elevated.",
             "Protect the plan first. Avoid adding broad risk until volatility, credit, and breadth stabilize.",
         )
+    if tape_stress is not None and tape_stress.stress_score >= 35:
+        return (
+            "Market stress is low-to-moderate, with current tape pressure.",
+            "Stay invested according to plan. Do not chase the selloff; scale only into highest-conviction buys until the tape stabilizes.",
+        )
     return (
         "Market stress is low-to-moderate.",
         "Stay invested according to plan. Be selective with new buys. Do not chase broad market strength just because indexes are up.",
@@ -504,6 +743,7 @@ def _what_matters(
     hy_spread: float | None,
     breadth_pct: float | None,
     crowding_score: float | None,
+    tape_stress: TapeStressEvidence | None = None,
 ) -> list[str]:
     if state == "Elevated":
         return [
@@ -513,6 +753,9 @@ def _what_matters(
         ]
 
     first = (
+        f"Current equity tape is under pressure ({_tape_detail(tape_stress)}), even though macro stress is not severe."
+        if tape_stress is not None and tape_stress.stress_score >= 35
+        else
         "Credit and volatility are calm, so this is not a panic tape."
         if (vix_close is not None and vix_close < 20 and hy_spread is not None and hy_spread < 3.5)
         else "Volatility or credit is no longer fully calm, so new risk deserves more scrutiny."
@@ -530,12 +773,22 @@ def _what_matters(
     return [first, second, third]
 
 
-def _what_to_do(state: str, alert_active: bool) -> list[str]:
+def _what_to_do(
+    state: str,
+    alert_active: bool,
+    tape_stress: TapeStressEvidence | None = None,
+) -> list[str]:
     if state == "Elevated" or alert_active:
         return [
             "Do not add broad risk until the brief improves.",
             "Review concentration and cash needs before making new commitments.",
             "Keep long-term allocation changes tied to your written plan.",
+        ]
+    if tape_stress is not None and tape_stress.stress_score >= 35:
+        return [
+            "Do not chase the selloff while the tape is still under pressure.",
+            "If adding money, scale only into highest-conviction setups.",
+            "Review concentration in the weakest sector before adding more.",
         ]
     if state == "Calm":
         return [
@@ -552,6 +805,7 @@ def _what_to_do(state: str, alert_active: bool) -> list[str]:
 
 def _watch_items() -> list[str]:
     return [
+        "S&P 500 down more than 2% or broad sector selling would lift current tape stress.",
         "VIX above 30 would move volatility from calm to stressed.",
         "HY OAS above 5 or widening 100 bps would make credit a real warning.",
         "Deployment score below 40 would turn the brief defensive.",
@@ -569,11 +823,12 @@ def _build_evidence(
     yield_curve: YieldCurveEvidence | None,
     crowding_score: float | None,
     crowding_corr: float | None,
+    tape_stress: TapeStressEvidence | None,
     trends: dict[str, Any],
 ) -> list[dict[str, Any]]:
     ten_two = yield_curve.ten_year_two_year_bps if yield_curve else None
     ten_three_month = yield_curve.ten_year_three_month_bps if yield_curve else None
-    return [
+    evidence = [
         {
             "key": "stress",
             "label": "Stress",
@@ -588,8 +843,24 @@ def _build_evidence(
             "tone": _evidence_tone(
                 "stress", float(stress_score) if stress_score is not None else None
             ),
-            "tooltip": "Stress is the inverse of the deployment score. Higher means market conditions are less supportive.",
+            "tooltip": "Stress combines macro deployment stress with current equity tape pressure. Higher means market conditions are less supportive.",
             "trend": trends.get("stress"),
+        },
+        {
+            "key": "equity_tape",
+            "label": "Tape",
+            "value": (
+                _fmt_number(float(tape_stress.stress_score), 0)
+                if tape_stress is not None
+                else "-"
+            ),
+            "detail": _tape_detail(tape_stress),
+            "tone": _evidence_tone(
+                "stress",
+                float(tape_stress.stress_score) if tape_stress is not None else None,
+            ),
+            "tooltip": "Current tape stress uses canonical S&P 500 and sector ETF quotes versus the prior close so selloffs can surface before slower macro feeds update.",
+            "trend": None,
         },
         {
             "key": "vix",
@@ -660,6 +931,7 @@ def _build_evidence(
             "trend": trends.get("crowding"),
         },
     ]
+    return evidence
 
 
 def build_conditions_payload(
@@ -667,6 +939,7 @@ def build_conditions_payload(
     *,
     yield_curve: YieldCurveEvidence | None = None,
     hy_change: HyOasChange | None = None,
+    tape_stress: TapeStressEvidence | None = None,
     macro_history: list[dict[str, Any]] | None = None,
     yield_curve_history: list[YieldCurveHistoryPoint] | None = None,
 ) -> dict[str, Any]:
@@ -676,16 +949,18 @@ def build_conditions_payload(
     breadth_pct = _maybe_float(snapshot.get("breadth_pct"))
     crowding_corr = _maybe_float(snapshot.get("factor_crowding_corr"))
     crowding_score = _maybe_float(snapshot.get("crowding_score"))
-    stress = _stress_score(deployment_score)
+    macro_stress = _stress_score(deployment_score)
+    stress = _combined_stress_score(macro_stress, tape_stress)
     hy_change_bps = hy_change.change_bps if hy_change else None
     flags = _severe_flags(
         deployment_score=deployment_score,
         vix_close=vix_close,
         hy_spread=hy_spread,
         hy_change_bps=hy_change_bps,
+        tape_stress_score=tape_stress.stress_score if tape_stress else None,
     )
     state = "Elevated" if flags else _zone_state(snapshot.get("zone"))
-    summary, action_text = _state_copy(state, flags)
+    summary, action_text = _state_copy(state, flags, tape_stress)
     alert_active = state == "Elevated"
     priority = (
         "critical"
@@ -718,8 +993,9 @@ def build_conditions_payload(
             hy_spread=hy_spread,
             breadth_pct=breadth_pct,
             crowding_score=crowding_score,
+            tape_stress=tape_stress,
         ),
-        "what_to_do": _what_to_do(state, alert_active),
+        "what_to_do": _what_to_do(state, alert_active, tape_stress),
         "watch_items": _watch_items(),
         "trend": trends,
         "market_shifts": _build_market_shifts(trends),
@@ -752,6 +1028,7 @@ def build_conditions_payload(
             yield_curve=yield_curve,
             crowding_score=crowding_score,
             crowding_corr=crowding_corr,
+            tape_stress=tape_stress,
             trends=trends,
         ),
     }
@@ -844,6 +1121,7 @@ def get_conditions_payload(snapshot: dict[str, Any]) -> dict[str, Any]:
         snapshot,
         yield_curve=get_latest_yield_curve(),
         hy_change=get_hy_oas_change(),
+        tape_stress=get_tape_stress(),
         macro_history=repository.get_history(days=45),
         yield_curve_history=get_yield_curve_history(days=45),
     )

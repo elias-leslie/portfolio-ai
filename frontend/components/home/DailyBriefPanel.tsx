@@ -724,7 +724,7 @@ function MarketEvidenceStrip({
   return (
     <TooltipProvider delayDuration={150}>
       <div className="border-t border-border-subtle px-4 py-3">
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
           {evidence.map((item) => (
             <div
               key={item.key}
