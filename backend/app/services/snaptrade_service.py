@@ -37,6 +37,7 @@ _SYNC_ACTIVITY_LIMIT = 1000
 _SYNC_ORDER_LOOKBACK_DAYS = 365
 _CASH_SYMBOLS = frozenset({"CASH", "FCASH", "FDRXX", "SPAXX"})
 _SYMBOL_PATTERN = re.compile(r"^[A-Z][A-Z0-9.-]{0,24}$")
+_CASH_RECONCILIATION_TOLERANCE = Decimal("1.00")
 
 
 class SnapTradeConfigurationError(RuntimeError):
@@ -362,7 +363,20 @@ class SnapTradeService:
                 "SELECT COUNT(*) FROM snaptrade_users WHERE status = 'active'"
             ).fetchone()
             connection_count = conn.execute("SELECT COUNT(*) FROM snaptrade_connections").fetchone()
-            account_count = conn.execute("SELECT COUNT(*) FROM snaptrade_accounts").fetchone()
+            source_account_count = conn.execute("SELECT COUNT(*) FROM snaptrade_accounts").fetchone()
+            account_count = conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM (
+                    SELECT DISTINCT COALESCE(
+                        portfolio_account_id,
+                        household_account_id::text,
+                        account_id
+                    ) AS display_account_id
+                    FROM snaptrade_accounts
+                ) display_accounts
+                """
+            ).fetchone()
             position_count = conn.execute("SELECT COUNT(*) FROM snaptrade_positions").fetchone()
             activity_count = conn.execute("SELECT COUNT(*) FROM snaptrade_activities").fetchone()
             order_count = conn.execute("SELECT COUNT(*) FROM snaptrade_orders").fetchone()
@@ -380,9 +394,31 @@ class SnapTradeService:
             ).fetchall()
             account_rows = conn.execute(
                 """
+                WITH ranked_accounts AS (
+                    SELECT
+                        account_id,
+                        name,
+                        institution_name,
+                        account_mask,
+                        portfolio_account_type,
+                        balance,
+                        cash_balance,
+                        currency,
+                        last_synced_at,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY COALESCE(
+                                portfolio_account_id,
+                                household_account_id::text,
+                                account_id
+                            )
+                            ORDER BY last_synced_at DESC, account_id
+                        ) AS row_rank
+                    FROM snaptrade_accounts
+                )
                 SELECT account_id, name, institution_name, account_mask, portfolio_account_type,
                        balance, cash_balance, currency, last_synced_at
-                FROM snaptrade_accounts
+                FROM ranked_accounts
+                WHERE row_rank = 1
                 ORDER BY last_synced_at DESC, name
                 LIMIT 20
                 """
@@ -449,6 +485,7 @@ class SnapTradeService:
             "user_registered": int(user_count[0] or 0) > 0 if user_count else False,
             "connection_count": int(connection_count[0] or 0) if connection_count else 0,
             "account_count": int(account_count[0] or 0) if account_count else 0,
+            "source_account_count": int(source_account_count[0] or 0) if source_account_count else 0,
             "position_count": int(position_count[0] or 0) if position_count else 0,
             "activity_count": int(activity_count[0] or 0) if activity_count else 0,
             "order_count": int(order_count[0] or 0) if order_count else 0,
@@ -1064,7 +1101,7 @@ class SnapTradeService:
                 name=name,
                 portfolio_account_type=kind.portfolio_account_type,
                 household_account_id=household_account_id,
-                cash_balance=cash_balance,
+                cash_balance=None,
             )
             synced_at = _now()
             conn.execute(
@@ -1089,7 +1126,6 @@ class SnapTradeService:
                     raw_type = EXCLUDED.raw_type,
                     portfolio_account_type = EXCLUDED.portfolio_account_type,
                     balance = EXCLUDED.balance,
-                    cash_balance = EXCLUDED.cash_balance,
                     currency = EXCLUDED.currency,
                     metadata = EXCLUDED.metadata,
                     last_synced_at = EXCLUDED.last_synced_at
@@ -1107,7 +1143,7 @@ class SnapTradeService:
                     raw_type,
                     kind.portfolio_account_type,
                     balance,
-                    cash_balance,
+                    None,
                     currency,
                     _json(sanitized_metadata),
                     synced_at,
@@ -1797,21 +1833,46 @@ class SnapTradeService:
         account: SnapTradeNormalizedAccount,
         positions: list[SnapTradeNormalizedPosition],
     ) -> Decimal | None:
-        if account.cash_balance is not None:
-            return account.cash_balance
         if account.balance is None:
-            return None
-        positions_value = sum(
-            (
-                position.market_value
-                if position.market_value is not None
-                else position.price * position.units
-                if position.price is not None
-                else Decimal("0")
-            )
-            for position in positions
+            return account.cash_balance
+
+        position_values = [SnapTradeService._position_snapshot_value(position) for position in positions]
+        if any(value is None for value in position_values):
+            return account.cash_balance
+
+        positions_value = sum((value for value in position_values if value is not None), Decimal("0"))
+        residual_cash = SnapTradeService._normalize_cash_residual(account.balance - positions_value)
+        if account.cash_balance is None:
+            return residual_cash
+
+        cash_overage = abs((positions_value + account.cash_balance) - account.balance)
+        if cash_overage <= _CASH_RECONCILIATION_TOLERANCE:
+            return account.cash_balance
+
+        logger.warning(
+            "snaptrade_cash_balance_reconciled",
+            account_id=account.account_id,
+            account_name=account.name,
+            broker_total=str(account.balance),
+            reported_cash=str(account.cash_balance),
+            positions_value=str(positions_value),
+            residual_cash=str(residual_cash),
         )
-        return account.balance - positions_value
+        return residual_cash
+
+    @staticmethod
+    def _position_snapshot_value(position: SnapTradeNormalizedPosition) -> Decimal | None:
+        if position.market_value is not None:
+            return position.market_value
+        if position.price is not None:
+            return position.price * position.units
+        return None
+
+    @staticmethod
+    def _normalize_cash_residual(value: Decimal) -> Decimal:
+        if abs(value) <= _CASH_RECONCILIATION_TOLERANCE:
+            return Decimal("0")
+        return value
 
     @staticmethod
     def _position_cost_basis_per_share(position: SnapTradeNormalizedPosition) -> Decimal:

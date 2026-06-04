@@ -61,6 +61,7 @@ export interface SnapTradeStatus {
   userRegistered: boolean
   connectionCount: number
   accountCount: number
+  sourceAccountCount: number
   positionCount: number
   activityCount: number
   orderCount: number

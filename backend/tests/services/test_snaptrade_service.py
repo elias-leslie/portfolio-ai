@@ -173,7 +173,7 @@ def test_source_cash_balance_prefers_direct_broker_cash() -> None:
         account_mask="7544",
         raw_type=None,
         portfolio_account_type="Taxable",
-        balance=Decimal("549593.06"),
+        balance=Decimal("539830.07"),
         cash_balance=Decimal("72.95"),
         currency="USD",
         household_account_id="household-1",
@@ -196,6 +196,60 @@ def test_source_cash_balance_prefers_direct_broker_cash() -> None:
     )
 
     assert SnapTradeService._source_cash_balance(account, [position]) == Decimal("72.95")
+
+
+def test_source_cash_balance_reconciles_incompatible_direct_broker_cash() -> None:
+    account = SnapTradeNormalizedAccount(
+        account_id="acct-1",
+        authorization_id="auth-1",
+        name="ROTH IRA",
+        institution_name="Fidelity",
+        account_mask="7544",
+        raw_type=None,
+        portfolio_account_type="Roth",
+        balance=Decimal("49774.94"),
+        cash_balance=Decimal("49541.96"),
+        currency="USD",
+        household_account_id="household-1",
+        portfolio_account_id="portfolio-1",
+        metadata={},
+    )
+    position = SnapTradeNormalizedPosition(
+        position_key="vgt",
+        symbol="VGT",
+        raw_symbol=None,
+        security_id="vgt",
+        security_kind=None,
+        units=Decimal("401.702"),
+        price=Decimal("123.91"),
+        average_purchase_price=None,
+        market_value=Decimal("49774.8948"),
+        cost_basis=None,
+        currency="USD",
+        metadata={},
+    )
+
+    assert SnapTradeService._source_cash_balance(account, [position]) == Decimal("0")
+
+
+def test_source_cash_balance_uses_total_when_empty_account_cash_is_incompatible() -> None:
+    account = SnapTradeNormalizedAccount(
+        account_id="acct-1",
+        authorization_id="auth-1",
+        name="Cash Management",
+        institution_name="Fidelity",
+        account_mask="7544",
+        raw_type=None,
+        portfolio_account_type="Taxable",
+        balance=Decimal("37571.48"),
+        cash_balance=Decimal("0.00"),
+        currency="USD",
+        household_account_id="household-1",
+        portfolio_account_id="portfolio-1",
+        metadata={},
+    )
+
+    assert SnapTradeService._source_cash_balance(account, []) == Decimal("37571.48")
 
 
 def test_normalize_order_extracts_symbol_and_execution_fields() -> None:
@@ -382,7 +436,7 @@ def test_cash_balance_update_persists_to_source_and_portfolio_accounts() -> None
         account_mask="7544",
         raw_type=None,
         portfolio_account_type="Taxable",
-        balance=Decimal("549593.06"),
+        balance=Decimal("72.95"),
         cash_balance=Decimal("72.95"),
         currency="USD",
         household_account_id="household-1",
@@ -407,3 +461,67 @@ def test_cash_balance_update_persists_to_source_and_portfolio_accounts() -> None
     assert portfolio_params == [72.95, synced_at, "portfolio-1"]
     assert "UPDATE snaptrade_accounts" in source_sql
     assert source_params == [72.95, synced_at, "acct-1"]
+
+
+def test_cash_balance_update_persists_reconciled_cash_when_direct_cash_is_incompatible() -> None:
+    account = SnapTradeNormalizedAccount(
+        account_id="acct-1",
+        authorization_id="auth-1",
+        name="Traditional IRA",
+        institution_name="Fidelity",
+        account_mask="4181",
+        raw_type=None,
+        portfolio_account_type="IRA",
+        balance=Decimal("386059.06"),
+        cash_balance=Decimal("16441.73"),
+        currency="USD",
+        household_account_id="household-1",
+        portfolio_account_id="portfolio-1",
+        metadata={},
+    )
+    vgt_position = SnapTradeNormalizedPosition(
+        position_key="vgt",
+        symbol="VGT",
+        raw_symbol=None,
+        security_id="vgt",
+        security_kind=None,
+        units=Decimal("133.056"),
+        price=Decimal("123.91"),
+        average_purchase_price=None,
+        market_value=Decimal("16486.96896"),
+        cost_basis=None,
+        currency="USD",
+        metadata={},
+    )
+    vti_position = SnapTradeNormalizedPosition(
+        position_key="vti",
+        symbol="VTI",
+        raw_symbol=None,
+        security_id="vti",
+        security_kind=None,
+        units=Decimal("994.409"),
+        price=Decimal("371.65"),
+        average_purchase_price=None,
+        market_value=Decimal("369572.1049"),
+        cost_basis=None,
+        currency="USD",
+        metadata={},
+    )
+    conn = _RecordingConnection()
+    service = object.__new__(SnapTradeService)
+    synced_at = datetime(2026, 6, 4, 12, 39, tzinfo=UTC)
+
+    service._update_portfolio_account_cash_balance(
+        conn=conn,
+        account=account,
+        positions=[vgt_position, vti_position],
+        synced_at=synced_at,
+    )
+
+    assert len(conn.calls) == 2
+    portfolio_sql, portfolio_params = conn.calls[0]
+    source_sql, source_params = conn.calls[1]
+    assert "UPDATE portfolio_accounts" in portfolio_sql
+    assert portfolio_params == [0.0, synced_at, "portfolio-1"]
+    assert "UPDATE snaptrade_accounts" in source_sql
+    assert source_params == [0.0, synced_at, "acct-1"]

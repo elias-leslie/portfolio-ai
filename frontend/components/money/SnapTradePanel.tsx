@@ -291,6 +291,11 @@ export function SnapTradePanel() {
       id: 'accounts',
       label: 'Accounts',
       value: status?.accountCount ?? 0,
+      detail:
+        status?.sourceAccountCount !== undefined &&
+        status.sourceAccountCount !== status.accountCount
+          ? `${status.sourceAccountCount} source rows`
+          : undefined,
     },
     {
       id: 'positions',
