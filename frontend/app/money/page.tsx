@@ -111,16 +111,10 @@ function MoneyPageContent() {
     syncUtilityToLocation(nextUtility, nextFocus)
   }
 
-  if (isLoading) {
-    return (
-      <PageContainer className="space-y-6 py-8">
-        <PageHeader eyebrow="Household Finance" title="Money" />
-        <MoneyWorkspaceSkeleton />
-      </PageContainer>
-    )
-  }
-
-  if (!dashboard || error) {
+  // Only the dashboard-dependent tabs need the dashboard payload. Budget, Levers,
+  // and Ledger fetch their own data, so a slow dashboard query must not blank them —
+  // we render the workspace shell and let each tab resolve its own loading state.
+  if (error && !dashboard) {
     return (
       <PageContainer className="space-y-6 py-8">
         <PageHeader eyebrow="Household Finance" title="Money" />
@@ -138,8 +132,13 @@ function MoneyPageContent() {
     )
   }
 
+  const dashboardFallback = isLoading ? (
+    <MoneyWorkspaceSkeleton />
+  ) : (
+    <LoadingState />
+  )
   const documentItems = documents?.items ?? []
-  const openQuestions = dashboard.questions.filter((q) => !q.answeredAt)
+  const openQuestions = dashboard?.questions.filter((q) => !q.answeredAt) ?? []
 
   const intakeContent = documentsError ? (
     <LoadErrorState
@@ -150,7 +149,7 @@ function MoneyPageContent() {
       }}
       isRetrying={isFetchingDocuments}
     />
-  ) : !documents && isFetchingDocuments ? (
+  ) : !dashboard || (!documents && isFetchingDocuments) ? (
     <LoadingState />
   ) : (
     <HouseholdDocumentCenter
@@ -169,10 +168,12 @@ function MoneyPageContent() {
     {
       value: 'dashboard',
       label: 'Dashboard',
-      content: (
+      content: dashboard ? (
         <div className="space-y-6">
           <MoneyOverviewPanel dashboard={dashboard} sections={['decision']} />
         </div>
+      ) : (
+        dashboardFallback
       ),
     },
     {
@@ -185,14 +186,14 @@ function MoneyPageContent() {
       label: 'Levers',
       content: (
         <MoneyLeversPanel
-          priceInsights={dashboard.reports.priceInsights ?? []}
+          priceInsights={dashboard?.reports.priceInsights ?? []}
         />
       ),
     },
     {
       value: 'retirement',
       label: 'Retirement',
-      content: (
+      content: dashboard ? (
         <MoneyRetirementPanel
           dashboard={dashboard}
           onEditTargets={() => {
@@ -204,25 +205,29 @@ function MoneyPageContent() {
             syncUtilityToLocation('planning', 'retirement')
           }}
         />
+      ) : (
+        dashboardFallback
       ),
     },
     {
       value: 'allocation',
       label: 'Allocation',
-      content: (
+      content: dashboard ? (
         <div className="space-y-6">
           <MoneyOverviewPanel dashboard={dashboard} sections={['allocation']} />
         </div>
+      ) : (
+        dashboardFallback
       ),
     },
     {
       value: 'accounts',
       label: 'Accounts',
       badge:
-        dashboard.overview.trackedAccountCount > 0
+        dashboard && dashboard.overview.trackedAccountCount > 0
           ? String(dashboard.overview.trackedAccountCount)
           : undefined,
-      content: (
+      content: dashboard ? (
         <div className="space-y-6">
           <MoneyAccountsPanel
             accounts={dashboard.accounts}
@@ -240,6 +245,8 @@ function MoneyPageContent() {
             intent={selectedIntent}
           />
         </div>
+      ) : (
+        dashboardFallback
       ),
     },
     {
@@ -322,13 +329,15 @@ function MoneyPageContent() {
         tabs={tabs}
       />
 
-      <MoneyUtilityDrawers
-        openUtility={openUtility}
-        focusedReview={focusedReview}
-        dashboard={dashboard}
-        facts={facts}
-        onUtilityChange={setOpenUtility}
-      />
+      {dashboard ? (
+        <MoneyUtilityDrawers
+          openUtility={openUtility}
+          focusedReview={focusedReview}
+          dashboard={dashboard}
+          facts={facts}
+          onUtilityChange={setOpenUtility}
+        />
+      ) : null}
     </PageContainer>
   )
 }

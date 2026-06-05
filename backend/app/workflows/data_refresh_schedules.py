@@ -57,18 +57,20 @@ IPS_DRIFT_SNAPSHOT_CRONS = ["0 18 * * *"]
 # during the trading day.
 CATALYST_PREWARM_CRONS = ["0 6 * * *"]
 
-# Warm price_cache for held household symbols throughout the trading day so
-# household dashboard / net-worth-trend reads hit cache instead of paying
-# vendor latency. Tiered cadence — every 5 min during regular hours (where
-# price moves matter most), every 15 min during pre-market and after-hours
-# (where activity is thinner). Weekdays only. UTC windows cover both EST and
-# EDT; combined with the session-aware extractor in yfinance_parsers, this
-# means the cache reflects the freshest available quote across regular,
-# pre-market, and post-market sessions.
-HOUSEHOLD_HOLDINGS_REFRESH_CRONS = [
-    "*/5 13-20 * * 1-5",  # regular hours (~9:30am-4pm ET both DST regimes)
-    "*/15 8-12,21-23 * * 1-5",  # pre-market + after-hours
-]
+# Pre-warm price_cache for held household symbols on a deliberately slow,
+# PWA-closed baseline ("hours, not minutes"), matching the intraday_bars cron.
+# Hourly during the regular session, weekdays; the 13-21 UTC window spans
+# 9:30am-4pm ET under both EST and EDT.
+#
+# The faster foreground top-up is NOT a freshness-remediation entry here (unlike
+# intraday_bars, whose read path is a pure SELECT) — the household read path
+# already self-tops-up: _household_dashboard_assembly and
+# household_net_worth_trend_service call PriceDataFetcher.fetch_price_data, which
+# fetches-on-miss past a session-aware TTL (2 min while the market is open) and
+# writes price_cache. So when the PWA is open, viewing the dashboard refreshes
+# held prices at finer resolution than any cron; this cron only keeps the first
+# read after open from paying vendor latency.
+HOUSEHOLD_HOLDINGS_REFRESH_CRONS = ["0 13-21 * * 1-5"]
 
 # Recurring sync of "data services" account aggregators (SnapTrade, Plaid).
 # Brokerage feeds (e.g. Fidelity via SnapTrade) post holdings/activity on an
