@@ -414,7 +414,7 @@ def fetch_watchlist_vwap_data(
 
     if not frames:
         return None, len(errors), errors
-    return pl.concat(frames, how="vertical_relaxed"), len(errors), errors
+    return pl.concat(frames, how="diagonal_relaxed"), len(errors), errors
 
 
 def upsert_watchlist_vwap_data(

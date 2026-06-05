@@ -6,6 +6,7 @@ import datetime as dt
 
 import polars as pl
 
+from app.sources.base import DatasetRequest
 from app.tasks.ingestion import _ohlcv_helpers
 
 
@@ -73,3 +74,75 @@ def test_prepare_dataframe_drops_weekend_and_incomplete_trading_rows(monkeypatch
     assert prepared["date"].to_list() == [dt.date(2026, 5, 1)]
     assert prepared["symbol"].to_list() == ["SPY"]
     assert symbols == ["SPY"]
+
+
+def test_fetch_watchlist_vwap_data_handles_mixed_vendor_schemas() -> None:
+    """FMP and Polygon VWAP frames have different optional columns."""
+
+    class _Source:
+        def __init__(self, name: str, frame: pl.DataFrame) -> None:
+            self.name = name
+            self._frame = frame
+
+        def fetch_day_bars(self, _request: DatasetRequest) -> pl.DataFrame:
+            return self._frame
+
+    class _Fetcher:
+        def get_sources_for_dataset(self, _dataset: str) -> list[_Source]:
+            return [
+                _Source(
+                    "fmp",
+                    pl.DataFrame(
+                        [
+                            {
+                                "symbol": "AAPL",
+                                "date": dt.date(2026, 5, 1),
+                                "open": 100.0,
+                                "high": 101.0,
+                                "low": 99.0,
+                                "close": 100.5,
+                                "volume": 1000,
+                                "vwap": 100.2,
+                                "source": "fmp",
+                            }
+                        ]
+                    ),
+                ),
+                _Source(
+                    "polygon",
+                    pl.DataFrame(
+                        [
+                            {
+                                "symbol": "MSFT",
+                                "date": dt.date(2026, 5, 1),
+                                "open": 200.0,
+                                "high": 202.0,
+                                "low": 199.0,
+                                "close": 201.0,
+                                "volume": 2000,
+                                "vwap": 200.5,
+                                "trade_count": 120,
+                                "source": "polygon",
+                            }
+                        ]
+                    ),
+                ),
+            ]
+
+    request = DatasetRequest(
+        dataset="day",
+        profile="vwap",
+        symbols=["AAPL", "MSFT"],
+        start=dt.date(2026, 5, 1),
+        end=dt.date(2026, 5, 1),
+        timezone="UTC",
+    )
+
+    result, error_count, errors = _ohlcv_helpers.fetch_watchlist_vwap_data(_Fetcher(), request)
+
+    assert error_count == 0
+    assert errors == {}
+    assert result is not None
+    assert result.height == 2
+    assert "trade_count" in result.columns
+    assert set(result["symbol"].to_list()) == {"AAPL", "MSFT"}

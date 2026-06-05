@@ -50,6 +50,20 @@ class _FakeMetadataManager:
         self.updated_tables.append(table_name)
 
 
+class _FakePkResult:
+    def fetchall(self) -> list[tuple[str]]:
+        return [("symbol",), ("date",)]
+
+
+class _FakeUpsertConnection:
+    def __init__(self) -> None:
+        self.queries: list[str] = []
+
+    def execute(self, query: str, _params: Any = None) -> _FakePkResult:
+        self.queries.append(query)
+        return _FakePkResult()
+
+
 def test_insert_dataframe_commits_metadata_update() -> None:
     conn = _FakeConnection()
     metadata = _FakeMetadataManager()
@@ -61,3 +75,25 @@ def test_insert_dataframe_commits_metadata_update() -> None:
     assert rows == 1
     assert metadata.updated_tables == ["day_bars"]
     assert conn.commit_count == 2
+
+
+def test_day_bars_upsert_preserves_existing_vwap_when_excluded_vwap_is_unusable() -> None:
+    conn = _FakeUpsertConnection()
+    manager = IngestionManager(_FakeConnectionManager(conn), None)
+    frame = pl.DataFrame(
+        [
+            {
+                "symbol": "SPY",
+                "date": "2026-05-01",
+                "close": 100.0,
+                "vwap": float("nan"),
+            }
+        ]
+    )
+
+    manager._upsert_dataframe(conn, "day_bars", frame)
+
+    insert_query = conn.queries[-1]
+    assert "vwap = CASE" in insert_query
+    assert "EXCLUDED.vwap::text <> 'NaN'" in insert_query
+    assert "THEN EXCLUDED.vwap ELSE day_bars.vwap END" in insert_query

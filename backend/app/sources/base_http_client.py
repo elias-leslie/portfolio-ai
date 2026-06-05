@@ -316,6 +316,7 @@ class BaseHTTPClient(ABC):
         endpoint: str,
         params: dict[str, Any] | None = None,
         method: str = "GET",
+        base_url: str | None = None,
     ) -> Any:
         """Execute HTTP request with rate limiting and retries.
 
@@ -323,6 +324,7 @@ class BaseHTTPClient(ABC):
             endpoint: API endpoint path (e.g., "/historical-price-full/AAPL")
             params: Query parameters (API key will be added automatically)
             method: HTTP method (default: GET)
+            base_url: Optional base URL override for providers with multiple API versions.
 
         Returns:
             Parsed JSON response (can be dict or list)
@@ -342,7 +344,7 @@ class BaseHTTPClient(ABC):
 
         # Make request
         start_time = time.time()
-        url = f"{self.BASE_URL}{endpoint}"
+        url = f"{base_url or self.BASE_URL}{endpoint}"
         try:
             response = self._client.request(method.upper(), url, params=query)
         except httpx.RequestError as exc:

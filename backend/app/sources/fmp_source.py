@@ -38,6 +38,7 @@ class FMPClient(BaseHTTPClient):
     """
 
     BASE_URL = "https://financialmodelingprep.com/api/v3"
+    STABLE_BASE_URL = "https://financialmodelingprep.com/stable"
 
     def __init__(
         self,
@@ -81,6 +82,10 @@ class FMPClient(BaseHTTPClient):
         """
         return self.request(path, params, method="GET")
 
+    def get_stable(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        """Execute a GET request against FMP's current stable API."""
+        return self.request(path, params, method="GET", base_url=self.STABLE_BASE_URL)
+
     def get_historical_price(
         self,
         symbol: str,
@@ -101,14 +106,16 @@ class FMPClient(BaseHTTPClient):
             >>> client.get_historical_price("AAPL", "2024-01-01", "2024-01-31")
             {"symbol": "AAPL", "historical": [{"date": "2024-01-31", "open": 184.35, ...}]}
         """
-        path = f"/historical-price-full/{symbol}"
-        params: dict[str, Any] = {}
+        path = "/historical-price-eod/full"
+        params: dict[str, Any] = {"symbol": symbol}
         if from_date:
             params["from"] = from_date
         if to_date:
             params["to"] = to_date
 
-        result: dict[str, Any] = self.get(path, params)
+        result = self.get_stable(path, params)
+        if isinstance(result, list):
+            return {"symbol": symbol, "historical": result}
         return result
 
     def get_profile(self, symbol: str) -> list[dict[str, Any]]:

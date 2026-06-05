@@ -126,7 +126,19 @@ class IngestionManager:
         columns_str = ", ".join(all_columns)
         values_placeholders = ", ".join([f"%({col})s" for col in all_columns])
         pk_conflict = ", ".join(pk_columns)
-        update_set = ", ".join([f"{col} = EXCLUDED.{col}" for col in non_pk_columns])
+        update_assignments = []
+        for col in non_pk_columns:
+            if table_name == "day_bars" and col == "vwap":
+                update_assignments.append(
+                    "vwap = CASE "
+                    "WHEN EXCLUDED.vwap IS NOT NULL "
+                    "AND EXCLUDED.vwap::text <> 'NaN' "
+                    "AND EXCLUDED.vwap > 0 "
+                    "THEN EXCLUDED.vwap ELSE day_bars.vwap END"
+                )
+            else:
+                update_assignments.append(f"{col} = EXCLUDED.{col}")
+        update_set = ", ".join(update_assignments)
 
         # Build and execute INSERT ... ON CONFLICT statement
         for _, row in pdf.iterrows():

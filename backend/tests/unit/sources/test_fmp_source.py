@@ -114,6 +114,48 @@ def test_fmp_fetch_day_bars_success(fmp_source: FMPSource, mock_fmp_client: Mock
     assert call_args[1]["to_date"] == "2025-01-28"
 
 
+def test_fmp_client_get_historical_price_uses_stable_endpoint() -> None:
+    """FMP historical bars should use the current stable endpoint shape."""
+    client = FMPClient.__new__(FMPClient)
+    client.get_stable = Mock(
+        return_value=[
+            {
+                "date": "2025-01-28",
+                "open": 184.35,
+                "high": 186.50,
+                "low": 183.80,
+                "close": 185.25,
+                "volume": 52478900,
+                "vwap": 185.10,
+            }
+        ]
+    )
+
+    result = client.get_historical_price("AAPL", "2025-01-28", "2025-01-28")
+
+    client.get_stable.assert_called_once_with(
+        "/historical-price-eod/full",
+        {
+            "symbol": "AAPL",
+            "from": "2025-01-28",
+            "to": "2025-01-28",
+        },
+    )
+    assert result["symbol"] == "AAPL"
+    assert len(result["historical"]) == 1
+    assert result["historical"][0]["vwap"] == 185.10
+
+
+def test_fmp_client_get_historical_price_preserves_error_response() -> None:
+    """Provider errors should still reach source-level error handling."""
+    client = FMPClient.__new__(FMPClient)
+    client.get_stable = Mock(return_value={"Error Message": "Invalid API key"})
+
+    result = client.get_historical_price("AAPL")
+
+    assert result == {"Error Message": "Invalid API key"}
+
+
 def test_fmp_fetch_day_bars_api_error(fmp_source: FMPSource, mock_fmp_client: Mock) -> None:
     """Test handling of API error response."""
     # Mock error response
