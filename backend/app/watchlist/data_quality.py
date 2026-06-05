@@ -77,23 +77,51 @@ def get_security_type(storage: PortfolioStorage, symbol: str) -> str:
 def _check_technical_quality(storage: PortfolioStorage, symbol: str, now: datetime) -> PillarQuality:
     try:
         df = storage.query(
-            "SELECT date, rsi_14, macd, sma_20, ema_20, sma_50, sma_200, calculated_at"
-            " FROM technical_indicators WHERE symbol = ? ORDER BY date DESC LIMIT 1",
-            [symbol],
+            """
+            WITH latest_technical AS (
+                SELECT
+                    date, rsi_14, macd, sma_20, ema_20, sma_50, sma_200, calculated_at
+                FROM technical_indicators
+                WHERE symbol = ?
+                ORDER BY date DESC
+                LIMIT 1
+            ),
+            latest_bar AS (
+                SELECT date AS vwap_date, vwap
+                FROM day_bars
+                WHERE symbol = ?
+                  AND vwap IS NOT NULL
+                  AND vwap::text <> 'NaN'
+                  AND vwap > 0
+                ORDER BY date DESC
+                LIMIT 1
+            )
+            SELECT latest_technical.*, latest_bar.vwap, latest_bar.vwap_date
+            FROM latest_technical
+            LEFT JOIN latest_bar ON TRUE
+            """,
+            [symbol, symbol],
         )
         if df.is_empty():
             return _na("No technical indicators data")
         row = df.to_dicts()[0]
         fields = ["rsi_14", "macd", "sma_20", "ema_20", "sma_50", "sma_200"]
-        non_null = sum(1 for f in fields if row.get(f) is not None)
-        total = len(fields)
-        today = now.date()
         ind_date = _as_date(row.get("date"))
+        has_current_vwap = (
+            row.get("vwap") is not None
+            and row.get("vwap_date") is not None
+            and _as_date(row.get("vwap_date")) == ind_date
+        )
+        non_null = sum(1 for f in fields if row.get(f) is not None) + int(has_current_vwap)
+        total = len(fields) + 1
+        today = now.date()
         days_old = (today - ind_date).days if ind_date else 0
         is_fresh = ind_date in (today, today - timedelta(days=1)) if ind_date else False
         score = (non_null / total) * 70.0 + (30.0 if is_fresh else max(0.0, 30.0 - days_old * 3.0))
         status: StatusType = "complete" if (non_null == total and is_fresh) else ("stale" if days_old > 3 else "partial")
         details = f"{non_null}/{total} indicators" + (f", {days_old}d old" if ind_date else "")
+        if not has_current_vwap:
+            details += ", VWAP missing"
         if isinstance(row.get("calculated_at"), datetime):
             details += f", calc {int((now - row['calculated_at']).total_seconds() / 3600)}h ago"
         return PillarQuality(status=status, score=score, details=details)
@@ -261,10 +289,15 @@ def calculate_data_quality(storage: PortfolioStorage, symbols: list[str]) -> dic
     """Calculate data quality for multiple symbols."""
     if not symbols:
         return {}
+    normalized_symbols = list(
+        dict.fromkeys(str(symbol).strip().upper() for symbol in symbols if str(symbol).strip())
+    )
+    if not normalized_symbols:
+        return {}
     now = datetime.now(UTC)
     results: dict[str, DataQuality] = {}
-    logger.info("calculating_data_quality", symbol_count=len(symbols))
-    for symbol in symbols:
+    logger.info("calculating_data_quality", symbol_count=len(normalized_symbols))
+    for symbol in normalized_symbols:
         try:
             security_type = get_security_type(storage, symbol)
             raw_pillars = _check_all_pillars(storage, symbol, now)
@@ -280,7 +313,7 @@ def calculate_data_quality(storage: PortfolioStorage, symbols: list[str]) -> dic
             results[symbol] = _error_quality()
     logger.info(
         "data_quality_calculation_complete",
-        symbol_count=len(symbols),
+        symbol_count=len(normalized_symbols),
         avg_quality=sum(r.overall_pct for r in results.values()) / len(results) if results else 0.0,
     )
     return results

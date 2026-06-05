@@ -32,7 +32,7 @@ from .intelligence import build_news_intelligence, build_news_intelligence_batch
 
 logger = get_logger(__name__)
 
-_WATCHLIST_QUOTE_MAX_AGE_MINUTES = 1
+_WATCHLIST_QUOTE_DISPLAY_MAX_AGE_MINUTES = 24 * 60
 
 
 def _get_jenny_dashboard() -> Any:
@@ -151,32 +151,19 @@ def build_quote_map(storage: PortfolioStorage, symbols: list[str]) -> dict[str, 
 
     try:
         fetcher = PriceDataFetcher(storage)
-        price_data = fetcher.fetch_price_data(
+        price_data = fetcher.fetch_cached_price_data(
             normalized_symbols,
-            max_age_minutes=_WATCHLIST_QUOTE_MAX_AGE_MINUTES,
+            max_age_minutes=_WATCHLIST_QUOTE_DISPLAY_MAX_AGE_MINUTES,
         )
     except Exception as exc:
         logger.warning("watchlist_quote_fetch_failed", error=str(exc))
         return {}
 
     quotes: dict[str, Any] = {}
-    failed_symbols = [
-        symbol
-        for symbol in normalized_symbols
-        if symbol not in price_data or price_data[symbol].price <= 0 or price_data[symbol].error
-    ]
-    cached_fallback = (
-        fetcher.fetch_cached_price_data(failed_symbols, max_age_minutes=None)
-        if failed_symbols
-        else {}
-    )
 
     for symbol in normalized_symbols:
         quote = price_data.get(symbol)
-        fetch_error = quote.error if quote else None
         if quote is None or quote.price <= 0 or quote.error:
-            quote = cached_fallback.get(symbol) or quote
-        if quote is None:
             continue
 
         section = build_quote_section(
@@ -185,7 +172,7 @@ def build_quote_map(storage: PortfolioStorage, symbols: list[str]) -> dict[str, 
                 "source": quote.source,
                 "cached_at": quote.cached_at,
                 "session": get_market_status(quote.cached_at),
-                "error": fetch_error or quote.error,
+                "error": quote.error,
             }
         )
         quotes[symbol] = section.model_dump(mode="json") if section else None

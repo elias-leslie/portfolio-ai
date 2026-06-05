@@ -85,6 +85,35 @@ class DataQualityResponse(BaseModel):
     )
 
 
+class PriceTrendResponse(BaseModel):
+    """Close/quote-based return for a scanner timeframe."""
+
+    key: str
+    label: str
+    return_pct: float | None = None
+    start_close: float | None = None
+    end_close: float | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    end_source: str = "daily_close"
+    status: str
+
+
+class VwapSignalResponse(BaseModel):
+    """Latest-session VWAP context for scanner triage."""
+
+    status: str
+    vwap: float | None = None
+    price: float | None = None
+    close: float | None = None
+    distance_pct: float | None = None
+    as_of_date: str | None = None
+    close_as_of_date: str | None = None
+    price_as_of: str | None = None
+    price_source: str = "daily_close"
+    source: str = "day_bars"
+
+
 # Request models
 class WatchlistItemCreate(BaseModel):
     """Request model for creating a watchlist item."""
@@ -141,6 +170,8 @@ class WatchlistItemResponse(BaseModel):
     updated_at: str
     current_score: ScoreBreakdownResponse | None = None
     quote: QuoteSection | None = None
+    price_trends: list[PriceTrendResponse] = Field(default_factory=list)
+    vwap_signal: VwapSignalResponse | None = None
     score_alert: bool = False  # True if score changed >10 points in last 7 days
 
     # Narrative intelligence fields
@@ -258,6 +289,12 @@ class WatchlistItemResponse(BaseModel):
             updated_at=item["updated_at"],
             current_score=current_score,
             quote=QuoteSection(**item["quote"]) if item.get("quote") else None,
+            price_trends=[
+                PriceTrendResponse(**trend) for trend in item.get("price_trends", [])
+            ],
+            vwap_signal=VwapSignalResponse(**item["vwap_signal"])
+            if item.get("vwap_signal")
+            else None,
             score_alert=item.get("score_alert", False),
             # Narrative intelligence fields
             signal_type=item.get("signal_type"),

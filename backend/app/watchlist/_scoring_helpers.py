@@ -36,10 +36,15 @@ def build_price_component(
     return component
 
 
+def _metadata_float(meta: dict[str, object], key: str) -> float:
+    value = meta.get(key)
+    return float(value) if isinstance(value, (int, float)) else 0.0
+
+
 def build_technical_component(
     inputs: WatchlistScoreInputs, weights: dict[str, float], now: datetime
 ) -> ScoreComponent:
-    """Build technical component with RSI, trend, and MACD sub-scores."""
+    """Build technical component with real sub-scores for scanner signals."""
     component = compute_technical_component(
         inputs.technical,
         weight=weights["technical"],
@@ -48,9 +53,10 @@ def build_technical_component(
     )
     meta = component.metadata
     component.sub_scores = {
-        "rsi_14": float(meta.get("rsi_14", 0.0)) if isinstance(meta.get("rsi_14", 0.0), (int, float)) else 0.0,
-        "trend": float(meta.get("trend_score", 0.0)) if isinstance(meta.get("trend_score", 0.0), (int, float)) else 0.0,
-        "macd": float(meta.get("macd", 0.0)) if isinstance(meta.get("macd", 0.0), (int, float)) and meta.get("macd") else 0.0,
+        "rsi_14": _metadata_float(meta, "rsi_score"),
+        "trend": _metadata_float(meta, "trend_score"),
+        "macd": _metadata_float(meta, "macd_score"),
+        "vwap": _metadata_float(meta, "vwap_score"),
     }
     return component
 

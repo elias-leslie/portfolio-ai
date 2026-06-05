@@ -13,6 +13,7 @@ import {
 import { WatchlistCard } from '@/components/watchlist/WatchlistCard'
 import { WatchlistTableRow } from '@/components/watchlist/WatchlistTableRow'
 import type { RefreshStatus, WatchlistItem } from '@/lib/api/watchlist'
+import { useMacroConditions } from '@/lib/hooks/useMacro'
 import { usePortfolio } from '@/lib/hooks/usePortfolio'
 import { usePreferences } from '@/lib/hooks/usePreferences'
 import { useDeleteWatchlistItem } from '@/lib/hooks/useWatchlist'
@@ -44,6 +45,7 @@ export function WatchlistTable({ items, refreshStatus }: WatchlistTableProps) {
   const deleteMutation = useDeleteWatchlistItem()
   const { data: preferences } = usePreferences()
   const { data: portfolio } = usePortfolio()
+  const { data: macroConditions } = useMacroConditions()
   const searchParams = useSearchParams()
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map())
   const { changedCells, recentlyUpdatedRows } =
@@ -134,15 +136,11 @@ export function WatchlistTable({ items, refreshStatus }: WatchlistTableProps) {
               <TableHead className="w-[40px]" />
               <TableHead>{renderSortableHeader('symbol', 'Symbol')}</TableHead>
               <TableHead>{renderSortableHeader('price', 'Price')}</TableHead>
-              <TableHead>{renderSortableHeader('overall', 'Score')}</TableHead>
-              <TableHead>{renderSortableHeader('risk', 'Risk')}</TableHead>
+              <TableHead>{renderSortableHeader('overall', 'Setup')}</TableHead>
               <TableHead>
-                <span className="font-medium">Data quality</span>
+                <span className="font-medium">Signal / Risk</span>
               </TableHead>
-              <TableHead>Score Trend</TableHead>
-              <TableHead>
-                {renderSortableHeader('updated', 'Updated')}
-              </TableHead>
+              <TableHead>Trend / VWAP</TableHead>
               <TableHead className="w-[60px]" />
             </TableRow>
           </TableHeader>
@@ -156,6 +154,7 @@ export function WatchlistTable({ items, refreshStatus }: WatchlistTableProps) {
                 recentlyUpdatedRows={recentlyUpdatedRows}
                 changedCells={changedCells}
                 portfolioSymbols={portfolioSymbols}
+                macroConditions={macroConditions}
                 refreshStatus={refreshStatus}
                 isDeleting={deleteMutation.isPending}
                 userTimezone={userTimezone}
@@ -180,6 +179,7 @@ export function WatchlistTable({ items, refreshStatus }: WatchlistTableProps) {
               key={item.id}
               item={item}
               portfolioSymbols={portfolioSymbols}
+              macroConditions={macroConditions}
               refreshStatus={refreshStatus}
               userTimezone={userTimezone}
               onDelete={handleDelete}

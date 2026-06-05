@@ -11,6 +11,7 @@ This eliminates 1,469 lines of duplicate code across 5 API clients.
 from __future__ import annotations
 
 import os
+import re
 import threading
 import time
 from abc import ABC, abstractmethod
@@ -24,6 +25,25 @@ from ..constants import DEFAULT_HTTP_TIMEOUT
 from ..logging_config import get_logger
 
 logger = get_logger(__name__)
+
+_CREDENTIAL_QUERY_RE = re.compile(
+    r"((?:apiKey|apikey|api_key|token)=)[^&\s\"']+",
+    re.IGNORECASE,
+)
+
+
+def redact_url_credentials(message: object) -> str:
+    """Redact API credentials embedded in URL query strings."""
+    return _CREDENTIAL_QUERY_RE.sub(r"\1[REDACTED]", str(message))
+
+
+def _redacted_request(method: str, request: httpx.Request | None, fallback_url: str) -> httpx.Request:
+    raw_url = fallback_url
+    if request is not None:
+        candidate = redact_url_credentials(str(request.url))
+        if candidate.startswith(("http://", "https://")):
+            raw_url = candidate
+    return httpx.Request(method.upper(), raw_url)
 
 
 def should_retry_http_exception(exc: BaseException) -> bool:
@@ -323,11 +343,30 @@ class BaseHTTPClient(ABC):
         # Make request
         start_time = time.time()
         url = f"{self.BASE_URL}{endpoint}"
-        response = self._client.request(method.upper(), url, params=query)
+        try:
+            response = self._client.request(method.upper(), url, params=query)
+        except httpx.RequestError as exc:
+            redacted_request = _redacted_request(method, exc.request, url)
+            raise httpx.RequestError(
+                redact_url_credentials(exc),
+                request=redacted_request,
+            ) from exc
         duration_ms = int((time.time() - start_time) * 1000)
 
         # Check for HTTP errors
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            redacted_request = _redacted_request(method, exc.request, url)
+            redacted_response = httpx.Response(
+                exc.response.status_code,
+                request=redacted_request,
+            )
+            raise httpx.HTTPStatusError(
+                redact_url_credentials(exc),
+                request=redacted_request,
+                response=redacted_response,
+            ) from exc
         self.request_count += 1
 
         # Log success

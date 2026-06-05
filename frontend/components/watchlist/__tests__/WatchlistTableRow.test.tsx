@@ -7,14 +7,6 @@ vi.mock('@/components/watchlist/ExpandedRow', () => ({
   ExpandedRow: () => <div>Expanded Row</div>,
 }))
 
-vi.mock('@/components/watchlist/SourceBadge', () => ({
-  SourceBadge: () => <div>Source Badge</div>,
-}))
-
-vi.mock('@/components/watchlist/SparklineWithHistory', () => ({
-  SparklineWithHistory: () => <div>Sparkline</div>,
-}))
-
 function buildItem() {
   return {
     id: 'item-1',
@@ -33,15 +25,57 @@ function buildItem() {
       error: null,
     },
     riskLevel: 'Medium' as const,
+    signalType: 'BUY' as const,
     dataQuality: {
       overallPct: 91,
       pillars: {
         price: {
           status: 'complete' as const,
-          score: 1,
+          score: 100,
           details: 'Fresh',
         },
+        technical: {
+          status: 'complete' as const,
+          score: 95,
+          details: 'VWAP present',
+        },
       },
+    },
+    priceTrends: [
+      {
+        key: 'D',
+        label: '1D',
+        returnPct: 1.2,
+        startClose: 406.65,
+        endClose: 411.55,
+        startDate: '2026-03-10',
+        endDate: '2026-03-11T12:06:00Z',
+        endSource: 'quote',
+        status: 'available',
+      },
+      {
+        key: 'W',
+        label: '5D',
+        returnPct: -0.6,
+        startClose: 414.03,
+        endClose: 411.55,
+        startDate: '2026-03-04',
+        endDate: '2026-03-11T12:06:00Z',
+        endSource: 'quote',
+        status: 'available',
+      },
+    ],
+    vwapSignal: {
+      status: 'available',
+      vwap: 409.5,
+      price: 411.55,
+      close: 410.12,
+      distancePct: 0.5,
+      asOfDate: '2026-03-11',
+      closeAsOfDate: '2026-03-11',
+      priceAsOf: '2026-03-11T12:06:00Z',
+      priceSource: 'quote',
+      source: 'day_bars',
     },
     currentScore: {
       overall: 67,
@@ -76,7 +110,7 @@ function buildItem() {
 }
 
 describe('WatchlistTableRow', () => {
-  it('uses a concise expand aria-label instead of the full row contents', () => {
+  it('uses scanner-focused row content without source or decision clutter', () => {
     render(
       <table>
         <tbody>
@@ -105,10 +139,119 @@ describe('WatchlistTableRow', () => {
       'href',
       '/symbols/MSFT?tab=decision',
     )
-    expect(screen.getByText('Exit this position')).toBeInTheDocument()
-    expect(screen.getByText(/Jenny alert · Critical/i)).toBeInTheDocument()
     expect(screen.getByText('$411.55')).toBeInTheDocument()
     expect(screen.queryByText('$410.12')).not.toBeInTheDocument()
+    expect(screen.getByText('Quote OK')).toBeInTheDocument()
+    expect(screen.getByText('Data 91%')).toBeInTheDocument()
+    expect(screen.getByText('P65')).toBeInTheDocument()
+    expect(screen.getByText('T69')).toBeInTheDocument()
+    expect(screen.getByText('BUY')).toBeInTheDocument()
+    expect(screen.getByText('Medium')).toBeInTheDocument()
+    expect(screen.getByText('D +1.2%')).toBeInTheDocument()
+    expect(screen.getByText('W -0.6%')).toBeInTheDocument()
+    expect(screen.getByText('VWAP +0.5%')).toBeInTheDocument()
+    expect(screen.queryByText('Exit this position')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/Jenny alert · Critical/i),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Fresh quote')).not.toBeInTheDocument()
+    expect(screen.queryByText('yfinance')).not.toBeInTheDocument()
+  })
+
+  it('marks missing quote payloads as quote issues', () => {
+    render(
+      <table>
+        <tbody>
+          <WatchlistTableRow
+            item={{ ...buildItem(), quote: null }}
+            isExpanded={false}
+            highlightedSymbol={null}
+            recentlyUpdatedRows={new Set()}
+            changedCells={{}}
+            portfolioSymbols={new Set()}
+            refreshStatus={undefined}
+            isDeleting={false}
+            userTimezone="America/New_York"
+            rowRef={() => {}}
+            onToggle={vi.fn()}
+            onDelete={vi.fn()}
+          />
+        </tbody>
+      </table>,
+    )
+
+    expect(screen.getByText('Quote issue')).toBeInTheDocument()
+  })
+
+  it('treats aging quotes as current enough for the scanner', () => {
+    const item = {
+      ...buildItem(),
+      quote: {
+        ...buildItem().quote,
+        freshnessStatus: 'aging' as const,
+        freshnessLabel: 'Aging quote',
+      },
+    }
+
+    render(
+      <table>
+        <tbody>
+          <WatchlistTableRow
+            item={item}
+            isExpanded={false}
+            highlightedSymbol={null}
+            recentlyUpdatedRows={new Set()}
+            changedCells={{}}
+            portfolioSymbols={new Set()}
+            refreshStatus={undefined}
+            isDeleting={false}
+            userTimezone="America/New_York"
+            rowRef={() => {}}
+            onToggle={vi.fn()}
+            onDelete={vi.fn()}
+          />
+        </tbody>
+      </table>,
+    )
+
+    expect(screen.getByText('Quote OK')).toBeInTheDocument()
+    expect(screen.queryByText('Aging quote')).not.toBeInTheDocument()
+  })
+
+  it('treats recently cached stale-labeled quotes as current enough for the scanner', () => {
+    const item = {
+      ...buildItem(),
+      quote: {
+        ...buildItem().quote,
+        cachedAt: new Date().toISOString(),
+        freshnessStatus: 'stale' as const,
+        freshnessLabel: 'Stale quote',
+      },
+    }
+
+    render(
+      <table>
+        <tbody>
+          <WatchlistTableRow
+            item={item}
+            isExpanded={false}
+            highlightedSymbol={null}
+            recentlyUpdatedRows={new Set()}
+            changedCells={{}}
+            portfolioSymbols={new Set()}
+            refreshStatus={undefined}
+            isDeleting={false}
+            userTimezone="America/New_York"
+            rowRef={() => {}}
+            onToggle={vi.fn()}
+            onDelete={vi.fn()}
+          />
+        </tbody>
+      </table>,
+    )
+
+    expect(screen.getByText('Quote OK')).toBeInTheDocument()
+    expect(screen.queryByText('Stale quote')).not.toBeInTheDocument()
   })
 
   it('does not toggle the row when the delete action is clicked', async () => {

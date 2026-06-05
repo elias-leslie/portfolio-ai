@@ -14,25 +14,28 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ExpandedRow } from '@/components/watchlist/ExpandedRow'
 import {
-  formatDataQualityLabel,
-  getDataQualityBgColor,
-  getDataQualityColor,
   getRiskLevelConfig,
-  getScoreBadgeVariant,
   getSignalDisplay,
 } from '@/components/watchlist/ExpandedRowUtils'
-import { SourceBadge } from '@/components/watchlist/SourceBadge'
-import { SparklineWithHistory } from '@/components/watchlist/SparklineWithHistory'
 import {
-  formatDate,
-  getWatchlistPriceSnapshot,
-} from '@/components/watchlist/watchlistTableUtils'
+  buildTodayGate,
+  DataHealthBadge,
+  FreshnessBadge,
+  PriceTrendStrip,
+  SetupScoreFormula,
+  type TodayGate,
+  TodayGateBadge,
+  VwapBadge,
+} from '@/components/watchlist/ScannerMetricBadges'
+import { getWatchlistPriceSnapshot } from '@/components/watchlist/watchlistTableUtils'
+import type { MacroConditionsResponse } from '@/lib/api/macro'
 import type { RefreshStatus, WatchlistItem } from '@/lib/api/watchlist'
 import { cn } from '@/lib/utils'
 
 interface WatchlistCardProps {
   item: WatchlistItem
   portfolioSymbols: Set<string>
+  macroConditions?: MacroConditionsResponse
   refreshStatus?: RefreshStatus
   userTimezone: string
   onDelete: (itemId: string, symbol: string) => void
@@ -42,6 +45,7 @@ interface WatchlistCardProps {
 export function WatchlistCard({
   item,
   portfolioSymbols,
+  macroConditions,
   refreshStatus,
   userTimezone,
   onDelete,
@@ -49,14 +53,8 @@ export function WatchlistCard({
 }: WatchlistCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const hasScore = !!item.currentScore
-  const overall = item.currentScore?.overall ?? 0
-  const priceScore = item.currentScore?.price.score ?? 0
-  const techScore = item.currentScore?.technical.score ?? 0
-  const priceStale = item.currentScore?.price.stale ?? false
-  const techStale = item.currentScore?.technical.stale ?? false
   const isRefreshing =
     refreshStatus?.isRefreshing && refreshStatus.currentSymbol === item.symbol
-  const latestUpdatedAt = item.currentScore?.price.updatedAt ?? item.updatedAt
   const riskConfig = item.riskLevel ? getRiskLevelConfig(item.riskLevel) : null
   const signalDisplay = item.signalType
     ? getSignalDisplay(item.signalType)
@@ -65,20 +63,12 @@ export function WatchlistCard({
     item.currentScore?.price.metadata,
     item.quote,
   )
+  const todayGate: TodayGate | undefined = buildTodayGate(macroConditions)
   const highlightedIndicators =
     item.priorityIndicators
       ?.slice()
       .sort((left, right) => right.priority - left.priority)
       .slice(0, 2) ?? []
-  const priceMetadata = item.currentScore?.price.metadata
-  const source = item.quote?.source ?? priceMetadata?.source
-  const quoteIsStale =
-    item.quote?.freshnessStatus === 'stale' ||
-    item.quote?.freshnessStatus === 'missing'
-  const showSourceBadge =
-    quoteIsStale ||
-    item.currentScore?.price.stale ||
-    (typeof source === 'string' && source.toLowerCase() !== 'yfinance')
 
   return (
     <div
@@ -87,51 +77,47 @@ export function WatchlistCard({
         isRefreshing && 'border-accent/40 bg-accent/5',
       )}
     >
-      {/* Card Header */}
-      <div className="mb-3 flex items-start justify-between">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
             <Link
               href={`/symbols/${item.symbol}?tab=decision`}
               className="text-lg font-semibold text-text underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             >
               {item.symbol}
             </Link>
-            {portfolioSymbols.has(item.symbol.toUpperCase()) && (
+            <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+              Watch
+            </Badge>
+            {portfolioSymbols.has(item.symbol.toUpperCase()) ? (
               <Badge
                 variant="outline"
-                className="gap-1 text-xs px-1.5 py-0 h-5 bg-accent/10 border-accent/30 text-accent"
+                className="gap-1 border-accent/30 bg-accent/10 px-1.5 py-0 text-accent"
               >
-                <Briefcase className="h-3 w-3" />
-                <span>Portfolio</span>
+                <Briefcase className="h-3 w-3" aria-hidden />
+                <span>Held</span>
               </Badge>
-            )}
+            ) : null}
             {isRefreshing ? (
               <Loader2
                 className="h-4 w-4 animate-spin text-accent"
                 aria-label="Refreshing..."
               />
             ) : null}
-            {item.scoreAlert && (
+            {item.scoreAlert ? (
               <AlertCircle
                 className="h-4 w-4 text-accent"
                 aria-label="Score changed >10 points in last 7 days"
               />
-            )}
+            ) : null}
           </div>
-          {showSourceBadge && typeof source === 'string' ? (
-            <SourceBadge
-              source={source}
-              stale={quoteIsStale || item.currentScore?.price.stale}
-              priority={
-                typeof priceMetadata?.priority === 'number'
-                  ? priceMetadata.priority
-                  : undefined
-              }
-            />
-          ) : null}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <FreshnessBadge item={item} userTimezone={userTimezone} />
+            <DataHealthBadge item={item} vwapSignal={item.vwapSignal} />
+          </div>
         </div>
-        <div className="flex items-center gap-1">
+
+        <div className="flex shrink-0 items-center gap-1">
           <Button
             asChild
             variant="ghost"
@@ -160,7 +146,7 @@ export function WatchlistCard({
             size="sm"
             onClick={() => onDelete(item.id, item.symbol)}
             disabled={isDeleting}
-            className="h-8 w-8 p-0 text-loss hover:bg-loss/10"
+            className="h-8 w-8 p-0 text-text-muted hover:bg-loss/10 hover:text-loss"
             aria-label={`Delete ${item.symbol}`}
           >
             <Trash2 className="h-4 w-4" />
@@ -168,164 +154,117 @@ export function WatchlistCard({
         </div>
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-text-muted">
-        {signalDisplay ? (
-          <span
-            className={cn(
-              'inline-flex items-center rounded-full border px-2 py-1 font-semibold',
-              signalDisplay.color,
-            )}
-          >
-            {signalDisplay.icon} {signalDisplay.label}
-          </span>
-        ) : null}
-        {item.recommendedStyle ? (
-          <span className="rounded-full border border-border/40 bg-surface/80 px-2 py-1">
-            {item.recommendedStyle}
-          </span>
-        ) : null}
-        {riskConfig ? (
-          <span className={cn('font-medium', riskConfig.color)}>
-            {riskConfig.icon} {riskConfig.label}
-          </span>
-        ) : null}
-        {item.dataQuality ? (
-          <span
-            className={cn(
-              'rounded-md px-2 py-1 font-semibold',
-              getDataQualityBgColor(item.dataQuality.overallPct),
-              getDataQualityColor(item.dataQuality.overallPct),
-            )}
-          >
-            {formatDataQualityLabel(item.dataQuality.overallPct)}
-          </span>
-        ) : null}
-        {highlightedIndicators.map((indicator) => (
-          <span
-            key={`${indicator.category}-${indicator.label}`}
-            className="rounded-full border border-border/40 bg-surface/80 px-2 py-1"
-            title={indicator.tooltip}
-          >
-            {indicator.label}
-          </span>
-        ))}
-        {isRefreshing &&
-        refreshStatus?.processedItems !== undefined &&
-        refreshStatus?.totalItems !== undefined ? (
-          <span>
-            Refreshing {refreshStatus.processedItems}/{refreshStatus.totalItems}
-          </span>
-        ) : null}
-      </div>
-
-      {item.decision ? (
-        <div className="mb-3 rounded-2xl border border-border/40 bg-surface-muted/20 px-3 py-2.5">
-          <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
-            Decision
-          </p>
-          <p className="mt-1 text-sm font-semibold text-text">
-            {item.decision.headline}
-          </p>
-          <p className="mt-1 text-xs text-text-muted">
-            {item.decision.summary}
-          </p>
-        </div>
+      {isRefreshing &&
+      refreshStatus?.processedItems !== undefined &&
+      refreshStatus?.totalItems !== undefined ? (
+        <p className="mb-3 text-xs text-text-muted">
+          Refreshing {refreshStatus.processedItems}/{refreshStatus.totalItems}
+        </p>
       ) : null}
 
-      {priceSnapshot ? (
-        <div className="mb-3 rounded-2xl border border-border/40 bg-surface-muted/20 px-3 py-2.5">
-          <div className="mt-1 flex items-baseline justify-between gap-3">
-            <p className="text-base font-semibold text-text">
-              {priceSnapshot.priceLabel}
-            </p>
-            {priceSnapshot.changeLabel ? (
-              <p
+      <div className="mb-3 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-3 py-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+            Price
+          </p>
+          {priceSnapshot ? (
+            <div className="mt-1 flex items-baseline justify-between gap-3">
+              <p className="text-base font-semibold text-text">
+                {priceSnapshot.priceLabel}
+              </p>
+              {priceSnapshot.changeLabel ? (
+                <p
+                  className={cn(
+                    'text-sm font-medium',
+                    priceSnapshot.isPositiveChange ? 'text-gain' : 'text-loss',
+                  )}
+                >
+                  {priceSnapshot.changeLabel}
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <p className="mt-1 text-sm text-text-muted">—</p>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-3 py-2.5">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+            Setup
+          </p>
+          {hasScore ? <SetupScoreFormula item={item} /> : <span>—</span>}
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-3 py-2.5">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+            Signal / Risk
+          </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {signalDisplay ? (
+              <span
                 className={cn(
-                  'text-sm font-medium',
-                  priceSnapshot.isPositiveChange ? 'text-gain' : 'text-loss',
+                  'rounded-md border px-1.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]',
+                  signalDisplay.color,
                 )}
               >
-                {priceSnapshot.changeLabel}
-              </p>
-            ) : priceSnapshot.freshnessLabel ? (
-              <p className="text-sm font-medium text-text-muted">
-                {priceSnapshot.freshnessLabel}
-              </p>
+                {signalDisplay.label}
+              </span>
+            ) : null}
+            {riskConfig ? (
+              <span
+                className={cn(
+                  'rounded-md border border-border/35 bg-surface-muted/25 px-1.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]',
+                  riskConfig.color,
+                )}
+              >
+                {riskConfig.label}
+              </span>
+            ) : null}
+            <TodayGateBadge gate={todayGate} />
+            {highlightedIndicators.map((indicator) => (
+              <span
+                key={`${indicator.category}-${indicator.label}`}
+                className="rounded-md border border-border/35 bg-surface-muted/25 px-1.5 py-1 text-[10px] font-semibold text-text-muted"
+                title={indicator.tooltip}
+              >
+                {indicator.label}
+              </span>
+            ))}
+            {!signalDisplay &&
+            !riskConfig &&
+            !todayGate &&
+            highlightedIndicators.length === 0 ? (
+              <span className="text-sm text-text-muted">—</span>
             ) : null}
           </div>
         </div>
-      ) : null}
 
-      {/* Score Grid */}
-      <div className="mb-3 grid grid-cols-3 gap-3">
-        <div>
-          <p className="mb-1 text-xs text-text-muted">Overall</p>
+        <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-3 py-2.5">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+            Trend / VWAP
+          </p>
           {hasScore ? (
-            <Badge variant={getScoreBadgeVariant(overall)} className="text-sm">
-              {overall.toFixed(1)}
-            </Badge>
-          ) : (
-            <span className="text-text-muted">—</span>
-          )}
-        </div>
-        <div>
-          <p className="mb-1 text-xs text-text-muted">Price</p>
-          {hasScore ? (
-            <div className="flex flex-col gap-0.5">
-              <Badge
-                variant={getScoreBadgeVariant(priceScore)}
-                className="text-sm"
-              >
-                {priceScore.toFixed(1)}
-              </Badge>
-              {priceStale && (
-                <span className="text-xs text-text-muted">(stale)</span>
-              )}
+            <div className="space-y-2">
+              <PriceTrendStrip trends={item.priceTrends} compact />
+              <VwapBadge signal={item.vwapSignal} />
             </div>
           ) : (
-            <span className="text-text-muted">—</span>
-          )}
-        </div>
-        <div>
-          <p className="mb-1 text-xs text-text-muted">Technical</p>
-          {hasScore ? (
-            <div className="flex flex-col gap-0.5">
-              <Badge
-                variant={getScoreBadgeVariant(techScore)}
-                className="text-sm"
-              >
-                {techScore.toFixed(1)}
-              </Badge>
-              {techStale && (
-                <span className="text-xs text-text-muted">(stale)</span>
-              )}
-            </div>
-          ) : (
-            <span className="text-text-muted">—</span>
+            <span className="text-sm text-text-muted">—</span>
           )}
         </div>
       </div>
 
-      {/* 7-Day Trend */}
-      {hasScore && (
-        <div className="mb-2">
-          <p className="mb-1 text-xs text-text-muted">7-Day Trend</p>
-          <SparklineWithHistory itemId={item.id} width={120} height={32} />
-        </div>
-      )}
-
-      {/* Updated Timestamp */}
-      <p className="text-xs text-text-muted">
-        {hasScore ? 'Scored' : 'Updated'}{' '}
-        {formatDate(latestUpdatedAt, userTimezone)}
-      </p>
-
-      {/* Expanded Content */}
-      {isExpanded && (
+      {isExpanded ? (
         <div className="mt-4 border-t border-border pt-4">
-          <ExpandedRow item={item} refreshStatus={refreshStatus} />
+          <ExpandedRow
+            item={item}
+            refreshStatus={refreshStatus}
+            todayGate={todayGate}
+          />
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

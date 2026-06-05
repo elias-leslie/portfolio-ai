@@ -13,28 +13,24 @@ import { Fragment } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { TableCell, TableRow } from '@/components/ui/table'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { ExpandedRow } from '@/components/watchlist/ExpandedRow'
 import {
-  getDataQualityBgColor,
-  getDataQualityColor,
   getRiskLevelConfig,
-  getScoreBadgeVariant,
+  getSignalDisplay,
 } from '@/components/watchlist/ExpandedRowUtils'
-import { SourceBadge } from '@/components/watchlist/SourceBadge'
-import { SparklineWithHistory } from '@/components/watchlist/SparklineWithHistory'
 import {
-  formatDate,
-  formatPillarStatus,
-  getWatchlistPriceSnapshot,
-} from '@/components/watchlist/watchlistTableUtils'
+  buildTodayGate,
+  DataHealthBadge,
+  FreshnessBadge,
+  PriceTrendStrip,
+  SetupScoreFormula,
+  type TodayGate,
+  TodayGateBadge,
+  VwapBadge,
+} from '@/components/watchlist/ScannerMetricBadges'
+import { getWatchlistPriceSnapshot } from '@/components/watchlist/watchlistTableUtils'
+import type { MacroConditionsResponse } from '@/lib/api/macro'
 import type { RefreshStatus, WatchlistItem } from '@/lib/api/watchlist'
-import { formatDecisionMeta } from '@/lib/decision'
 import { cn } from '@/lib/utils'
 
 interface WatchlistTableRowProps {
@@ -44,6 +40,7 @@ interface WatchlistTableRowProps {
   recentlyUpdatedRows: Set<string>
   changedCells: Record<string, Record<string, boolean>>
   portfolioSymbols: Set<string>
+  macroConditions?: MacroConditionsResponse
   refreshStatus: RefreshStatus | undefined
   isDeleting: boolean
   userTimezone: string
@@ -59,6 +56,7 @@ export function WatchlistTableRow({
   recentlyUpdatedRows,
   changedCells,
   portfolioSymbols,
+  macroConditions,
   refreshStatus,
   isDeleting,
   userTimezone,
@@ -67,19 +65,15 @@ export function WatchlistTableRow({
   onDelete,
 }: WatchlistTableRowProps) {
   const hasScore = !!item.currentScore
-  const overall = item.currentScore?.overall ?? 0
   const priceSnapshot = getWatchlistPriceSnapshot(
     item.currentScore?.price.metadata,
     item.quote,
   )
-  const priceMetadata = item.currentScore?.price.metadata
-  const quoteSource = item.quote?.source ?? priceMetadata?.source
-  const quoteIsStale =
-    item.quote?.freshnessStatus === 'stale' ||
-    item.quote?.freshnessStatus === 'missing'
-  const decisionMeta = formatDecisionMeta(item.decision, {
-    includeTimestamp: false,
-  })
+  const riskConfig = item.riskLevel ? getRiskLevelConfig(item.riskLevel) : null
+  const signalDisplay = item.signalType
+    ? getSignalDisplay(item.signalType)
+    : null
+  const todayGate: TodayGate | undefined = buildTodayGate(macroConditions)
 
   return (
     <Fragment key={item.id}>
@@ -116,7 +110,7 @@ export function WatchlistTableRow({
             )}
           </button>
         </TableCell>
-        <TableCell className="font-medium" data-slot="table-cell">
+        <TableCell className="min-w-[17rem] font-medium" data-slot="table-cell">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <Link
@@ -126,6 +120,9 @@ export function WatchlistTableRow({
               >
                 {item.symbol}
               </Link>
+              <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+                Watch
+              </Badge>
               {portfolioSymbols.has(item.symbol.toUpperCase()) && (
                 <Badge
                   variant="outline"
@@ -135,17 +132,6 @@ export function WatchlistTableRow({
                   <span>Held</span>
                 </Badge>
               )}
-              {typeof quoteSource === 'string' ? (
-                <SourceBadge
-                  source={quoteSource}
-                  stale={quoteIsStale || item.currentScore?.price.stale}
-                  priority={
-                    typeof priceMetadata?.priority === 'number'
-                      ? priceMetadata.priority
-                      : undefined
-                  }
-                />
-              ) : null}
               {refreshStatus?.isRefreshing &&
                 refreshStatus.currentSymbol === item.symbol && (
                   <Loader2
@@ -160,14 +146,10 @@ export function WatchlistTableRow({
                 />
               )}
             </div>
-            {item.decision ? (
-              <div className="text-xs leading-relaxed text-text-muted">
-                <span className="font-medium text-text">
-                  {item.decision.headline}
-                </span>
-                {decisionMeta ? ` · ${decisionMeta}` : ''}
-              </div>
-            ) : null}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <FreshnessBadge item={item} userTimezone={userTimezone} />
+              <DataHealthBadge item={item} vwapSignal={item.vwapSignal} />
+            </div>
           </div>
         </TableCell>
         <TableCell
@@ -189,10 +171,6 @@ export function WatchlistTableRow({
                 >
                   {priceSnapshot.changeLabel}
                 </div>
-              ) : priceSnapshot.freshnessLabel ? (
-                <div className="text-xs text-text-muted">
-                  {priceSnapshot.freshnessLabel}
-                </div>
               ) : null}
             </div>
           ) : (
@@ -204,36 +182,7 @@ export function WatchlistTableRow({
           data-changed={changedCells[item.id]?.score ? 'true' : undefined}
         >
           {hasScore ? (
-            <div className="flex items-center gap-2">
-              <Badge
-                variant={getScoreBadgeVariant(overall)}
-                className="score-badge"
-              >
-                {overall.toFixed(0)}
-              </Badge>
-              <div
-                className="h-1.5 flex-1 rounded-full bg-surface-muted/60 overflow-hidden min-w-[60px]"
-                role="progressbar"
-                aria-valuenow={Math.round(overall)}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label={`Score ${Math.round(overall)} out of 100`}
-              >
-                <div
-                  className={cn(
-                    'h-full rounded-full transition-all duration-300',
-                    overall >= 80
-                      ? 'bg-gain'
-                      : overall >= 60
-                        ? 'bg-warning'
-                        : overall >= 40
-                          ? 'bg-neutral'
-                          : 'bg-loss',
-                  )}
-                  style={{ width: `${overall}%` }}
-                />
-              </div>
-            </div>
+            <SetupScoreFormula item={item} />
           ) : (
             <span className="text-text-muted">—</span>
           )}
@@ -242,74 +191,42 @@ export function WatchlistTableRow({
           data-slot="table-cell"
           data-changed={changedCells[item.id]?.risk ? 'true' : undefined}
         >
-          {item.riskLevel ? (
-            (() => {
-              const config = getRiskLevelConfig(item.riskLevel)
-              return (
-                <div className={cn('text-xs font-medium', config.color)}>
-                  {config.icon} {config.label}
-                </div>
-              )
-            })()
-          ) : (
-            <span className="text-text-muted">—</span>
-          )}
-        </TableCell>
-        <TableCell data-slot="table-cell">
-          {item.dataQuality ? (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div
-                    className={cn(
-                      'inline-flex items-center justify-center rounded-md px-2 py-1 text-xs font-semibold tabular-nums cursor-help',
-                      getDataQualityBgColor(item.dataQuality.overallPct),
-                      getDataQualityColor(item.dataQuality.overallPct),
-                    )}
-                  >
-                    {item.dataQuality.overallPct.toFixed(0)}%
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="left" className="max-w-xs">
-                  <div className="space-y-1.5">
-                    <div className="font-semibold text-xs border-b border-border pb-1">
-                      Data Quality Breakdown
-                    </div>
-                    {Object.entries(item.dataQuality.pillars).map(
-                      ([pillar, data]) => (
-                        <div key={pillar} className="text-xs">
-                          <div className="font-medium capitalize">
-                            {pillar}:
-                          </div>
-                          <div className="text-text-muted ml-2">
-                            {formatPillarStatus(data.status)} - {data.details}
-                          </div>
-                        </div>
-                      ),
-                    )}
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          ) : (
-            <span className="text-text-muted">—</span>
-          )}
+          <div className="flex max-w-[12rem] flex-wrap items-center gap-1.5">
+            {signalDisplay ? (
+              <span
+                className={cn(
+                  'rounded-md border px-1.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]',
+                  signalDisplay.color,
+                )}
+              >
+                {signalDisplay.label}
+              </span>
+            ) : null}
+            {riskConfig ? (
+              <span
+                className={cn(
+                  'rounded-md border border-border/35 bg-surface-muted/25 px-1.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]',
+                  riskConfig.color,
+                )}
+              >
+                {riskConfig.label}
+              </span>
+            ) : null}
+            <TodayGateBadge gate={todayGate} />
+            {!signalDisplay && !riskConfig && !todayGate ? (
+              <span className="text-text-muted">—</span>
+            ) : null}
+          </div>
         </TableCell>
         <TableCell data-slot="table-cell">
           {hasScore ? (
-            <SparklineWithHistory itemId={item.id} width={80} height={24} />
+            <div className="space-y-1.5">
+              <PriceTrendStrip trends={item.priceTrends} compact />
+              <VwapBadge signal={item.vwapSignal} />
+            </div>
           ) : (
             <span className="text-text-muted">—</span>
           )}
-        </TableCell>
-        <TableCell
-          className="text-xs text-text-muted"
-          data-slot="table-cell"
-          data-changed={changedCells[item.id]?.updatedAt ? 'true' : undefined}
-        >
-          {item.currentScore?.price?.updatedAt
-            ? formatDate(item.currentScore.price.updatedAt, userTimezone)
-            : formatDate(item.updatedAt, userTimezone)}
         </TableCell>
         <TableCell data-slot="table-cell">
           <Button
@@ -329,8 +246,12 @@ export function WatchlistTableRow({
       </TableRow>
       {isExpanded && (
         <TableRow id={`watchlist-row-${item.id}`} data-state="open">
-          <TableCell colSpan={9} className="bg-surface-muted/20 p-4">
-            <ExpandedRow item={item} refreshStatus={refreshStatus} />
+          <TableCell colSpan={7} className="bg-surface-muted/20 p-4">
+            <ExpandedRow
+              item={item}
+              refreshStatus={refreshStatus}
+              todayGate={todayGate}
+            />
           </TableCell>
         </TableRow>
       )}

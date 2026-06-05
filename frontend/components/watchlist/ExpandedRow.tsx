@@ -1,67 +1,109 @@
 'use client'
 
 /**
- * Expanded row display for watchlist items
+ * Expanded row display for watchlist scanner items.
  *
- * This is the main container that assembles all watchlist detail components:
- * - Refresh status indicator
- * - Narrative intelligence (trading signals, action plans)
- * - News intelligence card
- * - Score breakdown (Price + Technical)
- * - Notes editing
- *
- * Refactored from 1,142-line monolithic component into focused subcomponents.
+ * Keep this detail view focused on scanner evidence: score inputs, trend/VWAP
+ * context, data freshness, and the current Today market posture. Long-form
+ * thesis, notes, and news remain out of this scanner surface.
  */
 
-import { UnifiedNewsIntelligenceCard } from '@/components/shared/UnifiedNewsIntelligenceCard'
 import type { RefreshStatus, WatchlistItem } from '@/lib/api/watchlist'
-import { useNewsIntelligence } from '@/lib/hooks/useNews'
 import { usePreferences } from '@/lib/hooks/usePreferences'
-import { ExpandedRowNotes } from './ExpandedRowNotes'
 import { ExpandedRowRefreshStatus } from './ExpandedRowRefreshStatus'
 import { ExpandedRowScoreBreakdown } from './ExpandedRowScoreBreakdown'
-import { ThesisSection } from './ThesisSection'
+import {
+  PriceTrendStrip,
+  type TodayGate,
+  TodayGateBadge,
+  VwapBadge,
+} from './ScannerMetricBadges'
 
 interface ExpandedRowProps {
   item: WatchlistItem
   refreshStatus?: RefreshStatus
+  todayGate?: TodayGate
 }
 
-export function ExpandedRow({ item, refreshStatus }: ExpandedRowProps) {
-  const { data: preferences } = usePreferences()
-  const { data: fullNewsData } = useNewsIntelligence(item.symbol, { limit: 50 })
+function ScannerEvidencePanel({
+  item,
+  todayGate,
+}: {
+  item: WatchlistItem
+  todayGate?: TodayGate
+}) {
+  return (
+    <div className="rounded-xl border border-border/50 bg-surface/80 p-4 surface-highlight">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-text">Scanner Evidence</h3>
+          <p className="mt-1 max-w-3xl text-xs leading-5 text-text-muted">
+            Use this row to decide what deserves a closer look. D/W/M/Q trends
+            use cached daily bars plus the cached quote when available. VWAP is
+            latest-session context, not realtime execution data; keep
+            TradingView for live price action.
+          </p>
+        </div>
+        <TodayGateBadge gate={todayGate} />
+      </div>
 
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="rounded-lg border border-border/35 bg-surface-muted/20 p-3">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+            Price trend
+          </p>
+          <PriceTrendStrip trends={item.priceTrends} />
+        </div>
+        <div className="rounded-lg border border-border/35 bg-surface-muted/20 p-3">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+            VWAP check
+          </p>
+          <VwapBadge signal={item.vwapSignal} />
+          <p className="mt-2 text-xs leading-5 text-text-muted">
+            Above VWAP can confirm demand; far above VWAP can mean chase risk.
+            Missing VWAP degrades the technical score and data health.
+          </p>
+        </div>
+        <div className="rounded-lg border border-border/35 bg-surface-muted/20 p-3">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+            Today gate
+          </p>
+          {todayGate ? (
+            <p className="text-xs leading-5 text-text-muted">
+              {todayGate.detail} This qualifies position aggressiveness; it does
+              not hide otherwise interesting setups.
+            </p>
+          ) : (
+            <p className="text-xs leading-5 text-text-muted">
+              Today market posture is unavailable, so scan setup quality without
+              a broad-market overlay.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function ExpandedRow({
+  item,
+  refreshStatus,
+  todayGate,
+}: ExpandedRowProps) {
+  const { data: preferences } = usePreferences()
   const userTimezone = preferences?.displayTimezone ?? 'America/New_York'
-  const newsHidden = preferences?.watchlistShowNews === false
 
   return (
     <div className="space-y-4">
-      {/* Refresh Progress */}
-      {refreshStatus && (
+      {refreshStatus ? (
         <ExpandedRowRefreshStatus
           refreshStatus={refreshStatus}
           symbol={item.symbol}
         />
-      )}
+      ) : null}
 
-      {/* Score Breakdown */}
       <ExpandedRowScoreBreakdown item={item} userTimezone={userTimezone} />
-
-      {/* Investment Thesis */}
-      <ThesisSection symbol={item.symbol} userTimezone={userTimezone} />
-
-      {/* News Intelligence */}
-      <UnifiedNewsIntelligenceCard
-        symbol={item.symbol}
-        marketNewsData={fullNewsData ?? undefined}
-        newsHidden={newsHidden}
-        showSentimentBreakdown
-        title="News & Sentiment"
-        defaultCollapsed
-      />
-
-      {/* Notes */}
-      <ExpandedRowNotes item={item} />
+      <ScannerEvidencePanel item={item} todayGate={todayGate} />
     </div>
   )
 }

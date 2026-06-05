@@ -31,15 +31,49 @@ def load_latest_technical(
     if not symbols:
         return {}
 
-    placeholders = ",".join(["?"] * len(symbols))
+    normalized_symbols = list(
+        dict.fromkeys(str(symbol).strip().upper() for symbol in symbols if str(symbol).strip())
+    )
+    if not normalized_symbols:
+        return {}
+
+    placeholders = ",".join(["?"] * len(normalized_symbols))
     df = storage.query(
         f"""
-        SELECT DISTINCT ON (symbol) *
-        FROM technical_indicators
-        WHERE symbol IN ({placeholders})
-        ORDER BY symbol, date DESC
+        WITH latest_technical AS (
+            SELECT DISTINCT ON (symbol)
+                *,
+                symbol AS normalized_symbol
+            FROM technical_indicators
+            WHERE symbol IN ({placeholders})
+            ORDER BY symbol, date DESC
+        ),
+        latest_bars AS (
+            SELECT DISTINCT ON (symbol)
+                symbol AS normalized_symbol,
+                date AS vwap_date,
+                vwap
+            FROM day_bars
+            WHERE symbol IN ({placeholders})
+              AND vwap IS NOT NULL
+              AND vwap::text <> 'NaN'
+              AND vwap > 0
+            ORDER BY symbol, date DESC
+        )
+        SELECT
+            latest_technical.*,
+            CASE
+                WHEN latest_bars.vwap_date = latest_technical.date THEN latest_bars.vwap
+                ELSE NULL
+            END AS vwap,
+            CASE
+                WHEN latest_bars.vwap_date = latest_technical.date THEN latest_bars.vwap_date
+                ELSE NULL
+            END AS vwap_date
+        FROM latest_technical
+        LEFT JOIN latest_bars USING (normalized_symbol)
         """,
-        symbols,
+        [*normalized_symbols, *normalized_symbols],
     )
 
     if df.is_empty():
@@ -50,7 +84,7 @@ def load_latest_technical(
         calculated_at = row.get("calculated_at")
         if isinstance(calculated_at, datetime) and calculated_at.tzinfo is None:
             calculated_at = calculated_at.replace(tzinfo=UTC)
-        snapshots[row["symbol"]] = TechnicalSnapshot(
+        snapshots[str(row["symbol"]).upper()] = TechnicalSnapshot(
             rsi_14=row.get("rsi_14"),
             sma_20=row.get("sma_20"),
             sma_5=row.get("sma_5"),
@@ -66,6 +100,8 @@ def load_latest_technical(
             bb_lower=row.get("bb_lower"),
             stoch_k=row.get("stoch_k"),
             stoch_d=row.get("stoch_d"),
+            vwap=row.get("vwap"),
+            vwap_date=row.get("vwap_date"),
             price=None,
             calculated_at=calculated_at,
         )

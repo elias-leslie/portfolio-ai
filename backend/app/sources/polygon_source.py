@@ -139,7 +139,7 @@ class PolygonSource(BaseSource):
             logger.debug("polygon_no_data_for_date", date=iso_date)
             return None
         df = df.with_columns(
-            pl.lit(dt.date.fromisoformat(iso_date)).alias("date_utc"),
+            pl.lit(dt.date.fromisoformat(iso_date)).alias("date"),
             pl.lit("polygon").alias("source"),
         )
         if ingest_run_id:

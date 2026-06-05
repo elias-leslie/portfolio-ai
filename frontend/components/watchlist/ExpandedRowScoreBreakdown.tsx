@@ -78,6 +78,7 @@ function formatMetadataKey(key: string): string {
     .replace(/Pct/g, '%')
     .replace(/Rsi/g, 'RSI')
     .replace(/Macd/g, 'MACD')
+    .replace(/Vwap/g, 'VWAP')
     .replace(/Bb /g, 'BB ')
 }
 

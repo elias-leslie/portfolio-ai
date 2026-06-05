@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { WatchlistFilterBar } from '../WatchlistFilterBar'
 
 describe('WatchlistFilterBar', () => {
-  it('labels raw signal filters as live setups so they do not read like Jenny decisions', () => {
+  it('labels raw signal filters as scanner setups', () => {
     render(
       <WatchlistFilterBar
         totalCount={7}
@@ -24,8 +24,8 @@ describe('WatchlistFilterBar', () => {
     )
 
     expect(
-      screen.getByRole('combobox', { name: /filter by live setup/i }),
+      screen.getByRole('combobox', { name: /filter by setup/i }),
     ).toBeInTheDocument()
-    expect(screen.getByText(/all live setups/i)).toBeInTheDocument()
+    expect(screen.getByText(/all setups/i)).toBeInTheDocument()
   })
 })

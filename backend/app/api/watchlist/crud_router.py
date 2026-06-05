@@ -63,7 +63,10 @@ async def list_watchlist_items(request: Request) -> WatchlistListResponse:
         List of watchlist items with current scores
     """
     del request
-    items = await run_in_threadpool(_get_watchlist_service().get_items_with_scores)
+    items = await run_in_threadpool(
+        _get_watchlist_service().get_items_with_scores,
+        include_decision=False,
+    )
 
     return WatchlistListResponse(
         items=build_watchlist_item_responses(items),

@@ -13,7 +13,7 @@ import polars as pl
 
 from app.logging_config import get_logger
 from app.sources import initialize_data_sources
-from app.sources.base import DatasetRequest
+from app.sources.base import DATASET_DAY, DatasetRequest
 from app.sources.multi_source_fetcher import MultiSourceFetcher
 from app.storage import PortfolioStorage, get_storage
 from app.storage.credential_loader import load_credentials_from_database
@@ -53,6 +53,8 @@ _DAY_BARS_COLUMNS = [
 ]
 
 _REQUIRED_COLUMNS = ["symbol", "date", "open", "high", "low", "close", "volume", "source"]
+
+_VWAP_SOURCE_NAMES = {"fmp", "polygon"}
 
 
 def initialize_sources_with_credentials() -> list[Any]:
@@ -147,6 +149,16 @@ def prepare_dataframe(result_df: Any, ingest_run_id: str) -> tuple[Any, list[str
     result_df = result_df.select(_DAY_BARS_COLUMNS)
     unique_symbols: list[str] = result_df["symbol"].unique().to_list()
     return result_df, unique_symbols
+
+
+def _usable_vwap_rows(result_df: Any) -> pl.DataFrame | None:
+    """Return rows with a finite positive vendor VWAP."""
+    if result_df is None or len(result_df) == 0 or "vwap" not in result_df.columns:
+        return None
+    with_vwap = result_df.with_columns(
+        pl.col("vwap").cast(pl.Float64, strict=False).alias("vwap")
+    ).filter(pl.col("vwap").is_not_null() & pl.col("vwap").is_finite() & (pl.col("vwap") > 0))
+    return with_vwap if len(with_vwap) > 0 else None
 
 
 def fetch_ohlcv_data(
@@ -345,6 +357,98 @@ def upsert_watchlist_data(
     return rows_inserted
 
 
+def fetch_watchlist_vwap_data(
+    fetcher: MultiSourceFetcher,
+    request: DatasetRequest,
+) -> tuple[pl.DataFrame | None, int, dict[str, list[str]]]:
+    """Fetch true VWAP from VWAP-capable day-bar sources for watchlist symbols."""
+    sources = [
+        source
+        for source in fetcher.get_sources_for_dataset(DATASET_DAY)
+        if source.name in _VWAP_SOURCE_NAMES
+    ]
+    if not sources:
+        logger.info("refresh_watchlist_vwap_no_configured_source")
+        return None, 0, {}
+
+    frames: list[pl.DataFrame] = []
+    errors: dict[str, list[str]] = {}
+    symbols_remaining = {str(symbol).upper() for symbol in request.symbols}
+
+    for source in sources:
+        if not symbols_remaining:
+            break
+        try:
+            source_request = DatasetRequest(
+                dataset=request.dataset,
+                profile="vwap",
+                symbols=sorted(symbols_remaining),
+                start=request.start,
+                end=request.end,
+                timezone=request.timezone,
+                ingest_run_id=request.ingest_run_id,
+            )
+            data = source.fetch_day_bars(source_request)
+            usable = _usable_vwap_rows(data)
+            if usable is None:
+                logger.info("refresh_watchlist_vwap_source_no_usable_rows", source=source.name)
+                continue
+            frames.append(usable)
+            fetched_symbols = {str(symbol).upper() for symbol in usable["symbol"].unique().to_list()}
+            symbols_remaining -= fetched_symbols
+            logger.info(
+                "refresh_watchlist_vwap_source_fetched",
+                source=source.name,
+                rows=len(usable),
+                symbols_fetched=len(fetched_symbols),
+                symbols_remaining=len(symbols_remaining),
+            )
+        except Exception as e:
+            errors.setdefault(source.name, []).append(str(e))
+            logger.warning(
+                "refresh_watchlist_vwap_source_failed",
+                source=source.name,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+
+    if not frames:
+        return None, len(errors), errors
+    return pl.concat(frames, how="vertical_relaxed"), len(errors), errors
+
+
+def upsert_watchlist_vwap_data(
+    storage: PortfolioStorage,
+    result_df: Any,
+    ingest_run_id: str,
+    errors: dict[str, Any],
+) -> int:
+    """UPSERT VWAP-capable vendor rows into day_bars for watchlist scanner use."""
+    usable = _usable_vwap_rows(result_df)
+    if usable is None:
+        logger.info(
+            "refresh_watchlist_vwap_no_data_fetched",
+            ingest_run_id=ingest_run_id,
+            errors=errors,
+        )
+        return 0
+
+    prepared_df, _ = prepare_dataframe(usable, ingest_run_id)
+    prepared_df = _usable_vwap_rows(prepared_df)
+    if prepared_df is None:
+        logger.info("refresh_watchlist_vwap_no_completed_rows", ingest_run_id=ingest_run_id)
+        return 0
+
+    storage.insert_dataframe("day_bars", prepared_df, mode="upsert")
+    rows_inserted: int = len(prepared_df)
+    logger.info(
+        "refresh_watchlist_vwap_data_upserted",
+        ingest_run_id=ingest_run_id,
+        rows_upserted=rows_inserted,
+    )
+    return rows_inserted
+
+
 def run_ingestion_pipeline(
     symbols: list[str],
     days: int,
@@ -408,12 +512,19 @@ def run_watchlist_pipeline(
     )
     result_df, error_count, errors = fetch_ohlcv_data(fetcher, request, ingest_run_id)
     rows_inserted = upsert_watchlist_data(storage, result_df, ingest_run_id, errors)
-    return build_ingestion_result(
+    vwap_result_df, vwap_error_count, vwap_errors = fetch_watchlist_vwap_data(fetcher, request)
+    vwap_rows_inserted = upsert_watchlist_vwap_data(
+        storage, vwap_result_df, ingest_run_id, vwap_errors
+    )
+    result = build_ingestion_result(
         task_id=task_id,
         ingest_run_id=ingest_run_id,
         symbols=symbols,
         rows_inserted=rows_inserted,
-        error_count=error_count,
+        error_count=error_count + vwap_error_count,
         start_time=start_time,
         log_event="refresh_watchlist_ohlcv_completed",
     )
+    result["vwap_rows_inserted"] = vwap_rows_inserted
+    result["vwap_errors"] = vwap_error_count
+    return result

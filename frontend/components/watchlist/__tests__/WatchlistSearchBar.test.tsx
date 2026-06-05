@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { WatchlistSearchBar } from '../WatchlistSearchBar'
 
 describe('WatchlistSearchBar', () => {
-  it('uses live setup language instead of ambiguous signal copy', () => {
+  it('uses scanner setup language without thesis or live-model clutter', () => {
     render(
       <WatchlistSearchBar
         value=""
@@ -14,12 +14,10 @@ describe('WatchlistSearchBar', () => {
     )
 
     expect(
-      screen.getByPlaceholderText(
-        /search symbol, note, thesis, or live setup/i,
-      ),
+      screen.getByPlaceholderText(/search symbol or setup context/i),
     ).toBeInTheDocument()
     expect(
-      screen.getByText(/search symbol, note, thesis headline, or live setup/i),
+      screen.getByText(/search symbol, setup context, risk, or style/i),
     ).toBeInTheDocument()
   })
 })

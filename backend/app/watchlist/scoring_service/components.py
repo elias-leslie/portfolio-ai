@@ -15,7 +15,13 @@ from ...services.catalyst_scoring import (
 from ...services.options_flow_service import OptionsFlowData
 from ..fundamentals import FundamentalData
 from ..models import ScoreComponent, TechnicalSnapshot
-from .helpers import is_stale, score_from_change_percent, score_from_rsi, score_from_trend
+from .helpers import (
+    is_stale,
+    score_from_change_percent,
+    score_from_rsi,
+    score_from_trend,
+    score_from_vwap_distance,
+)
 
 logger = get_logger(__name__)
 
@@ -104,6 +110,7 @@ def compute_technical_component(
         rsi_score = score_from_rsi(technical.rsi_14)
         component_scores.append(rsi_score)
         metadata["rsi_14"] = technical.rsi_14
+        metadata["rsi_score"] = rsi_score
 
     trend_score = score_from_trend(technical.price, technical.sma_50, technical.sma_200)
     if trend_score is not None:
@@ -116,6 +123,20 @@ def compute_technical_component(
         component_scores.append(macd_score)
         metadata["macd"] = technical.macd
         metadata["macd_signal"] = technical.macd_signal
+        metadata["macd_score"] = macd_score
+
+    if technical.price is not None and technical.vwap is not None and technical.vwap > 0:
+        vwap_distance_pct = ((technical.price - technical.vwap) / technical.vwap) * 100.0
+        vwap_score = score_from_vwap_distance(vwap_distance_pct)
+        component_scores.append(vwap_score)
+        metadata["vwap"] = technical.vwap
+        metadata["vwap_date"] = technical.vwap_date.isoformat() if technical.vwap_date else None
+        metadata["vwap_distance_pct"] = vwap_distance_pct
+        metadata["vwap_score"] = vwap_score
+    elif technical.price is not None and component_scores:
+        component_scores.append(0.0)
+        metadata["vwap_missing"] = True
+        metadata["vwap_score"] = 0.0
 
     if technical.price is not None:
         metadata["price"] = technical.price

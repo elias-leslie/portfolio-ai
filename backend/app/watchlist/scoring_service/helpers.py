@@ -74,3 +74,20 @@ def score_from_trend(
     composite = max(-0.2, min(0.2, composite))
 
     return (composite + 0.2) / 0.4 * 100.0
+
+
+def score_from_vwap_distance(distance_pct: float) -> float:
+    """Score latest price relative to latest-session VWAP.
+
+    A scanner wants price above VWAP, but not so extended that the setup is
+    mostly chase-risk. This is latest-session context, not realtime intraday
+    execution logic.
+    """
+    clamped = max(-10.0, min(10.0, distance_pct))
+    if clamped >= 0:
+        if clamped <= 3.0:
+            return 60.0 + (clamped / 3.0) * 25.0
+        return max(55.0, 85.0 - ((clamped - 3.0) / 7.0) * 30.0)
+    if clamped >= -3.0:
+        return 60.0 + (clamped / 3.0) * 30.0
+    return max(5.0, 30.0 - ((abs(clamped) - 3.0) / 7.0) * 25.0)

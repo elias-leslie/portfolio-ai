@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from enum import StrEnum
 from typing import Any, TypedDict
 
@@ -59,6 +59,7 @@ class RawMetricsDict(TypedDict, total=False):
     sma_50: float
     sma_200: float
     ema_20: float
+    vwap: float
     price: float | ScoreComponentDict
     technical: ScoreComponentDict
     volume: float
@@ -340,6 +341,8 @@ class TechnicalSnapshot(BaseModel):
     bb_lower: float | None = None  # Bollinger Band lower (20, 2.0)
     stoch_k: float | None = None  # Stochastic %K (14, 3, 3)
     stoch_d: float | None = None  # Stochastic %D (signal line)
+    vwap: float | None = None
+    vwap_date: date | None = None
     price: float | None = None
     calculated_at: datetime | None = None
 

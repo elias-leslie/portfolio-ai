@@ -16,6 +16,7 @@ import pytest
 from app.sources.base_http_client import (
     BaseHTTPClient,
     RateLimiter,
+    redact_url_credentials,
     should_retry_http_exception,
 )
 
@@ -100,6 +101,27 @@ class TestShouldRetryException:
         """Should not retry on other exception types."""
         exc = ValueError("Some other error")
         assert should_retry_http_exception(exc) is False
+
+
+class TestCredentialRedaction:
+    """Tests for URL credential redaction."""
+
+    def test_redacts_common_api_key_query_params(self) -> None:
+        message = (
+            "https://example.test/path?apiKey=polygon-secret"
+            "&apikey=fmp-secret&api_key=fred-secret&token=finnhub-secret"
+        )
+
+        redacted = redact_url_credentials(message)
+
+        assert "polygon-secret" not in redacted
+        assert "fmp-secret" not in redacted
+        assert "fred-secret" not in redacted
+        assert "finnhub-secret" not in redacted
+        assert "apiKey=[REDACTED]" in redacted
+        assert "apikey=[REDACTED]" in redacted
+        assert "api_key=[REDACTED]" in redacted
+        assert "token=[REDACTED]" in redacted
 
 
 class TestRateLimiter:
@@ -366,10 +388,15 @@ class TestBaseHTTPClient:
     @patch("app.sources.base_http_client.httpx.Client")
     def test_request_http_error(self, mock_httpx_class: Mock) -> None:
         """Request raises on HTTP errors."""
+        request = httpx.Request(
+            "GET", "https://api.example.com/nonexistent?api_key=secret_key"
+        )
         mock_response = Mock()
         mock_response.status_code = 404
         mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
-            "Not found", request=Mock(), response=mock_response
+            "Not found for https://api.example.com/nonexistent?api_key=secret_key",
+            request=request,
+            response=mock_response,
         )
 
         mock_client = Mock()
@@ -379,9 +406,11 @@ class TestBaseHTTPClient:
         client = MockHTTPClient(api_key="test_key", rate_calls_per_minute=60)
 
         # Should raise HTTPStatusError
-        with pytest.raises(httpx.HTTPStatusError, match="Not found"):
+        with pytest.raises(httpx.HTTPStatusError, match="Not found") as exc_info:
             client.request("/nonexistent")
 
+        assert "secret_key" not in str(exc_info.value)
+        assert "api_key=[REDACTED]" in str(exc_info.value)
         client.close()
 
     @patch("app.sources.base_http_client.httpx.Client")

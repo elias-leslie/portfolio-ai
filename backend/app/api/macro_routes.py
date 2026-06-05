@@ -236,6 +236,13 @@ def _latest_snapshot_or_refresh(*, force_quote_refresh: bool = False) -> dict | 
     return snapshot
 
 
+def _latest_snapshot_or_bootstrap() -> dict | None:
+    snapshot = repository.get_latest()
+    if snapshot is not None:
+        return snapshot
+    return _latest_snapshot_or_refresh()
+
+
 @router.get("/current", response_model=MacroSnapshotResponse)
 async def current() -> MacroSnapshotResponse:
     snapshot = await run_in_threadpool(_latest_snapshot_or_refresh)
@@ -246,7 +253,7 @@ async def current() -> MacroSnapshotResponse:
 
 @router.get("/conditions", response_model=MacroConditionsResponse)
 async def current_conditions() -> MacroConditionsResponse:
-    snapshot = await run_in_threadpool(_latest_snapshot_or_refresh)
+    snapshot = await run_in_threadpool(_latest_snapshot_or_bootstrap)
     if snapshot is None:
         raise HTTPException(status_code=503, detail="macro_gate_inputs_unavailable")
     payload = await run_in_threadpool(macro_conditions.get_conditions_payload, snapshot)

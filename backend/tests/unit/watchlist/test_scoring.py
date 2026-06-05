@@ -33,6 +33,7 @@ from app.watchlist.scoring_service.helpers import (
     score_from_change_percent,
     score_from_rsi,
     score_from_trend,
+    score_from_vwap_distance,
 )
 
 
@@ -113,6 +114,20 @@ class TestScoreFromTrend:
         assert score_from_trend(price=100.0, sma_50=100.0, sma_200=None) is None
 
 
+class TestScoreFromVWAPDistance:
+    """Tests for latest-session VWAP distance scoring."""
+
+    def test_price_slightly_above_vwap_scores_well(self) -> None:
+        score = score_from_vwap_distance(2.0)
+        assert 75.0 < score < 85.0
+
+    def test_price_far_above_vwap_penalizes_chase_risk(self) -> None:
+        assert score_from_vwap_distance(8.0) < score_from_vwap_distance(2.0)
+
+    def test_price_below_vwap_scores_defensively(self) -> None:
+        assert score_from_vwap_distance(-5.0) < 30.0
+
+
 class TestComputePriceComponent:
     """Tests for compute_price_component function."""
 
@@ -190,6 +205,8 @@ class TestComputeTechnicalComponent:
             sma_200=140.0,
             macd=2.0,
             macd_signal=1.5,
+            vwap=148.0,
+            vwap_date=now.date(),
             calculated_at=now,
         )
         component = compute_technical_component(technical, weight=0.3, now=now)
@@ -199,6 +216,7 @@ class TestComputeTechnicalComponent:
         assert "rsi_14" in component.metadata
         assert "trend_score" in component.metadata
         assert "macd" in component.metadata
+        assert "vwap_score" in component.metadata
 
     def test_missing_technical_indicators(self) -> None:
         """Test technical component when all indicators are missing."""

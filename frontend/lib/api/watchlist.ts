@@ -131,6 +131,31 @@ export interface DataQuality {
   }
 }
 
+export interface PriceTrend {
+  key: 'D' | 'W' | 'M' | 'Q' | string
+  label: string
+  returnPct: number | null
+  startClose: number | null
+  endClose: number | null
+  startDate: string | null
+  endDate: string | null
+  endSource: string
+  status: string
+}
+
+export interface VwapSignal {
+  status: string
+  vwap: number | null
+  price: number | null
+  close: number | null
+  distancePct: number | null
+  asOfDate: string | null
+  closeAsOfDate: string | null
+  priceAsOf: string | null
+  priceSource: string
+  source: string
+}
+
 export interface WatchlistItem {
   id: string
   symbol: string
@@ -140,6 +165,8 @@ export interface WatchlistItem {
   updatedAt: string
   currentScore?: ScoreBreakdown
   quote?: SymbolQuoteSection | null
+  priceTrends?: PriceTrend[]
+  vwapSignal?: VwapSignal | null
   scoreAlert?: boolean
   // Narrative Intelligence fields
   signalType?: 'BUY' | 'HOLD' | 'AVOID' | null

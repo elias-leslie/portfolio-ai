@@ -12,16 +12,6 @@ vi.mock('@/components/watchlist/ExpandedRow', () => ({
   },
 }))
 
-vi.mock('@/components/watchlist/SourceBadge', () => ({
-  SourceBadge: () => <div>Source Badge</div>,
-}))
-
-vi.mock('@/components/watchlist/SparklineWithHistory', () => ({
-  SparklineWithHistory: ({ itemId }: { itemId: string }) => (
-    <div>History {itemId}</div>
-  ),
-}))
-
 function buildItem() {
   return {
     id: 'item-1',
@@ -57,10 +47,51 @@ function buildItem() {
       pillars: {
         price: {
           status: 'complete' as const,
-          score: 1,
+          score: 100,
           details: 'Fresh',
         },
+        technical: {
+          status: 'complete' as const,
+          score: 95,
+          details: 'VWAP present',
+        },
       },
+    },
+    priceTrends: [
+      {
+        key: 'D',
+        label: '1D',
+        returnPct: 1.2,
+        startClose: 406.65,
+        endClose: 411.55,
+        startDate: '2026-03-10',
+        endDate: '2026-03-11T12:06:00Z',
+        endSource: 'quote',
+        status: 'available',
+      },
+      {
+        key: 'W',
+        label: '5D',
+        returnPct: -0.6,
+        startClose: 414.03,
+        endClose: 411.55,
+        startDate: '2026-03-04',
+        endDate: '2026-03-11T12:06:00Z',
+        endSource: 'quote',
+        status: 'available',
+      },
+    ],
+    vwapSignal: {
+      status: 'available',
+      vwap: 409.5,
+      price: 411.55,
+      close: 410.12,
+      distancePct: 0.5,
+      asOfDate: '2026-03-11',
+      closeAsOfDate: '2026-03-11',
+      priceAsOf: '2026-03-11T12:06:00Z',
+      priceSource: 'quote',
+      source: 'day_bars',
     },
     currentScore: {
       overall: 67,
@@ -99,7 +130,7 @@ describe('WatchlistCard', () => {
     expandedRowMock.mockClear()
   })
 
-  it('shows workspace navigation and mobile parity context', () => {
+  it('shows scanner-focused mobile context without thesis, source, or history clutter', () => {
     render(
       <WatchlistCard
         item={buildItem()}
@@ -124,20 +155,26 @@ describe('WatchlistCard', () => {
       'href',
       '/symbols/MSFT?tab=decision',
     )
-    expect(screen.getByText('Portfolio')).toBeInTheDocument()
-    expect(screen.getByText('Data quality 91%')).toBeInTheDocument()
+    expect(screen.getByText('Held')).toBeInTheDocument()
+    expect(screen.getByText('Quote OK')).toBeInTheDocument()
+    expect(screen.getByText('Data 91%')).toBeInTheDocument()
     expect(screen.getByText(/Refreshing 2\/5/i)).toBeInTheDocument()
     expect(screen.getByText('$411.55')).toBeInTheDocument()
-    expect(screen.getByText('Fresh quote')).toBeInTheDocument()
+    expect(screen.queryByText('Fresh quote')).not.toBeInTheDocument()
     expect(screen.queryByText('$410.12')).not.toBeInTheDocument()
     expect(screen.queryByText('+1.25%')).not.toBeInTheDocument()
-    expect(screen.getByText('🟢 BUY')).toBeInTheDocument()
-    expect(screen.getByText('Decision')).toBeInTheDocument()
-    expect(screen.getByText('Exit this position')).toBeInTheDocument()
-    expect(screen.getByText(/reduce risk now\./i)).toBeInTheDocument()
-    expect(screen.getByText('Trend')).toBeInTheDocument()
+    expect(screen.getByText('P65')).toBeInTheDocument()
+    expect(screen.getByText('T69')).toBeInTheDocument()
+    expect(screen.getByText('BUY')).toBeInTheDocument()
+    expect(screen.getByText('Medium')).toBeInTheDocument()
     expect(screen.getByText('Earnings soon')).toBeInTheDocument()
-    expect(screen.getByText('History item-1')).toBeInTheDocument()
+    expect(screen.getByText('D +1.2%')).toBeInTheDocument()
+    expect(screen.getByText('W -0.6%')).toBeInTheDocument()
+    expect(screen.getByText('VWAP +0.5%')).toBeInTheDocument()
+    expect(screen.queryByText('Decision')).not.toBeInTheDocument()
+    expect(screen.queryByText('Exit this position')).not.toBeInTheDocument()
+    expect(screen.queryByText('History item-1')).not.toBeInTheDocument()
+    expect(screen.queryByText('yfinance')).not.toBeInTheDocument()
   })
 
   it('handles undefined refreshStatus and isRefreshing false', () => {
@@ -173,7 +210,7 @@ describe('WatchlistCard', () => {
     )
 
     expect(screen.getByRole('link', { name: 'MSFT' })).toBeInTheDocument()
-    expect(screen.queryByText('Portfolio')).not.toBeInTheDocument()
+    expect(screen.queryByText('Held')).not.toBeInTheDocument()
   })
 
   it('handles undefined or zero dataQuality', () => {
@@ -194,7 +231,7 @@ describe('WatchlistCard', () => {
       />,
     )
 
-    expect(screen.queryByText(/Data quality/i)).not.toBeInTheDocument()
+    expect(screen.getByText('Data partial')).toBeInTheDocument()
 
     rerender(
       <WatchlistCard
@@ -212,7 +249,7 @@ describe('WatchlistCard', () => {
       />,
     )
 
-    expect(screen.getByText('Data quality 0%')).toBeInTheDocument()
+    expect(screen.getByText('Data 0%')).toBeInTheDocument()
   })
 
   it('handles isDeleting true state', () => {
