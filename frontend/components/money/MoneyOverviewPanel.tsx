@@ -200,6 +200,8 @@ function decisionBadgeVariant(status: string) {
     case 'tight':
     case 'review':
     case 'mixed':
+    case 'partial_plan':
+    case 'wants_leading':
       return 'warning' as const
     case 'hold':
     case 'wants_driving_gap':
@@ -416,8 +418,39 @@ export function MoneyOverviewPanel({
           ? 'tight'
           : 'safe'
   const safeSpendRepairItems = dashboard.inbox
-    .filter((item) => item.detail.toLowerCase().includes('safe to spend'))
+    .filter((item) => item.affects.includes('safe_to_spend'))
     .slice(0, 2)
+  const planIsPartial = dashboard.budgetSnapshot.planIsPartial
+  const missingPlanComponents = dashboard.budgetSnapshot.missingPlanComponents
+  // Surface which of the three inputs actually limits the Safe-to-Spend figure so the
+  // dollar value is interpretable — it is often the income−target residual, not raw cash.
+  const safeSpendBindingConstraint = (() => {
+    const cashPath =
+      dashboard.overview.cashReserve - operatingCushion - dueSoonTotal
+    const planPath = dashboard.budgetSnapshot.remainingCashAfterPlan
+    const discretionaryPath = dashboard.budgetSnapshot.discretionaryHeadroom
+    const candidates: Array<{ value: number; label: string }> = [
+      {
+        value: cashPath,
+        label: 'visible cash after cushion and due-soon bills',
+      },
+    ]
+    if (planPath != null) {
+      candidates.push({
+        value: planPath,
+        label: 'income minus your monthly plan (a target, not cash on hand)',
+      })
+    }
+    if (discretionaryPath != null) {
+      candidates.push({
+        value: discretionaryPath,
+        label: 'remaining discretionary cap for the month',
+      })
+    }
+    return candidates.reduce((min, current) =>
+      current.value < min.value ? current : min,
+    )
+  })()
   const decisionBoardDescription = (
     <>
       Generated <RelativeTime value={dashboard.generatedAt} />.
@@ -461,7 +494,7 @@ export function MoneyOverviewPanel({
       insight.signalType === 'price_up',
   )
   const whyShortDrivers = [
-    monthGap != null && monthGap > 100
+    !planIsPartial && monthGap != null && monthGap > 100
       ? `${formatCurrencyWhole(monthGap)} over month-to-date pace right now.`
       : null,
     discretionaryGap != null && discretionaryGap > 50
@@ -484,16 +517,19 @@ export function MoneyOverviewPanel({
     ? 'mixed'
     : spendTrustDegraded
       ? 'mixed'
-      : discretionaryGap != null && discretionaryGap > 50
-        ? 'wants_driving_gap'
-        : essentialGap != null && essentialGap > 50
-          ? 'essentials_driving_gap'
-          : monthGap != null && monthGap > 100
-            ? 'mixed'
-            : 'inside_guardrails'
-  const whyShortSummary =
-    whyShortDrivers[0] ??
-    'Nothing obvious is breaking the month right now. Shortfall risk looks more like bill timing than overspend.'
+      : planIsPartial
+        ? 'partial_plan'
+        : discretionaryGap != null && discretionaryGap > 50
+          ? 'wants_driving_gap'
+          : essentialGap != null && essentialGap > 50
+            ? 'essentials_driving_gap'
+            : monthGap != null && monthGap > 100
+              ? 'mixed'
+              : 'inside_guardrails'
+  const whyShortSummary = planIsPartial
+    ? `Plan is partial — ${missingPlanComponents.join(' and ')} ${missingPlanComponents.length === 1 ? 'target is' : 'targets are'} not set, so total spend is not paced against it yet.`
+    : (whyShortDrivers[0] ??
+      'Nothing obvious is breaking the month right now. Shortfall risk looks more like bill timing than overspend.')
   const saveNowLines = [
     latestPricePressure
       ? `${priceInsightBadgeLabel(latestPricePressure.signalType)}: ${latestPricePressure.itemName}`
@@ -531,7 +567,7 @@ export function MoneyOverviewPanel({
           title="Decision Board"
           description={decisionBoardDescription}
         >
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-semibold text-text">Budget Pace</p>
@@ -549,14 +585,25 @@ export function MoneyOverviewPanel({
                 </div>
               </div>
               <p className="mt-3 text-2xl font-semibold text-text">
-                {spendTrustDegraded
+                {spendTrustUnavailable
                   ? trustCardValue(spendTrustStatus, signedCurrency(monthGap))
-                  : signedCurrency(monthGap)}
+                  : planIsPartial
+                    ? formatCurrencyWhole(
+                        dashboard.budgetSnapshot.monthToDateSpend,
+                      )
+                    : spendTrustDegraded
+                      ? trustCardValue(
+                          spendTrustStatus,
+                          signedCurrency(monthGap),
+                        )
+                      : signedCurrency(monthGap)}
               </p>
               <p className="mt-1 text-sm text-text-muted">
-                {dashboard.budgetSnapshot.monthToDatePlan != null
-                  ? 'Current month pace versus plan.'
-                  : 'Waiting on a full monthly plan for a cleaner answer.'}
+                {planIsPartial
+                  ? 'Spent so far this month. Plan only covers part of it, so this is not a pace verdict.'
+                  : dashboard.budgetSnapshot.monthToDatePlan != null
+                    ? 'Current month pace versus plan.'
+                    : 'Waiting on a full monthly plan for a cleaner answer.'}
               </p>
               <p className="mt-3 text-sm leading-relaxed text-text-muted">
                 {whyShortSummary}
@@ -569,6 +616,22 @@ export function MoneyOverviewPanel({
                       </p>
                     ))
                   : null}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-border/30 pt-3 text-xs">
+                {planIsPartial ? (
+                  <Link
+                    href="/money?tab=budget"
+                    className="font-medium text-primary transition-colors hover:text-primary/80"
+                  >
+                    Complete your plan →
+                  </Link>
+                ) : null}
+                <Link
+                  href="/money?tab=budget"
+                  className="text-text-muted transition-colors hover:text-text"
+                >
+                  Open Budget
+                </Link>
               </div>
             </div>
 
@@ -601,6 +664,9 @@ export function MoneyOverviewPanel({
               <div className="mt-3 space-y-2 text-xs text-text-muted">
                 <p>
                   Operating cushion: {formatCurrencyWhole(operatingCushion)}
+                  {dashboard.profile.monthlyEssentialTarget != null
+                    ? ' (essentials target, not actual)'
+                    : ''}
                 </p>
                 <p>Due in 14 days: {formatCurrencyWhole(dueSoonTotal)}</p>
                 <p>
@@ -613,6 +679,9 @@ export function MoneyOverviewPanel({
                 <p>
                   Monthly plan source:{' '}
                   {dashboard.budgetSnapshot.monthlyPlanSourceLabel}
+                </p>
+                <p className="text-text-muted/80">
+                  Limited by {safeSpendBindingConstraint.label}.
                 </p>
               </div>
               {spendTrustDegraded && safeSpendRepairItems.length > 0 ? (
@@ -651,13 +720,15 @@ export function MoneyOverviewPanel({
                     variant={decisionBadgeVariant(
                       spendTrustDegraded
                         ? 'mixed'
-                        : needsAmount >= wantsAmount
-                          ? 'needs_leading'
-                          : 'mixed',
+                        : wantsAmount > needsAmount
+                          ? 'wants_leading'
+                          : 'needs_leading',
                     )}
                   >
-                    {!spendTrustDegraded && needsShare != null
-                      ? `${formatPercent(needsShare, { decimals: 0 })} needs`
+                    {!spendTrustDegraded && wantsShare != null
+                      ? wantsAmount > needsAmount
+                        ? `Wants leading ${formatPercent(wantsShare, { decimals: 0 })}`
+                        : `Needs leading ${formatPercent(needsShare ?? 0, { decimals: 0 })}`
                       : 'Split'}
                   </Badge>
                 </div>
@@ -670,7 +741,11 @@ export function MoneyOverviewPanel({
                 )}
               </p>
               <p className="mt-1 text-sm text-text-muted">
-                Needs versus wants from the recent monthly average.
+                {!spendTrustDegraded &&
+                wantsShare != null &&
+                wantsAmount > needsAmount
+                  ? `Wants are outspending needs (${formatPercent(wantsShare, { decimals: 0 })} vs ${formatPercent(needsShare ?? 0, { decimals: 0 })}).`
+                  : 'Needs versus wants from the recent monthly average.'}
               </p>
               <div className="mt-3 space-y-2 text-xs text-text-muted">
                 <p>Needs: {formatCategoryPreview(needCategories)}</p>
@@ -682,6 +757,14 @@ export function MoneyOverviewPanel({
                     nullDisplay: '—',
                   })}
                 </p>
+              </div>
+              <div className="mt-3 border-t border-border/30 pt-3 text-xs">
+                <Link
+                  href="/money?tab=spending"
+                  className="text-text-muted transition-colors hover:text-text"
+                >
+                  Open categories
+                </Link>
               </div>
             </div>
 
@@ -695,12 +778,19 @@ export function MoneyOverviewPanel({
                     saveNowLines.length > 0 ? 'mixed' : 'inside_guardrails',
                   )}
                 >
-                  {saveNowLines.length} live lever
-                  {saveNowLines.length === 1 ? '' : 's'}
+                  {priceInsights.length + merchantHighlights.length} signal
+                  {priceInsights.length + merchantHighlights.length === 1
+                    ? ''
+                    : 's'}
                 </Badge>
               </div>
               <p className="mt-3 text-2xl font-semibold text-text">
-                {priceInsights.length + merchantHighlights.length}
+                {saveNowLines.length}
+              </p>
+              <p className="mt-1 text-sm text-text-muted">
+                Levers to pull now, drawn from{' '}
+                {priceInsights.length + merchantHighlights.length} price and
+                merchant signals.
               </p>
               <div className="mt-3 space-y-2">
                 {saveNowLines.length === 0 ? (
@@ -715,7 +805,24 @@ export function MoneyOverviewPanel({
                   ))
                 )}
               </div>
+              <div className="mt-3 border-t border-border/30 pt-3 text-xs">
+                <Link
+                  href="/money?tab=levers"
+                  className="text-text-muted transition-colors hover:text-text"
+                >
+                  Open Levers
+                </Link>
+              </div>
             </div>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border/30 pt-3 text-[11px] text-text-muted">
+            <span className="font-semibold uppercase tracking-[0.16em]">
+              Badge key
+            </span>
+            <span>Estimate — data degraded, refresh before relying</span>
+            <span>Partial plan — covers only part of the month</span>
+            <span>Wants / Needs leading — which side outspends</span>
+            <span>Review — needs your input before a verdict</span>
           </div>
         </SectionCard>
       ) : null}

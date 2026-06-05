@@ -236,6 +236,8 @@ export interface HouseholdBudgetSnapshot {
   monthToDatePlan: number | null
   paceStatus: string
   paceDetail: string
+  planIsPartial: boolean
+  missingPlanComponents: string[]
   remainingCashAfterPlan: number | null
   discretionaryHeadroom: number | null
 }
@@ -637,6 +639,7 @@ export interface HouseholdInboxItem {
   relatedAccountId: string | null
   relatedQuestionId: string | null
   relatedDocumentIds: string[]
+  affects: string[]
 }
 
 export interface HouseholdDocument {

@@ -98,6 +98,8 @@ const dashboard = {
     monthToDatePlan: 2600,
     paceStatus: 'running_hot',
     paceDetail: 'Month-to-date spend is ahead of plan by $500.',
+    planIsPartial: false,
+    missingPlanComponents: [],
     remainingCashAfterPlan: 1000,
     discretionaryHeadroom: -400,
   },
@@ -403,6 +405,7 @@ describe('MoneyOverviewPanel', () => {
               relatedAccountId: 'account-1',
               relatedQuestionId: null,
               relatedDocumentIds: ['doc-1'],
+              affects: [],
             },
           ],
         }}
@@ -451,6 +454,7 @@ describe('MoneyOverviewPanel', () => {
               relatedAccountId: 'cma',
               relatedQuestionId: null,
               relatedDocumentIds: ['doc-1'],
+              affects: ['monthly_spend', 'budget_status', 'safe_to_spend'],
             },
           ],
         }}

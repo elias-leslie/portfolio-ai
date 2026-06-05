@@ -112,6 +112,8 @@ const dashboard = {
     monthToDatePlan: 3200,
     paceStatus: 'on_track',
     paceDetail: 'On track.',
+    planIsPartial: false,
+    missingPlanComponents: [],
     remainingCashAfterPlan: 1500,
     discretionaryHeadroom: 0,
   },

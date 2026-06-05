@@ -69,3 +69,61 @@ def test_build_budget_snapshot_exposes_profile_plan_source() -> None:
     assert snapshot.monthly_plan_total == 6500
     assert snapshot.monthly_plan_source == "household_profile_targets"
     assert snapshot.monthly_plan_source_label == "Household profile targets"
+
+
+def _reports_for_pace() -> HouseholdReports:
+    return HouseholdReports(
+        executive=HouseholdExecutiveReport(
+            headline="Visible",
+            summary="Visible",
+            average_monthly_spend=6100,
+            average_monthly_essentials=4500,
+            average_monthly_discretionary=1300,
+            recent_30_day_spend=6000,
+            recurring_merchant_count=0,
+            tracked_expense_count=10,
+            coverage_months=3,
+        )
+    )
+
+
+def _profile_for_pace(
+    *, essential: float | None, discretionary: float | None, savings: float | None
+) -> HouseholdProfile:
+    return HouseholdProfile(
+        id="profile-1",
+        household_name="Household",
+        monthly_net_income_target=9000,
+        monthly_essential_target=essential,
+        monthly_discretionary_target=discretionary,
+        monthly_savings_target=savings,
+        target_retirement_age=None,
+        target_retirement_spend=None,
+        notes=None,
+        created_at="2026-04-24T00:00:00Z",
+        updated_at="2026-04-24T00:00:00Z",
+    )
+
+
+def test_partial_plan_does_not_read_as_running_hot() -> None:
+    # Only essentials is set: total month-to-date spend (well above the prorated
+    # essentials-only plan) must NOT be paced as "running hot".
+    snapshot = build_budget_snapshot(
+        profile=_profile_for_pace(essential=5000, discretionary=None, savings=None),
+        reports=_reports_for_pace(),
+        month_to_date_spend=99999,
+    )
+    assert snapshot.plan_is_partial is True
+    assert snapshot.missing_plan_components == ["discretionary", "savings"]
+    assert snapshot.pace_status == "partial_plan"
+
+
+def test_full_plan_still_paces_against_total() -> None:
+    snapshot = build_budget_snapshot(
+        profile=_profile_for_pace(essential=5000, discretionary=1500, savings=1500),
+        reports=_reports_for_pace(),
+        month_to_date_spend=200,
+    )
+    assert snapshot.plan_is_partial is False
+    assert snapshot.missing_plan_components == []
+    assert snapshot.pace_status != "partial_plan"

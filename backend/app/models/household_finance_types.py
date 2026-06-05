@@ -347,6 +347,10 @@ class HouseholdBudgetSnapshot(BaseModel):
     month_to_date_plan: float | None = None
     pace_status: str = "unknown"
     pace_detail: str
+    # True when a plan exists but not every component (essential/discretionary/savings)
+    # is set, so total spend cannot be paced like-for-like against the partial plan.
+    plan_is_partial: bool = False
+    missing_plan_components: list[str] = Field(default_factory=list)
     remaining_cash_after_plan: float | None = None
     discretionary_headroom: float | None = None
 
@@ -553,6 +557,10 @@ class HouseholdInboxItem(BaseModel):
     related_account_id: str | None = None
     related_question_id: str | None = None
     related_document_ids: list[str] = Field(default_factory=list)
+    # Canonical metrics this item degrades (e.g. "safe_to_spend", "budget_status",
+    # "monthly_spend", "net_worth") so surfaces can filter by what an item blocks
+    # instead of substring-matching the human detail text.
+    affects: list[str] = Field(default_factory=list)
 
 
 class HouseholdDiscoveredAccount(BaseModel):

@@ -12,6 +12,7 @@ from app.models.household_finance import (
 from app.services._household_account_summary_gaps import (
     _PRIORITY_ORDER,
     _SEVERITY_PRIORITY,
+    _account_blocked_metrics,
     _account_request_detail,
     _top_gap,
 )
@@ -102,6 +103,7 @@ def _cashflow_coverage_items(
             detail=f"{gap_months[0]}. Upload the missing statement or export month so month-over-month and budget pacing stop drifting.",
             action_label="Review accounts",
             action_href=MONEY_ACCOUNTS_ROUTE,
+            affects=["safe_to_spend", "budget_status", "monthly_spend"],
         ))
     return items
 
@@ -197,6 +199,10 @@ def _account_item_for_gap(
 ) -> HouseholdInboxItem:
     title, action_label, action_href = _account_gap_action(account, top_gap_code)
     detail = _account_request_detail(account, top_gap_code) or top_gap_detail
+    affects = [
+        block.replace(" ", "_")
+        for block in _account_blocked_metrics(account, top_gap_code)
+    ]
     return HouseholdInboxItem(
         id=f"account-{account.id}-{top_gap_code}",
         category="account",
@@ -207,6 +213,7 @@ def _account_item_for_gap(
         action_href=action_href,
         related_account_id=account.id,
         related_document_ids=account.document_ids,
+        affects=affects,
     )
 
 

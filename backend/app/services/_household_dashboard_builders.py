@@ -244,6 +244,7 @@ def _budget_status(profile: HouseholdProfile, reports: HouseholdReports) -> tupl
 def _budget_analysis(
     *,
     has_plan: bool,
+    plan_is_partial: bool,
     monthly_plan_total: float,
     month_to_date_spend: float,
     profile: HouseholdProfile,
@@ -260,8 +261,18 @@ def _budget_analysis(
     today = datetime.now(UTC).date()
     days_in_month = calendar.monthrange(today.year, today.month)[1]
     month_to_date_plan = round(monthly_plan_total * (today.day / days_in_month), 2)
-    pace_status, pace_detail = _budget_pace(month_to_date_spend, month_to_date_plan)
     status, summary = _budget_status(profile, reports)
+    if plan_is_partial:
+        # Total spend cannot be paced against a partial plan without reading as
+        # structurally "hot"; surface the partial-plan state instead of a verdict.
+        return (
+            month_to_date_plan,
+            "partial_plan",
+            "The current plan only covers part of the month, so total spend is not paced against it yet. Set the remaining targets for a real pace.",
+            status,
+            summary,
+        )
+    pace_status, pace_detail = _budget_pace(month_to_date_spend, month_to_date_plan)
     return month_to_date_plan, pace_status, pace_detail, status, summary
 
 
@@ -271,13 +282,16 @@ def build_budget_snapshot(
     reports: HouseholdReports,
     month_to_date_spend: float,
 ) -> HouseholdBudgetSnapshot:
-    plan_values = (
-        profile.monthly_essential_target,
-        profile.monthly_discretionary_target,
-        profile.monthly_savings_target,
+    plan_components = (
+        ("essentials", profile.monthly_essential_target),
+        ("discretionary", profile.monthly_discretionary_target),
+        ("savings", profile.monthly_savings_target),
     )
+    plan_values = tuple(value for _, value in plan_components)
     monthly_plan_total = sum(v for v in plan_values if v is not None)
     has_plan = any(v is not None for v in plan_values)
+    missing_plan_components = [name for name, value in plan_components if value is None]
+    plan_is_partial = has_plan and bool(missing_plan_components)
     remaining_cash_after_plan = (
         profile.monthly_net_income_target - monthly_plan_total
         if profile.monthly_net_income_target is not None and has_plan
@@ -290,6 +304,7 @@ def build_budget_snapshot(
     )
     month_to_date_plan, pace_status, pace_detail, status, summary = _budget_analysis(
         has_plan=has_plan,
+        plan_is_partial=plan_is_partial,
         monthly_plan_total=monthly_plan_total,
         month_to_date_spend=month_to_date_spend,
         profile=profile,
@@ -314,6 +329,8 @@ def build_budget_snapshot(
         month_to_date_plan=month_to_date_plan,
         pace_status=pace_status,
         pace_detail=pace_detail,
+        plan_is_partial=plan_is_partial,
+        missing_plan_components=missing_plan_components,
         remaining_cash_after_plan=remaining_cash_after_plan,
         discretionary_headroom=discretionary_headroom,
     )
