@@ -814,7 +814,7 @@ def _watch_items() -> list[str]:
         "S&P 500 down more than 2% or broad sector selling would lift current tape stress.",
         "VIX above 30 would move volatility from calm to stressed.",
         "HY OAS above 5 or widening 100 bps would make credit a real warning.",
-        "Risk budget below 40 would turn the brief defensive.",
+        "Buying conditions below 40 would turn the brief defensive.",
         "Breadth breaking materially lower would weaken rally quality.",
     ]
 

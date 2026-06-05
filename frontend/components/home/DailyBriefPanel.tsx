@@ -601,9 +601,9 @@ function MarketConditionHero({
       <div className="mt-4 grid grid-cols-2 gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-current/75">
         <div
           className="rounded-xl border border-current/20 bg-bg/15 px-3 py-2"
-          title="Macro-only risk budget before the current tape overlay. 60 means about 60% of normal new-risk deployment."
+          title="How favorable the macro backdrop is for new buys. 80+ means normal adding, the 60s mean selective adding, and below 40 means defensive."
         >
-          <p>Risk Budget</p>
+          <p>Buying Conditions</p>
           <p className="mt-1 text-sm font-semibold tracking-normal text-current">
             {formatScore(deploymentScore)}
           </p>
