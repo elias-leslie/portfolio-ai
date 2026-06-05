@@ -355,6 +355,34 @@ class ReferenceRepository:
             )
             conn.commit()
 
+    def backfill_company_names_from_cache(self) -> int:
+        """Populate symbols.company_name from the freshest reference_cache payload.
+
+        Cache rows are heterogeneous (multiple sources/dates per symbol, some
+        payloads carry no name), so this picks the most recent entry per symbol
+        that actually has a longName/shortName. Idempotent: only writes when the
+        resolved name differs from what's stored. Returns rows updated.
+        """
+        with self.storage.connection() as conn:
+            result = conn.execute(
+                """
+                UPDATE symbols s
+                SET company_name = sub.nm
+                FROM (
+                    SELECT DISTINCT ON (symbol) symbol,
+                           COALESCE(payload->>'longName', payload->>'shortName') AS nm
+                    FROM reference_cache
+                    WHERE payload IS NOT NULL
+                      AND COALESCE(payload->>'longName', payload->>'shortName') IS NOT NULL
+                    ORDER BY symbol, as_of_date DESC
+                ) sub
+                WHERE sub.symbol = s.symbol
+                  AND s.company_name IS DISTINCT FROM sub.nm
+                """
+            )
+            conn.commit()
+            return result.rowcount if result.rowcount is not None else 0
+
     def upsert_dual_write_metrics(
         self,
         symbol: str,

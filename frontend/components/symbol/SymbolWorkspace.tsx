@@ -17,7 +17,8 @@ import {
   formatEnumLabel,
   formatPercent,
 } from '@/lib/formatters'
-import { useJennyDashboard } from '@/lib/hooks/usePortfolio'
+import { useMarketIntelligence } from '@/lib/hooks/useMarketIntelligence'
+import { useJennyDashboard, usePortfolio } from '@/lib/hooks/usePortfolio'
 import { usePreferences } from '@/lib/hooks/usePreferences'
 import {
   useRefreshSymbolIntelligence,
@@ -42,6 +43,24 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
   const { data: jennyDashboard, error: jennyError } = useJennyDashboard()
   const { data: preferences } = usePreferences()
   const userTimezone = preferences?.displayTimezone ?? 'America/New_York'
+
+  // Progressive hydration: fill the Position and Market Context cards from
+  // standalone hooks immediately, while the monolithic symbol-intelligence
+  // call (which feeds Decision + Quote) is still resolving.
+  const { data: portfolioData } = usePortfolio()
+  const { data: marketIntel } = useMarketIntelligence()
+  const earlyPosition =
+    portfolioData?.positions?.find(
+      (position) => position.symbol.toUpperCase() === uppercaseSymbol,
+    ) ?? null
+  const portfolioTotalValue = portfolioData?.totalValue ?? null
+  const earlyVixIndicator = marketIntel?.indicators
+    ? Object.values(marketIntel.indicators).find(
+        (indicator) =>
+          indicator.shortLabel?.toUpperCase().includes('VIX') ||
+          indicator.label?.toUpperCase().includes('VIX'),
+      )
+    : undefined
   const symbolNotifications = [...(jennyDashboard?.notifications ?? [])]
     .filter((notification) => notification.symbol === uppercaseSymbol)
     .sort(compareNotifications)
@@ -125,21 +144,9 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
     quote?.freshnessLabel ?? null,
   ].filter((part): part is string => Boolean(part))
 
-  if (isLoading) {
-    return (
-      <PageContainer className="space-y-6 py-8">
-        <PageHeader title={uppercaseSymbol} />
-        <div className="grid gap-4 lg:grid-cols-4">
-          {[...Array(4)].map((_, index) => (
-            <div
-              key={`symbol-skeleton-${index}`}
-              className="skeleton rounded-2xl h-32"
-            />
-          ))}
-        </div>
-      </PageContainer>
-    )
-  }
+  // Decision + Quote come only from the monolithic call; show per-card
+  // skeletons for just those while the standalone-hydrated cards fill.
+  const monolithPending = isLoading && !data
 
   if (error || data?.error) {
     return (
@@ -235,95 +242,184 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
 
       <div className="grid gap-4 lg:grid-cols-4 animate-stagger">
         <SectionCard variant="surface" title="Current Decision">
-          <p className="font-display italic text-2xl text-text">
-            {currentDecision?.headline ?? '—'}
-          </p>
-          <p className="mt-2 text-sm text-text-muted">
-            {currentDecision?.sourceLabel ?? 'Decision source unavailable'}
-            {currentDecision?.sourceTimestamp ? (
-              <>
-                {' · '}
-                <RelativeTime value={currentDecision.sourceTimestamp} />
-              </>
-            ) : null}
-          </p>
-          {entrySignalSummary ? (
-            <p className="mt-3 text-sm text-text">{entrySignalSummary}</p>
+          {monolithPending ? (
+            <div className="skeleton h-24 rounded-lg" />
           ) : (
-            <p className="mt-3 text-sm text-text">
-              Live signal {formatEnumLabel(data?.signal?.type, 'Unavailable')} ·
-              Strength {data?.signal?.strength ?? '—'}/10
-            </p>
+            <>
+              <p className="font-display italic text-2xl text-text">
+                {currentDecision?.headline ?? '—'}
+              </p>
+              <p className="mt-2 text-sm text-text-muted">
+                {currentDecision?.sourceLabel ?? 'Decision source unavailable'}
+                {currentDecision?.sourceTimestamp ? (
+                  <>
+                    {' · '}
+                    <RelativeTime value={currentDecision.sourceTimestamp} />
+                  </>
+                ) : null}
+              </p>
+              {entrySignalSummary ? (
+                <p
+                  className="mt-3 text-sm text-text"
+                  title="Plain-English: suggested action, scanner score (0–100), signal type, and model conviction (Strength, 1–10)."
+                >
+                  {entrySignalSummary}
+                </p>
+              ) : (
+                <p
+                  className="mt-3 text-sm text-text"
+                  title="Strength is the model's conviction, from 1 (weak) to 10 (strong)."
+                >
+                  Live signal{' '}
+                  {formatEnumLabel(data?.signal?.type, 'Unavailable')} ·
+                  Strength {data?.signal?.strength ?? '—'}/10
+                </p>
+              )}
+              {currentDecision?.severity ? (
+                <p className="mt-2 text-xs uppercase tracking-[0.18em] text-text-muted">
+                  {formatEnumLabel(currentDecision.severity, 'Info')}
+                </p>
+              ) : null}
+            </>
           )}
-          {currentDecision?.severity ? (
-            <p className="mt-2 text-xs uppercase tracking-[0.18em] text-text-muted">
-              {formatEnumLabel(currentDecision.severity, 'Info')}
-            </p>
-          ) : null}
         </SectionCard>
         <SectionCard variant="surface" title="Current Quote">
-          <p className="font-display italic text-2xl tabular-nums text-text">
-            {formatCurrency(quote?.price)}
-          </p>
-          <p className="mt-2 text-sm text-text-muted">
-            {quoteDetailParts.length > 0
-              ? quoteDetailParts.join(' · ')
-              : 'Canonical quote unavailable'}
-          </p>
-          {quote?.cachedAt ? (
-            <p className="mt-2 text-xs uppercase tracking-[0.16em] text-text-muted">
-              As of <RelativeTime value={quote.cachedAt} />
-            </p>
-          ) : null}
-          {quote?.error ? (
-            <p className="mt-2 text-xs text-warning">{quote.error}</p>
-          ) : null}
+          {monolithPending ? (
+            <div className="skeleton h-24 rounded-lg" />
+          ) : (
+            <>
+              <p className="font-display italic text-2xl tabular-nums text-text">
+                {formatCurrency(quote?.price)}
+              </p>
+              <p className="mt-2 text-sm text-text-muted">
+                {quoteDetailParts.length > 0
+                  ? quoteDetailParts.join(' · ')
+                  : 'Canonical quote unavailable'}
+              </p>
+              {quote?.cachedAt ? (
+                <p className="mt-2 text-xs uppercase tracking-[0.16em] text-text-muted">
+                  As of <RelativeTime value={quote.cachedAt} />
+                </p>
+              ) : null}
+              {quote?.error ? (
+                <p className="mt-2 text-xs text-warning">{quote.error}</p>
+              ) : null}
+            </>
+          )}
         </SectionCard>
         <SectionCard variant="surface" title="Your Position">
-          <p className="font-display italic text-2xl tabular-nums text-text">
-            {data?.portfolio?.held
-              ? formatCurrency(heldPosition?.currentValue)
-              : 'Not held'}
-          </p>
-          <p className="mt-2 text-sm text-text-muted">{positionSummary}</p>
-          {portfolioContextParts.length > 0 ? (
-            <p className="mt-2 text-sm text-text-muted">
-              {portfolioContextParts.join(' · ')}
-            </p>
-          ) : null}
+          {data?.portfolio ? (
+            <>
+              <p className="font-display italic text-2xl tabular-nums text-text">
+                {data.portfolio.held
+                  ? formatCurrency(heldPosition?.currentValue)
+                  : 'Not held'}
+              </p>
+              <p className="mt-2 text-sm text-text-muted">{positionSummary}</p>
+              {portfolioContextParts.length > 0 ? (
+                <p className="mt-2 text-sm text-text-muted">
+                  {portfolioContextParts.join(' · ')}
+                </p>
+              ) : null}
+            </>
+          ) : earlyPosition ? (
+            <>
+              <p className="font-display italic text-2xl tabular-nums text-text">
+                {formatCurrency(earlyPosition.currentValue)}
+              </p>
+              <p className="mt-2 text-sm text-text-muted">
+                {[
+                  formatShareCount(earlyPosition.shares),
+                  earlyPosition.gainPct != null
+                    ? formatPercent(earlyPosition.gainPct, { sign: true })
+                    : null,
+                  portfolioTotalValue
+                    ? formatPortfolioWeight(
+                        (earlyPosition.currentValue / portfolioTotalValue) *
+                          100,
+                      )
+                    : null,
+                ]
+                  .filter((part): part is string => Boolean(part))
+                  .join(' · ') || 'Live position details unavailable.'}
+              </p>
+            </>
+          ) : monolithPending ? (
+            <div className="skeleton h-24 rounded-lg" />
+          ) : (
+            <>
+              <p className="font-display italic text-2xl tabular-nums text-text">
+                Not held
+              </p>
+              <p className="mt-2 text-sm text-text-muted">{positionSummary}</p>
+            </>
+          )}
         </SectionCard>
         <SectionCard variant="surface" title="Market Context">
-          <p className="font-display italic text-2xl tabular-nums text-text">
-            {data?.market?.fearGreedLabel ?? '—'}
-          </p>
-          <p className="mt-2 text-sm text-text-muted">
-            Daily Fear & Greed {data?.market?.fearGreedScore ?? '—'}/100 · VIX{' '}
-            {data?.market?.vix?.toFixed(1) ?? '—'}
-          </p>
-          {data?.market?.sector ? (
-            <p className="mt-2 text-sm text-text-muted">
-              {data.market.sector.name ?? 'Sector unavailable'} ·{' '}
-              {data.market.sector.signal ?? 'No sector signal'} ·{' '}
-              {formatPercent(data.market.sector.relativeToSpy, { sign: true })}{' '}
-              vs SPY over latest close
+          {data?.market ? (
+            <>
+              <p className="font-display italic text-2xl tabular-nums text-text">
+                {data.market.fearGreedLabel ?? '—'}
+              </p>
+              <p
+                className="mt-2 text-sm text-text-muted"
+                title="Fear & Greed runs 0 (extreme fear) to 100 (extreme greed). VIX is expected market volatility — higher means more fear."
+              >
+                Daily Fear & Greed {data.market.fearGreedScore ?? '—'}/100 · VIX{' '}
+                {data.market.vix?.toFixed(1) ?? '—'}
+              </p>
+              {data.market.sector ? (
+                <p className="mt-2 text-sm text-text-muted">
+                  {data.market.sector.name ?? 'Sector unavailable'} ·{' '}
+                  {data.market.sector.signal ?? 'No sector signal'} ·{' '}
+                  {formatPercent(data.market.sector.relativeToSpy, {
+                    sign: true,
+                  })}{' '}
+                  vs SPY over latest close
+                </p>
+              ) : data.market.sp500Change != null ? (
+                <p className="mt-2 text-sm text-text-muted">
+                  S&P 500 latest close · 1D{' '}
+                  {formatPercent(data.market.sp500Change, { sign: true })}
+                </p>
+              ) : null}
+              <p className="mt-2 text-xs uppercase tracking-[0.16em] text-text-muted">
+                {marketAsOfDate ? (
+                  `Latest daily close through ${formatDate(marketAsOfDate)}`
+                ) : data?.generatedAt ? (
+                  <>
+                    As of <RelativeTime value={data.generatedAt} />
+                  </>
+                ) : (
+                  'As-of time unavailable'
+                )}
+              </p>
+            </>
+          ) : marketIntel?.fearGreed ? (
+            <>
+              <p className="font-display italic text-2xl tabular-nums text-text">
+                {marketIntel.fearGreed.label ?? '—'}
+              </p>
+              <p
+                className="mt-2 text-sm text-text-muted"
+                title="Fear & Greed runs 0 (extreme fear) to 100 (extreme greed). VIX is expected market volatility — higher means more fear."
+              >
+                Fear & Greed {marketIntel.fearGreed.score ?? '—'}/100
+                {earlyVixIndicator?.value != null
+                  ? ` · VIX ${earlyVixIndicator.value.toFixed(1)}`
+                  : ''}
+              </p>
+              <p className="mt-2 text-xs uppercase tracking-[0.16em] text-text-muted">
+                Live market snapshot
+              </p>
+            </>
+          ) : monolithPending ? (
+            <div className="skeleton h-24 rounded-lg" />
+          ) : (
+            <p className="text-sm text-text-muted">
+              Market context unavailable
             </p>
-          ) : data?.market?.sp500Change != null ? (
-            <p className="mt-2 text-sm text-text-muted">
-              S&P 500 latest close · 1D{' '}
-              {formatPercent(data.market.sp500Change, { sign: true })}
-            </p>
-          ) : null}
-          <p className="mt-2 text-xs uppercase tracking-[0.16em] text-text-muted">
-            {marketAsOfDate ? (
-              `Latest daily close through ${formatDate(marketAsOfDate)}`
-            ) : data?.generatedAt ? (
-              <>
-                As of <RelativeTime value={data.generatedAt} />
-              </>
-            ) : (
-              'As-of time unavailable'
-            )}
-          </p>
+          )}
         </SectionCard>
       </div>
 

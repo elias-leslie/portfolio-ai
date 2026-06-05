@@ -35,12 +35,14 @@ class _WatchlistCoreReadRepository:
                    ws.narrative_company_health, ws.narrative_special_notes,
                    ws.company_health, ws.earnings_date, ws.earnings_days_away,
                    ws.news_sentiment_score, ws.recent_news_headlines,
-                   ws.timeframe_short_aligned, ws.timeframe_long_aligned, ws.volume_relative
+                   ws.timeframe_short_aligned, ws.timeframe_long_aligned, ws.volume_relative,
+                   s.company_name
             FROM watchlist_items wi
             LEFT JOIN LATERAL (
                 SELECT * FROM watchlist_snapshots_v WHERE item_id = wi.id
                 ORDER BY fetched_at DESC LIMIT 1
             ) ws ON TRUE
+            LEFT JOIN symbols s ON s.symbol = wi.symbol
             WHERE wi.symbol NOT LIKE 'ZZTEST%%'
             ORDER BY wi.created_at DESC
             """

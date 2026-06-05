@@ -20,6 +20,10 @@ vi.mock('@/lib/hooks/useSymbolIntelligence', () => ({
 }))
 vi.mock('@/lib/hooks/usePortfolio', () => ({
   useJennyDashboard: vi.fn(),
+  usePortfolio: vi.fn(() => ({ data: undefined })),
+}))
+vi.mock('@/lib/hooks/useMarketIntelligence', () => ({
+  useMarketIntelligence: vi.fn(() => ({ data: undefined })),
 }))
 vi.mock('@/lib/hooks/usePreferences', () => ({
   usePreferences: () => ({ data: undefined, isLoading: false }),

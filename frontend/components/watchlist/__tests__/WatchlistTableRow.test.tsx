@@ -7,10 +7,18 @@ vi.mock('@/components/watchlist/ExpandedRow', () => ({
   ExpandedRow: () => <div>Expanded Row</div>,
 }))
 
+// PriceSparkline fetches score history via React Query; mock it so the row
+// renders without a QueryClientProvider (it has its own dedicated test).
+vi.mock('@/components/watchlist/PriceSparkline', () => ({
+  PriceSparkline: () => <div data-testid="price-sparkline" />,
+}))
+
 function buildItem() {
   return {
     id: 'item-1',
     symbol: 'MSFT',
+    companyName: 'Microsoft Corporation',
+    narrativeHeadline: 'Momentum and earnings support more upside',
     note: 'Quality software business',
     source: 'manual' as const,
     createdAt: '2026-03-11T12:00:00Z',
@@ -141,15 +149,24 @@ describe('WatchlistTableRow', () => {
     )
     expect(screen.getByText('$411.55')).toBeInTheDocument()
     expect(screen.queryByText('$410.12')).not.toBeInTheDocument()
-    expect(screen.getByText('Quote OK')).toBeInTheDocument()
-    expect(screen.getByText('Data 91%')).toBeInTheDocument()
-    expect(screen.getByText('P65')).toBeInTheDocument()
-    expect(screen.getByText('T69')).toBeInTheDocument()
+    // Amateur-first primary row content: company name, signal, rationale, score meter
+    expect(screen.getByText('Microsoft Corporation')).toBeInTheDocument()
+    expect(
+      screen.getByText('Momentum and earnings support more upside'),
+    ).toBeInTheDocument()
     expect(screen.getByText('BUY')).toBeInTheDocument()
     expect(screen.getByText('Medium')).toBeInTheDocument()
-    expect(screen.getByText('D +1.2%')).toBeInTheDocument()
-    expect(screen.getByText('W -0.6%')).toBeInTheDocument()
-    expect(screen.getByText('VWAP +0.5%')).toBeInTheDocument()
+    expect(screen.getByText('Score')).toBeInTheDocument()
+    expect(screen.getByText('67')).toBeInTheDocument()
+    expect(screen.getByLabelText('Data healthy')).toBeInTheDocument()
+    // Quant/meta detail is demoted out of the primary row into the expand
+    expect(screen.queryByText('P65')).not.toBeInTheDocument()
+    expect(screen.queryByText('T69')).not.toBeInTheDocument()
+    expect(screen.queryByText('Quote OK')).not.toBeInTheDocument()
+    expect(screen.queryByText('Data 91%')).not.toBeInTheDocument()
+    expect(screen.queryByText('D +1.2%')).not.toBeInTheDocument()
+    expect(screen.queryByText('W -0.6%')).not.toBeInTheDocument()
+    expect(screen.queryByText('VWAP +0.5%')).not.toBeInTheDocument()
     expect(screen.queryByText('Exit this position')).not.toBeInTheDocument()
     expect(
       screen.queryByText(/Jenny alert · Critical/i),
@@ -180,7 +197,7 @@ describe('WatchlistTableRow', () => {
       </table>,
     )
 
-    expect(screen.getByText('Quote issue')).toBeInTheDocument()
+    expect(screen.getByLabelText('Data needs attention')).toBeInTheDocument()
   })
 
   it('treats aging quotes as current enough for the scanner', () => {
@@ -214,7 +231,7 @@ describe('WatchlistTableRow', () => {
       </table>,
     )
 
-    expect(screen.getByText('Quote OK')).toBeInTheDocument()
+    expect(screen.getByLabelText('Data healthy')).toBeInTheDocument()
     expect(screen.queryByText('Aging quote')).not.toBeInTheDocument()
   })
 
@@ -250,7 +267,7 @@ describe('WatchlistTableRow', () => {
       </table>,
     )
 
-    expect(screen.getByText('Quote OK')).toBeInTheDocument()
+    expect(screen.getByLabelText('Data healthy')).toBeInTheDocument()
     expect(screen.queryByText('Stale quote')).not.toBeInTheDocument()
   })
 

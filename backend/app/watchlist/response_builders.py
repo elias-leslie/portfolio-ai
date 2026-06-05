@@ -164,6 +164,7 @@ class WatchlistItemResponse(BaseModel):
 
     id: str
     symbol: str
+    company_name: str | None = None
     note: str | None = None
     source: str = "manual"  # 'manual' or 'portfolio'
     created_at: str
@@ -283,6 +284,7 @@ class WatchlistItemResponse(BaseModel):
         return cls(
             id=item["id"],
             symbol=item["symbol"],
+            company_name=item.get("company_name"),
             note=item.get("note"),
             source=item.get("source", "manual"),
             created_at=item["created_at"],

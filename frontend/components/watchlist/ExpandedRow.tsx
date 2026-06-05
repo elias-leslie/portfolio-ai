@@ -13,6 +13,8 @@ import { usePreferences } from '@/lib/hooks/usePreferences'
 import { ExpandedRowRefreshStatus } from './ExpandedRowRefreshStatus'
 import { ExpandedRowScoreBreakdown } from './ExpandedRowScoreBreakdown'
 import {
+  DataHealthBadge,
+  FreshnessBadge,
   PriceTrendStrip,
   type TodayGate,
   TodayGateBadge,
@@ -28,9 +30,11 @@ interface ExpandedRowProps {
 function ScannerEvidencePanel({
   item,
   todayGate,
+  userTimezone,
 }: {
   item: WatchlistItem
   todayGate?: TodayGate
+  userTimezone: string
 }) {
   return (
     <div className="rounded-xl border border-border/50 bg-surface/80 p-4 surface-highlight">
@@ -47,7 +51,19 @@ function ScannerEvidencePanel({
         <TodayGateBadge gate={todayGate} />
       </div>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-lg border border-border/35 bg-surface-muted/20 p-3">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+            Data status
+          </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <FreshnessBadge item={item} userTimezone={userTimezone} />
+            <DataHealthBadge item={item} vwapSignal={item.vwapSignal} />
+          </div>
+          <p className="mt-2 text-xs leading-5 text-text-muted">
+            Quote freshness and per-pillar data health for this scanner row.
+          </p>
+        </div>
         <div className="rounded-lg border border-border/35 bg-surface-muted/20 p-3">
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
             Price trend
@@ -103,7 +119,11 @@ export function ExpandedRow({
       ) : null}
 
       <ExpandedRowScoreBreakdown item={item} userTimezone={userTimezone} />
-      <ScannerEvidencePanel item={item} todayGate={todayGate} />
+      <ScannerEvidencePanel
+        item={item}
+        todayGate={todayGate}
+        userTimezone={userTimezone}
+      />
     </div>
   )
 }

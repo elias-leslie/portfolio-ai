@@ -159,6 +159,7 @@ export interface VwapSignal {
 export interface WatchlistItem {
   id: string
   symbol: string
+  companyName?: string | null
   note?: string
   source?: 'manual' | 'portfolio'
   createdAt: string
@@ -225,6 +226,7 @@ export interface ScoreHistory {
   overall: number
   priceScore: number
   technicalScore: number
+  price?: number | null
 }
 
 export interface ScoreHistoryResponse {

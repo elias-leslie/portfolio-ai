@@ -59,6 +59,17 @@ export function getScoreBadgeVariant(
 }
 
 /**
+ * Get score bar fill color class based on score value.
+ * Shared by the scanner score meter and the expanded pillar bars.
+ */
+export function getScoreBarColor(score: number): string {
+  if (score >= 70) return 'bg-gain'
+  if (score >= 50) return 'bg-primary'
+  if (score >= 30) return 'bg-warning'
+  return 'bg-loss'
+}
+
+/**
  * Format timestamp with user's timezone
  */
 export function formatTimestamp(
@@ -134,6 +145,8 @@ export function getSignalDisplay(signalType: 'BUY' | 'HOLD' | 'AVOID') {
         icon: '🟢',
         color:
           'bg-status-success/10 text-status-success border-status-success/20',
+        // Solid, high-contrast chip for the primary scanner row anchor.
+        solidColor: 'bg-status-success text-white border-status-success',
         label: 'BUY',
       }
     case 'HOLD':
@@ -141,12 +154,14 @@ export function getSignalDisplay(signalType: 'BUY' | 'HOLD' | 'AVOID') {
         icon: '🟡',
         color:
           'bg-status-warning/10 text-status-warning border-status-warning/20',
+        solidColor: 'bg-status-warning text-white border-status-warning',
         label: 'HOLD',
       }
     case 'AVOID':
       return {
         icon: '🔴',
         color: 'bg-status-error/10 text-status-error border-status-error/20',
+        solidColor: 'bg-status-error text-white border-status-error',
         label: 'AVOID',
       }
   }

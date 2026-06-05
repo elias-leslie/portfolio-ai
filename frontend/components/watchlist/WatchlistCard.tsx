@@ -17,15 +17,12 @@ import {
   getRiskLevelConfig,
   getSignalDisplay,
 } from '@/components/watchlist/ExpandedRowUtils'
+import { PriceSparkline } from '@/components/watchlist/PriceSparkline'
 import {
   buildTodayGate,
-  DataHealthBadge,
-  FreshnessBadge,
-  PriceTrendStrip,
-  SetupScoreFormula,
+  ScannerStatusDot,
+  SetupScoreMeter,
   type TodayGate,
-  TodayGateBadge,
-  VwapBadge,
 } from '@/components/watchlist/ScannerMetricBadges'
 import { getWatchlistPriceSnapshot } from '@/components/watchlist/watchlistTableUtils'
 import type { MacroConditionsResponse } from '@/lib/api/macro'
@@ -78,7 +75,7 @@ export function WatchlistCard({
       )}
     >
       <div className="mb-3 flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1.5">
+        <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <Link
               href={`/symbols/${item.symbol}?tab=decision`}
@@ -98,6 +95,7 @@ export function WatchlistCard({
                 <span>Held</span>
               </Badge>
             ) : null}
+            <ScannerStatusDot item={item} userTimezone={userTimezone} />
             {isRefreshing ? (
               <Loader2
                 className="h-4 w-4 animate-spin text-accent"
@@ -111,10 +109,14 @@ export function WatchlistCard({
               />
             ) : null}
           </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <FreshnessBadge item={item} userTimezone={userTimezone} />
-            <DataHealthBadge item={item} vwapSignal={item.vwapSignal} />
-          </div>
+          {item.companyName ? (
+            <p
+              className="truncate text-xs text-text-muted"
+              title={item.companyName}
+            >
+              {item.companyName}
+            </p>
+          ) : null}
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
@@ -162,26 +164,67 @@ export function WatchlistCard({
         </p>
       ) : null}
 
-      <div className="mb-3 grid gap-3 sm:grid-cols-2">
+      {/* Signal — the loudest, highest-contrast element */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {signalDisplay ? (
+          <span
+            className={cn(
+              'inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-bold uppercase tracking-[0.12em] shadow-sm',
+              signalDisplay.solidColor,
+            )}
+          >
+            <span aria-hidden>{signalDisplay.icon}</span>
+            {signalDisplay.label}
+          </span>
+        ) : (
+          <span className="text-sm text-text-muted">No signal yet</span>
+        )}
+        {riskConfig ? (
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 rounded-md border border-border/35 bg-surface-muted/25 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.1em]',
+              riskConfig.color,
+            )}
+          >
+            {riskConfig.icon ? (
+              <span aria-hidden>{riskConfig.icon}</span>
+            ) : null}
+            {riskConfig.label}
+          </span>
+        ) : null}
+      </div>
+
+      {item.narrativeHeadline ? (
+        <p className="mb-3 text-sm leading-5 text-text/80">
+          {item.narrativeHeadline}
+        </p>
+      ) : null}
+
+      <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-3 py-2.5">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
             Price
           </p>
           {priceSnapshot ? (
-            <div className="mt-1 flex items-baseline justify-between gap-3">
-              <p className="text-base font-semibold text-text">
-                {priceSnapshot.priceLabel}
-              </p>
-              {priceSnapshot.changeLabel ? (
-                <p
-                  className={cn(
-                    'text-sm font-medium',
-                    priceSnapshot.isPositiveChange ? 'text-gain' : 'text-loss',
-                  )}
-                >
-                  {priceSnapshot.changeLabel}
+            <div className="mt-1 space-y-1.5">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="text-base font-semibold text-text">
+                  {priceSnapshot.priceLabel}
                 </p>
-              ) : null}
+                {priceSnapshot.changeLabel ? (
+                  <p
+                    className={cn(
+                      'text-sm font-medium',
+                      priceSnapshot.isPositiveChange
+                        ? 'text-gain'
+                        : 'text-loss',
+                    )}
+                  >
+                    {priceSnapshot.changeLabel}
+                  </p>
+                ) : null}
+              </div>
+              <PriceSparkline itemId={item.id} width={120} height={24} />
             </div>
           ) : (
             <p className="mt-1 text-sm text-text-muted">—</p>
@@ -190,71 +233,29 @@ export function WatchlistCard({
 
         <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-3 py-2.5">
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
-            Setup
-          </p>
-          {hasScore ? <SetupScoreFormula item={item} /> : <span>—</span>}
-        </div>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-3 py-2.5">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
-            Signal / Risk
-          </p>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {signalDisplay ? (
-              <span
-                className={cn(
-                  'rounded-md border px-1.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]',
-                  signalDisplay.color,
-                )}
-              >
-                {signalDisplay.label}
-              </span>
-            ) : null}
-            {riskConfig ? (
-              <span
-                className={cn(
-                  'rounded-md border border-border/35 bg-surface-muted/25 px-1.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]',
-                  riskConfig.color,
-                )}
-              >
-                {riskConfig.label}
-              </span>
-            ) : null}
-            <TodayGateBadge gate={todayGate} />
-            {highlightedIndicators.map((indicator) => (
-              <span
-                key={`${indicator.category}-${indicator.label}`}
-                className="rounded-md border border-border/35 bg-surface-muted/25 px-1.5 py-1 text-[10px] font-semibold text-text-muted"
-                title={indicator.tooltip}
-              >
-                {indicator.label}
-              </span>
-            ))}
-            {!signalDisplay &&
-            !riskConfig &&
-            !todayGate &&
-            highlightedIndicators.length === 0 ? (
-              <span className="text-sm text-text-muted">—</span>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-border/40 bg-surface-muted/20 px-3 py-2.5">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
-            Trend / VWAP
+            Score
           </p>
           {hasScore ? (
-            <div className="space-y-2">
-              <PriceTrendStrip trends={item.priceTrends} compact />
-              <VwapBadge signal={item.vwapSignal} />
-            </div>
+            <SetupScoreMeter item={item} showLabel={false} />
           ) : (
-            <span className="text-sm text-text-muted">—</span>
+            <span>—</span>
           )}
         </div>
       </div>
+
+      {highlightedIndicators.length > 0 ? (
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          {highlightedIndicators.map((indicator) => (
+            <span
+              key={`${indicator.category}-${indicator.label}`}
+              className="rounded-md border border-border/35 bg-surface-muted/25 px-1.5 py-1 text-[10px] font-semibold text-text-muted"
+              title={indicator.tooltip}
+            >
+              {indicator.label}
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       {isExpanded ? (
         <div className="mt-4 border-t border-border pt-4">

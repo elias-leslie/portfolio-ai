@@ -15,7 +15,12 @@ import {
 } from '@/components/ui/tooltip'
 import type { ScoreComponent, WatchlistItem } from '@/lib/api/watchlist'
 import { cn } from '@/lib/utils'
-import { formatTimestamp, getScoreBadgeVariant } from './ExpandedRowUtils'
+import {
+  formatTimestamp,
+  getScoreBadgeVariant,
+  getScoreBarColor,
+} from './ExpandedRowUtils'
+import { SparklineWithHistory } from './SparklineWithHistory'
 
 interface ExpandedRowScoreBreakdownProps {
   item: WatchlistItem
@@ -95,14 +100,6 @@ function formatValue(value: unknown): string {
     return value ? 'Yes' : 'No'
   }
   return String(value ?? '—')
-}
-
-// Get score bar color class based on score value
-function getScoreBarColor(score: number): string {
-  if (score >= 70) return 'bg-gain'
-  if (score >= 50) return 'bg-primary'
-  if (score >= 30) return 'bg-warning'
-  return 'bg-loss'
 }
 
 interface PillarCardProps {
@@ -288,11 +285,22 @@ export function ExpandedRowScoreBreakdown({
   return (
     <TooltipProvider delayDuration={200}>
       <div className="border border-border/50 rounded-xl bg-surface/80 surface-highlight">
-        <div className="px-3 py-2 border-b border-border/40 flex items-center justify-between">
+        <div className="px-3 py-2 border-b border-border/40 flex items-center justify-between gap-3">
           <h3 className="text-sm font-medium">Score Breakdown</h3>
-          <Badge variant={getScoreBadgeVariant(score.overall)}>
-            Overall: {score.overall.toFixed(0)}
-          </Badge>
+          <div className="flex items-center gap-3">
+            <div
+              className="flex items-center gap-1.5"
+              title="Overall score trend, last 7 days"
+            >
+              <span className="text-[10px] uppercase tracking-[0.12em] text-text-muted">
+                7d
+              </span>
+              <SparklineWithHistory itemId={item.id} width={80} height={24} />
+            </div>
+            <Badge variant={getScoreBadgeVariant(score.overall)}>
+              Overall: {score.overall.toFixed(0)}
+            </Badge>
+          </div>
         </div>
         <Accordion type="multiple" className="divide-y divide-border">
           {pillars.map(({ key, data }) => (

@@ -53,8 +53,8 @@ export function WatchlistFilterBar({
         value={signalFilter}
         onValueChange={(value) => onSignalChange(value as SignalFilter)}
       >
-        <SelectTrigger className="w-[180px]" aria-label="Filter by setup">
-          <SelectValue placeholder="Setup: All" />
+        <SelectTrigger className="w-[180px]" aria-label="Filter by signal">
+          <SelectValue placeholder="Signal: All" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">

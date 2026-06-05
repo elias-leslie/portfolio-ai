@@ -12,10 +12,18 @@ vi.mock('@/components/watchlist/ExpandedRow', () => ({
   },
 }))
 
+// PriceSparkline fetches score history via React Query; mock it so the card
+// renders without a QueryClientProvider (it has its own dedicated test).
+vi.mock('@/components/watchlist/PriceSparkline', () => ({
+  PriceSparkline: () => <div data-testid="price-sparkline" />,
+}))
+
 function buildItem() {
   return {
     id: 'item-1',
     symbol: 'MSFT',
+    companyName: 'Microsoft Corporation',
+    narrativeHeadline: 'Momentum and earnings support more upside',
     note: 'Quality software business',
     source: 'manual' as const,
     createdAt: '2026-03-11T12:00:00Z',
@@ -156,21 +164,28 @@ describe('WatchlistCard', () => {
       '/symbols/MSFT?tab=decision',
     )
     expect(screen.getByText('Held')).toBeInTheDocument()
-    expect(screen.getByText('Quote OK')).toBeInTheDocument()
-    expect(screen.getByText('Data 91%')).toBeInTheDocument()
+    expect(screen.getByText('Microsoft Corporation')).toBeInTheDocument()
+    expect(
+      screen.getByText('Momentum and earnings support more upside'),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Data healthy')).toBeInTheDocument()
     expect(screen.getByText(/Refreshing 2\/5/i)).toBeInTheDocument()
     expect(screen.getByText('$411.55')).toBeInTheDocument()
     expect(screen.queryByText('Fresh quote')).not.toBeInTheDocument()
     expect(screen.queryByText('$410.12')).not.toBeInTheDocument()
     expect(screen.queryByText('+1.25%')).not.toBeInTheDocument()
-    expect(screen.getByText('P65')).toBeInTheDocument()
-    expect(screen.getByText('T69')).toBeInTheDocument()
+    expect(screen.getByText('67')).toBeInTheDocument()
     expect(screen.getByText('BUY')).toBeInTheDocument()
     expect(screen.getByText('Medium')).toBeInTheDocument()
     expect(screen.getByText('Earnings soon')).toBeInTheDocument()
-    expect(screen.getByText('D +1.2%')).toBeInTheDocument()
-    expect(screen.getByText('W -0.6%')).toBeInTheDocument()
-    expect(screen.getByText('VWAP +0.5%')).toBeInTheDocument()
+    // Quant/meta detail demoted out of the primary card into the expand
+    expect(screen.queryByText('P65')).not.toBeInTheDocument()
+    expect(screen.queryByText('T69')).not.toBeInTheDocument()
+    expect(screen.queryByText('Quote OK')).not.toBeInTheDocument()
+    expect(screen.queryByText('Data 91%')).not.toBeInTheDocument()
+    expect(screen.queryByText('D +1.2%')).not.toBeInTheDocument()
+    expect(screen.queryByText('W -0.6%')).not.toBeInTheDocument()
+    expect(screen.queryByText('VWAP +0.5%')).not.toBeInTheDocument()
     expect(screen.queryByText('Decision')).not.toBeInTheDocument()
     expect(screen.queryByText('Exit this position')).not.toBeInTheDocument()
     expect(screen.queryByText('History item-1')).not.toBeInTheDocument()
@@ -231,7 +246,7 @@ describe('WatchlistCard', () => {
       />,
     )
 
-    expect(screen.getByText('Data partial')).toBeInTheDocument()
+    expect(screen.getByLabelText('Data partial or aging')).toBeInTheDocument()
 
     rerender(
       <WatchlistCard
@@ -249,7 +264,7 @@ describe('WatchlistCard', () => {
       />,
     )
 
-    expect(screen.getByText('Data 0%')).toBeInTheDocument()
+    expect(screen.getByLabelText('Data needs attention')).toBeInTheDocument()
   })
 
   it('handles isDeleting true state', () => {

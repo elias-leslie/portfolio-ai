@@ -135,12 +135,14 @@ export function WatchlistTable({ items, refreshStatus }: WatchlistTableProps) {
             <TableRow>
               <TableHead className="w-[40px]" />
               <TableHead>{renderSortableHeader('symbol', 'Symbol')}</TableHead>
-              <TableHead>{renderSortableHeader('price', 'Price')}</TableHead>
-              <TableHead>{renderSortableHeader('overall', 'Setup')}</TableHead>
               <TableHead>
-                <span className="font-medium">Signal / Risk</span>
+                <span className="font-medium">Signal</span>
               </TableHead>
-              <TableHead>Trend / VWAP</TableHead>
+              <TableHead>{renderSortableHeader('price', 'Price')}</TableHead>
+              <TableHead>{renderSortableHeader('overall', 'Score')}</TableHead>
+              <TableHead>
+                <span className="font-medium">Risk</span>
+              </TableHead>
               <TableHead className="w-[60px]" />
             </TableRow>
           </TableHeader>

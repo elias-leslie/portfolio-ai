@@ -26,6 +26,7 @@ def build_base_item_data(row: dict[str, Any]) -> dict[str, Any]:
         "updated_at": format_timestamp(row["updated_at"]),
         "score": None,
         "score_alert": False,
+        "company_name": row.get("company_name"),
     }
 
 

@@ -256,6 +256,17 @@ def _store_yfinance_payload(symbols: list[str]) -> int:
     return count
 
 
+def _backfill_symbol_company_names() -> int:
+    """Populate symbols.company_name from freshly-cached yfinance reference payloads.
+
+    Runs after the reference payloads are stored so the scanner can join a
+    human-readable company name onto each watchlist row. Returns rows updated.
+    """
+    storage = get_storage()
+    repo = ReferenceRepository(storage)
+    return repo.backfill_company_names_from_cache()
+
+
 def _process_health_score_for_symbol(
     symbol: str,
     repo: ReferenceRepository,

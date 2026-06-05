@@ -96,7 +96,6 @@ export function SparklineWithHistory({
       width={width}
       height={height}
       className={className}
-      aria-label={`Score history for ${itemId}`}
     />
   )
 }

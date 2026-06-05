@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/tooltip'
 import type { PriceTrend, VwapSignal, WatchlistItem } from '@/lib/api/watchlist'
 import { cn } from '@/lib/utils'
-import { getScoreBadgeVariant } from './ExpandedRowUtils'
+import { getScoreBadgeVariant, getScoreBarColor } from './ExpandedRowUtils'
 import { formatDate, formatPillarStatus } from './watchlistTableUtils'
 
 export interface TodayGate {
@@ -220,42 +220,111 @@ export function DataHealthBadge({
   )
 }
 
-export function SetupScoreFormula({ item }: { item: WatchlistItem }) {
+export function SetupScoreMeter({
+  item,
+  showLabel = true,
+}: {
+  item: WatchlistItem
+  showLabel?: boolean
+}) {
   const score = item.currentScore
   if (!score) return <span className="text-text-muted">—</span>
 
+  const overallPct = Math.max(0, Math.min(100, score.overall ?? 0))
+  const overall = roundScore(score.overall)
   const priceScore = roundScore(score.price?.score)
   const technicalScore = roundScore(score.technical?.score)
-  const overall = roundScore(score.overall)
   const stale = score.price?.stale || score.technical?.stale
 
   return (
     <TooltipProvider delayDuration={120}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="inline-flex cursor-help items-center gap-1.5 whitespace-nowrap font-mono text-xs tabular-nums">
-            <span className="rounded-md border border-border/40 bg-surface-muted/30 px-1.5 py-1 text-text-muted">
-              P{priceScore}
+          <div className="inline-flex min-w-[6rem] cursor-help flex-col gap-1">
+            <div className="flex items-center gap-1.5">
+              {showLabel ? (
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">
+                  Score
+                </span>
+              ) : null}
+              <Badge
+                variant={getScoreBadgeVariant(score.overall)}
+                className="font-mono tabular-nums"
+              >
+                {overall}
+              </Badge>
+              {stale ? (
+                <span
+                  className="h-1.5 w-1.5 rounded-full bg-warning"
+                  aria-label="Score inputs stale"
+                />
+              ) : null}
+            </div>
+            <span className="block h-1.5 overflow-hidden rounded-full bg-surface-muted">
+              <span
+                className={cn(
+                  'block h-full rounded-full',
+                  getScoreBarColor(overallPct),
+                )}
+                style={{ width: `${overallPct}%` }}
+              />
             </span>
-            <span className="text-text-muted">+</span>
-            <span className="rounded-md border border-border/40 bg-surface-muted/30 px-1.5 py-1 text-text-muted">
-              T{technicalScore}
-            </span>
-            <span className="text-text-muted">=</span>
-            <Badge
-              variant={getScoreBadgeVariant(score.overall)}
-              className="font-mono"
-            >
-              {overall}
-            </Badge>
-            {stale ? (
-              <span className="h-1.5 w-1.5 rounded-full bg-warning" />
-            ) : null}
           </div>
         </TooltipTrigger>
         <TooltipContent className="max-w-xs text-xs leading-5">
-          Price score {priceScore}, technical score {technicalScore}, setup
-          score {overall}. This is a scanner score, not a trade instruction.
+          Scanner score {overall} (price {priceScore}, technical{' '}
+          {technicalScore}). This is a scanner score, not a trade instruction.
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+/**
+ * Single combined data-status dot for the primary scanner row. Folds quote
+ * freshness and data-health into one indicator (worst-of), with the full
+ * detail kept in the expanded row. Keeps the rich tooltip so nothing is lost.
+ */
+export function ScannerStatusDot({
+  item,
+  userTimezone,
+}: {
+  item: WatchlistItem
+  userTimezone: string
+}) {
+  const fresh = freshnessMeta(item, userTimezone)
+  const health = dataHealthTone(item, item.vwapSignal)
+  const isLoss =
+    fresh.dotClass === 'bg-loss' || health.barClassName === 'bg-loss'
+  const isWarn =
+    fresh.dotClass === 'bg-warning' || health.barClassName === 'bg-warning'
+  const dotClass = isLoss ? 'bg-loss' : isWarn ? 'bg-warning' : 'bg-gain'
+  const statusLabel = isLoss
+    ? 'Data needs attention'
+    : isWarn
+      ? 'Data partial or aging'
+      : 'Data healthy'
+  const healthPct = item.dataQuality?.overallPct
+
+  return (
+    <TooltipProvider delayDuration={120}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className="inline-flex cursor-help items-center"
+            aria-label={statusLabel}
+          >
+            <span className={cn('h-2 w-2 rounded-full', dotClass)} />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs space-y-1 text-xs leading-5">
+          <p className="font-semibold">{statusLabel}</p>
+          <p>{fresh.detail}</p>
+          <p>
+            Data health
+            {typeof healthPct === 'number' ? ` ${healthPct.toFixed(0)}%` : ''} —
+            full freshness and pillar breakdown are in the expanded row.
+          </p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

@@ -20,6 +20,7 @@ from app.utils.task_helpers import get_watchlist_symbols_or_early_return
 
 from .reference_helpers import (
     ValuationMetricsDict,
+    _backfill_symbol_company_names,
     _extract_valuation_metrics,
     _fetch_stale_symbols,
     _process_cache_entries,
@@ -108,6 +109,8 @@ def refresh_yfinance_reference_data() -> dict[str, int | str | float | None]:
 
     logger.info("fetching_yfinance_reference", num_symbols=len(symbols))
     symbols_updated = _store_yfinance_payload(symbols)
+    names_updated = _backfill_symbol_company_names()
+    logger.info("symbol_company_names_backfilled", names_updated=names_updated)
 
     result = _task_result(
         task_id, start_time, symbols_processed=len(symbols), symbols_updated=symbols_updated

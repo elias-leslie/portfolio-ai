@@ -18,15 +18,12 @@ import {
   getRiskLevelConfig,
   getSignalDisplay,
 } from '@/components/watchlist/ExpandedRowUtils'
+import { PriceSparkline } from '@/components/watchlist/PriceSparkline'
 import {
   buildTodayGate,
-  DataHealthBadge,
-  FreshnessBadge,
-  PriceTrendStrip,
-  SetupScoreFormula,
+  ScannerStatusDot,
+  SetupScoreMeter,
   type TodayGate,
-  TodayGateBadge,
-  VwapBadge,
 } from '@/components/watchlist/ScannerMetricBadges'
 import { getWatchlistPriceSnapshot } from '@/components/watchlist/watchlistTableUtils'
 import type { MacroConditionsResponse } from '@/lib/api/macro'
@@ -110,12 +107,15 @@ export function WatchlistTableRow({
             )}
           </button>
         </TableCell>
-        <TableCell className="min-w-[17rem] font-medium" data-slot="table-cell">
+        <TableCell
+          className="min-w-[18rem] max-w-[24rem] font-medium"
+          data-slot="table-cell"
+        >
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <Link
                 href={`/symbols/${item.symbol}?tab=decision`}
-                className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                className="rounded-sm font-semibold underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                 onClick={(event) => event.stopPropagation()}
               >
                 {item.symbol}
@@ -132,6 +132,7 @@ export function WatchlistTableRow({
                   <span>Held</span>
                 </Badge>
               )}
+              <ScannerStatusDot item={item} userTimezone={userTimezone} />
               {refreshStatus?.isRefreshing &&
                 refreshStatus.currentSymbol === item.symbol && (
                   <Loader2
@@ -146,32 +147,64 @@ export function WatchlistTableRow({
                 />
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <FreshnessBadge item={item} userTimezone={userTimezone} />
-              <DataHealthBadge item={item} vwapSignal={item.vwapSignal} />
-            </div>
+            {item.companyName ? (
+              <p
+                className="max-w-[22rem] truncate text-xs text-text-muted"
+                title={item.companyName}
+              >
+                {item.companyName}
+              </p>
+            ) : null}
+            {item.narrativeHeadline ? (
+              <p
+                className="max-w-[22rem] truncate text-xs text-text/80"
+                title={item.narrativeHeadline}
+              >
+                {item.narrativeHeadline}
+              </p>
+            ) : null}
           </div>
+        </TableCell>
+        <TableCell data-slot="table-cell">
+          {signalDisplay ? (
+            <span
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-bold uppercase tracking-[0.12em] shadow-sm',
+                signalDisplay.solidColor,
+              )}
+            >
+              <span aria-hidden>{signalDisplay.icon}</span>
+              {signalDisplay.label}
+            </span>
+          ) : (
+            <span className="text-text-muted">—</span>
+          )}
         </TableCell>
         <TableCell
           data-slot="table-cell"
           data-changed={changedCells[item.id]?.price ? 'true' : undefined}
         >
           {priceSnapshot ? (
-            <div
-              className="text-sm tabular-nums price-display"
-              data-changed={changedCells[item.id]?.price ? 'true' : undefined}
-            >
-              <div className="font-medium">{priceSnapshot.priceLabel}</div>
-              {priceSnapshot.changeLabel ? (
-                <div
-                  className={cn(
-                    'text-xs',
-                    priceSnapshot.isPositiveChange ? 'text-gain' : 'text-loss',
-                  )}
-                >
-                  {priceSnapshot.changeLabel}
-                </div>
-              ) : null}
+            <div className="space-y-1">
+              <div
+                className="text-sm tabular-nums price-display"
+                data-changed={changedCells[item.id]?.price ? 'true' : undefined}
+              >
+                <span className="font-medium">{priceSnapshot.priceLabel}</span>
+                {priceSnapshot.changeLabel ? (
+                  <span
+                    className={cn(
+                      'ml-1.5 text-xs',
+                      priceSnapshot.isPositiveChange
+                        ? 'text-gain'
+                        : 'text-loss',
+                    )}
+                  >
+                    {priceSnapshot.changeLabel}
+                  </span>
+                ) : null}
+              </div>
+              <PriceSparkline itemId={item.id} />
             </div>
           ) : (
             <span className="text-text-muted">—</span>
@@ -182,7 +215,7 @@ export function WatchlistTableRow({
           data-changed={changedCells[item.id]?.score ? 'true' : undefined}
         >
           {hasScore ? (
-            <SetupScoreFormula item={item} />
+            <SetupScoreMeter item={item} />
           ) : (
             <span className="text-text-muted">—</span>
           )}
@@ -191,39 +224,18 @@ export function WatchlistTableRow({
           data-slot="table-cell"
           data-changed={changedCells[item.id]?.risk ? 'true' : undefined}
         >
-          <div className="flex max-w-[12rem] flex-wrap items-center gap-1.5">
-            {signalDisplay ? (
-              <span
-                className={cn(
-                  'rounded-md border px-1.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]',
-                  signalDisplay.color,
-                )}
-              >
-                {signalDisplay.label}
-              </span>
-            ) : null}
-            {riskConfig ? (
-              <span
-                className={cn(
-                  'rounded-md border border-border/35 bg-surface-muted/25 px-1.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]',
-                  riskConfig.color,
-                )}
-              >
-                {riskConfig.label}
-              </span>
-            ) : null}
-            <TodayGateBadge gate={todayGate} />
-            {!signalDisplay && !riskConfig && !todayGate ? (
-              <span className="text-text-muted">—</span>
-            ) : null}
-          </div>
-        </TableCell>
-        <TableCell data-slot="table-cell">
-          {hasScore ? (
-            <div className="space-y-1.5">
-              <PriceTrendStrip trends={item.priceTrends} compact />
-              <VwapBadge signal={item.vwapSignal} />
-            </div>
+          {riskConfig ? (
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 rounded-md border border-border/35 bg-surface-muted/25 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.1em]',
+                riskConfig.color,
+              )}
+            >
+              {riskConfig.icon ? (
+                <span aria-hidden>{riskConfig.icon}</span>
+              ) : null}
+              {riskConfig.label}
+            </span>
           ) : (
             <span className="text-text-muted">—</span>
           )}

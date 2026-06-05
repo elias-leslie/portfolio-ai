@@ -89,6 +89,9 @@ class TestGetScoreHistoryEndpoint:
             assert response.item_id == "item-123"
             assert response.symbol == "AAPL"
             assert len(response.history) > 0
+            # The per-point close price is surfaced for the row price sparkline.
+            latest = max(response.history, key=lambda point: point.timestamp)
+            assert latest.price == 180.0
 
     @pytest.mark.asyncio
     async def test_raises_404_when_item_not_found(self, mock_repo: MagicMock) -> None:

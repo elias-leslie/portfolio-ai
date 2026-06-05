@@ -92,6 +92,16 @@ class TestBuildScoreTimeline:
         assert today_point.technical_score is not None
         assert round(today_point.technical_score, 2) == 81.0
 
+    def test_averages_close_price(self, sample_snapshots: list[WatchlistSnapshot]) -> None:
+        """Test that the per-day close price is averaged from the snapshots."""
+        now = datetime(2025, 12, 10, 12, 0, 0, tzinfo=UTC)
+        timeline = build_score_timeline(sample_snapshots, window_days=7, now=now)
+
+        today_point = max(timeline, key=lambda pt: pt.date)
+        # Close price average: (180.0 + 182.0) / 2 = 181.0
+        assert today_point.price is not None
+        assert round(today_point.price, 2) == 181.0
+
     def test_respects_window_days_filter(self, sample_snapshots: list[WatchlistSnapshot]) -> None:
         """Test that only snapshots within window_days are included."""
         now = datetime(2025, 12, 10, 12, 0, 0, tzinfo=UTC)
@@ -329,6 +339,7 @@ class TestScoreTimelinePoint:
             overall_score=75.0,
             price_score=70.0,
             technical_score=80.0,
+            price=185.0,
             fetched_at=fetched,
         )
 
@@ -336,4 +347,5 @@ class TestScoreTimelinePoint:
         assert point.overall_score == 75.0
         assert point.price_score == 70.0
         assert point.technical_score == 80.0
+        assert point.price == 185.0
         assert point.fetched_at == fetched
