@@ -157,11 +157,36 @@ def test_conditions_payload_uses_stronger_copy_for_moderate_tape_stress() -> Non
     assert evidence_by_key["stress"]["detail"] == "Moderate caution"
 
 
+def test_conditions_payload_keeps_sixty_tape_stress_as_caution() -> None:
+    payload = conditions.build_conditions_payload(
+        _snapshot(deployment_score=65.0),
+        tape_stress=conditions.TapeStressEvidence(
+            stress_score=60,
+            as_of="2026-06-04T14:20:00+00:00",
+            sp500_change_pct=-1.2,
+            weakest_sector_symbol="XLK",
+            weakest_sector_name="Technology",
+            weakest_sector_change_pct=-4.1,
+            negative_sector_count=6,
+            sector_count=11,
+        ),
+    )
+
+    assert payload["state"] == "Caution"
+    assert payload["stress_score"] == 60
+    assert payload["flags"] == []
+    assert payload["alert"]["active"] is False
+    assert payload["summary"] == "Market stress is moderate, with current tape pressure."
+
+    evidence_by_key = {item["key"]: item for item in payload["evidence"]}
+    assert evidence_by_key["stress"]["tone"] == "warning"
+
+
 def test_conditions_payload_escalates_on_severe_current_tape_stress() -> None:
     payload = conditions.build_conditions_payload(
         _snapshot(deployment_score=65.0),
         tape_stress=conditions.TapeStressEvidence(
-            stress_score=64,
+            stress_score=66,
             as_of="2026-06-04T14:20:00+00:00",
             sp500_change_pct=-2.7,
             weakest_sector_symbol="XLK",
@@ -173,7 +198,7 @@ def test_conditions_payload_escalates_on_severe_current_tape_stress() -> None:
     )
 
     assert payload["state"] == "Elevated"
-    assert payload["stress_score"] == 64
+    assert payload["stress_score"] == 66
     assert payload["flags"] == ["equity_tape_stress"]
     assert payload["alert"]["active"] is True
     assert payload["alert"]["priority"] == "high"

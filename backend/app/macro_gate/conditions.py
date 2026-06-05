@@ -16,6 +16,8 @@ from ..storage.facade import get_storage
 from ..utils.market_hours import NY_TZ
 from . import repository
 
+SEVERE_STRESS_THRESHOLD = 65
+
 
 @dataclass(frozen=True, slots=True)
 class YieldCurveEvidence:
@@ -185,7 +187,7 @@ def _severe_flags(
         flags.append("credit_widening")
     if deployment_score is not None and deployment_score < 40:
         flags.append("defensive_deployment")
-    if tape_stress_score is not None and tape_stress_score >= 60:
+    if tape_stress_score is not None and tape_stress_score >= SEVERE_STRESS_THRESHOLD:
         flags.append("equity_tape_stress")
     return flags
 
@@ -195,7 +197,7 @@ def _evidence_tone(kind: str, value: float | None) -> str:
         return "neutral"
     tone = "neutral"
     if kind == "stress":
-        if value >= 60:
+        if value >= SEVERE_STRESS_THRESHOLD:
             tone = "loss"
         elif value >= 30:
             tone = "warning"
