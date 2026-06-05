@@ -1,5 +1,6 @@
 'use client'
 
+import type * as React from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Button } from '@/components/ui/button'

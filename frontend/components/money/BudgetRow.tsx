@@ -1,6 +1,7 @@
 'use client'
 
 import { ChevronDown, ChevronRight } from 'lucide-react'
+import type * as React from 'react'
 import { Fragment } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
