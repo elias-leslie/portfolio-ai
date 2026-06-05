@@ -235,13 +235,25 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         *,
         window: str = "all",
         kind: str = "all",
-        limit: int = 10000,
+        status: str = "all",
+        account: str = "all",
+        search: str = "",
+        sort: str = "date",
+        sort_dir: str = "desc",
+        limit: int = 100,
+        offset: int = 0,
     ) -> HouseholdLedger:
         return self.ledger_service.get_ledger(
             self,
             window=window,
             kind=kind,
+            status=status,
+            account=account,
+            search=search,
+            sort=sort,
+            sort_dir=sort_dir,
             limit=limit,
+            offset=offset,
         )
 
     def get_spending(self, *, window: str = "1m") -> HouseholdSpendingView:

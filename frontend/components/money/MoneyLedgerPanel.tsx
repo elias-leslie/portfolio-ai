@@ -1,7 +1,7 @@
 'use client'
 
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
-import { Fragment, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { Fragment, useDeferredValue, useEffect, useState } from 'react'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
@@ -59,11 +59,25 @@ function formatLedgerDate(value?: string | null) {
   if (Number.isNaN(date.getTime())) {
     return value
   }
+  // Ledger dates are stored at UTC midnight; format in UTC so a 00:00Z date does
+  // not render as the previous calendar day in US (negative-offset) timezones.
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    timeZone: 'UTC',
   }).format(date)
+}
+
+function utcDateKey(value?: string | null): string | null {
+  if (!value) {
+    return null
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+  return date.toISOString().slice(0, 10)
 }
 
 function entryDate(entry: {
@@ -123,34 +137,8 @@ function sortIcon(active: boolean, direction: 'asc' | 'desc') {
   )
 }
 
-function compareText(
-  left: string | null | undefined,
-  right: string | null | undefined,
-) {
-  return (left ?? '').localeCompare(right ?? '')
-}
-
-function compareNumber(
-  left: number | null | undefined,
-  right: number | null | undefined,
-) {
-  return (left ?? 0) - (right ?? 0)
-}
-
 function ledgerRowKey(entry: { kind: string; id: string }) {
   return `${entry.kind}-${entry.id}`
-}
-
-function ledgerAmount(entry: {
-  amount?: number | null
-  flowType?: string | null
-}) {
-  return (
-    debitAmount(entry.amount, entry.flowType) ??
-    creditAmount(entry.amount, entry.flowType) ??
-    entry.amount ??
-    null
-  )
 }
 
 function ledgerAmountLabel(entry: {
@@ -178,7 +166,8 @@ export function MoneyLedgerPanel() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [currentPage, setCurrentPage] = useState(1)
   const [expandedAuditRow, setExpandedAuditRow] = useState<string | null>(null)
-  const deferredQuery = useDeferredValue(query.trim().toLowerCase())
+  const deferredQuery = useDeferredValue(query.trim())
+  const offset = (currentPage - 1) * LEDGER_PAGE_SIZE
   const {
     data: ledger,
     isLoading,
@@ -188,137 +177,41 @@ export function MoneyLedgerPanel() {
   } = useHouseholdLedger({
     window,
     kind,
-    limit: 50000,
+    status,
+    account,
+    search: deferredQuery,
+    sort: sortKey,
+    sortDir: sortDirection,
+    limit: LEDGER_PAGE_SIZE,
+    offset,
   })
 
-  const accountOptions = useMemo(() => {
-    const labels = new Set<string>()
-    for (const entry of ledger?.entries ?? []) {
-      const label = entry.accountLabel?.trim()
-      if (label) {
-        labels.add(label)
-      }
-    }
-    return Array.from(labels).sort((left, right) => left.localeCompare(right))
-  }, [ledger?.entries])
+  // Server returns the full set of account labels for the window so the filter
+  // dropdown stays complete even though only a page of rows is fetched.
+  const accountOptions = ledger?.accountOptions ?? []
 
   useEffect(() => {
     if (account === 'all' || account === '__unassigned__') {
       return
     }
-    if (!accountOptions.includes(account)) {
+    if (ledger && !accountOptions.includes(account)) {
       setAccount('all')
     }
-  }, [account, accountOptions])
+  }, [account, accountOptions, ledger])
 
-  const filteredEntries = useMemo(() => {
-    const entries = ledger?.entries ?? []
-    return entries.filter((entry) => {
-      const isDuplicate = (entry.exclusionReason ?? '').startsWith('duplicate')
-      if (status === 'canonical' && isDuplicate) {
-        return false
-      }
-      if (status === 'duplicates' && !isDuplicate) {
-        return false
-      }
-      if (
-        account !== 'all' &&
-        (entry.accountLabel?.trim() ?? '__unassigned__') !== account
-      ) {
-        return false
-      }
-      if (!deferredQuery) {
-        return true
-      }
-      return [
-        entry.accountLabel,
-        entry.merchant,
-        entry.description,
-        entry.category,
-        entry.essentiality,
-        entry.sourceDocumentFilename,
-        entry.sourceDocumentId,
-        entry.externalRowId,
-        entry.sourceType,
-        entry.documentType,
-        entry.flowType,
-        entry.exclusionReason,
-        entry.rowHash,
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(deferredQuery))
-    })
-  }, [account, deferredQuery, ledger?.entries, status])
-
-  const visibleEntries = useMemo(() => {
-    const entries = [...filteredEntries]
-    entries.sort((left, right) => {
-      let result = 0
-      switch (sortKey) {
-        case 'date':
-          result = compareText(entryDate(left), entryDate(right))
-          break
-        case 'account':
-          result = compareText(left.accountLabel, right.accountLabel)
-          break
-        case 'detail':
-          result = compareText(
-            left.merchant || left.description,
-            right.merchant || right.description,
-          )
-          break
-        case 'category':
-          result = compareText(left.category, right.category)
-          break
-        case 'status':
-          result = compareText(left.exclusionReason, right.exclusionReason)
-          break
-        case 'amount':
-          result = compareNumber(ledgerAmount(left), ledgerAmount(right))
-          break
-      }
-      if (result === 0) {
-        result = compareText(entryDate(left), entryDate(right))
-      }
-      return sortDirection === 'asc' ? result : -result
-    })
-    return entries
-  }, [filteredEntries, sortDirection, sortKey])
-
-  const includedCount = useMemo(
-    () => visibleEntries.filter((entry) => entry.includedInSpend).length,
-    [visibleEntries],
-  )
-  const excludedCount = visibleEntries.length - includedCount
-  const visibleDebitTotal = useMemo(
-    () =>
-      visibleEntries.reduce(
-        (sum, entry) => sum + (debitAmount(entry.amount, entry.flowType) ?? 0),
-        0,
-      ),
-    [visibleEntries],
-  )
-  const visibleCreditTotal = useMemo(
-    () =>
-      visibleEntries.reduce(
-        (sum, entry) => sum + (creditAmount(entry.amount, entry.flowType) ?? 0),
-        0,
-      ),
-    [visibleEntries],
-  )
+  // Filtering, sorting and paging now happen server-side; the client only renders
+  // the returned page and the server-computed summary counts.
+  const pageEntries = ledger?.entries ?? []
+  const filteredCount = ledger?.filteredCount ?? 0
+  const includedCount = ledger?.includedCount ?? 0
+  const excludedCount = ledger?.excludedCount ?? 0
+  const visibleDebitTotal = ledger?.debitTotal ?? 0
+  const visibleCreditTotal = ledger?.creditTotal ?? 0
   const visibleNetMovement = visibleDebitTotal - visibleCreditTotal
-  const totalPages = Math.max(
-    1,
-    Math.ceil(visibleEntries.length / LEDGER_PAGE_SIZE),
-  )
+  const totalPages = Math.max(1, Math.ceil(filteredCount / LEDGER_PAGE_SIZE))
   const boundedPage = Math.min(currentPage, totalPages)
-  const pageStartIndex = (boundedPage - 1) * LEDGER_PAGE_SIZE
-  const pageEntries = visibleEntries.slice(
-    pageStartIndex,
-    pageStartIndex + LEDGER_PAGE_SIZE,
-  )
-  const pageStart = visibleEntries.length === 0 ? 0 : pageStartIndex + 1
-  const pageEnd = pageStartIndex + pageEntries.length
+  const pageStart = filteredCount === 0 ? 0 : offset + 1
+  const pageEnd = offset + pageEntries.length
 
   useEffect(() => {
     setCurrentPage(1)
@@ -521,7 +414,7 @@ export function MoneyLedgerPanel() {
             Rows
           </p>
           <p className="mt-2 text-base font-semibold text-text">
-            {visibleEntries.length}
+            {filteredCount}
           </p>
           <p className="mt-1 text-xs text-text-muted">
             {includedCount} counted · {excludedCount} excluded
@@ -532,17 +425,17 @@ export function MoneyLedgerPanel() {
       <div className="mt-5 overflow-hidden rounded-2xl border border-border/40 bg-surface/45">
         <div className="flex flex-col gap-2 border-b border-border/40 px-4 py-3 text-xs text-text-muted md:flex-row md:items-center md:justify-between">
           <span>
-            {ledger?.timeframeLabel ?? 'All dates'} · {visibleEntries.length}{' '}
-            visible row
-            {visibleEntries.length === 1 ? '' : 's'}
+            {ledger?.timeframeLabel ?? 'All dates'} · {filteredCount} matching
+            row
+            {filteredCount === 1 ? '' : 's'}
             {status === 'canonical'
               ? ' · proven duplicate overlap hidden'
-              : ledger && visibleEntries.length !== ledger.totalEntryCount
+              : ledger && filteredCount !== ledger.totalEntryCount
                 ? ` of ${ledger.totalEntryCount}`
                 : ''}
           </span>
           <span>
-            Showing {pageStart}-{pageEnd} of {visibleEntries.length}
+            Showing {pageStart}-{pageEnd} of {filteredCount}
           </span>
         </div>
         <div className="max-h-[72vh] overflow-scroll [scrollbar-gutter:stable_both-edges]">
@@ -584,7 +477,7 @@ export function MoneyLedgerPanel() {
                     Loading ledger...
                   </td>
                 </tr>
-              ) : visibleEntries.length === 0 ? (
+              ) : pageEntries.length === 0 ? (
                 <tr>
                   <td
                     colSpan={7}
@@ -596,9 +489,10 @@ export function MoneyLedgerPanel() {
               ) : (
                 pageEntries.map((entry) => {
                   const effectiveDate = entryDate(entry)
+                  const effectiveDateKey = utcDateKey(effectiveDate)
                   const isFuture =
-                    effectiveDate != null &&
-                    new Date(effectiveDate).getTime() > Date.now()
+                    effectiveDateKey != null &&
+                    effectiveDateKey > new Date().toISOString().slice(0, 10)
                   const rowKey = ledgerRowKey(entry)
                   const auditOpen = expandedAuditRow === rowKey
                   const evidenceLabel = entry.sourceDocumentId
@@ -646,6 +540,9 @@ export function MoneyLedgerPanel() {
                             </Badge>
                             {isFuture ? (
                               <Badge variant="destructive">Future</Badge>
+                            ) : null}
+                            {entry.pending ? (
+                              <Badge variant="warning">Pending</Badge>
                             ) : null}
                           </div>
                         </td>
@@ -839,6 +736,50 @@ export function MoneyLedgerPanel() {
                                       : 'Included in canonical spend'}
                                   </dd>
                                 </div>
+                                <div>
+                                  <dt className="font-semibold uppercase tracking-[0.14em] text-text-muted">
+                                    Settlement
+                                  </dt>
+                                  <dd className="mt-1 text-text">
+                                    {entry.pending ? 'Pending' : 'Posted'}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt className="font-semibold uppercase tracking-[0.14em] text-text-muted">
+                                    Categorized by
+                                  </dt>
+                                  <dd className="mt-1 text-text">
+                                    {entry.categorizationSource
+                                      ? formatEnumLabel(
+                                          entry.categorizationSource,
+                                        )
+                                      : '—'}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt className="font-semibold uppercase tracking-[0.14em] text-text-muted">
+                                    Original category
+                                  </dt>
+                                  <dd className="mt-1 text-text">
+                                    {entry.originalCategory
+                                      ? formatEnumLabel(entry.originalCategory)
+                                      : '—'}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt className="font-semibold uppercase tracking-[0.14em] text-text-muted">
+                                    Recategorized
+                                  </dt>
+                                  <dd className="mt-1 text-text">
+                                    {entry.categoryUpdatedBy
+                                      ? `${entry.categoryUpdatedBy}${
+                                          entry.categoryUpdatedAt
+                                            ? ` · ${formatLedgerDate(entry.categoryUpdatedAt)}`
+                                            : ''
+                                        }`
+                                      : '—'}
+                                  </dd>
+                                </div>
                               </dl>
                             </div>
                           </td>
@@ -855,8 +796,8 @@ export function MoneyLedgerPanel() {
                   Total
                 </td>
                 <td className="border-t border-border/40 px-3 py-2 text-text-muted">
-                  {visibleEntries.length} row
-                  {visibleEntries.length === 1 ? '' : 's'}
+                  {filteredCount} row
+                  {filteredCount === 1 ? '' : 's'}
                 </td>
                 <td className="border-t border-border/40 px-3 py-2 text-text-muted">
                   {status === 'canonical'

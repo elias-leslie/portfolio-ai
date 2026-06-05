@@ -78,14 +78,26 @@ async def get_household_net_worth_trend(
 async def get_household_ledger(
     window: str = "all",
     kind: str = "all",
-    limit: int = 10000,
+    status: str = "all",
+    account: str = "all",
+    search: str = "",
+    sort: str = "date",
+    sort_dir: str = "desc",
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
 ) -> HouseholdLedger:
-    """Return recent transaction/import provenance for household audit."""
+    """Return a filtered, sorted, paginated page of household ledger provenance."""
     return await run_in_threadpool(
         _service().get_ledger,
         window=window,
         kind=kind,
+        status=status,
+        account=account,
+        search=search,
+        sort=sort,
+        sort_dir=sort_dir,
         limit=limit,
+        offset=offset,
     )
 
 

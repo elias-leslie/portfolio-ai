@@ -47,6 +47,7 @@ export type {
   HouseholdInboxItem,
   HouseholdLedger,
   HouseholdLedgerEntry,
+  HouseholdLedgerParams,
   HouseholdMerchantInsight,
   HouseholdMonthlyTrendPoint,
   HouseholdNetWorthTrend,

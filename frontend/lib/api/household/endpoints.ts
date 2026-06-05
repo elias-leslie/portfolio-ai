@@ -8,6 +8,7 @@ import type {
   HouseholdDocumentList,
   HouseholdFinanceDashboard,
   HouseholdLedger,
+  HouseholdLedgerParams,
   HouseholdNetWorthTrend,
   HouseholdProfile,
   HouseholdProfileUpdate,
@@ -64,13 +65,19 @@ export const fetchConfirmedFacts = getEndpoint<HouseholdConfirmedFact[]>(
 )
 
 export async function fetchHouseholdLedger(
-  params?: { window?: string; kind?: string; limit?: number },
+  params?: HouseholdLedgerParams,
   options: RequestInit = {},
 ): Promise<HouseholdLedger> {
   const search = new URLSearchParams()
   if (params?.window) search.set('window', params.window)
   if (params?.kind) search.set('kind', params.kind)
+  if (params?.status) search.set('status', params.status)
+  if (params?.account) search.set('account', params.account)
+  if (params?.search) search.set('search', params.search)
+  if (params?.sort) search.set('sort', params.sort)
+  if (params?.sortDir) search.set('sort_dir', params.sortDir)
   if (params?.limit != null) search.set('limit', String(params.limit))
+  if (params?.offset != null) search.set('offset', String(params.offset))
   const query = search.toString()
   return get<HouseholdLedger>(
     query ? `/api/household/ledger?${query}` : '/api/household/ledger',

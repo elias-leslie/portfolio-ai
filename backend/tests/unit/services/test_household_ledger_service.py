@@ -146,3 +146,124 @@ def test_ledger_treats_return_rows_as_refunds_not_payments() -> None:
     assert entry.category == "Retail"
     assert entry.included_in_spend is True
     assert entry.exclusion_reason is None
+
+
+def _txn_row(
+    *,
+    row_id: str,
+    account_label: str,
+    merchant: str,
+    description: str,
+    amount: str,
+    day_offset: int,
+) -> tuple[Any, ...]:
+    moment = datetime.combine(
+        date.today() - timedelta(days=day_offset), datetime.min.time(), tzinfo=UTC
+    )
+    return (
+        row_id,
+        "expense",
+        f"acct-{account_label}",
+        account_label,
+        moment,
+        None,
+        merchant,
+        description,
+        Decimal(amount),
+        "USD",
+        "Groceries",
+        "essential",
+        f"hash-{row_id}",
+        {},
+        f"doc-{row_id}",
+        "statement.pdf",
+        "bank",
+        "statement",
+        moment,
+        {},
+    )
+
+
+def _ledger_with_rows() -> SimpleNamespace:
+    return SimpleNamespace(
+        storage=_SequenceStorage(
+            [
+                [
+                    _txn_row(
+                        row_id="a",
+                        account_label="Checking",
+                        merchant="Publix",
+                        description="PUBLIX #1",
+                        amount="10.00",
+                        day_offset=0,
+                    ),
+                    _txn_row(
+                        row_id="b",
+                        account_label="Card",
+                        merchant="Amazon",
+                        description="AMZN MKTPL",
+                        amount="20.00",
+                        day_offset=1,
+                    ),
+                    _txn_row(
+                        row_id="c",
+                        account_label="Checking",
+                        merchant="Shell",
+                        description="SHELL GAS",
+                        amount="30.00",
+                        day_offset=2,
+                    ),
+                ],
+                [],
+            ]
+        )
+    )
+
+
+def test_ledger_paginates_and_reports_filtered_counts() -> None:
+    service = HouseholdLedgerService()
+
+    page = service.get_ledger(
+        _ledger_with_rows(), window="all", kind="transactions", limit=2, offset=0
+    )
+    assert page.filtered_count == 3
+    assert page.returned_count == 2
+    assert page.limit == 2
+    assert page.offset == 0
+    # Default sort is newest-first by effective date.
+    assert [entry.id for entry in page.entries] == ["a", "b"]
+    assert page.account_options == ["Card", "Checking"]
+
+    page_two = service.get_ledger(
+        _ledger_with_rows(), window="all", kind="transactions", limit=2, offset=2
+    )
+    assert [entry.id for entry in page_two.entries] == ["c"]
+
+
+def test_ledger_filters_by_account_and_search() -> None:
+    service = HouseholdLedgerService()
+
+    by_account = service.get_ledger(
+        _ledger_with_rows(), window="all", kind="transactions", account="Checking"
+    )
+    assert by_account.filtered_count == 2
+    assert {entry.id for entry in by_account.entries} == {"a", "c"}
+
+    by_search = service.get_ledger(
+        _ledger_with_rows(), window="all", kind="transactions", search="amazon"
+    )
+    assert by_search.filtered_count == 1
+    assert by_search.entries[0].id == "b"
+
+
+def test_ledger_sorts_by_amount_ascending() -> None:
+    service = HouseholdLedgerService()
+
+    ascending = service.get_ledger(
+        _ledger_with_rows(),
+        window="all",
+        kind="transactions",
+        sort="amount",
+        sort_dir="asc",
+    )
+    assert [entry.id for entry in ascending.entries] == ["a", "b", "c"]

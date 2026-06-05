@@ -17,6 +17,7 @@ import {
   fetchRetirementPreview,
   type HouseholdDocument,
   type HouseholdDocumentUpload,
+  type HouseholdLedgerParams,
   type HouseholdPlanningUpdate,
   type HouseholdProfileUpdate,
   type HouseholdTrackedAccountInput,
@@ -115,15 +116,12 @@ export function useHouseholdFacts() {
   })
 }
 
-export function useHouseholdLedger(params?: {
-  window?: string
-  kind?: string
-  limit?: number
-}) {
+export function useHouseholdLedger(params?: HouseholdLedgerParams) {
   return useQuery({
     queryKey: ['household', 'ledger', params ?? {}],
     queryFn: ({ signal }) => fetchHouseholdLedger(params, { signal }),
     staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
+    placeholderData: (previous) => previous,
     refetchOnWindowFocus: false,
   })
 }

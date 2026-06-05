@@ -95,6 +95,75 @@ def _is_debit_flow(flow_type: str | None) -> bool:
     return normalized in {"expense", "payment", "transfer_out", "investment"}
 
 
+# Upper bound on rows scanned per window so dedup/exclusion runs over the whole window
+# (a page is sliced out afterwards). Large enough for live data, capped so a runaway
+# window cannot fetch unboundedly.
+LEDGER_SCAN_CAP = 20000
+
+_LEDGER_SEARCH_FIELDS = (
+    "account_label",
+    "merchant",
+    "description",
+    "category",
+    "essentiality",
+    "source_document_filename",
+    "source_document_id",
+    "external_row_id",
+    "source_type",
+    "document_type",
+    "flow_type",
+    "exclusion_reason",
+    "row_hash",
+)
+
+
+def _entry_is_duplicate(entry: HouseholdLedgerEntry) -> bool:
+    return (entry.exclusion_reason or "").startswith("duplicate")
+
+
+def _entry_matches_filters(
+    entry: HouseholdLedgerEntry,
+    *,
+    status: str,
+    account: str,
+    search: str,
+) -> bool:
+    duplicate = _entry_is_duplicate(entry)
+    if status == "canonical" and duplicate:
+        return False
+    if status == "duplicates" and not duplicate:
+        return False
+    if account != "all":
+        label = (entry.account_label or "").strip() or "__unassigned__"
+        if label != account:
+            return False
+    if search:
+        haystack = " ".join(
+            str(getattr(entry, field))
+            for field in _LEDGER_SEARCH_FIELDS
+            if getattr(entry, field, None)
+        ).lower()
+        if search not in haystack:
+            return False
+    return True
+
+
+def _entry_sort_value(
+    entry: HouseholdLedgerEntry, sort_dt: datetime, sort_key: str
+) -> Any:
+    if sort_key == "account":
+        return (entry.account_label or "").lower()
+    if sort_key == "detail":
+        return (entry.merchant or entry.description or "").lower()
+    if sort_key == "category":
+        return (entry.category or "").lower()
+    if sort_key == "status":
+        return (entry.exclusion_reason or "").lower()
+    if sort_key == "amount":
+        return abs(entry.amount or 0.0)
+    return sort_dt
+
+
 def _transaction_sql(window_start: str | None, *, limit: int) -> tuple[str, list[Any]]:
     where_clauses: list[str] = ["TRUE"]
     params: list[Any] = []
@@ -203,7 +272,13 @@ class HouseholdLedgerService:
         *,
         window: str = "all",
         kind: str = "all",
-        limit: int = 10000,
+        status: str = "all",
+        account: str = "all",
+        search: str = "",
+        sort: str = "date",
+        sort_dir: str = "desc",
+        limit: int = 100,
+        offset: int = 0,
     ) -> HouseholdLedger:
         timeframe = resolve_household_time_window(window)
         start_date = (
@@ -214,21 +289,31 @@ class HouseholdLedgerService:
         normalized_kind = (kind or "all").strip().lower()
         if normalized_kind not in {"all", "transactions", "imports"}:
             normalized_kind = "all"
+        normalized_status = (status or "all").strip().lower()
+        if normalized_status not in {"all", "canonical", "duplicates"}:
+            normalized_status = "all"
+        normalized_account = (account or "all").strip() or "all"
+        normalized_search = (search or "").strip().lower()
+        valid_sorts = {"date", "account", "detail", "category", "status", "amount"}
+        normalized_sort = (sort or "date").strip().lower()
+        if normalized_sort not in valid_sorts:
+            normalized_sort = "date"
+        descending = (sort_dir or "desc").strip().lower() != "asc"
+        page_limit = max(1, min(int(limit), 500))
+        page_offset = max(0, int(offset))
 
         transaction_rows: list[tuple[Any, ...]] = []
         import_rows: list[tuple[Any, ...]] = []
 
         with service.storage.connection() as conn:
             if normalized_kind in {"all", "transactions"}:
-                tx_sql, tx_params = _transaction_sql(start_date, limit=limit)
+                tx_sql, tx_params = _transaction_sql(start_date, limit=LEDGER_SCAN_CAP)
                 transaction_rows = conn.execute(tx_sql, tx_params).fetchall()
             if normalized_kind in {"all", "imports"}:
-                import_sql, import_params = _import_sql(start_date, limit=limit)
+                import_sql, import_params = _import_sql(start_date, limit=LEDGER_SCAN_CAP)
                 import_rows = conn.execute(import_sql, import_params).fetchall()
 
         entries: list[tuple[datetime, HouseholdLedgerEntry]] = []
-        debit_total = 0.0
-        credit_total = 0.0
         report_candidates: list[dict[str, Any]] = []
 
         for row in transaction_rows:
@@ -345,11 +430,6 @@ class HouseholdLedgerService:
             else:
                 exclusion_reason = excluded_row_hashes.get(str(row[12]))
                 included_in_spend = exclusion_reason is None
-            if amount is not None:
-                if _is_credit_flow(effective_flow):
-                    credit_total += abs(amount)
-                elif _is_debit_flow(effective_flow) or amount > 0:
-                    debit_total += abs(amount)
             entry = HouseholdLedgerEntry(
                 id=str(row[0]),
                 kind="transaction",
@@ -398,11 +478,6 @@ class HouseholdLedgerService:
         for row in import_rows:
             metadata = _coerce_metadata(row[9])
             amount = float(row[6]) if row[6] is not None else None
-            if amount is not None:
-                if amount > 0:
-                    debit_total += amount
-                elif amount < 0:
-                    credit_total += abs(amount)
             entry = HouseholdLedgerEntry(
                 id=str(row[0]),
                 kind="import_row",
@@ -438,7 +513,54 @@ class HouseholdLedgerService:
                 )
             )
 
-        entries.sort(key=lambda item: item[0], reverse=True)
+        account_options = sorted(
+            {
+                (entry.account_label or "").strip()
+                for _, entry in entries
+                if (entry.account_label or "").strip()
+            },
+            key=str.lower,
+        )
+
+        filtered = [
+            (sort_dt, entry)
+            for sort_dt, entry in entries
+            if _entry_matches_filters(
+                entry,
+                status=normalized_status,
+                account=normalized_account,
+                search=normalized_search,
+            )
+        ]
+
+        debit_total = 0.0
+        credit_total = 0.0
+        included_count = 0
+        for _, entry in filtered:
+            if entry.included_in_spend:
+                included_count += 1
+            amount = entry.amount
+            if amount is None:
+                continue
+            if _is_credit_flow(entry.flow_type) or (
+                not _is_debit_flow(entry.flow_type) and amount < 0
+            ):
+                credit_total += abs(amount)
+            elif _is_debit_flow(entry.flow_type) or amount > 0:
+                debit_total += abs(amount)
+
+        if normalized_sort == "date":
+            filtered.sort(key=lambda item: item[0], reverse=descending)
+        else:
+            # Stable sort: lay down the chronological tie-break first (newest first),
+            # then sort by the primary key so equal keys stay date-ordered.
+            filtered.sort(key=lambda item: item[0], reverse=True)
+            filtered.sort(
+                key=lambda item: _entry_sort_value(item[1], item[0], normalized_sort),
+                reverse=descending,
+            )
+
+        page = filtered[page_offset : page_offset + page_limit]
 
         return HouseholdLedger(
             generated_at=datetime.now(UTC).isoformat(),
@@ -449,7 +571,14 @@ class HouseholdLedgerService:
             transaction_count=len(transaction_rows),
             import_row_count=len(import_rows),
             total_entry_count=len(entries),
+            filtered_count=len(filtered),
+            included_count=included_count,
+            excluded_count=len(filtered) - included_count,
+            offset=page_offset,
+            limit=page_limit,
+            returned_count=len(page),
+            account_options=account_options,
             debit_total=round(debit_total, 2),
             credit_total=round(credit_total, 2),
-            entries=[entry for _, entry in entries],
+            entries=[entry for _, entry in page],
         )

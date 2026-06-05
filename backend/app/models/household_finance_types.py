@@ -232,6 +232,16 @@ class HouseholdLedger(BaseModel):
     transaction_count: int
     import_row_count: int
     total_entry_count: int = 0
+    # Counts after server-side status/account/search filtering (drives pagination + summary).
+    filtered_count: int = 0
+    included_count: int = 0
+    excluded_count: int = 0
+    offset: int = 0
+    limit: int = 0
+    returned_count: int = 0
+    # Distinct account labels across the whole window so the filter dropdown is complete
+    # even though only a page of rows is returned.
+    account_options: list[str] = Field(default_factory=list)
     debit_total: float = 0.0
     credit_total: float = 0.0
     entries: list[HouseholdLedgerEntry] = Field(default_factory=list)

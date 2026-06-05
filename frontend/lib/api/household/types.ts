@@ -731,9 +731,28 @@ export interface HouseholdLedger {
   transactionCount: number
   importRowCount: number
   totalEntryCount: number
+  filteredCount: number
+  includedCount: number
+  excludedCount: number
+  offset: number
+  limit: number
+  returnedCount: number
+  accountOptions: string[]
   debitTotal: number
   creditTotal: number
   entries: HouseholdLedgerEntry[]
+}
+
+export interface HouseholdLedgerParams {
+  window?: string
+  kind?: string
+  status?: string
+  account?: string
+  search?: string
+  sort?: string
+  sortDir?: string
+  limit?: number
+  offset?: number
 }
 
 export interface HouseholdSpendingCategory {

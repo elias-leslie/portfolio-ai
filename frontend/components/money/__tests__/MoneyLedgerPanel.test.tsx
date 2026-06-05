@@ -9,6 +9,8 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdLedger: useHouseholdLedgerMock,
 }))
 
+const PAGE_SIZE = 50
+
 function buildEntry(index: number, overrides = {}) {
   const padded = String(index).padStart(3, '0')
   return {
@@ -17,16 +19,21 @@ function buildEntry(index: number, overrides = {}) {
     flowType: 'expense',
     householdAccountId: `account-${padded}`,
     accountLabel: `Checking ${index % 3}`,
-    date: `2026-04-${String((index % 28) + 1).padStart(2, '0')}`,
-    postedDate: `2026-04-${String((index % 28) + 1).padStart(2, '0')}`,
+    date: `2026-04-${String((index % 28) + 1).padStart(2, '0')}T00:00:00+00:00`,
+    postedDate: `2026-04-${String((index % 28) + 1).padStart(2, '0')}T00:00:00+00:00`,
     merchant: `Merchant ${padded}`,
     description: `Merchant ${padded} purchase`,
     amount: 10 + index,
     currency: 'USD',
     category: 'groceries',
     essentiality: 'need',
+    originalCategory: 'GENERAL_MERCHANDISE',
+    categorizationSource: 'plaid',
+    categoryUpdatedBy: null,
+    categoryUpdatedAt: null,
     datasetType: null,
     externalRowId: `external-${padded}`,
+    pending: false,
     rowHash: `hash-${padded}-abcdef1234567890`,
     sourceDocumentId: `doc-${padded}`,
     sourceDocumentFilename: `statement-${padded}.pdf`,
@@ -40,7 +47,12 @@ function buildEntry(index: number, overrides = {}) {
   }
 }
 
-function mockLedger(entries: ReturnType<typeof buildEntry>[]) {
+// The server now owns filtering/sorting/paging, so the mock just returns a page
+// plus the summary counts the panel renders.
+function mockLedgerPage(
+  pageEntries: ReturnType<typeof buildEntry>[],
+  overrides: Record<string, unknown> = {},
+) {
   useHouseholdLedgerMock.mockReturnValue({
     data: {
       generatedAt: '2026-04-24T00:00:00Z',
@@ -48,12 +60,20 @@ function mockLedger(entries: ReturnType<typeof buildEntry>[]) {
       timeframeLabel: 'All dates',
       startDate: null,
       endDate: null,
-      transactionCount: entries.length,
+      transactionCount: 75,
       importRowCount: 0,
-      totalEntryCount: entries.length,
+      totalEntryCount: 75,
+      filteredCount: 75,
+      includedCount: 75,
+      excludedCount: 0,
+      offset: 0,
+      limit: PAGE_SIZE,
+      returnedCount: pageEntries.length,
+      accountOptions: ['Checking 0', 'Checking 1', 'Checking 2'],
       debitTotal: 0,
       creditTotal: 0,
-      entries,
+      entries: pageEntries,
+      ...overrides,
     },
     isLoading: false,
     error: null,
@@ -66,37 +86,55 @@ function ledgerRows() {
   return document.querySelectorAll('[data-ledger-row="entry"]')
 }
 
+function lastLedgerParams() {
+  return useHouseholdLedgerMock.mock.calls.at(-1)?.[0] ?? {}
+}
+
 describe('MoneyLedgerPanel', () => {
   beforeEach(() => {
     useHouseholdLedgerMock.mockReset()
   })
 
-  it('bounds the default rendered rows and hides audit internals', () => {
-    mockLedger(Array.from({ length: 75 }, (_, index) => buildEntry(index + 1)))
+  it('renders the returned page and server counts and hides audit internals', () => {
+    mockLedgerPage(
+      Array.from({ length: PAGE_SIZE }, (_, i) => buildEntry(i + 1)),
+    )
 
     render(<MoneyLedgerPanel />)
 
-    expect(ledgerRows()).toHaveLength(50)
+    expect(ledgerRows()).toHaveLength(PAGE_SIZE)
     expect(screen.getByText('Showing 1-50 of 75')).toBeInTheDocument()
     expect(screen.queryByText(/statement-\d+\.pdf/)).not.toBeInTheDocument()
     expect(screen.queryByText(/hash-\d+/)).not.toBeInTheDocument()
   })
 
-  it('pages through large result sets without rendering every row', async () => {
+  it('requests a bounded page from the server (no 50000 fetch)', () => {
+    mockLedgerPage(
+      Array.from({ length: PAGE_SIZE }, (_, i) => buildEntry(i + 1)),
+    )
+
+    render(<MoneyLedgerPanel />)
+
+    expect(lastLedgerParams().limit).toBe(PAGE_SIZE)
+    expect(lastLedgerParams().offset).toBe(0)
+  })
+
+  it('asks the server for the next page by offset', async () => {
     const user = userEvent.setup()
-    mockLedger(Array.from({ length: 75 }, (_, index) => buildEntry(index + 1)))
+    mockLedgerPage(
+      Array.from({ length: PAGE_SIZE }, (_, i) => buildEntry(i + 1)),
+    )
 
     render(<MoneyLedgerPanel />)
 
     await user.click(screen.getByRole('button', { name: 'Next' }))
 
-    expect(screen.getByText('Showing 51-75 of 75')).toBeInTheDocument()
-    expect(ledgerRows()).toHaveLength(25)
+    expect(lastLedgerParams().offset).toBe(PAGE_SIZE)
   })
 
-  it('keeps hidden provenance searchable without exposing it by default', async () => {
+  it('passes the search term to the server', async () => {
     const user = userEvent.setup()
-    mockLedger(Array.from({ length: 75 }, (_, index) => buildEntry(index + 1)))
+    mockLedgerPage([buildEntry(72)])
 
     render(<MoneyLedgerPanel />)
 
@@ -106,40 +144,27 @@ describe('MoneyLedgerPanel', () => {
     )
 
     await waitFor(() => {
-      expect(ledgerRows()).toHaveLength(1)
+      expect(lastLedgerParams().search).toBe('statement-072')
     })
-    expect(screen.getByText('Merchant 072')).toBeInTheDocument()
-    expect(screen.queryByText('statement-072.pdf')).not.toBeInTheDocument()
   })
 
-  it('sorts visible rows by merchant', async () => {
+  it('requests a merchant sort from the server', async () => {
     const user = userEvent.setup()
-    mockLedger([
-      buildEntry(1, {
-        merchant: 'Zulu Market',
-        description: 'Zulu Market purchase',
-        postedDate: '2026-04-24',
-      }),
-      buildEntry(2, {
-        merchant: 'Alpha Cafe',
-        description: 'Alpha Cafe purchase',
-        postedDate: '2026-04-23',
-      }),
-    ])
+    mockLedgerPage([buildEntry(1)])
 
     render(<MoneyLedgerPanel />)
 
-    expect(ledgerRows()[0]).toHaveTextContent('Zulu Market')
-
     await user.click(screen.getByRole('button', { name: 'Merchant' }))
 
-    expect(ledgerRows()[0]).toHaveTextContent('Alpha Cafe')
+    expect(lastLedgerParams().sort).toBe('detail')
   })
 
-  it('reveals source filenames and hashes only through row audit detail', async () => {
+  it('shows pending and provenance only through row audit detail', async () => {
     const user = userEvent.setup()
-    mockLedger([
+    mockLedgerPage([
       buildEntry(1, {
+        pending: true,
+        categorizationSource: 'manual_rule',
         sourceDocumentFilename: 'private-checking-april.pdf',
         rowHash: 'private-row-hash-abcdef123456',
       }),
@@ -147,20 +172,16 @@ describe('MoneyLedgerPanel', () => {
 
     render(<MoneyLedgerPanel />)
 
+    // Pending is visible inline; provenance internals stay behind audit.
+    expect(screen.getByText('Pending')).toBeInTheDocument()
     expect(
       screen.queryByText('private-checking-april.pdf'),
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByText('private-row-hash-abcdef123456'),
     ).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Audit' }))
 
-    expect(screen.getByText('Source file')).toBeInTheDocument()
+    expect(screen.getByText('Categorized by')).toBeInTheDocument()
+    expect(screen.getByText('Manual rule')).toBeInTheDocument()
     expect(screen.getByText('private-checking-april.pdf')).toBeInTheDocument()
-    expect(screen.getByText('Row hash')).toBeInTheDocument()
-    expect(
-      screen.getByText('private-row-hash-abcdef123456'),
-    ).toBeInTheDocument()
   })
 })
