@@ -18,7 +18,6 @@ from .data_refresh_schedules import (
     FEAR_GREED_INPUTS_CRONS,
     FUNDAMENTAL_INGESTION_CRONS,
     HISTORICAL_OHLCV_MAINTENANCE_CRONS,
-    HOUSEHOLD_HOLDINGS_REFRESH_CRONS,
     MACRO_INDICATOR_INGESTION_CRONS,
     OPTIONS_ACTIVITY_CRONS,
     PUTCALL_RATIO_CRONS,
@@ -52,25 +51,6 @@ async def refresh_daily_ohlcv_wf(input: EmptyInput, ctx: Context) -> dict[str, A
         return ohlcv_result
     ohlcv_result["paper_trade_pnl"] = await asyncio.to_thread(paper_trades.update_pnl_for_open)
     return ohlcv_result
-
-
-@hatchet.task(
-    name="portfolio-refresh-household-holdings",
-    input_validator=EmptyInput,
-    execution_timeout="600s",
-    retries=2,
-    backoff_factor=2.0,
-    on_crons=HOUSEHOLD_HOLDINGS_REFRESH_CRONS,
-    concurrency=ConcurrencyExpression(
-        expression="'portfolio-refresh-household-holdings'",
-        max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
-    ),
-)
-async def refresh_household_holdings_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.ingestion.price_ingestion import refresh_household_holdings_prices
-
-    return cast(dict[str, Any], await asyncio.to_thread(refresh_household_holdings_prices))
 
 
 @hatchet.task(
