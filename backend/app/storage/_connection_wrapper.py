@@ -25,6 +25,18 @@ ParameterValue = str | int | float | bool | None | date | datetime | list[str | 
 logger = get_logger(__name__)
 
 
+def _db_scalar(value: Any) -> Any:
+    """Convert dataframe missing-value sentinels to DB nulls."""
+    if isinstance(value, (dict, list, tuple, set)):
+        return value
+    try:
+        if bool(pd.isna(value)):
+            return None
+    except (TypeError, ValueError):
+        return value
+    return value
+
+
 class PostgreSQLConnectionWrapper:
     """Wrapper to make psycopg connections behave like connections.
 
@@ -170,22 +182,29 @@ class PostgreSQLConnectionWrapper:
             raise ValueError(f"Invalid table name: {table_name}")
 
         if isinstance(df, pl.DataFrame):
-            pdf = df.to_pandas()
+            if df.is_empty():
+                logger.debug("empty_dataframe_skipped", table=table_name)
+                return 0
+            columns = list(df.columns)
+            raw_rows = df.iter_rows()
         elif isinstance(df, pd.DataFrame):
-            pdf = df
+            if df.empty:
+                logger.debug("empty_dataframe_skipped", table=table_name)
+                return 0
+            columns = list(df.columns)
+            raw_rows = df.itertuples(index=False, name=None)
         else:
             raise TypeError(f"Expected pandas or polars DataFrame, got {type(df)}")
 
-        if pdf.empty:
+        if not columns:
             logger.debug("empty_dataframe_skipped", table=table_name)
             return 0
 
-        columns = list(pdf.columns)
         columns_str = ", ".join(columns)
         placeholders = ", ".join(["%s"] * len(columns))
         query = f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders})"
 
-        data = pdf.where(pd.notnull(pdf), None).values.tolist()
+        data = [[_db_scalar(value) for value in row] for row in raw_rows]
 
         try:
             self._cursor.executemany(query, data)
