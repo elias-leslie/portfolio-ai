@@ -5,6 +5,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import {
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   type TooltipProps,
@@ -47,6 +48,7 @@ import {
   formatCurrency,
   formatCurrencyWhole,
   formatEnumLabel,
+  formatPercent,
 } from '@/lib/formatters'
 import {
   useCategorizeHouseholdTransaction,
@@ -133,20 +135,20 @@ function budgetStatus(
 ) {
   if (currentBudget != null) {
     return {
-      label: actual > currentBudget ? 'Over budget' : 'Budget set',
+      label: actual > currentBudget ? 'Over confirmed cap' : 'Confirmed cap',
       variant:
         actual > currentBudget ? ('warning' as const) : ('success' as const),
     }
   }
   if (foundBudget != null) {
     return {
-      label: actual > foundBudget ? 'Suggested over cap' : 'Suggested cap',
+      label: actual > foundBudget ? 'Over suggested cap' : 'Suggested cap',
       variant:
         actual > foundBudget ? ('warning' as const) : ('outline' as const),
     }
   }
   return {
-    label: 'Needs budget',
+    label: 'No cap yet',
     variant: 'secondary' as const,
   }
 }
@@ -230,6 +232,7 @@ export function MoneyBudgetPanel() {
   const [categoryPickerOpenFor, setCategoryPickerOpenFor] = useState<
     string | null
   >(null)
+  const [isolatedSeries, setIsolatedSeries] = useState<string | null>(null)
   const {
     data: spending,
     error,
@@ -311,6 +314,29 @@ export function MoneyBudgetPanel() {
 
   const activeRows = rows.filter((entry) => entry.disabled !== true)
   const hiddenRows = rows.filter((entry) => entry.disabled === true)
+
+  function entryBreach(entry: (typeof rows)[number]) {
+    const cap = entry.currentBudget ?? entry.foundBudget
+    if (cap == null || cap <= 0) {
+      return { isOver: false, overAmount: 0 }
+    }
+    const over = entry.row.averageMonthlySpend - cap
+    return { isOver: over > 0, overAmount: Math.max(over, 0) }
+  }
+
+  // Breached categories sort to the top, most-over first, so over-budget is not a
+  // dead number buried in a spend-ordered list.
+  const sortedActiveRows = [...activeRows].sort((left, right) => {
+    const leftBreach = entryBreach(left)
+    const rightBreach = entryBreach(right)
+    if (leftBreach.isOver !== rightBreach.isOver) {
+      return leftBreach.isOver ? -1 : 1
+    }
+    if (leftBreach.isOver && rightBreach.isOver) {
+      return rightBreach.overAmount - leftBreach.overAmount
+    }
+    return right.row.averageMonthlySpend - left.row.averageMonthlySpend
+  })
   const confirmedBudgetRows = activeRows.filter(
     (entry) => entry.currentBudget != null,
   )
@@ -389,6 +415,39 @@ export function MoneyBudgetPanel() {
       ),
     }
   }, [activeRows, spending?.categoryMonthlyTrend])
+
+  // Plot at most the top spenders so the chart stays legible; clicking a legend chip
+  // isolates that one series and overlays its cap.
+  const TREND_TOP_N = 8
+  const chartCategories = isolatedSeries
+    ? trendMeta.categories.filter((entry) => entry.category === isolatedSeries)
+    : trendMeta.categories.slice(0, TREND_TOP_N)
+  const isolatedCap = isolatedSeries
+    ? (() => {
+        const entry = activeRows.find(
+          (item) => item.row.category === isolatedSeries,
+        )
+        return entry ? (entry.currentBudget ?? entry.foundBudget) : null
+      })()
+    : null
+
+  async function acceptAllSuggestedCaps() {
+    for (const entry of foundBudgetRows) {
+      if (entry.foundBudget == null) {
+        continue
+      }
+      await confirmFact.mutateAsync({
+        factKey: `${CATEGORY_BUDGET_PREFIX}${entry.row.category}`,
+        factValue: serializeCategoryBudgetMeta({
+          category: entry.row.category,
+          note: entry.meta?.note ?? '',
+          disabled: false,
+          monthlyTarget: entry.foundBudget,
+          source: 'accepted',
+        }),
+      })
+    }
+  }
 
   function startRecategorize(transaction: HouseholdSpendingTransaction) {
     setRecategorizeDraft({
@@ -680,14 +739,27 @@ export function MoneyBudgetPanel() {
             })}
           </td>
           <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
-            {currentBudget != null
-              ? formatCurrency(currentBudget, { decimals: 0 })
-              : foundBudget != null
-                ? formatCurrency(foundBudget, { decimals: 0 })
-                : '—'}
+            {currentBudget != null ? (
+              <span>{formatCurrency(currentBudget, { decimals: 0 })}</span>
+            ) : foundBudget != null ? (
+              <span className="text-text-muted">
+                ~{formatCurrency(foundBudget, { decimals: 0 })}
+                <span className="ml-1 text-[10px] uppercase tracking-wide">
+                  suggested
+                </span>
+              </span>
+            ) : (
+              '—'
+            )}
           </td>
           <td className="border-b border-border/20 px-4 py-3">
             <Badge variant={status.variant}>{status.label}</Badge>
+            {entryBreach(entry).isOver ? (
+              <div className="mt-1 text-xs font-medium text-warning">
+                {formatCurrency(entryBreach(entry).overAmount, { decimals: 0 })}
+                /mo over
+              </div>
+            ) : null}
           </td>
           <td className="border-b border-border/20 px-4 py-3 text-text-muted">
             {note ? note : '—'}
@@ -914,7 +986,8 @@ export function MoneyBudgetPanel() {
               {unknownTransactions.length}
             </p>
             <p className="mt-1 text-xs text-text-muted">
-              {formatCurrencyWhole(unknownSpend)} awaiting categorization.
+              purchase{unknownTransactions.length === 1 ? '' : 's'} to
+              categorize · {formatCurrencyWhole(unknownSpend)}
             </p>
           </div>
           <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
@@ -939,6 +1012,63 @@ export function MoneyBudgetPanel() {
             <p className="mt-1 text-xs text-text-muted">
               {foundOverBudgetCount} suggested · {confirmedOverBudgetCount}{' '}
               confirmed.
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+              Monthly income
+            </p>
+            <p className="mt-3 text-2xl font-semibold text-text">
+              {formatCurrencyWhole(spending?.summary.averageMonthlyIncome)}
+            </p>
+            <p className="mt-1 text-xs text-text-muted">
+              Tracked inflow, averaged.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+              Net cash flow
+            </p>
+            <p
+              className={cn(
+                'mt-3 text-2xl font-semibold',
+                (spending?.summary.netCashFlow ?? 0) >= 0
+                  ? 'text-gain'
+                  : 'text-loss',
+              )}
+            >
+              {formatCurrencyWhole(spending?.summary.netCashFlow)}
+            </p>
+            <p className="mt-1 text-xs text-text-muted">
+              Income minus tracked spend, this window.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+              Savings rate
+            </p>
+            <p className="mt-3 text-2xl font-semibold text-text">
+              {spending?.summary.savingsRate != null
+                ? formatPercent(spending.summary.savingsRate * 100, {
+                    decimals: 0,
+                  })
+                : '—'}
+            </p>
+            <p className="mt-1 text-xs text-text-muted">
+              Share of income not spent.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+              Month-to-date spend
+            </p>
+            <p className="mt-3 text-2xl font-semibold text-text">
+              {formatCurrencyWhole(spending?.summary.monthToDateSpend)}
+            </p>
+            <p className="mt-1 text-xs text-text-muted">
+              Spent so far this calendar month.
             </p>
           </div>
         </div>
@@ -985,7 +1115,20 @@ export function MoneyBudgetPanel() {
                     formatter={currencyTooltipFormatter}
                     labelFormatter={monthTooltipLabelFormatter}
                   />
-                  {trendMeta.categories.map((entry) => (
+                  {isolatedCap != null ? (
+                    <ReferenceLine
+                      y={isolatedCap}
+                      stroke="var(--color-warning)"
+                      strokeDasharray="4 4"
+                      label={{
+                        value: `Cap ${formatCurrency(isolatedCap, { decimals: 0 })}`,
+                        position: 'insideTopRight',
+                        fontSize: 10,
+                        fill: 'var(--color-warning)',
+                      }}
+                    />
+                  ) : null}
+                  {chartCategories.map((entry) => (
                     <Line
                       key={entry.key}
                       type="monotone"
@@ -1001,18 +1144,43 @@ export function MoneyBudgetPanel() {
                 </LineChart>
               </ResponsiveContainer>
             </div>
-            <div className="flex max-h-28 flex-wrap gap-x-4 gap-y-2 overflow-auto text-xs text-text-muted">
+            <div className="flex max-h-28 flex-wrap items-center gap-x-4 gap-y-2 overflow-auto text-xs text-text-muted">
+              {!isolatedSeries && trendMeta.categories.length > TREND_TOP_N ? (
+                <span className="text-text-muted/70">
+                  Showing top {TREND_TOP_N} of {trendMeta.categories.length} —
+                  click a category to isolate it:
+                </span>
+              ) : null}
+              {isolatedSeries ? (
+                <button
+                  type="button"
+                  onClick={() => setIsolatedSeries(null)}
+                  className="rounded-full border border-border/40 px-2 py-0.5 font-medium text-text hover:border-primary/40"
+                >
+                  ← Show top {TREND_TOP_N}
+                </button>
+              ) : null}
               {trendMeta.categories.map((entry) => (
-                <span
+                <button
+                  type="button"
                   key={entry.key}
-                  className="inline-flex items-center gap-2"
+                  onClick={() =>
+                    setIsolatedSeries((current) =>
+                      current === entry.category ? null : entry.category,
+                    )
+                  }
+                  className={cn(
+                    'inline-flex items-center gap-2 rounded-full px-2 py-0.5 transition-colors hover:text-text',
+                    isolatedSeries === entry.category &&
+                      'bg-surface-muted/40 text-text',
+                  )}
                 >
                   <span
                     className="h-2.5 w-2.5 rounded-full"
                     style={{ backgroundColor: entry.color }}
                   />
                   {entry.category}
-                </span>
+                </button>
               ))}
             </div>
           </div>
@@ -1025,6 +1193,20 @@ export function MoneyBudgetPanel() {
         description="Expand a category to inspect the purchases behind it, correct wrong categories, or create merchant rules."
         padding="none"
         className="overflow-hidden"
+        actions={
+          foundBudgetRows.length > 0 ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void acceptAllSuggestedCaps()}
+              disabled={confirmFact.isPending}
+            >
+              Accept all {foundBudgetRows.length} suggested cap
+              {foundBudgetRows.length === 1 ? '' : 's'}
+            </Button>
+          ) : null
+        }
       >
         <div className="overflow-auto">
           <table className="w-full min-w-[880px] border-separate border-spacing-0 text-sm">
@@ -1073,7 +1255,7 @@ export function MoneyBudgetPanel() {
                   </td>
                 </tr>
               ) : (
-                activeRows.map(renderBudgetRow)
+                sortedActiveRows.map(renderBudgetRow)
               )}
             </tbody>
           </table>

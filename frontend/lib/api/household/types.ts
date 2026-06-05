@@ -765,6 +765,8 @@ export interface HouseholdSpendingCategory {
   averageMonthlySpend: number
   shareOfSpend: number
   transactionCount: number
+  grossMonthlySpend?: number
+  refundTotal?: number
   foundMonthlyBudget?: number | null
   confirmedMonthlyBudget?: number | null
   budgetSource?: string
@@ -813,6 +815,13 @@ export interface HouseholdSpendingSummary {
   transactionCount: number
   coverageMonths: number
   accountCount: number
+  grossSpend?: number
+  refundTotal?: number
+  totalIncome?: number
+  averageMonthlyIncome?: number
+  netCashFlow?: number
+  savingsRate?: number | null
+  monthToDateSpend?: number
   foundBudgetTotal?: number
   confirmedBudgetTotal?: number
   budgetedCategoryCount?: number

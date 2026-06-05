@@ -254,6 +254,10 @@ class HouseholdSpendingCategory(BaseModel):
     average_monthly_spend: float
     share_of_spend: float
     transaction_count: int
+    # Gross spend before refund credits — the cap-recommendation input so a refund
+    # does not silently lower the suggested cap.
+    gross_monthly_spend: float = 0.0
+    refund_total: float = 0.0
     found_monthly_budget: float | None = None
     confirmed_monthly_budget: float | None = None
     budget_source: str = "no_budget"
@@ -302,6 +306,15 @@ class HouseholdSpendingSummary(BaseModel):
     transaction_count: int = 0
     coverage_months: int = 0
     account_count: int = 0
+    # Gross expense before refund credits, the refund credits themselves, and the
+    # income/savings view so the Budget tab can show cash-flow rather than just spend.
+    gross_spend: float = 0.0
+    refund_total: float = 0.0
+    total_income: float = 0.0
+    average_monthly_income: float = 0.0
+    net_cash_flow: float = 0.0
+    savings_rate: float | None = None
+    month_to_date_spend: float = 0.0
     found_budget_total: float = 0.0
     confirmed_budget_total: float = 0.0
     budgeted_category_count: int = 0

@@ -59,8 +59,11 @@ class _SequenceConnection:
         params: list[Any] | None = None,
     ) -> SimpleNamespace:
         del sql, params
-        rows = self._responses.pop(0)
-        return SimpleNamespace(fetchall=lambda: rows)
+        rows = self._responses.pop(0) if self._responses else []
+        return SimpleNamespace(
+            fetchall=lambda: rows,
+            fetchone=lambda: rows[0] if rows else None,
+        )
 
 
 class _SequenceStorage:
@@ -750,6 +753,68 @@ def test_build_spending_view_excludes_loan_payments_from_spend() -> None:
     assert "LOAN_PAYMENTS_OTHER_PAYMENT" not in surfaced
     assert "Debt Payments" not in surfaced
     assert surfaced == {"Dining"}
+
+
+def test_build_spending_view_separates_refund_gross_and_income() -> None:
+    today = date.today()
+    service = HouseholdTransactionService()
+    service.storage = _SequenceStorage(
+        [
+            [
+                (
+                    "txn-buy",
+                    None,
+                    datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                    "AMAZON MKTPL purchase",
+                    "AMAZON MKTPL purchase",
+                    Decimal("100.00"),
+                    "Retail",
+                    "discretionary",
+                    "expense",
+                    "Chase card",
+                    "doc-buy",
+                    "Amazon",
+                    "statement",
+                    "credit_card",
+                    "chase.csv",
+                    "hash-buy",
+                    {},
+                ),
+                (
+                    "txn-return",
+                    None,
+                    datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                    "AMAZON RETURN credit",
+                    "AMAZON RETURN credit",
+                    Decimal("30.00"),
+                    "Retail",
+                    "discretionary",
+                    "refund",
+                    "Chase card",
+                    "doc-return",
+                    "Amazon",
+                    "statement",
+                    "credit_card",
+                    "chase.csv",
+                    "hash-return",
+                    {},
+                ),
+            ],
+            [],
+            [(2000.0,)],
+        ]
+    )
+
+    spending = service.build_spending_view(window="1m")
+
+    retail = next(c for c in spending.categories if c.category == "Retail")
+    # Net spend is refund-reduced, but gross (the cap basis) and the refund stay visible.
+    assert retail.average_monthly_spend == 70.0
+    assert retail.gross_monthly_spend == 100.0
+    assert retail.refund_total == 30.0
+    assert spending.summary.total_income == 2000.0
+    assert spending.summary.net_cash_flow == 1930.0
+    assert spending.summary.savings_rate == 0.965
 
 
 def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() -> None:

@@ -32,7 +32,10 @@ from app.services._household_report_builder import (
     build_household_reports,
     collapse_report_rows,
 )
-from app.services._household_spend_filters import is_budget_driving_expense
+from app.services._household_spend_filters import (
+    investment_activity_sql_predicate,
+    is_budget_driving_expense,
+)
 from app.services._household_time_windows import resolve_household_time_window
 from app.services._household_transaction_parsers import (
     _parse_date_value,
@@ -581,6 +584,31 @@ class HouseholdTransactionService:
             2,
         )
 
+    def _income_total_between(
+        self,
+        *,
+        start_date: date | None,
+        end_date: date,
+    ) -> float:
+        """Sum household income inflow in the window, excluding brokerage activity."""
+        where = ["t.flow_type = 'income'", "t.removed IS NOT TRUE", "t.transaction_date <= %s"]
+        params: list[Any] = [end_date]
+        if start_date is not None:
+            where.append("t.transaction_date >= %s")
+            params.append(start_date)
+        investment_predicate = investment_activity_sql_predicate(
+            text_expressions=["t.description", "t.raw_merchant"],
+        )
+        sql = f"""
+            SELECT COALESCE(SUM(CAST(t.amount AS DOUBLE PRECISION)), 0)
+            FROM household_transactions t
+            WHERE {" AND ".join(where)}
+              AND NOT {investment_predicate}
+        """
+        with self.storage.connection() as conn:
+            result = conn.execute(sql, params).fetchone()
+        return float(result[0]) if result and result[0] is not None else 0.0
+
     def build_spending_view(self, *, window: str = "1m") -> HouseholdSpendingView:
         timeframe = resolve_household_time_window(window)
         spend_rows = self._spend_rows_between(
@@ -602,6 +630,8 @@ class HouseholdTransactionService:
         monthly_totals: dict[str, float] = {}
         monthly_counts: dict[str, int] = {}
         category_totals: dict[tuple[str, str], float] = {}
+        category_gross: dict[tuple[str, str], float] = {}
+        category_refund: dict[tuple[str, str], float] = {}
         category_counts: dict[tuple[str, str], int] = {}
         category_monthly_totals: dict[tuple[str, str, str], float] = {}
         category_monthly_counts: dict[tuple[str, str, str], int] = {}
@@ -610,14 +640,21 @@ class HouseholdTransactionService:
             for row in spend_rows
             if row.get("account_label")
         }
+        current_month_key = timeframe.end_date.strftime("%Y-%m")
 
         for row in spend_rows:
             month_key = row["date"].strftime("%Y-%m")
             signed_amount = float(row.get("signed_amount", row["amount"]))
+            # A refund posts as a negative signed_amount; keep gross spend and refund
+            # credits apart so caps key off gross, not net.
+            gross = max(signed_amount, 0.0)
+            refund = max(-signed_amount, 0.0)
             monthly_totals[month_key] = monthly_totals.get(month_key, 0.0) + signed_amount
             monthly_counts[month_key] = monthly_counts.get(month_key, 0) + 1
             category_key = (str(row["category"]), str(row["essentiality"]))
             category_totals[category_key] = category_totals.get(category_key, 0.0) + signed_amount
+            category_gross[category_key] = category_gross.get(category_key, 0.0) + gross
+            category_refund[category_key] = category_refund.get(category_key, 0.0) + refund
             category_counts[category_key] = category_counts.get(category_key, 0) + 1
             category_month_key = (month_key, str(row["category"]), str(row["essentiality"]))
             category_monthly_totals[category_month_key] = (
@@ -636,6 +673,18 @@ class HouseholdTransactionService:
             sum(float(row.get("signed_amount", row["amount"])) for row in spend_rows),
             2,
         )
+        gross_spend = round(sum(category_gross.values()), 2)
+        refund_total = round(sum(category_refund.values()), 2)
+        month_to_date_spend = round(monthly_totals.get(current_month_key, 0.0), 2)
+        total_income = self._income_total_between(
+            start_date=timeframe.start_date,
+            end_date=timeframe.end_date,
+        )
+        average_monthly_income = round(total_income / coverage_months, 2)
+        net_cash_flow = round(total_income - total_spend, 2)
+        savings_rate = (
+            round(net_cash_flow / total_income, 4) if total_income > 0 else None
+        )
 
         return HouseholdSpendingView(
             generated_at=datetime.now(UTC).isoformat(),
@@ -649,6 +698,13 @@ class HouseholdTransactionService:
                 transaction_count=len(spend_rows),
                 coverage_months=coverage_months,
                 account_count=len(account_labels),
+                gross_spend=gross_spend,
+                refund_total=refund_total,
+                total_income=round(total_income, 2),
+                average_monthly_income=average_monthly_income,
+                net_cash_flow=net_cash_flow,
+                savings_rate=savings_rate,
+                month_to_date_spend=month_to_date_spend,
             ),
             categories=[
                 HouseholdSpendingCategory(
@@ -658,6 +714,10 @@ class HouseholdTransactionService:
                     average_monthly_spend=round(amount / coverage_months, 2),
                     share_of_spend=round(amount / total_spend if total_spend > 0 else 0.0, 4),
                     transaction_count=category_counts[(category, essentiality)],
+                    gross_monthly_spend=round(
+                        category_gross[(category, essentiality)] / coverage_months, 2
+                    ),
+                    refund_total=round(category_refund[(category, essentiality)], 2),
                 )
                 for (category, essentiality), amount in sorted(
                     category_totals.items(),

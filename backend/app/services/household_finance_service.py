@@ -70,13 +70,16 @@ def _recommended_category_budget(
     category: HouseholdSpendingCategory,
     coverage_months: int,
 ) -> float | None:
-    if coverage_months < 2 or category.average_monthly_spend <= 0:
+    # Caps key off gross monthly spend so a one-off refund credit does not silently
+    # pull the suggested cap below the household's real recurring spend.
+    cap_basis = category.gross_monthly_spend or category.average_monthly_spend
+    if coverage_months < 2 or cap_basis <= 0:
         return None
     if category.essentiality == "essential":
-        return _round_budget(category.average_monthly_spend * 1.02)
+        return _round_budget(cap_basis * 1.02)
     if category.essentiality == "mixed":
-        return _round_budget(category.average_monthly_spend * 0.95)
-    return _round_budget(category.average_monthly_spend * 0.85)
+        return _round_budget(cap_basis * 0.95)
+    return _round_budget(cap_basis * 0.85)
 
 
 def _category_budget_meta(

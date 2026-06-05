@@ -84,6 +84,10 @@ function mockSpending(coverageMonths = 3) {
         transactionCount: 62,
         coverageMonths,
         accountCount: 2,
+        averageMonthlyIncome: 8000,
+        netCashFlow: 8901,
+        savingsRate: 0.37,
+        monthToDateSpend: 1200,
       },
       categories,
       monthlyTrend: [
@@ -156,7 +160,7 @@ describe('MoneyBudgetPanel', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('3 suggested · 0 confirmed.')).toBeInTheDocument()
     expect(screen.getByText('2 suggested · 0 confirmed.')).toBeInTheDocument()
-    expect(screen.getAllByText('Suggested over cap')).toHaveLength(2)
+    expect(screen.getAllByText('Over suggested cap')).toHaveLength(2)
     expect(screen.getByText('Suggested cap')).toBeInTheDocument()
     expect(screen.getByText('Category trendlines')).toBeInTheDocument()
   })
@@ -200,7 +204,20 @@ describe('MoneyBudgetPanel', () => {
       screen.getByText('0 suggested rows not accepted yet.'),
     ).toBeInTheDocument()
     expect(screen.getAllByText(/0 suggested · 0 confirmed/i)).toHaveLength(2)
-    expect(screen.getAllByText('Needs budget')).toHaveLength(3)
+    expect(screen.getAllByText('No cap yet')).toHaveLength(3)
+  })
+
+  it('surfaces cash-flow KPIs and an accept-all suggested caps action', () => {
+    render(<MoneyBudgetPanel />)
+
+    expect(screen.getByText('Savings rate')).toBeInTheDocument()
+    expect(screen.getByText('37%')).toBeInTheDocument()
+    expect(screen.getByText('Net cash flow')).toBeInTheDocument()
+    expect(screen.getByText('Month-to-date spend')).toBeInTheDocument()
+    // Default fixture has discretionary categories with suggested (unconfirmed) caps.
+    expect(
+      screen.getByRole('button', { name: /Accept all .* suggested cap/i }),
+    ).toBeInTheDocument()
   })
 
   it('expands category purchases and sends merchant rule recategorization', async () => {
@@ -209,7 +226,15 @@ describe('MoneyBudgetPanel', () => {
 
     render(<MoneyBudgetPanel />)
 
-    await user.click(screen.getByRole('button', { name: /household/i }))
+    // The category trend legend now also renders a "Household" toggle button, so
+    // target the expandable table row specifically via its aria-expanded handle.
+    const householdButtons = screen.getAllByRole('button', {
+      name: /household/i,
+    })
+    const expandRow = householdButtons.find(
+      (button) => button.getAttribute('aria-expanded') != null,
+    )
+    await user.click(expandRow ?? householdButtons[0])
     expect(screen.getByText(/WM SUPERCENTER/)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Categorize' }))
