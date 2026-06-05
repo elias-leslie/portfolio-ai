@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from app.macro_gate import conditions
@@ -85,8 +85,13 @@ def test_conditions_payload_turns_reduced_gate_into_plain_language_caution() -> 
 
     assert payload["state"] == "Caution"
     assert payload["stress_score"] == 41
+    assert payload["macro_stress_score"] == 41
+    assert payload["tape_pressure_score"] is None
+    assert payload["overall_caution_score"] == 41
+    assert payload["overall_read"] == "selective"
+    assert payload["primary_driver"] == "macro"
     assert payload["alert"]["active"] is False
-    assert payload["summary"] == "Market stress is low-to-moderate."
+    assert payload["summary"] == "Selective — buying conditions are weakening."
     assert payload["coverage"] == 1.0
     assert "highest-conviction setups" in " ".join(payload["what_to_do"])
 
@@ -96,10 +101,11 @@ def test_conditions_payload_turns_reduced_gate_into_plain_language_caution() -> 
     assert evidence_by_key["hy_oas"]["value"] == "2.70"
     assert evidence_by_key["crowding"]["value"] == "High"
     assert evidence_by_key["crowding"]["detail"] == "|corr| 0.22"
-    assert evidence_by_key["stress"]["trend"]["change_label"] == "7D +7"
+    assert evidence_by_key["overall_caution"]["value"] == "41"
+    assert evidence_by_key["overall_caution"]["trend"] is None
     assert payload["trend"]["stress"]["direction"] == "worsening"
     assert payload["trend"]["stress"]["reversal"] is True
-    assert payload["market_shifts"][0]["label"] == "Stress reversed worse"
+    assert payload["market_shifts"][0]["label"] == "Macro stress reversed worse"
 
 
 def test_conditions_payload_applies_current_tape_stress_overlay() -> None:
@@ -119,15 +125,20 @@ def test_conditions_payload_applies_current_tape_stress_overlay() -> None:
 
     assert payload["state"] == "Caution"
     assert payload["stress_score"] == 42
+    assert payload["macro_stress_score"] == 35
+    assert payload["tape_pressure_score"] == 42
+    assert payload["overall_caution_score"] == 42
+    assert payload["overall_read"] == "selective"
+    assert payload["primary_driver"] == "tape"
     assert payload["deployment_score"] == 65.0
     assert payload["flags"] == []
-    assert payload["summary"] == "Market stress is low-to-moderate, with current tape pressure."
+    assert payload["summary"] == "Selective — tape pressure is elevated, but macro stress is not severe."
     assert "Do not chase the selloff" in payload["action_text"]
-    assert "equity tape is under pressure" in payload["what_matters"][0]
+    assert "Tape pressure is the main caution" in payload["what_matters"][0]
     assert "Do not chase the selloff" in payload["what_to_do"][0]
 
     evidence_by_key = {item["key"]: item for item in payload["evidence"]}
-    assert evidence_by_key["stress"]["value"] == "42"
+    assert evidence_by_key["overall_caution"]["value"] == "42"
     assert evidence_by_key["equity_tape"]["value"] == "42"
     assert evidence_by_key["equity_tape"]["detail"] == (
         "S&P -0.8%, Technology -2.9%, 2/11 sectors down"
@@ -150,18 +161,20 @@ def test_conditions_payload_uses_stronger_copy_for_moderate_tape_stress() -> Non
     )
 
     assert payload["stress_score"] == 54
-    assert payload["summary"] == "Market stress is moderate, with current tape pressure."
+    assert payload["overall_read"] == "selective"
+    assert payload["primary_driver"] == "tape"
+    assert payload["summary"] == "Selective — tape pressure is elevated, but macro stress is not severe."
     assert "Stay invested, but be selective" in payload["action_text"]
 
     evidence_by_key = {item["key"]: item for item in payload["evidence"]}
-    assert evidence_by_key["stress"]["detail"] == "Moderate caution"
+    assert evidence_by_key["overall_caution"]["detail"] == "Selective"
 
 
 def test_conditions_payload_keeps_sixty_tape_stress_as_caution() -> None:
     payload = conditions.build_conditions_payload(
-        _snapshot(deployment_score=65.0),
+        _snapshot(deployment_score=82.0, zone="FULL_DEPLOY"),
         tape_stress=conditions.TapeStressEvidence(
-            stress_score=60,
+            stress_score=62,
             as_of="2026-06-04T14:20:00+00:00",
             sp500_change_pct=-1.2,
             weakest_sector_symbol="XLK",
@@ -172,14 +185,18 @@ def test_conditions_payload_keeps_sixty_tape_stress_as_caution() -> None:
         ),
     )
 
-    assert payload["state"] == "Caution"
-    assert payload["stress_score"] == 60
+    assert payload["state"] == "Calm"
+    assert payload["stress_score"] == 62
+    assert payload["macro_stress_score"] == 18
+    assert payload["tape_pressure_score"] == 62
+    assert payload["overall_read"] == "selective"
+    assert payload["primary_driver"] == "tape"
     assert payload["flags"] == []
     assert payload["alert"]["active"] is False
-    assert payload["summary"] == "Market stress is moderate, with current tape pressure."
+    assert payload["summary"] == "Selective — tape pressure is elevated, but macro stress is not severe."
 
     evidence_by_key = {item["key"]: item for item in payload["evidence"]}
-    assert evidence_by_key["stress"]["tone"] == "warning"
+    assert evidence_by_key["overall_caution"]["tone"] == "warning"
 
 
 def test_conditions_payload_escalates_on_severe_current_tape_stress() -> None:
@@ -199,9 +216,67 @@ def test_conditions_payload_escalates_on_severe_current_tape_stress() -> None:
 
     assert payload["state"] == "Elevated"
     assert payload["stress_score"] == 66
+    assert payload["overall_read"] == "defensive"
+    assert payload["primary_driver"] == "tape"
     assert payload["flags"] == ["equity_tape_stress"]
     assert payload["alert"]["active"] is True
     assert payload["alert"]["priority"] == "high"
+
+
+def test_conditions_payload_marks_both_driver_when_macro_and_tape_are_high() -> None:
+    payload = conditions.build_conditions_payload(
+        _snapshot(zone="DEFENSIVE", deployment_score=30.0),
+        tape_stress=conditions.TapeStressEvidence(
+            stress_score=68,
+            as_of="2026-06-04T14:20:00+00:00",
+            sp500_change_pct=-2.9,
+            weakest_sector_symbol="XLK",
+            weakest_sector_name="Technology",
+            weakest_sector_change_pct=-5.8,
+            negative_sector_count=8,
+            sector_count=11,
+        ),
+    )
+
+    assert payload["macro_stress_score"] == 70
+    assert payload["tape_pressure_score"] == 68
+    assert payload["overall_caution_score"] == 70
+    assert payload["overall_read"] == "defensive"
+    assert payload["primary_driver"] == "both"
+
+
+def test_get_tape_stress_requires_fresh_sp500_and_broad_sector_coverage(monkeypatch) -> None:
+    now = datetime(2026, 6, 5, 10, 30, tzinfo=conditions.NY_TZ)
+    fresh = now - timedelta(minutes=5)
+    stale = now - timedelta(minutes=30)
+    sector_symbols = list(conditions.SECTOR_ETFS.keys())
+
+    def quote(change_pct: float, cached_at: datetime) -> conditions.CurrentQuoteChange:
+        return conditions.CurrentQuoteChange(
+            change_pct=change_pct,
+            as_of=cached_at.isoformat(),
+            cached_at=cached_at,
+        )
+
+    monkeypatch.setattr(
+        conditions,
+        "_current_quote_changes",
+        lambda _symbols: {
+            conditions.INDEX_SP500: quote(-1.0, stale),
+            **{symbol: quote(-0.4, fresh) for symbol in sector_symbols},
+        },
+    )
+    assert conditions.get_tape_stress(now=now) is None
+
+    monkeypatch.setattr(
+        conditions,
+        "_current_quote_changes",
+        lambda _symbols: {
+            conditions.INDEX_SP500: quote(-1.0, fresh),
+            **{symbol: quote(-0.4, fresh) for symbol in sector_symbols[:8]},
+        },
+    )
+    assert conditions.get_tape_stress(now=now) is None
 
 
 def test_conditions_payload_escalates_only_on_severe_volatility() -> None:
@@ -209,10 +284,11 @@ def test_conditions_payload_escalates_only_on_severe_volatility() -> None:
 
     assert payload["state"] == "Elevated"
     assert payload["flags"] == ["vix_stress"]
+    assert payload["overall_read"] == "defensive"
     assert payload["alert"] == {
         "active": True,
         "priority": "high",
-        "reason": "Severe market-stress threshold crossed.",
+        "reason": "Severe overall-caution threshold crossed.",
     }
 
 
@@ -223,6 +299,8 @@ def test_conditions_payload_marks_critical_when_stress_score_is_very_high() -> N
 
     assert payload["state"] == "Elevated"
     assert payload["stress_score"] == 76
+    assert payload["overall_read"] == "defensive"
+    assert payload["primary_driver"] == "macro"
     assert payload["flags"] == ["defensive_deployment"]
     assert payload["alert"]["priority"] == "critical"
 
@@ -259,5 +337,8 @@ def test_conditions_payload_handles_missing_values_without_alerting() -> None:
 
     assert payload["state"] == "Calm"
     assert payload["stress_score"] is None
+    assert payload["overall_caution_score"] is None
+    assert payload["overall_read"] == "unavailable"
+    assert payload["primary_driver"] == "data_limited"
     assert payload["alert"]["active"] is False
     assert payload["evidence"][0]["value"] == "-"

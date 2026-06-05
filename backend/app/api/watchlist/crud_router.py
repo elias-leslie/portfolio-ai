@@ -157,6 +157,7 @@ async def get_score_history(item_id: str, days: int = 10) -> ScoreHistoryRespons
                 overall=point.overall_score,
                 price_score=point.price_score or 0.0,
                 technical_score=point.technical_score or 0.0,
+                price=point.price,
             )
         )
 

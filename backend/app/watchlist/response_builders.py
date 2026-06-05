@@ -405,6 +405,7 @@ class ScoreHistoryPoint(BaseModel):
     overall: float
     price_score: float
     technical_score: float
+    price: float | None = None
 
 
 class ScoreHistoryResponse(BaseModel):

@@ -132,6 +132,36 @@ function resolveConditionStyle(state: string | null | undefined): ZoneStyle {
       }
 }
 
+function readToState(read: string | null | undefined): string | undefined {
+  if (read === 'normal') return 'Calm'
+  if (read === 'selective') return 'Caution'
+  if (read === 'defensive') return 'Elevated'
+  return undefined
+}
+
+function fallbackRead(state: string | null | undefined): string {
+  if (state === 'Calm') return 'normal'
+  if (state === 'Elevated') return 'defensive'
+  if (state === 'Caution') return 'selective'
+  return 'unavailable'
+}
+
+function readLabel(read: string | null | undefined): string {
+  if (read === 'normal') return 'Normal'
+  if (read === 'selective') return 'Selective'
+  if (read === 'defensive') return 'Defensive'
+  return 'Unavailable'
+}
+
+function driverLabel(driver: string | null | undefined): string {
+  if (driver === 'macro') return 'Macro'
+  if (driver === 'tape') return 'Tape'
+  if (driver === 'both') return 'Both'
+  if (driver === 'none') return 'None'
+  if (driver === 'data_limited') return 'Data Limited'
+  return 'Unavailable'
+}
+
 function deploymentDate(snapshotDate: string | null | undefined): string {
   return snapshotDate ?? '-'
 }
@@ -145,17 +175,16 @@ function macroZoneState(zone: string | null | undefined): string | undefined {
 }
 
 function conditionBadge(
-  state: string | undefined,
+  read: string | undefined,
   alertActive: boolean,
   loading: boolean,
 ): string {
-  if (loading && !state) return 'Loading'
-  if (!state) return '-'
-  if (state === 'Caution' && !alertActive) {
-    return 'Caution, not emergency'
-  }
-  if (state === 'Elevated') return 'Elevated stress'
-  return state
+  if (loading && (!read || read === 'unavailable')) return 'Loading'
+  if (!read || read === 'unavailable') return '-'
+  if (read === 'selective' && !alertActive) return 'Selective'
+  if (read === 'defensive') return 'Defensive'
+  if (read === 'normal') return 'Normal'
+  return readLabel(read)
 }
 
 function formatPercent(value: number | null | undefined): string {
@@ -512,13 +541,21 @@ function MarketConditionHero({
 }) {
   const state = conditions?.state ?? macroZoneState(macro?.zone)
   const alertActive = conditions?.alert.active ?? state === 'Elevated'
-  const stateStyle = resolveConditionStyle(state)
-  const stressScore =
+  const overallRead = conditions?.overallRead ?? fallbackRead(state)
+  const stateStyle = resolveConditionStyle(
+    overallRead === 'unavailable'
+      ? undefined
+      : (readToState(overallRead) ?? state),
+  )
+  const overallCautionScore =
+    conditions?.overallCautionScore ??
     conditions?.stressScore ??
     (macro?.deploymentScore != null
       ? Math.round(100 - macro.deploymentScore)
       : null)
   const deploymentScore = conditions?.deploymentScore ?? macro?.deploymentScore
+  const tapePressureScore = conditions?.tapePressureScore
+  const primaryDriver = conditions?.primaryDriver ?? 'data_limited'
   const coverage = conditions?.coverage ?? macro?.coverage
   const summary = error
     ? error instanceof Error
@@ -528,7 +565,6 @@ function MarketConditionHero({
   const actionText =
     conditions?.actionText ??
     'Use the macro gate as context before adding new market risk.'
-  const stressTrend = conditions?.trend?.stress
   const degraded = macro?.degraded ?? false
   const staleLabels = (macro?.staleComponents ?? [])
     .map((key) => COMPONENT_LABELS.find((c) => c.key === key)?.label ?? key)
@@ -544,7 +580,7 @@ function MarketConditionHero({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full border border-current px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] sm:px-3">
-            {conditionBadge(state, alertActive, loading)}
+            {conditionBadge(overallRead, alertActive, loading)}
           </span>
           {degraded ? (
             <span
@@ -566,22 +602,16 @@ function MarketConditionHero({
 
       <div className="mt-4">
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-current/70">
-          Market Stress
+          Overall Read
         </p>
-        <div className="mt-1 flex items-baseline gap-2">
-          <span className="font-display italic text-6xl leading-none tracking-tight tabular-nums">
-            {formatScore(stressScore)}
+        <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
+          <span className="font-display italic text-5xl leading-none tracking-tight sm:text-6xl">
+            {readLabel(overallRead)}
           </span>
-          <span className="text-sm text-current/70">/ 100</span>
+          <span className="pb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-current/70">
+            Overall Caution {formatScore(overallCautionScore)}/100
+          </span>
         </div>
-        {stressTrend && stressTrend.direction !== 'unavailable' ? (
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <TrendChip trend={stressTrend} />
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-current/70">
-              {stressTrend.reversalLabel ?? stressTrend.summary}
-            </span>
-          </div>
-        ) : null}
       </div>
 
       <p className="mt-3 text-sm font-semibold leading-5 text-current">
@@ -610,9 +640,29 @@ function MarketConditionHero({
         </div>
         <div
           className="rounded-xl border border-current/20 bg-bg/15 px-3 py-2"
+          title="Current market action from fresh S&P 500 and sector quotes. Unavailable means tape data is stale or too partial."
+        >
+          <p>Tape Pressure</p>
+          <p className="mt-1 text-sm font-semibold tracking-normal text-current">
+            {formatScore(tapePressureScore)}
+          </p>
+        </div>
+        <div
+          className="rounded-xl border border-current/20 bg-bg/15 px-3 py-2"
+          title={
+            conditions?.driverDetail ?? 'Main reason behind the Today read.'
+          }
+        >
+          <p>Driver</p>
+          <p className="mt-1 text-sm font-semibold tracking-normal text-current">
+            {driverLabel(primaryDriver)}
+          </p>
+        </div>
+        <div
+          className="rounded-xl border border-current/20 bg-bg/15 px-3 py-2"
           title="Share of macro drivers currently present in the score. This is data coverage, not a real-time guarantee."
         >
-          <p>Driver Coverage</p>
+          <p>Coverage</p>
           <p className="mt-1 text-sm font-semibold tracking-normal text-current">
             {formatPercent(coverage)}
           </p>

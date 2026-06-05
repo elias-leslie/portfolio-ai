@@ -76,6 +76,12 @@ export interface MacroConditionsResponse {
   computedAt: string | null
   state: 'Calm' | 'Caution' | 'Elevated' | string
   stressScore: number | null
+  macroStressScore: number | null
+  tapePressureScore: number | null
+  overallCautionScore: number | null
+  overallRead: 'normal' | 'selective' | 'defensive' | 'unavailable' | string
+  primaryDriver: 'macro' | 'tape' | 'both' | 'none' | 'data_limited' | string
+  driverDetail: string
   deploymentScore: number | null
   macroZone: string | null
   coverage: number | null

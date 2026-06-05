@@ -103,12 +103,20 @@ const conditions = {
   computedAt: '2026-05-28T21:45:00Z',
   state: 'Caution',
   stressScore: 41,
+  macroStressScore: 41,
+  tapePressureScore: 62,
+  overallCautionScore: 62,
+  overallRead: 'selective',
+  primaryDriver: 'tape',
+  driverDetail:
+    'Tape pressure is the main caution; macro stress is not severe.',
   deploymentScore: 59,
   macroZone: 'REDUCED',
   coverage: 1,
-  summary: 'Market stress is low-to-moderate.',
+  summary:
+    'Selective — tape pressure is elevated, but macro stress is not severe.',
   actionText:
-    'Stay invested according to plan. Be selective with new buys. Do not chase broad market strength just because indexes are up.',
+    'Stay invested, but be selective. Do not chase the selloff; scale only into highest-conviction buys while the tape stabilizes.',
   whatMatters: [
     'Credit and volatility are calm, so this is not a panic tape.',
     'Breadth is middling; the rally is not broad enough to call conditions fully strong.',
@@ -133,7 +141,7 @@ const conditions = {
   marketShifts: [
     {
       key: 'stress',
-      label: 'Stress reversed worse',
+      label: 'Macro stress reversed worse',
       detail: '7D +7 · Reversed worse over 7D',
       tone: 'warning',
       reversal: true,
@@ -166,13 +174,22 @@ const conditions = {
   },
   evidence: [
     {
-      key: 'stress',
-      label: 'Stress',
-      value: '41',
-      detail: 'Low-to-moderate',
+      key: 'overall_caution',
+      label: 'Overall Caution',
+      value: '62',
+      detail: 'Selective',
       tone: 'warning',
-      tooltip: 'Higher means market conditions are less supportive.',
-      trend: stressTrend,
+      tooltip: 'Higher means slow down new risk.',
+      trend: null,
+    },
+    {
+      key: 'equity_tape',
+      label: 'Tape Pressure',
+      value: '62',
+      detail: 'S&P -1.2%, Technology -4.1%, 6/11 sectors down',
+      tone: 'warning',
+      tooltip: 'Current tape pressure uses fresh quotes.',
+      trend: null,
     },
     {
       key: 'vix',
@@ -258,20 +275,27 @@ describe('DailyBriefPanel', () => {
 
     expect(screen.getByText('Daily Brief')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /refresh/i })).toBeInTheDocument()
-    expect(screen.getByText('Caution, not emergency')).toBeInTheDocument()
-    expect(screen.getByText('Market Stress')).toBeInTheDocument()
-    expect(screen.getAllByText('41').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Selective').length).toBeGreaterThan(0)
+    expect(screen.getByText('Overall Read')).toBeInTheDocument()
+    expect(screen.getByText('Overall Caution 62/100')).toBeInTheDocument()
     expect(
-      screen.getByText('Market stress is low-to-moderate.'),
+      screen.getByText(
+        'Selective — tape pressure is elevated, but macro stress is not severe.',
+      ),
     ).toBeInTheDocument()
+    expect(screen.getByText('Buying Conditions')).toBeInTheDocument()
+    expect(screen.getAllByText('Tape Pressure').length).toBeGreaterThan(0)
+    expect(screen.getByText('Driver')).toBeInTheDocument()
+    expect(screen.getAllByText('Coverage').length).toBeGreaterThan(0)
+    expect(screen.getByText('Tape')).toBeInTheDocument()
+    expect(screen.queryByText('7D +7')).not.toBeInTheDocument()
 
     expect(screen.getByText('What matters')).toBeInTheDocument()
     expect(screen.getByText('What to do')).toBeInTheDocument()
     expect(screen.getByText('What changes this')).toBeInTheDocument()
     expect(screen.getByText(/highest-conviction setups/i)).toBeInTheDocument()
     expect(screen.getByText('Market shifts')).toBeInTheDocument()
-    expect(screen.getByText('Stress reversed worse')).toBeInTheDocument()
-    expect(screen.getAllByText('7D +7').length).toBeGreaterThan(0)
+    expect(screen.getByText('Macro stress reversed worse')).toBeInTheDocument()
 
     expect(screen.getByText('HY OAS')).toBeInTheDocument()
     expect(screen.getByText('10Y-3M')).toBeInTheDocument()

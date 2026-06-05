@@ -56,9 +56,13 @@ def test_macro_conditions_route_returns_today_briefing_contract() -> None:
     body = resp.json()
     assert body["state"] == "Caution"
     assert body["stress_score"] == 41
+    assert body["macro_stress_score"] == 41
+    assert body["overall_caution_score"] == 41
+    assert body["overall_read"] == "selective"
+    assert body["primary_driver"] == "macro"
     assert body["alert"]["active"] is False
     assert body["bond_signals"]["ten_year_three_month_bps"] == 98.0
-    assert body["evidence"][0]["label"] == "Stress"
+    assert body["evidence"][0]["label"] == "Overall Caution"
     assert body["trend"]["stress"]["direction"] == "unavailable"
     assert body["market_shifts"][0]["label"] == "No major shifts"
 

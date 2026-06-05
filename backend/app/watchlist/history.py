@@ -17,6 +17,7 @@ class ScoreTimelinePoint:
     overall_score: float
     price_score: float | None = None
     technical_score: float | None = None
+    price: float | None = None
     fetched_at: datetime | None = None
 
 
@@ -72,6 +73,7 @@ def build_score_timeline(
 
         price_avg = _average(price_scores)
         technical_avg = _average(technical_scores)
+        close_price_avg = _average(snap.price for snap in bucket)
 
         last_snapshot = max(bucket, key=lambda s: s.fetched_at)
 
@@ -81,6 +83,7 @@ def build_score_timeline(
                 overall_score=overall_avg,
                 price_score=price_avg,
                 technical_score=technical_avg,
+                price=close_price_avg,
                 fetched_at=last_snapshot.fetched_at,
             )
         )

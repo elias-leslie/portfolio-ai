@@ -112,6 +112,12 @@ class MacroConditionsResponse(BaseModel):
     computed_at: str | None = None
     state: str
     stress_score: int | None = None
+    macro_stress_score: int | None = None
+    tape_pressure_score: int | None = None
+    overall_caution_score: int | None = None
+    overall_read: str = "unavailable"
+    primary_driver: str = "data_limited"
+    driver_detail: str = ""
     deployment_score: float | None = None
     macro_zone: str | None = None
     coverage: float | None = None

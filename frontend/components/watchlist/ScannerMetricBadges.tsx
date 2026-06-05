@@ -364,29 +364,67 @@ export function buildTodayGate(state?: {
   summary?: string | null
   actionText?: string | null
   coverage?: number | null
+  deploymentScore?: number | null
+  macroStressScore?: number | null
+  tapePressureScore?: number | null
+  overallCautionScore?: number | null
+  overallRead?: string | null
+  primaryDriver?: string | null
+  driverDetail?: string | null
 }): TodayGate | undefined {
   if (!state) return undefined
-  const rawState = state.state ?? 'Unknown'
-  const label = rawState === 'Elevated' ? 'Defensive' : rawState
+  const read =
+    state.overallRead ??
+    (state.state === 'Calm'
+      ? 'normal'
+      : state.state === 'Elevated'
+        ? 'defensive'
+        : state.state === 'Caution'
+          ? 'selective'
+          : 'unavailable')
+  const label =
+    read === 'normal'
+      ? 'Normal'
+      : read === 'selective'
+        ? 'Selective'
+        : read === 'defensive'
+          ? 'Defensive'
+          : 'Unavailable'
   const degraded =
     typeof state.coverage === 'number' && Number.isFinite(state.coverage)
       ? state.coverage < 0.8
       : false
-  const tone: TodayGate['tone'] = degraded
-    ? 'degraded'
-    : rawState === 'Calm'
-      ? 'clear'
-      : rawState === 'Elevated' || state.alert?.active
-        ? 'defensive'
-        : 'caution'
+  const tone: TodayGate['tone'] =
+    degraded || read === 'unavailable'
+      ? 'degraded'
+      : read === 'normal'
+        ? 'clear'
+        : read === 'defensive' || state.alert?.active
+          ? 'defensive'
+          : 'caution'
+  const macroScore =
+    state.deploymentScore ??
+    (typeof state.macroStressScore === 'number'
+      ? 100 - state.macroStressScore
+      : null)
+  const tapeScore = state.tapePressureScore
+  const driver = state.primaryDriver ?? 'data_limited'
+  const driverSentence =
+    read === 'defensive'
+      ? 'Protect capital first; scanner ideas need exceptional conviction.'
+      : driver === 'tape'
+        ? 'Tape is the main caution; highest-conviction buys only.'
+        : driver === 'macro'
+          ? 'Buying conditions are the main caution; highest-conviction buys only.'
+          : driver === 'both'
+            ? 'Macro and tape both call for highest-conviction buys only.'
+            : driver === 'data_limited'
+              ? 'Tape data is limited; use macro context and setup quality.'
+              : 'No major Today caution; use normal selectivity.'
 
   return {
     label,
     tone,
-    detail:
-      state.summary ??
-      state.actionText ??
-      state.alert?.reason ??
-      'Today market gate is unavailable.',
+    detail: `Macro ${roundScore(macroScore)}, tape ${roundScore(tapeScore)}. ${driverSentence}`,
   }
 }

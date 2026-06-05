@@ -13,10 +13,13 @@ from typing import Any
 
 from ..constants import INDEX_SP500, SECTOR_ETFS
 from ..storage.facade import get_storage
-from ..utils.market_hours import NY_TZ
+from ..utils.market_hours import NY_TZ, is_stale
 from . import repository
 
 SEVERE_STRESS_THRESHOLD = 65
+MODERATE_CAUTION_THRESHOLD = 50
+SELECTIVE_CAUTION_THRESHOLD = 35
+MIN_TAPE_SECTOR_COVERAGE = 0.80
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +48,14 @@ class TapeStressEvidence:
     weakest_sector_change_pct: float | None
     negative_sector_count: int
     sector_count: int
+    sector_coverage: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CurrentQuoteChange:
+    change_pct: float
+    as_of: str | None
+    cached_at: datetime | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +102,12 @@ def _datetime_text(value: object) -> str | None:
     if isinstance(value, date):
         return value.isoformat()
     return str(value)
+
+
+def _aware_datetime(value: object) -> datetime | None:
+    if not isinstance(value, datetime):
+        return None
+    return value if value.tzinfo else value.replace(tzinfo=UTC)
 
 
 def _quote_market_date(value: object) -> date | None:
@@ -315,7 +332,7 @@ def _prior_close_for_quote(
     return latest_close
 
 
-def _current_quote_changes(symbols: list[str]) -> dict[str, tuple[float, str | None]]:
+def _current_quote_changes(symbols: list[str]) -> dict[str, CurrentQuoteChange]:
     normalized_symbols = sorted({symbol.upper() for symbol in symbols if symbol})
     if not normalized_symbols:
         return {}
@@ -377,7 +394,7 @@ def _current_quote_changes(symbols: list[str]) -> dict[str, tuple[float, str | N
             continue
         bars_by_symbol.setdefault(symbol, []).append((bar_date, close_value))
 
-    changes: dict[str, tuple[float, str | None]] = {}
+    changes: dict[str, CurrentQuoteChange] = {}
     for symbol, (price, cached_at) in latest_quotes.items():
         baseline = _prior_close_for_quote(
             quote_date=_quote_market_date(cached_at),
@@ -386,27 +403,61 @@ def _current_quote_changes(symbols: list[str]) -> dict[str, tuple[float, str | N
         if baseline is None or baseline <= 0:
             continue
         change_pct = ((price - baseline) / baseline) * 100.0
-        changes[symbol] = (change_pct, _datetime_text(cached_at))
+        changes[symbol] = CurrentQuoteChange(
+            change_pct=change_pct,
+            as_of=_datetime_text(cached_at),
+            cached_at=_aware_datetime(cached_at),
+        )
     return changes
 
 
-def get_tape_stress() -> TapeStressEvidence | None:
+def _fresh_quote_changes(
+    changes: dict[str, CurrentQuoteChange],
+    *,
+    now: datetime,
+) -> dict[str, CurrentQuoteChange]:
+    fresh: dict[str, CurrentQuoteChange] = {}
+    for symbol, change in changes.items():
+        if change.cached_at is None:
+            continue
+        if not is_stale(change.cached_at, now):
+            fresh[symbol] = change
+    return fresh
+
+
+def _required_sector_quote_count(sector_total: int) -> int:
+    return max(1, int(sector_total * MIN_TAPE_SECTOR_COVERAGE + 0.999))
+
+
+def get_tape_stress(now: datetime | None = None) -> TapeStressEvidence | None:
     """Return current equity/sector tape stress from canonical quote cache."""
+    market_now = (now or datetime.now(NY_TZ)).astimezone(NY_TZ)
     sector_symbols = list(SECTOR_ETFS.keys())
     changes = _current_quote_changes([INDEX_SP500, *sector_symbols])
     if not changes:
         return None
+    fresh_changes = _fresh_quote_changes(changes, now=market_now)
+    if not fresh_changes:
+        return None
 
-    sp500 = changes.get(INDEX_SP500)
-    sp500_change = sp500[0] if sp500 else None
+    sector_quote_count = sum(1 for symbol in sector_symbols if symbol in fresh_changes)
+    sector_coverage = sector_quote_count / len(sector_symbols) if sector_symbols else 0.0
+    if (
+        INDEX_SP500 not in fresh_changes
+        or sector_quote_count < _required_sector_quote_count(len(sector_symbols))
+    ):
+        return None
+
+    sp500 = fresh_changes.get(INDEX_SP500)
+    sp500_change = sp500.change_pct if sp500 else None
     sp500_stress = (
         _stress_from_decline(-sp500_change) if sp500_change is not None else None
     )
     sector_changes: list[tuple[str, float]] = []
     for symbol in sector_symbols:
-        change_tuple = changes.get(symbol)
+        change_tuple = fresh_changes.get(symbol)
         if change_tuple is not None:
-            sector_changes.append((symbol, change_tuple[0]))
+            sector_changes.append((symbol, change_tuple.change_pct))
     weakest_sector = min(sector_changes, key=lambda row: row[1], default=None)
     negative_sector_count = sum(1 for _, change in sector_changes if change < 0)
     sector_stress = _sector_tape_stress(
@@ -419,7 +470,7 @@ def get_tape_stress() -> TapeStressEvidence | None:
     ]
     if not stress_candidates:
         return None
-    as_of_values = [as_of for _, as_of in changes.values() if as_of]
+    as_of_values = [change.as_of for change in fresh_changes.values() if change.as_of]
     as_of = max(as_of_values) if as_of_values else None
     weakest_symbol = weakest_sector[0] if weakest_sector else None
     return TapeStressEvidence(
@@ -431,6 +482,7 @@ def get_tape_stress() -> TapeStressEvidence | None:
         weakest_sector_change_pct=weakest_sector[1] if weakest_sector else None,
         negative_sector_count=negative_sector_count,
         sector_count=len(sector_changes),
+        sector_coverage=sector_coverage,
     )
 
 
@@ -607,7 +659,7 @@ def _build_trends(
 ) -> dict[str, Any]:
     rows = _history_with_current(snapshot, macro_history)
     configs = {
-        "stress": TrendConfig("stress", "Stress", False, 3.0, 0),
+        "stress": TrendConfig("stress", "Macro stress", False, 3.0, 0),
         "vix": TrendConfig("vix", "VIX", False, 2.0, 2),
         "hy_oas": TrendConfig("hy_oas", "HY OAS", False, 0.25, 2),
         "breadth": TrendConfig("breadth", "Breadth", True, 3.0, 0, "%"),
@@ -647,7 +699,7 @@ def _shift_label(key: str, trend: dict[str, Any]) -> str:
         )
     if direction == "improving":
         return {
-            "stress": "Stress easing",
+            "stress": "Macro stress easing",
             "vix": "Volatility easing",
             "hy_oas": "Credit improving",
             "breadth": "Breadth improving",
@@ -657,7 +709,7 @@ def _shift_label(key: str, trend: dict[str, Any]) -> str:
         }.get(key, f"{trend['label']} improving")
     if direction == "worsening":
         return {
-            "stress": "Stress rising",
+            "stress": "Macro stress rising",
             "vix": "Volatility rising",
             "hy_oas": "Credit widening",
             "breadth": "Breadth weakening",
@@ -707,67 +759,170 @@ def _build_market_shifts(trends: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-def _state_copy(
-    state: str,
-    flags: list[str],
-    stress_score: int | None,
-    tape_stress: TapeStressEvidence | None = None,
-) -> tuple[str, str]:
-    if state == "Elevated":
-        return (
-            "Market stress is elevated.",
-            "Protect the plan first. Avoid adding broad risk until volatility, credit, and breadth stabilize.",
-        )
-    if state == "Calm":
-        return (
-            "Market conditions are supportive.",
-            "Stay with the plan. New buys can use normal selectivity, while still checking concentration.",
-        )
+def _overall_read(overall_caution_score: int | None, flags: list[str]) -> str:
     if flags:
-        return (
-            "Market stress is elevated.",
-            "Protect the plan first. Avoid adding broad risk until volatility, credit, and breadth stabilize.",
-        )
-    if stress_score is not None and stress_score >= 50:
-        return (
-            "Market stress is moderate, with current tape pressure.",
-            "Stay invested, but be selective. Do not chase the selloff; scale only into highest-conviction buys while the tape stabilizes.",
-        )
-    if tape_stress is not None and tape_stress.stress_score >= 35:
-        return (
-            "Market stress is low-to-moderate, with current tape pressure.",
-            "Stay invested according to plan. Do not chase the selloff; scale only into highest-conviction buys until the tape stabilizes.",
-        )
-    return (
-        "Market stress is low-to-moderate.",
-        "Stay invested according to plan. Be selective with new buys. Do not chase broad market strength just because indexes are up.",
+        return "defensive"
+    if overall_caution_score is None:
+        return "unavailable"
+    if overall_caution_score >= SEVERE_STRESS_THRESHOLD:
+        return "defensive"
+    if overall_caution_score >= SELECTIVE_CAUTION_THRESHOLD:
+        return "selective"
+    return "normal"
+
+
+def _primary_driver(
+    *,
+    overall_read: str,
+    macro_stress_score: int | None,
+    tape_pressure_score: int | None,
+) -> str:
+    driver = "data_limited"
+    if overall_read == "normal":
+        driver = "none" if tape_pressure_score is not None else "data_limited"
+    elif overall_read != "unavailable":
+        if tape_pressure_score is None:
+            driver = (
+                "macro"
+                if macro_stress_score is not None
+                and macro_stress_score >= SELECTIVE_CAUTION_THRESHOLD
+                else "data_limited"
+            )
+        elif macro_stress_score is None:
+            driver = "tape"
+        elif (
+            macro_stress_score >= SEVERE_STRESS_THRESHOLD
+            and tape_pressure_score >= SEVERE_STRESS_THRESHOLD
+        ) or (
+            macro_stress_score >= MODERATE_CAUTION_THRESHOLD
+            and tape_pressure_score >= MODERATE_CAUTION_THRESHOLD
+            and abs(macro_stress_score - tape_pressure_score) <= 10
+        ):
+            driver = "both"
+        else:
+            driver = "macro" if macro_stress_score >= tape_pressure_score else "tape"
+    return driver
+
+
+def _driver_detail(
+    *,
+    overall_read: str,
+    primary_driver: str,
+    macro_stress_score: int | None,
+    tape_pressure_score: int | None,
+) -> str:
+    details = {
+        "tape": "Tape pressure is the main caution; macro stress is not severe.",
+        "macro": "Buying conditions are the main caution.",
+        "both": "Buying conditions and tape pressure are both elevated.",
+        "none": "No major macro or tape caution is driving the read.",
+    }
+    detail = details.get(
+        primary_driver,
+        "Tape pressure is unavailable, so the read leans on macro conditions.",
     )
+    if overall_read == "unavailable":
+        detail = "Macro and tape inputs are too limited for a reliable read."
+    elif primary_driver == "data_limited" and (
+        macro_stress_score is not None
+        and macro_stress_score >= SELECTIVE_CAUTION_THRESHOLD
+    ):
+        detail = "Tape pressure is unavailable; buying conditions drive the caution."
+    elif primary_driver == "none" and tape_pressure_score is None:
+        detail = "No major macro caution is driving the read; tape pressure is unavailable."
+    return detail
+
+
+def _state_copy(*, overall_read: str, primary_driver: str) -> tuple[str, str]:
+    copy_by_key = {
+        "unavailable": (
+            "Unavailable — market inputs are too limited for a reliable read.",
+            "Avoid changing risk based on this read until market data refreshes.",
+        ),
+        "defensive": (
+            "Defensive — stress is high enough to protect capital first.",
+            "Protect the plan first. Avoid adding broad risk until volatility, credit, and breadth stabilize.",
+        ),
+        "normal": (
+            "Normal — conditions are supportive for planned buying.",
+            "Stay with the plan. New buys can use normal selectivity, while still checking concentration.",
+        ),
+        "tape": (
+            "Selective — tape pressure is elevated, but macro stress is not severe.",
+            "Stay invested, but be selective. Do not chase the selloff; scale only into highest-conviction buys while the tape stabilizes.",
+        ),
+        "both": (
+            "Selective — buying conditions are weaker and tape pressure is elevated.",
+            "Stay invested, but protect optionality. Add risk slowly and only to highest-conviction buys.",
+        ),
+        "macro": (
+            "Selective — buying conditions are weakening.",
+            "Stay invested, but add new risk slowly. Favor highest-conviction buys until buying conditions improve.",
+        ),
+        "data_limited": (
+            "Selective — buying conditions deserve caution; tape pressure data is limited.",
+            "Use the macro read as context, but avoid treating missing tape pressure as an all-clear.",
+        ),
+    }
+    key = overall_read if overall_read in {"unavailable", "defensive", "normal"} else primary_driver
+    return copy_by_key.get(key, (
+        "Selective — use higher standards for new buys.",
+        "Stay invested according to plan. Be selective with new buys. Do not chase broad market strength just because indexes are up.",
+    ))
 
 
 def _what_matters(
     *,
-    state: str,
+    overall_read: str,
+    primary_driver: str,
     vix_close: float | None,
     hy_spread: float | None,
     breadth_pct: float | None,
     crowding_score: float | None,
+    macro_stress_score: int | None,
     tape_stress: TapeStressEvidence | None = None,
 ) -> list[str]:
-    if state == "Elevated":
+    if overall_read == "defensive":
         return [
             "Stress is high enough that capital protection matters more than new risk.",
             "Volatility, credit, or the composite score has crossed a severe threshold.",
             "Wait for evidence to improve before treating weakness as opportunity.",
         ]
+    if overall_read == "unavailable":
+        return [
+            "Macro and tape inputs are too limited for a reliable Today read.",
+            "Do not treat missing data as a signal to add risk.",
+            "Refresh the data before using this brief for new-buy decisions.",
+        ]
 
-    first = (
-        f"Current equity tape is under pressure ({_tape_detail(tape_stress)}), even though macro stress is not severe."
-        if tape_stress is not None and tape_stress.stress_score >= 35
-        else
-        "Credit and volatility are calm, so this is not a panic tape."
-        if (vix_close is not None and vix_close < 20 and hy_spread is not None and hy_spread < 3.5)
-        else "Volatility or credit is no longer fully calm, so new risk deserves more scrutiny."
-    )
+    if primary_driver == "tape":
+        first = (
+            f"Tape pressure is the main caution ({_tape_detail(tape_stress)}), even though macro stress is not severe."
+        )
+    elif primary_driver == "macro":
+        first = "Buying conditions are weaker, so new risk deserves more scrutiny."
+    elif primary_driver == "both":
+        first = (
+            f"Buying conditions and current tape pressure are both elevated ({_tape_detail(tape_stress)})."
+        )
+    elif primary_driver == "data_limited":
+        first = (
+            "Current tape pressure is unavailable, so the read relies on slower macro conditions."
+            if macro_stress_score is None
+            or macro_stress_score < SELECTIVE_CAUTION_THRESHOLD
+            else "Tape pressure is unavailable; the caution comes from buying conditions."
+        )
+    else:
+        first = (
+            "Credit and volatility are calm, so this is not a panic tape."
+            if (
+                vix_close is not None
+                and vix_close < 20
+                and hy_spread is not None
+                and hy_spread < 3.5
+            )
+            else "Volatility or credit is no longer fully calm, so new risk deserves more scrutiny."
+        )
     second = (
         "Breadth is middling; the rally is not broad enough to call conditions fully strong."
         if breadth_pct is None or breadth_pct < 65
@@ -782,23 +937,32 @@ def _what_matters(
 
 
 def _what_to_do(
-    state: str,
+    overall_read: str,
     alert_active: bool,
+    primary_driver: str,
     tape_stress: TapeStressEvidence | None = None,
 ) -> list[str]:
-    if state == "Elevated" or alert_active:
+    if overall_read == "defensive" or alert_active:
         return [
             "Do not add broad risk until the brief improves.",
             "Review concentration and cash needs before making new commitments.",
             "Keep long-term allocation changes tied to your written plan.",
         ]
-    if tape_stress is not None and tape_stress.stress_score >= 35:
+    if overall_read == "unavailable":
+        return [
+            "Wait for market data to refresh before using this read.",
+            "Keep long-term allocation tied to the written plan.",
+            "Do not treat missing tape pressure as an all-clear.",
+        ]
+    if primary_driver == "tape" or (
+        tape_stress is not None and tape_stress.stress_score >= SELECTIVE_CAUTION_THRESHOLD
+    ):
         return [
             "Do not chase the selloff while the tape is still under pressure.",
             "If adding money, scale only into highest-conviction setups.",
             "Review concentration in the weakest sector before adding more.",
         ]
-    if state == "Calm":
+    if overall_read == "normal":
         return [
             "Keep long-term allocation on plan.",
             "Use normal selectivity for new buys.",
@@ -813,7 +977,7 @@ def _what_to_do(
 
 def _watch_items() -> list[str]:
     return [
-        "S&P 500 down more than 2% or broad sector selling would lift current tape stress.",
+        "S&P 500 down more than 2% or broad sector selling would lift tape pressure.",
         "VIX above 30 would move volatility from calm to stressed.",
         "HY OAS above 5 or widening 100 bps would make credit a real warning.",
         "Buying conditions below 40 would turn the brief defensive.",
@@ -823,7 +987,7 @@ def _watch_items() -> list[str]:
 
 def _build_evidence(
     *,
-    stress_score: int | None,
+    overall_caution_score: int | None,
     vix_close: float | None,
     hy_spread: float | None,
     hy_change_bps: float | None,
@@ -838,27 +1002,32 @@ def _build_evidence(
     ten_three_month = yield_curve.ten_year_three_month_bps if yield_curve else None
     return [
         {
-            "key": "stress",
-            "label": "Stress",
-            "value": (_fmt_number(float(stress_score), 0) if stress_score is not None else "-"),
+            "key": "overall_caution",
+            "label": "Overall Caution",
+            "value": (
+                _fmt_number(float(overall_caution_score), 0)
+                if overall_caution_score is not None
+                else "-"
+            ),
             "detail": (
                 "Unavailable"
-                if stress_score is None
-                else "Moderate caution"
-                if stress_score >= 50
-                else "Low-to-moderate"
-                if stress_score >= 35
-                else "Low"
+                if overall_caution_score is None
+                else "Defensive"
+                if overall_caution_score >= SEVERE_STRESS_THRESHOLD
+                else "Selective"
+                if overall_caution_score >= SELECTIVE_CAUTION_THRESHOLD
+                else "Normal"
             ),
             "tone": _evidence_tone(
-                "stress", float(stress_score) if stress_score is not None else None
+                "stress",
+                float(overall_caution_score) if overall_caution_score is not None else None,
             ),
-            "tooltip": "Stress combines macro deployment stress with current equity tape pressure. Higher means market conditions are less supportive.",
-            "trend": trends.get("stress"),
+            "tooltip": "Overall Caution is a conservative action gate: the higher of macro stress and fresh tape pressure. Higher means slow down new risk.",
+            "trend": None,
         },
         {
             "key": "equity_tape",
-            "label": "Tape",
+            "label": "Tape Pressure",
             "value": (
                 _fmt_number(float(tape_stress.stress_score), 0)
                 if tape_stress is not None
@@ -869,7 +1038,7 @@ def _build_evidence(
                 "stress",
                 float(tape_stress.stress_score) if tape_stress is not None else None,
             ),
-            "tooltip": "Current tape stress uses canonical S&P 500 and sector ETF quotes versus the prior close so selloffs can surface before slower macro feeds update.",
+            "tooltip": "Current tape pressure uses canonical S&P 500 and sector ETF quotes versus the prior close so selloffs can surface before slower macro feeds update.",
             "trend": None,
         },
         {
@@ -959,21 +1128,39 @@ def build_conditions_payload(
     crowding_corr = _maybe_float(snapshot.get("factor_crowding_corr"))
     crowding_score = _maybe_float(snapshot.get("crowding_score"))
     macro_stress = _stress_score(deployment_score)
-    stress = _combined_stress_score(macro_stress, tape_stress)
+    tape_pressure_score = tape_stress.stress_score if tape_stress else None
+    overall_caution_score = _combined_stress_score(macro_stress, tape_stress)
     hy_change_bps = hy_change.change_bps if hy_change else None
     flags = _severe_flags(
         deployment_score=deployment_score,
         vix_close=vix_close,
         hy_spread=hy_spread,
         hy_change_bps=hy_change_bps,
-        tape_stress_score=tape_stress.stress_score if tape_stress else None,
+        tape_stress_score=tape_pressure_score,
     )
     state = "Elevated" if flags else _zone_state(snapshot.get("zone"))
-    summary, action_text = _state_copy(state, flags, stress, tape_stress)
+    overall_read = _overall_read(overall_caution_score, flags)
+    primary_driver = _primary_driver(
+        overall_read=overall_read,
+        macro_stress_score=macro_stress,
+        tape_pressure_score=tape_pressure_score,
+    )
+    driver_detail = _driver_detail(
+        overall_read=overall_read,
+        primary_driver=primary_driver,
+        macro_stress_score=macro_stress,
+        tape_pressure_score=tape_pressure_score,
+    )
+    summary, action_text = _state_copy(
+        overall_read=overall_read,
+        primary_driver=primary_driver,
+    )
     alert_active = state == "Elevated"
     priority = (
         "critical"
-        if alert_active and stress is not None and stress >= 75
+        if alert_active
+        and overall_caution_score is not None
+        and overall_caution_score >= 75
         else "high"
         if alert_active
         else None
@@ -990,21 +1177,34 @@ def build_conditions_payload(
         "snapshot_date": _date_text(snapshot.get("snapshot_date")),
         "computed_at": _datetime_text(snapshot.get("computed_at")),
         "state": state,
-        "stress_score": stress,
+        "stress_score": overall_caution_score,
+        "macro_stress_score": macro_stress,
+        "tape_pressure_score": tape_pressure_score,
+        "overall_caution_score": overall_caution_score,
+        "overall_read": overall_read,
+        "primary_driver": primary_driver,
+        "driver_detail": driver_detail,
         "deployment_score": deployment_score,
         "macro_zone": snapshot.get("zone"),
         "coverage": coverage,
         "summary": summary,
         "action_text": action_text,
         "what_matters": _what_matters(
-            state=state,
+            overall_read=overall_read,
+            primary_driver=primary_driver,
             vix_close=vix_close,
             hy_spread=hy_spread,
             breadth_pct=breadth_pct,
             crowding_score=crowding_score,
+            macro_stress_score=macro_stress,
             tape_stress=tape_stress,
         ),
-        "what_to_do": _what_to_do(state, alert_active, tape_stress),
+        "what_to_do": _what_to_do(
+            overall_read,
+            alert_active,
+            primary_driver,
+            tape_stress,
+        ),
         "watch_items": _watch_items(),
         "trend": trends,
         "market_shifts": _build_market_shifts(trends),
@@ -1012,7 +1212,7 @@ def build_conditions_payload(
         "alert": {
             "active": alert_active,
             "priority": priority,
-            "reason": "Severe market-stress threshold crossed." if alert_active else None,
+            "reason": "Severe overall-caution threshold crossed." if alert_active else None,
         },
         "bond_signals": {
             "as_of": yield_curve.as_of if yield_curve else None,
@@ -1029,7 +1229,7 @@ def build_conditions_payload(
             "change_bps": hy_change.change_bps if hy_change else None,
         },
         "evidence": _build_evidence(
-            stress_score=stress,
+            overall_caution_score=overall_caution_score,
             vix_close=vix_close,
             hy_spread=hy_spread,
             hy_change_bps=hy_change_bps,
