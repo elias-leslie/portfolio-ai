@@ -1,5 +1,6 @@
 'use client'
 
+import { AlertCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import {
   Tooltip,
@@ -94,16 +95,14 @@ function freshnessMeta(item: WatchlistItem, userTimezone: string) {
   }
 }
 
-function dataHealthTone(item: WatchlistItem, vwapSignal?: VwapSignal | null) {
+// Headline tone is driven by the weighted overall-health band (and a blocking
+// quote), NOT by any single partial pillar. A perpetually-missing low-weight
+// pillar (e.g. options flow) would otherwise force every healthy row to a
+// warning; the per-pillar partials stay visible in the expanded-row breakdown.
+function dataHealthTone(item: WatchlistItem) {
   const overall = item.dataQuality?.overallPct
-  const pillars = Object.values(item.dataQuality?.pillars ?? {})
   const hasBlockingQuote =
     item.quote?.freshnessStatus === 'missing' || Boolean(item.quote?.error)
-  const hasStaleOrPartial = pillars.some(
-    (pillar) => pillar.status === 'partial' || pillar.status === 'stale',
-  )
-  const vwapMissing = vwapSignal?.status === 'missing'
-  const vwapStale = vwapSignal?.status === 'stale'
 
   if (hasBlockingQuote || (typeof overall === 'number' && overall < 50)) {
     return {
@@ -113,13 +112,7 @@ function dataHealthTone(item: WatchlistItem, vwapSignal?: VwapSignal | null) {
     }
   }
 
-  if (
-    hasStaleOrPartial ||
-    vwapMissing ||
-    vwapStale ||
-    overall == null ||
-    (typeof overall === 'number' && overall < 80)
-  ) {
+  if (overall == null || overall < 80) {
     return {
       label: overall == null ? 'Data partial' : `Data ${overall.toFixed(0)}%`,
       className: 'border-warning/30 bg-warning/10 text-warning',
@@ -171,7 +164,7 @@ export function DataHealthBadge({
   item: WatchlistItem
   vwapSignal?: VwapSignal | null
 }) {
-  const tone = dataHealthTone(item, vwapSignal)
+  const tone = dataHealthTone(item)
   const pct = Math.max(0, Math.min(100, item.dataQuality?.overallPct ?? 0))
   const pillars = Object.entries(item.dataQuality?.pillars ?? {})
 
@@ -293,7 +286,7 @@ export function ScannerStatusDot({
   userTimezone: string
 }) {
   const fresh = freshnessMeta(item, userTimezone)
-  const health = dataHealthTone(item, item.vwapSignal)
+  const health = dataHealthTone(item)
   const isLoss =
     fresh.dotClass === 'bg-loss' || health.barClassName === 'bg-loss'
   const isWarn =
@@ -325,6 +318,34 @@ export function ScannerStatusDot({
             {typeof healthPct === 'number' ? ` ${healthPct.toFixed(0)}%` : ''} —
             full freshness and pillar breakdown are in the expanded row.
           </p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+/**
+ * The circle-with-exclamation indicator shown next to a symbol when its scanner
+ * score swung hard recently. Backed by `item.scoreAlert` (`score_alert`), which
+ * fires when the overall score moved more than 10 points versus its reading at
+ * the start of the trailing 7-day window. Carries a hover tooltip so it reads as
+ * "worth a look", not an unexplained warning glyph.
+ */
+export function ScoreAlertBadge() {
+  return (
+    <TooltipProvider delayDuration={120}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className="inline-flex cursor-help items-center"
+            aria-label="Score changed >10 points in last 7 days"
+          >
+            <AlertCircle className="h-4 w-4 text-accent" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs text-xs leading-5">
+          Scanner score moved more than 10 points over the last 7 days — worth a
+          fresh look at what changed.
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

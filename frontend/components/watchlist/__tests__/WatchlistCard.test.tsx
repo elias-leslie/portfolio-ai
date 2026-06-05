@@ -169,6 +169,9 @@ describe('WatchlistCard', () => {
       screen.getByText('Momentum and earnings support more upside'),
     ).toBeInTheDocument()
     expect(screen.getByLabelText('Data healthy')).toBeInTheDocument()
+    expect(
+      screen.getByLabelText('Score changed >10 points in last 7 days'),
+    ).toBeInTheDocument()
     expect(screen.getByText(/Refreshing 2\/5/i)).toBeInTheDocument()
     expect(screen.getByText('$411.55')).toBeInTheDocument()
     expect(screen.queryByText('Fresh quote')).not.toBeInTheDocument()

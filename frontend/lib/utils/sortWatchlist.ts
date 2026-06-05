@@ -7,8 +7,19 @@ export type SortField =
   | 'technical'
   | 'news'
   | 'updated'
+  | 'signal'
   | 'risk'
 export type SortDirection = 'asc' | 'desc'
+
+// Rank maps so signal/risk sort by conviction/severity rather than alphabetically.
+// Higher rank = stronger buy / higher risk; missing values sort to 0 (bottom in asc).
+const SIGNAL_RANK: Record<string, number> = { BUY: 3, HOLD: 2, AVOID: 1 }
+const RISK_RANK: Record<string, number> = {
+  Low: 1,
+  'Medium-Low': 2,
+  Medium: 3,
+  High: 4,
+}
 
 /**
  * Sort watchlist items by the specified field and direction.
@@ -43,9 +54,13 @@ export function sortWatchlistItems(
         aVal = a.newsSentimentScore ?? -2
         bVal = b.newsSentimentScore ?? -2
         break
+      case 'signal':
+        aVal = a.signalType ? (SIGNAL_RANK[a.signalType] ?? 0) : 0
+        bVal = b.signalType ? (SIGNAL_RANK[b.signalType] ?? 0) : 0
+        break
       case 'risk':
-        aVal = a.riskLevel ?? ''
-        bVal = b.riskLevel ?? ''
+        aVal = a.riskLevel ? (RISK_RANK[a.riskLevel] ?? 0) : 0
+        bVal = b.riskLevel ? (RISK_RANK[b.riskLevel] ?? 0) : 0
         break
       case 'updated':
         aVal = a.currentScore?.price?.updatedAt ?? a.updatedAt

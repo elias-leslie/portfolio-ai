@@ -271,6 +271,80 @@ describe('WatchlistTableRow', () => {
     expect(screen.queryByText('Stale quote')).not.toBeInTheDocument()
   })
 
+  it('keeps the status healthy when only a low-weight pillar is partial', () => {
+    const base = buildItem()
+    const item = {
+      ...base,
+      dataQuality: {
+        overallPct: 88,
+        pillars: {
+          ...base.dataQuality.pillars,
+          options: {
+            status: 'partial' as const,
+            score: 70,
+            details: '3 days in 7d, latest 2d ago',
+          },
+        },
+      },
+    }
+
+    render(
+      <table>
+        <tbody>
+          <WatchlistTableRow
+            item={item}
+            isExpanded={false}
+            highlightedSymbol={null}
+            recentlyUpdatedRows={new Set()}
+            changedCells={{}}
+            portfolioSymbols={new Set()}
+            refreshStatus={undefined}
+            isDeleting={false}
+            userTimezone="America/New_York"
+            rowRef={() => {}}
+            onToggle={vi.fn()}
+            onDelete={vi.fn()}
+          />
+        </tbody>
+      </table>,
+    )
+
+    // 88% overall is healthy even though the options pillar is perpetually
+    // partial — the partial detail belongs in the expanded breakdown, not the
+    // headline status dot.
+    expect(screen.getByLabelText('Data healthy')).toBeInTheDocument()
+    expect(
+      screen.queryByLabelText('Data partial or aging'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows the score-alert badge with a tooltip label when scoreAlert is set', () => {
+    render(
+      <table>
+        <tbody>
+          <WatchlistTableRow
+            item={{ ...buildItem(), scoreAlert: true }}
+            isExpanded={false}
+            highlightedSymbol={null}
+            recentlyUpdatedRows={new Set()}
+            changedCells={{}}
+            portfolioSymbols={new Set()}
+            refreshStatus={undefined}
+            isDeleting={false}
+            userTimezone="America/New_York"
+            rowRef={() => {}}
+            onToggle={vi.fn()}
+            onDelete={vi.fn()}
+          />
+        </tbody>
+      </table>,
+    )
+
+    expect(
+      screen.getByLabelText('Score changed >10 points in last 7 days'),
+    ).toBeInTheDocument()
+  })
+
   it('does not toggle the row when the delete action is clicked', async () => {
     const user = userEvent.setup()
     const onToggle = vi.fn()

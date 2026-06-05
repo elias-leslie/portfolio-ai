@@ -1,7 +1,6 @@
 'use client'
 
 import {
-  AlertCircle,
   Briefcase,
   ChevronDown,
   ChevronRight,
@@ -21,6 +20,7 @@ import { PriceSparkline } from '@/components/watchlist/PriceSparkline'
 import {
   buildTodayGate,
   ScannerStatusDot,
+  ScoreAlertBadge,
   SetupScoreMeter,
   type TodayGate,
 } from '@/components/watchlist/ScannerMetricBadges'
@@ -102,12 +102,7 @@ export function WatchlistCard({
                 aria-label="Refreshing..."
               />
             ) : null}
-            {item.scoreAlert ? (
-              <AlertCircle
-                className="h-4 w-4 text-accent"
-                aria-label="Score changed >10 points in last 7 days"
-              />
-            ) : null}
+            {item.scoreAlert ? <ScoreAlertBadge /> : null}
           </div>
           {item.companyName ? (
             <p
