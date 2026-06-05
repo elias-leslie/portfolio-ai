@@ -605,7 +605,7 @@ def test_build_reports_excludes_cash_movement_rows_even_when_stored_as_expense()
     ]
 
 
-def test_build_spending_view_keeps_venmo_payments_visible_as_p2p_spend() -> None:
+def test_build_spending_view_keeps_venmo_payments_visible_as_peer_payments_spend() -> None:
     today = date.today()
     service = HouseholdTransactionService()
     service.storage = _SequenceStorage(
@@ -659,11 +659,97 @@ def test_build_spending_view_keeps_venmo_payments_visible_as_p2p_spend() -> None
     assert spending.summary.total_spend == 207.51
     assert spending.summary.transaction_count == 2
     categories = {row.description: row.category for row in spending.transactions}
-    assert categories["Venmo Payment 260117 1047668918292 Mariana Leslie"] == "P2P"
+    assert categories["Venmo Payment 260117 1047668918292 Mariana Leslie"] == "Peer Payments"
     assert {row.description for row in spending.transactions} == {
         "Dukeenergy Bill Pay 910066616132 Elias B Leslie",
         "Venmo Payment 260117 1047668918292 Mariana Leslie",
     }
+
+
+def test_effective_classification_normalizes_raw_loan_payment_enum() -> None:
+    category, essentiality = _effective_transaction_classification(
+        flow_type="expense",
+        raw_merchant="Copa Arc",
+        description="Copa ARC 2307415340700",
+        amount=504.26,
+        stored_category="LOAN_PAYMENTS_OTHER_PAYMENT",
+        stored_essentiality="essential",
+        merchant_metadata=None,
+    )
+    assert (category, essentiality) == ("Debt Payments", "mixed")
+
+
+def test_effective_classification_never_echoes_unknown_raw_enum() -> None:
+    category, _essentiality = _effective_transaction_classification(
+        flow_type="expense",
+        raw_merchant="Mystery Vendor",
+        description="MYSTERY VENDOR 4471",
+        amount=42.0,
+        stored_category="SOME_UNKNOWN_ENUM_VALUE",
+        stored_essentiality="mixed",
+        merchant_metadata=None,
+    )
+    assert category == "Household"
+    assert "_" not in category
+
+
+def test_build_spending_view_excludes_loan_payments_from_spend() -> None:
+    today = date.today()
+    service = HouseholdTransactionService()
+    service.storage = _SequenceStorage(
+        [
+            [
+                (
+                    "txn-loan",
+                    None,
+                    datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                    "Copa ARC 2307415340700",
+                    "Copa Arc",
+                    Decimal("504.26"),
+                    "LOAN_PAYMENTS_OTHER_PAYMENT",
+                    "essential",
+                    "expense",
+                    "Plaid Checking",
+                    "doc-loan",
+                    "Copa Arc",
+                    "statement",
+                    "bank",
+                    "plaid.csv",
+                    "hash-loan",
+                    {},
+                ),
+                (
+                    "txn-dining",
+                    None,
+                    datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                    "Chipotle 1180 Largo",
+                    "Chipotle 1180 Largo",
+                    Decimal("12.50"),
+                    "Dining",
+                    "discretionary",
+                    "expense",
+                    "Chase card",
+                    "doc-dining",
+                    "Chipotle",
+                    "statement",
+                    "credit_card",
+                    "chase.csv",
+                    "hash-dining",
+                    {},
+                ),
+            ],
+            [],
+        ]
+    )
+
+    spending = service.build_spending_view(window="1m")
+
+    assert spending.summary.total_spend == 12.50
+    assert spending.summary.transaction_count == 1
+    surfaced = {row.category for row in spending.transactions}
+    assert "LOAN_PAYMENTS_OTHER_PAYMENT" not in surfaced
+    assert "Debt Payments" not in surfaced
+    assert surfaced == {"Dining"}
 
 
 def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() -> None:

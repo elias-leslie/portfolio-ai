@@ -54,7 +54,7 @@ _PLAID_CATEGORY_MAP: dict[str, tuple[str, str]] = {
     ),
     "HOME_IMPROVEMENT_FURNITURE": ("Home", "discretionary"),
     "HOME_IMPROVEMENT_HARDWARE": ("Home", "discretionary"),
-    "LOAN_PAYMENTS": ("Bills", "essential"),
+    "LOAN_PAYMENTS": ("Debt Payments", "mixed"),
     "MEDICAL": ("Healthcare", "essential"),
     "MEDICAL_DENTAL_CARE": ("Healthcare", "essential"),
     "MEDICAL_OTHER_MEDICAL": ("Healthcare", "essential"),
@@ -101,6 +101,18 @@ def _category_key(value: str | None) -> str:
     return re.sub(r"[^A-Z0-9]+", "_", (value or "").strip().upper()).strip("_")
 
 
+def _looks_like_raw_taxonomy_enum(value: str | None) -> bool:
+    """Return True for upstream SCREAMING_SNAKE enums (e.g. LOAN_PAYMENTS_OTHER_PAYMENT).
+
+    These must never reach a user-facing surface; when one is unmapped we drop back
+    to merchant-based classification rather than echoing the raw enum as a category.
+    """
+    text = (value or "").strip()
+    if "_" not in text:
+        return False
+    return text == text.upper() and re.fullmatch(r"[A-Z0-9_]+", text) is not None
+
+
 def _canonical_category_from_taxonomy(
     *,
     category: str | None,
@@ -116,6 +128,7 @@ def _canonical_category_from_taxonomy(
         ("FOOD_AND_DRINK_", ("Dining", "discretionary")),
         ("GENERAL_MERCHANDISE_", ("Retail", "discretionary")),
         ("HOME_IMPROVEMENT_", ("Home", "discretionary")),
+        ("LOAN_PAYMENTS_", ("Debt Payments", "mixed")),
         ("RENT_AND_UTILITIES_", ("Bills", "essential")),
         ("TRANSPORTATION_", ("Transportation", "essential")),
         ("TRAVEL_", ("Travel", "discretionary")),
@@ -125,7 +138,7 @@ def _canonical_category_from_taxonomy(
             (classification for prefix, classification in prefix_map if key.startswith(prefix)),
             None,
         )
-    if mapped is None and category:
+    if mapped is None and category and not _looks_like_raw_taxonomy_enum(category):
         normalized_category = re.sub(r"\s+", " ", category).strip()
         normalized_essentiality = (essentiality or "mixed").strip() or "mixed"
         mapped = (normalized_category, normalized_essentiality)
@@ -187,7 +200,7 @@ def _classify_merchant(
             ],
             ("Transfers", "mixed"),
         ),
-        (["venmo", "cash app", "cashapp"], ("P2P", "mixed")),
+        (["venmo", "cash app", "cashapp"], ("Peer Payments", "mixed")),
         (["atm withdrawal"], ("Cash", "mixed")),
         (["walmart com"], ("Retail", "discretionary")),
         (
@@ -463,6 +476,7 @@ def _effective_transaction_classification(
         resolved_category == "Household"
         and stored_category_text
         and stored_category_text not in {"Household", "Uncategorized"}
+        and not _looks_like_raw_taxonomy_enum(stored_category_text)
         and not _looks_like_mixed_big_box_merchant(
             raw_merchant=raw_merchant,
             description=description,

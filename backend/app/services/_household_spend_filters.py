@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-_NON_SPEND_CATEGORIES = {"transfers", "income", "cash"}
+_NON_SPEND_CATEGORIES = {"transfers", "income", "cash", "debt payments"}
 
 _INVESTMENT_ACTIVITY_TEXT_PATTERNS = (
     "you bought",
