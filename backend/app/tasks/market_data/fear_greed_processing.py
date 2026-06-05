@@ -27,12 +27,11 @@ def compute_date_indicators(
     date: dt.date,
     vix_data: dict[dt.date, float],
     hy_spread_dict: dict[dt.date, float],
-    vix_estimate: float,
-    hy_spread_fallback: float,
-) -> tuple[float, float, float, float] | None:
+) -> tuple[float, float, float | None, float | None] | None:
     """Compute all indicators for a single date.
 
     Returns tuple of (sma_200, rsi_14, vix_close, hy_spread) or None if calculation fails.
+    Missing observed VIX/HY values stay null so freshness/as-of reporting remains honest.
     """
     sma_200 = calculate_sma(prices_up_to_date, 200)
     rsi_14 = calculate_rsi(prices_up_to_date, 14)
@@ -41,8 +40,8 @@ def compute_date_indicators(
         logger.warning("indicator_calculation_failed", date=str(date))
         return None
 
-    vix_close = vix_data.get(date, vix_estimate)
-    hy_spread = hy_spread_dict.get(date, hy_spread_fallback)
+    vix_close = vix_data.get(date)
+    hy_spread = hy_spread_dict.get(date)
 
     return sma_200, rsi_14, vix_close, hy_spread
 
@@ -53,8 +52,8 @@ def upsert_inputs_record(
     spy_close: float,
     sma_200: float,
     rsi_14: float,
-    vix_close: float,
-    hy_spread: float,
+    vix_close: float | None,
+    hy_spread: float | None,
     breadth_pct: float | None,
 ) -> None:
     """Upsert a single fear_greed_inputs record to database."""
@@ -85,8 +84,6 @@ def calculate_and_upsert_inputs(
     start_date: dt.date,
     vix_data: dict[dt.date, float],
     hy_spread_dict: dict[dt.date, float],
-    vix_estimate: float,
-    hy_spread_fallback: float,
 ) -> int:
     """Calculate indicators for each date and upsert to database.
 
@@ -97,8 +94,6 @@ def calculate_and_upsert_inputs(
         start_date: Start date for processing
         vix_data: VIX prices by date
         hy_spread_dict: HY spread values by date
-        vix_estimate: Fallback VIX estimate
-        hy_spread_fallback: Fallback HY spread value
 
     Returns:
         Number of successful updates
@@ -125,8 +120,6 @@ def calculate_and_upsert_inputs(
             date,
             vix_data,
             hy_spread_dict,
-            vix_estimate,
-            hy_spread_fallback,
         )
 
         if indicators is None:

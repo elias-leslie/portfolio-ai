@@ -52,14 +52,12 @@ def _validate_and_fetch_data(
         list[dt.date],
         dict[dt.date, float],
         dict[dt.date, float],
-        float,
-        float,
     ]
     | None
 ):
     """Validate SPY data and fetch all required market indicators.
 
-    Returns (spy_dict, dates, vix_data, hy_spread_dict, vix_est, hy_fallback) or None on error.
+    Returns (spy_dict, dates, vix_data, hy_spread_dict) or None on error.
     """
     spy_dict = _fetch_spy_data(storage, data_start, end_date)
 
@@ -67,11 +65,9 @@ def _validate_and_fetch_data(
         return None
 
     dates = sorted(spy_dict.keys())
-    vix_data, hy_spread_dict, vix_estimate, hy_spread_fallback = _fetch_market_indicators(
-        storage, start_date, end_date
-    )
+    vix_data, hy_spread_dict = _fetch_market_indicators(storage, start_date, end_date)
 
-    return spy_dict, dates, vix_data, hy_spread_dict, vix_estimate, hy_spread_fallback
+    return spy_dict, dates, vix_data, hy_spread_dict
 
 
 def _process_and_return_results(
@@ -83,8 +79,6 @@ def _process_and_return_results(
     end_date: dt.date,
     vix_data: dict[dt.date, float],
     hy_spread_dict: dict[dt.date, float],
-    vix_estimate: float,
-    hy_spread_fallback: float,
 ) -> FearGreedPipelineResultDict:
     """Process market data and return task results."""
     logger.info(
@@ -101,8 +95,6 @@ def _process_and_return_results(
         start_date,
         vix_data,
         hy_spread_dict,
-        vix_estimate,
-        hy_spread_fallback,
     )
 
     logger.info(
@@ -131,7 +123,7 @@ def populate_fear_greed_inputs(days: int = 7) -> FearGreedPipelineResultDict:
     1. Fetch SPY OHLCV from day_bars (last N days + 200 for SMA_200)
     2. Calculate SMA_200 and RSI_14 from SPY data
     3. Fetch VIX from day_bars (if available)
-    4. Use estimates for missing VIX/HY_spread data
+    4. Leave missing VIX/HY spread observations null so freshness stays honest
     5. Upsert fear_greed_inputs for each date
     6. Trigger calculate_fear_greed task
 
@@ -162,7 +154,7 @@ def populate_fear_greed_inputs(days: int = 7) -> FearGreedPipelineResultDict:
                 "success": False,
             }
 
-        spy_dict, dates, vix_data, hy_spread_dict, vix_estimate, hy_spread_fallback = result
+        spy_dict, dates, vix_data, hy_spread_dict = result
 
         return _process_and_return_results(
             task_id,
@@ -173,8 +165,6 @@ def populate_fear_greed_inputs(days: int = 7) -> FearGreedPipelineResultDict:
             end_date,
             vix_data,
             hy_spread_dict,
-            vix_estimate,
-            hy_spread_fallback,
         )
 
     except Exception as e:

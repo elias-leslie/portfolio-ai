@@ -5,8 +5,11 @@ Simplified FRED API integration for fetching economic indicators.
 
 from __future__ import annotations
 
+import csv
+import io
 import os
 import threading
+import urllib.request
 from datetime import date, datetime
 from typing import Any, ClassVar
 
@@ -15,6 +18,20 @@ from .base_http_client import BaseHTTPClient
 from .types import FREDDataDict
 
 logger = get_logger(__name__)
+
+FRED_GRAPH_CSV_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv"
+FRED_GRAPH_TIMEOUT_SECONDS = 15
+
+
+def _date_param(value: date | str | None) -> date | None:
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.strptime(value, "%Y-%m-%d").date()
+        except ValueError:
+            return None
+    return None
 
 
 class FREDClient(BaseHTTPClient):
@@ -156,6 +173,51 @@ class FREDSource:
         """Check if FRED API key is available."""
         return bool(self._api_key)
 
+    def _fetch_series_csv(
+        self,
+        indicator: str,
+        series_id: str,
+        start_date: date | str | None = None,
+        end_date: date | str | None = None,
+    ) -> list[tuple[date, float]]:
+        """Fetch a FRED graph CSV series when the JSON API key is unavailable."""
+        start = _date_param(start_date)
+        end = _date_param(end_date)
+        url = f"{FRED_GRAPH_CSV_URL}?id={series_id}"
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "portfolio-ai/1.0"})
+            with urllib.request.urlopen(req, timeout=FRED_GRAPH_TIMEOUT_SECONDS) as resp:
+                text = resp.read().decode("utf-8", "replace")
+        except Exception as exc:
+            logger.warning("fred_csv_fetch_failed", indicator=indicator, error=str(exc))
+            return []
+
+        rows: list[tuple[date, float]] = []
+        try:
+            reader = csv.DictReader(io.StringIO(text))
+            for row in reader:
+                raw_date = row.get("observation_date") or row.get("DATE") or row.get("date")
+                raw_value = row.get(series_id)
+                if not raw_date or not raw_value or raw_value == ".":
+                    continue
+                obs_date = datetime.strptime(raw_date, "%Y-%m-%d").date()
+                if start and obs_date < start:
+                    continue
+                if end and obs_date > end:
+                    continue
+                rows.append((obs_date, float(raw_value)))
+        except (ValueError, KeyError) as exc:
+            logger.warning("fred_csv_parse_failed", indicator=indicator, error=str(exc))
+            return []
+
+        logger.info(
+            "fred_csv_series_fetched",
+            indicator=indicator,
+            series_id=series_id,
+            count=len(rows),
+        )
+        return rows
+
     def fetch_latest(self, indicator: str) -> FREDDataDict | None:
         """Fetch latest value for an indicator.
 
@@ -165,14 +227,22 @@ class FREDSource:
         Returns:
             Dict with date and value, or None if failed
         """
-        if not self._api_key:
-            logger.warning("FRED API key not set")
-            return None
-
         series_id = self.INDICATORS.get(indicator)
         if not series_id:
             logger.warning("unknown_indicator", indicator=indicator)
             return None
+
+        if not self._api_key:
+            rows = self._fetch_series_csv(indicator, series_id)
+            if not rows:
+                return None
+            obs_date, value = rows[-1]
+            return {
+                "indicator": indicator,
+                "series_id": series_id,
+                "date": obs_date.isoformat(),
+                "value": value,
+            }
 
         try:
             params = {
@@ -232,14 +302,13 @@ class FREDSource:
             List of (date, value) tuples, sorted by date ascending.
             Missing values (FRED returns ".") are filtered out.
         """
-        if not self._api_key:
-            logger.warning("FRED API key not set")
-            return []
-
         series_id = self.INDICATORS.get(indicator)
         if not series_id:
             logger.warning("unknown_indicator", indicator=indicator)
             return []
+
+        if not self._api_key:
+            return self._fetch_series_csv(indicator, series_id, start_date, end_date)
 
         try:
             params: dict[str, str | int] = {

@@ -13,6 +13,20 @@ import httpx
 from app.sources.fred import FREDSource
 
 
+class _CsvResponse:
+    def __init__(self, text: str) -> None:
+        self._text = text
+
+    def __enter__(self) -> _CsvResponse:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return self._text.encode()
+
+
 class TestFREDSource:
     """Test FRED source functionality."""
 
@@ -52,15 +66,22 @@ class TestFREDSource:
         assert result["date"] == "2024-11-14"
         assert result["value"] == 4.25
 
-    @patch("httpx.get")
+    @patch("app.sources.fred.urllib.request.urlopen")
     @patch.dict("os.environ", {}, clear=True)
-    def test_fetch_latest_no_api_key(self, mock_get: MagicMock) -> None:
-        """Test fetch_latest returns None without API key."""
+    def test_fetch_latest_no_api_key(self, mock_urlopen: MagicMock) -> None:
+        """Test fetch_latest falls back to FRED graph CSV without API key."""
+        mock_urlopen.return_value = _CsvResponse(
+            "observation_date,BAMLH0A0HYM2\n"
+            "2024-11-13,4.20\n"
+            "2024-11-14,4.25\n"
+        )
         source = FREDSource(api_key=None)
         result = source.fetch_latest("HY_SPREAD")
 
-        assert result is None
-        mock_get.assert_not_called()
+        assert result is not None
+        assert result["date"] == "2024-11-14"
+        assert result["value"] == 4.25
+        mock_urlopen.assert_called_once()
 
     @patch("httpx.get")
     def test_fetch_latest_unknown_indicator(self, mock_get: MagicMock) -> None:
@@ -148,15 +169,21 @@ class TestFREDSource:
         assert len(result) == 1
         assert result[0] == (date(2024, 11, 3), 4.15)
 
-    @patch("httpx.get")
+    @patch("app.sources.fred.urllib.request.urlopen")
     @patch.dict("os.environ", {}, clear=True)
-    def test_fetch_series_no_api_key(self, mock_get: MagicMock) -> None:
-        """Test fetch_series returns empty list without API key."""
+    def test_fetch_series_no_api_key(self, mock_urlopen: MagicMock) -> None:
+        """Test fetch_series falls back to FRED graph CSV without API key."""
+        mock_urlopen.return_value = _CsvResponse(
+            "observation_date,BAMLH0A0HYM2\n"
+            "2024-11-01,4.10\n"
+            "2024-11-02,.\n"
+            "2024-11-03,4.15\n"
+        )
         source = FREDSource(api_key=None)
-        result = source.fetch_series("HY_SPREAD")
+        result = source.fetch_series("HY_SPREAD", "2024-11-02", "2024-11-03")
 
-        assert result == []
-        mock_get.assert_not_called()
+        assert result == [(date(2024, 11, 3), 4.15)]
+        mock_urlopen.assert_called_once()
 
     @patch("app.sources.fred.get_fred_client")
     def test_fetch_series_http_error(self, mock_get_client: MagicMock) -> None:

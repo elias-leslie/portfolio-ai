@@ -437,6 +437,66 @@ def test_build_account_summaries_marks_closed_zero_balance_account_current() -> 
     assert not [gap for gap in summary.gap_flags if gap.severity in {"medium", "high"}]
 
 
+def test_build_account_summaries_uses_canonical_closed_status_for_zero_retirement_account() -> None:
+    document = HouseholdDocument(
+        id="doc-closed-ira",
+        filename="closed-ira.pdf",
+        source_type="brokerage",
+        document_type="statement",
+        status="parsed",
+        account_label="Custodial IRA",
+        file_size_bytes=10,
+        content_type="application/pdf",
+        classification_confidence=0.98,
+        review_status="complete",
+        review_summary="Reviewed",
+        review_confidence=0.98,
+        statement_start=None,
+        statement_end=_iso(9),
+        uploaded_at=_iso(9),
+        parsed_at=_iso(9),
+        metadata={"file_available": True},
+    )
+    evidence_account = HouseholdEvidenceAccount(
+        id="acct-closed-ira",
+        document_id="doc-closed-ira",
+        household_account_id="household-closed-ira",
+        source_type="brokerage",
+        asset_group="retirement",
+        account_type="ira",
+        institution_name="CB&T Cust IRA",
+        account_name="CB&T Cust IRA",
+        account_mask="1234",
+        owner_name="Mariana Leslie",
+        currency="USD",
+        balance=0.0,
+        holdings_value=0.0,
+        cash_balance=None,
+        as_of_date=_iso(9),
+        confidence=0.96,
+        metadata={},
+    )
+
+    summaries = build_account_summaries(
+        evidence_accounts=[evidence_account],
+        documents=[document],
+        portfolio_accounts=[],
+        tracked_accounts=[],
+        closed_household_account_ids={"household-closed-ira"},
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    assert len(summaries) == 1
+    summary = summaries[0]
+    assert summary.current_value == 0.0
+    assert summary.money_role == "net_worth_only"
+    assert summary.balance_freshness_status == "fresh"
+    assert summary.balance_freshness_label == "Closed"
+    assert summary.transaction_freshness_status == "not_applicable"
+    assert not [gap for gap in summary.gap_flags if gap.severity in {"medium", "high"}]
+
+
 def test_build_money_inbox_prioritizes_questions_and_account_gaps() -> None:
     account_summaries = build_account_summaries(
         evidence_accounts=[],

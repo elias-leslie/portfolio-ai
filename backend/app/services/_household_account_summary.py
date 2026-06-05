@@ -214,6 +214,7 @@ class _MatchResolution:
 def _select_evidence_accounts(
     accounts: list[HouseholdEvidenceAccount],
     documents_by_id: dict[str, HouseholdDocument],
+    closed_household_account_ids: set[str],
 ) -> _EvidenceSelection:
     """Pick best representative accounts and derive basic metadata."""
     latest = max(
@@ -228,7 +229,18 @@ def _select_evidence_accounts(
     latest_doc = documents_by_id.get(latest.document_id)
     display_doc = documents_by_id.get(display.document_id)
     balance_doc = documents_by_id.get(balance.document_id)
-    closed_zero = _is_closed_zero_balance_account(balance, balance_doc, latest_doc, display_doc)
+    known_closed = any(
+        account.household_account_id is not None
+        and str(account.household_account_id) in closed_household_account_ids
+        for account in accounts
+    )
+    closed_zero = _is_closed_zero_balance_account(
+        balance,
+        balance_doc,
+        latest_doc,
+        display_doc,
+        known_closed=known_closed,
+    )
     account_label = _account_label(display)
     hint_label = (
         display_doc.account_label
@@ -522,11 +534,12 @@ def _build_evidence_summary(
     latest_transaction_dates_by_household_account: dict[str, date],
     latest_transaction_dates_by_document: dict[str, date],
     latest_transaction_dates_by_account_label: dict[str, date],
+    closed_household_account_ids: set[str],
     linked_portfolio_ids: set[str],
     linked_tracked_ids: set[str],
 ) -> HouseholdAccountSummary | None:
     """Build one evidence-origin HouseholdAccountSummary; return None to skip."""
-    sel = _select_evidence_accounts(accounts, documents_by_id)
+    sel = _select_evidence_accounts(accounts, documents_by_id, closed_household_account_ids)
     mr = _resolve_evidence_matches(
         group_key, accounts, sel,
         portfolio_accounts=portfolio_accounts,
@@ -985,6 +998,7 @@ def build_account_summaries(
     account_valuations: dict[str, Any] | None = None,
     source_owned_household_account_ids: set[str] | None = None,
     source_owned_account_values: dict[str, dict[str, Any]] | None = None,
+    closed_household_account_ids: set[str] | None = None,
     holdings_by_account: dict[str, float],
     statement_freshness: dict[str, Any],
     latest_transaction_dates_by_household_account: dict[str, date] | None = None,
@@ -994,6 +1008,7 @@ def build_account_summaries(
     account_valuations = account_valuations or {}
     source_owned_household_account_ids = source_owned_household_account_ids or set()
     source_owned_account_values = source_owned_account_values or {}
+    closed_household_account_ids = closed_household_account_ids or set()
     latest_transaction_dates_by_household_account = latest_transaction_dates_by_household_account or {}
     latest_transaction_dates_by_document = latest_transaction_dates_by_document or {}
     latest_transaction_dates_by_account_label = latest_transaction_dates_by_account_label or {}
@@ -1041,6 +1056,7 @@ def build_account_summaries(
             latest_transaction_dates_by_household_account=latest_transaction_dates_by_household_account,
             latest_transaction_dates_by_document=latest_transaction_dates_by_document,
             latest_transaction_dates_by_account_label=latest_transaction_dates_by_account_label,
+            closed_household_account_ids=closed_household_account_ids,
             linked_portfolio_ids=linked_portfolio_ids,
             linked_tracked_ids=linked_tracked_ids,
         )

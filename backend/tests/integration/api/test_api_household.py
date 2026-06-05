@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import uuid
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -980,6 +982,85 @@ def test_household_list_questions_reconciles_stale_open_duplicates(
 
     refreshed_questions = client.get("/api/household/questions").json()["items"]
     assert refreshed_questions == []
+
+
+def test_household_list_questions_suppresses_closed_account_followups(
+    client: TestClient,
+    test_storage,
+) -> None:
+    doc_id = str(uuid.uuid4())
+    account_id = str(uuid.uuid4())
+    evidence_id = str(uuid.uuid4())
+    question_id = str(uuid.uuid4())
+    with test_storage.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO household_documents
+                (id, filename, stored_path, source_type, document_type, status,
+                 account_label, content_type, file_size_bytes, classification_confidence,
+                 metadata, review_status, review_summary, review_confidence)
+            VALUES
+                (%s, 'closed-checking.csv', '/tmp/closed-checking.csv', 'bank',
+                 'statement', 'parsed', 'Closed Test Checking', 'text/csv', 1,
+                 0.99, %s::jsonb, 'complete', 'Reviewed', 0.99)
+            """,
+            [
+                doc_id,
+                json.dumps({"structured_data": {"account_hint": "Closed Test Checking"}}),
+            ],
+        )
+        conn.execute(
+            """
+            INSERT INTO household_accounts
+                (id, primary_identity_key, canonical_label, asset_group, account_type,
+                 source_type, institution_name, metadata)
+            VALUES
+                (%s, %s, 'Closed Test Checking', 'cash', 'checking', 'bank',
+                 'Test Bank', %s::jsonb)
+            """,
+            [
+                account_id,
+                f"test-closed-{account_id}",
+                json.dumps({"account_status": "closed"}),
+            ],
+        )
+        conn.execute(
+            """
+            INSERT INTO household_evidence_accounts
+                (id, document_id, source_type, asset_group, account_type,
+                 institution_name, account_name, currency, confidence,
+                 metadata, household_account_id)
+            VALUES
+                (%s, %s, 'bank', 'cash', 'checking', 'Test Bank',
+                 'Closed Test Checking', 'USD', 0.96, '{}'::jsonb, %s)
+            """,
+            [evidence_id, doc_id, account_id],
+        )
+        conn.execute(
+            """
+            INSERT INTO household_questions
+                (id, field_name, status, priority, question, rationale,
+                 source_document_id, metadata, created_at)
+            VALUES
+                (%s, 'monthly_essential_target', 'open', 'high',
+                 'Is Closed Test Checking your primary account for monthly bills, deposits, and budget tracking?',
+                 'Primary checking accounts anchor the household cash-flow model.',
+                 %s, '{}'::jsonb, now())
+            """,
+            [question_id, doc_id],
+        )
+        conn.commit()
+
+    response = client.get("/api/household/questions")
+
+    assert response.status_code == 200
+    assert question_id not in {item["id"] for item in response.json()["items"]}
+    with test_storage.connection() as conn:
+        row = conn.execute(
+            "SELECT status, metadata->>'reconciliation_reason' FROM household_questions WHERE id = %s",
+            [question_id],
+        ).fetchone()
+    assert row == ("dismissed", "closed_account_context")
 
 
 def test_household_list_questions_collapses_semantic_shopping_channel_duplicates(

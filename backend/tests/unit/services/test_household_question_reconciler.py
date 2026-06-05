@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from app.models.household_finance import HouseholdQuestion
-from app.services.household_question_reconciler import HouseholdQuestionReconciler
+from app.services.household_question_reconciler import (
+    HouseholdQuestionReconciler,
+    _question_allows_closed_account_dismissal,
+    _question_label_context_is_closed,
+)
 
 
 def _question(
@@ -69,3 +73,24 @@ def test_question_is_answered_by_context_for_document_role() -> None:
         answer_text="Use it as the main monthly checking baseline.",
         answered_family="document_role",
     )
+
+
+def test_closed_account_context_can_dismiss_cashflow_account_question() -> None:
+    question = _question(
+        question_id="q-closed",
+        field_name="monthly_essential_target",
+        text=(
+            "Is Wells Fargo closed checking your primary account for monthly bills, "
+            "deposits, and budget tracking?"
+        ),
+        metadata={
+            "source_document": {
+                "account_label": "Wells Fargo closed checking",
+                "account_hint": "Wells Fargo closed checking",
+                "filename": "closed-checking.csv",
+            }
+        },
+    )
+
+    assert _question_allows_closed_account_dismissal(question) is True
+    assert _question_label_context_is_closed(question) is True

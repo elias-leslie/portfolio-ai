@@ -18,7 +18,9 @@ export function useMacroCurrent() {
     queryKey: ['macro', 'current'],
     queryFn: fetchMacroCurrent,
     staleTime: 5 * ONE_MINUTE,
-    refetchOnWindowFocus: false,
+    refetchInterval: ONE_MINUTE,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
     retry: 1,
   })
 }
@@ -28,7 +30,9 @@ export function useMacroConditions() {
     queryKey: ['macro', 'conditions'],
     queryFn: fetchMacroConditions,
     staleTime: 5 * ONE_MINUTE,
-    refetchOnWindowFocus: false,
+    refetchInterval: ONE_MINUTE,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
     retry: 1,
   })
 }

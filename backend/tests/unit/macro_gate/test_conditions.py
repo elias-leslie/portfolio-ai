@@ -95,7 +95,7 @@ def test_conditions_payload_turns_reduced_gate_into_plain_language_caution() -> 
     assert evidence_by_key["ten_year_three_month"]["value"] == "+98 bps"
     assert evidence_by_key["hy_oas"]["value"] == "2.70"
     assert evidence_by_key["crowding"]["value"] == "High"
-    assert evidence_by_key["crowding"]["detail"] == "Corr +0.22"
+    assert evidence_by_key["crowding"]["detail"] == "|corr| 0.22"
     assert evidence_by_key["stress"]["trend"]["change_label"] == "7D +7"
     assert payload["trend"]["stress"]["direction"] == "worsening"
     assert payload["trend"]["stress"]["reversal"] is True
@@ -132,6 +132,29 @@ def test_conditions_payload_applies_current_tape_stress_overlay() -> None:
     assert evidence_by_key["equity_tape"]["detail"] == (
         "S&P -0.8%, Technology -2.9%, 2/11 sectors down"
     )
+
+
+def test_conditions_payload_uses_stronger_copy_for_moderate_tape_stress() -> None:
+    payload = conditions.build_conditions_payload(
+        _snapshot(deployment_score=65.0),
+        tape_stress=conditions.TapeStressEvidence(
+            stress_score=54,
+            as_of="2026-06-04T14:20:00+00:00",
+            sp500_change_pct=-1.0,
+            weakest_sector_symbol="XLK",
+            weakest_sector_name="Technology",
+            weakest_sector_change_pct=-3.3,
+            negative_sector_count=6,
+            sector_count=11,
+        ),
+    )
+
+    assert payload["stress_score"] == 54
+    assert payload["summary"] == "Market stress is moderate, with current tape pressure."
+    assert "Stay invested, but be selective" in payload["action_text"]
+
+    evidence_by_key = {item["key"]: item for item in payload["evidence"]}
+    assert evidence_by_key["stress"]["detail"] == "Moderate caution"
 
 
 def test_conditions_payload_escalates_on_severe_current_tape_stress() -> None:

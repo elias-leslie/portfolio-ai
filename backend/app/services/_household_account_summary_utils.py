@@ -14,6 +14,10 @@ from app.models.household_finance import (
     HouseholdDocument,
     HouseholdEvidenceAccount,
 )
+from app.services._household_account_status import (
+    account_context_indicates_closed,
+    metadata_indicates_closed,
+)
 
 _BALANCE_FRESHNESS_THRESHOLDS: dict[str, tuple[int, int]] = {
     "cash": (3, 7),
@@ -446,6 +450,7 @@ def _latest_transaction_coverage_timestamp(
 def _is_closed_zero_balance_account(
     account: HouseholdEvidenceAccount,
     *documents: HouseholdDocument | None,
+    known_closed: bool = False,
 ) -> bool:
     fields = [
         account.account_name,
@@ -455,17 +460,36 @@ def _is_closed_zero_balance_account(
         account.owner_name,
         *(document.account_label for document in documents if document is not None),
     ]
-    normalized = _normalize_text(" ".join(field for field in fields if field))
-    if "closed" not in normalized or account.asset_group not in {"cash", "credit", "debt"}:
+    closed_context = (
+        known_closed
+        or account_context_indicates_closed(metadata=account.metadata, labels=tuple(fields))
+        or any(
+            metadata_indicates_closed(document.metadata)
+            for document in documents
+            if document is not None
+        )
+    )
+    account_value = _account_value(account)
+    if not closed_context or (account_value is not None and abs(account_value) > 0.01):
         return False
 
+    document_confirms_closed = False
     for document in documents:
         metadata = document.metadata if document is not None else {}
         structured = metadata.get("structured_data") if isinstance(metadata, dict) else None
         preview = structured.get("text_preview") if isinstance(structured, dict) else None
         if preview and "payoff debit" in _normalize_text(preview) and "0.00" in str(preview):
-            return True
-    return False
+            document_confirms_closed = True
+            break
+        if document is not None and metadata_indicates_closed(document.metadata):
+            document_confirms_closed = True
+            break
+    return (
+        known_closed
+        or metadata_indicates_closed(account.metadata)
+        or document_confirms_closed
+        or account_value is not None
+    )
 
 
 def _best_display_account(

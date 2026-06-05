@@ -13,6 +13,7 @@ import psycopg
 
 from app.models.household_finance import HouseholdEvidenceAccount, HouseholdTrackedAccount
 from app.portfolio.models import Account
+from app.services._household_account_status import metadata_indicates_closed
 from app.services._household_finance_utils import iso, iso_or_none, to_float
 from app.services.household_account_identity import (
     account_identity_candidates,
@@ -279,6 +280,21 @@ def _trusted_evidence_account_mask(evidence: HouseholdEvidenceAccount) -> str | 
         if extracted_mask and not looks_generic_account_mask(extracted_mask):
             return extracted_mask
     return evidence.account_mask
+
+
+def _metadata_with_evidence_lifecycle(
+    current: dict[str, object],
+    evidence_metadata: object,
+) -> dict[str, object]:
+    if not metadata_indicates_closed(evidence_metadata):
+        return current
+    evidence = _load_json_object(evidence_metadata)
+    return {
+        **current,
+        "account_status": "closed",
+        "status_confirmed_by": evidence.get("status_confirmed_by", "evidence"),
+        "status_confirmed_at": evidence.get("status_confirmed_at", _now_iso()),
+    }
 
 
 class HouseholdAccountRegistryService:
@@ -677,6 +693,7 @@ class HouseholdAccountRegistryService:
                 evidence.account_name,
                 self._evidence_fallback_label(evidence),
             )
+            metadata = _metadata_with_evidence_lifecycle({}, evidence.metadata)
             now = _now_iso()
             # Scope the insert to a savepoint: a primary_identity_key collision must
             # only undo this statement, not the whole sync_registry transaction. A
@@ -702,7 +719,7 @@ class HouseholdAccountRegistryService:
                         evidence.institution_name,
                         evidence.owner_name,
                         derived_mask,
-                        "{}",
+                        json.dumps(metadata),
                         now,
                         now,
                     ],
@@ -720,7 +737,7 @@ class HouseholdAccountRegistryService:
                     institution_name=evidence.institution_name,
                     owner_name=evidence.owner_name,
                     account_mask=derived_mask,
-                    metadata={},
+                    metadata=metadata,
                 )
             except psycopg.errors.UniqueViolation:
                 conn.execute("ROLLBACK TO SAVEPOINT household_account_insert")
@@ -975,7 +992,7 @@ class HouseholdAccountRegistryService:
             institution_name=evidence.institution_name or current.institution_name,
             owner_name=evidence.owner_name or current.owner_name,
             account_mask=next_mask or current.account_mask,
-            metadata=current.metadata,
+            metadata=_metadata_with_evidence_lifecycle(current.metadata, evidence.metadata),
         )
         canonical_accounts[account_id] = updated
         conn.execute(
@@ -988,6 +1005,7 @@ class HouseholdAccountRegistryService:
                 institution_name = %s,
                 owner_name = %s,
                 account_mask = %s,
+                metadata = %s::jsonb,
                 updated_at = %s
             WHERE id = %s
             """,
@@ -999,6 +1017,7 @@ class HouseholdAccountRegistryService:
                 updated.institution_name,
                 updated.owner_name,
                 updated.account_mask,
+                json.dumps(updated.metadata),
                 _now_iso(),
                 account_id,
             ],
@@ -1110,6 +1129,12 @@ class HouseholdAccountRegistryService:
                     current.account_type,
                 ),
             )
+            next_metadata = current.metadata
+            for row in evidence_rows:
+                next_metadata = _metadata_with_evidence_lifecycle(
+                    next_metadata,
+                    row.get("metadata"),
+                )
             updated = HouseholdCanonicalAccount(
                 id=current.id,
                 primary_identity_key=current.primary_identity_key,
@@ -1144,7 +1169,7 @@ class HouseholdAccountRegistryService:
                 institution_name=institution_name or current.institution_name,
                 owner_name=owner_name or current.owner_name,
                 account_mask=next_mask or current.account_mask,
-                metadata=current.metadata,
+                metadata=next_metadata,
             )
             canonical_accounts[account_id] = updated
             conn.execute(
@@ -1157,6 +1182,7 @@ class HouseholdAccountRegistryService:
                     institution_name = %s,
                     owner_name = %s,
                     account_mask = %s,
+                    metadata = %s::jsonb,
                     updated_at = %s
                 WHERE id = %s
                 """,
@@ -1168,6 +1194,7 @@ class HouseholdAccountRegistryService:
                     updated.institution_name,
                     updated.owner_name,
                     updated.account_mask,
+                    json.dumps(updated.metadata),
                     _now_iso(),
                     account_id,
                 ],

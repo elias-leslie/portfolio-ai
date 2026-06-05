@@ -122,7 +122,7 @@ const conditions = {
   watchItems: [
     'VIX above 30 would move volatility from calm to stressed.',
     'HY OAS above 5 or widening 100 bps would make credit a real warning.',
-    'Deployment score below 40 would turn the brief defensive.',
+    'Risk budget below 40 would turn the brief defensive.',
   ],
   trend: {
     stress: stressTrend,

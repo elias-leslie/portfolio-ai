@@ -58,8 +58,8 @@ def fetch_spy_data(
 
 def fetch_market_indicators(
     storage: PortfolioStorage, start_date: dt.date, end_date: dt.date
-) -> tuple[dict[dt.date, float], dict[dt.date, float], float, float]:
-    """Fetch VIX, HY spread, and fallback estimates.
+) -> tuple[dict[dt.date, float], dict[dt.date, float]]:
+    """Fetch observed VIX and HY spread values.
 
     Args:
         storage: Storage instance
@@ -67,23 +67,8 @@ def fetch_market_indicators(
         end_date: End date for data fetch
 
     Returns:
-        Tuple of (vix_dict, hy_spread_dict, vix_estimate, hy_spread_fallback)
+        Tuple of (vix_dict, hy_spread_dict)
     """
-    # Get latest VIX and HY_spread for fallback estimates
-    with storage.connection() as conn:
-        result = conn.execute(
-            """
-            SELECT vix_close, hy_spread
-            FROM fear_greed_inputs
-            WHERE vix_close IS NOT NULL
-            ORDER BY as_of_date DESC
-            LIMIT 1
-            """
-        )
-        latest = result.fetchone()
-        vix_estimate = float(latest[0]) if latest and latest[0] is not None else 19.5
-        hy_spread_fallback = float(latest[1]) if latest and latest[1] is not None else 3.13
-
     # Fetch VIX data from database if available
     vix_dict: dict[dt.date, float] = {}
     with storage.connection() as conn:
@@ -104,6 +89,24 @@ def fetch_market_indicators(
             if isinstance(date_value, dt.date) and close_value is not None:
                 vix_dict[date_value] = float(close_value)
 
+    with storage.connection() as conn:
+        result = conn.execute(
+            """
+            SELECT as_of_date, vix_close
+            FROM fear_greed_inputs
+            WHERE vix_close IS NOT NULL
+              AND as_of_date >= %s
+              AND as_of_date <= %s
+            ORDER BY as_of_date ASC
+            """,
+            [str(start_date), str(end_date)],
+        )
+        for row in result.fetchall():
+            date_value = row[0]
+            vix_value = row[1]
+            if isinstance(date_value, dt.date) and vix_value is not None:
+                vix_dict.setdefault(date_value, float(vix_value))
+
     current_vix = PriceDataFetcher(storage).fetch_price_data(["^VIX"]).get("^VIX")
     if current_vix and current_vix.price > 0 and current_vix.cached_at:
         quote_ts = (
@@ -115,9 +118,35 @@ def fetch_market_indicators(
         if start_date <= quote_date <= end_date:
             vix_dict[quote_date] = float(current_vix.price)
 
-    # Fetch HY spread data from FRED
+    hy_spread_dict: dict[dt.date, float] = {}
+    with storage.connection() as conn:
+        result = conn.execute(
+            """
+            SELECT as_of_date, hy_spread
+            FROM fear_greed_inputs
+            WHERE hy_spread IS NOT NULL
+              AND as_of_date >= %s
+              AND as_of_date <= %s
+            ORDER BY as_of_date ASC
+            """,
+            [str(start_date), str(end_date)],
+        )
+        for row in result.fetchall():
+            date_value = row[0]
+            hy_value = row[1]
+            if isinstance(date_value, dt.date) and hy_value is not None:
+                hy_spread_dict[date_value] = float(hy_value)
+
+    # Fetch observed HY spread data from FRED and overlay any fresh official prints.
     fred_source = FREDSource()
     hy_spread_data = fred_source.fetch_series("HY_SPREAD", start_date, end_date)
-    hy_spread_dict = dict(hy_spread_data)
+    if hy_spread_data:
+        latest_official_hy_date = max(row[0] for row in hy_spread_data)
+        hy_spread_dict = {
+            day: value
+            for day, value in hy_spread_dict.items()
+            if day <= latest_official_hy_date
+        }
+    hy_spread_dict.update(dict(hy_spread_data))
 
-    return vix_dict, hy_spread_dict, vix_estimate, hy_spread_fallback
+    return vix_dict, hy_spread_dict

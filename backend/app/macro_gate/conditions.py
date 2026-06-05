@@ -138,7 +138,7 @@ def _crowding_detail(score: float | None, corr: float | None) -> str:
     if score is None:
         return "Unavailable"
     if corr is not None:
-        return f"Corr {corr:+.2f}"
+        return f"|corr| {abs(corr):.2f}"
     return f"Score {score:.0f}/100"
 
 
@@ -708,6 +708,7 @@ def _build_market_shifts(trends: dict[str, Any]) -> list[dict[str, Any]]:
 def _state_copy(
     state: str,
     flags: list[str],
+    stress_score: int | None,
     tape_stress: TapeStressEvidence | None = None,
 ) -> tuple[str, str]:
     if state == "Elevated":
@@ -724,6 +725,11 @@ def _state_copy(
         return (
             "Market stress is elevated.",
             "Protect the plan first. Avoid adding broad risk until volatility, credit, and breadth stabilize.",
+        )
+    if stress_score is not None and stress_score >= 50:
+        return (
+            "Market stress is moderate, with current tape pressure.",
+            "Stay invested, but be selective. Do not chase the selloff; scale only into highest-conviction buys while the tape stabilizes.",
         )
     if tape_stress is not None and tape_stress.stress_score >= 35:
         return (
@@ -808,7 +814,7 @@ def _watch_items() -> list[str]:
         "S&P 500 down more than 2% or broad sector selling would lift current tape stress.",
         "VIX above 30 would move volatility from calm to stressed.",
         "HY OAS above 5 or widening 100 bps would make credit a real warning.",
-        "Deployment score below 40 would turn the brief defensive.",
+        "Risk budget below 40 would turn the brief defensive.",
         "Breadth breaking materially lower would weaken rally quality.",
     ]
 
@@ -828,7 +834,7 @@ def _build_evidence(
 ) -> list[dict[str, Any]]:
     ten_two = yield_curve.ten_year_two_year_bps if yield_curve else None
     ten_three_month = yield_curve.ten_year_three_month_bps if yield_curve else None
-    evidence = [
+    return [
         {
             "key": "stress",
             "label": "Stress",
@@ -836,9 +842,11 @@ def _build_evidence(
             "detail": (
                 "Unavailable"
                 if stress_score is None
+                else "Moderate caution"
+                if stress_score >= 50
                 else "Low-to-moderate"
-                if stress_score < 60
-                else "Elevated"
+                if stress_score >= 35
+                else "Low"
             ),
             "tone": _evidence_tone(
                 "stress", float(stress_score) if stress_score is not None else None
@@ -927,11 +935,10 @@ def _build_evidence(
                 else "Not the main drag"
             ),
             "tone": _evidence_tone("crowding", crowding_score),
-            "tooltip": "Crowding estimates whether popular trades are clustering together. A 0 score means factor correlation is extremely high, not missing data.",
+            "tooltip": "Crowding uses absolute factor-correlation magnitude: a big positive or negative correlation means popular factor trades are moving together too tightly. A 0 score means crowded, not missing.",
             "trend": trends.get("crowding"),
         },
     ]
-    return evidence
 
 
 def build_conditions_payload(
@@ -960,7 +967,7 @@ def build_conditions_payload(
         tape_stress_score=tape_stress.stress_score if tape_stress else None,
     )
     state = "Elevated" if flags else _zone_state(snapshot.get("zone"))
-    summary, action_text = _state_copy(state, flags, tape_stress)
+    summary, action_text = _state_copy(state, flags, stress, tape_stress)
     alert_active = state == "Elevated"
     priority = (
         "critical"

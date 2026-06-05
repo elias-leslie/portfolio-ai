@@ -23,6 +23,7 @@ from app.models.household_finance import (
     RetirementPreparedness,
 )
 from app.portfolio.account_valuation import calculate_account_valuations
+from app.services._household_account_status import fetch_closed_household_account_ids
 from app.services._household_dashboard_builders import (
     build_budget_snapshot,
     build_retirement_contribution_tracker,
@@ -558,6 +559,7 @@ def gather_service_data(service: Any) -> dict[str, Any]:
     evidence_accounts = service.list_evidence_accounts(limit=1000, dedupe=False)
     tracked_accounts = service.list_tracked_accounts(limit=100)
     questions = service.list_questions(limit=25).items
+    closed_household_account_ids = fetch_closed_household_account_ids(service.storage)
     accounts = [a for a in service.portfolio_mgr.get_accounts() if a.account_type != "paper"]
     positions = service.portfolio_mgr.get_positions()
     account_ids = {a.id for a in accounts}
@@ -580,6 +582,7 @@ def gather_service_data(service: Any) -> dict[str, Any]:
         "accounts": accounts, "live_positions": live_positions,
         "account_valuations": account_valuations,
         "account_control": account_control_result.control,
+        "closed_household_account_ids": closed_household_account_ids,
         "source_owned_household_account_ids": (
             account_control_result.source_owned_household_account_ids
             | set(account_control_result.source_owned_account_values)

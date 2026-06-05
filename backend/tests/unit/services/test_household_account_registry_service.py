@@ -775,6 +775,41 @@ def test_resolve_from_evidence_does_not_merge_credit_card_mask_changes_by_lineag
     assert len(canonical_accounts) == 2
 
 
+def test_resolve_from_evidence_carries_closed_lifecycle_to_created_account() -> None:
+    registry = HouseholdAccountRegistryService()
+    conn = Mock()
+    canonical_accounts: dict[str, HouseholdCanonicalAccount] = {}
+    identity_map: dict[str, str] = {}
+    evidence = _evidence(
+        evidence_id="closed-evidence",
+        document_id="doc-closed",
+        institution_name="Test Bank",
+        account_name="Closed Checking",
+        owner_name="Elias B Leslie",
+        account_mask=None,
+        asset_group="cash",
+        account_type="checking",
+        source_type="bank",
+    )
+    evidence.metadata = {
+        "account_status": "closed",
+        "status_confirmed_by": "user",
+        "status_confirmed_at": "2026-06-05",
+    }
+
+    account_id, created, merged = registry._resolve_from_evidence(
+        conn,
+        evidence=evidence,
+        canonical_accounts=canonical_accounts,
+        identity_map=identity_map,
+    )
+
+    assert created == 1
+    assert merged == 0
+    assert canonical_accounts[account_id].metadata["account_status"] == "closed"
+    assert canonical_accounts[account_id].metadata["status_confirmed_by"] == "user"
+
+
 def test_resolve_from_evidence_can_link_weak_statement_rows_by_filename_mask() -> None:
     registry = HouseholdAccountRegistryService()
     conn = Mock()

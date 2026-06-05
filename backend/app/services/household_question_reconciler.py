@@ -7,6 +7,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.models.household_finance import HouseholdQuestion
+from app.services._household_account_status import (
+    account_context_indicates_closed,
+    metadata_indicates_closed,
+)
 from app.services._household_finance_utils import iso, iso_or_none
 from app.services.household_finance_rows import FIELD_LABELS, row_to_question
 from app.services.household_question_classifier import (
@@ -104,6 +108,85 @@ def _bulk_answer_related(
     )
 
 
+def _mark_closed_context_dismissed(conn: Any, question_id: str) -> None:
+    conn.execute(
+        "UPDATE household_questions SET status='dismissed', answered_at=%s,"
+        " metadata=COALESCE(metadata,'{}'::jsonb)||%s::jsonb WHERE id=%s AND status='open'",
+        [
+            datetime.now(UTC).isoformat(),
+            json.dumps({"reconciliation_reason": "closed_account_context"}),
+            question_id,
+        ],
+    )
+
+
+def _question_allows_closed_account_dismissal(question: HouseholdQuestion) -> bool:
+    q_family = question_family(question.question, question.field_name)
+    if q_family in {"core_spending", "document_role"}:
+        return True
+    if question.field_name == "account_hint":
+        return True
+    normalized = question.question.lower()
+    return "source account" in normalized and ("csv" in normalized or "export" in normalized)
+
+
+def _question_label_context_is_closed(question: HouseholdQuestion) -> bool:
+    source_document = question.metadata.get("source_document")
+    if not isinstance(source_document, dict):
+        return False
+    return account_context_indicates_closed(
+        labels=(
+            source_document.get("account_label"),
+            source_document.get("account_hint"),
+            source_document.get("filename"),
+        )
+    )
+
+
+def _source_document_linked_accounts_are_closed(conn: Any, question: HouseholdQuestion) -> bool:
+    if question.source_document_id is None:
+        return False
+    rows = conn.execute(
+        """
+        SELECT
+            ea.household_account_id::text,
+            ea.account_name,
+            ea.institution_name,
+            ea.account_mask,
+            ea.metadata,
+            ha.canonical_label,
+            ha.institution_name,
+            ha.account_mask,
+            ha.metadata,
+            d.account_label,
+            d.metadata
+        FROM household_evidence_accounts ea
+        LEFT JOIN household_accounts ha ON ha.id = ea.household_account_id
+        LEFT JOIN household_documents d ON d.id = ea.document_id
+        WHERE ea.document_id = %s
+        """,
+        [question.source_document_id],
+    ).fetchall()
+    linked_rows = [row for row in rows if row[0] is not None]
+    if not linked_rows:
+        return False
+    for row in linked_rows:
+        evidence_closed = account_context_indicates_closed(
+            metadata=row[4],
+            labels=(row[1], row[2], row[3]),
+        )
+        canonical_closed = account_context_indicates_closed(
+            metadata=row[8],
+            labels=(row[5], row[6], row[7]),
+        )
+        document_closed = metadata_indicates_closed(row[10]) or account_context_indicates_closed(
+            labels=(row[9],)
+        )
+        if not (evidence_closed or canonical_closed or document_closed):
+            return False
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Main reconciler class
 # ---------------------------------------------------------------------------
@@ -185,6 +268,7 @@ class HouseholdQuestionReconciler:
             updated = self._apply_answered_context(conn, answered, open_qs)
             updated |= self._dismiss_duplicates(conn, open_qs)
             updated |= self._dismiss_inferred(service, conn, open_qs)
+            updated |= self._dismiss_closed_account_questions(conn, open_qs)
             if updated:
                 conn.commit()
 
@@ -311,6 +395,27 @@ class HouseholdQuestionReconciler:
                 " metadata=COALESCE(metadata,'{}'::jsonb)||%s::jsonb WHERE id=%s AND status='open'",
                 [datetime.now(UTC).isoformat(), json.dumps(resolution), candidate.id],
             )
+            candidate.status = "dismissed"
+            updated = True
+        return updated
+
+    def _dismiss_closed_account_questions(
+        self,
+        conn: Any,
+        open_questions: list[HouseholdQuestion],
+    ) -> bool:
+        updated = False
+        for candidate in open_questions:
+            if candidate.status != "open":
+                continue
+            if not _question_allows_closed_account_dismissal(candidate):
+                continue
+            if not (
+                _question_label_context_is_closed(candidate)
+                or _source_document_linked_accounts_are_closed(conn, candidate)
+            ):
+                continue
+            _mark_closed_context_dismissed(conn, candidate.id)
             candidate.status = "dismissed"
             updated = True
         return updated
