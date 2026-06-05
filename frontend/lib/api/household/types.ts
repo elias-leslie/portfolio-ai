@@ -141,10 +141,16 @@ export interface HouseholdMerchantInsight {
   recommendation: string
 }
 
+export type HouseholdPriceSignalType =
+  | 'shrinkflation'
+  | 'unit_price_up'
+  | 'price_up'
+  | 'price_down'
+
 export interface HouseholdPriceInsight {
   merchant: string
   itemName: string
-  signalType: string
+  signalType: HouseholdPriceSignalType
   latestPrice: number
   previousPrice: number
   priceChange: number

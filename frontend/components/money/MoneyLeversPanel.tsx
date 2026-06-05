@@ -28,6 +28,9 @@ type LeverOpportunity = {
   detail: string
   tone: 'success' | 'warning' | 'outline'
   additive: boolean
+  // Set when this lever's dollars overlap another lever (e.g. a merchant inside a
+  // category) so the card can flag that trimming both is not additive.
+  note?: string
 }
 
 const leverWindows: Array<{ value: LeverWindow; label: string }> = [
@@ -190,6 +193,23 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
       .sort((left, right) => right.totalSpend - left.totalSpend)
   }, [search, spending?.transactions])
 
+  // Search also narrows category surfaces: a category stays visible when its own
+  // text matches, or when a search-matched merchant rolls up into it (Amazon ⊂ Retail).
+  const visibleCategoryRows = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    if (!term) {
+      return categoryRows
+    }
+    const matchedMerchantCategories = new Set(
+      merchantRows.map((row) => row.category),
+    )
+    return categoryRows.filter(
+      (row) =>
+        `${row.category} ${row.essentiality}`.toLowerCase().includes(term) ||
+        matchedMerchantCategories.has(row.category),
+    )
+  }, [categoryRows, merchantRows, search])
+
   const visiblePriceInsights = useMemo(
     () =>
       priceInsights.filter((row) =>
@@ -214,11 +234,11 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
 
   const topDiscretionaryCategory = useMemo(
     () =>
-      categoryRows.find(
+      visibleCategoryRows.find(
         (row) =>
           row.essentiality === 'discretionary' && row.averageMonthlySpend > 0,
       ) ?? null,
-    [categoryRows],
+    [visibleCategoryRows],
   )
 
   const topDiscretionaryMerchant = useMemo(
@@ -230,8 +250,10 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
   )
 
   const subscriptionCategory = useMemo(
-    () => categoryRows.find((row) => row.category === 'Subscriptions') ?? null,
-    [categoryRows],
+    () =>
+      visibleCategoryRows.find((row) => row.category === 'Subscriptions') ??
+      null,
+    [visibleCategoryRows],
   )
 
   const bestPriceSignal = useMemo(
@@ -239,7 +261,9 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
       [...visiblePriceInsights]
         .filter(
           (row) =>
-            row.signalType === 'price_up' || row.signalType === 'shrinkflation',
+            row.signalType === 'price_up' ||
+            row.signalType === 'unit_price_up' ||
+            row.signalType === 'shrinkflation',
         )
         .sort((left, right) => {
           const leftScore = Math.max(
@@ -308,6 +332,8 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
             spending.summary.coverageMonths
           : topDiscretionaryMerchant.totalSpend
       const monthlySavings = monthlyMerchantSpend * 0.15
+      const overlapsCategoryLever =
+        topDiscretionaryCategory?.category === topDiscretionaryMerchant.category
       push({
         id: 'merchant',
         title: `${topDiscretionaryMerchant.merchant} is merchant drag`,
@@ -316,6 +342,9 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
           topDiscretionaryMerchant.essentiality,
           topDiscretionaryMerchant.transactionCount,
         ),
+        note: overlapsCategoryLever
+          ? `Already inside the ${topDiscretionaryMerchant.category} category lever — trimming both is not additive, so it is excluded from the additive total.`
+          : undefined,
         monthlySavings,
         annualSavings: monthlySavings * 12,
         detail: `${topDiscretionaryMerchant.transactionCount} charges in this window. Merchant alone ran ${formatCurrency(topDiscretionaryMerchant.totalSpend, { decimals: 0 })}.`,
@@ -482,10 +511,12 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
               Tracked pressure
             </p>
             <p className="mt-2 text-base font-semibold text-text">
-              {categoryRows.length}
+              {visibleCategoryRows.length}
             </p>
             <p className="mt-1 text-xs text-text-muted">
-              Spend categories in this window
+              {search.trim()
+                ? 'Spend categories matching search'
+                : 'Spend categories in this window'}
             </p>
           </div>
         </div>
@@ -512,15 +543,28 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
                       {lever.playbook}
                     </p>
                   </div>
-                  <Badge variant={lever.tone}>
-                    {formatCurrency(lever.monthlySavings, { decimals: 0 })}/mo
-                  </Badge>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge variant={lever.tone}>
+                      {formatCurrency(lever.monthlySavings, { decimals: 0 })}/mo
+                    </Badge>
+                    <Badge variant="outline" className="text-[10px]">
+                      Modeled
+                    </Badge>
+                  </div>
                 </div>
                 <p className="mt-3 text-sm text-text-muted">{lever.detail}</p>
                 <p className="mt-3 text-sm font-medium text-text">
                   Annual room:{' '}
                   {formatCurrency(lever.annualSavings, { decimals: 0 })}
                 </p>
+                <p className="mt-1 text-xs text-text-muted">
+                  Rule-of-thumb trim rate, not a guaranteed saving.
+                </p>
+                {lever.note ? (
+                  <p className="mt-2 rounded-lg border border-border/40 bg-surface-muted/20 px-3 py-2 text-xs text-text-muted">
+                    {lever.note}
+                  </p>
+                ) : null}
               </article>
             ))}
           </div>
@@ -575,7 +619,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
                       Loading category levers...
                     </td>
                   </tr>
-                ) : categoryRows.length === 0 ? (
+                ) : visibleCategoryRows.length === 0 ? (
                   <tr>
                     <td
                       colSpan={7}
@@ -585,7 +629,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
                     </td>
                   </tr>
                 ) : (
-                  categoryRows.map((row: HouseholdSpendingCategory) => {
+                  visibleCategoryRows.map((row: HouseholdSpendingCategory) => {
                     const trimRate = trimRateForCategory(
                       row.category,
                       row.essentiality,
