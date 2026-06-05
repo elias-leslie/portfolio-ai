@@ -85,8 +85,15 @@ class DataQualityResponse(BaseModel):
     )
 
 
+class PriceTrendPoint(BaseModel):
+    """One downsampled close in a scanner trendline."""
+
+    date: str | None = None
+    close: float
+
+
 class PriceTrendResponse(BaseModel):
-    """Close/quote-based return for a scanner timeframe."""
+    """Close-series trend for a scanner timeframe (D/W/Q/Y)."""
 
     key: str
     label: str
@@ -95,8 +102,27 @@ class PriceTrendResponse(BaseModel):
     end_close: float | None = None
     start_date: str | None = None
     end_date: str | None = None
-    end_source: str = "daily_close"
+    end_source: str = "day_bars"
     status: str
+    partial: bool = False
+    point_count: int = 0
+    series: list[PriceTrendPoint] = Field(default_factory=list)
+
+
+class ScoreTrendPoint(BaseModel):
+    """One daily-aggregated overall score in the score trendline."""
+
+    date: str | None = None
+    value: float
+
+
+class ScoreTrendResponse(BaseModel):
+    """Overall-score series for the scanner Score column."""
+
+    series: list[ScoreTrendPoint] = Field(default_factory=list)
+    current: float | None = None
+    point_count: int = 0
+    status: str = "missing"
 
 
 class VwapSignalResponse(BaseModel):
@@ -172,6 +198,7 @@ class WatchlistItemResponse(BaseModel):
     current_score: ScoreBreakdownResponse | None = None
     quote: QuoteSection | None = None
     price_trends: list[PriceTrendResponse] = Field(default_factory=list)
+    score_trend: ScoreTrendResponse | None = None
     vwap_signal: VwapSignalResponse | None = None
     score_alert: bool = False  # True if score changed >10 points in last 7 days
 
@@ -294,6 +321,9 @@ class WatchlistItemResponse(BaseModel):
             price_trends=[
                 PriceTrendResponse(**trend) for trend in item.get("price_trends", [])
             ],
+            score_trend=ScoreTrendResponse(**item["score_trend"])
+            if item.get("score_trend")
+            else None,
             vwap_signal=VwapSignalResponse(**item["vwap_signal"])
             if item.get("vwap_signal")
             else None,

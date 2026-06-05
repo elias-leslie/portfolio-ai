@@ -7,12 +7,6 @@ vi.mock('@/components/watchlist/ExpandedRow', () => ({
   ExpandedRow: () => <div>Expanded Row</div>,
 }))
 
-// PriceSparkline fetches score history via React Query; mock it so the row
-// renders without a QueryClientProvider (it has its own dedicated test).
-vi.mock('@/components/watchlist/PriceSparkline', () => ({
-  PriceSparkline: () => <div data-testid="price-sparkline" />,
-}))
-
 function buildItem() {
   return {
     id: 'item-1',
@@ -52,25 +46,37 @@ function buildItem() {
     priceTrends: [
       {
         key: 'D',
-        label: '1D',
+        label: '1M',
         returnPct: 1.2,
         startClose: 406.65,
         endClose: 411.55,
-        startDate: '2026-03-10',
-        endDate: '2026-03-11T12:06:00Z',
-        endSource: 'quote',
+        startDate: '2026-02-11',
+        endDate: '2026-03-11',
+        endSource: 'day_bars',
         status: 'available',
+        partial: false,
+        pointCount: 22,
+        series: [
+          { date: '2026-02-11', close: 406.65 },
+          { date: '2026-03-11', close: 411.55 },
+        ],
       },
       {
         key: 'W',
-        label: '5D',
+        label: '3M',
         returnPct: -0.6,
         startClose: 414.03,
         endClose: 411.55,
-        startDate: '2026-03-04',
-        endDate: '2026-03-11T12:06:00Z',
-        endSource: 'quote',
+        startDate: '2025-12-11',
+        endDate: '2026-03-11',
+        endSource: 'day_bars',
         status: 'available',
+        partial: false,
+        pointCount: 13,
+        series: [
+          { date: '2025-12-11', close: 414.03 },
+          { date: '2026-03-11', close: 411.55 },
+        ],
       },
     ],
     vwapSignal: {
@@ -149,14 +155,13 @@ describe('WatchlistTableRow', () => {
     )
     expect(screen.getByText('$411.55')).toBeInTheDocument()
     expect(screen.queryByText('$410.12')).not.toBeInTheDocument()
-    // Amateur-first primary row content: company name, signal, rationale, score meter
+    // Amateur-first primary row content: company name, signal, rationale, score trendline
     expect(screen.getByText('Microsoft Corporation')).toBeInTheDocument()
     expect(
       screen.getByText('Momentum and earnings support more upside'),
     ).toBeInTheDocument()
     expect(screen.getByText('BUY')).toBeInTheDocument()
     expect(screen.getByText('Medium')).toBeInTheDocument()
-    expect(screen.getByText('Score')).toBeInTheDocument()
     expect(screen.getByText('67')).toBeInTheDocument()
     expect(screen.getByLabelText('Data healthy')).toBeInTheDocument()
     // Quant/meta detail is demoted out of the primary row into the expand

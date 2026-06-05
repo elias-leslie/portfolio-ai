@@ -20,7 +20,6 @@ import {
   getScoreBadgeVariant,
   getScoreBarColor,
 } from './ExpandedRowUtils'
-import { SparklineWithHistory } from './SparklineWithHistory'
 
 interface ExpandedRowScoreBreakdownProps {
   item: WatchlistItem
@@ -288,15 +287,6 @@ export function ExpandedRowScoreBreakdown({
         <div className="px-3 py-2 border-b border-border/40 flex items-center justify-between gap-3">
           <h3 className="text-sm font-medium">Score Breakdown</h3>
           <div className="flex items-center gap-3">
-            <div
-              className="flex items-center gap-1.5"
-              title="Overall score trend, last 7 days"
-            >
-              <span className="text-[10px] uppercase tracking-[0.12em] text-text-muted">
-                7d
-              </span>
-              <SparklineWithHistory itemId={item.id} width={80} height={24} />
-            </div>
             <Badge variant={getScoreBadgeVariant(score.overall)}>
               Overall: {score.overall.toFixed(0)}
             </Badge>

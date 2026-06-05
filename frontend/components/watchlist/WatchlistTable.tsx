@@ -87,6 +87,23 @@ export function WatchlistTable({ items, refreshStatus }: WatchlistTableProps) {
     }
   }
 
+  const renderTrendSortToggle = (field: SortField, letter: string) => (
+    <button
+      type="button"
+      onClick={() => handleSort(field)}
+      aria-label={`Sort by ${letter} price trend`}
+      className={cn(
+        'rounded px-1 text-[10px] font-semibold uppercase tracking-wide transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
+        sortField === field
+          ? 'bg-primary/15 text-primary'
+          : 'text-text-muted/60 hover:text-text',
+      )}
+    >
+      {letter}
+      {sortField === field ? (sortDirection === 'asc' ? '▲' : '▼') : ''}
+    </button>
+  )
+
   const renderSortableHeader = (field: SortField, label: string) => (
     <button
       type="button"
@@ -137,6 +154,17 @@ export function WatchlistTable({ items, refreshStatus }: WatchlistTableProps) {
               <TableHead>{renderSortableHeader('symbol', 'Symbol')}</TableHead>
               <TableHead>{renderSortableHeader('signal', 'Signal')}</TableHead>
               <TableHead>{renderSortableHeader('price', 'Price')}</TableHead>
+              <TableHead>
+                <div className="flex flex-col gap-1">
+                  <span className="font-medium text-text-muted">Trend</span>
+                  <div className="flex items-center gap-1">
+                    {renderTrendSortToggle('trendD', 'D')}
+                    {renderTrendSortToggle('trendW', 'W')}
+                    {renderTrendSortToggle('trendQ', 'Q')}
+                    {renderTrendSortToggle('trendY', 'Y')}
+                  </div>
+                </div>
+              </TableHead>
               <TableHead>{renderSortableHeader('overall', 'Score')}</TableHead>
               <TableHead>{renderSortableHeader('risk', 'Risk')}</TableHead>
               <TableHead className="w-[60px]" />

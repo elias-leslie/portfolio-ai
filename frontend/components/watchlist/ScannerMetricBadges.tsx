@@ -360,7 +360,7 @@ export function PriceTrendStrip({
   compact?: boolean
 }) {
   const byKey = new Map((trends ?? []).map((trend) => [trend.key, trend]))
-  const ordered = ['D', 'W', 'M', 'Q'].map((key) => byKey.get(key))
+  const ordered = ['D', 'W', 'Q', 'Y'].map((key) => byKey.get(key))
 
   return (
     <div
@@ -370,7 +370,7 @@ export function PriceTrendStrip({
       )}
     >
       {ordered.map((trend, index) => {
-        const key = trend?.key ?? ['D', 'W', 'M', 'Q'][index]
+        const key = trend?.key ?? ['D', 'W', 'Q', 'Y'][index]
         const available = trend?.status === 'available'
         const label = `${key} ${available ? formatPct(trend?.returnPct) : '—'}`
         return (

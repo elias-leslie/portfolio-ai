@@ -16,7 +16,11 @@ from ...logging_config import get_logger
 from ...portfolio.price_fetcher import PriceDataFetcher
 from ...storage import PortfolioStorage
 from ...utils.preferences_loader import UserPreferences
-from ..price_trends import build_price_trend_map, build_vwap_signal_map
+from ..price_trends import (
+    build_price_trend_map,
+    build_score_series_map,
+    build_vwap_signal_map,
+)
 from ..watchlist_repository import WatchlistRepository
 from .builders import build_base_item_data, build_snapshot_data
 from .helpers import _calculate_price_change
@@ -56,8 +60,10 @@ class WatchlistService:
 
         # Pre-fetch enrichment data for all symbols in batch (avoids N+1 queries)
         symbols = [row["symbol"] for row in items_df.iter_rows(named=True)]
+        item_ids = [str(row["id"]) for row in items_df.iter_rows(named=True)]
         quote_map = build_quote_map(self.storage, symbols)
-        price_trend_map = build_price_trend_map(self.storage, symbols, quote_map)
+        price_trend_map = build_price_trend_map(self.storage, symbols)
+        score_series_map = build_score_series_map(self.storage, item_ids)
         vwap_signal_map = build_vwap_signal_map(self.storage, symbols, quote_map)
         news_intel_map = build_news_intelligence_map(self.repo, symbols)
         data_quality_map = build_data_quality_map(self.storage, symbols)
@@ -74,6 +80,7 @@ class WatchlistService:
             symbol = row["symbol"]
             item_data["quote"] = quote_map.get(str(symbol).upper())
             item_data["price_trends"] = price_trend_map.get(str(symbol).upper(), [])
+            item_data["score_trend"] = score_series_map.get(str(row["id"]))
             item_data["vwap_signal"] = vwap_signal_map.get(str(symbol).upper())
             item_data["news_intelligence"] = news_intel_map.get(symbol)
             item_data["data_quality"] = data_quality_map.get(symbol)
@@ -113,8 +120,11 @@ class WatchlistService:
         symbol = row["symbol"]
         quote_map = build_quote_map(self.storage, [symbol])
         item_data["quote"] = quote_map.get(str(symbol).upper())
-        item_data["price_trends"] = build_price_trend_map(self.storage, [symbol], quote_map).get(
+        item_data["price_trends"] = build_price_trend_map(self.storage, [symbol]).get(
             str(symbol).upper(), []
+        )
+        item_data["score_trend"] = build_score_series_map(self.storage, [str(row["id"])]).get(
+            str(row["id"])
         )
         item_data["vwap_signal"] = build_vwap_signal_map(self.storage, [symbol], quote_map).get(
             str(symbol).upper()

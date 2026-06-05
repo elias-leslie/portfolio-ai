@@ -16,14 +16,14 @@ import {
   getRiskLevelConfig,
   getSignalDisplay,
 } from '@/components/watchlist/ExpandedRowUtils'
-import { PriceSparkline } from '@/components/watchlist/PriceSparkline'
+import { PriceTrendSparklines } from '@/components/watchlist/PriceTrendSparklines'
 import {
   buildTodayGate,
   ScannerStatusDot,
   ScoreAlertBadge,
-  SetupScoreMeter,
   type TodayGate,
 } from '@/components/watchlist/ScannerMetricBadges'
+import { ScoreTrendCell } from '@/components/watchlist/ScoreTrendCell'
 import { getWatchlistPriceSnapshot } from '@/components/watchlist/watchlistTableUtils'
 import type { MacroConditionsResponse } from '@/lib/api/macro'
 import type { RefreshStatus, WatchlistItem } from '@/lib/api/watchlist'
@@ -219,7 +219,10 @@ export function WatchlistCard({
                   </p>
                 ) : null}
               </div>
-              <PriceSparkline itemId={item.id} width={120} height={24} />
+              <PriceTrendSparklines
+                trends={item.priceTrends}
+                symbol={item.symbol}
+              />
             </div>
           ) : (
             <p className="mt-1 text-sm text-text-muted">—</p>
@@ -230,11 +233,7 @@ export function WatchlistCard({
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
             Score
           </p>
-          {hasScore ? (
-            <SetupScoreMeter item={item} showLabel={false} />
-          ) : (
-            <span>—</span>
-          )}
+          {hasScore ? <ScoreTrendCell item={item} /> : <span>—</span>}
         </div>
       </div>
 

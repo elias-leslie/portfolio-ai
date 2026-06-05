@@ -8,12 +8,25 @@ from typing import Any
 
 from app.storage import PortfolioStorage
 
-_TREND_WINDOWS: tuple[tuple[str, str, int], ...] = (
-    ("D", "1D", 1),
-    ("W", "5D", 5),
-    ("M", "1M", 21),
-    ("Q", "3M", 63),
+# Rolling, nested-within-one-year price-trend windows for the scanner sparklines.
+# Each entry: (key, label, source, target_points). "daily" reads day_bars closes
+# directly (the 1M view); "weekly" reads the last close of each ISO week (3M/6M/1Y).
+# All windows end today, so a young symbol (e.g. a recent IPO) just yields a
+# shorter, partial-flagged series — never faked or back-padded.
+_TREND_WINDOWS: tuple[tuple[str, str, str, int], ...] = (
+    ("D", "1M", "daily", 22),
+    ("W", "3M", "weekly", 13),
+    ("Q", "6M", "weekly", 26),
+    ("Y", "1Y", "weekly", 52),
 )
+
+# Last close of each ISO week is read back this far (largest weekly window + holiday buffer).
+_WEEKLY_LOOKBACK_DAYS = 372
+# Daily 1M view reads this many trailing daily closes.
+_DAILY_LOOKBACK_POINTS = 22
+# Below this fraction of a window's target point count, the series is flagged partial
+# (drives the "young symbol" marker in the UI).
+_PARTIAL_FRACTION = 0.85
 
 
 def _to_float(value: Any) -> float | None:
@@ -41,16 +54,128 @@ def _quote_end_price(quote: dict[str, Any] | None) -> tuple[float | None, str | 
     return price, as_of, "quote" if price is not None else "daily_close"
 
 
+def _daily_series_rows(storage: PortfolioStorage, normalized_symbols: list[str]) -> Any:
+    """Last ``_DAILY_LOOKBACK_POINTS`` daily closes per symbol, oldest-first, one batched read."""
+    values_clause = ",".join("(?)" for _ in normalized_symbols)
+    return storage.query(
+        f"""
+        WITH requested(symbol) AS (
+            VALUES {values_clause}
+        )
+        SELECT requested.symbol AS symbol, bars.date AS bar_date, bars.close AS close
+        FROM requested
+        JOIN LATERAL (
+            SELECT date, close
+            FROM day_bars
+            WHERE symbol = requested.symbol
+              AND close IS NOT NULL
+              AND close > 0
+            ORDER BY date DESC
+            LIMIT {_DAILY_LOOKBACK_POINTS}
+        ) bars ON TRUE
+        ORDER BY requested.symbol, bars.date ASC
+        """,
+        normalized_symbols,
+    )
+
+
+def _weekly_series_rows(storage: PortfolioStorage, normalized_symbols: list[str]) -> Any:
+    """Last close of each ISO week per symbol over the trailing year, oldest-first, one batched read."""
+    values_clause = ",".join("(?)" for _ in normalized_symbols)
+    return storage.query(
+        f"""
+        WITH requested(symbol) AS (
+            VALUES {values_clause}
+        )
+        SELECT symbol, bar_date, close
+        FROM (
+            SELECT DISTINCT ON (requested.symbol, date_trunc('week', bars.date))
+                   requested.symbol AS symbol,
+                   bars.date AS bar_date,
+                   bars.close AS close
+            FROM requested
+            JOIN day_bars bars ON bars.symbol = requested.symbol
+            WHERE bars.close IS NOT NULL
+              AND bars.close > 0
+              AND bars.date >= CURRENT_DATE - INTERVAL '{_WEEKLY_LOOKBACK_DAYS} days'
+            ORDER BY requested.symbol, date_trunc('week', bars.date), bars.date DESC
+        ) weekly
+        ORDER BY symbol, bar_date ASC
+        """,
+        normalized_symbols,
+    )
+
+
+def _series_by_symbol(
+    rows: Any, normalized_symbols: list[str]
+) -> dict[str, list[tuple[Any, float]]]:
+    out: dict[str, list[tuple[Any, float]]] = {symbol: [] for symbol in normalized_symbols}
+    if rows.is_empty():
+        return out
+    for row in rows.iter_rows(named=True):
+        close = _to_float(row.get("close"))
+        if close is None:
+            continue
+        out.setdefault(str(row["symbol"]).upper(), []).append((row.get("bar_date"), close))
+    return out
+
+
+def _trend_for_window(
+    points: list[tuple[Any, float]], key: str, label: str, target: int
+) -> dict[str, Any]:
+    window_points = points[-target:] if points else []
+    series = [{"date": _to_iso_date(bar_date), "close": close} for bar_date, close in window_points]
+    count = len(window_points)
+    base = {"key": key, "label": label, "end_source": "day_bars", "series": series, "point_count": count}
+    if count == 0:
+        return {
+            **base,
+            "return_pct": None,
+            "start_close": None,
+            "end_close": None,
+            "start_date": None,
+            "end_date": None,
+            "status": "missing",
+            "partial": False,
+        }
+
+    start_date, start_close = window_points[0]
+    end_date, end_close = window_points[-1]
+    if count < 2 or not start_close:
+        return {
+            **base,
+            "return_pct": None,
+            "start_close": start_close,
+            "end_close": end_close,
+            "start_date": _to_iso_date(start_date),
+            "end_date": _to_iso_date(end_date),
+            "status": "insufficient_history",
+            "partial": True,
+        }
+
+    return {
+        **base,
+        "return_pct": ((end_close - start_close) / start_close) * 100,
+        "start_close": start_close,
+        "end_close": end_close,
+        "start_date": _to_iso_date(start_date),
+        "end_date": _to_iso_date(end_date),
+        "status": "available",
+        "partial": count < math.ceil(target * _PARTIAL_FRACTION),
+    }
+
+
 def build_price_trend_map(
     storage: PortfolioStorage,
     symbols: list[str],
-    quote_map: dict[str, dict[str, Any] | None],
 ) -> dict[str, list[dict[str, Any]]]:
-    """Return W/M/Q close-based trend summaries for symbols in one DB read.
+    """Return D/W/Q/Y close-series trend summaries for symbols in two batched reads.
 
-    The scanner is not a realtime chart. These trends use cached daily bars plus
-    the current cached quote when available, so they are useful for triage
-    without blocking page load on market-data vendors.
+    The scanner is not a realtime chart. Each trend carries a downsampled close
+    series (daily for the 1M view, last-close-of-week for 3M/6M/1Y) plus the
+    window return, computed from cached ``day_bars``. Windows all end today, so a
+    young symbol just yields a shorter series flagged ``partial`` rather than a
+    broken or back-padded line.
     """
     normalized_symbols = list(
         dict.fromkeys(str(symbol).strip().upper() for symbol in symbols if str(symbol).strip())
@@ -58,90 +183,87 @@ def build_price_trend_map(
     if not normalized_symbols:
         return {}
 
-    values_clause = ",".join("(?)" for _ in normalized_symbols)
-    ranked_rows = storage.query(
-        f"""
-        WITH requested(symbol) AS (
-            VALUES {values_clause}
-        )
-        SELECT requested.symbol, bars.date, bars.close, bars.vwap, bars.rn
-        FROM requested
-        JOIN LATERAL (
-            SELECT
-                date,
-                close,
-                vwap,
-                ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
-            FROM (
-                SELECT date, close, vwap
-                FROM day_bars
-                WHERE symbol = requested.symbol
-                  AND close IS NOT NULL
-                  AND close > 0
-                ORDER BY date DESC
-                LIMIT 64
-            ) limited
-        ) bars ON TRUE
-        ORDER BY requested.symbol, bars.rn
-        """,
-        normalized_symbols,
+    daily_by_symbol = _series_by_symbol(
+        _daily_series_rows(storage, normalized_symbols), normalized_symbols
     )
-
-    rows_by_symbol: dict[str, list[dict[str, Any]]] = {symbol: [] for symbol in normalized_symbols}
-    if not ranked_rows.is_empty():
-        for row in ranked_rows.iter_rows(named=True):
-            rows_by_symbol.setdefault(str(row["symbol"]).upper(), []).append(row)
+    weekly_by_symbol = _series_by_symbol(
+        _weekly_series_rows(storage, normalized_symbols), normalized_symbols
+    )
 
     result: dict[str, list[dict[str, Any]]] = {}
     for symbol in normalized_symbols:
-        rows = rows_by_symbol.get(symbol, [])
-        latest = rows[0] if rows else None
-        quote_end, quote_as_of, end_source = _quote_end_price(quote_map.get(symbol))
-        latest_close = _to_float(latest.get("close")) if latest else None
-        end_price = quote_end or latest_close
-        end_date = quote_as_of or (_to_iso_date(latest.get("date")) if latest else None)
-        if end_price is None:
-            result[symbol] = [
-                {
-                    "key": key,
-                    "label": label,
-                    "return_pct": None,
-                    "start_close": None,
-                    "end_close": None,
-                    "start_date": None,
-                    "end_date": end_date,
-                    "end_source": end_source,
-                    "status": "missing",
-                }
-                for key, label, _window in _TREND_WINDOWS
-            ]
-            continue
-
         trends: list[dict[str, Any]] = []
-        for key, label, window in _TREND_WINDOWS:
-            start_row = rows[window] if len(rows) > window else None
-            start_close = _to_float(start_row.get("close")) if start_row else None
-            start_date = _to_iso_date(start_row.get("date")) if start_row else None
-            return_pct = (
-                ((end_price - start_close) / start_close) * 100
-                if start_close is not None
-                else None
+        for key, label, source, target in _TREND_WINDOWS:
+            points = (
+                daily_by_symbol.get(symbol, [])
+                if source == "daily"
+                else weekly_by_symbol.get(symbol, [])
             )
-            trends.append(
-                {
-                    "key": key,
-                    "label": label,
-                    "return_pct": return_pct,
-                    "start_close": start_close,
-                    "end_close": end_price,
-                    "start_date": start_date,
-                    "end_date": end_date,
-                    "end_source": end_source,
-                    "status": "available" if return_pct is not None else "insufficient_history",
-                }
-            )
+            trends.append(_trend_for_window(points, key, label, target))
         result[symbol] = trends
 
+    return result
+
+
+def build_score_series_map(
+    storage: PortfolioStorage,
+    item_ids: list[str],
+    *,
+    window_days: int = 30,
+) -> dict[str, dict[str, Any]]:
+    """Return a daily-aggregated overall-score series per watchlist item_id in one batched read.
+
+    Mirrors the price-sparkline shape so the Score column can render the same
+    interactive trendline. Score history only exists from when a symbol started
+    being scored, so the series is naturally short for new items.
+    """
+    normalized_ids = list(
+        dict.fromkeys(str(item_id).strip() for item_id in item_ids if str(item_id).strip())
+    )
+    if not normalized_ids:
+        return {}
+
+    values_clause = ",".join("(?)" for _ in normalized_ids)
+    rows = storage.query(
+        f"""
+        WITH requested(item_id) AS (
+            VALUES {values_clause}
+        )
+        SELECT s.item_id AS item_id,
+               (s.fetched_at AT TIME ZONE 'UTC')::date AS day,
+               AVG(s.overall_score) AS overall
+        FROM watchlist_snapshots_v s
+        JOIN requested ON requested.item_id = s.item_id
+        WHERE s.fetched_at >= (CURRENT_DATE - INTERVAL '{int(window_days)} days')
+          AND s.overall_score IS NOT NULL
+        GROUP BY s.item_id, (s.fetched_at AT TIME ZONE 'UTC')::date
+        ORDER BY s.item_id, day ASC
+        """,
+        normalized_ids,
+    )
+
+    series_by_item: dict[str, list[dict[str, Any]]] = {item_id: [] for item_id in normalized_ids}
+    if not rows.is_empty():
+        for row in rows.iter_rows(named=True):
+            try:
+                value = float(row.get("overall"))
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(value):
+                continue
+            series_by_item.setdefault(str(row["item_id"]), []).append(
+                {"date": _to_iso_date(row.get("day")), "value": value}
+            )
+
+    result: dict[str, dict[str, Any]] = {}
+    for item_id in normalized_ids:
+        series = series_by_item.get(item_id, [])
+        result[item_id] = {
+            "series": series,
+            "current": series[-1]["value"] if series else None,
+            "point_count": len(series),
+            "status": "available" if len(series) >= 2 else ("insufficient_history" if series else "missing"),
+        }
     return result
 
 

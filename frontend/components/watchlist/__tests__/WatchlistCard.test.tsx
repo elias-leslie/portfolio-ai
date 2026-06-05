@@ -12,12 +12,6 @@ vi.mock('@/components/watchlist/ExpandedRow', () => ({
   },
 }))
 
-// PriceSparkline fetches score history via React Query; mock it so the card
-// renders without a QueryClientProvider (it has its own dedicated test).
-vi.mock('@/components/watchlist/PriceSparkline', () => ({
-  PriceSparkline: () => <div data-testid="price-sparkline" />,
-}))
-
 function buildItem() {
   return {
     id: 'item-1',
@@ -68,25 +62,37 @@ function buildItem() {
     priceTrends: [
       {
         key: 'D',
-        label: '1D',
+        label: '1M',
         returnPct: 1.2,
         startClose: 406.65,
         endClose: 411.55,
-        startDate: '2026-03-10',
-        endDate: '2026-03-11T12:06:00Z',
-        endSource: 'quote',
+        startDate: '2026-02-11',
+        endDate: '2026-03-11',
+        endSource: 'day_bars',
         status: 'available',
+        partial: false,
+        pointCount: 22,
+        series: [
+          { date: '2026-02-11', close: 406.65 },
+          { date: '2026-03-11', close: 411.55 },
+        ],
       },
       {
         key: 'W',
-        label: '5D',
+        label: '3M',
         returnPct: -0.6,
         startClose: 414.03,
         endClose: 411.55,
-        startDate: '2026-03-04',
-        endDate: '2026-03-11T12:06:00Z',
-        endSource: 'quote',
+        startDate: '2025-12-11',
+        endDate: '2026-03-11',
+        endSource: 'day_bars',
         status: 'available',
+        partial: false,
+        pointCount: 13,
+        series: [
+          { date: '2025-12-11', close: 414.03 },
+          { date: '2026-03-11', close: 411.55 },
+        ],
       },
     ],
     vwapSignal: {

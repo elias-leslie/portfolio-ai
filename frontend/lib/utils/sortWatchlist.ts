@@ -9,7 +9,29 @@ export type SortField =
   | 'updated'
   | 'signal'
   | 'risk'
+  | 'trendD'
+  | 'trendW'
+  | 'trendQ'
+  | 'trendY'
 export type SortDirection = 'asc' | 'desc'
+
+// Maps a trend sort field to the price-trend key whose window return drives it.
+const TREND_FIELD_KEY: Record<string, string> = {
+  trendD: 'D',
+  trendW: 'W',
+  trendQ: 'Q',
+  trendY: 'Y',
+}
+
+function trendReturn(item: WatchlistItem, field: string): number {
+  const key = TREND_FIELD_KEY[field]
+  const trend = item.priceTrends?.find((candidate) => candidate.key === key)
+  const pct = trend?.returnPct
+  // Missing/insufficient trends sort below any real return (bottom of a desc sort).
+  return typeof pct === 'number' && Number.isFinite(pct)
+    ? pct
+    : Number.NEGATIVE_INFINITY
+}
 
 // Rank maps so signal/risk sort by conviction/severity rather than alphabetically.
 // Higher rank = stronger buy / higher risk; missing values sort to 0 (bottom in asc).
@@ -65,6 +87,13 @@ export function sortWatchlistItems(
       case 'updated':
         aVal = a.currentScore?.price?.updatedAt ?? a.updatedAt
         bVal = b.currentScore?.price?.updatedAt ?? b.updatedAt
+        break
+      case 'trendD':
+      case 'trendW':
+      case 'trendQ':
+      case 'trendY':
+        aVal = trendReturn(a, field)
+        bVal = trendReturn(b, field)
         break
     }
 

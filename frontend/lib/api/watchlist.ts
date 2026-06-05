@@ -131,8 +131,13 @@ export interface DataQuality {
   }
 }
 
+export interface PriceTrendPoint {
+  date: string | null
+  close: number
+}
+
 export interface PriceTrend {
-  key: 'D' | 'W' | 'M' | 'Q' | string
+  key: 'D' | 'W' | 'Q' | 'Y' | string
   label: string
   returnPct: number | null
   startClose: number | null
@@ -140,6 +145,21 @@ export interface PriceTrend {
   startDate: string | null
   endDate: string | null
   endSource: string
+  status: string
+  partial: boolean
+  pointCount: number
+  series: PriceTrendPoint[]
+}
+
+export interface ScoreTrendPoint {
+  date: string | null
+  value: number
+}
+
+export interface ScoreTrend {
+  series: ScoreTrendPoint[]
+  current: number | null
+  pointCount: number
   status: string
 }
 
@@ -167,6 +187,7 @@ export interface WatchlistItem {
   currentScore?: ScoreBreakdown
   quote?: SymbolQuoteSection | null
   priceTrends?: PriceTrend[]
+  scoreTrend?: ScoreTrend | null
   vwapSignal?: VwapSignal | null
   scoreAlert?: boolean
   // Narrative Intelligence fields

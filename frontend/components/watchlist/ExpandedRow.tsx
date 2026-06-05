@@ -42,10 +42,10 @@ function ScannerEvidencePanel({
         <div>
           <h3 className="text-sm font-semibold text-text">Scanner Evidence</h3>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-text-muted">
-            Use this row to decide what deserves a closer look. D/W/M/Q trends
-            use cached daily bars plus the cached quote when available. VWAP is
-            latest-session context, not realtime execution data; keep
-            TradingView for live price action.
+            Use this row to decide what deserves a closer look. D/W/Q/Y trends
+            are rolling close windows (1M daily, then 3M/6M/1Y weekly) from
+            cached daily bars. VWAP is latest-session context, not realtime
+            execution data; keep TradingView for live price action.
           </p>
         </div>
         <TodayGateBadge gate={todayGate} />

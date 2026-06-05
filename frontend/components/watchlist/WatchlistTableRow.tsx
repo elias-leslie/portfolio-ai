@@ -17,14 +17,14 @@ import {
   getRiskLevelConfig,
   getSignalDisplay,
 } from '@/components/watchlist/ExpandedRowUtils'
-import { PriceSparkline } from '@/components/watchlist/PriceSparkline'
+import { PriceTrendSparklines } from '@/components/watchlist/PriceTrendSparklines'
 import {
   buildTodayGate,
   ScannerStatusDot,
   ScoreAlertBadge,
-  SetupScoreMeter,
   type TodayGate,
 } from '@/components/watchlist/ScannerMetricBadges'
+import { ScoreTrendCell } from '@/components/watchlist/ScoreTrendCell'
 import { getWatchlistPriceSnapshot } from '@/components/watchlist/watchlistTableUtils'
 import type { MacroConditionsResponse } from '@/lib/api/macro'
 import type { RefreshStatus, WatchlistItem } from '@/lib/api/watchlist'
@@ -180,37 +180,38 @@ export function WatchlistTableRow({
           data-changed={changedCells[item.id]?.price ? 'true' : undefined}
         >
           {priceSnapshot ? (
-            <div className="space-y-1">
-              <div
-                className="text-sm tabular-nums price-display"
-                data-changed={changedCells[item.id]?.price ? 'true' : undefined}
-              >
-                <span className="font-medium">{priceSnapshot.priceLabel}</span>
-                {priceSnapshot.changeLabel ? (
-                  <span
-                    className={cn(
-                      'ml-1.5 text-xs',
-                      priceSnapshot.isPositiveChange
-                        ? 'text-gain'
-                        : 'text-loss',
-                    )}
-                  >
-                    {priceSnapshot.changeLabel}
-                  </span>
-                ) : null}
-              </div>
-              <PriceSparkline itemId={item.id} />
+            <div
+              className="text-sm tabular-nums price-display"
+              data-changed={changedCells[item.id]?.price ? 'true' : undefined}
+            >
+              <span className="font-medium">{priceSnapshot.priceLabel}</span>
+              {priceSnapshot.changeLabel ? (
+                <span
+                  className={cn(
+                    'ml-1.5 text-xs',
+                    priceSnapshot.isPositiveChange ? 'text-gain' : 'text-loss',
+                  )}
+                >
+                  {priceSnapshot.changeLabel}
+                </span>
+              ) : null}
             </div>
           ) : (
             <span className="text-text-muted">—</span>
           )}
+        </TableCell>
+        <TableCell data-slot="table-cell">
+          <PriceTrendSparklines
+            trends={item.priceTrends}
+            symbol={item.symbol}
+          />
         </TableCell>
         <TableCell
           data-slot="table-cell"
           data-changed={changedCells[item.id]?.score ? 'true' : undefined}
         >
           {hasScore ? (
-            <SetupScoreMeter item={item} />
+            <ScoreTrendCell item={item} />
           ) : (
             <span className="text-text-muted">—</span>
           )}
@@ -253,7 +254,7 @@ export function WatchlistTableRow({
       </TableRow>
       {isExpanded && (
         <TableRow id={`watchlist-row-${item.id}`} data-state="open">
-          <TableCell colSpan={7} className="bg-surface-muted/20 p-4">
+          <TableCell colSpan={8} className="bg-surface-muted/20 p-4">
             <ExpandedRow
               item={item}
               refreshStatus={refreshStatus}
