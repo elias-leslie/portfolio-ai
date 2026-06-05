@@ -45,6 +45,8 @@ vi.mock('recharts', () => {
   }
 })
 
+// foundMonthlyBudget now comes from the server (the client no longer recomputes
+// it); these mirror what the backend rollup would return for coverage >= 2 months.
 const categories = [
   {
     category: 'Household',
@@ -53,6 +55,7 @@ const categories = [
     averageMonthlySpend: 1482,
     shareOfSpend: 0.4,
     transactionCount: 30,
+    foundMonthlyBudget: 1400,
   },
   {
     category: 'Retail',
@@ -61,6 +64,7 @@ const categories = [
     averageMonthlySpend: 1287,
     shareOfSpend: 0.35,
     transactionCount: 22,
+    foundMonthlyBudget: 1100,
   },
   {
     category: 'Groceries',
@@ -69,6 +73,7 @@ const categories = [
     averageMonthlySpend: 246,
     shareOfSpend: 0.08,
     transactionCount: 10,
+    foundMonthlyBudget: 250,
   },
 ]
 
@@ -89,7 +94,14 @@ function mockSpending(coverageMonths = 3) {
         savingsRate: 0.37,
         monthToDateSpend: 1200,
       },
-      categories,
+      // Thin coverage: the server returns no suggested cap, so neither does the mock.
+      categories:
+        coverageMonths < 2
+          ? categories.map((category) => ({
+              ...category,
+              foundMonthlyBudget: null,
+            }))
+          : categories,
       monthlyTrend: [
         { month: '2026-02', totalSpend: 5000, transactionCount: 20 },
         { month: '2026-03', totalSpend: 5200, transactionCount: 21 },

@@ -88,44 +88,6 @@ function entryDate(entry: {
   return entry.postedDate ?? entry.date ?? entry.uploadedAt ?? null
 }
 
-function isCreditFlow(flowType?: string | null) {
-  return ['income', 'refund', 'transfer_in'].includes(
-    (flowType ?? '').trim().toLowerCase(),
-  )
-}
-
-function isDebitFlow(flowType?: string | null) {
-  return ['expense', 'payment', 'transfer_out', 'investment'].includes(
-    (flowType ?? '').trim().toLowerCase(),
-  )
-}
-
-function debitAmount(amount?: number | null, flowType?: string | null) {
-  if (amount == null) {
-    return null
-  }
-  if (isCreditFlow(flowType)) {
-    return null
-  }
-  if (isDebitFlow(flowType) || amount > 0) {
-    return Math.abs(amount)
-  }
-  return null
-}
-
-function creditAmount(amount?: number | null, flowType?: string | null) {
-  if (amount == null) {
-    return null
-  }
-  if (isCreditFlow(flowType)) {
-    return Math.abs(amount)
-  }
-  if (!isDebitFlow(flowType) && amount < 0) {
-    return Math.abs(amount)
-  }
-  return null
-}
-
 function sortIcon(active: boolean, direction: 'asc' | 'desc') {
   if (!active) {
     return <ArrowUpDown className="h-3.5 w-3.5 text-text-muted" />
@@ -143,15 +105,16 @@ function ledgerRowKey(entry: { kind: string; id: string }) {
 
 function ledgerAmountLabel(entry: {
   amount?: number | null
-  flowType?: string | null
+  direction: string
 }) {
-  const debit = debitAmount(entry.amount, entry.flowType)
-  if (debit != null) {
-    return `-${formatCurrency(debit, { decimals: 2 })}`
+  if (entry.amount == null) {
+    return formatCurrency(entry.amount, { decimals: 2 })
   }
-  const credit = creditAmount(entry.amount, entry.flowType)
-  if (credit != null) {
-    return `+${formatCurrency(credit, { decimals: 2 })}`
+  if (entry.direction === 'debit') {
+    return `-${formatCurrency(Math.abs(entry.amount), { decimals: 2 })}`
+  }
+  if (entry.direction === 'credit') {
+    return `+${formatCurrency(Math.abs(entry.amount), { decimals: 2 })}`
   }
   return formatCurrency(entry.amount, { decimals: 2 })
 }
@@ -509,8 +472,7 @@ export function MoneyLedgerPanel() {
                     ]
                       .filter(Boolean)
                       .join(' · ') || 'Stored row'
-                  const isCredit =
-                    creditAmount(entry.amount, entry.flowType) != null
+                  const isCredit = entry.direction === 'credit'
                   return (
                     <Fragment key={rowKey}>
                       <tr

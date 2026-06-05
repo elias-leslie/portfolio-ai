@@ -190,6 +190,9 @@ class HouseholdLedgerEntry(BaseModel):
     id: str
     kind: str
     flow_type: str | None = None
+    # Accounting direction ("debit" | "credit" | "neutral") resolved once on the server
+    # so the client never re-derives it from flow_type string sets.
+    direction: str = "neutral"
     household_account_id: str | None = None
     account_label: str | None = None
     date: str | None = None

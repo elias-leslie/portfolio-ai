@@ -692,6 +692,7 @@ export interface HouseholdLedgerEntry {
   id: string
   kind: string
   flowType?: string | null
+  direction: string
   householdAccountId?: string | null
   accountLabel?: string | null
   date?: string | null

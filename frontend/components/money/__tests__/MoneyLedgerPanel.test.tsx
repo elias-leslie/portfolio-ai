@@ -17,6 +17,7 @@ function buildEntry(index: number, overrides = {}) {
     id: `txn-${padded}`,
     kind: 'transaction',
     flowType: 'expense',
+    direction: 'debit',
     householdAccountId: `account-${padded}`,
     accountLabel: `Checking ${index % 3}`,
     date: `2026-04-${String((index % 28) + 1).padStart(2, '0')}T00:00:00+00:00`,

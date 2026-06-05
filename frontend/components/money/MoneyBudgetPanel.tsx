@@ -18,6 +18,7 @@ import {
   categoryBudgetMetaMap,
   serializeCategoryBudgetMeta,
 } from '@/components/money/household-fact-metadata'
+import { aggregateMerchants } from '@/components/money/merchant-aggregation'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -103,29 +104,6 @@ type RecategorizeDraft = {
   category: string
   essentiality: string
   applyToMerchant: boolean
-}
-
-function roundBudget(value: number | null): number | null {
-  if (value == null || !Number.isFinite(value)) {
-    return null
-  }
-  return Math.round(value / 25) * 25
-}
-
-function recommendedBudget(
-  row: HouseholdSpendingCategory,
-  coverageMonths: number,
-) {
-  if (coverageMonths < 2 || row.averageMonthlySpend <= 0) {
-    return null
-  }
-  if (row.essentiality === 'essential') {
-    return roundBudget(row.averageMonthlySpend * 1.02)
-  }
-  if (row.essentiality === 'mixed') {
-    return roundBudget(row.averageMonthlySpend * 0.95)
-  }
-  return roundBudget(row.averageMonthlySpend * 0.85)
 }
 
 function budgetStatus(
@@ -251,8 +229,9 @@ export function MoneyBudgetPanel() {
     return (spending?.categories ?? [])
       .map((row) => {
         const meta = budgetMeta.get(row.category)
-        const foundBudget =
-          row.foundMonthlyBudget ?? recommendedBudget(row, coverageMonths)
+        // Trust the server's suggested cap; never recompute it client-side (the
+        // rounding rules differ between JS and Python and would silently drift).
+        const foundBudget = row.foundMonthlyBudget ?? null
         return {
           row,
           meta,
@@ -300,17 +279,10 @@ export function MoneyBudgetPanel() {
     return map
   }, [spending?.transactions])
 
-  const merchantCounts = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const transaction of spending?.transactions ?? []) {
-      const key = transaction.merchant.trim().toLowerCase()
-      if (!key) {
-        continue
-      }
-      map.set(key, (map.get(key) ?? 0) + 1)
-    }
-    return map
-  }, [spending?.transactions])
+  const merchantAggregates = useMemo(
+    () => aggregateMerchants(spending?.transactions),
+    [spending?.transactions],
+  )
 
   const activeRows = rows.filter((entry) => entry.disabled !== true)
   const hiddenRows = rows.filter((entry) => entry.disabled === true)
@@ -478,7 +450,8 @@ export function MoneyBudgetPanel() {
     const isCategoryPickerOpen = categoryPickerOpenFor === transaction.id
     const categoryListId = `category-options-${transaction.id}`
     const merchantKey = transaction.merchant.trim().toLowerCase()
-    const similarMerchantCount = merchantCounts.get(merchantKey) ?? 1
+    const similarMerchantCount =
+      merchantAggregates.get(merchantKey)?.transactionCount ?? 1
 
     return (
       <div
@@ -1324,8 +1297,10 @@ export function MoneyBudgetPanel() {
                   </p>
                   <p className="mt-3 text-xl font-semibold text-text">
                     {formatCurrency(
-                      recommendedBudget(selectedCategory, coverageMonths),
-                      { decimals: 0 },
+                      selectedCategory.foundMonthlyBudget ?? null,
+                      {
+                        decimals: 0,
+                      },
                     )}
                   </p>
                   <p className="mt-2 text-sm text-text-muted">
@@ -1396,16 +1371,13 @@ export function MoneyBudgetPanel() {
             >
               Cancel
             </Button>
-            {selectedCategory &&
-            recommendedBudget(selectedCategory, coverageMonths) != null ? (
+            {selectedCategory?.foundMonthlyBudget != null ? (
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => {
-                  const foundBudget = recommendedBudget(
-                    selectedCategory,
-                    coverageMonths,
-                  )
+                  const foundBudget =
+                    selectedCategory.foundMonthlyBudget ?? null
                   if (foundBudget != null) {
                     setBudgetInput(String(foundBudget))
                   }

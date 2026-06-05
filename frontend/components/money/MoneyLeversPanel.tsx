@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { aggregateMerchants } from '@/components/money/merchant-aggregation'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
@@ -156,33 +157,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
   )
 
   const merchantRows = useMemo(() => {
-    const buckets = new Map<
-      string,
-      {
-        merchant: string
-        totalSpend: number
-        transactionCount: number
-        category: string
-        essentiality: string
-      }
-    >()
-    for (const row of spending?.transactions ?? []) {
-      const key = row.merchant.trim().toLowerCase()
-      const current = buckets.get(key)
-      if (current) {
-        current.totalSpend += row.amount
-        current.transactionCount += 1
-        continue
-      }
-      buckets.set(key, {
-        merchant: row.merchant,
-        totalSpend: row.amount,
-        transactionCount: 1,
-        category: row.category,
-        essentiality: row.essentiality,
-      })
-    }
-    return Array.from(buckets.values())
+    return Array.from(aggregateMerchants(spending?.transactions).values())
       .filter((row) =>
         search.trim()
           ? `${row.merchant} ${row.category} ${row.essentiality}`

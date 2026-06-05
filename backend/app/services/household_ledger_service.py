@@ -95,6 +95,17 @@ def _is_debit_flow(flow_type: str | None) -> bool:
     return normalized in {"expense", "payment", "transfer_out", "investment"}
 
 
+def _entry_direction(flow_type: str | None, amount: float | None) -> str:
+    """Single source of truth for a ledger row's debit/credit direction."""
+    if amount is None:
+        return "neutral"
+    if _is_credit_flow(flow_type) or (not _is_debit_flow(flow_type) and amount < 0):
+        return "credit"
+    if _is_debit_flow(flow_type) or amount > 0:
+        return "debit"
+    return "neutral"
+
+
 # Upper bound on rows scanned per window so dedup/exclusion runs over the whole window
 # (a page is sliced out afterwards). Large enough for live data, capped so a runaway
 # window cannot fetch unboundedly.
@@ -434,6 +445,7 @@ class HouseholdLedgerService:
                 id=str(row[0]),
                 kind="transaction",
                 flow_type=effective_flow,
+                direction=_entry_direction(effective_flow, amount),
                 household_account_id=str(row[2]) if row[2] is not None else None,
                 account_label=str(row[3]) if row[3] is not None else None,
                 date=iso_or_none(row[4]),
@@ -481,6 +493,7 @@ class HouseholdLedgerService:
             entry = HouseholdLedgerEntry(
                 id=str(row[0]),
                 kind="import_row",
+                direction=_entry_direction(None, amount),
                 account_label=_metadata_account_label(metadata),
                 date=iso_or_none(row[3]),
                 posted_date=None,
@@ -542,11 +555,9 @@ class HouseholdLedgerService:
             amount = entry.amount
             if amount is None:
                 continue
-            if _is_credit_flow(entry.flow_type) or (
-                not _is_debit_flow(entry.flow_type) and amount < 0
-            ):
+            if entry.direction == "credit":
                 credit_total += abs(amount)
-            elif _is_debit_flow(entry.flow_type) or amount > 0:
+            elif entry.direction == "debit":
                 debit_total += abs(amount)
 
         if normalized_sort == "date":
