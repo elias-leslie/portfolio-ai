@@ -23,9 +23,18 @@ interface TrendSparklineProps {
 
 function formatTooltipDate(iso: string | null): string | null {
   if (!iso) return null
-  // Accept both date (YYYY-MM-DD) and full ISO timestamps.
-  const parsed = new Date(iso.length <= 10 ? `${iso}T00:00:00Z` : iso)
+  // A bare date (YYYY-MM-DD) is a daily/weekly close; a full ISO timestamp is an
+  // intraday bar, shown as its market (ET) time of day rather than the date.
+  const hasTime = iso.length > 10
+  const parsed = new Date(hasTime ? iso : `${iso}T00:00:00Z`)
   if (Number.isNaN(parsed.getTime())) return null
+  if (hasTime) {
+    return parsed.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: 'America/New_York',
+    })
+  }
   return parsed.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',

@@ -50,6 +50,10 @@ REMEDIATION_TASKS: dict[str, str] = {
     "plaid_accounts": "portfolio-sync-accounts",
     # Re-running the gate refreshes the live ^VIX quote and recomputes the snapshot.
     "price_cache": "portfolio-macro-gate",
+    # Open-UI top-up for the scanner's "Today" intraday trendline. The hourly
+    # cron is the closed-PWA baseline; this lets the Data Feed refresh pull fresh
+    # bars on demand when the UI is open and intraday_bars has aged past expected.
+    "intraday_bars": "portfolio-refresh-watchlist-intraday",
 }
 
 # Freshness thresholds for all critical tables
@@ -181,5 +185,19 @@ TABLE_FRESHNESS_CONFIG: list[TableFreshnessConfig] = [
         "market_data": True,
         "intraday": True,
         "where_clause": "UPPER(symbol) = '^VIX' AND quote_time IS NOT NULL",
+    },
+    # Current-session intraday bars behind the scanner's "Today" trendline. The
+    # background cron refreshes hourly, so expected_hours 1.0 means the open Data
+    # Feed reads "Current" right after a pull and tips to stale ~an hour later,
+    # driving a foreground top-up while the PWA is open. market_data + intraday
+    # age it against wall-clock during the session and freeze aging once the
+    # market closes, so the last session's bars are not flagged overnight.
+    {
+        "table_name": "intraday_bars",
+        "date_column": "ts",
+        "expected_hours": 1.0,
+        "critical_hours": 3.0,
+        "market_data": True,
+        "intraday": True,
     },
 ]

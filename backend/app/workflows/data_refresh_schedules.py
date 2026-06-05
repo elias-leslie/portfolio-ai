@@ -25,6 +25,16 @@ FEAR_GREED_CALC_CRONS = [
 
 DAILY_OHLCV_CRONS = ["0 2 * * *"]
 WATCHLIST_OHLCV_CRONS = ["15 2 * * *"]
+# Current-session intraday bars for the Investing > Symbols "Today" trendline.
+# Hourly during the regular session, weekdays — the deliberately slow background
+# baseline for when the PWA is closed ("hours, not minutes"). When the PWA is
+# open, the Data Feed freshness path tops this up faster: intraday_bars is
+# registered in TABLE_FRESHNESS_CONFIG, so the open-UI refresh remediates it the
+# moment it ages past expected (bounded by the 30-min remediation cooldown). The
+# 13-21 UTC window spans 9:30am-4pm ET under both EST and EDT; the
+# yfinance/TwelveData/Polygon chain (intraday_ingestion) returns regular-hours
+# bars, so off-session ticks are cheap no-ops re-pulling the latest session.
+WATCHLIST_INTRADAY_CRONS = ["0 13-21 * * 1-5"]
 HISTORICAL_OHLCV_MAINTENANCE_CRONS = ["15 4 * * *"]
 TECHNICAL_INDICATOR_BACKFILL_CRONS = ["30 2 * * *"]
 FUNDAMENTAL_INGESTION_CRONS = ["10 6 * * 0"]

@@ -23,6 +23,7 @@ from .data_refresh_schedules import (
     OPTIONS_ACTIVITY_CRONS,
     PUTCALL_RATIO_CRONS,
     TECHNICAL_INDICATOR_BACKFILL_CRONS,
+    WATCHLIST_INTRADAY_CRONS,
     WATCHLIST_OHLCV_CRONS,
 )
 from .models import EmptyInput, SymbolsInput
@@ -89,6 +90,24 @@ async def refresh_watchlist_ohlcv_wf(input: EmptyInput, ctx: Context) -> dict[st
     from ..tasks.ingestion.price_ingestion import refresh_watchlist_ohlcv
 
     return await asyncio.to_thread(refresh_watchlist_ohlcv)
+
+
+@hatchet.task(
+    name="portfolio-refresh-watchlist-intraday",
+    input_validator=EmptyInput,
+    execution_timeout="600s",
+    retries=1,
+    on_crons=WATCHLIST_INTRADAY_CRONS,
+    concurrency=ConcurrencyExpression(
+        expression="'portfolio-refresh-watchlist-intraday'",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+    ),
+)
+async def refresh_watchlist_intraday_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    from ..tasks.ingestion.intraday_ingestion import refresh_watchlist_intraday
+
+    return await asyncio.to_thread(refresh_watchlist_intraday)
 
 
 @hatchet.task(

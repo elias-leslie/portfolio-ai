@@ -6,10 +6,10 @@ import { TrendSparkline } from './TrendSparkline'
 
 const ORDER = ['D', 'W', 'Q', 'Y'] as const
 const FULL_NAME: Record<string, string> = {
-  D: 'Daily',
-  W: 'Weekly',
-  Q: 'Quarterly',
-  Y: 'Yearly',
+  D: 'Today',
+  W: 'Past week',
+  Q: 'Past quarter',
+  Y: 'Past year',
 }
 
 function formatPrice(value: number): string {
@@ -28,10 +28,11 @@ function returnLabel(trend: PriceTrend): string {
 }
 
 /**
- * The four rolling price trendlines (Daily 1M, Weekly 3M, Quarterly 6M, Yearly
- * 1Y) for a scanner row, laid out as a compact 2x2 grid. Young symbols draw a
- * shorter line plus an amber "young" dot; timeframes with no drawable history
- * fall back to an em dash.
+ * The four price trendlines — Today (the live intraday session), Past week, Past
+ * quarter, Past year — for a scanner row, laid out as a compact 2x2 grid. Young
+ * symbols draw a shorter line plus an amber "young" dot on W/Q/Y; Today never
+ * carries that flag (a forming session is expected). Timeframes with no drawable
+ * history fall back to an em dash.
  */
 export function PriceTrendSparklines({
   trends,
@@ -54,7 +55,7 @@ export function PriceTrendSparklines({
             value: point.close,
           })) ?? []
         const drawable = points.length >= 2
-        const title = `${FULL_NAME[key]} — last ${trend?.label ?? '—'}: ${
+        const title = `${FULL_NAME[key]}: ${
           trend ? returnLabel(trend) : 'unavailable'
         }${trend?.partial ? ` · young (${trend.pointCount} pts)` : ''}`
 

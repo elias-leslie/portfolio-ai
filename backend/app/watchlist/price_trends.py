@@ -8,24 +8,34 @@ from typing import Any
 
 from app.storage import PortfolioStorage
 
-# Rolling, nested-within-one-year price-trend windows for the scanner sparklines.
-# Each entry: (key, label, source, target_points). "daily" reads day_bars closes
-# directly (the 1M view); "weekly" reads the last close of each ISO week (3M/6M/1Y).
-# All windows end today, so a young symbol (e.g. a recent IPO) just yields a
-# shorter, partial-flagged series — never faked or back-padded.
-_TREND_WINDOWS: tuple[tuple[str, str, str, int], ...] = (
-    ("D", "1M", "daily", 22),
-    ("W", "3M", "weekly", 13),
-    ("Q", "6M", "weekly", 26),
+# Trader-natural price-trend windows for the scanner sparklines, each ending now:
+#   D  Today        — the current session's intraday closes (intraday_bars).
+#   W  Past week    — the last 5 daily closes (one trading week) from day_bars.
+#   Q  Past quarter — the last 13 ISO-week closes from day_bars.
+#   Y  Past year    — the last 52 ISO-week closes from day_bars.
+# D is built separately (it has a live-session source plus a daily fallback); the
+# rest are rolling windows. Each rolling entry is (key, label, source, target):
+# "daily" reads day_bars closes directly, "weekly" the last close of each ISO
+# week. W/Q/Y all end today, so a young symbol just yields a shorter,
+# partial-flagged series — never faked or back-padded.
+_ROLLING_WINDOWS: tuple[tuple[str, str, str, int], ...] = (
+    ("W", "1W", "daily", 5),
+    ("Q", "1Q", "weekly", 13),
     ("Y", "1Y", "weekly", 52),
 )
 
 # Last close of each ISO week is read back this far (largest weekly window + holiday buffer).
 _WEEKLY_LOOKBACK_DAYS = 372
-# Daily 1M view reads this many trailing daily closes.
-_DAILY_LOOKBACK_POINTS = 22
+# Trailing daily closes read in one batch: serves the W window (last 5) and the
+# D fallback (last 2 when the live session has no bars yet).
+_DAILY_LOOKBACK_POINTS = 5
+# A full regular session is ~78 five-minute bars; cap the "Today" line here so a
+# stray backfill can't bloat the payload. The intraday read already returns only
+# the latest session, so this is normally a no-op.
+_INTRADAY_MAX_POINTS = 96
 # Below this fraction of a window's target point count, the series is flagged partial
-# (drives the "young symbol" marker in the UI).
+# (drives the "young symbol" marker in the UI). The D window opts out — a session
+# still forming is normal, not an incomplete history.
 _PARTIAL_FRACTION = 0.85
 
 
@@ -52,6 +62,41 @@ def _quote_end_price(quote: dict[str, Any] | None) -> tuple[float | None, str | 
     elif isinstance(cached_at, datetime):
         as_of = cached_at.astimezone(UTC).isoformat()
     return price, as_of, "quote" if price is not None else "daily_close"
+
+
+def _intraday_series_rows(storage: PortfolioStorage, normalized_symbols: list[str]) -> Any:
+    """Current-session 5-minute closes per symbol, oldest-first, one batched read.
+
+    Reads only each symbol's most recent ``session_date`` and orders by ``ts`` so
+    the "Today" line traces the live session left-to-right. ``ts`` is aliased to
+    ``bar_date`` so the row flows through the shared ``_series_by_symbol``; its
+    ISO form keeps the time component, which the UI shows in the intraday tooltip.
+    """
+    values_clause = ",".join("(?)" for _ in normalized_symbols)
+    return storage.query(
+        f"""
+        WITH requested(symbol) AS (
+            VALUES {values_clause}
+        )
+        SELECT requested.symbol AS symbol, bars.ts AS bar_date, bars.close AS close
+        FROM requested
+        JOIN LATERAL (
+            SELECT ts, close
+            FROM intraday_bars
+            WHERE symbol = requested.symbol
+              AND session_date = (
+                  SELECT MAX(session_date)
+                  FROM intraday_bars
+                  WHERE symbol = requested.symbol
+              )
+              AND close IS NOT NULL
+              AND close > 0
+            ORDER BY ts ASC
+        ) bars ON TRUE
+        ORDER BY requested.symbol, bars.ts ASC
+        """,
+        normalized_symbols,
+    )
 
 
 def _daily_series_rows(storage: PortfolioStorage, normalized_symbols: list[str]) -> Any:
@@ -121,12 +166,18 @@ def _series_by_symbol(
 
 
 def _trend_for_window(
-    points: list[tuple[Any, float]], key: str, label: str, target: int
+    points: list[tuple[Any, float]],
+    key: str,
+    label: str,
+    target: int,
+    *,
+    end_source: str = "day_bars",
+    flag_partial: bool = True,
 ) -> dict[str, Any]:
     window_points = points[-target:] if points else []
     series = [{"date": _to_iso_date(bar_date), "close": close} for bar_date, close in window_points]
     count = len(window_points)
-    base = {"key": key, "label": label, "end_source": "day_bars", "series": series, "point_count": count}
+    base = {"key": key, "label": label, "end_source": end_source, "series": series, "point_count": count}
     if count == 0:
         return {
             **base,
@@ -150,7 +201,7 @@ def _trend_for_window(
             "start_date": _to_iso_date(start_date),
             "end_date": _to_iso_date(end_date),
             "status": "insufficient_history",
-            "partial": True,
+            "partial": flag_partial,
         }
 
     return {
@@ -161,21 +212,53 @@ def _trend_for_window(
         "start_date": _to_iso_date(start_date),
         "end_date": _to_iso_date(end_date),
         "status": "available",
-        "partial": count < math.ceil(target * _PARTIAL_FRACTION),
+        "partial": flag_partial and count < math.ceil(target * _PARTIAL_FRACTION),
     }
+
+
+def _today_trend(
+    intraday_points: list[tuple[Any, float]],
+    daily_points: list[tuple[Any, float]],
+) -> dict[str, Any]:
+    """Build the "Today" (D) trend from the live session, falling back to daily.
+
+    Prefer the current session's intraday closes; when the session has not drawn a
+    line yet (pre-open, or a symbol the intraday feeds missed) fall back to the
+    last two daily closes so D still shows a recent move. Either way D is never
+    flagged partial/young — a session still forming is normal, not short history.
+    """
+    if len(intraday_points) >= 2:
+        return _trend_for_window(
+            intraday_points,
+            "D",
+            "Today",
+            _INTRADAY_MAX_POINTS,
+            end_source="intraday_bars",
+            flag_partial=False,
+        )
+    return _trend_for_window(
+        daily_points,
+        "D",
+        "Today",
+        2,
+        end_source="day_bars",
+        flag_partial=False,
+    )
 
 
 def build_price_trend_map(
     storage: PortfolioStorage,
     symbols: list[str],
 ) -> dict[str, list[dict[str, Any]]]:
-    """Return D/W/Q/Y close-series trend summaries for symbols in two batched reads.
+    """Return D/W/Q/Y close-series trend summaries for symbols in three batched reads.
 
-    The scanner is not a realtime chart. Each trend carries a downsampled close
-    series (daily for the 1M view, last-close-of-week for 3M/6M/1Y) plus the
-    window return, computed from cached ``day_bars``. Windows all end today, so a
-    young symbol just yields a shorter series flagged ``partial`` rather than a
-    broken or back-padded line.
+    The scanner is not a realtime chart. D ("Today") carries the current session's
+    intraday closes from ``intraday_bars`` (falling back to the last two daily
+    closes when the session is empty); W/Q/Y carry a downsampled close series from
+    cached ``day_bars`` (the trailing trading week, then last-close-of-week over a
+    quarter and a year) plus the window return. W/Q/Y end today, so a young symbol
+    just yields a shorter series flagged ``partial`` rather than a broken or
+    back-padded line. D is never flagged partial — a forming session is expected.
     """
     normalized_symbols = list(
         dict.fromkeys(str(symbol).strip().upper() for symbol in symbols if str(symbol).strip())
@@ -183,6 +266,9 @@ def build_price_trend_map(
     if not normalized_symbols:
         return {}
 
+    intraday_by_symbol = _series_by_symbol(
+        _intraday_series_rows(storage, normalized_symbols), normalized_symbols
+    )
     daily_by_symbol = _series_by_symbol(
         _daily_series_rows(storage, normalized_symbols), normalized_symbols
     )
@@ -192,8 +278,10 @@ def build_price_trend_map(
 
     result: dict[str, list[dict[str, Any]]] = {}
     for symbol in normalized_symbols:
-        trends: list[dict[str, Any]] = []
-        for key, label, source, target in _TREND_WINDOWS:
+        trends: list[dict[str, Any]] = [
+            _today_trend(intraday_by_symbol.get(symbol, []), daily_by_symbol.get(symbol, []))
+        ]
+        for key, label, source, target in _ROLLING_WINDOWS:
             points = (
                 daily_by_symbol.get(symbol, [])
                 if source == "daily"

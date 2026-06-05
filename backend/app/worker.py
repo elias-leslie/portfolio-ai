@@ -24,6 +24,7 @@ from app.workflows.data_refresh import (
     maintain_historical_wf,
     populate_fear_greed_inputs_wf,
     refresh_daily_ohlcv_wf,
+    refresh_watchlist_intraday_wf,
     refresh_watchlist_ohlcv_wf,
     update_technical_indicators_wf,
 )
@@ -110,9 +111,10 @@ def main() -> None:
             cleanup_debug_captures_wf,
             reset_source_metrics_wf,
             profile_news_wf,
-            # Data Refresh (12)
+            # Data Refresh (13)
             refresh_daily_ohlcv_wf,
             refresh_watchlist_ohlcv_wf,
+            refresh_watchlist_intraday_wf,
             backfill_indicators_wf,
             populate_fear_greed_inputs_wf,
             calculate_fear_greed_wf,
