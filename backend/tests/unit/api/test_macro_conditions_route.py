@@ -67,6 +67,91 @@ def test_macro_conditions_route_returns_today_briefing_contract() -> None:
     assert body["market_shifts"][0]["label"] == "No major shifts"
 
 
+def _next_event() -> dict[str, Any]:
+    return {
+        "event_type": "cpi_release",
+        "event_date": "2026-06-10",
+        "event_time": "08:30:00",
+        "title": "Consumer Price Index",
+        "impact_score": 5,
+    }
+
+
+def _payload() -> dict[str, Any]:
+    return conditions.build_conditions_payload(
+        _snapshot(),
+        yield_curve=conditions.YieldCurveEvidence(
+            as_of="2026-05-28",
+            ten_year_two_year_bps=49.0,
+            ten_year_three_month_bps=98.0,
+        ),
+    )
+
+
+def test_macro_conditions_route_surfaces_next_catalyst() -> None:
+    with (
+        patch("app.api.macro_routes.repository.get_latest", return_value=_snapshot()),
+        patch("app.api.macro_routes.run_macro_gate", return_value=None),
+        patch(
+            "app.api.macro_routes.macro_conditions.get_conditions_payload",
+            return_value=_payload(),
+        ),
+        patch(
+            "app.api.macro_routes.get_macro_calendar_cluster",
+            return_value={"next_high_impact_event": _next_event()},
+        ),
+    ):
+        client = _build_client()
+        resp = client.get("/api/macro/conditions")
+
+    assert resp.status_code == 200, resp.text
+    catalyst = resp.json()["next_catalyst"]
+    assert catalyst["event_type"] == "cpi_release"
+    assert catalyst["event_date"] == "2026-06-10"
+    assert catalyst["title"] == "Consumer Price Index"
+    assert catalyst["impact_score"] == 5
+
+
+def test_macro_conditions_route_next_catalyst_null_when_none_upcoming() -> None:
+    with (
+        patch("app.api.macro_routes.repository.get_latest", return_value=_snapshot()),
+        patch("app.api.macro_routes.run_macro_gate", return_value=None),
+        patch(
+            "app.api.macro_routes.macro_conditions.get_conditions_payload",
+            return_value=_payload(),
+        ),
+        patch(
+            "app.api.macro_routes.get_macro_calendar_cluster",
+            return_value={"next_high_impact_event": None},
+        ),
+    ):
+        client = _build_client()
+        resp = client.get("/api/macro/conditions")
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["next_catalyst"] is None
+
+
+def test_macro_conditions_route_next_catalyst_survives_calendar_error() -> None:
+    with (
+        patch("app.api.macro_routes.repository.get_latest", return_value=_snapshot()),
+        patch("app.api.macro_routes.run_macro_gate", return_value=None),
+        patch(
+            "app.api.macro_routes.macro_conditions.get_conditions_payload",
+            return_value=_payload(),
+        ),
+        patch(
+            "app.api.macro_routes.get_macro_calendar_cluster",
+            side_effect=RuntimeError("calendar table unavailable"),
+        ),
+    ):
+        client = _build_client()
+        resp = client.get("/api/macro/conditions")
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["next_catalyst"] is None
+
+
 def test_macro_conditions_route_returns_503_when_inputs_are_unavailable() -> None:
     with (
         patch("app.api.macro_routes.repository.get_latest", return_value=None),

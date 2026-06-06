@@ -22,6 +22,7 @@ from ..macro_gate.backtest.monte_carlo import run_sensitivity
 from ..macro_gate.backtest.walk_forward import replay, sanity_checks
 from ..macro_gate.scoring import WEIGHTS, ZONES
 from ..macro_gate.service import run as run_macro_gate
+from ..services.market_events_service import get_macro_calendar_cluster
 from ..utils.market_hours import NY_TZ
 
 logger = get_logger(__name__)
@@ -31,6 +32,20 @@ CURRENT_MACRO_MAX_AGE = timedelta(minutes=5)
 
 def _current_market_date() -> date:
     return datetime.now(NY_TZ).date()
+
+
+def _next_catalyst() -> dict[str, Any] | None:
+    """Next high-impact macro event (FOMC/CPI/NFP/...) for the Today panel.
+
+    Best-effort: a calendar read failure must never break the conditions
+    endpoint, so we swallow and return None (the catalyst tile simply hides).
+    """
+    try:
+        cluster = get_macro_calendar_cluster(market_date=_current_market_date())
+        return cluster.get("next_high_impact_event")
+    except Exception:
+        logger.debug("next_catalyst_lookup_failed", exc_info=True)
+        return None
 
 
 class MacroSnapshotResponse(BaseModel):
@@ -112,6 +127,14 @@ class MacroConditionDrivingResponse(BaseModel):
     tone: str = "neutral"
 
 
+class MacroConditionNextCatalystResponse(BaseModel):
+    event_type: str
+    event_date: str
+    event_time: str | None = None
+    title: str
+    impact_score: int
+
+
 class MacroConditionsResponse(BaseModel):
     snapshot_date: str | None = None
     computed_at: str | None = None
@@ -131,6 +154,7 @@ class MacroConditionsResponse(BaseModel):
     tape_as_of: str | None = None
     market_session: str | None = None
     tape_status: str | None = None
+    next_catalyst: MacroConditionNextCatalystResponse | None = None
     summary: str
     action_text: str
     driving: MacroConditionDrivingResponse | None = None
@@ -298,6 +322,10 @@ async def current_conditions() -> MacroConditionsResponse:
     # Best-effort: log the headline numbers so the trend line can show what the
     # number was and when it moved. record() change-detects and swallows errors.
     await run_in_threadpool(conditions_history.record, payload)
+    # Surface the next high-impact macro catalyst (forward-looking, not a score).
+    # Attached AFTER record() so it never enters the conditions history, and kept
+    # out of get_conditions_payload so the capture cron skips this calendar read.
+    payload["next_catalyst"] = await run_in_threadpool(_next_catalyst)
     return MacroConditionsResponse(**payload)
 
 

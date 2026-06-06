@@ -90,6 +90,13 @@ export interface MacroConditionsResponse {
   tapeAsOf: string | null
   marketSession: string | null
   tapeStatus: string | null
+  nextCatalyst: {
+    eventType: string
+    eventDate: string
+    eventTime: string | null
+    title: string
+    impactScore: number
+  } | null
   summary: string
   actionText: string
   driving: {

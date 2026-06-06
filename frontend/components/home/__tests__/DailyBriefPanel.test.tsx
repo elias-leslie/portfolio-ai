@@ -27,6 +27,11 @@ vi.mock('@/lib/hooks/usePortfolio', () => ({
 vi.mock('@/lib/hooks/useMacro', () => ({
   useMacroCurrent: () => useMacroCurrentMock(),
   useMacroConditions: () => useMacroConditionsMock(),
+  useMacroConditionsHistory: () => ({
+    data: undefined,
+    isLoading: false,
+    error: null,
+  }),
 }))
 
 vi.mock('@/lib/hooks/useTodayRefresh', () => ({
@@ -121,6 +126,13 @@ const conditions = {
     headline:
       'Cautious — stocks broadly lower (Technology -4.1%, 6/11 sectors down).',
     tone: 'caution',
+  },
+  nextCatalyst: {
+    eventType: 'cpi_release',
+    eventDate: '2026-06-10',
+    eventTime: '08:30:00',
+    title: 'Consumer Price Index',
+    impactScore: 5,
   },
   whatMatters: [
     'Credit and volatility are calm, so this is not a panic tape.',
@@ -298,6 +310,10 @@ describe('DailyBriefPanel', () => {
     expect(screen.getAllByText('Tape Pressure').length).toBeGreaterThan(0)
     expect(screen.getByText('Driver')).toBeInTheDocument()
     expect(screen.getAllByText('Coverage').length).toBeGreaterThan(0)
+    expect(screen.getByText('Next Catalyst')).toBeInTheDocument()
+    expect(
+      screen.getByText('Inflation report (CPI) · Jun 10'),
+    ).toBeInTheDocument()
     expect(screen.getByText('Tape')).toBeInTheDocument()
     expect(screen.queryByText('7D +7')).not.toBeInTheDocument()
 

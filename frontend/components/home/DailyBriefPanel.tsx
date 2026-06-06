@@ -122,6 +122,37 @@ function formatHeldAsOf(value?: string | null): string | null {
   }).format(parsed)
 }
 
+const CATALYST_LABELS: Record<string, string> = {
+  fomc_decision: 'Fed rate decision',
+  cpi_release: 'Inflation report (CPI)',
+  ppi_release: 'Producer prices (PPI)',
+  pce_release: 'Inflation report (PCE)',
+  gdp_release: 'GDP growth',
+  nfp_release: 'Jobs report',
+}
+
+function catalystLabel(eventType: string, title: string): string {
+  return CATALYST_LABELS[eventType] ?? title
+}
+
+function formatCatalystDate(value: string | null | undefined): string | null {
+  if (!value) return null
+  // event_date is a date-only string ("2026-06-10"); build a local date so it
+  // does not shift a day under timezone conversion.
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
+  if (!match) return null
+  const parsed = new Date(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+  )
+  if (Number.isNaN(parsed.getTime())) return null
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+  }).format(parsed)
+}
+
 function formatMoney(value: number | null | undefined, loading: boolean) {
   if (loading) return 'Loading...'
   return formatCurrencyWhole(value, { nullDisplay: '-' })
@@ -586,6 +617,8 @@ function MarketConditionHero({
   // Held tape still contributes its (non-null) score, so only paint "macro-only"
   // when the tape is truly unavailable — never for a held reading.
   const tapeUnavailable = conditions?.tapeAvailable === false && !tapeHeld
+  const nextCatalyst = conditions?.nextCatalyst ?? null
+  const nextCatalystDate = formatCatalystDate(nextCatalyst?.eventDate)
   const primaryDriver = conditions?.primaryDriver ?? 'data_limited'
   const coverage = conditions?.coverage ?? macro?.coverage
   const summary = error
@@ -730,6 +763,18 @@ function MarketConditionHero({
             {formatPercent(coverage)}
           </p>
         </div>
+        {nextCatalyst ? (
+          <div
+            className="col-span-2 rounded-xl border border-current/20 bg-bg/15 px-3 py-2"
+            title={`${nextCatalyst.title} — the next high-impact macro event the market is positioning for.`}
+          >
+            <p>Next Catalyst</p>
+            <p className="mt-1 text-sm font-semibold normal-case tracking-normal text-current">
+              {catalystLabel(nextCatalyst.eventType, nextCatalyst.title)}
+              {nextCatalystDate ? ` · ${nextCatalystDate}` : ''}
+            </p>
+          </div>
+        ) : null}
       </div>
     </div>
   )
