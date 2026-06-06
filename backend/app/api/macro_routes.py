@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 from ..logging_config import get_logger
 from ..macro_gate import conditions as macro_conditions
-from ..macro_gate import repository
+from ..macro_gate import conditions_history, repository
 from ..macro_gate.backtest.monte_carlo import as_dict as sensitivity_as_dict
 from ..macro_gate.backtest.monte_carlo import run_sensitivity
 from ..macro_gate.backtest.walk_forward import replay, sanity_checks
@@ -126,6 +126,9 @@ class MacroConditionsResponse(BaseModel):
     deployment_score: float | None = None
     macro_zone: str | None = None
     coverage: float | None = None
+    tape_available: bool = False
+    market_session: str | None = None
+    tape_status: str | None = None
     summary: str
     action_text: str
     driving: MacroConditionDrivingResponse | None = None
@@ -139,6 +142,26 @@ class MacroConditionsResponse(BaseModel):
     bond_signals: MacroConditionBondSignalsResponse
     credit_signal: MacroConditionCreditSignalResponse
     evidence: list[MacroConditionEvidenceResponse] = Field(default_factory=list)
+
+
+class ConditionsHistoryPoint(BaseModel):
+    recorded_at: str
+    snapshot_date: str
+    deployment_score: float | None = None
+    macro_stress: int | None = None
+    tape_pressure: int | None = None
+    overall_caution: int | None = None
+    overall_read: str | None = None
+    primary_driver: str | None = None
+    state: str | None = None
+    tape_available: bool = False
+    market_session: str | None = None
+
+
+class ConditionsHistoryResponse(BaseModel):
+    points: list[ConditionsHistoryPoint]
+    severe_threshold: int = macro_conditions.SEVERE_STRESS_THRESHOLD
+    selective_threshold: int = macro_conditions.SELECTIVE_CAUTION_THRESHOLD
 
 
 class BacktestResponse(BaseModel):
@@ -269,7 +292,20 @@ async def current_conditions() -> MacroConditionsResponse:
     if snapshot is None:
         raise HTTPException(status_code=503, detail="macro_gate_inputs_unavailable")
     payload = await run_in_threadpool(macro_conditions.get_conditions_payload, snapshot)
+    # Best-effort: log the headline numbers so the trend line can show what the
+    # number was and when it moved. record() change-detects and swallows errors.
+    await run_in_threadpool(conditions_history.record, payload)
     return MacroConditionsResponse(**payload)
+
+
+@router.get("/conditions/history", response_model=ConditionsHistoryResponse)
+async def conditions_history_endpoint(
+    days: int = Query(default=90, ge=1, le=730),
+) -> ConditionsHistoryResponse:
+    rows = await run_in_threadpool(conditions_history.get_history, days)
+    return ConditionsHistoryResponse(
+        points=[ConditionsHistoryPoint(**row) for row in rows],
+    )
 
 
 @router.get("/history", response_model=MacroHistoryResponse)

@@ -13,7 +13,7 @@ from typing import Any
 
 from ..constants import INDEX_SP500, SECTOR_ETFS
 from ..storage.facade import get_storage
-from ..utils.market_hours import NY_TZ, is_stale
+from ..utils.market_hours import NY_TZ, get_market_status, is_stale
 from . import repository
 
 SEVERE_STRESS_THRESHOLD = 65
@@ -185,6 +185,20 @@ def _combined_stress_score(
     if tape_stress is None:
         return macro_stress
     return max(macro_stress, tape_stress.stress_score)
+
+
+def _tape_status(market_session: str | None, tape_available: bool) -> str | None:
+    """Human-readable reason the tape term is or isn't contributing.
+
+    ``None`` when tape is a live in-session reading. Off-hours it is a macro-only
+    read (carried-forward closes are not presented as live), and during the
+    session it can still be unavailable if fresh quote coverage is too thin.
+    """
+    if tape_available:
+        return None
+    if market_session == "open":
+        return "Tape unavailable — fresh S&P/sector quote coverage too thin."
+    return "Markets closed — macro-only read; tape resumes at next open."
 
 
 def _severe_flags(
@@ -1168,6 +1182,7 @@ def build_conditions_payload(
     yield_curve: YieldCurveEvidence | None = None,
     hy_change: HyOasChange | None = None,
     tape_stress: TapeStressEvidence | None = None,
+    market_session: str | None = None,
     macro_history: list[dict[str, Any]] | None = None,
     yield_curve_history: list[YieldCurveHistoryPoint] | None = None,
 ) -> dict[str, Any]:
@@ -1180,6 +1195,8 @@ def build_conditions_payload(
     macro_stress = _stress_score(deployment_score)
     tape_pressure_score = tape_stress.stress_score if tape_stress else None
     overall_caution_score = _combined_stress_score(macro_stress, tape_stress)
+    tape_available = tape_stress is not None
+    tape_status = _tape_status(market_session, tape_available)
     hy_change_bps = hy_change.change_bps if hy_change else None
     flags = _severe_flags(
         deployment_score=deployment_score,
@@ -1231,6 +1248,9 @@ def build_conditions_payload(
         "macro_stress_score": macro_stress,
         "tape_pressure_score": tape_pressure_score,
         "overall_caution_score": overall_caution_score,
+        "tape_available": tape_available,
+        "market_session": market_session,
+        "tape_status": tape_status,
         "overall_read": overall_read,
         "primary_driver": primary_driver,
         "driver_detail": driver_detail,
@@ -1384,11 +1404,18 @@ def get_hy_oas_change() -> HyOasChange | None:
 
 
 def get_conditions_payload(snapshot: dict[str, Any]) -> dict[str, Any]:
+    # Tape pressure is a "right now" intraday read of S&P + sector quotes. Off the
+    # regular session there is no live tape, so a carried-forward close must not be
+    # presented as if it were live — mark it unavailable and let the read fall back
+    # to a macro-only number (honestly labelled) instead of silently easing.
+    market_session = get_market_status()
+    tape_stress = get_tape_stress() if market_session == "open" else None
     return build_conditions_payload(
         snapshot,
         yield_curve=get_latest_yield_curve(),
         hy_change=get_hy_oas_change(),
-        tape_stress=get_tape_stress(),
+        tape_stress=tape_stress,
+        market_session=market_session,
         macro_history=repository.get_history(days=45),
         yield_curve_history=get_yield_curve_history(days=45),
     )

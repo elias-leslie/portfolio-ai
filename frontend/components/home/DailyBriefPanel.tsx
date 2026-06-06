@@ -31,6 +31,7 @@ import { useMacroConditions, useMacroCurrent } from '@/lib/hooks/useMacro'
 import { usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
 import { useTodayRefresh } from '@/lib/hooks/useTodayRefresh'
 import { cn } from '@/lib/utils'
+import { OverallCautionTrendLine } from './OverallCautionTrendLine'
 
 interface ZoneStyle {
   label: string
@@ -568,6 +569,8 @@ function MarketConditionHero({
       : null)
   const deploymentScore = conditions?.deploymentScore ?? macro?.deploymentScore
   const tapePressureScore = conditions?.tapePressureScore
+  const tapeStatus = conditions?.tapeStatus
+  const tapeUnavailable = conditions?.tapeAvailable === false
   const primaryDriver = conditions?.primaryDriver ?? 'data_limited'
   const coverage = conditions?.coverage ?? macro?.coverage
   const summary = error
@@ -669,12 +672,22 @@ function MarketConditionHero({
         </div>
         <div
           className="rounded-xl border border-current/20 bg-bg/15 px-3 py-2"
-          title="Current market action from fresh S&P 500 and sector quotes. Unavailable means tape data is stale or too partial."
+          title={
+            tapeStatus ??
+            'Current market action from fresh S&P 500 and sector quotes. Unavailable means tape data is stale or too partial.'
+          }
         >
           <p>Tape Pressure</p>
           <p className="mt-1 text-sm font-semibold tracking-normal text-current">
             {formatScore(tapePressureScore)}
           </p>
+          {tapeUnavailable ? (
+            <p className="mt-0.5 text-[9px] font-medium normal-case tracking-normal text-current/70">
+              {conditions?.marketSession === 'closed'
+                ? 'Market closed · macro-only'
+                : 'Tape unavailable · macro-only'}
+            </p>
+          ) : null}
         </div>
         <div
           className="rounded-xl border border-current/20 bg-bg/15 px-3 py-2"
@@ -1000,6 +1013,10 @@ export function DailyBriefPanel() {
           householdLoading={householdLoading}
           className="lg:col-span-2 xl:col-span-1"
         />
+      </div>
+
+      <div className="px-4 pb-2">
+        <OverallCautionTrendLine />
       </div>
 
       <MarketEvidenceStrip evidence={conditions?.evidence} />

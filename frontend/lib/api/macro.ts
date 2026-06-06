@@ -85,6 +85,9 @@ export interface MacroConditionsResponse {
   deploymentScore: number | null
   macroZone: string | null
   coverage: number | null
+  tapeAvailable: boolean
+  marketSession: string | null
+  tapeStatus: string | null
   summary: string
   actionText: string
   driving: {
@@ -137,6 +140,26 @@ export interface MacroHistoryResponse {
   zones: string[]
 }
 
+export interface MacroConditionsHistoryPoint {
+  recordedAt: string
+  snapshotDate: string
+  deploymentScore: number | null
+  macroStress: number | null
+  tapePressure: number | null
+  overallCaution: number | null
+  overallRead: string | null
+  primaryDriver: string | null
+  state: string | null
+  tapeAvailable: boolean
+  marketSession: string | null
+}
+
+export interface MacroConditionsHistoryResponse {
+  points: MacroConditionsHistoryPoint[]
+  severeThreshold: number
+  selectiveThreshold: number
+}
+
 export interface MacroBacktestQueryArgs {
   start?: string
   end?: string
@@ -160,6 +183,14 @@ export function fetchMacroConditions(): Promise<MacroConditionsResponse> {
 
 export function fetchMacroHistory(days = 90): Promise<MacroHistoryResponse> {
   return apiRequest<MacroHistoryResponse>(`/api/macro/history?days=${days}`)
+}
+
+export function fetchMacroConditionsHistory(
+  days = 90,
+): Promise<MacroConditionsHistoryResponse> {
+  return apiRequest<MacroConditionsHistoryResponse>(
+    `/api/macro/conditions/history?days=${days}`,
+  )
 }
 
 export function fetchMacroBacktest(

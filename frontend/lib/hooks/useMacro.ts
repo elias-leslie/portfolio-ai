@@ -2,10 +2,12 @@ import { useQuery } from '@tanstack/react-query'
 import {
   fetchMacroBacktest,
   fetchMacroConditions,
+  fetchMacroConditionsHistory,
   fetchMacroCurrent,
   fetchMacroHistory,
   type MacroBacktestQueryArgs,
   type MacroBacktestResponse,
+  type MacroConditionsHistoryResponse,
   type MacroConditionsResponse,
   type MacroHistoryResponse,
   type MacroSnapshot,
@@ -42,6 +44,16 @@ export function useMacroHistory(days = 90) {
     queryKey: ['macro', 'history', days],
     queryFn: () => fetchMacroHistory(days),
     staleTime: 10 * ONE_MINUTE,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  })
+}
+
+export function useMacroConditionsHistory(days = 90) {
+  return useQuery<MacroConditionsHistoryResponse>({
+    queryKey: ['macro', 'conditions', 'history', days],
+    queryFn: () => fetchMacroConditionsHistory(days),
+    staleTime: 5 * ONE_MINUTE,
     refetchOnWindowFocus: false,
     retry: 1,
   })

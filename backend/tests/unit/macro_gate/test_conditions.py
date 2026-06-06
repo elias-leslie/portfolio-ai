@@ -344,6 +344,55 @@ def test_conditions_payload_handles_missing_values_without_alerting() -> None:
     assert payload["evidence"][0]["value"] == "-"
 
 
+def test_conditions_payload_marks_tape_live_during_open_session() -> None:
+    payload = conditions.build_conditions_payload(
+        _snapshot(deployment_score=65.0),
+        tape_stress=conditions.TapeStressEvidence(
+            stress_score=42,
+            as_of="2026-06-04T14:20:00+00:00",
+            sp500_change_pct=-0.8,
+            weakest_sector_symbol="XLK",
+            weakest_sector_name="Technology",
+            weakest_sector_change_pct=-2.9,
+            negative_sector_count=2,
+            sector_count=11,
+        ),
+        market_session="open",
+    )
+
+    assert payload["tape_available"] is True
+    assert payload["market_session"] == "open"
+    assert payload["tape_status"] is None
+    assert payload["tape_pressure_score"] == 42
+
+
+def test_conditions_payload_off_hours_is_macro_only_with_tape_unavailable() -> None:
+    # Off the regular session there is no live tape: the read falls back to a
+    # macro-only number, honestly labelled, instead of a stale carried-forward
+    # close presented as if it were current.
+    payload = conditions.build_conditions_payload(
+        _snapshot(deployment_score=57.0),
+        tape_stress=None,
+        market_session="closed",
+    )
+
+    assert payload["tape_available"] is False
+    assert payload["market_session"] == "closed"
+    assert payload["tape_pressure_score"] is None
+    assert payload["overall_caution_score"] == payload["macro_stress_score"]
+    assert payload["primary_driver"] == "macro"
+    assert payload["tape_status"] == (
+        "Markets closed — macro-only read; tape resumes at next open."
+    )
+
+
+def test_tape_status_distinguishes_closed_from_thin_coverage() -> None:
+    assert conditions._tape_status("open", tape_available=True) is None
+    assert "coverage too thin" in conditions._tape_status("open", tape_available=False)
+    for session in ("closed", "pre_market", "after_hours"):
+        assert "Markets closed" in conditions._tape_status(session, tape_available=False)
+
+
 def test_driving_read_states_the_why_across_regimes() -> None:
     tape = conditions.TapeStressEvidence(
         stress_score=74,
