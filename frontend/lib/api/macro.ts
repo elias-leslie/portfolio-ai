@@ -71,6 +71,40 @@ export interface MacroConditionShift {
   reversal: boolean
 }
 
+export type OvernightDirection =
+  | 'risk_on'
+  | 'risk_off'
+  | 'neutral'
+  | 'unavailable'
+  | string
+export type OvernightSignalDirection = OvernightDirection | 'closed'
+
+export interface OvernightLeanSignal {
+  key: string
+  label: string
+  symbol: string
+  changePct: number | null
+  direction: OvernightSignalDirection
+  magnitude: 'flat' | 'mild' | 'strong' | 'unavailable' | string
+  live: boolean
+  note: string | null
+}
+
+export interface OvernightLean {
+  applies: boolean
+  session: 'overnight' | 'weekend' | 'halt' | 'rth' | string
+  sessionLabel: string
+  direction: OvernightDirection
+  confidence: number
+  liveCount: number
+  headline: string
+  stressScore: number | null
+  droveCaution: boolean
+  note: string | null
+  asOf: string | null
+  signals: OvernightLeanSignal[]
+}
+
 export interface MacroConditionsResponse {
   snapshotDate: string | null
   computedAt: string | null
@@ -97,6 +131,7 @@ export interface MacroConditionsResponse {
     title: string
     impactScore: number
   } | null
+  overnightLean: OvernightLean | null
   summary: string
   actionText: string
   driving: {

@@ -135,6 +135,32 @@ class MacroConditionNextCatalystResponse(BaseModel):
     impact_score: int
 
 
+class MacroConditionOvernightSignalResponse(BaseModel):
+    key: str
+    label: str
+    symbol: str
+    change_pct: float | None = None
+    direction: str
+    magnitude: str
+    live: bool
+    note: str | None = None
+
+
+class MacroConditionOvernightLeanResponse(BaseModel):
+    applies: bool
+    session: str
+    session_label: str
+    direction: str
+    confidence: int
+    live_count: int
+    headline: str
+    stress_score: int | None = None
+    drove_caution: bool = False
+    note: str | None = None
+    as_of: str | None = None
+    signals: list[MacroConditionOvernightSignalResponse] = Field(default_factory=list)
+
+
 class MacroConditionsResponse(BaseModel):
     snapshot_date: str | None = None
     computed_at: str | None = None
@@ -155,6 +181,7 @@ class MacroConditionsResponse(BaseModel):
     market_session: str | None = None
     tape_status: str | None = None
     next_catalyst: MacroConditionNextCatalystResponse | None = None
+    overnight_lean: MacroConditionOvernightLeanResponse | None = None
     summary: str
     action_text: str
     driving: MacroConditionDrivingResponse | None = None

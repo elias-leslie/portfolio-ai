@@ -234,6 +234,17 @@ export interface IndicatorHistoryResponse {
   periodEnd: string
 }
 
+export interface OvernightHistoryResponse {
+  stocksSp: IndicatorDataPoint[]
+  stocksNq: IndicatorDataPoint[]
+  oil: IndicatorDataPoint[]
+  gold: IndicatorDataPoint[]
+  rates: IndicatorDataPoint[]
+  crypto: IndicatorDataPoint[]
+  periodStart: string
+  periodEnd: string
+}
+
 export interface SectorDataPoint {
   date: string
   close: number

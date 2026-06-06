@@ -12,6 +12,7 @@ import {
   fetchMarketMovers,
   fetchMarketStatus,
   fetchNewsSentimentHistory,
+  fetchOvernightHistory,
   fetchSectorHistory,
   type IndicatorHistoryResponse,
   type MarketEventsChartResponse,
@@ -19,6 +20,7 @@ import {
   type MarketMoversResponse,
   type MarketStatusResponse,
   type NewsSentimentHistoryResponse,
+  type OvernightHistoryResponse,
   type SectorHistoryResponse,
 } from '../api/market'
 import { fetchPreferences } from '../api/preferences'
@@ -104,6 +106,22 @@ export function useIndicatorHistory(
   return useQuery({
     queryKey: ['market', 'indicator-history', days],
     queryFn: ({ signal }) => fetchIndicatorHistory(days, { signal }),
+    staleTime: staleTimeForPoll(pollMs),
+    refetchInterval: pollMs,
+    refetchOnWindowFocus: pollMs !== false,
+  })
+}
+
+/**
+ * Hook to fetch overnight-lean instrument history for the trend panel
+ */
+export function useOvernightHistory(
+  days: number = 365,
+): UseQueryResult<OvernightHistoryResponse> {
+  const pollMs = useMarketPollMs(60)
+  return useQuery({
+    queryKey: ['market', 'overnight-history', days],
+    queryFn: ({ signal }) => fetchOvernightHistory(days, { signal }),
     staleTime: staleTimeForPoll(pollMs),
     refetchInterval: pollMs,
     refetchOnWindowFocus: pollMs !== false,

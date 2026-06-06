@@ -15,6 +15,7 @@ import type {
   MacroConditionsResponse,
   MacroConditionTrend,
   MacroSnapshot,
+  OvernightLean,
 } from '@/lib/api/macro'
 import type { PortfolioAnalytics } from '@/lib/api/portfolio'
 import {
@@ -584,6 +585,35 @@ function drivingToneClass(tone: string): string {
   }
 }
 
+function overnightDirectionLabel(direction: string): string {
+  switch (direction) {
+    case 'risk_off':
+      return 'Leaning risk-off'
+    case 'risk_on':
+      return 'Leaning risk-on'
+    case 'neutral':
+      return 'Mixed / quiet'
+    default:
+      return 'Read unavailable'
+  }
+}
+
+function overnightToneClass(direction: string): string {
+  switch (direction) {
+    case 'risk_off':
+      return 'border-warning/50 bg-warning/8'
+    case 'risk_on':
+      return 'border-gain/50 bg-gain/8'
+    default:
+      return 'border-current/20 bg-bg/15'
+  }
+}
+
+function overnightDriveLabel(lean: OvernightLean): string {
+  if (lean.droveCaution) return '↑ lifting caution'
+  return 'context only'
+}
+
 function MarketConditionHero({
   conditions,
   macro,
@@ -619,6 +649,11 @@ function MarketConditionHero({
   const tapeUnavailable = conditions?.tapeAvailable === false && !tapeHeld
   const nextCatalyst = conditions?.nextCatalyst ?? null
   const nextCatalystDate = formatCatalystDate(nextCatalyst?.eventDate)
+  // Forward off-hours read. Only surfaced when it applies (markets shut); during
+  // RTH the live tape leads and the backend sends applies=false.
+  const overnightLean = conditions?.overnightLean?.applies
+    ? conditions.overnightLean
+    : null
   const primaryDriver = conditions?.primaryDriver ?? 'data_limited'
   const coverage = conditions?.coverage ?? macro?.coverage
   const summary = error
@@ -772,6 +807,33 @@ function MarketConditionHero({
             <p className="mt-1 text-sm font-semibold normal-case tracking-normal text-current">
               {catalystLabel(nextCatalyst.eventType, nextCatalyst.title)}
               {nextCatalystDate ? ` · ${nextCatalystDate}` : ''}
+            </p>
+          </div>
+        ) : null}
+        {overnightLean ? (
+          <div
+            className={cn(
+              'col-span-2 rounded-xl border px-3 py-2',
+              overnightToneClass(overnightLean.direction),
+            )}
+            title={`${overnightLean.sessionLabel}. Forward read from overnight futures, gold, oil and crypto — it nudges caution while the market is closed, but never overrides the live tape.`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p>Overnight</p>
+              <p className="text-[9px] font-medium normal-case tracking-normal opacity-70">
+                {overnightDriveLabel(overnightLean)}
+              </p>
+            </div>
+            <p className="mt-1 text-sm font-semibold normal-case tracking-normal text-current">
+              {overnightDirectionLabel(overnightLean.direction)}
+              {overnightLean.liveCount > 0 &&
+              overnightLean.direction !== 'unavailable' &&
+              overnightLean.direction !== 'neutral'
+                ? ` · ${overnightLean.confidence} of ${overnightLean.liveCount} agree`
+                : ''}
+            </p>
+            <p className="mt-1 text-[11px] font-medium normal-case leading-4 tracking-normal text-current/80">
+              {overnightLean.headline}
             </p>
           </div>
         ) : null}

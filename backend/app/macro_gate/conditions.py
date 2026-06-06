@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from itertools import pairwise
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..constants import INDEX_SP500, SECTOR_ETFS
 from ..storage.facade import get_storage
@@ -22,6 +22,9 @@ from ..utils.market_hours import (
     is_trading_day,
 )
 from . import conditions_history, repository
+
+if TYPE_CHECKING:
+    from app.macro_gate.overnight_lean import OvernightLean
 
 SEVERE_STRESS_THRESHOLD = 65
 MODERATE_CAUTION_THRESHOLD = 50
@@ -192,6 +195,67 @@ def _combined_stress_score(
     if tape_stress is None:
         return macro_stress
     return max(macro_stress, tape_stress.stress_score)
+
+
+def _apply_overnight_caution(
+    overall_caution_score: int | None,
+    overnight_lean: OvernightLean | None,
+) -> tuple[int | None, bool]:
+    """Fold the off-hours overnight lean into the headline caution number.
+
+    Max-only and off-hours-only: a risk-off overnight can lift caution above the
+    macro / held-tape floor, but it can never pull it down and never overrides a
+    live in-session tape (``applies`` is False during RTH, so this no-ops). Returns
+    the (possibly raised) score and whether the overnight read actually moved it.
+    """
+    if (
+        overnight_lean is None
+        or not overnight_lean.applies
+        or overnight_lean.stress_score is None
+    ):
+        return overall_caution_score, False
+    candidates = [c for c in (overall_caution_score, overnight_lean.stress_score) if c is not None]
+    if not candidates:
+        return overall_caution_score, False
+    raised = max(candidates)
+    moved = overall_caution_score is None or raised > overall_caution_score
+    return raised, moved
+
+
+def _overnight_lean_payload(
+    overnight_lean: OvernightLean | None,
+    *,
+    drove_caution: bool,
+) -> dict[str, Any] | None:
+    """Serialize the overnight lean for the conditions payload (top read + tile)."""
+    if overnight_lean is None:
+        return None
+    return {
+        "applies": overnight_lean.applies,
+        "session": overnight_lean.session,
+        "session_label": overnight_lean.session_label,
+        "direction": overnight_lean.direction,
+        "confidence": overnight_lean.confidence,
+        "live_count": overnight_lean.live_count,
+        "headline": overnight_lean.headline,
+        "stress_score": overnight_lean.stress_score,
+        "drove_caution": drove_caution,
+        "note": overnight_lean.note,
+        "as_of": overnight_lean.as_of,
+        "signals": [
+            {
+                "key": s.key,
+                "label": s.label,
+                "symbol": s.symbol,
+                "change_pct": s.change_pct,
+                "direction": s.direction,
+                "magnitude": s.magnitude,
+                "live": s.live,
+                "note": s.note,
+            }
+            for s in overnight_lean.signals
+        ],
+    }
 
 
 def _tape_status(
@@ -1260,6 +1324,7 @@ def build_conditions_payload(
     tape_state: str | None = None,
     macro_history: list[dict[str, Any]] | None = None,
     yield_curve_history: list[YieldCurveHistoryPoint] | None = None,
+    overnight_lean: OvernightLean | None = None,
 ) -> dict[str, Any]:
     deployment_score = _maybe_float(snapshot.get("deployment_score"))
     vix_close = _maybe_float(snapshot.get("vix_close"))
@@ -1278,6 +1343,11 @@ def build_conditions_payload(
             tape_state = "held"
     tape_as_of = tape_stress.as_of if tape_stress else None
     overall_caution_score = _combined_stress_score(macro_stress, tape_stress)
+    # Off-hours, the overnight futures/crypto lean can lift caution above the
+    # macro / held-tape floor (max-only; never overrides a live in-session tape).
+    overall_caution_score, overnight_drove_caution = _apply_overnight_caution(
+        overall_caution_score, overnight_lean
+    )
     # ``tape_available`` stays true only for a LIVE reading; a held tape still
     # contributes its score but is flagged separately so the UI never paints it
     # as live.
@@ -1406,6 +1476,9 @@ def build_conditions_payload(
             tape_stress=tape_stress,
             trends=trends,
         ),
+        "overnight_lean": _overnight_lean_payload(
+            overnight_lean, drove_caution=overnight_drove_caution
+        ),
     }
 
 
@@ -1504,6 +1577,14 @@ def get_conditions_payload(snapshot: dict[str, Any]) -> dict[str, Any]:
     else:
         tape_stress = _held_tape_evidence()
         tape_state = "held" if tape_stress else "unavailable"
+    # Off-hours, read the forward futures/crypto lean. During RTH the live cash
+    # tape leads, so we skip it (and its quote fetch) entirely.
+    overnight_lean = None
+    if market_session != "open":
+        # Lazy import breaks the conditions <-> overnight_lean import cycle.
+        from app.macro_gate.overnight_lean import get_overnight_lean  # noqa: PLC0415
+
+        overnight_lean = get_overnight_lean()
     return build_conditions_payload(
         snapshot,
         yield_curve=get_latest_yield_curve(),
@@ -1513,4 +1594,5 @@ def get_conditions_payload(snapshot: dict[str, Any]) -> dict[str, Any]:
         tape_state=tape_state,
         macro_history=repository.get_history(days=45),
         yield_curve_history=get_yield_curve_history(days=45),
+        overnight_lean=overnight_lean,
     )

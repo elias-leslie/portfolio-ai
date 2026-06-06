@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { IndicatorsTrendChart } from '@/components/market/IndicatorsTrendChart'
 import { MacroRegimeDriversTrendChart } from '@/components/market/MacroRegimeDriversTrendChart'
+import { OvernightLeanChart } from '@/components/market/OvernightLeanChart'
 import { SectorPerformanceChart } from '@/components/market/SectorPerformanceChart'
 import { SentimentTrendChart } from '@/components/market/SentimentTrendChart'
 import {
@@ -35,6 +36,10 @@ export function InvestingMarketTrendPanels() {
 
       <SectionCard variant="surface">
         <IndicatorsTrendChart />
+      </SectionCard>
+
+      <SectionCard variant="surface">
+        <OvernightLeanChart />
       </SectionCard>
 
       <SectionCard variant="surface">

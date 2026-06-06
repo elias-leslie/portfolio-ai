@@ -7,6 +7,7 @@ import type {
   FearGreedHistoryResponse,
   IndicatorHistoryResponse,
   NewsSentimentHistoryResponse,
+  OvernightHistoryResponse,
   SectorHistoryResponse,
 } from './market-types'
 
@@ -48,6 +49,19 @@ export async function fetchIndicatorHistory(
 ): Promise<IndicatorHistoryResponse> {
   return apiRequest<IndicatorHistoryResponse>(
     `/api/market/indicator-history?days=${days}`,
+    options,
+  )
+}
+
+/**
+ * Get overnight-lean instrument history (futures, oil, gold, rates, crypto)
+ */
+export async function fetchOvernightHistory(
+  days: number = 365,
+  options: RequestInit = {},
+): Promise<OvernightHistoryResponse> {
+  return apiRequest<OvernightHistoryResponse>(
+    `/api/market/overnight-history?days=${days}`,
     options,
   )
 }

@@ -107,6 +107,24 @@ class IndicatorHistoryResponse(BaseModel):
     period_end: str
 
 
+class OvernightHistoryResponse(BaseModel):
+    """Response model for the overnight-lean instrument history.
+
+    The forward / off-hours risk set: equity-index futures, crude, gold, the 10Y
+    note future and Bitcoin — the instruments that keep trading when U.S. cash
+    markets are shut.
+    """
+
+    stocks_sp: list[IndicatorDataPoint] = Field(default_factory=list)
+    stocks_nq: list[IndicatorDataPoint] = Field(default_factory=list)
+    oil: list[IndicatorDataPoint] = Field(default_factory=list)
+    gold: list[IndicatorDataPoint] = Field(default_factory=list)
+    rates: list[IndicatorDataPoint] = Field(default_factory=list)
+    crypto: list[IndicatorDataPoint] = Field(default_factory=list)
+    period_start: str
+    period_end: str
+
+
 # Sector history endpoint
 class SectorDataPoint(BaseModel):
     """Single data point for a sector."""

@@ -13,6 +13,7 @@ from app.api.market_responses import (
     IndicatorDataPoint,
     IndicatorHistoryResponse,
     NewsSentimentHistoryResponse,
+    OvernightHistoryResponse,
     SectorHistory,
     SectorHistoryResponse,
 )
@@ -21,7 +22,17 @@ from app.api.market_transformers import (
     build_sector_history,
     sort_sectors_by_performance,
 )
-from app.constants import CACHE_TTL_MEDIUM, CACHE_TTL_SHORT, SECTOR_ETFS
+from app.constants import (
+    CACHE_TTL_MEDIUM,
+    CACHE_TTL_SHORT,
+    CRYPTO_BTC,
+    FUTURES_10Y,
+    FUTURES_CRUDE,
+    FUTURES_GOLD,
+    FUTURES_NASDAQ,
+    FUTURES_SP500,
+    SECTOR_ETFS,
+)
 from app.logging_config import get_logger
 from app.market.intraday_mood import calculate_intraday_mood_score, label_intraday_mood
 from app.middleware.cache import cache_response
@@ -131,6 +142,16 @@ INDICATOR_SYMBOLS: dict[str, str] = {
     "sp500": "^GSPC",
     "tnx": "^TNX",
     "dxy": "DX-Y.NYB",
+}
+
+# Overnight-lean instrument key -> symbol (the off-hours-tradeable risk set).
+OVERNIGHT_HISTORY_SYMBOLS: dict[str, str] = {
+    "stocks_sp": FUTURES_SP500,
+    "stocks_nq": FUTURES_NASDAQ,
+    "oil": FUTURES_CRUDE,
+    "gold": FUTURES_GOLD,
+    "rates": FUTURES_10Y,
+    "crypto": CRYPTO_BTC,
 }
 
 # Sector threshold constants for validation
@@ -301,6 +322,40 @@ async def get_indicator_history(
         vix=[IndicatorDataPoint(**dp) for dp in result_data.get("vix", [])],
         tnx=[IndicatorDataPoint(**dp) for dp in result_data.get("tnx", [])],
         dxy=[IndicatorDataPoint(**dp) for dp in result_data.get("dxy", [])],
+        period_start=period_start,
+        period_end=period_end,
+    )
+
+
+@router.get("/overnight-history", response_model=OvernightHistoryResponse)
+@cache_response(ttl=CACHE_TTL_SHORT)
+async def get_overnight_history(
+    request: Request,
+    days: int = Query(365, ge=30, le=MAX_HISTORICAL_DAYS, description="Number of days of history"),
+) -> OvernightHistoryResponse:
+    """Daily history of the overnight-lean instruments for the trend panel."""
+    result_data: dict[str, list[dict[str, Any]]] = {}
+    period_start = ""
+    period_end = ""
+    from app.api.market._core_helpers import _get_price_fetcher  # noqa: PLC0415
+
+    current_prices = _get_price_fetcher().fetch_price_data(list(OVERNIGHT_HISTORY_SYMBOLS.values()))
+
+    for key, symbol in OVERNIGHT_HISTORY_SYMBOLS.items():
+        rows = _get_market_repo().get_indicator_history_data(symbol, days)
+        rows = _append_current_quote_row(rows, current_prices.get(symbol))
+        data_points, period_start, period_end = build_indicator_data_points(
+            rows, period_start, period_end
+        )
+        result_data[key] = data_points
+
+    return OvernightHistoryResponse(
+        stocks_sp=[IndicatorDataPoint(**dp) for dp in result_data.get("stocks_sp", [])],
+        stocks_nq=[IndicatorDataPoint(**dp) for dp in result_data.get("stocks_nq", [])],
+        oil=[IndicatorDataPoint(**dp) for dp in result_data.get("oil", [])],
+        gold=[IndicatorDataPoint(**dp) for dp in result_data.get("gold", [])],
+        rates=[IndicatorDataPoint(**dp) for dp in result_data.get("rates", [])],
+        crypto=[IndicatorDataPoint(**dp) for dp in result_data.get("crypto", [])],
         period_start=period_start,
         period_end=period_end,
     )

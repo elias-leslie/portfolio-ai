@@ -24,6 +24,18 @@ INDEX_DXY = "DX-Y.NYB"  # US Dollar Index
 ETF_GROWTH = "VUG"  # Vanguard Growth ETF
 ETF_TOTAL_MARKET = "VTI"  # Vanguard Total Stock Market ETF
 
+# Overnight / off-hours forward indicators. These are the FUTURES (and crypto)
+# that keep trading when U.S. cash markets are shut: CME Globex futures run
+# Sun 18:00 ET -> Fri 17:00 ET (daily 17:00-18:00 ET halt) and crypto is 24/7.
+# The cash indices (^TNX/^VIX/DX-Y.NYB) only carry the last settle off-hours, so
+# the overnight read leans on the live futures instead.
+FUTURES_SP500 = "ES=F"  # E-mini S&P 500 futures (overnight equity risk)
+FUTURES_NASDAQ = "NQ=F"  # E-mini Nasdaq-100 futures (overnight tech tilt)
+FUTURES_CRUDE = "CL=F"  # WTI crude futures (geopolitical / inflation read)
+FUTURES_GOLD = "GC=F"  # Gold futures (overnight safe-haven demand)
+FUTURES_10Y = "ZN=F"  # 10-Year Treasury Note futures (overnight rates read)
+CRYPTO_BTC = "BTC-USD"  # Bitcoin — 24/7 weekend risk-appetite proxy
+
 # Combined market indicators list
 MARKET_INDICATORS: list[str] = [
     BENCHMARK_SPY,
@@ -118,7 +130,27 @@ PREDICTION_DRIVER_SYMBOLS: list[str] = [
     *SECTOR_ETFS.keys(),
 ]
 
-ALL_MARKET_SYMBOLS: list[str] = list(dict.fromkeys([*MARKET_INDICATORS, *PREDICTION_DRIVER_SYMBOLS]))
+# Overnight Lean inputs (forward / off-hours read). These are the instruments
+# that keep a LIVE print off-hours: equity-index futures, crude, gold and the
+# 10Y note future (all on CME Globex, live during the overnight session, closed
+# on weekends) plus Bitcoin (24/7 weekend bridge). The cash ^TNX/^VIX/DX-Y.NYB
+# are excluded because off-hours they only carry the last settle; the futures on
+# the same risk drivers give the honest live read instead. VIX-futures (VX=F) and
+# the dollar-index future (DX=F) are NOT served by any configured source, so the
+# fear gauge and the dollar are represented as "updates at the open", never faked.
+# Order = display order (equities, oil, gold, rates, crypto).
+OVERNIGHT_LEAN_SYMBOLS: list[str] = [
+    FUTURES_SP500,
+    FUTURES_NASDAQ,
+    FUTURES_CRUDE,
+    FUTURES_GOLD,
+    FUTURES_10Y,
+    CRYPTO_BTC,
+]
+
+ALL_MARKET_SYMBOLS: list[str] = list(
+    dict.fromkeys([*MARKET_INDICATORS, *PREDICTION_DRIVER_SYMBOLS, *OVERNIGHT_LEAN_SYMBOLS])
+)
 
 # Sector ETF symbols only (for iteration)
 SECTOR_ETF_SYMBOLS: list[str] = list(SECTOR_ETFS.keys())

@@ -24,6 +24,7 @@ export {
   fetchFearGreedHistory,
   fetchIndicatorHistory,
   fetchNewsSentimentHistory,
+  fetchOvernightHistory,
   fetchSectorHistory,
 } from './market-history'
 
@@ -51,6 +52,7 @@ export type {
   MarketTrendsResponse,
   NewsSentimentHistoryResponse,
   OptionsActivityMetrics,
+  OvernightHistoryResponse,
   PriceResponse,
   PricesResponse,
   PutCallContext,
