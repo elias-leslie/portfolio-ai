@@ -87,6 +87,10 @@ export interface MacroConditionsResponse {
   coverage: number | null
   summary: string
   actionText: string
+  driving: {
+    headline: string
+    tone: 'risk_off' | 'caution' | 'constructive' | 'neutral' | string
+  } | null
   whatMatters: string[]
   whatToDo: string[]
   watchItems: string[]

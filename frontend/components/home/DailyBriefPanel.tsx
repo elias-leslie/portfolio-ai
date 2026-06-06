@@ -528,6 +528,19 @@ function MacroContributionBreakdown({ macro }: { macro?: MacroSnapshot }) {
   )
 }
 
+function drivingToneClass(tone: string): string {
+  switch (tone) {
+    case 'risk_off':
+      return 'border-loss/60 bg-loss/8 text-loss'
+    case 'caution':
+      return 'border-warning/60 bg-warning/8 text-warning'
+    case 'constructive':
+      return 'border-gain/60 bg-gain/8 text-gain'
+    default:
+      return 'border-border-subtle bg-bg/20 text-text-muted'
+  }
+}
+
 function MarketConditionHero({
   conditions,
   macro,
@@ -618,6 +631,22 @@ function MarketConditionHero({
         {summary}
       </p>
       <p className="mt-2 text-xs leading-5 text-current/80">{actionText}</p>
+
+      {conditions?.driving?.headline ? (
+        <div
+          className={cn(
+            'mt-3 rounded-xl border-l-2 px-3 py-2',
+            drivingToneClass(conditions.driving.tone),
+          )}
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] opacity-70">
+            What&apos;s driving
+          </p>
+          <p className="mt-0.5 text-xs font-medium leading-5">
+            {conditions.driving.headline}
+          </p>
+        </div>
+      ) : null}
 
       {degraded ? (
         <p className="mt-3 rounded-xl border border-warning/30 bg-warning/8 px-3 py-2 text-[11px] leading-4 text-warning">

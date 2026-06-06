@@ -117,6 +117,11 @@ const conditions = {
     'Selective — tape pressure is elevated, but macro stress is not severe.',
   actionText:
     'Stay invested, but be selective. Do not chase the selloff; scale only into highest-conviction buys while the tape stabilizes.',
+  driving: {
+    headline:
+      'Cautious — stocks broadly lower (Technology -4.1%, 6/11 sectors down).',
+    tone: 'caution',
+  },
   whatMatters: [
     'Credit and volatility are calm, so this is not a panic tape.',
     'Breadth is middling; the rally is not broad enough to call conditions fully strong.',
@@ -281,6 +286,12 @@ describe('DailyBriefPanel', () => {
     expect(
       screen.getByText(
         'Selective — tape pressure is elevated, but macro stress is not severe.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText("What's driving")).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Cautious — stocks broadly lower (Technology -4.1%, 6/11 sectors down).',
       ),
     ).toBeInTheDocument()
     expect(screen.getByText('Buying Conditions')).toBeInTheDocument()

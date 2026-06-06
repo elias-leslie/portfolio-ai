@@ -871,6 +871,56 @@ def _state_copy(*, overall_read: str, primary_driver: str) -> tuple[str, str]:
     ))
 
 
+def _driving_read(
+    *,
+    overall_read: str,
+    primary_driver: str,
+    tape_stress: TapeStressEvidence | None,
+    vix_close: float | None,
+    hy_change_bps: float | None,
+    breadth_pct: float | None,
+) -> dict[str, str]:
+    """One plain-language line on what is moving the market today.
+
+    Built only from signals already in the conditions payload (tape leadership,
+    volatility, credit, breadth) — no new data source. The summary states the
+    posture and the action text states the stance; this states the *why* so an
+    amateur sees what is actually driving the read. Generalizes across regimes.
+    """
+    if overall_read == "unavailable":
+        return {
+            "headline": "Not enough fresh market data for a clean read right now.",
+            "tone": "neutral",
+        }
+
+    if overall_read == "normal":
+        bits = ["Broad and steady — most sectors holding up"]
+        if vix_close is not None and vix_close < 18:
+            bits.append(f"volatility low (VIX {_fmt_number(vix_close, 1)})")
+        elif breadth_pct is not None and breadth_pct >= 60:
+            bits.append(f"breadth healthy ({_fmt_number(breadth_pct, 0)}% above 200-day)")
+        return {"headline": ". ".join(bits) + ".", "tone": "constructive"}
+
+    cues: list[str] = []
+    tape_active = primary_driver in {"tape", "both"} or (
+        tape_stress is not None and tape_stress.negative_sector_count > 0
+    )
+    if tape_active and tape_stress is not None:
+        cues.append(f"stocks broadly lower ({_tape_detail(tape_stress)})")
+    elif primary_driver in {"macro", "data_limited"}:
+        cues.append("buying conditions softening beneath the surface")
+    if vix_close is not None and vix_close >= 20:
+        cues.append(f"volatility up (VIX {_fmt_number(vix_close, 1)})")
+    if hy_change_bps is not None and hy_change_bps >= 25:
+        cues.append("credit spreads widening")
+    if not cues:
+        cues.append("caution building beneath a quiet tape")
+
+    posture = "Risk-off" if overall_read == "defensive" else "Cautious"
+    tone = "risk_off" if overall_read == "defensive" else "caution"
+    return {"headline": f"{posture} — " + ", ".join(cues) + ".", "tone": tone}
+
+
 def _what_matters(
     *,
     overall_read: str,
@@ -1189,6 +1239,14 @@ def build_conditions_payload(
         "coverage": coverage,
         "summary": summary,
         "action_text": action_text,
+        "driving": _driving_read(
+            overall_read=overall_read,
+            primary_driver=primary_driver,
+            tape_stress=tape_stress,
+            vix_close=vix_close,
+            hy_change_bps=hy_change_bps,
+            breadth_pct=breadth_pct,
+        ),
         "what_matters": _what_matters(
             overall_read=overall_read,
             primary_driver=primary_driver,

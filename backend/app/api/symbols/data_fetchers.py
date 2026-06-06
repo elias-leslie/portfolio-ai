@@ -243,14 +243,41 @@ def _fetch_market_indicators(storage: PortfolioStorage) -> dict[str, Any]:
     return indicators
 
 
+def _fetch_canonical_vix(storage: PortfolioStorage) -> tuple[float | None, Any]:
+    """Latest VIX level from the canonical price cache.
+
+    The Today macro read sources VIX from price_cache (the canonical current
+    quote). Reading it the same way here keeps the symbol page and Today from
+    ever showing two different VIX values for the same day.
+    """
+    try:
+        quote = (
+            PriceDataFetcher(storage)
+            .fetch_cached_price_data(["^VIX"], max_age_minutes=None)
+            .get("^VIX")
+        )
+    except Exception as e:  # pragma: no cover - defensive
+        logger.warning("canonical_vix_fetch_failed", error=str(e))
+        return None, None
+    if quote is None or quote.price is None or quote.price <= 0:
+        return None, None
+    stamp = quote.quote_time or quote.cached_at
+    return float(quote.price), (stamp.date() if stamp else None)
+
+
 def get_market_data(storage: PortfolioStorage) -> dict[str, Any]:
     """Fetch current market context."""
     fear_greed = _fetch_fear_greed(storage)
     indicators = _fetch_market_indicators(storage)
+    vix_value, vix_as_of = _fetch_canonical_vix(storage)
+    if vix_value is None:
+        # Canonical cache miss — fall back to the daily bar so VIX still renders.
+        vix_value = indicators.get("^VIX", {}).get("price")
+        vix_as_of = indicators.get("^VIX", {}).get("date")
     return {
         "fear_greed": fear_greed,
-        "vix": indicators.get("^VIX", {}).get("price"),
-        "vix_as_of_date": indicators.get("^VIX", {}).get("date"),
+        "vix": vix_value,
+        "vix_as_of_date": vix_as_of,
         "sp500_change": indicators.get("^GSPC", {}).get("daily_change"),
         "sp500_as_of_date": indicators.get("^GSPC", {}).get("date"),
         "fear_greed_as_of_date": (fear_greed or {}).get("as_of_date"),

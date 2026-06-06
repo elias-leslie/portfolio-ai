@@ -342,3 +342,76 @@ def test_conditions_payload_handles_missing_values_without_alerting() -> None:
     assert payload["primary_driver"] == "data_limited"
     assert payload["alert"]["active"] is False
     assert payload["evidence"][0]["value"] == "-"
+
+
+def test_driving_read_states_the_why_across_regimes() -> None:
+    tape = conditions.TapeStressEvidence(
+        stress_score=74,
+        as_of="2026-06-05T20:00:00+00:00",
+        sp500_change_pct=-2.6,
+        weakest_sector_symbol="XLK",
+        weakest_sector_name="Technology",
+        weakest_sector_change_pct=-7.4,
+        negative_sector_count=6,
+        sector_count=11,
+    )
+
+    risk_off = conditions._driving_read(
+        overall_read="defensive",
+        primary_driver="tape",
+        tape_stress=tape,
+        vix_close=21.5,
+        hy_change_bps=-39.0,
+        breadth_pct=58.0,
+    )
+    assert risk_off["tone"] == "risk_off"
+    assert risk_off["headline"].startswith("Risk-off —")
+    assert "Technology -7.4%" in risk_off["headline"]
+    assert "6/11 sectors down" in risk_off["headline"]
+    assert "VIX 21.5" in risk_off["headline"]
+
+    # Selective tape with calm volatility: no volatility cue, softer posture.
+    cautious = conditions._driving_read(
+        overall_read="selective",
+        primary_driver="tape",
+        tape_stress=tape,
+        vix_close=17.0,
+        hy_change_bps=None,
+        breadth_pct=58.0,
+    )
+    assert cautious["tone"] == "caution"
+    assert cautious["headline"].startswith("Cautious —")
+    assert "VIX" not in cautious["headline"]
+
+    # Widening credit surfaces as its own cue even without elevated volatility.
+    credit = conditions._driving_read(
+        overall_read="defensive",
+        primary_driver="macro",
+        tape_stress=None,
+        vix_close=18.0,
+        hy_change_bps=60.0,
+        breadth_pct=40.0,
+    )
+    assert "credit spreads widening" in credit["headline"]
+
+    steady = conditions._driving_read(
+        overall_read="normal",
+        primary_driver="none",
+        tape_stress=None,
+        vix_close=13.0,
+        hy_change_bps=None,
+        breadth_pct=64.0,
+    )
+    assert steady["tone"] == "constructive"
+    assert steady["headline"].startswith("Broad and steady")
+    assert "VIX 13.0" in steady["headline"]
+
+    blank = conditions._driving_read(
+        overall_read="unavailable",
+        primary_driver="data_limited",
+        tape_stress=None,
+        vix_close=None,
+        hy_change_bps=None,
+        breadth_pct=None,
+    )
+    assert blank["tone"] == "neutral"

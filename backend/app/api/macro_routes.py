@@ -107,6 +107,11 @@ class MacroConditionCreditSignalResponse(BaseModel):
     change_bps: float | None = None
 
 
+class MacroConditionDrivingResponse(BaseModel):
+    headline: str
+    tone: str = "neutral"
+
+
 class MacroConditionsResponse(BaseModel):
     snapshot_date: str | None = None
     computed_at: str | None = None
@@ -123,6 +128,7 @@ class MacroConditionsResponse(BaseModel):
     coverage: float | None = None
     summary: str
     action_text: str
+    driving: MacroConditionDrivingResponse | None = None
     what_matters: list[str] = Field(default_factory=list)
     what_to_do: list[str] = Field(default_factory=list)
     watch_items: list[str] = Field(default_factory=list)
