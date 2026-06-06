@@ -32,7 +32,7 @@
     "es-toolkit": "^1.43.0",
     "lucide-react": "^0.562.0",
     "motion": "^12.0.0",
-    "next": "^16.1.7",
+    "next": "^16.2.6",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-plaid-link": "^4.1.1",
