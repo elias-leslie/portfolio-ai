@@ -111,6 +111,17 @@ function formatTimestamp(value?: string | null): string {
   return `Updated ${formatted} ET`
 }
 
+function formatHeldAsOf(value?: string | null): string | null {
+  if (!value) return null
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    month: 'short',
+    day: 'numeric',
+  }).format(parsed)
+}
+
 function formatMoney(value: number | null | undefined, loading: boolean) {
   if (loading) return 'Loading...'
   return formatCurrencyWhole(value, { nullDisplay: '-' })
@@ -570,7 +581,11 @@ function MarketConditionHero({
   const deploymentScore = conditions?.deploymentScore ?? macro?.deploymentScore
   const tapePressureScore = conditions?.tapePressureScore
   const tapeStatus = conditions?.tapeStatus
-  const tapeUnavailable = conditions?.tapeAvailable === false
+  const tapeHeld = conditions?.tapeState === 'held'
+  const tapeHeldAsOf = formatHeldAsOf(conditions?.tapeAsOf)
+  // Held tape still contributes its (non-null) score, so only paint "macro-only"
+  // when the tape is truly unavailable — never for a held reading.
+  const tapeUnavailable = conditions?.tapeAvailable === false && !tapeHeld
   const primaryDriver = conditions?.primaryDriver ?? 'data_limited'
   const coverage = conditions?.coverage ?? macro?.coverage
   const summary = error
@@ -681,7 +696,13 @@ function MarketConditionHero({
           <p className="mt-1 text-sm font-semibold tracking-normal text-current">
             {formatScore(tapePressureScore)}
           </p>
-          {tapeUnavailable ? (
+          {tapeHeld ? (
+            <p className="mt-0.5 text-[9px] font-medium normal-case tracking-normal text-current/70">
+              {tapeHeldAsOf
+                ? `Held · as of ${tapeHeldAsOf}`
+                : 'Held · last live tape'}
+            </p>
+          ) : tapeUnavailable ? (
             <p className="mt-0.5 text-[9px] font-medium normal-case tracking-normal text-current/70">
               {conditions?.marketSession === 'closed'
                 ? 'Market closed · macro-only'

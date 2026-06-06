@@ -127,6 +127,8 @@ class MacroConditionsResponse(BaseModel):
     macro_zone: str | None = None
     coverage: float | None = None
     tape_available: bool = False
+    tape_state: str | None = None
+    tape_as_of: str | None = None
     market_session: str | None = None
     tape_status: str | None = None
     summary: str
@@ -155,6 +157,7 @@ class ConditionsHistoryPoint(BaseModel):
     primary_driver: str | None = None
     state: str | None = None
     tape_available: bool = False
+    tape_state: str | None = None
     market_session: str | None = None
 
 

@@ -55,15 +55,37 @@ function formatStamp(value: string): string {
 interface CautionDotProps {
   cx?: number
   cy?: number
-  payload?: { tapeAvailable?: boolean }
+  payload?: { tapeAvailable?: boolean; tapeState?: string | null }
 }
 
-// Live points (tape included) are filled; macro-only points (tape unavailable /
-// market closed) are hollow, so a weekend/after-hours dip can't be mistaken for
-// a real intraday move.
+// Live points (tape included) are filled; held points (off-hours, carrying the
+// last live tape) are half-filled; macro-only points (tape unavailable / market
+// closed with nothing to hold) are hollow — so a weekend/after-hours dip can't
+// be mistaken for a real intraday move, but a held tape still reads as "real".
 function CautionDot({ cx, cy, payload }: CautionDotProps) {
   if (cx == null || cy == null) return null
-  const live = Boolean(payload?.tapeAvailable)
+  const state =
+    payload?.tapeState ?? (payload?.tapeAvailable ? 'live' : 'unavailable')
+  if (state === 'held') {
+    const r = 2.6
+    return (
+      <g>
+        <circle
+          cx={cx}
+          cy={cy}
+          r={r}
+          fill="var(--color-surface)"
+          stroke="var(--color-warning)"
+          strokeWidth={1.2}
+        />
+        <path
+          d={`M ${cx} ${cy - r} A ${r} ${r} 0 0 1 ${cx} ${cy + r} Z`}
+          fill="var(--color-warning)"
+        />
+      </g>
+    )
+  }
+  const live = state === 'live'
   return (
     <circle
       cx={cx}
@@ -91,6 +113,7 @@ export function OverallCautionTrendLine() {
           macroStress: p.macroStress,
           tapePressure: p.tapePressure,
           tapeAvailable: p.tapeAvailable,
+          tapeState: p.tapeState,
         })),
     [data],
   )
@@ -243,6 +266,16 @@ export function OverallCautionTrendLine() {
         <span className="flex items-center gap-1">
           <span className="h-2 w-2 rounded-full bg-warning" />
           Live (incl. tape)
+        </span>
+        <span className="flex items-center gap-1">
+          <span
+            className="h-2 w-2 rounded-full border border-warning"
+            style={{
+              background:
+                'linear-gradient(90deg, var(--color-warning) 50%, var(--color-surface) 50%)',
+            }}
+          />
+          Held (last live tape)
         </span>
         <span className="flex items-center gap-1">
           <span className="h-2 w-2 rounded-full border border-warning bg-surface" />

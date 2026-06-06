@@ -13,8 +13,15 @@ from typing import Any
 
 from ..constants import INDEX_SP500, SECTOR_ETFS
 from ..storage.facade import get_storage
-from ..utils.market_hours import NY_TZ, get_market_status, is_stale
-from . import repository
+from ..utils.market_hours import (
+    MARKET_OPEN,
+    NY_TZ,
+    get_market_status,
+    get_next_trading_day,
+    is_stale,
+    is_trading_day,
+)
+from . import conditions_history, repository
 
 SEVERE_STRESS_THRESHOLD = 65
 MODERATE_CAUTION_THRESHOLD = 50
@@ -187,18 +194,85 @@ def _combined_stress_score(
     return max(macro_stress, tape_stress.stress_score)
 
 
-def _tape_status(market_session: str | None, tape_available: bool) -> str | None:
+def _tape_status(
+    market_session: str | None,
+    tape_state: str,
+    tape_as_of: str | None = None,
+) -> str | None:
     """Human-readable reason the tape term is or isn't contributing.
 
-    ``None`` when tape is a live in-session reading. Off-hours it is a macro-only
-    read (carried-forward closes are not presented as live), and during the
-    session it can still be unavailable if fresh quote coverage is too thin.
+    ``None`` when tape is a live in-session reading. Off-hours the last live tape
+    is *held* (not dropped) so the headline can't silently de-escalate below the
+    last real reading — labelled "as of" so it is never mistaken for live. Only
+    when there is no live tape to hold do we fall back to a macro-only read.
+    During the session it can still be unavailable if quote coverage is too thin.
     """
-    if tape_available:
+    if tape_state == "live":
         return None
+    if tape_state == "held":
+        return (
+            f"Markets closed — holding last live tape{_as_of_suffix(tape_as_of)}; "
+            "refreshes at next open."
+        )
     if market_session == "open":
         return "Tape unavailable — fresh S&P/sector quote coverage too thin."
     return "Markets closed — macro-only read; tape resumes at next open."
+
+
+def _as_of_suffix(tape_as_of: str | None) -> str:
+    if not tape_as_of:
+        return ""
+    parsed = _aware_datetime(tape_as_of) or _parse_date(tape_as_of)
+    if parsed is None:
+        return ""
+    moment = parsed.astimezone(NY_TZ) if isinstance(parsed, datetime) else parsed
+    return f" (as of {moment.strftime('%b %-d')})"
+
+
+def _next_regular_open_after(moment: datetime) -> datetime:
+    """The next regular-session open (9:30 ET) strictly after ``moment``.
+
+    The hold horizon: a held tape stays valid only until this instant, so
+    Friday's tape carries through the weekend but never past Monday's open
+    (holidays handled by the trading calendar). Live tape takes over at the open.
+    """
+    moment = moment.astimezone(NY_TZ)
+    today = moment.date()
+    if is_trading_day(today):
+        today_open = datetime.combine(today, MARKET_OPEN, tzinfo=NY_TZ)
+        if moment < today_open:
+            return today_open
+    next_day = get_next_trading_day(today)
+    return datetime.combine(next_day, MARKET_OPEN, tzinfo=NY_TZ)
+
+
+def _held_tape_evidence(now: datetime | None = None) -> TapeStressEvidence | None:
+    """Off-hours: the last live tape, held until the next regular open.
+
+    Reads the most recent in-session tape from ``macro_conditions_history`` and
+    keeps it only within the hold horizon. The rich intraday breakdown isn't
+    persisted, so a held reading carries the score + an "as of" stamp, not the
+    "S&P -x%, sector -y%" detail (which would be stale anyway).
+    """
+    market_now = (now or datetime.now(NY_TZ)).astimezone(NY_TZ)
+    last = conditions_history.get_last_live_tape()
+    if last is None:
+        return None
+    recorded_at = last.get("recorded_at")
+    if not isinstance(recorded_at, datetime):
+        return None
+    if market_now >= _next_regular_open_after(recorded_at):
+        return None  # past the next open — don't carry a stale tape across a session
+    return TapeStressEvidence(
+        stress_score=int(last["tape_pressure"]),
+        as_of=recorded_at.astimezone(NY_TZ).isoformat(),
+        sp500_change_pct=None,
+        weakest_sector_symbol=None,
+        weakest_sector_name=None,
+        weakest_sector_change_pct=None,
+        negative_sector_count=0,
+        sector_count=0,
+    )
 
 
 def _severe_flags(
@@ -1183,6 +1257,7 @@ def build_conditions_payload(
     hy_change: HyOasChange | None = None,
     tape_stress: TapeStressEvidence | None = None,
     market_session: str | None = None,
+    tape_state: str | None = None,
     macro_history: list[dict[str, Any]] | None = None,
     yield_curve_history: list[YieldCurveHistoryPoint] | None = None,
 ) -> dict[str, Any]:
@@ -1194,9 +1269,20 @@ def build_conditions_payload(
     crowding_score = _maybe_float(snapshot.get("crowding_score"))
     macro_stress = _stress_score(deployment_score)
     tape_pressure_score = tape_stress.stress_score if tape_stress else None
+    if tape_state is None:
+        if tape_stress is None:
+            tape_state = "unavailable"
+        elif market_session is None or market_session == "open":
+            tape_state = "live"
+        else:
+            tape_state = "held"
+    tape_as_of = tape_stress.as_of if tape_stress else None
     overall_caution_score = _combined_stress_score(macro_stress, tape_stress)
-    tape_available = tape_stress is not None
-    tape_status = _tape_status(market_session, tape_available)
+    # ``tape_available`` stays true only for a LIVE reading; a held tape still
+    # contributes its score but is flagged separately so the UI never paints it
+    # as live.
+    tape_available = tape_state == "live"
+    tape_status = _tape_status(market_session, tape_state, tape_as_of)
     hy_change_bps = hy_change.change_bps if hy_change else None
     flags = _severe_flags(
         deployment_score=deployment_score,
@@ -1249,6 +1335,8 @@ def build_conditions_payload(
         "tape_pressure_score": tape_pressure_score,
         "overall_caution_score": overall_caution_score,
         "tape_available": tape_available,
+        "tape_state": tape_state,
+        "tape_as_of": tape_as_of,
         "market_session": market_session,
         "tape_status": tape_status,
         "overall_read": overall_read,
@@ -1404,18 +1492,25 @@ def get_hy_oas_change() -> HyOasChange | None:
 
 
 def get_conditions_payload(snapshot: dict[str, Any]) -> dict[str, Any]:
-    # Tape pressure is a "right now" intraday read of S&P + sector quotes. Off the
-    # regular session there is no live tape, so a carried-forward close must not be
-    # presented as if it were live — mark it unavailable and let the read fall back
-    # to a macro-only number (honestly labelled) instead of silently easing.
+    # Tape pressure is a "right now" intraday read of S&P + sector quotes. During
+    # the session it is live. Off-hours we HOLD the last live tape (until the next
+    # regular open) rather than dropping it — a closed market must not silently
+    # de-escalate the headline below the last real reading. Only when there is no
+    # live tape to hold do we fall back to a macro-only number (honestly labelled).
     market_session = get_market_status()
-    tape_stress = get_tape_stress() if market_session == "open" else None
+    if market_session == "open":
+        tape_stress = get_tape_stress()
+        tape_state = "live" if tape_stress else "unavailable"
+    else:
+        tape_stress = _held_tape_evidence()
+        tape_state = "held" if tape_stress else "unavailable"
     return build_conditions_payload(
         snapshot,
         yield_curve=get_latest_yield_curve(),
         hy_change=get_hy_oas_change(),
         tape_stress=tape_stress,
         market_session=market_session,
+        tape_state=tape_state,
         macro_history=repository.get_history(days=45),
         yield_curve_history=get_yield_curve_history(days=45),
     )

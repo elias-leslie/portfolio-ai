@@ -35,6 +35,14 @@ WATCHLIST_OHLCV_CRONS = ["15 2 * * *"]
 # yfinance/TwelveData/Polygon chain (intraday_ingestion) returns regular-hours
 # bars, so off-session ticks are cheap no-ops re-pulling the latest session.
 WATCHLIST_INTRADAY_CRONS = ["0 13-21 * * 1-5"]
+# Market-hours capture of the live "Today" tape so the off-hours held-tape read
+# has a real in-session value to hold. Request-driven logging (on every
+# /conditions GET) only fires when the PWA is open, so there is no reliable
+# closing tape to carry through nights/weekends without this. Every 10 min across
+# 13-21 UTC spans 9:30am-4pm ET under both EST and EDT; the task is gated on
+# is_market_open() and record() change-detects, so it naturally lands the last
+# in-session tape near the close without pinning an exact close-minute cron.
+MACRO_TAPE_CRONS = ["*/10 13-21 * * 1-5"]
 HISTORICAL_OHLCV_MAINTENANCE_CRONS = ["15 4 * * *"]
 TECHNICAL_INDICATOR_BACKFILL_CRONS = ["30 2 * * *"]
 FUNDAMENTAL_INGESTION_CRONS = ["10 6 * * 0"]

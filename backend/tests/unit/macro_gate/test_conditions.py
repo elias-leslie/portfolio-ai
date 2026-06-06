@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from app.macro_gate import conditions
@@ -387,10 +387,90 @@ def test_conditions_payload_off_hours_is_macro_only_with_tape_unavailable() -> N
 
 
 def test_tape_status_distinguishes_closed_from_thin_coverage() -> None:
-    assert conditions._tape_status("open", tape_available=True) is None
-    assert "coverage too thin" in conditions._tape_status("open", tape_available=False)
+    assert conditions._tape_status("open", "live") is None
+    assert "coverage too thin" in conditions._tape_status("open", "unavailable")
     for session in ("closed", "pre_market", "after_hours"):
-        assert "Markets closed" in conditions._tape_status(session, tape_available=False)
+        assert "Markets closed" in conditions._tape_status(session, "unavailable")
+
+
+def test_conditions_payload_holds_last_live_tape_off_hours() -> None:
+    # Off-hours the last LIVE tape is held (not dropped): the headline is
+    # max(macro_now, held_tape) so a closed market can't silently ease the read
+    # below the last real tape. It is flagged held/"as of", never live.
+    held = conditions.TapeStressEvidence(
+        stress_score=70,
+        as_of="2026-06-05T19:58:00+00:00",
+        sp500_change_pct=None,
+        weakest_sector_symbol=None,
+        weakest_sector_name=None,
+        weakest_sector_change_pct=None,
+        negative_sector_count=0,
+        sector_count=0,
+    )
+    payload = conditions.build_conditions_payload(
+        _snapshot(deployment_score=57.0),
+        tape_stress=held,
+        market_session="closed",
+        tape_state="held",
+    )
+
+    assert payload["tape_state"] == "held"
+    assert payload["tape_available"] is False
+    assert payload["tape_pressure_score"] == 70
+    assert payload["overall_caution_score"] == max(payload["macro_stress_score"], 70)
+    assert payload["overall_caution_score"] == 70  # held tape dominates macro here
+    assert payload["tape_as_of"] == "2026-06-05T19:58:00+00:00"
+    assert "holding last live tape" in payload["tape_status"]
+
+
+def test_next_regular_open_after_holds_over_weekend_until_monday() -> None:
+    # A Friday-afternoon tape's hold horizon is the NEXT regular open (Monday),
+    # never the same Friday's open it was already past.
+    fri_afternoon = datetime(2026, 6, 5, 15, 58, tzinfo=conditions.NY_TZ)
+    nxt = conditions._next_regular_open_after(fri_afternoon)
+    assert nxt.date() == date(2026, 6, 8)  # Monday
+    assert (nxt.hour, nxt.minute) == (9, 30)
+
+
+def test_held_tape_evidence_holds_then_expires_at_next_open(monkeypatch) -> None:
+    recorded = datetime(2026, 6, 5, 15, 58, tzinfo=conditions.NY_TZ)
+    monkeypatch.setattr(
+        conditions.conditions_history,
+        "get_last_live_tape",
+        lambda: {
+            "recorded_at": recorded,
+            "snapshot_date": "2026-06-05",
+            "tape_pressure": 61,
+        },
+    )
+
+    # Saturday: within the hold horizon -> the Friday tape is held.
+    held = conditions._held_tape_evidence(
+        now=datetime(2026, 6, 6, 12, 0, tzinfo=conditions.NY_TZ),
+    )
+    assert held is not None
+    assert held.stress_score == 61
+    assert held.as_of == recorded.isoformat()
+
+    # Monday after the open: horizon passed -> the stale tape is dropped.
+    expired = conditions._held_tape_evidence(
+        now=datetime(2026, 6, 8, 10, 0, tzinfo=conditions.NY_TZ),
+    )
+    assert expired is None
+
+
+def test_held_tape_evidence_none_when_no_live_tape_ever(monkeypatch) -> None:
+    monkeypatch.setattr(
+        conditions.conditions_history,
+        "get_last_live_tape",
+        lambda: None,
+    )
+    assert (
+        conditions._held_tape_evidence(
+            now=datetime(2026, 6, 6, 12, 0, tzinfo=conditions.NY_TZ),
+        )
+        is None
+    )
 
 
 def test_driving_read_states_the_why_across_regimes() -> None:

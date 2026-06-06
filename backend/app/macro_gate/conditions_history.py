@@ -127,6 +127,36 @@ def record(payload: dict[str, Any]) -> None:
         logger.warning("macro_conditions_history_log_failed", error=str(exc))
 
 
+def get_last_live_tape() -> dict[str, Any] | None:
+    """Return the most recent in-session (live) tape reading, if any.
+
+    Used off-hours to *hold* the last live tape instead of dropping it: a closed
+    market must not silently de-escalate the headline below the last real reading
+    (mirrors the macro-side ``_clamp_degraded_to_known_good`` anti-easing rule).
+    Returns the tape score plus when it was recorded so the caller can enforce a
+    hold horizon (never carry a tape past the next regular open) and label it
+    "as of".
+    """
+    storage = get_storage()
+    with storage.connection() as conn:
+        row = conn.execute(
+            """
+            SELECT recorded_at, snapshot_date, tape_pressure
+            FROM macro_conditions_history
+            WHERE tape_available = TRUE AND tape_pressure IS NOT NULL
+            ORDER BY recorded_at DESC
+            LIMIT 1
+            """,
+        ).fetchone()
+    if row is None or row[2] is None:
+        return None
+    return {
+        "recorded_at": row[0],
+        "snapshot_date": _iso(row[1]),
+        "tape_pressure": int(row[2]),
+    }
+
+
 def get_history(days: int = 90) -> list[dict[str, Any]]:
     storage = get_storage()
     with storage.connection() as conn:
@@ -152,6 +182,11 @@ def get_history(days: int = 90) -> list[dict[str, Any]]:
             "primary_driver": row[7],
             "state": row[8],
             "tape_available": bool(row[9]),
+            "tape_state": (
+                "live"
+                if bool(row[9])
+                else ("held" if row[4] is not None else "unavailable")
+            ),
             "market_session": row[10],
         }
         for row in rows

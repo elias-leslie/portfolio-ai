@@ -86,6 +86,8 @@ export interface MacroConditionsResponse {
   macroZone: string | null
   coverage: number | null
   tapeAvailable: boolean
+  tapeState: 'live' | 'held' | 'unavailable' | string | null
+  tapeAsOf: string | null
   marketSession: string | null
   tapeStatus: string | null
   summary: string
@@ -151,6 +153,7 @@ export interface MacroConditionsHistoryPoint {
   primaryDriver: string | null
   state: string | null
   tapeAvailable: boolean
+  tapeState: 'live' | 'held' | 'unavailable' | string | null
   marketSession: string | null
 }
 

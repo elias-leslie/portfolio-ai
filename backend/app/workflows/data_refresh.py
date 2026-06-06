@@ -19,6 +19,7 @@ from .data_refresh_schedules import (
     FUNDAMENTAL_INGESTION_CRONS,
     HISTORICAL_OHLCV_MAINTENANCE_CRONS,
     MACRO_INDICATOR_INGESTION_CRONS,
+    MACRO_TAPE_CRONS,
     OPTIONS_ACTIVITY_CRONS,
     PUTCALL_RATIO_CRONS,
     TECHNICAL_INDICATOR_BACKFILL_CRONS,
@@ -88,6 +89,53 @@ async def refresh_watchlist_intraday_wf(input: EmptyInput, ctx: Context) -> dict
     from ..tasks.ingestion.intraday_ingestion import refresh_watchlist_intraday
 
     return await asyncio.to_thread(refresh_watchlist_intraday)
+
+
+def _capture_macro_tape() -> dict[str, Any]:
+    from ..constants import INDEX_SP500, SECTOR_ETFS
+    from ..macro_gate import conditions as macro_conditions
+    from ..macro_gate import conditions_history, repository
+    from ..portfolio.price_fetcher import PriceDataFetcher
+    from ..storage.facade import get_storage
+    from ..utils.market_hours import is_market_open
+
+    if not is_market_open():
+        return {"status": "skipped", "reason": "market_closed"}
+
+    # Warm the exact quotes the live tape reads (S&P 500 + GICS sector ETFs) so the
+    # capture sees a real in-session tape even when the PWA is closed — the whole
+    # reason this cron exists. The macro snapshot itself barely moves intraday, so
+    # we reuse the latest persisted one rather than re-running the full gate.
+    tape_symbols = [INDEX_SP500, *SECTOR_ETFS.keys()]
+    PriceDataFetcher(get_storage()).fetch_price_data(tape_symbols, force_refresh=True)
+
+    snapshot = repository.get_latest()
+    if snapshot is None:
+        return {"status": "skipped", "reason": "no_snapshot"}
+    payload = macro_conditions.get_conditions_payload(snapshot)
+    conditions_history.record(payload)
+    return {
+        "status": "recorded",
+        "tape_available": bool(payload.get("tape_available")),
+        "tape_pressure_score": payload.get("tape_pressure_score"),
+        "overall_caution_score": payload.get("overall_caution_score"),
+    }
+
+
+@hatchet.task(
+    name="portfolio-capture-macro-tape",
+    input_validator=EmptyInput,
+    execution_timeout="600s",
+    retries=1,
+    on_crons=MACRO_TAPE_CRONS,
+    concurrency=ConcurrencyExpression(
+        expression="'portfolio-capture-macro-tape'",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+    ),
+)
+async def capture_macro_tape_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    return await asyncio.to_thread(_capture_macro_tape)
 
 
 @hatchet.task(
