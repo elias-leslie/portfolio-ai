@@ -89,12 +89,6 @@ dev = [
 
     # Pre-commit
 ]
-ml = [
-    "transformers==4.57.3",
-    "torch==2.9.1",
-    "huggingface-hub==0.34.0",
-]
-
 [tool.uv]
 # Keep Pygments on a fixed security floor; 2.20.0 is a published PyPI release and addresses known pre-2.20 vulnerabilities.
 constraint-dependencies = [

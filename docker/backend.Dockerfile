@@ -2,7 +2,6 @@
 # Image: ghcr.io/elias-leslie/portfolio-api
 # Port: 8000
 # Worker: same image with CMD ["python", "-m", "app.worker"]
-# Note: ML extras (torch, transformers) available via --build-arg INSTALL_ML=true
 
 # ── Stage 1: Builder ─────────────────────────────────────────────
 FROM python:3.13-slim-bookworm@sha256:bb73517d48bd32016e15eade0c009b2724ec3a025a9975b5cd9b251d0dcadb33 AS builder
@@ -19,21 +18,12 @@ WORKDIR /app
 COPY backend/pyproject.toml backend/uv.lock ./
 COPY docker/workspace-packages/*.whl /docker/workspace-packages/
 
-# Optional ML extras (torch, transformers) — adds ~1GB
-ARG INSTALL_ML=false
-
 # Install deps and clean caches in same layer
 RUN uv export --frozen --no-dev --no-editable --format requirements-txt \
       --no-header > requirements.txt && \
     sed -i '/^\.$/d' requirements.txt && \
     uv venv .venv && \
     uv pip install --python .venv/bin/python -r requirements.txt && \
-    if [ "$INSTALL_ML" = "true" ]; then \
-      uv export --frozen --no-dev --no-editable --format requirements-txt \
-        --no-header --extra ml > ml-requirements.txt && \
-      uv pip install --python .venv/bin/python -r ml-requirements.txt && \
-      rm -f ml-requirements.txt; \
-    fi && \
     rm -rf /root/.cache/uv /root/.cache/pip requirements.txt
 
 # Copy application source
