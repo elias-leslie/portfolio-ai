@@ -83,7 +83,7 @@ def _canonical_merchant_name(raw_merchant: str) -> str:
     if "walmart" in collapsed or "wmsupercenter" in collapsed:
         store_match = re.search(r"#\s?(\d{4})", raw_merchant)
         location_match = re.search(
-            r"(LARGO|CLEARWATER|BELLEAIR BLUF|BELLEAIR BLF)\s+FL",
+            r"(ANYTOWN|SPRINGFIELD|RIVERTON|RIVERTON)\s+FL",
             raw_merchant,
             flags=re.IGNORECASE,
         )
@@ -266,7 +266,7 @@ def _classify_merchant(
             ],
             ("Home", "discretionary"),
         ),
-        (["planet fitness", "gym", "ymca", "fitness", "largo rec", "rec center"], ("Fitness", "discretionary")),
+        (["planet fitness", "gym", "ymca", "fitness", "anytown rec", "rec center"], ("Fitness", "discretionary")),
         (
             [
                 "audible",

@@ -87,12 +87,9 @@ graphify-out/
 references/
 app/references/
 
-# Checkpoint data
+# Checkpoint and local workspace metadata
 .st/
-.summitflow/
-
-# Claude settings
-.claude/settings.local.json
+.claude/
 
 # Prevent root-level duplicates
 /tests/

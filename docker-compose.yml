@@ -133,6 +133,8 @@ services:
       FMP_API_KEY: ${FMP_API_KEY:-}
       FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
       ALPHAVANTAGE_API_KEY: ${ALPHAVANTAGE_API_KEY:-}
+      FRED_API_KEY: ${FRED_API_KEY:-}
+      SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
     ports:
       - "${PORTFOLIO_BACKEND_HOST_PORT:-8000}:8000"
     volumes:
@@ -173,6 +175,8 @@ services:
       FMP_API_KEY: ${FMP_API_KEY:-}
       FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
       ALPHAVANTAGE_API_KEY: ${ALPHAVANTAGE_API_KEY:-}
+      FRED_API_KEY: ${FRED_API_KEY:-}
+      SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
     volumes:
       - portfolio-artifacts:/app/data/artifacts
     init: true

@@ -183,7 +183,7 @@ describe('AccountsWithPositions', () => {
             accountType: 'brokerage',
             sourceType: 'brokerage',
             institutionName: 'Fidelity',
-            ownerName: 'Elias',
+            ownerName: 'Alex Demo',
             accountMask: '5444',
             notes: null,
             currency: 'USD',

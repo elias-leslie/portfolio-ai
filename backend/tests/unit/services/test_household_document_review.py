@@ -262,7 +262,7 @@ def test_baseline_review_keeps_chase_statement_when_walmart_merchant_appears() -
             "www.chase.com/amazon\n"
             "Date of\n"
             "Transaction Merchant  Name or Transaction Description $ Amount\n"
-            "02/22     WAL-MART #1712 LARGO FL -83.31\n"
+            "02/22     WAL-MART #1712 ANYTOWN ST -83.31\n"
         ),
     )
     structured_data = cast(dict[str, Any], payload["structured_data"])
@@ -278,10 +278,10 @@ def test_baseline_review_detects_529_college_fund_snapshot() -> None:
         source_type="other",
         document_type="other",
         extracted_text=(
-            "College Fnd - Nadia\n"
+            "College Fnd - Demo Child Two\n"
             "$3,087.29\n"
             "529 COLL-ME-Edge22Z-87861\n"
-            "College Fnd - Sophia\n"
+            "College Fnd - Demo Child One\n"
             "$3,089.15\n"
         ),
     )
@@ -295,9 +295,9 @@ def test_baseline_review_detects_529_college_fund_snapshot() -> None:
     assert isinstance(accounts, list)
     assert len(accounts) == 2
     assert accounts[0]["account_type"] == "529"
-    assert accounts[0]["account_name"] == "529 - Nadia"
+    assert accounts[0]["account_name"] == "529 - Demo Child Two"
     assert accounts[0]["balance"] == "3087.29"
-    assert accounts[1]["account_name"] == "529 - Sophia"
+    assert accounts[1]["account_name"] == "529 - Demo Child One"
     assert accounts[1]["balance"] == "3089.15"
     assert structured_data["total_amount"] == "6176.44"
 
@@ -311,13 +311,13 @@ def test_baseline_review_splits_collegeamerica_multi_account_snapshot() -> None:
             "Your Portfolio\n"
             "$26,371.00\n"
             "Total Portfolio Value as of 04/10/2026\n"
-            "87595967\n"
-            "VCSP/COLLEGEAMERICA MARIANA LESLIE OWNER FBO SOPHIA O LESLIE\tAccount Value\n"
+            "00011111\n"
+            "VCSP/COLLEGEAMERICA JORDAN DEMO OWNER FBO DEMO CHILD ONE\tAccount Value\n"
             "$13,185.50\n"
             "Total Account Value\n"
             "$13,185.50\n"
-            "87595982\n"
-            "VCSP/COLLEGEAMERICA MARIANA LESLIE OWNER FBO NADIA R LESLIE\tAccount Value\n"
+            "00022222\n"
+            "VCSP/COLLEGEAMERICA JORDAN DEMO OWNER FBO DEMO CHILD TWO\tAccount Value\n"
             "$13,185.50\n"
             "Total Account Value\n"
             "$13,185.50\n"
@@ -330,16 +330,16 @@ def test_baseline_review_splits_collegeamerica_multi_account_snapshot() -> None:
     accounts = structured_data["financial_accounts"]
     assert isinstance(accounts, list)
     assert len(accounts) == 2
-    assert accounts[0]["account_mask"] == "87595967"
-    assert accounts[0]["account_name"] == "529 - Sophia O Leslie"
-    assert accounts[1]["account_mask"] == "87595982"
-    assert accounts[1]["account_name"] == "529 - Nadia R Leslie"
+    assert accounts[0]["account_mask"] == "00011111"
+    assert accounts[0]["account_name"] == "529 - Demo Child One"
+    assert accounts[1]["account_mask"] == "00022222"
+    assert accounts[1]["account_name"] == "529 - Demo Child Two"
     assert structured_data["total_amount"] == "26371.00"
 
 
 def test_baseline_review_splits_collegeamerica_pdf_portfolio_snapshot() -> None:
     payload = _baseline_review(
-        filename="Sophia_and_Nadia_529s.pdf",
+        filename="Demo Child One_and_Demo Child Two_529s.pdf",
         source_type="other",
         document_type="other",
         extracted_text=(
@@ -347,11 +347,11 @@ def test_baseline_review_splits_collegeamerica_pdf_portfolio_snapshot() -> None:
             "$28,727.14\n"
             "Total Portfolio Value as of 05/27/2026\n"
             "Investment Accounts $28,727.14\n"
-            "87595967VCSP/COLLEGEAMERICA MARIANA LESLIE OWNER FBO SOPHIA O LESLIE Account Value\n"
+            "00011111VCSP/COLLEGEAMERICA JORDAN DEMO OWNER FBO DEMO CHILD ONE Account Value\n"
             "$14,363.57\n"
             "as of 05/27/2026\n"
             "Capital World Growth and Income Fund (CWIAX) $81.08 177.153 $14,363.57\n"
-            "87595982VCSP/COLLEGEAMERICA MARIANA LESLIE OWNER FBO NADIA R LESLIE Account Value\n"
+            "00022222VCSP/COLLEGEAMERICA JORDAN DEMO OWNER FBO DEMO CHILD TWO Account Value\n"
             "$14,363.57\n"
             "as of 05/27/2026\n"
             "Capital World Growth and Income Fund (CWIAX) $81.08 177.153 $14,363.57\n"
@@ -362,12 +362,12 @@ def test_baseline_review_splits_collegeamerica_pdf_portfolio_snapshot() -> None:
 
     assert isinstance(accounts, list)
     assert len(accounts) == 2
-    assert accounts[0]["account_mask"] == "87595967"
-    assert accounts[0]["account_name"] == "529 - Sophia O Leslie"
+    assert accounts[0]["account_mask"] == "00011111"
+    assert accounts[0]["account_name"] == "529 - Demo Child One"
     assert accounts[0]["balance"] == "14363.57"
     assert accounts[0]["as_of_date"] == "2026-05-27"
-    assert accounts[1]["account_mask"] == "87595982"
-    assert accounts[1]["account_name"] == "529 - Nadia R Leslie"
+    assert accounts[1]["account_mask"] == "00022222"
+    assert accounts[1]["account_name"] == "529 - Demo Child Two"
     assert accounts[1]["balance"] == "14363.57"
     assert accounts[1]["as_of_date"] == "2026-05-27"
     assert structured_data["account_hint"] == "529 college savings snapshot (2 accounts)"
@@ -396,7 +396,7 @@ def test_merge_llm_result_does_not_reintroduce_baseline_questions() -> None:
                 "financial_accounts": [
                     {
                         "account_name": "Individual - TOD",
-                        "account_mask": "Z35217544",
+                        "account_mask": "Z00000002",
                     }
                 ]
             },
@@ -462,9 +462,9 @@ def test_reconcile_reviewed_accounts_reuses_canonical_credit_identity() -> None:
                         "account_type": "credit_card",
                         "asset_group": "credit",
                         "institution_name": "Chase",
-                        "owner_name": "Elias B Leslie",
+                        "owner_name": "Alex Demo",
                         "account_mask": "5313",
-                        "match_key": "credit-lineage|chase|prime visa|elias b leslie|credit_card",
+                        "match_key": "credit-lineage|chase|prime visa|alex demo|credit_card",
                     }
                 ]
             },
@@ -478,11 +478,11 @@ def test_reconcile_reviewed_accounts_reuses_canonical_credit_identity() -> None:
                     "asset_group": "credit",
                     "account_type": "credit_card",
                     "institution_name": "Chase",
-                    "owner_name": "Elias B Leslie",
+                    "owner_name": "Alex Demo",
                     "account_mask": "9728",
-                    "primary_identity_key": "credit-lineage|chase|prime visa|elias b leslie|credit_card",
+                    "primary_identity_key": "credit-lineage|chase|prime visa|alex demo|credit_card",
                     "identity_examples": [
-                        "credit-lineage|chase|prime visa|elias b leslie|credit_card",
+                        "credit-lineage|chase|prime visa|alex demo|credit_card",
                         "institution-mask::chase|9728",
                     ],
                 }
@@ -494,7 +494,7 @@ def test_reconcile_reviewed_accounts_reuses_canonical_credit_identity() -> None:
     structured_data = cast(dict[str, Any], reviewed["structured_data"])
     account = cast(dict[str, Any], structured_data["financial_accounts"][0])
     assert account["household_account_id"] == "household-chase"
-    assert account["match_key"] == "credit-lineage|chase|prime visa|elias b leslie|credit_card"
+    assert account["match_key"] == "credit-lineage|chase|prime visa|alex demo|credit_card"
     assert account["account_mask"] == "9728"
     assert account["extracted_account_mask"] == "5313"
     assert reviewed["review_checks"]["canonical_match_count"] == 1
@@ -511,12 +511,12 @@ def test_reconcile_reviewed_accounts_keeps_extracted_mask_over_filename_hint() -
                 "financial_accounts": [
                     {
                         "institution_name": "CollegeAmerica / VCSP",
-                        "account_name": "529 - Sophia O Leslie",
-                        "account_mask": "87595967",
-                        "owner_name": "Mariana Leslie",
+                        "account_name": "529 - Demo Child One",
+                        "account_mask": "00011111",
+                        "owner_name": "Jordan Demo",
                         "account_type": "529",
                         "asset_group": "education",
-                        "match_key": "institution-mask::collegeamerica / vcsp|87595967",
+                        "match_key": "institution-mask::collegeamerica / vcsp|00011111",
                     }
                 ]
             },
@@ -524,29 +524,29 @@ def test_reconcile_reviewed_accounts_keeps_extracted_mask_over_filename_hint() -
         household_context={
             "related_accounts": [
                 {
-                    "household_account_id": "household-sophia-529",
-                    "canonical_label": "529 - Sophia O Leslie",
+                    "household_account_id": "household-child_one-529",
+                    "canonical_label": "529 - Demo Child One",
                     "source_type": "brokerage",
                     "asset_group": "education",
                     "account_type": "529",
                     "institution_name": "CollegeAmerica / VCSP",
-                    "owner_name": "Mariana Leslie",
-                    "account_mask": "87595967",
-                    "primary_identity_key": "institution-mask::collegeamerica / vcsp|87595967",
+                    "owner_name": "Jordan Demo",
+                    "account_mask": "00011111",
+                    "primary_identity_key": "institution-mask::collegeamerica / vcsp|00011111",
                     "identity_examples": [
-                        "institution-mask::collegeamerica / vcsp|87595967",
-                        "mask::87595967|education|529",
+                        "institution-mask::collegeamerica / vcsp|00011111",
+                        "mask::00011111|education|529",
                     ],
                 }
             ]
         },
-        filename="Sophia_and_Nadia_529s.pdf",
+        filename="Demo Child One_and_Demo Child Two_529s.pdf",
     )
 
     structured_data = cast(dict[str, Any], reviewed["structured_data"])
     account = cast(dict[str, Any], structured_data["financial_accounts"][0])
-    assert account["household_account_id"] == "household-sophia-529"
-    assert account["account_mask"] == "87595967"
+    assert account["household_account_id"] == "household-child_one-529"
+    assert account["account_mask"] == "00011111"
     assert "extracted_account_mask" not in account
 
 
@@ -564,8 +564,8 @@ def test_reconcile_reviewed_accounts_links_transaction_only_export_to_known_acco
                         "account_type": "credit_card",
                         "asset_group": "credit",
                         "institution_name": "Chase",
-                        "owner_name": "Elias B Leslie",
-                        "match_key": "credit-lineage|chase|prime visa|elias b leslie|credit_card",
+                        "owner_name": "Alex Demo",
+                        "match_key": "credit-lineage|chase|prime visa|alex demo|credit_card",
                     }
                 ]
             },
@@ -579,11 +579,11 @@ def test_reconcile_reviewed_accounts_links_transaction_only_export_to_known_acco
                     "asset_group": "credit",
                     "account_type": "credit_card",
                     "institution_name": "Chase",
-                    "owner_name": "Elias B Leslie",
+                    "owner_name": "Alex Demo",
                     "account_mask": "9728",
-                    "primary_identity_key": "credit-lineage|chase|prime visa|elias b leslie|credit_card",
+                    "primary_identity_key": "credit-lineage|chase|prime visa|alex demo|credit_card",
                     "identity_examples": [
-                        "credit-lineage|chase|prime visa|elias b leslie|credit_card",
+                        "credit-lineage|chase|prime visa|alex demo|credit_card",
                     ],
                 }
             ]
@@ -610,9 +610,9 @@ def test_reconcile_reviewed_accounts_preserves_explicit_match_key_over_stale_pri
                         "account_type": "credit_card",
                         "asset_group": "credit",
                         "institution_name": "Chase",
-                        "owner_name": "Elias B Leslie",
+                        "owner_name": "Alex Demo",
                         "account_mask": "9728",
-                        "match_key": "credit-lineage|chase|chase prime visa / amazon card|elias b leslie|credit_card",
+                        "match_key": "credit-lineage|chase|chase prime visa / amazon card|alex demo|credit_card",
                     }
                 ]
             },
@@ -626,11 +626,11 @@ def test_reconcile_reviewed_accounts_preserves_explicit_match_key_over_stale_pri
                     "asset_group": "credit",
                     "account_type": "credit_card",
                     "institution_name": "Chase",
-                    "owner_name": "Elias B Leslie",
+                    "owner_name": "Alex Demo",
                     "account_mask": "5313",
                     "primary_identity_key": "mask::5313|credit|credit_card",
                     "identity_examples": [
-                        "credit-lineage|chase|chase prime visa / amazon card|elias b leslie|credit_card",
+                        "credit-lineage|chase|chase prime visa / amazon card|alex demo|credit_card",
                         "mask::5313|credit|credit_card",
                     ],
                 }
@@ -642,7 +642,7 @@ def test_reconcile_reviewed_accounts_preserves_explicit_match_key_over_stale_pri
     structured_data = cast(dict[str, Any], reviewed["structured_data"])
     account = cast(dict[str, Any], structured_data["financial_accounts"][0])
     assert account["household_account_id"] == "household-chase"
-    assert account["match_key"] == "credit-lineage|chase|chase prime visa / amazon card|elias b leslie|credit_card"
+    assert account["match_key"] == "credit-lineage|chase|chase prime visa / amazon card|alex demo|credit_card"
     assert account["account_mask"] == "9728"
     assert account["account_mask"] == "9728"
 
@@ -706,7 +706,7 @@ def test_signature_review_skips_weak_money_signature_without_financial_accounts(
     ):
         reviewed = service._signature_review(
             filename="add-anything.bin",
-            extracted_text="College Fnd - Sophia\n$3,147.46",
+            extracted_text="College Fnd - Demo Child One\n$3,147.46",
         )
 
     assert reviewed is None
@@ -781,7 +781,7 @@ def test_baseline_review_detects_cash_management_account_text() -> None:
         document_type="other",
         extracted_text=(
             "Cash Management (Joint WROS)\n"
-            "Cash Account: Z38367298\n"
+            "Cash Account: Z00000001\n"
             "As of Apr-08-2026 8:29 AM ET\n"
             "Account total balance, $39,400.59\n"
             "Cash available to withdraw\n"
@@ -801,7 +801,7 @@ def test_baseline_review_detects_cash_management_account_text() -> None:
     assert isinstance(accounts, list)
     assert accounts[0]["balance"] == "39,400.59"
     assert accounts[0]["cash_balance"] == "33,400.59"
-    assert accounts[0]["account_mask"] == "Z38367298"
+    assert accounts[0]["account_mask"] == "Z00000001"
     assert accounts[0]["as_of_date"] == "2026-04-08"
     assert accounts[0]["activity_observed_through"] == "2026-04-08"
     assert "cash management account snapshot" in payload["summary"].lower()
@@ -809,23 +809,23 @@ def test_baseline_review_detects_cash_management_account_text() -> None:
 
 def test_baseline_review_detects_frs_investment_plan_statement() -> None:
     payload = _baseline_review(
-        filename="Elias_FRS_Account Statement.pdf",
+        filename="Demo_FRS_Account Statement.pdf",
         source_type="other",
         document_type="other",
         extracted_text=(
             "FRS Investment Plan-Your Account\n"
             "Information\n"
-            "ELIAS B. LESLIE\n"
-            "3636 AVOCADO DR\n"
-            "LARGO FL 33770-4553\n"
-            "Total Account Balance: $42,404.62\n"
+            "ALEX DEMO\n"
+            "100 DEMO ST\n"
+            "ANYTOWN ST 12345\n"
+            "Total Account Balance: $1,234.56\n"
             "Account summary\n"
             "Breakdown of all your account details from 01-01-\n"
             "2026 to 04-10-2026.\n"
-            "$42,332.11\n"
+            "$1,200.00\n"
             "-$12.00\n"
-            "$84.51\n"
-            "$42,404.62\n"
+            "$46.56\n"
+            "$1,234.56\n"
         ),
     )
     structured_data = cast(dict[str, Any], payload["structured_data"])
@@ -833,11 +833,11 @@ def test_baseline_review_detects_frs_investment_plan_statement() -> None:
 
     assert payload["document_type"] == "retirement_statement"
     assert payload["source_type"] == "retirement"
-    assert structured_data["total_amount"] == "42404.62"
+    assert structured_data["total_amount"] == "1234.56"
     assert structured_data["statement_period"] == "2026-01-01 to 2026-04-10"
-    assert financial_accounts[0]["owner_name"] == "Elias B. Leslie"
-    assert financial_accounts[0]["balance"] == "42404.62"
-    assert "42404.62" in payload["summary"]
+    assert financial_accounts[0]["owner_name"] == "Alex Demo"
+    assert financial_accounts[0]["balance"] == "1234.56"
+    assert "1234.56" in payload["summary"]
 
 
 def test_baseline_review_detects_frs_account_summary_paste() -> None:
@@ -933,7 +933,7 @@ def test_review_falls_back_to_frs_account_summary_when_agent_hub_fails(
 
 def test_baseline_review_detects_generic_statement_csv_account_snapshot() -> None:
     payload = _baseline_review(
-        filename="History_for_Account_Z38367298.csv",
+        filename="History_for_Account_Z00000001.csv",
         source_type="other",
         document_type="other",
         extracted_text=(
@@ -947,10 +947,10 @@ def test_baseline_review_detects_generic_statement_csv_account_snapshot() -> Non
     assert payload["document_type"] == "brokerage_statement"
     assert payload["source_type"] == "brokerage"
     assert payload["confidence"] == 0.9
-    assert structured_data["account_hint"] == "Account Z38367298"
+    assert structured_data["account_hint"] == "Account Z00000001"
     accounts = structured_data["financial_accounts"]
     assert isinstance(accounts, list)
-    assert accounts[0]["account_mask"] == "Z38367298"
+    assert accounts[0]["account_mask"] == "Z00000001"
     assert accounts[0]["balance"] == "39400.59"
     assert accounts[0]["as_of_date"] == "2026-04-08"
     assert accounts[0]["activity_observed_through"] == "2026-04-08"
@@ -963,8 +963,8 @@ def test_baseline_review_detects_fidelity_positions_csv_and_groups_accounts() ->
         document_type="other",
         extracted_text=(
             "Account Number,Account Name,Symbol,Description,Quantity,Last Price,Last Price Change,Current Value,Today's Gain/Loss Dollar,Today's Gain/Loss Percent,Total Gain/Loss Dollar,Total Gain/Loss Percent,Percent Of Account,Cost Basis Total,Average Cost Basis,Type\n"
-            "245944181,Traditional IRA,SPAXX**,HELD IN MONEY MARKET,,,,$1971.10,,,,,0.57%,,,Cash,\n"
-            "245944181,Traditional IRA,VTI,VANGUARD TOTAL STK MKT ETF,994.409,$335.05,-$0.40,$333176.73,-$397.77,-0.12%,+$78794.92,+30.97%,96.00%,$254381.81,$255.81,Cash,\n"
+            "000000001,Traditional IRA,SPAXX**,HELD IN MONEY MARKET,,,,$1971.10,,,,,0.57%,,,Cash,\n"
+            "000000001,Traditional IRA,VTI,VANGUARD TOTAL STK MKT ETF,994.409,$335.05,-$0.40,$333176.73,-$397.77,-0.12%,+$78794.92,+30.97%,96.00%,$254381.81,$255.81,Cash,\n"
             "250696445,ROTH IRA,SPAXX**,HELD IN MONEY MARKET,,,,$48014.15,,,,,100.00%,,,Cash,\n"
             "Date downloaded Apr-12-2026 6:21 p.m ET\n"
         ),
@@ -977,7 +977,7 @@ def test_baseline_review_detects_fidelity_positions_csv_and_groups_accounts() ->
     assert isinstance(accounts, list)
     assert len(accounts) == 2
     assert accounts[0]["account_name"] == "Traditional IRA"
-    assert accounts[0]["account_mask"] == "245944181"
+    assert accounts[0]["account_mask"] == "000000001"
     assert accounts[0]["balance"] == "335147.83"
     assert accounts[0]["cash_balance"] == "1971.10"
     assert accounts[0]["holdings_value"] == "333176.73"
@@ -998,10 +998,10 @@ def test_baseline_review_parses_fidelity_position_quantities_costs_and_pending_c
         document_type="other",
         extracted_text=(
             "Account Number,Account Name,Symbol,Description,Quantity,Last Price,Last Price Change,Current Value,Today's Gain/Loss Dollar,Today's Gain/Loss Percent,Total Gain/Loss Dollar,Total Gain/Loss Percent,Percent Of Account,Cost Basis Total,Average Cost Basis,Type\n"
-            "245944181,Traditional IRA,SPAXX**,HELD IN MONEY MARKET,,,,$1976.42,,,,,0.54%,,,Cash,\n"
-            "245944181,Traditional IRA,AMZN,AMAZON.COM INC,2,$268.26,+$3.20,$536.52,+$6.40,+1.20%,+$134.18,+33.34%,0.15%,$402.34,$201.17,Cash,\n"
-            "245944181,Traditional IRA,VGT,VANGUARD WORLD FD INF TECH ETF,124,$104.85,+$1.67,$13001.40,+$68.20,+0.52%,+$68.20,+0.52%,3.53%,$12933.20,$104.30,Cash,\n"
-            "245944181,Traditional IRA,Pending activity,,,,,-$1837.64,,,,,,\n"
+            "000000001,Traditional IRA,SPAXX**,HELD IN MONEY MARKET,,,,$1976.42,,,,,0.54%,,,Cash,\n"
+            "000000001,Traditional IRA,AMZN,AMAZON.COM INC,2,$268.26,+$3.20,$536.52,+$6.40,+1.20%,+$134.18,+33.34%,0.15%,$402.34,$201.17,Cash,\n"
+            "000000001,Traditional IRA,VGT,VANGUARD WORLD FD INF TECH ETF,124,$104.85,+$1.67,$13001.40,+$68.20,+0.52%,+$68.20,+0.52%,3.53%,$12933.20,$104.30,Cash,\n"
+            "000000001,Traditional IRA,Pending activity,,,,,-$1837.64,,,,,,\n"
             "Date downloaded May-02-2026 4:19 p.m ET\n"
         ),
     )
@@ -1030,8 +1030,8 @@ def test_baseline_review_detects_fidelity_statement_summary_csv_and_groups_accou
         extracted_text=(
             "Account Type,Account,Beginning mkt Value,Change in Investment,Ending mkt Value,Short Balance,Ending Net Value,Dividends This Period,Dividends Year to Date,Interest This Year,Interest Year to Date,Total This Period,Total Year to Date\n"
             "ROTH IRA,250696445,47622.95,391.20,48014.15,,,,,,,391.20,391.20\n"
-            "Individual - TOD,Z35217544,507160.48,-21008.66,486151.82,,,1497.11,1497.11,,,1497.11,1497.11\n"
-            "Traditional IRA,245944181,346819.86,-14619.08,332200.78,,,,,,,1011.10,1011.10\n"
+            "Individual - TOD,Z00000002,507160.48,-21008.66,486151.82,,,1497.11,1497.11,,,1497.11,1497.11\n"
+            "Traditional IRA,000000001,346819.86,-14619.08,332200.78,,,,,,,1011.10,1011.10\n"
             "Symbol/CUSIP,Description,Quantity,Price,Beginning Value,Ending Value,Cost Basis\n"
         ),
     )
@@ -1051,11 +1051,11 @@ def test_baseline_review_detects_fidelity_statement_summary_csv_and_groups_accou
     assert accounts[0]["balance"] == "48014.15"
     assert accounts[0]["as_of_date"] == "2026-03-31"
     assert accounts[1]["account_name"] == "Individual - TOD"
-    assert accounts[1]["account_mask"] == "Z35217544"
+    assert accounts[1]["account_mask"] == "Z00000002"
     assert accounts[1]["source_type"] == "brokerage"
     assert accounts[1]["balance"] == "486151.82"
     assert accounts[2]["account_name"] == "Traditional IRA"
-    assert accounts[2]["account_mask"] == "245944181"
+    assert accounts[2]["account_mask"] == "000000001"
     assert accounts[2]["source_type"] == "retirement"
     assert accounts[2]["balance"] == "332200.78"
     assert structured_data["provider_name"] == "Fidelity"
@@ -1075,7 +1075,7 @@ def test_review_uses_baseline_account_identity_for_csv_header_signature(
     csv_path.write_text(
         (
             "Account Number,Account Name,Symbol,Description,Quantity,Last Price,Last Price Change,Current Value,Today's Gain/Loss Dollar,Today's Gain/Loss Percent,Total Gain/Loss Dollar,Total Gain/Loss Percent,Percent Of Account,Cost Basis Total,Average Cost Basis,Type\n"
-            "245944181,Traditional IRA,SPAXX**,HELD IN MONEY MARKET,,,,$1971.10,,,,,0.57%,,,Cash,\n"
+            "000000001,Traditional IRA,SPAXX**,HELD IN MONEY MARKET,,,,$1971.10,,,,,0.57%,,,Cash,\n"
             "250696445,ROTH IRA,SPAXX**,HELD IN MONEY MARKET,,,,$48014.15,,,,,100.00%,,,Cash,\n"
             "Date downloaded Apr-12-2026 6:21 p.m ET\n"
         ),
@@ -1087,7 +1087,7 @@ def test_review_uses_baseline_account_identity_for_csv_header_signature(
         "source_type": "brokerage",
         "document_type": "brokerage_statement",
         "merchant": None,
-        "account_hint": "Z35217544",
+        "account_hint": "Z00000002",
         "confidence": 0.99,
     }
     service = HouseholdDocumentReviewService()
@@ -1107,7 +1107,7 @@ def test_review_uses_baseline_account_identity_for_csv_header_signature(
     assert payload["summary"] == "Fidelity positions export covering 2 retirement accounts totaling $49,985.25."
     accounts = structured_data["financial_accounts"]
     assert isinstance(accounts, list)
-    assert accounts[0]["account_mask"] == "245944181"
+    assert accounts[0]["account_mask"] == "000000001"
     assert accounts[1]["account_mask"] == "250696445"
     assert structured_data["account_hint"] == "Fidelity positions export (2 accounts)"
     touch_signature.assert_called_once_with("sig-1")
@@ -1128,7 +1128,7 @@ def test_review_does_not_short_circuit_on_weak_money_filename_signature(
         (
             "AUTOPAY IS ON\n"
             "www.chase.com/amazon\n"
-            "ELIAS B LESLIE\n"
+            "ALEX DEMO\n"
             "Prime Visa ending 5313\n"
             "New Balance: $2,958.17\n"
         ),
@@ -1337,7 +1337,7 @@ def test_review_promotes_agent_financial_account_classification_and_review_check
                             "institution_name": "Chase",
                             "account_name": "Chase Amazon card",
                             "account_mask": "9728",
-                            "owner_name": "Elias B Leslie",
+                            "owner_name": "Alex Demo",
                         }
                     ],
                 },
@@ -1378,7 +1378,7 @@ def test_build_signature_candidates_skips_generic_image_name() -> None:
 
     candidates = service.build_signature_candidates(
         filename="image.png",
-        extracted_text="College Fnd - Nadia\n529 COLL-ME-Edge22Z-87861",
+        extracted_text="College Fnd - Demo Child Two\n529 COLL-ME-Edge22Z-87861",
     )
 
     signature_keys = {candidate[1] for candidate in candidates}
@@ -1397,7 +1397,7 @@ def test_signature_review_enriches_summary_and_amount(
         "signature_type": "filename_pattern",
         "source_type": "receipt",
         "document_type": "receipt",
-        "merchant": "Walmart (Store #5831, Largo, FL)",
+        "merchant": "Walmart (Store #5831, Anytown, ST)",
         "account_hint": "Visa Credit ****4635",
         "confidence": 0.95,
     }
@@ -1408,7 +1408,7 @@ def test_signature_review_enriches_summary_and_amount(
     )
 
     assert payload is not None
-    assert payload["structured_data"]["merchant"] == "Walmart (Store #5831, Largo, FL)"
+    assert payload["structured_data"]["merchant"] == "Walmart (Store #5831, Anytown, ST)"
     assert payload["structured_data"]["total_amount"] == "11.40"
     assert "Walmart" in payload["summary"]
     assert "11.40" in payload["summary"]
@@ -1424,7 +1424,7 @@ def test_signature_review_skips_generic_image_name(
 
     payload = service._signature_review(
         filename="image.png",
-        extracted_text="College Fnd - Nadia\n529 COLL-ME-Edge22Z-87861",
+        extracted_text="College Fnd - Demo Child Two\n529 COLL-ME-Edge22Z-87861",
     )
 
     assert payload is None

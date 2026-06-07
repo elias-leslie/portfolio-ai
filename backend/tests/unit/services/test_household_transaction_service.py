@@ -85,7 +85,7 @@ class _MerchantOverrideConnection:
             return SimpleNamespace(
                 fetchone=lambda: (
                     "merchant-1",
-                    "Chase Credit Crd Epay 260215 9126729844 Elias Leslie",
+                    "Chase Credit Crd Epay 260215 9126729844 Alex Demo",
                     "Bills",
                     "essential",
                     {},
@@ -114,18 +114,18 @@ class _MerchantOverrideStorage:
 def test_parse_chase_statement_extracts_walmart_activity_lines() -> None:
     transactions = parse_chase_statement(
         (
-            "ELIAS B LESLIE Page 2 of 4 Statement Date: 01/11/26\n"
+            "ALEX DEMO Page 2 of 4 Statement Date: 01/11/26\n"
             "Date of\n"
             "Transaction Merchant  Name or Transaction Description $ Amount\n"
-            "12/11 & WAL-MART #5831 LARGO FL 149.21\n"
-            "12/12 & WM SUPERCENTER #5831 LARGO FL 30.00\n"
+            "12/11 & WAL-MART #5831 ANYTOWN ST 149.21\n"
+            "12/12 & WM SUPERCENTER #5831 ANYTOWN ST 30.00\n"
             "12/23 & Payment Thank You-Mobile -5757.53\n"
         ),
         "Chase Amazon card",
     )
 
     assert len(transactions) == 3
-    assert transactions[0].raw_merchant == "WAL-MART #5831 LARGO FL"
+    assert transactions[0].raw_merchant == "WAL-MART #5831 ANYTOWN ST"
     assert float(transactions[0].amount) == 149.21
     assert transactions[0].flow_type == "expense"
     assert transactions[2].flow_type == "payment"
@@ -139,7 +139,7 @@ def test_parse_wells_fargo_statement_extracts_payroll_and_spotify() -> None:
             "2/4   Recurring Payment authorized on 02/03 Spotify P3Efef4F77\n"
             "NEW York NY S346034529890991 Card 2873\n"
             "19.31    8,200.63\n"
-            "2/6   Pinellas County Payroll 260206 8859 Leslie Mariana  2,900.41       11,101.04\n"
+            "2/6   Pinellas County Payroll 260206 8859 Leslie Jordan Demo  2,900.41       11,101.04\n"
             "Totals $6,307.15 $13,431.52\n"
         ),
         "Wells Fargo Everyday Checking",
@@ -157,10 +157,10 @@ def test_parse_wells_fargo_statement_reclassifies_transfers_benefits_and_card_pa
         (
             "February 25, 2026 Page 2 of 5\n"
             "Transaction history\n"
-            "2/17   Chase Credit Crd Epay 260215 9126729844 Elias Leslie  5,645.34       1,100.00\n"
-            "2/18   Paypal Inst Xfer 260218 Tbl.Leslie Elias Leslie  3,520.25       1,200.00\n"
+            "2/17   Chase Credit Crd Epay 260215 9126729844 Alex Demo  5,645.34       1,100.00\n"
+            "2/18   Paypal Inst Xfer 260218 Tbl.Leslie Alex Demo  3,520.25       1,200.00\n"
             "2/18   Zelle From Michael Wiley on 02/18 Ref # Wfct0Ztbcn6L  506.31       1,706.31\n"
-            "2/18   FL Deo Ui Benefit 260214 xxxxx5852 Elias B Leslie  247.00       1,953.31\n"
+            "2/18   FL Deo Ui Benefit 260214 xxxxx5852 Alex Demo  247.00       1,953.31\n"
             "Totals $9,918.90 $5,959.62\n"
         ),
         "Wells Fargo Everyday Checking",
@@ -185,7 +185,7 @@ def test_parse_wells_fargo_statement_treats_payables_as_income() -> None:
         (
             "January 27, 2026 Page 2 of 5\n"
             "Transaction history\n"
-            "1/20   Pinellas Cty Sch Payables 260120 E575048859 Mariana Leslie  248.00       4,218.13\n"
+            "1/20   Pinellas Cty Sch Payables 260120 E575048859 Jordan Demo  248.00       4,218.13\n"
             "Totals $248.00 $4,218.13\n"
         ),
         "Wells Fargo Everyday Checking",
@@ -249,7 +249,7 @@ def test_extract_transactions_treats_credit_card_csv_returns_as_refunds(tmp_path
 
 
 def test_extract_transactions_parses_generic_cash_management_csv(tmp_path: Path) -> None:
-    csv_path = tmp_path / "History_for_Account_Z38367298.csv"
+    csv_path = tmp_path / "History_for_Account_Z00000001.csv"
     csv_path.write_text(
         (
             "Run Date,Action,Symbol,Description,Type,Price ($),Quantity,Commission ($),"
@@ -418,7 +418,7 @@ def test_spend_total_between_uses_collapsed_canonical_rows() -> None:
 
 
 def test_merchant_aliases_collapse_walmart_variants() -> None:
-    aliases = _merchant_aliases("WM SUPERCENTER #5831 LARGO FL")
+    aliases = _merchant_aliases("WM SUPERCENTER #5831 ANYTOWN ST")
 
     assert "walmart" in aliases
     assert "wm supercenter" in aliases
@@ -536,7 +536,7 @@ def test_import_document_transactions_keeps_transfer_categories_even_with_old_me
             "extracted_text": (
                 "February 25, 2026 Page 2 of 5\n"
                 "Transaction history\n"
-                "2/17   Chase Credit Crd Epay 260215 9126729844 Elias Leslie  5,645.34       1,100.00\n"
+                "2/17   Chase Credit Crd Epay 260215 9126729844 Alex Demo  5,645.34       1,100.00\n"
                 "Totals $5,645.34 $1,100.00\n"
             ),
             "structured_data": {},
@@ -559,15 +559,15 @@ def test_build_reports_excludes_cash_movement_rows_even_when_stored_as_expense()
                     "txn-card-payment",
                     None,
                     datetime(2026, 2, 17, tzinfo=UTC),
-                    "Chase Credit Crd Epay 260215 9126729844 Elias Leslie",
-                    "Chase Credit Crd Epay 260215 9126729844 Elias Leslie",
+                    "Chase Credit Crd Epay 260215 9126729844 Alex Demo",
+                    "Chase Credit Crd Epay 260215 9126729844 Alex Demo",
                     Decimal("5645.34"),
                     "Bills",
                     "essential",
                     "expense",
                     "Wells Fargo Everyday Checking",
                     "doc-card-payment",
-                    "Chase Credit Crd Epay 260215 9126729844 Elias Leslie",
+                    "Chase Credit Crd Epay 260215 9126729844 Alex Demo",
                     "statement",
                     "bank",
                     "payment.csv",
@@ -578,15 +578,15 @@ def test_build_reports_excludes_cash_movement_rows_even_when_stored_as_expense()
                     "txn-utility",
                     None,
                     datetime(2026, 2, 9, tzinfo=UTC),
-                    "Dukeenergy Bill Pay 910066616132 Elias B Leslie",
-                    "Dukeenergy Bill Pay 910066616132 Elias B Leslie",
+                    "Dukeenergy Bill Pay 910066616132 Alex Demo",
+                    "Dukeenergy Bill Pay 910066616132 Alex Demo",
                     Decimal("177.51"),
                     "Bills",
                     "essential",
                     "expense",
                     "Wells Fargo Everyday Checking",
                     "doc-utility",
-                    "Dukeenergy Bill Pay 910066616132 Elias B Leslie",
+                    "Dukeenergy Bill Pay 910066616132 Alex Demo",
                     "statement",
                     "bank",
                     "utility.csv",
@@ -604,7 +604,7 @@ def test_build_reports_excludes_cash_movement_rows_even_when_stored_as_expense()
     assert reports.executive.average_monthly_essentials == 177.51
     assert reports.executive.tracked_expense_count == 1
     assert [transaction.merchant for transaction in reports.recent_transactions] == [
-        "Dukeenergy Bill Pay 910066616132 Elias B Leslie"
+        "Dukeenergy Bill Pay 910066616132 Alex Demo"
     ]
 
 
@@ -618,15 +618,15 @@ def test_build_spending_view_keeps_venmo_payments_visible_as_peer_payments_spend
                     "txn-venmo",
                     None,
                     datetime.combine(today, datetime.min.time(), tzinfo=UTC),
-                    "Venmo Payment 260117 1047668918292 Mariana Leslie",
-                    "Venmo Payment 260117 1047668918292 Mariana Leslie",
+                    "Venmo Payment 260117 1047668918292 Jordan Demo",
+                    "Venmo Payment 260117 1047668918292 Jordan Demo",
                     Decimal("30.00"),
                     "Household",
                     "mixed",
                     "expense",
                     "Wells Fargo Everyday Checking",
                     "doc-venmo",
-                    "Venmo Payment 260117 1047668918292 Mariana Leslie",
+                    "Venmo Payment 260117 1047668918292 Jordan Demo",
                     "statement",
                     "bank",
                     "venmo.csv",
@@ -637,15 +637,15 @@ def test_build_spending_view_keeps_venmo_payments_visible_as_peer_payments_spend
                     "txn-utility",
                     None,
                     datetime.combine(today - timedelta(days=1), datetime.min.time(), tzinfo=UTC),
-                    "Dukeenergy Bill Pay 910066616132 Elias B Leslie",
-                    "Dukeenergy Bill Pay 910066616132 Elias B Leslie",
+                    "Dukeenergy Bill Pay 910066616132 Alex Demo",
+                    "Dukeenergy Bill Pay 910066616132 Alex Demo",
                     Decimal("177.51"),
                     "Bills",
                     "essential",
                     "expense",
                     "Wells Fargo Everyday Checking",
                     "doc-utility",
-                    "Dukeenergy Bill Pay 910066616132 Elias B Leslie",
+                    "Dukeenergy Bill Pay 910066616132 Alex Demo",
                     "statement",
                     "bank",
                     "utility.csv",
@@ -662,10 +662,10 @@ def test_build_spending_view_keeps_venmo_payments_visible_as_peer_payments_spend
     assert spending.summary.total_spend == 207.51
     assert spending.summary.transaction_count == 2
     categories = {row.description: row.category for row in spending.transactions}
-    assert categories["Venmo Payment 260117 1047668918292 Mariana Leslie"] == "Peer Payments"
+    assert categories["Venmo Payment 260117 1047668918292 Jordan Demo"] == "Peer Payments"
     assert {row.description for row in spending.transactions} == {
-        "Dukeenergy Bill Pay 910066616132 Elias B Leslie",
-        "Venmo Payment 260117 1047668918292 Mariana Leslie",
+        "Dukeenergy Bill Pay 910066616132 Alex Demo",
+        "Venmo Payment 260117 1047668918292 Jordan Demo",
     }
 
 
@@ -725,8 +725,8 @@ def test_build_spending_view_excludes_loan_payments_from_spend() -> None:
                     "txn-dining",
                     None,
                     datetime.combine(today, datetime.min.time(), tzinfo=UTC),
-                    "Chipotle 1180 Largo",
-                    "Chipotle 1180 Largo",
+                    "Chipotle 1180 Anytown",
+                    "Chipotle 1180 Anytown",
                     Decimal("12.50"),
                     "Dining",
                     "discretionary",

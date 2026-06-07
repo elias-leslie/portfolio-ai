@@ -62,11 +62,9 @@ def test_fetch_market_indicators_overlays_fresher_current_vix(monkeypatch) -> No
     monkeypatch.setattr(fear_greed_data, "PriceDataFetcher", _PriceDataFetcher)
     monkeypatch.setattr(fear_greed_data, "FREDSource", _FredSource)
 
-    vix_dict, hy_dict, vix_estimate, hy_fallback = fear_greed_data.fetch_market_indicators(
+    vix_dict, hy_dict = fear_greed_data.fetch_market_indicators(
         _Storage(), dt.date(2026, 5, 22), dt.date(2026, 5, 22)
     )
 
     assert vix_dict[dt.date(2026, 5, 22)] == 16.7
     assert hy_dict[dt.date(2026, 5, 22)] == 2.78
-    assert vix_estimate == 16.9
-    assert hy_fallback == 2.8

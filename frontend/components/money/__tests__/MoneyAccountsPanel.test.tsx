@@ -141,7 +141,7 @@ const evidenceOnlyAccounts = [
     ...accounts[0],
     id: 'account-2',
     label: 'Cash Management (Joint WROS)',
-    accountMask: 'Z38367298',
+    accountMask: 'Z00000001',
     trackedAccountId: null,
     accountOrigin: 'evidence',
     linkedPortfolioAccountId: 'portfolio-1',
@@ -491,7 +491,7 @@ describe('MoneyAccountsPanel', () => {
         expect.objectContaining({
           householdAccountId: 'household-1',
           label: 'Main Cash Management',
-          accountMask: 'Z38367298',
+          accountMask: 'Z00000001',
           sourceType: 'bank',
         }),
       )

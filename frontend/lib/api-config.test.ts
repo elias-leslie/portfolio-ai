@@ -30,15 +30,15 @@ describe('api-config', () => {
       configurable: true,
       value: {
         location: {
-          hostname: 'port.summitflow.dev',
-          host: 'port.summitflow.dev',
+          hostname: 'portfolio-ai.example',
+          host: 'portfolio-ai.example',
           protocol: 'https:',
         },
       },
     })
 
     expect(getApiBaseUrl()).toBe('')
-    expect(getWsUrl('/ws/health')).toBe('wss://port.summitflow.dev/ws/health')
+    expect(getWsUrl('/ws/health')).toBe('wss://portfolio-ai.example/ws/health')
   })
 
   it('keeps api and websocket traffic same-origin on localhost too', () => {
@@ -62,14 +62,14 @@ describe('api-config', () => {
       configurable: true,
       value: {
         location: {
-          hostname: '192.168.1.100',
-          host: '192.168.1.100:3000',
+          hostname: '203.0.113.10',
+          host: '203.0.113.10:3000',
           protocol: 'http:',
         },
       },
     })
 
     expect(getApiBaseUrl()).toBe('')
-    expect(getWsUrl('/ws/health')).toBe('ws://192.168.1.100:3000/ws/health')
+    expect(getWsUrl('/ws/health')).toBe('ws://203.0.113.10:3000/ws/health')
   })
 })

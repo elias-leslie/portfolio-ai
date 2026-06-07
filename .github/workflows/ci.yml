@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen --extra dev
+      - name: Ruff
+        working-directory: backend
+        run: uv run ruff check app tests
+      - name: ty
+        working-directory: backend
+        run: uv run ty check app
+      - name: Pytest
+        working-directory: backend
+        run: uv run pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@10.32.1 --activate
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Biome lint
+        working-directory: frontend
+        run: pnpm lint
+      - name: TypeScript
+        working-directory: frontend
+        run: pnpm exec tsc --noEmit
+      - name: Vitest
+        working-directory: frontend
+        run: pnpm test -- --run
+      - name: Build
+        working-directory: frontend
+        run: pnpm build

@@ -170,7 +170,7 @@ def test_replace_document_accounts_drops_stale_household_account_ids() -> None:
                         "account_type": "credit_card",
                         "asset_group": "credit",
                         "institution_name": "Chase",
-                        "owner_name": "Elias B Leslie",
+                        "owner_name": "Alex Demo",
                         "account_mask": "9728",
                     }
                 ],
@@ -196,22 +196,22 @@ def test_replace_document_accounts_preserves_existing_household_account_link() -
             _evidence_row(
                 id="existing-frs",
                 document_id="doc-frs",
-                household_account_id="household-frs-mariana",
+                household_account_id="household-frs-jordan-demo",
                 source_type="retirement",
                 asset_group="retirement",
                 account_type="retirement",
                 institution_name="Florida Retirement System (FRS)",
                 account_name="FRS Investment Plan",
                 account_mask=None,
-                owner_name="Mariana Leslie",
+                owner_name="Jordan Demo",
                 balance=131002.45,
                 holdings_value=131002.45,
                 as_of_date="2026-04-10T00:00:00",
-                metadata={"match_key": "frs|mariana|investment-plan"},
+                metadata={"match_key": "frs|jordan-demo|investment-plan"},
                 confidence=0.98,
             )
         ],
-        valid_account_ids=["household-frs-mariana"],
+        valid_account_ids=["household-frs-jordan-demo"],
     )
     fake_service = SimpleNamespace(storage=_Storage(conn))
 
@@ -237,10 +237,10 @@ def test_replace_document_accounts_preserves_existing_household_account_link() -
                         "account_type": "retirement",
                         "asset_group": "retirement",
                         "institution_name": "Florida Retirement System (FRS)",
-                        "owner_name": "Mariana Leslie",
+                        "owner_name": "Jordan Demo",
                         "balance": "131002.45",
                         "holdings_value": "131002.45",
-                        "match_key": "frs|mariana|investment-plan",
+                        "match_key": "frs|jordan-demo|investment-plan",
                     }
                 ],
             },
@@ -251,9 +251,9 @@ def test_replace_document_accounts_preserves_existing_household_account_link() -
     assert conn.deleted is True
     assert len(conn.inserts) == 1
     insert_params = conn.inserts[0]
-    assert insert_params[2] == "household-frs-mariana"
+    assert insert_params[2] == "household-frs-jordan-demo"
     metadata = json.loads(insert_params[16])
-    assert metadata["preserved_household_account_id"] == "household-frs-mariana"
+    assert metadata["preserved_household_account_id"] == "household-frs-jordan-demo"
     assert metadata["preserved_from_existing_evidence"] is True
     assert metadata["assigned_review_agent_slug"] == HOUSEHOLD_REVIEW_AGENT_SLUG
     assert metadata["review_strategy"] == "agent"
@@ -287,18 +287,18 @@ def test_replace_document_accounts_dedupes_duplicate_review_accounts() -> None:
                         "account_type": "401k",
                         "asset_group": "retirement",
                         "institution_name": "Pinellas County Schools",
-                        "owner_name": "Mariana Leslie",
+                        "owner_name": "Jordan Demo",
                         "balance": "130087.12",
                         "holdings_value": "130087.12",
-                        "match_key": "pcs|403b|mariana",
+                        "match_key": "pcs|403b|jordan-demo",
                     },
                     {
                         "account_name": "Pinellas County Schools 403(b) Plan",
                         "account_type": "401k",
                         "asset_group": "retirement",
                         "institution_name": "Pinellas County Schools",
-                        "owner_name": "Mariana Leslie",
-                        "match_key": "pcs|403b|mariana",
+                        "owner_name": "Jordan Demo",
+                        "match_key": "pcs|403b|jordan-demo",
                     },
                 ],
             },
@@ -319,18 +319,18 @@ def test_replace_document_accounts_keeps_existing_rows_when_new_review_is_empty(
             _evidence_row(
                 id="existing-403b",
                 document_id="doc-403b",
-                household_account_id="household-403b-mariana",
+                household_account_id="household-403b-jordan-demo",
                 source_type="retirement",
                 asset_group="retirement",
                 account_type="401k",
                 institution_name="Pinellas County Schools",
                 account_name="Pinellas County Schools 403(b) Plan",
                 account_mask=None,
-                owner_name="Mariana Leslie",
+                owner_name="Jordan Demo",
                 balance=130087.12,
                 holdings_value=130087.12,
                 as_of_date="2026-04-10T00:00:00",
-                metadata={"match_key": "pcs|403b|mariana"},
+                metadata={"match_key": "pcs|403b|jordan-demo"},
                 confidence=0.98,
             )
         ]
@@ -383,9 +383,9 @@ def test_normalize_accounts_preserves_reconciled_household_account_and_root_tota
                         "account_type": "credit_card",
                         "asset_group": "credit",
                         "institution_name": "Chase",
-                        "owner_name": "Elias B Leslie",
+                        "owner_name": "Alex Demo",
                         "account_mask": "9728",
-                        "match_key": "credit-lineage|chase|prime visa|elias b leslie|credit_card",
+                        "match_key": "credit-lineage|chase|prime visa|alex demo|credit_card",
                     }
                 ],
             },
@@ -398,7 +398,7 @@ def test_normalize_accounts_preserves_reconciled_household_account_and_root_tota
     assert accounts[0]["as_of_date"] == "2026-04-11T00:00:00"
     metadata = accounts[0]["metadata"]
     assert isinstance(metadata, dict)
-    assert metadata["match_key"] == "credit-lineage|chase|prime visa|elias b leslie|credit_card"
+    assert metadata["match_key"] == "credit-lineage|chase|prime visa|alex demo|credit_card"
 
 
 def test_normalize_accounts_uses_filename_date_when_statement_date_missing() -> None:
@@ -423,7 +423,7 @@ def test_normalize_accounts_uses_filename_date_when_statement_date_missing() -> 
                         "account_type": "credit_card",
                         "asset_group": "credit",
                         "institution_name": "Chase",
-                        "owner_name": "Elias B Leslie",
+                        "owner_name": "Alex Demo",
                         "account_mask": "9728",
                     }
                 ],

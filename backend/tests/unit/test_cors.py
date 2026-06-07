@@ -18,12 +18,12 @@ def test_build_cors_origins_defaults_to_localhost_only() -> None:
 
 def test_build_cors_origins_adds_optional_hosts_and_extra_origins() -> None:
     origins = build_cors_origins(
-        frontend_host="192.168.1.100",
+        frontend_host="203.0.113.10",
         extra_origins="https://portfolio.example.com, https://portfolio.example.com",
     )
 
-    assert "http://192.168.1.100:3000" in origins
-    assert "https://192.168.1.100:3000" in origins
+    assert "http://203.0.113.10:3000" in origins
+    assert "https://203.0.113.10:3000" in origins
     assert "https://portfolio.example.com" in origins
     assert origins.count("https://portfolio.example.com") == 1
 

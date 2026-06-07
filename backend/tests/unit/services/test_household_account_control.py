@@ -68,7 +68,7 @@ def test_same_account_across_connections_is_shared_not_duplicate() -> None:
     # Fidelity connection) is shared, not an accidental duplicate connection.
     values, source_owned_ids, issues = _collapse_source_rows(
         [
-            _source_row("snaptrade-account-1", connection_id="auth-elias"),
+            _source_row("snaptrade-account-1", connection_id="auth-alex-demo"),
             _source_row("snaptrade-account-2", connection_id="auth-marian"),
         ]
     )

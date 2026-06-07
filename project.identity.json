@@ -7,7 +7,7 @@
   },
   "branding": {
     "short_name": "Portfolio AI",
-    "description": "Portfolio analysis and planning application."
+    "description": "Open-source portfolio analysis and investment intelligence application."
   },
   "runtime": {
     "backend_port": 8000,
@@ -25,8 +25,8 @@
     "optional_workers": []
   },
   "hosts": {
-    "production_frontend": "port.summitflow.dev",
-    "production_api": "portapi.summitflow.dev"
+    "local_frontend": "http://localhost:3000",
+    "local_api": "http://localhost:8000"
   },
   "repository": {
     "owner": "elias-leslie",

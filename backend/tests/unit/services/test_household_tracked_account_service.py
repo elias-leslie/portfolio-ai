@@ -74,7 +74,7 @@ def test_ensure_unique_identity_rejects_duplicate_institution_mask() -> None:
             account_type="brokerage",
             source_type="brokerage",
             institution_name="Fidelity",
-            account_mask="Z38367298",
+            account_mask="Z00000001",
         )
     ]
 
@@ -89,7 +89,7 @@ def test_ensure_unique_identity_rejects_duplicate_institution_mask() -> None:
                 "match_key": None,
                 "institution_name": "Fidelity",
                 "owner_name": None,
-                "account_mask": "Z38367298",
+                "account_mask": "Z00000001",
                 "notes": None,
             },
         )
@@ -105,7 +105,7 @@ def test_ensure_unique_identity_allows_same_row_on_update() -> None:
             account_type="brokerage",
             source_type="brokerage",
             institution_name="Fidelity",
-            account_mask="Z38367298",
+            account_mask="Z00000001",
         )
     ]
 
@@ -119,7 +119,7 @@ def test_ensure_unique_identity_allows_same_row_on_update() -> None:
             "match_key": None,
             "institution_name": "Fidelity",
             "owner_name": None,
-            "account_mask": "Z38367298",
+            "account_mask": "Z00000001",
             "notes": None,
         },
         exclude_account_id="acct-1",
@@ -136,7 +136,7 @@ def test_ensure_unique_identity_allows_same_institution_label_when_owner_differs
             account_type="retirement",
             source_type="retirement",
             institution_name="Florida Retirement System (FRS)",
-            owner_name="Elias B. Leslie",
+            owner_name="Alex Demo",
             account_mask=None,
         )
     ]
@@ -150,7 +150,7 @@ def test_ensure_unique_identity_allows_same_institution_label_when_owner_differs
             "source_type": "retirement",
             "match_key": None,
             "institution_name": "Florida Retirement System (FRS)",
-            "owner_name": "Mariana Leslie",
+            "owner_name": "Jordan Demo",
             "account_mask": None,
             "notes": None,
         },
@@ -167,7 +167,7 @@ def test_ensure_unique_identity_rejects_same_institution_label_and_owner() -> No
             account_type="retirement",
             source_type="retirement",
             institution_name="Florida Retirement System (FRS)",
-            owner_name="Elias B. Leslie",
+            owner_name="Alex Demo",
             account_mask=None,
         )
     ]
@@ -182,7 +182,7 @@ def test_ensure_unique_identity_rejects_same_institution_label_and_owner() -> No
                 "source_type": "retirement",
                 "match_key": None,
                 "institution_name": "Florida Retirement System (FRS)",
-                "owner_name": "Elias B. Leslie",
+                "owner_name": "Alex Demo",
                 "account_mask": None,
                 "notes": None,
             },
@@ -212,7 +212,7 @@ def test_ensure_unique_identity_rejects_duplicate_match_key() -> None:
                 "source_type": "credit_card",
                 "match_key": "evidence|chase amazon card|credit_card",
                 "institution_name": "Chase",
-                "owner_name": "Elias and Mariana",
+                "owner_name": "Alex Demo and Jordan Demo",
                 "account_mask": None,
                 "notes": None,
             },
@@ -230,7 +230,7 @@ def test_create_account_with_household_account_id_anchors_to_existing_canonical_
         source_type="retirement",
         match_key="identity::pcsb-457b",
         institution_name="Pinellas County Schools",
-        owner_name="Mariana Leslie",
+        owner_name="Jordan Demo",
         account_mask=None,
     )
     service.get_account_by_household_account_id = Mock(return_value=None)  # type: ignore[method-assign]
@@ -260,7 +260,7 @@ def test_create_account_with_household_account_id_anchors_to_existing_canonical_
             account_type="401k",
             source_type="retirement",
             institution_name="Wrong",
-            owner_name="Mariana Leslie",
+            owner_name="Jordan Demo",
             account_mask="401k",
         ),
     )
@@ -271,7 +271,7 @@ def test_create_account_with_household_account_id_anchors_to_existing_canonical_
     assert kwargs["household_account_id"] == "household-457b"
     account = kwargs["account"]
     assert account["label"] == "PCSB 457b"
-    assert account["owner_name"] == "Mariana Leslie"
+    assert account["owner_name"] == "Jordan Demo"
 
 
 def test_create_account_without_household_account_id_creates_canonical_account_first() -> None:
@@ -385,7 +385,7 @@ def test_update_account_preserves_linked_identity_fields_but_allows_owner_change
         source_type="retirement",
         match_key="identity::pinellas|403b",
         institution_name="Pinellas County Schools",
-        owner_name="Mariana Leslie",
+        owner_name="Jordan Demo",
         account_mask=None,
     )
     updated = _tracked_account(
@@ -509,7 +509,7 @@ def test_update_account_allows_display_owner_change_for_linked_accounts() -> Non
         source_type="credit_card",
         match_key="identity::chase|5313",
         institution_name="Chase",
-        owner_name="Elias B Leslie",
+        owner_name="Alex Demo",
         account_mask="5313",
     )
     updated = _tracked_account(
@@ -521,7 +521,7 @@ def test_update_account_allows_display_owner_change_for_linked_accounts() -> Non
         source_type="credit_card",
         match_key="identity::chase|5313",
         institution_name="Chase",
-        owner_name="Elias",
+        owner_name="Alex Demo",
         account_mask="5313",
     )
     connection = _FakeConnection()
@@ -539,7 +539,7 @@ def test_update_account_allows_display_owner_change_for_linked_accounts() -> Non
         source_type="credit_card",
         match_key=None,
         institution_name="Chase",
-        owner_name="Elias",
+        owner_name="Alex Demo",
         account_mask="9728",
         notes="Updated display name only",
     )
@@ -550,7 +550,7 @@ def test_update_account_allows_display_owner_change_for_linked_accounts() -> Non
     _, params = connection.calls[0]
     assert params is not None
     assert params[0] == "Prime Visa"
-    assert params[1] == "Elias"
+    assert params[1] == "Alex Demo"
     assert params[2] == "Updated display name only"
     assert params[3] == "{}"
     assert params[5] == "acct-2"

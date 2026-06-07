@@ -51,7 +51,7 @@ describe('HouseholdProfileCard', () => {
     )
 
     fireEvent.change(screen.getByLabelText(/household name/i), {
-      target: { value: 'Kasadis Family' },
+      target: { value: 'Demo Family' },
     })
     fireEvent.change(screen.getByLabelText(/monthly take-home income/i), {
       target: { value: '12500' },
@@ -60,7 +60,7 @@ describe('HouseholdProfileCard', () => {
 
     expect(mutate).toHaveBeenCalledWith(
       expect.objectContaining({
-        householdName: 'Kasadis Family',
+        householdName: 'Demo Family',
         monthlyNetIncomeTarget: 12500,
       }),
     )

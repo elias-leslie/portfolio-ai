@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Any, cast
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from app.services.thesis.thesis_generation import ThesisGenerator
 
@@ -51,7 +51,19 @@ def test_generate_thesis_sanitizes_invalid_trading_guidance_before_prompt() -> N
         },
     }
 
-    generator.generate_thesis(intelligence)
+    with (
+        patch(
+            "app.services.thesis.thesis_generation.render_agent_hub_prompt",
+            side_effect=lambda _slug, *, intelligence_json: (
+                f"analysis_constraints\n{intelligence_json}"
+            ),
+        ),
+        patch(
+            "app.services.thesis.thesis_generation.require_agent_hub_prompt",
+            return_value="system prompt",
+        ),
+    ):
+        generator.generate_thesis(intelligence)
 
     prompt = llm.generate.call_args.kwargs["prompt"]
     assert '"stop_loss": null' in prompt

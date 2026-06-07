@@ -53,7 +53,7 @@ const configuredStatus = {
   environment: 'production',
   products: ['transactions'],
   countryCodes: ['US'],
-  redirectUri: 'https://port.summitflow.dev/money',
+  redirectUri: 'https://portfolio-ai.example/money',
   itemCount: 0,
   accountCount: 0,
   transactionCount: 0,
@@ -100,7 +100,7 @@ describe('PlaidLinkPanel', () => {
     expect(await screen.findByDisplayValue('transactions')).toBeInTheDocument()
     expect(screen.getByDisplayValue('US')).toBeInTheDocument()
     expect(
-      screen.getByDisplayValue('https://port.summitflow.dev/money'),
+      screen.getByDisplayValue('https://portfolio-ai.example/money'),
     ).toBeInTheDocument()
     expect(screen.getByLabelText('Client ID')).not.toBeRequired()
     expect(screen.getByLabelText('Secret')).not.toBeRequired()
@@ -111,7 +111,7 @@ describe('PlaidLinkPanel', () => {
       environment: 'production',
       products: ['transactions'],
       countryCodes: ['US'],
-      redirectUri: 'https://port.summitflow.dev/money',
+      redirectUri: 'https://portfolio-ai.example/money',
     })
   })
 

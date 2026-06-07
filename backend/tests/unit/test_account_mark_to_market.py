@@ -1,6 +1,6 @@
 """Unit tests for mark-to-market account re-valuation.
 
-Covers the scenarios validated against real account data: live price drift,
+Covers fixture scenarios for live price drift,
 unpriceable/partial holdings, pure-cash accounts, missing broker total, and
 the pending-settlement safety property (anchor on broker total, never recompute
 cash from holdings).

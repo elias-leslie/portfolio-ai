@@ -17,10 +17,10 @@ _SAMPLE_CSV = (
     'Run Date,Account,Account Number,Action,Symbol,Description,Type,'
     'Price ($),Quantity,Commission ($),Fees ($),Accrued Interest ($),'
     'Amount ($),Settlement Date\n'
-    '05/08/2026,"Individual - TOD","Z35217544",'
+    '05/08/2026,"Individual - TOD","Z00000002",'
     '"YOU SOLD TESLA INC COM (TSLA) (Cash)",TSLA,"TESLA INC COM",Cash,'
     '426.2,-11,,0.1,,4688.1,05/11/2026\n'
-    '05/01/2026,"Traditional IRA","245944181",'
+    '05/01/2026,"Traditional IRA","000000001",'
     '"YOU BOUGHT VANGUARD WORLD FD INF TECH ETF (VGT) (Cash)",VGT,'
     '"VANGUARD WORLD FD INF TECH ETF",Cash,104.3,124,,,,-12933.2,05/04/2026\n'
 )
@@ -38,7 +38,7 @@ def test_parser_returns_brokerage_classification_with_two_accounts() -> None:
     accounts: list[dict] = structured["financial_accounts"]  # type: ignore[assignment]
     assert len(accounts) == 2
     masks = {a["account_mask"] for a in accounts}
-    assert masks == {"Z35217544", "245944181"}
+    assert masks == {"Z00000002", "000000001"}
 
 
 def test_parser_signs_quantity_and_assigns_transaction_type() -> None:
@@ -47,8 +47,8 @@ def test_parser_signs_quantity_and_assigns_transaction_type() -> None:
     structured = result[4]
     accounts: list[dict] = structured["financial_accounts"]  # type: ignore[assignment]
     by_mask = {a["account_mask"]: a for a in accounts}
-    sells = by_mask["Z35217544"]["transactions"]
-    buys = by_mask["245944181"]["transactions"]
+    sells = by_mask["Z00000002"]["transactions"]
+    buys = by_mask["000000001"]["transactions"]
     assert len(sells) == 1
     assert sells[0]["transaction_type"] == "sell"
     assert sells[0]["shares"] == 11.0  # absolute value
@@ -66,10 +66,10 @@ def test_parser_marks_ira_account_type() -> None:
     structured = result[4]
     accounts: list[dict] = structured["financial_accounts"]  # type: ignore[assignment]
     by_mask = {a["account_mask"]: a for a in accounts}
-    assert by_mask["Z35217544"]["account_type"] == "brokerage"
-    assert by_mask["Z35217544"]["source_type"] == "brokerage"
-    assert by_mask["245944181"]["account_type"] == "ira"
-    assert by_mask["245944181"]["source_type"] == "retirement"
+    assert by_mask["Z00000002"]["account_type"] == "brokerage"
+    assert by_mask["Z00000002"]["source_type"] == "brokerage"
+    assert by_mask["000000001"]["account_type"] == "ira"
+    assert by_mask["000000001"]["source_type"] == "retirement"
 
 
 def test_parser_returns_none_for_non_activity_csv() -> None:

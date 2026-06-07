@@ -41,7 +41,7 @@ def _household_account(
         account_type="ira",
         source_type="retirement",
         institution_name="Fidelity",
-        owner_name="Elias",
+        owner_name="Alex Demo",
         account_mask="1234",
         current_value=1000.0,
         evidence_count=evidence_count,

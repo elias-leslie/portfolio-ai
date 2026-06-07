@@ -1,4 +1,4 @@
-# Canonical source: synchronized across summitflow, agent-hub, portfolio-ai
+# Shared Hatchet app setup for Agent Hub companion and Portfolio AI workflows
 """Hatchet client singleton for workflow orchestration."""
 
 from __future__ import annotations

@@ -1,5 +1,5 @@
 {
-  "_comment": "Template MCP server config for the portfolio-ai 3-tier signal stack. Copy to .mcp.json in the consuming project. Update 'cwd' to the absolute path of this repository's backend/ directory so 'uv run' resolves the project venv and the .env.local DB credentials.",
+  "_comment": "Template MCP server config for the portfolio-ai signal stack. Copy to .mcp.json in the consuming project. Update 'cwd' to this repository's backend/ directory so 'uv run' resolves the project environment.",
   "mcpServers": {
     "portfolio-ai": {
       "command": "uv",

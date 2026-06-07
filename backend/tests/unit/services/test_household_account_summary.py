@@ -43,7 +43,7 @@ def test_build_account_summaries_omits_unlinked_no_value_evidence() -> None:
                 institution_name="Chase",
                 account_name="Chase credit card activity export",
                 account_mask=None,
-                owner_name="Elias B Leslie",
+                owner_name="Alex Demo",
                 currency="USD",
                 balance=None,
                 holdings_value=None,
@@ -221,7 +221,7 @@ def test_build_account_summaries_preserves_household_account_id_from_any_linked_
             institution_name="Florida Retirement System (FRS)",
             account_name="FRS Investment Plan",
             account_mask=None,
-            owner_name="Mariana Leslie",
+            owner_name="Jordan Demo",
             currency="USD",
             balance=12100.0,
             holdings_value=12100.0,
@@ -233,14 +233,14 @@ def test_build_account_summaries_preserves_household_account_id_from_any_linked_
         HouseholdEvidenceAccount(
             id="acct-old",
             document_id="doc-old",
-            household_account_id="household-frs-mariana",
+            household_account_id="household-frs-jordan-demo",
             source_type="retirement",
             asset_group="retirement",
             account_type="retirement",
             institution_name="Florida Retirement System (FRS)",
             account_name="FRS Investment Plan",
             account_mask=None,
-            owner_name="Mariana Leslie",
+            owner_name="Jordan Demo",
             currency="USD",
             balance=11000.0,
             holdings_value=11000.0,
@@ -261,7 +261,7 @@ def test_build_account_summaries_preserves_household_account_id_from_any_linked_
     )
 
     assert len(summaries) == 1
-    assert summaries[0].household_account_id == "household-frs-mariana"
+    assert summaries[0].household_account_id == "household-frs-jordan-demo"
 
 
 def test_build_account_summaries_includes_portfolio_accounts_without_evidence() -> None:
@@ -407,7 +407,7 @@ def test_build_account_summaries_marks_closed_zero_balance_account_current() -> 
         institution_name="Wells Fargo",
         account_name="Wells Fargo closed checking",
         account_mask=None,
-        owner_name="Elias B Leslie",
+        owner_name="Alex Demo",
         currency="USD",
         balance=None,
         holdings_value=None,
@@ -467,7 +467,7 @@ def test_build_account_summaries_uses_canonical_closed_status_for_zero_retiremen
         institution_name="CB&T Cust IRA",
         account_name="CB&T Cust IRA",
         account_mask="1234",
-        owner_name="Mariana Leslie",
+        owner_name="Jordan Demo",
         currency="USD",
         balance=0.0,
         holdings_value=0.0,
@@ -693,7 +693,7 @@ def test_build_account_summaries_use_activity_observed_through_for_spend_driver_
                 account_type="brokerage",
                 institution_name="Fidelity",
                 account_name="Cash Management (Joint WROS)",
-                account_mask="Z38367298",
+                account_mask="Z00000001",
                 owner_name=None,
                 currency="USD",
                 balance=39400.59,
@@ -733,7 +733,7 @@ def test_build_account_summaries_merge_same_mask_across_alias_names() -> None:
                 account_type="brokerage",
                 institution_name="Fidelity",
                 account_name="Cash Management (Joint WROS)",
-                account_mask="Z38367298",
+                account_mask="Z00000001",
                 owner_name=None,
                 currency="USD",
                 balance=39400.59,
@@ -750,8 +750,8 @@ def test_build_account_summaries_merge_same_mask_across_alias_names() -> None:
                 asset_group="taxable",
                 account_type="brokerage",
                 institution_name=None,
-                account_name="Account Z38367298",
-                account_mask="Z38367298",
+                account_name="Account Z00000001",
+                account_mask="Z00000001",
                 owner_name=None,
                 currency="USD",
                 balance=39400.59,
@@ -769,13 +769,13 @@ def test_build_account_summaries_merge_same_mask_across_alias_names() -> None:
         statement_freshness={"coverage_months": 1, "gap_months": []},
         latest_transaction_dates_by_account_label={
             "Cash Management (Joint WROS)": (datetime.now(UTC) - timedelta(days=5)).date(),
-            "Account Z38367298": (datetime.now(UTC) - timedelta(days=5)).date(),
+            "Account Z00000001": (datetime.now(UTC) - timedelta(days=5)).date(),
         },
     )
 
     assert len(summaries) == 1
     assert summaries[0].label == "Fidelity · Cash Management (Joint WROS)"
-    assert summaries[0].account_mask == "Z38367298"
+    assert summaries[0].account_mask == "Z00000001"
     assert summaries[0].evidence_count == 2
     assert summaries[0].institution_name == "Fidelity"
 
@@ -899,33 +899,33 @@ def test_build_account_summaries_keep_same_plan_separate_by_owner_without_mask()
     summaries = build_account_summaries(
         evidence_accounts=[
             HouseholdEvidenceAccount(
-                id="acct-elias",
-                document_id="doc-elias",
+                id="acct-alex-demo",
+                document_id="doc-alex-demo",
                 source_type="retirement",
                 asset_group="retirement",
                 account_type="retirement",
                 institution_name="Florida Retirement System (FRS)",
                 account_name="FRS Investment Plan",
                 account_mask=None,
-                owner_name="Elias B. Leslie",
+                owner_name="Alex Demo",
                 currency="USD",
-                balance=42404.62,
-                holdings_value=42404.62,
+                balance=1234.56,
+                holdings_value=1234.56,
                 cash_balance=None,
                 as_of_date="2026-04-10",
                 confidence=0.96,
                 metadata={},
             ),
             HouseholdEvidenceAccount(
-                id="acct-mariana",
-                document_id="doc-mariana",
+                id="acct-jordan-demo",
+                document_id="doc-jordan-demo",
                 source_type="retirement",
                 asset_group="retirement",
                 account_type="retirement",
                 institution_name="Florida Retirement System (FRS)",
                 account_name="FRS Investment Plan",
                 account_mask=None,
-                owner_name="Mariana Leslie",
+                owner_name="Jordan Demo",
                 currency="USD",
                 balance=131002.19,
                 holdings_value=131002.19,
@@ -944,42 +944,42 @@ def test_build_account_summaries_keep_same_plan_separate_by_owner_without_mask()
 
     assert len(summaries) == 2
     labels = {summary.label for summary in summaries}
-    assert "Florida Retirement System (FRS) · FRS Investment Plan (Elias B. Leslie)" in labels
-    assert "Florida Retirement System (FRS) · FRS Investment Plan (Mariana Leslie)" in labels
-    assert sum(summary.current_value or 0.0 for summary in summaries) == 173406.81
+    assert "Florida Retirement System (FRS) · FRS Investment Plan (Alex Demo)" in labels
+    assert "Florida Retirement System (FRS) · FRS Investment Plan (Jordan Demo)" in labels
+    assert sum(summary.current_value or 0.0 for summary in summaries) == 132236.75
 
 
 def test_build_account_summaries_do_not_apply_owner_specific_tracked_label_to_sibling_account() -> None:
     summaries = build_account_summaries(
         evidence_accounts=[
             HouseholdEvidenceAccount(
-                id="acct-elias",
-                document_id="doc-elias",
+                id="acct-alex-demo",
+                document_id="doc-alex-demo",
                 source_type="retirement",
                 asset_group="retirement",
                 account_type="401k",
                 institution_name="Florida Retirement System (FRS)",
                 account_name="FRS Investment Plan",
                 account_mask=None,
-                owner_name="Elias B. Leslie",
+                owner_name="Alex Demo",
                 currency="USD",
-                balance=42404.62,
-                holdings_value=42404.62,
+                balance=1234.56,
+                holdings_value=1234.56,
                 cash_balance=None,
                 as_of_date="2026-04-10",
                 confidence=0.96,
                 metadata={},
             ),
             HouseholdEvidenceAccount(
-                id="acct-mariana",
-                document_id="doc-mariana",
+                id="acct-jordan-demo",
+                document_id="doc-jordan-demo",
                 source_type="retirement",
                 asset_group="retirement",
                 account_type="401k",
                 institution_name="Florida Retirement System (FRS)",
                 account_name="FRS Investment Plan",
                 account_mask=None,
-                owner_name="Mariana Leslie",
+                owner_name="Jordan Demo",
                 currency="USD",
                 balance=131002.19,
                 holdings_value=131002.19,
@@ -993,13 +993,13 @@ def test_build_account_summaries_do_not_apply_owner_specific_tracked_label_to_si
         portfolio_accounts=[],
         tracked_accounts=[
             HouseholdTrackedAccount(
-                id="tracked-elias",
-                label="Elias - Florida Retirement System (FRS)",
+                id="tracked-alex-demo",
+                label="Alex Demo - Florida Retirement System (FRS)",
                 asset_group="retirement",
                 account_type="401k",
                 source_type="retirement",
                 institution_name="Florida Retirement System (FRS)",
-                owner_name="Elias B. Leslie",
+                owner_name="Alex Demo",
                 account_mask=None,
                 notes=None,
                 created_at="2026-04-13T00:00:00Z",
@@ -1013,43 +1013,43 @@ def test_build_account_summaries_do_not_apply_owner_specific_tracked_label_to_si
     labels = {summary.owner_name: summary.label for summary in summaries}
     tracked_ids = {summary.owner_name: summary.tracked_account_id for summary in summaries}
 
-    assert labels["Elias B. Leslie"] == "Elias - Florida Retirement System (FRS)"
-    assert tracked_ids["Elias B. Leslie"] == "tracked-elias"
-    assert labels["Mariana Leslie"] == "Florida Retirement System (FRS) · FRS Investment Plan (Mariana Leslie)"
-    assert tracked_ids["Mariana Leslie"] is None
+    assert labels["Alex Demo"] == "Alex Demo - Florida Retirement System (FRS)"
+    assert tracked_ids["Alex Demo"] == "tracked-alex-demo"
+    assert labels["Jordan Demo"] == "Florida Retirement System (FRS) · FRS Investment Plan (Jordan Demo)"
+    assert tracked_ids["Jordan Demo"] is None
 
 
 def test_build_account_summaries_match_owner_specific_tracked_row_with_short_owner_name() -> None:
     summaries = build_account_summaries(
         evidence_accounts=[
             HouseholdEvidenceAccount(
-                id="acct-elias",
-                document_id="doc-elias",
+                id="acct-alex-demo",
+                document_id="doc-alex-demo",
                 source_type="retirement",
                 asset_group="retirement",
                 account_type="401k",
                 institution_name="Florida Retirement System (FRS)",
                 account_name="FRS Investment Plan",
                 account_mask=None,
-                owner_name="Elias B. Leslie",
+                owner_name="Alex Demo",
                 currency="USD",
-                balance=42404.62,
-                holdings_value=42404.62,
+                balance=1234.56,
+                holdings_value=1234.56,
                 cash_balance=None,
                 as_of_date="2026-04-10",
                 confidence=0.96,
                 metadata={},
             ),
             HouseholdEvidenceAccount(
-                id="acct-mariana",
-                document_id="doc-mariana",
+                id="acct-jordan-demo",
+                document_id="doc-jordan-demo",
                 source_type="retirement",
                 asset_group="retirement",
                 account_type="401k",
                 institution_name="Florida Retirement System (FRS)",
                 account_name="FRS Investment Plan",
                 account_mask=None,
-                owner_name="Mariana Leslie",
+                owner_name="Jordan Demo",
                 currency="USD",
                 balance=131002.19,
                 holdings_value=131002.19,
@@ -1063,26 +1063,26 @@ def test_build_account_summaries_match_owner_specific_tracked_row_with_short_own
         portfolio_accounts=[],
         tracked_accounts=[
             HouseholdTrackedAccount(
-                id="tracked-elias",
+                id="tracked-alex-demo",
                 label="FRS",
                 asset_group="retirement",
                 account_type="401k",
                 source_type="retirement",
                 institution_name="Florida Retirement System (FRS)",
-                owner_name="Elias",
+                owner_name="Alex Demo",
                 account_mask=None,
                 notes=None,
                 created_at="2026-04-13T00:00:00Z",
                 updated_at="2026-04-13T00:00:00Z",
             ),
             HouseholdTrackedAccount(
-                id="tracked-mariana",
+                id="tracked-jordan-demo",
                 label="FRS",
                 asset_group="retirement",
                 account_type="401k",
                 source_type="retirement",
                 institution_name="Florida Retirement System (FRS)",
-                owner_name="Mariana",
+                owner_name="Jordan Demo",
                 account_mask=None,
                 notes=None,
                 created_at="2026-04-13T00:00:00Z",
@@ -1096,8 +1096,8 @@ def test_build_account_summaries_match_owner_specific_tracked_row_with_short_own
     tracked_ids = {summary.current_value: summary.tracked_account_id for summary in summaries}
 
     assert len(summaries) == 2
-    assert tracked_ids[42404.62] == "tracked-elias"
-    assert tracked_ids[131002.19] == "tracked-mariana"
+    assert tracked_ids[1234.56] == "tracked-alex-demo"
+    assert tracked_ids[131002.19] == "tracked-jordan-demo"
 
 
 def test_build_account_summaries_prefer_tracked_display_owner_for_linked_account() -> None:
@@ -1113,7 +1113,7 @@ def test_build_account_summaries_prefer_tracked_display_owner_for_linked_account
                 institution_name="Florida Retirement System (FRS)",
                 account_name="FRS Investment Plan",
                 account_mask=None,
-                owner_name="Mariana Leslie",
+                owner_name="Jordan Demo",
                 currency="USD",
                 balance=131002.19,
                 holdings_value=131002.19,
@@ -1134,7 +1134,7 @@ def test_build_account_summaries_prefer_tracked_display_owner_for_linked_account
                 account_type="401k",
                 source_type="retirement",
                 institution_name="Florida Retirement System (FRS)",
-                owner_name="Elias",
+                owner_name="Alex Demo",
                 account_mask=None,
                 notes=None,
                 created_at="2026-04-13T00:00:00Z",
@@ -1146,7 +1146,7 @@ def test_build_account_summaries_prefer_tracked_display_owner_for_linked_account
     )
 
     assert len(summaries) == 1
-    assert summaries[0].owner_name == "Elias"
+    assert summaries[0].owner_name == "Alex Demo"
     assert summaries[0].tracked_account_id == "tracked-frs"
 
 
@@ -1287,7 +1287,7 @@ def test_build_account_summaries_links_prefixed_evidence_to_tracked_account_by_a
                 account_type="ira",
                 institution_name="Fidelity",
                 account_name="Traditional IRA",
-                account_mask="245944181",
+                account_mask="000000001",
                 owner_name=None,
                 currency="USD",
                 balance=347053.83,
@@ -1309,7 +1309,7 @@ def test_build_account_summaries_links_prefixed_evidence_to_tracked_account_by_a
                 source_type="retirement",
                 institution_name="Fidelity",
                 owner_name=None,
-                account_mask="245944181",
+                account_mask="000000001",
                 notes=None,
                 created_at=_iso(10),
                 updated_at=_iso(1),
@@ -1379,7 +1379,7 @@ def test_build_account_summaries_links_renamed_tracked_account_by_match_key() ->
                 source_type="credit_card",
                 match_key="evidence|chase amazon card|credit_card",
                 institution_name="Chase",
-                owner_name="Elias and Mariana",
+                owner_name="Alex Demo and Jordan Demo",
                 account_mask=None,
                 notes=None,
                 created_at=_iso(10),
@@ -1449,7 +1449,7 @@ def test_build_account_summaries_legacy_token_fallback_links_unique_credit_card_
                 account_type="credit_card",
                 source_type="credit_card",
                 institution_name="Chase",
-                owner_name="Elias and Mariana",
+                owner_name="Alex Demo and Jordan Demo",
                 account_mask=None,
                 notes=None,
                 created_at=_iso(10),
@@ -1499,7 +1499,7 @@ def test_build_account_summaries_unique_institution_fallback_links_masked_credit
                 institution_name="Chase",
                 account_name="Prime Visa",
                 account_mask="5313",
-                owner_name="ELIAS B LESLIE",
+                owner_name="ALEX DEMO",
                 currency="USD",
                 balance=3623.21,
                 holdings_value=None,
@@ -1519,7 +1519,7 @@ def test_build_account_summaries_unique_institution_fallback_links_masked_credit
                 account_type="credit_card",
                 source_type="credit_card",
                 institution_name="Chase",
-                owner_name="Elias and Mariana",
+                owner_name="Alex Demo and Jordan Demo",
                 account_mask=None,
                 notes=None,
                 created_at=_iso(10),
@@ -1629,7 +1629,7 @@ def test_build_account_summaries_locked_match_key_does_not_absorb_sibling_retire
                 source_type="retirement",
                 match_key="evidence|pinellas county schools|pinellas county schools 403(b) plan|retirement",
                 institution_name="Pinellas County Schools",
-                owner_name="Mariana",
+                owner_name="Jordan Demo",
                 account_mask=None,
                 notes=None,
                 created_at=_iso(10),
@@ -1701,7 +1701,7 @@ def test_build_account_summaries_keep_distinct_canonical_accounts_even_if_displa
                 institution_name="Pinellas County Schools",
                 account_name="Pinellas County Schools 403(b) Plan",
                 account_mask=None,
-                owner_name="Mariana Leslie",
+                owner_name="Jordan Demo",
                 currency="USD",
                 balance=130087.17,
                 holdings_value=130087.17,
@@ -1720,7 +1720,7 @@ def test_build_account_summaries_keep_distinct_canonical_accounts_even_if_displa
                 institution_name="Pinellas County Schools",
                 account_name="Pinellas County Schools 457(b) Deferred Compensation Plan",
                 account_mask=None,
-                owner_name="Mariana Leslie",
+                owner_name="Jordan Demo",
                 currency="USD",
                 balance=95961.72,
                 holdings_value=95961.72,
@@ -1742,7 +1742,7 @@ def test_build_account_summaries_keep_distinct_canonical_accounts_even_if_displa
                 source_type="retirement",
                 match_key=None,
                 institution_name="Pinellas County Schools",
-                owner_name="Mariana Leslie",
+                owner_name="Jordan Demo",
                 account_mask=None,
                 notes=None,
                 created_at=_iso(10),
@@ -1757,7 +1757,7 @@ def test_build_account_summaries_keep_distinct_canonical_accounts_even_if_displa
                 source_type="retirement",
                 match_key=None,
                 institution_name="Pinellas County Schools",
-                owner_name="Mariana Leslie",
+                owner_name="Jordan Demo",
                 account_mask=None,
                 notes=None,
                 created_at=_iso(10),
@@ -1806,7 +1806,7 @@ def test_build_account_summaries_uses_portfolio_label_for_linked_evidence_accoun
                 account_type="brokerage",
                 institution_name="Fidelity",
                 account_name="Individual - TOD",
-                account_mask="Z35217544",
+                account_mask="Z00000002",
                 owner_name=None,
                 currency="USD",
                 balance=507248.61,
@@ -1851,7 +1851,7 @@ def test_build_account_summaries_prefers_source_portfolio_label_over_tracked_ali
                 account_type="brokerage",
                 institution_name="Fidelity",
                 account_name="Brokerage",
-                account_mask="Z35217544",
+                account_mask="Z00000002",
                 owner_name=None,
                 currency="USD",
                 balance=549332.66,
@@ -1882,7 +1882,7 @@ def test_build_account_summaries_prefers_source_portfolio_label_over_tracked_ali
                 source_type="brokerage",
                 institution_name="Fidelity",
                 owner_name=None,
-                account_mask="Z35217544",
+                account_mask="Z00000002",
                 notes=None,
                 created_at=_iso(30),
                 updated_at=_iso(30),
@@ -1929,7 +1929,7 @@ def test_build_account_summaries_uses_source_balance_for_source_owned_cash_accou
                 account_type="brokerage",
                 institution_name="Fidelity",
                 account_name="Cash Management Account (CMA)",
-                account_mask="Z38367298",
+                account_mask="Z00000001",
                 owner_name=None,
                 currency="USD",
                 balance=39084.27,
@@ -2001,7 +2001,7 @@ def test_source_sync_refreshes_transaction_freshness_for_spend_driver() -> None:
                 account_type="brokerage",
                 institution_name="Fidelity",
                 account_name="Cash Management (Joint WROS)",
-                account_mask="Z38367298",
+                account_mask="Z00000001",
                 owner_name=None,
                 currency="USD",
                 balance=41840.64,
@@ -2143,7 +2143,7 @@ def test_build_account_summaries_prefers_portfolio_household_account_link_over_n
                 account_type="brokerage",
                 institution_name="Fidelity",
                 account_name="Cash Management (Joint WROS)",
-                account_mask="Z38367298",
+                account_mask="Z00000001",
                 owner_name=None,
                 currency="USD",
                 balance=39400.59,
@@ -2228,7 +2228,7 @@ def test_build_account_summaries_merge_tracked_match_into_existing_household_acc
                 account_type="brokerage",
                 institution_name="Fidelity",
                 account_name="Cash Management Account (CMA)",
-                account_mask="Z38367298",
+                account_mask="Z00000001",
                 owner_name=None,
                 currency="USD",
                 balance=39400.59,
@@ -2421,7 +2421,7 @@ def test_build_account_summaries_uses_account_mask_to_credit_transaction_only_do
                 account_type="brokerage",
                 institution_name=None,
                 account_name="Cash Management (Joint WROS)",
-                account_mask="Z38367298",
+                account_mask="Z00000001",
                 owner_name=None,
                 currency="USD",
                 balance=39400.59,
@@ -2439,7 +2439,7 @@ def test_build_account_summaries_uses_account_mask_to_credit_transaction_only_do
         statement_freshness={"coverage_months": 1, "gap_months": []},
         latest_transaction_dates_by_document={},
         latest_transaction_dates_by_account_label={
-            "Z38367298": (datetime.now(UTC) - timedelta(days=4)).date()
+            "Z00000001": (datetime.now(UTC) - timedelta(days=4)).date()
         },
     )
 
@@ -2506,7 +2506,7 @@ def test_build_account_summaries_preserve_balance_from_statement_when_newer_doc_
                 institution_name="Chase",
                 account_name="Prime Visa",
                 account_mask="9728",
-                owner_name="Elias B Leslie",
+                owner_name="Alex Demo",
                 currency="USD",
                 balance=2958.17,
                 holdings_value=None,
@@ -2525,14 +2525,14 @@ def test_build_account_summaries_preserve_balance_from_statement_when_newer_doc_
                 institution_name="Chase",
                 account_name="Chase Amazon card",
                 account_mask="5313",
-                owner_name="ELIAS B LESLIE",
+                owner_name="ALEX DEMO",
                 currency="USD",
                 balance=None,
                 holdings_value=None,
                 cash_balance=None,
                 as_of_date="2026-04-14T00:00:00+00:00",
                 confidence=0.88,
-                metadata={"match_key": "credit-lineage|chase|prime visa|elias b leslie|credit_card"},
+                metadata={"match_key": "credit-lineage|chase|prime visa|alex demo|credit_card"},
             ),
         ],
         documents=documents,

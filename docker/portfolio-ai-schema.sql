@@ -2,10 +2,10 @@
 -- PostgreSQL database dump
 --
 
-\restrict vkRqVkwyYCmVowZW2ufUzKpekNWJXTQWEO9gJhoIOnqaZgyp4PioeKk2flFDqaM
+\restrict m5JP5xXaFwLjRNyeNiK1GsrGdz8b7vzBUrBm3LHD5JX986I8Of1NSEMZtFxST9E
 
--- Dumped from database version 16.11 (Ubuntu 16.11-0ubuntu0.24.04.1)
--- Dumped by pg_dump version 16.11 (Ubuntu 16.11-0ubuntu0.24.04.1)
+-- Dumped from database version 16.13 (Debian 16.13-1.pgdg12+1)
+-- Dumped by pg_dump version 16.14 (Ubuntu 16.14-0ubuntu0.24.04.1)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -17,27 +17,6 @@ SET check_function_bodies = false;
 SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
-
---
--- Name: public; Type: SCHEMA; Schema: -; Owner: -
---
-
--- *not* creating schema, since initdb creates it
-
-
---
--- Name: pg_stat_statements; Type: EXTENSION; Schema: -; Owner: -
---
-
-CREATE EXTENSION IF NOT EXISTS pg_stat_statements WITH SCHEMA public;
-
-
---
--- Name: EXTENSION pg_stat_statements; Type: COMMENT; Schema: -; Owner: -
---
-
-COMMENT ON EXTENSION pg_stat_statements IS 'track planning and execution statistics of all SQL statements executed';
-
 
 --
 -- Name: uuid-ossp; Type: EXTENSION; Schema: -; Owner: -
@@ -63,7 +42,8 @@ CREATE TYPE public.market_event_type AS ENUM (
     'nfp_release',
     'fed_speech',
     'pce_release',
-    'gdp_release'
+    'gdp_release',
+    'ppi_release'
 );
 
 
@@ -846,7 +826,11 @@ CREATE TABLE public.automation_preferences (
     auto_remove_on_invalidation boolean,
     auto_trim_enabled boolean,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    scheduled_jenny_operator_enabled boolean,
+    scheduled_ml_labeling_enabled boolean,
+    scheduled_strategy_research_enabled boolean,
+    scheduled_account_sync_enabled boolean
 );
 
 
@@ -913,7 +897,7 @@ CREATE TABLE public.backtest_runs (
     benchmark_symbol character varying(20) DEFAULT 'SPY'::character varying,
     CONSTRAINT backtest_runs_capital_check CHECK ((initial_capital > (0)::numeric)),
     CONSTRAINT backtest_runs_dates_check CHECK ((end_date >= start_date)),
-    CONSTRAINT backtest_runs_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'running'::character varying, 'completed'::character varying, 'failed'::character varying])::text[])))
+    CONSTRAINT backtest_runs_status_check CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('running'::character varying)::text, ('completed'::character varying)::text, ('failed'::character varying)::text])))
 );
 
 
@@ -1006,7 +990,7 @@ CREATE TABLE public.backtest_trades (
     max_favorable_pct numeric(10,4) DEFAULT 0.0,
     max_adverse_pct numeric(10,4) DEFAULT 0.0,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT backtest_trades_exit_reason_check CHECK ((((exit_reason)::text = ANY ((ARRAY['target'::character varying, 'stop'::character varying, 'signal'::character varying, 'time'::character varying, 'eod'::character varying])::text[])) OR (exit_reason IS NULL))),
+    CONSTRAINT backtest_trades_exit_reason_check CHECK ((((exit_reason)::text = ANY (ARRAY[('target'::character varying)::text, ('stop'::character varying)::text, ('signal'::character varying)::text, ('time'::character varying)::text, ('eod'::character varying)::text])) OR (exit_reason IS NULL))),
     CONSTRAINT backtest_trades_prices_check CHECK (((entry_price > (0)::numeric) AND ((exit_price > (0)::numeric) OR (exit_price IS NULL)))),
     CONSTRAINT backtest_trades_shares_check CHECK ((shares > 0))
 );
@@ -1081,56 +1065,179 @@ ALTER SEQUENCE public.cash_flow_metrics_id_seq OWNED BY public.cash_flow_metrics
 
 
 --
--- Name: claude_progress_log; Type: TABLE; Schema: public; Owner: -
+-- Name: committee_data_source_approvals; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.claude_progress_log (
-    id integer NOT NULL,
-    session_id text,
-    logged_at timestamp with time zone DEFAULT now(),
-    action text NOT NULL,
-    action_type text,
-    feature_id text,
-    task_file text,
-    files_modified text[],
-    details jsonb,
-    git_commit text,
-    context_percent integer
+CREATE TABLE public.committee_data_source_approvals (
+    source_key character varying(96) NOT NULL,
+    source_type character varying(64) NOT NULL,
+    display_name text NOT NULL,
+    approval_status character varying(32) NOT NULL,
+    reliability text NOT NULL,
+    access_method text NOT NULL,
+    data_fields jsonb DEFAULT '[]'::jsonb NOT NULL,
+    freshness_sla text NOT NULL,
+    cost_rate_limits text NOT NULL,
+    legal_tos_risk text NOT NULL,
+    ingestion_design text NOT NULL,
+    validation_checks jsonb DEFAULT '[]'::jsonb NOT NULL,
+    evidence_urls jsonb DEFAULT '[]'::jsonb NOT NULL,
+    approved_at timestamp with time zone,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_committee_data_source_approvals_status CHECK (((approval_status)::text = ANY ((ARRAY['approved'::character varying, 'rejected'::character varying, 'research_only'::character varying])::text[]))),
+    CONSTRAINT ck_committee_data_source_approvals_type CHECK (((source_type)::text = ANY ((ARRAY['political_trading'::character varying, 'prediction_market'::character varying, 'social_media'::character varying, 'tradingview_chart'::character varying, 'chart_technical'::character varying])::text[])))
 );
 
 
 --
--- Name: TABLE claude_progress_log; Type: COMMENT; Schema: public; Owner: -
+-- Name: committee_events; Type: TABLE; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.claude_progress_log IS 'Session progress tracking for Claude Code sessions. Replaces text-based claude-progress.txt';
+CREATE TABLE public.committee_events (
+    id bigint NOT NULL,
+    run_id uuid NOT NULL,
+    seq integer NOT NULL,
+    ts timestamp with time zone DEFAULT now() NOT NULL,
+    type character varying(64) NOT NULL,
+    stage character varying(32),
+    agent_slug character varying(64),
+    role character varying(32),
+    content jsonb DEFAULT '{}'::jsonb NOT NULL,
+    score numeric(6,4),
+    tokens integer,
+    latency_ms integer
+);
 
 
 --
--- Name: COLUMN claude_progress_log.action_type; Type: COMMENT; Schema: public; Owner: -
+-- Name: committee_events_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.claude_progress_log.action_type IS 'Categories: start, progress, complete, verify, audit, pause, plan';
-
-
---
--- Name: claude_progress_log_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.claude_progress_log_id_seq
-    AS integer
+ALTER TABLE public.committee_events ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
+    SEQUENCE NAME public.committee_events_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
--- Name: claude_progress_log_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: committee_evidence; Type: TABLE; Schema: public; Owner: -
 --
 
-ALTER SEQUENCE public.claude_progress_log_id_seq OWNED BY public.claude_progress_log.id;
+CREATE TABLE public.committee_evidence (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    run_id uuid NOT NULL,
+    claim text NOT NULL,
+    source text,
+    side character varying(8) NOT NULL,
+    weight numeric(6,4) DEFAULT 1.0 NOT NULL,
+    event_id bigint,
+    CONSTRAINT ck_committee_evidence_side CHECK (((side)::text = ANY ((ARRAY['bull'::character varying, 'bear'::character varying, 'neutral'::character varying])::text[])))
+);
+
+
+--
+-- Name: committee_inputs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.committee_inputs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    run_id uuid NOT NULL,
+    round integer NOT NULL,
+    user_input text NOT NULL,
+    triggered_event_id bigint,
+    decision_shifted boolean,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: committee_runs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.committee_runs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    symbol character varying(32),
+    household_id character varying(64),
+    status character varying(16) NOT NULL,
+    decision_action character varying(8),
+    decision_qty numeric(18,6),
+    decision_pct_portfolio numeric(8,6),
+    decision_price numeric(18,6),
+    decision_horizon character varying(32),
+    confidence numeric(6,4),
+    bull_score numeric(6,4),
+    bear_score numeric(6,4),
+    parent_run_id uuid,
+    graph_version character varying(32) DEFAULT 'committee.v0.3.1'::character varying NOT NULL,
+    hatchet_workflow_run_id text,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    completed_at timestamp with time zone,
+    approved_at timestamp with time zone,
+    aborted_at timestamp with time zone,
+    error text,
+    tokens_total integer DEFAULT 0 NOT NULL,
+    cost_usd numeric(18,6) DEFAULT 0 NOT NULL,
+    request_type character varying(32) DEFAULT 'symbol_review'::character varying NOT NULL,
+    prompt text,
+    title text,
+    constraints jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT ck_committee_runs_decision_action CHECK (((decision_action IS NULL) OR ((decision_action)::text = ANY ((ARRAY['buy'::character varying, 'sell'::character varying, 'trim'::character varying, 'add'::character varying, 'hold'::character varying])::text[])))),
+    CONSTRAINT ck_committee_runs_request_type CHECK (((request_type)::text = ANY ((ARRAY['symbol_review'::character varying, 'market_brief'::character varying, 'candidate_screen'::character varying, 'signal_scan'::character varying])::text[]))),
+    CONSTRAINT ck_committee_runs_status CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'running'::character varying, 'complete'::character varying, 'approved'::character varying, 'aborted'::character varying, 'failed'::character varying])::text[]))),
+    CONSTRAINT ck_committee_runs_status_timestamps CHECK (((((status)::text <> 'complete'::text) OR (completed_at IS NOT NULL)) AND (((status)::text <> 'approved'::text) OR ((completed_at IS NOT NULL) AND (approved_at IS NOT NULL))) AND (((status)::text <> 'aborted'::text) OR (aborted_at IS NOT NULL))))
+);
+
+
+--
+-- Name: committee_source_ingestion_health; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.committee_source_ingestion_health (
+    source_key character varying(96) NOT NULL,
+    source_type character varying(64) NOT NULL,
+    status character varying(32) NOT NULL,
+    checked_at timestamp with time zone DEFAULT now() NOT NULL,
+    latest_observed_at timestamp with time zone,
+    rows_ingested integer DEFAULT 0 NOT NULL,
+    detail text,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT ck_committee_source_ingestion_health_status CHECK (((status)::text = ANY ((ARRAY['ready'::character varying, 'failed'::character varying, 'skipped'::character varying])::text[]))),
+    CONSTRAINT ck_committee_source_ingestion_health_type CHECK (((source_type)::text = ANY ((ARRAY['political_trading'::character varying, 'prediction_market'::character varying, 'social_media'::character varying, 'tradingview_chart'::character varying, 'chart_technical'::character varying])::text[])))
+);
+
+
+--
+-- Name: committee_source_snapshots; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.committee_source_snapshots (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    run_id uuid NOT NULL,
+    request_type character varying(32) NOT NULL,
+    snapshot jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: committee_widgets; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.committee_widgets (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    run_id uuid NOT NULL,
+    widget_key character varying(64) NOT NULL,
+    widget_type character varying(64) NOT NULL,
+    title text NOT NULL,
+    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    source_refs jsonb DEFAULT '[]'::jsonb NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
 
 
 --
@@ -1398,6 +1505,29 @@ CREATE TABLE public.endpoint_catalog (
     path_template text NOT NULL,
     field_mapping jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now()
+);
+
+
+--
+-- Name: external_signal_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.external_signal_events (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    source_type character varying(64) NOT NULL,
+    source_name text NOT NULL,
+    symbol character varying(32),
+    event_timestamp timestamp with time zone NOT NULL,
+    title text NOT NULL,
+    summary text,
+    url text,
+    sentiment_score double precision,
+    signal_score double precision,
+    confidence double precision,
+    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    dedupe_key text NOT NULL,
+    CONSTRAINT ck_external_signal_events_source_type CHECK (((source_type)::text = ANY ((ARRAY['political_trading'::character varying, 'prediction_market'::character varying, 'social_media'::character varying, 'tradingview_chart'::character varying, 'chart_technical'::character varying])::text[])))
 );
 
 
@@ -1674,6 +1804,20 @@ COMMENT ON TABLE public.financial_health_scores IS 'Normalized financial health 
 
 
 --
+-- Name: fomc_meetings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.fomc_meetings (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    meeting_date date NOT NULL,
+    meeting_type character varying(32) NOT NULL,
+    source character varying(32) NOT NULL,
+    fetched_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_fomc_meetings_meeting_type CHECK (((meeting_type)::text = ANY ((ARRAY['regular'::character varying, 'press_conference'::character varying, 'minutes'::character varying])::text[])))
+);
+
+
+--
 -- Name: gap_analysis_history; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1730,6 +1874,61 @@ CREATE SEQUENCE public.gap_analysis_history_analysis_id_seq
 --
 
 ALTER SEQUENCE public.gap_analysis_history_analysis_id_seq OWNED BY public.gap_analysis_history.analysis_id;
+
+
+--
+-- Name: household_account_identities; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_account_identities (
+    id uuid NOT NULL,
+    household_account_id uuid NOT NULL,
+    identity_key character varying(512) NOT NULL,
+    identity_kind character varying(64) DEFAULT 'composite'::character varying NOT NULL,
+    is_primary boolean DEFAULT false NOT NULL,
+    source_document_id uuid,
+    confidence double precision,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: household_account_preferences; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_account_preferences (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    household_account_id uuid NOT NULL,
+    display_label character varying(255),
+    display_owner_name character varying(255),
+    notes text,
+    hidden_at timestamp with time zone,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: household_accounts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_accounts (
+    id uuid NOT NULL,
+    primary_identity_key character varying(512),
+    canonical_label character varying(255),
+    asset_group character varying(32) NOT NULL,
+    account_type character varying(64) NOT NULL,
+    source_type character varying(64) NOT NULL,
+    institution_name character varying(255),
+    owner_name character varying(255),
+    account_mask character varying(64),
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
 
 
 --
@@ -1853,6 +2052,33 @@ CREATE TABLE public.household_documents (
     review_status text,
     review_summary text,
     review_confidence double precision
+);
+
+
+--
+-- Name: household_evidence_accounts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_evidence_accounts (
+    id uuid NOT NULL,
+    document_id uuid NOT NULL,
+    source_type character varying(64) NOT NULL,
+    asset_group character varying(32) NOT NULL,
+    account_type character varying(64) NOT NULL,
+    institution_name character varying(255),
+    account_name character varying(255),
+    account_mask character varying(32),
+    owner_name character varying(255),
+    currency character varying(8),
+    balance numeric(18,4),
+    holdings_value numeric(18,4),
+    cash_balance numeric(18,4),
+    as_of_date timestamp with time zone,
+    confidence double precision,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    household_account_id uuid
 );
 
 
@@ -2057,7 +2283,17 @@ CREATE TABLE public.household_profiles (
     marginal_federal_tax_rate numeric(6,2),
     marginal_state_tax_rate numeric(6,2),
     emergency_fund_target_months numeric(6,2),
-    emergency_fund_target_amount numeric(12,2)
+    emergency_fund_target_amount numeric(12,2),
+    retirement_inflation_rate numeric(8,5),
+    retirement_horizon_years integer,
+    primary_social_security_monthly numeric(12,2),
+    spouse_social_security_monthly numeric(12,2),
+    primary_social_security_annual_earnings numeric(12,2),
+    spouse_social_security_annual_earnings numeric(12,2),
+    primary_social_security_start_age integer,
+    spouse_social_security_start_age integer,
+    social_security_payable_ratio numeric(6,5),
+    target_spouse_retirement_age integer
 );
 
 
@@ -2108,6 +2344,48 @@ CREATE TABLE public.household_retirement_income_sources (
 
 
 --
+-- Name: household_tracked_accounts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_tracked_accounts (
+    id uuid NOT NULL,
+    label character varying(255) NOT NULL,
+    asset_group character varying(32) NOT NULL,
+    account_type character varying(64) NOT NULL,
+    source_type character varying(64) NOT NULL,
+    institution_name character varying(255),
+    owner_name character varying(255),
+    account_mask character varying(32),
+    notes text,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    match_key character varying(512),
+    household_account_id uuid
+);
+
+
+--
+-- Name: household_transaction_rules; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_transaction_rules (
+    id uuid NOT NULL,
+    rule_type character varying(32) DEFAULT 'merchant'::character varying NOT NULL,
+    merchant_id uuid,
+    normalized_merchant_key text,
+    description_pattern text,
+    category text NOT NULL,
+    essentiality text NOT NULL,
+    enabled boolean DEFAULT true NOT NULL,
+    source character varying(64) DEFAULT 'manual'::character varying NOT NULL,
+    applied_count integer DEFAULT 0 NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
 -- Name: household_transactions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2129,7 +2407,20 @@ CREATE TABLE public.household_transactions (
     confidence double precision,
     metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    household_account_id uuid,
+    source_system character varying(64),
+    external_transaction_id character varying(255),
+    original_category text,
+    categorization_source character varying(64),
+    categorization_version character varying(64),
+    category_updated_by character varying(128),
+    category_updated_at timestamp with time zone,
+    transaction_rule_id uuid,
+    import_row_id uuid,
+    balance_after numeric(18,4),
+    pending boolean DEFAULT false NOT NULL,
+    removed boolean DEFAULT false NOT NULL
 );
 
 
@@ -2313,6 +2604,62 @@ ALTER SEQUENCE public.institutional_ownership_summary_id_seq OWNED BY public.ins
 
 
 --
+-- Name: intraday_bars; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.intraday_bars (
+    symbol character varying(16) NOT NULL,
+    ts timestamp with time zone NOT NULL,
+    session_date date NOT NULL,
+    open double precision,
+    high double precision,
+    low double precision,
+    close double precision,
+    volume bigint,
+    source text NOT NULL,
+    ingest_run_id text,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: ips_drift_history; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ips_drift_history (
+    scope character varying(16) NOT NULL,
+    scope_id character varying(64) NOT NULL,
+    asset_class character varying(32) NOT NULL,
+    snapshot_date date NOT NULL,
+    target_pct numeric(6,4) NOT NULL,
+    actual_pct numeric(6,4) NOT NULL,
+    drift_pct numeric(8,6) NOT NULL,
+    total_value numeric(18,4) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: ips_targets; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ips_targets (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    scope character varying(16) NOT NULL,
+    scope_id character varying(64) NOT NULL,
+    asset_class character varying(32) NOT NULL,
+    target_pct numeric(6,4) NOT NULL,
+    drift_band_pct numeric(6,4) DEFAULT 0.05 NOT NULL,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_ips_targets_band_pct_range CHECK (((drift_band_pct >= (0)::numeric) AND (drift_band_pct <= (1)::numeric))),
+    CONSTRAINT ck_ips_targets_scope CHECK (((scope)::text = ANY ((ARRAY['household'::character varying, 'account'::character varying])::text[]))),
+    CONSTRAINT ck_ips_targets_target_pct_range CHECK (((target_pct >= (0)::numeric) AND (target_pct <= (1)::numeric)))
+);
+
+
+--
 -- Name: jenny_agent_evaluations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2420,6 +2767,45 @@ CREATE TABLE public.jenny_trade_reviews (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+
+--
+-- Name: macro_conditions_history; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.macro_conditions_history (
+    id bigint NOT NULL,
+    recorded_at timestamp with time zone DEFAULT now() NOT NULL,
+    snapshot_date date NOT NULL,
+    deployment_score double precision,
+    macro_stress smallint,
+    tape_pressure smallint,
+    overall_caution smallint,
+    overall_read text,
+    primary_driver text,
+    state text,
+    tape_available boolean DEFAULT false NOT NULL,
+    market_session text
+);
+
+
+--
+-- Name: macro_conditions_history_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.macro_conditions_history_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: macro_conditions_history_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.macro_conditions_history_id_seq OWNED BY public.macro_conditions_history.id;
 
 
 --
@@ -3043,6 +3429,103 @@ CREATE TABLE public.paper_trade_transactions (
 
 
 --
+-- Name: paper_trades; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.paper_trades (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    run_id uuid NOT NULL,
+    household_id character varying(64),
+    symbol character varying(32) NOT NULL,
+    action character varying(8) NOT NULL,
+    qty numeric(18,6) NOT NULL,
+    price numeric(18,6) NOT NULL,
+    executed_at timestamp with time zone DEFAULT now() NOT NULL,
+    tracked_until timestamp with time zone,
+    current_pnl numeric(18,4),
+    current_price numeric(18,6),
+    last_pnl_at timestamp with time zone,
+    closed_at timestamp with time zone,
+    CONSTRAINT ck_paper_trades_action CHECK (((action)::text = ANY ((ARRAY['buy'::character varying, 'sell'::character varying, 'trim'::character varying, 'add'::character varying])::text[])))
+);
+
+
+--
+-- Name: plaid_accounts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.plaid_accounts (
+    id uuid NOT NULL,
+    item_id text NOT NULL,
+    account_id text NOT NULL,
+    household_account_id uuid,
+    name text NOT NULL,
+    official_name text,
+    mask character varying(64),
+    type character varying(64),
+    subtype character varying(64),
+    verification_status character varying(64),
+    current_balance numeric(18,4),
+    available_balance numeric(18,4),
+    iso_currency_code character varying(8),
+    unofficial_currency_code character varying(16),
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    last_synced_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: plaid_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.plaid_items (
+    id uuid NOT NULL,
+    item_id text NOT NULL,
+    access_token_ciphertext text NOT NULL,
+    environment character varying(32) NOT NULL,
+    institution_id text,
+    institution_name text,
+    available_products jsonb DEFAULT '[]'::jsonb NOT NULL,
+    billed_products jsonb DEFAULT '[]'::jsonb NOT NULL,
+    consented_products jsonb DEFAULT '[]'::jsonb NOT NULL,
+    transactions_cursor text,
+    status character varying(32) DEFAULT 'active'::character varying NOT NULL,
+    last_successful_sync_at timestamp with time zone,
+    last_error text,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: plaid_transactions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.plaid_transactions (
+    id uuid NOT NULL,
+    item_id text NOT NULL,
+    account_id text NOT NULL,
+    transaction_id text NOT NULL,
+    name text NOT NULL,
+    merchant_name text,
+    amount numeric(18,4) NOT NULL,
+    iso_currency_code character varying(8),
+    unofficial_currency_code character varying(16),
+    transaction_date date NOT NULL,
+    authorized_date date,
+    pending boolean DEFAULT false NOT NULL,
+    payment_channel text,
+    category jsonb DEFAULT '[]'::jsonb NOT NULL,
+    personal_finance_category jsonb DEFAULT '{}'::jsonb NOT NULL,
+    removed boolean DEFAULT false NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
 -- Name: portfolio_accounts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3052,9 +3535,10 @@ CREATE TABLE public.portfolio_accounts (
     account_type text NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    household_account_id uuid,
     cash_balance double precision DEFAULT 100000.0 NOT NULL,
-    initial_cash double precision DEFAULT 100000.0 NOT NULL
+    initial_cash double precision DEFAULT 100000.0 NOT NULL,
+    household_account_id uuid,
+    is_spouse boolean DEFAULT false NOT NULL
 );
 
 
@@ -3159,6 +3643,48 @@ ALTER SEQUENCE public.portfolio_snapshots_id_seq OWNED BY public.portfolio_snaps
 
 
 --
+-- Name: portfolio_tax_lots; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.portfolio_tax_lots (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    account_id text NOT NULL,
+    symbol character varying(32) NOT NULL,
+    acquired_date date NOT NULL,
+    original_shares numeric(18,6) NOT NULL,
+    remaining_shares numeric(18,6) NOT NULL,
+    cost_per_share numeric(18,6) NOT NULL,
+    cost_basis_total numeric(18,4) NOT NULL,
+    acquisition_txn_id uuid,
+    disposed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: portfolio_transactions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.portfolio_transactions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    account_id text NOT NULL,
+    symbol character varying(32) NOT NULL,
+    transaction_type character varying(16) NOT NULL,
+    trade_date date NOT NULL,
+    settlement_date date,
+    shares numeric(18,6) NOT NULL,
+    price numeric(18,6) NOT NULL,
+    fees numeric(18,4) DEFAULT 0 NOT NULL,
+    realized_gain numeric(18,4),
+    source character varying(32) DEFAULT 'manual'::character varying NOT NULL,
+    external_id character varying(128),
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: portfolio_volatility_cache; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3195,7 +3721,9 @@ CREATE TABLE public.price_cache (
     bid double precision,
     ask double precision,
     bid_size integer,
-    ask_size integer
+    ask_size integer,
+    price_session text,
+    quote_time timestamp with time zone
 );
 
 
@@ -3372,6 +3900,39 @@ COMMENT ON COLUMN public.reference_cache.z_score_zone IS 'Z-Score interpretation
 
 
 --
+-- Name: research_universe_symbols; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.research_universe_symbols (
+    symbol character varying(16) NOT NULL,
+    source character varying(64) NOT NULL,
+    sector character varying(64),
+    industry character varying(128),
+    weight numeric(10,6),
+    added_at timestamp with time zone DEFAULT now() NOT NULL,
+    removed_at timestamp with time zone,
+    last_seen_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: retirement_scenarios; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.retirement_scenarios (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    household_id character varying(64) NOT NULL,
+    name character varying(128) NOT NULL,
+    inputs jsonb DEFAULT '{}'::jsonb NOT NULL,
+    results jsonb DEFAULT '{}'::jsonb NOT NULL,
+    cma_source character varying(64) NOT NULL,
+    trial_count integer NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_retirement_scenarios_trial_count_range CHECK (((trial_count > 0) AND (trial_count <= 50000)))
+);
+
+
+--
 -- Name: rules_validation_reports; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3387,7 +3948,7 @@ CREATE TABLE public.rules_validation_reports (
     recommendations jsonb DEFAULT '[]'::jsonb NOT NULL,
     summary text NOT NULL,
     performance_data jsonb,
-    CONSTRAINT rules_validation_reports_overall_status_check CHECK (((overall_status)::text = ANY ((ARRAY['valid'::character varying, 'warnings'::character varying, 'critical'::character varying])::text[])))
+    CONSTRAINT rules_validation_reports_overall_status_check CHECK (((overall_status)::text = ANY (ARRAY[('valid'::character varying)::text, ('warnings'::character varying)::text, ('critical'::character varying)::text])))
 );
 
 
@@ -3521,6 +4082,23 @@ COMMENT ON COLUMN public.sec_cik_cache.created_at IS 'When this mapping was firs
 
 
 --
+-- Name: sector_targets; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.sector_targets (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    household_id character varying(64),
+    sector character varying(64) NOT NULL,
+    target_pct numeric(6,4),
+    max_pct numeric(6,4) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_sector_targets_max_pct_range CHECK (((max_pct > (0)::numeric) AND (max_pct <= (1)::numeric))),
+    CONSTRAINT ck_sector_targets_target_pct_range CHECK (((target_pct IS NULL) OR ((target_pct >= (0)::numeric) AND (target_pct <= (1)::numeric))))
+);
+
+
+--
 -- Name: settings_profiles; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3638,6 +4216,32 @@ CREATE TABLE public.short_interest_summary (
 --
 
 COMMENT ON TABLE public.short_interest_summary IS 'Normalized short interest data';
+
+
+--
+-- Name: signal_macro_snapshots; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.signal_macro_snapshots (
+    snapshot_date date NOT NULL,
+    vix_close numeric(10,4),
+    term_spread_bps numeric(10,2),
+    breadth_pct numeric(6,2),
+    hy_spread numeric(8,4),
+    put_call_ratio numeric(6,4),
+    factor_crowding_corr numeric(6,4),
+    vix_score numeric(6,2),
+    term_score numeric(6,2),
+    breadth_score numeric(6,2),
+    credit_score numeric(6,2),
+    putcall_score numeric(6,2),
+    crowding_score numeric(6,2),
+    deployment_score numeric(6,2) NOT NULL,
+    zone character varying(16) NOT NULL,
+    raw_json jsonb,
+    computed_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT signal_macro_snapshots_zone_check CHECK (((zone)::text = ANY ((ARRAY['FULL_DEPLOY'::character varying, 'REDUCED'::character varying, 'DEFENSIVE'::character varying])::text[])))
+);
 
 
 --
@@ -3759,6 +4363,143 @@ CREATE SEQUENCE public.sitemap_health_history_id_seq
 --
 
 ALTER SEQUENCE public.sitemap_health_history_id_seq OWNED BY public.sitemap_health_history.id;
+
+
+--
+-- Name: snaptrade_accounts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.snaptrade_accounts (
+    id uuid NOT NULL,
+    user_id text NOT NULL,
+    authorization_id text,
+    account_id text NOT NULL,
+    portfolio_account_id text,
+    household_account_id uuid,
+    name text NOT NULL,
+    institution_name text,
+    account_mask character varying(64),
+    raw_type text,
+    portfolio_account_type character varying(32) NOT NULL,
+    balance numeric(18,4),
+    cash_balance numeric(18,4),
+    currency character varying(8),
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    last_synced_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: snaptrade_activities; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.snaptrade_activities (
+    id uuid NOT NULL,
+    account_id text NOT NULL,
+    activity_id text NOT NULL,
+    activity_type text,
+    symbol text,
+    trade_date timestamp with time zone,
+    settlement_date timestamp with time zone,
+    amount numeric(18,4),
+    units numeric(24,8),
+    price numeric(18,6),
+    fee numeric(18,4),
+    currency character varying(8),
+    description text,
+    external_reference_id text,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    last_synced_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: snaptrade_connections; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.snaptrade_connections (
+    id uuid NOT NULL,
+    user_id text NOT NULL,
+    authorization_id text NOT NULL,
+    brokerage_name text,
+    brokerage_slug text,
+    connection_name text,
+    connection_type character varying(32) DEFAULT 'read'::character varying NOT NULL,
+    disabled boolean DEFAULT false NOT NULL,
+    disabled_date timestamp with time zone,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    last_synced_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    owner_is_spouse boolean DEFAULT false NOT NULL,
+    owner_name text
+);
+
+
+--
+-- Name: snaptrade_orders; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.snaptrade_orders (
+    id uuid NOT NULL,
+    account_id text NOT NULL,
+    brokerage_order_id text NOT NULL,
+    status character varying(64),
+    action character varying(32),
+    symbol text,
+    raw_symbol text,
+    filled_quantity numeric(24,8),
+    execution_price numeric(18,6),
+    order_type text,
+    time_in_force text,
+    time_placed timestamp with time zone,
+    time_updated timestamp with time zone,
+    time_executed timestamp with time zone,
+    currency character varying(8),
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    last_synced_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: snaptrade_positions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.snaptrade_positions (
+    id uuid NOT NULL,
+    account_id text NOT NULL,
+    position_key text NOT NULL,
+    portfolio_position_id text,
+    symbol text NOT NULL,
+    raw_symbol text,
+    security_id text,
+    security_kind character varying(64),
+    units numeric(24,8) NOT NULL,
+    price numeric(18,6),
+    average_purchase_price numeric(18,6),
+    market_value numeric(18,4),
+    cost_basis numeric(18,4),
+    currency character varying(8),
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    last_synced_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: snaptrade_users; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.snaptrade_users (
+    id uuid NOT NULL,
+    user_id text NOT NULL,
+    user_secret_ciphertext text NOT NULL,
+    status character varying(32) DEFAULT 'active'::character varying NOT NULL,
+    last_successful_sync_at timestamp with time zone,
+    last_error text,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
 
 
 --
@@ -3922,199 +4663,6 @@ CREATE TABLE public.source_registry (
     definition jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
-);
-
-
---
--- Name: strategy_definitions; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.strategy_definitions (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    name character varying(255) NOT NULL,
-    symbol character varying(10) NOT NULL,
-    strategy_type character varying(50) NOT NULL,
-    parameters jsonb NOT NULL,
-    research_summary jsonb NOT NULL,
-    generation_reasoning text,
-    backtest_metrics jsonb NOT NULL,
-    expected_sharpe numeric(10,4),
-    expected_win_rate numeric(5,4),
-    expected_max_drawdown numeric(5,4),
-    created_by character varying(255),
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    version integer DEFAULT 1 NOT NULL,
-    status character varying(50) DEFAULT 'testing'::character varying NOT NULL,
-    activation_date timestamp with time zone,
-    archive_date timestamp with time zone,
-    archive_reason text,
-    live_trades_count integer DEFAULT 0,
-    live_win_rate numeric(5,4),
-    live_sharpe_ratio numeric(10,4),
-    last_used_at timestamp with time zone,
-    live_metrics_updated_at timestamp with time zone,
-    seed_id uuid,
-    seed_thesis text,
-    seed_confidence numeric(3,1)
-);
-
-
---
--- Name: COLUMN strategy_definitions.seed_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.strategy_definitions.seed_id IS 'UUID reference to the seed that triggered this strategy (if AI-generated)';
-
-
---
--- Name: COLUMN strategy_definitions.seed_thesis; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.strategy_definitions.seed_thesis IS 'Original AI thesis preserved for evolution tracking';
-
-
---
--- Name: COLUMN strategy_definitions.seed_confidence; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.strategy_definitions.seed_confidence IS 'Original confidence score (1-10) from seed generation';
-
-
---
--- Name: strategy_lineage; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.strategy_lineage (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    child_strategy_id uuid NOT NULL,
-    parent_strategy_id uuid,
-    changes_description text NOT NULL,
-    evolution_reason text NOT NULL,
-    metrics_before jsonb,
-    metrics_after jsonb,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
-);
-
-
---
--- Name: strategy_metrics; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.strategy_metrics (
-    id text NOT NULL,
-    metric_date date NOT NULL,
-    metric_type text NOT NULL,
-    total_signals integer DEFAULT 0 NOT NULL,
-    buy_signals integer DEFAULT 0 NOT NULL,
-    hold_signals integer DEFAULT 0 NOT NULL,
-    avoid_signals integer DEFAULT 0 NOT NULL,
-    signals_traded integer DEFAULT 0 NOT NULL,
-    winning_trades integer DEFAULT 0 NOT NULL,
-    losing_trades integer DEFAULT 0 NOT NULL,
-    win_rate_pct numeric(5,2),
-    avg_return_pct numeric(8,4),
-    best_return_pct numeric(8,4),
-    worst_return_pct numeric(8,4),
-    cumulative_return_pct numeric(10,4),
-    avg_overall_score numeric(5,2),
-    avg_technical_score numeric(5,2),
-    avg_fundamental_score numeric(5,2),
-    score_stdev numeric(5,2),
-    reviews_count integer DEFAULT 0 NOT NULL,
-    disagreements_count integer DEFAULT 0 NOT NULL,
-    disagreement_rate_pct numeric(5,2),
-    provider_disagreements_count integer DEFAULT 0,
-    provider_disagreement_rate_pct numeric(5,2),
-    avg_agreement_score numeric(5,4),
-    major_disagreements_count integer DEFAULT 0,
-    minor_disagreements_count integer DEFAULT 0,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
-);
-
-
---
--- Name: strategy_performance; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.strategy_performance (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    strategy_id uuid NOT NULL,
-    date date NOT NULL,
-    trades_today integer DEFAULT 0,
-    wins_today integer DEFAULT 0,
-    losses_today integer DEFAULT 0,
-    pnl_today numeric(15,2) DEFAULT 0,
-    trades_30d integer DEFAULT 0,
-    win_rate_30d numeric(5,4),
-    sharpe_ratio_30d numeric(10,4),
-    max_drawdown_30d numeric(5,4),
-    status character varying(50) DEFAULT 'active'::character varying NOT NULL,
-    notes text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
--- Name: strategy_reviews; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.strategy_reviews (
-    id text NOT NULL,
-    watchlist_item_id text NOT NULL,
-    snapshot_id text,
-    symbol text NOT NULL,
-    review_text text NOT NULL,
-    provider text NOT NULL,
-    is_valid boolean NOT NULL,
-    disagreement boolean NOT NULL,
-    token_usage jsonb,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    review_pair_id text,
-    disagreement_severity text,
-    provider_disagreement boolean DEFAULT false,
-    agreement_score real,
-    agent_run_id text,
-    CONSTRAINT strategy_reviews_disagreement_severity_check CHECK ((disagreement_severity = ANY (ARRAY['none'::text, 'minor'::text, 'major'::text])))
-);
-
-
---
--- Name: strategy_seeds; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.strategy_seeds (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    symbol character varying(10) NOT NULL,
-    thesis text NOT NULL,
-    confidence numeric(3,1) NOT NULL,
-    agent_run_id uuid,
-    source_type character varying(50) DEFAULT 'discovery'::character varying NOT NULL,
-    source_data jsonb,
-    status character varying(50) DEFAULT 'pending'::character varying NOT NULL,
-    strategy_id uuid,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    processed_at timestamp with time zone,
-    CONSTRAINT strategy_seeds_confidence_check CHECK (((confidence >= (1)::numeric) AND (confidence <= (10)::numeric))),
-    CONSTRAINT valid_status CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'processing'::character varying, 'converted'::character varying, 'rejected'::character varying])::text[])))
-);
-
-
---
--- Name: strategy_signals; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.strategy_signals (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    strategy_id uuid NOT NULL,
-    symbol character varying(10) NOT NULL,
-    signal_date date NOT NULL,
-    signal_type character varying(10) NOT NULL,
-    signal_strength integer NOT NULL,
-    reasons text[],
-    market_data jsonb,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT strategy_signals_signal_strength_check CHECK (((signal_strength >= 0) AND (signal_strength <= 10))),
-    CONSTRAINT strategy_signals_signal_type_check CHECK (((signal_type)::text = ANY ((ARRAY['BUY'::character varying, 'HOLD'::character varying, 'SELL'::character varying, 'AVOID'::character varying])::text[])))
 );
 
 
@@ -4323,7 +4871,7 @@ CREATE TABLE public.thesis_versions (
     snapshot jsonb NOT NULL,
     change_reason character varying(50),
     created_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT thesis_versions_change_reason_check CHECK (((change_reason)::text = ANY ((ARRAY['created'::character varying, 'updated'::character varying, 'invalidated'::character varying, 'superseded'::character varying])::text[])))
+    CONSTRAINT thesis_versions_change_reason_check CHECK (((change_reason)::text = ANY (ARRAY[('created'::character varying)::text, ('updated'::character varying)::text, ('invalidated'::character varying)::text, ('superseded'::character varying)::text])))
 );
 
 
@@ -4332,6 +4880,25 @@ CREATE TABLE public.thesis_versions (
 --
 
 COMMENT ON TABLE public.thesis_versions IS 'Append-only version history for thesis changes';
+
+
+--
+-- Name: tlh_scan_results; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tlh_scan_results (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    scan_date date NOT NULL,
+    symbol character varying(32) NOT NULL,
+    account_id text NOT NULL,
+    unrealized_loss numeric(18,4) NOT NULL,
+    unrealized_loss_pct numeric(10,6) NOT NULL,
+    blocked_by_wash_sale boolean DEFAULT false NOT NULL,
+    wash_sale_reason text,
+    replacement_symbol character varying(32),
+    holding_period_days integer,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
 
 
 --
@@ -4467,7 +5034,7 @@ CREATE TABLE public.user_preferences (
     filter_neutral_articles boolean DEFAULT false,
     news_profiling_interval_hours integer DEFAULT 12,
     CONSTRAINT check_avoid_threshold_range CHECK (((watchlist_avoid_threshold >= 1) AND (watchlist_avoid_threshold <= 4))),
-    CONSTRAINT check_display_timezone CHECK (((display_timezone)::text = ANY ((ARRAY['America/New_York'::character varying, 'America/Chicago'::character varying, 'America/Denver'::character varying, 'America/Los_Angeles'::character varying, 'America/Anchorage'::character varying, 'Pacific/Honolulu'::character varying])::text[]))),
+    CONSTRAINT check_display_timezone CHECK (((display_timezone)::text = ANY (ARRAY[('America/New_York'::character varying)::text, ('America/Chicago'::character varying)::text, ('America/Denver'::character varying)::text, ('America/Los_Angeles'::character varying)::text, ('America/Anchorage'::character varying)::text, ('Pacific/Honolulu'::character varying)::text]))),
     CONSTRAINT check_volume_surge_multiplier_range CHECK (((watchlist_volume_surge_multiplier >= (1.0)::double precision) AND (watchlist_volume_surge_multiplier <= (3.0)::double precision))),
     CONSTRAINT user_preferences_news_profiling_interval_hours_check CHECK ((news_profiling_interval_hours > 0)),
     CONSTRAINT user_preferences_source_confidence_weight_check CHECK ((source_confidence_weight >= (0.0)::double precision)),
@@ -5122,9 +5689,9 @@ CREATE TABLE public.watchlist_thesis (
     invalidated_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT watchlist_thesis_action_check CHECK (((action)::text = ANY ((ARRAY['BUY'::character varying, 'HOLD'::character varying, 'SELL'::character varying])::text[]))),
+    CONSTRAINT watchlist_thesis_action_check CHECK (((action)::text = ANY (ARRAY[('BUY'::character varying)::text, ('HOLD'::character varying)::text, ('SELL'::character varying)::text]))),
     CONSTRAINT watchlist_thesis_cross_validation_score_check CHECK (((cross_validation_score >= 0.0) AND (cross_validation_score <= 1.0))),
-    CONSTRAINT watchlist_thesis_status_check CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'invalidated'::character varying, 'flagged_for_review'::character varying])::text[])))
+    CONSTRAINT watchlist_thesis_status_check CHECK (((status)::text = ANY (ARRAY[('active'::character varying)::text, ('invalidated'::character varying)::text, ('flagged_for_review'::character varying)::text])))
 );
 
 
@@ -5245,13 +5812,6 @@ ALTER TABLE ONLY public.cash_flow_metrics ALTER COLUMN id SET DEFAULT nextval('p
 
 
 --
--- Name: claude_progress_log id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.claude_progress_log ALTER COLUMN id SET DEFAULT nextval('public.claude_progress_log_id_seq'::regclass);
-
-
---
 -- Name: corporate_actions id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -5312,6 +5872,13 @@ ALTER TABLE ONLY public.institutional_holdings ALTER COLUMN id SET DEFAULT nextv
 --
 
 ALTER TABLE ONLY public.institutional_ownership_summary ALTER COLUMN id SET DEFAULT nextval('public.institutional_ownership_summary_id_seq'::regclass);
+
+
+--
+-- Name: macro_conditions_history id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.macro_conditions_history ALTER COLUMN id SET DEFAULT nextval('public.macro_conditions_history_id_seq'::regclass);
 
 
 --
@@ -5605,11 +6172,67 @@ ALTER TABLE ONLY public.cash_flow_metrics
 
 
 --
--- Name: claude_progress_log claude_progress_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: committee_data_source_approvals committee_data_source_approvals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.claude_progress_log
-    ADD CONSTRAINT claude_progress_log_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.committee_data_source_approvals
+    ADD CONSTRAINT committee_data_source_approvals_pkey PRIMARY KEY (source_key);
+
+
+--
+-- Name: committee_events committee_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.committee_events
+    ADD CONSTRAINT committee_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: committee_evidence committee_evidence_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.committee_evidence
+    ADD CONSTRAINT committee_evidence_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: committee_inputs committee_inputs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.committee_inputs
+    ADD CONSTRAINT committee_inputs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: committee_runs committee_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.committee_runs
+    ADD CONSTRAINT committee_runs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: committee_source_ingestion_health committee_source_ingestion_health_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.committee_source_ingestion_health
+    ADD CONSTRAINT committee_source_ingestion_health_pkey PRIMARY KEY (source_key);
+
+
+--
+-- Name: committee_source_snapshots committee_source_snapshots_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.committee_source_snapshots
+    ADD CONSTRAINT committee_source_snapshots_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: committee_widgets committee_widgets_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.committee_widgets
+    ADD CONSTRAINT committee_widgets_pkey PRIMARY KEY (id);
 
 
 --
@@ -5685,6 +6308,14 @@ ALTER TABLE ONLY public.endpoint_catalog
 
 
 --
+-- Name: external_signal_events external_signal_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.external_signal_events
+    ADD CONSTRAINT external_signal_events_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: fear_greed_components fear_greed_components_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5733,11 +6364,43 @@ ALTER TABLE ONLY public.financial_health_scores
 
 
 --
+-- Name: fomc_meetings fomc_meetings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fomc_meetings
+    ADD CONSTRAINT fomc_meetings_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: gap_analysis_history gap_analysis_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.gap_analysis_history
     ADD CONSTRAINT gap_analysis_history_pkey PRIMARY KEY (analysis_id);
+
+
+--
+-- Name: household_account_identities household_account_identities_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_account_identities
+    ADD CONSTRAINT household_account_identities_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: household_account_preferences household_account_preferences_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_account_preferences
+    ADD CONSTRAINT household_account_preferences_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: household_accounts household_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_accounts
+    ADD CONSTRAINT household_accounts_pkey PRIMARY KEY (id);
 
 
 --
@@ -5794,6 +6457,14 @@ ALTER TABLE ONLY public.household_document_signatures
 
 ALTER TABLE ONLY public.household_documents
     ADD CONSTRAINT household_documents_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: household_evidence_accounts household_evidence_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_evidence_accounts
+    ADD CONSTRAINT household_evidence_accounts_pkey PRIMARY KEY (id);
 
 
 --
@@ -5885,6 +6556,22 @@ ALTER TABLE ONLY public.household_retirement_income_sources
 
 
 --
+-- Name: household_tracked_accounts household_tracked_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_tracked_accounts
+    ADD CONSTRAINT household_tracked_accounts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: household_transaction_rules household_transaction_rules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_transaction_rules
+    ADD CONSTRAINT household_transaction_rules_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: household_transactions household_transactions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5949,6 +6636,22 @@ ALTER TABLE ONLY public.institutional_ownership_summary
 
 
 --
+-- Name: intraday_bars intraday_bars_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.intraday_bars
+    ADD CONSTRAINT intraday_bars_pkey PRIMARY KEY (symbol, ts);
+
+
+--
+-- Name: ips_targets ips_targets_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ips_targets
+    ADD CONSTRAINT ips_targets_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: jenny_agent_evaluations jenny_agent_evaluations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5986,6 +6689,14 @@ ALTER TABLE ONLY public.jenny_routines
 
 ALTER TABLE ONLY public.jenny_trade_reviews
     ADD CONSTRAINT jenny_trade_reviews_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: macro_conditions_history macro_conditions_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.macro_conditions_history
+    ADD CONSTRAINT macro_conditions_history_pkey PRIMARY KEY (id);
 
 
 --
@@ -6085,18 +6796,51 @@ ALTER TABLE ONLY public.paper_trade_transactions
 
 
 --
+-- Name: paper_trades paper_trades_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.paper_trades
+    ADD CONSTRAINT paper_trades_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ips_drift_history pk_ips_drift_history; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ips_drift_history
+    ADD CONSTRAINT pk_ips_drift_history PRIMARY KEY (scope, scope_id, asset_class, snapshot_date);
+
+
+--
+-- Name: plaid_accounts plaid_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.plaid_accounts
+    ADD CONSTRAINT plaid_accounts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: plaid_items plaid_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.plaid_items
+    ADD CONSTRAINT plaid_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: plaid_transactions plaid_transactions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.plaid_transactions
+    ADD CONSTRAINT plaid_transactions_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: portfolio_accounts portfolio_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.portfolio_accounts
     ADD CONSTRAINT portfolio_accounts_pkey PRIMARY KEY (id);
-
-
---
--- Name: portfolio_accounts uq_portfolio_accounts_household_account_id; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX uq_portfolio_accounts_household_account_id ON public.portfolio_accounts USING btree (household_account_id) WHERE (household_account_id IS NOT NULL);
 
 
 --
@@ -6129,6 +6873,22 @@ ALTER TABLE ONLY public.portfolio_snapshots
 
 ALTER TABLE ONLY public.portfolio_snapshots
     ADD CONSTRAINT portfolio_snapshots_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: portfolio_tax_lots portfolio_tax_lots_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.portfolio_tax_lots
+    ADD CONSTRAINT portfolio_tax_lots_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: portfolio_transactions portfolio_transactions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.portfolio_transactions
+    ADD CONSTRAINT portfolio_transactions_pkey PRIMARY KEY (id);
 
 
 --
@@ -6188,6 +6948,22 @@ ALTER TABLE ONLY public.reference_cache
 
 
 --
+-- Name: research_universe_symbols research_universe_symbols_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.research_universe_symbols
+    ADD CONSTRAINT research_universe_symbols_pkey PRIMARY KEY (symbol);
+
+
+--
+-- Name: retirement_scenarios retirement_scenarios_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.retirement_scenarios
+    ADD CONSTRAINT retirement_scenarios_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: rules_validation_reports rules_validation_reports_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6209,6 +6985,14 @@ ALTER TABLE ONLY public.schema_migrations
 
 ALTER TABLE ONLY public.sec_cik_cache
     ADD CONSTRAINT sec_cik_cache_pkey PRIMARY KEY (symbol);
+
+
+--
+-- Name: sector_targets sector_targets_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sector_targets
+    ADD CONSTRAINT sector_targets_pkey PRIMARY KEY (id);
 
 
 --
@@ -6244,6 +7028,14 @@ ALTER TABLE ONLY public.short_interest
 
 
 --
+-- Name: signal_macro_snapshots signal_macro_snapshots_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.signal_macro_snapshots
+    ADD CONSTRAINT signal_macro_snapshots_pkey PRIMARY KEY (snapshot_date);
+
+
+--
 -- Name: sitemap_entries sitemap_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6265,6 +7057,54 @@ ALTER TABLE ONLY public.sitemap_entries
 
 ALTER TABLE ONLY public.sitemap_health_history
     ADD CONSTRAINT sitemap_health_history_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: snaptrade_accounts snaptrade_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_accounts
+    ADD CONSTRAINT snaptrade_accounts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: snaptrade_activities snaptrade_activities_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_activities
+    ADD CONSTRAINT snaptrade_activities_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: snaptrade_connections snaptrade_connections_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_connections
+    ADD CONSTRAINT snaptrade_connections_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: snaptrade_orders snaptrade_orders_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_orders
+    ADD CONSTRAINT snaptrade_orders_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: snaptrade_positions snaptrade_positions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_positions
+    ADD CONSTRAINT snaptrade_positions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: snaptrade_users snaptrade_users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_users
+    ADD CONSTRAINT snaptrade_users_pkey PRIMARY KEY (id);
 
 
 --
@@ -6297,102 +7137,6 @@ ALTER TABLE ONLY public.source_performance
 
 ALTER TABLE ONLY public.source_registry
     ADD CONSTRAINT source_registry_pkey PRIMARY KEY (source_id);
-
-
---
--- Name: strategy_definitions strategy_definitions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_definitions
-    ADD CONSTRAINT strategy_definitions_pkey PRIMARY KEY (id);
-
-
---
--- Name: strategy_definitions strategy_definitions_symbol_name_version_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_definitions
-    ADD CONSTRAINT strategy_definitions_symbol_name_version_key UNIQUE (symbol, name, version);
-
-
---
--- Name: strategy_lineage strategy_lineage_child_strategy_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_lineage
-    ADD CONSTRAINT strategy_lineage_child_strategy_id_key UNIQUE (child_strategy_id);
-
-
---
--- Name: strategy_lineage strategy_lineage_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_lineage
-    ADD CONSTRAINT strategy_lineage_pkey PRIMARY KEY (id);
-
-
---
--- Name: strategy_metrics strategy_metrics_metric_date_metric_type_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_metrics
-    ADD CONSTRAINT strategy_metrics_metric_date_metric_type_key UNIQUE (metric_date, metric_type);
-
-
---
--- Name: strategy_metrics strategy_metrics_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_metrics
-    ADD CONSTRAINT strategy_metrics_pkey PRIMARY KEY (id);
-
-
---
--- Name: strategy_performance strategy_performance_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_performance
-    ADD CONSTRAINT strategy_performance_pkey PRIMARY KEY (id);
-
-
---
--- Name: strategy_performance strategy_performance_strategy_id_date_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_performance
-    ADD CONSTRAINT strategy_performance_strategy_id_date_key UNIQUE (strategy_id, date);
-
-
---
--- Name: strategy_reviews strategy_reviews_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_reviews
-    ADD CONSTRAINT strategy_reviews_pkey PRIMARY KEY (id);
-
-
---
--- Name: strategy_seeds strategy_seeds_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_seeds
-    ADD CONSTRAINT strategy_seeds_pkey PRIMARY KEY (id);
-
-
---
--- Name: strategy_signals strategy_signals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_signals
-    ADD CONSTRAINT strategy_signals_pkey PRIMARY KEY (id);
-
-
---
--- Name: strategy_signals strategy_signals_strategy_id_signal_date_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_signals
-    ADD CONSTRAINT strategy_signals_strategy_id_signal_date_key UNIQUE (strategy_id, signal_date);
 
 
 --
@@ -6460,6 +7204,14 @@ ALTER TABLE ONLY public.thesis_versions
 
 
 --
+-- Name: tlh_scan_results tlh_scan_results_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tlh_scan_results
+    ADD CONSTRAINT tlh_scan_results_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: market_events unique_event_date_type; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6500,6 +7252,46 @@ ALTER TABLE ONLY public.agent_conversation_messages
 
 
 --
+-- Name: committee_events uq_committee_events_run_seq; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.committee_events
+    ADD CONSTRAINT uq_committee_events_run_seq UNIQUE (run_id, seq);
+
+
+--
+-- Name: committee_source_snapshots uq_committee_source_snapshots_run; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.committee_source_snapshots
+    ADD CONSTRAINT uq_committee_source_snapshots_run UNIQUE (run_id);
+
+
+--
+-- Name: committee_widgets uq_committee_widgets_run_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.committee_widgets
+    ADD CONSTRAINT uq_committee_widgets_run_key UNIQUE (run_id, widget_key);
+
+
+--
+-- Name: external_signal_events uq_external_signal_events_dedupe; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.external_signal_events
+    ADD CONSTRAINT uq_external_signal_events_dedupe UNIQUE (dedupe_key);
+
+
+--
+-- Name: fomc_meetings uq_fomc_meetings_meeting_date; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fomc_meetings
+    ADD CONSTRAINT uq_fomc_meetings_meeting_date UNIQUE (meeting_date);
+
+
+--
 -- Name: household_document_requirements uq_household_document_requirements_requirement_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6537,6 +7329,94 @@ ALTER TABLE ONLY public.household_merchants
 
 ALTER TABLE ONLY public.household_transactions
     ADD CONSTRAINT uq_household_transactions_row_hash UNIQUE (row_hash);
+
+
+--
+-- Name: ips_targets uq_ips_targets_scope_class; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ips_targets
+    ADD CONSTRAINT uq_ips_targets_scope_class UNIQUE (scope, scope_id, asset_class);
+
+
+--
+-- Name: paper_trades uq_paper_trades_run; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.paper_trades
+    ADD CONSTRAINT uq_paper_trades_run UNIQUE (run_id);
+
+
+--
+-- Name: plaid_accounts uq_plaid_accounts_account_id; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.plaid_accounts
+    ADD CONSTRAINT uq_plaid_accounts_account_id UNIQUE (account_id);
+
+
+--
+-- Name: plaid_items uq_plaid_items_item_id; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.plaid_items
+    ADD CONSTRAINT uq_plaid_items_item_id UNIQUE (item_id);
+
+
+--
+-- Name: plaid_transactions uq_plaid_transactions_transaction_id; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.plaid_transactions
+    ADD CONSTRAINT uq_plaid_transactions_transaction_id UNIQUE (transaction_id);
+
+
+--
+-- Name: snaptrade_accounts uq_snaptrade_accounts_account_id; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_accounts
+    ADD CONSTRAINT uq_snaptrade_accounts_account_id UNIQUE (account_id);
+
+
+--
+-- Name: snaptrade_activities uq_snaptrade_activities_account_activity; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_activities
+    ADD CONSTRAINT uq_snaptrade_activities_account_activity UNIQUE (account_id, activity_id);
+
+
+--
+-- Name: snaptrade_connections uq_snaptrade_connections_authorization_id; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_connections
+    ADD CONSTRAINT uq_snaptrade_connections_authorization_id UNIQUE (authorization_id);
+
+
+--
+-- Name: snaptrade_orders uq_snaptrade_orders_account_brokerage_order; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_orders
+    ADD CONSTRAINT uq_snaptrade_orders_account_brokerage_order UNIQUE (account_id, brokerage_order_id);
+
+
+--
+-- Name: snaptrade_positions uq_snaptrade_positions_account_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_positions
+    ADD CONSTRAINT uq_snaptrade_positions_account_key UNIQUE (account_id, position_key);
+
+
+--
+-- Name: snaptrade_users uq_snaptrade_users_user_id; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_users
+    ADD CONSTRAINT uq_snaptrade_users_user_id UNIQUE (user_id);
 
 
 --
@@ -7032,31 +7912,80 @@ CREATE INDEX idx_cash_flow_metrics_symbol ON public.cash_flow_metrics USING btre
 
 
 --
--- Name: idx_claude_progress_action_type; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_committee_data_source_approvals_type_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_claude_progress_action_type ON public.claude_progress_log USING btree (action_type);
-
-
---
--- Name: idx_claude_progress_feature; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_claude_progress_feature ON public.claude_progress_log USING btree (feature_id);
+CREATE INDEX idx_committee_data_source_approvals_type_status ON public.committee_data_source_approvals USING btree (source_type, approval_status);
 
 
 --
--- Name: idx_claude_progress_logged_at; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_committee_events_run_seq; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_claude_progress_logged_at ON public.claude_progress_log USING btree (logged_at DESC);
+CREATE INDEX idx_committee_events_run_seq ON public.committee_events USING btree (run_id, seq);
 
 
 --
--- Name: idx_claude_progress_session; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_committee_evidence_run; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_claude_progress_session ON public.claude_progress_log USING btree (session_id);
+CREATE INDEX idx_committee_evidence_run ON public.committee_evidence USING btree (run_id);
+
+
+--
+-- Name: idx_committee_inputs_run_round; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_committee_inputs_run_round ON public.committee_inputs USING btree (run_id, round);
+
+
+--
+-- Name: idx_committee_runs_household_started; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_committee_runs_household_started ON public.committee_runs USING btree (household_id, started_at DESC);
+
+
+--
+-- Name: idx_committee_runs_parent; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_committee_runs_parent ON public.committee_runs USING btree (parent_run_id);
+
+
+--
+-- Name: idx_committee_runs_request_started; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_committee_runs_request_started ON public.committee_runs USING btree (request_type, started_at DESC);
+
+
+--
+-- Name: idx_committee_runs_symbol_started; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_committee_runs_symbol_started ON public.committee_runs USING btree (symbol, started_at DESC);
+
+
+--
+-- Name: idx_committee_source_ingestion_health_type; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_committee_source_ingestion_health_type ON public.committee_source_ingestion_health USING btree (source_type, status);
+
+
+--
+-- Name: idx_committee_source_snapshots_run; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_committee_source_snapshots_run ON public.committee_source_snapshots USING btree (run_id);
+
+
+--
+-- Name: idx_committee_widgets_run_order; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_committee_widgets_run_order ON public.committee_widgets USING btree (run_id, sort_order);
 
 
 --
@@ -7158,6 +8087,20 @@ CREATE INDEX idx_endpoint_target ON public.endpoint_catalog USING btree (target_
 
 
 --
+-- Name: idx_external_signal_events_symbol_type; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_external_signal_events_symbol_type ON public.external_signal_events USING btree (symbol, source_type);
+
+
+--
+-- Name: idx_external_signal_events_type_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_external_signal_events_type_time ON public.external_signal_events USING btree (source_type, event_timestamp DESC);
+
+
+--
 -- Name: idx_file_audit_bloat; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7239,6 +8182,27 @@ CREATE INDEX idx_health_history_checked ON public.sitemap_health_history USING b
 --
 
 CREATE INDEX idx_health_history_entry ON public.sitemap_health_history USING btree (sitemap_entry_id);
+
+
+--
+-- Name: idx_household_account_identities_account_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_account_identities_account_id ON public.household_account_identities USING btree (household_account_id);
+
+
+--
+-- Name: idx_household_account_preferences_updated_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_account_preferences_updated_at ON public.household_account_preferences USING btree (updated_at DESC);
+
+
+--
+-- Name: idx_household_accounts_asset_group; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_accounts_asset_group ON public.household_accounts USING btree (asset_group);
 
 
 --
@@ -7330,6 +8294,27 @@ CREATE INDEX idx_household_documents_status ON public.household_documents USING 
 --
 
 CREATE INDEX idx_household_documents_uploaded_at ON public.household_documents USING btree (uploaded_at);
+
+
+--
+-- Name: idx_household_evidence_accounts_asset_group; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_evidence_accounts_asset_group ON public.household_evidence_accounts USING btree (asset_group);
+
+
+--
+-- Name: idx_household_evidence_accounts_document_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_evidence_accounts_document_id ON public.household_evidence_accounts USING btree (document_id);
+
+
+--
+-- Name: idx_household_evidence_accounts_household_account_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_evidence_accounts_household_account_id ON public.household_evidence_accounts USING btree (household_account_id);
 
 
 --
@@ -7501,10 +8486,45 @@ CREATE INDEX idx_household_retirement_income_sources_updated_at ON public.househ
 
 
 --
+-- Name: idx_household_tracked_accounts_asset_group; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_tracked_accounts_asset_group ON public.household_tracked_accounts USING btree (asset_group);
+
+
+--
+-- Name: idx_household_tracked_accounts_updated_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_tracked_accounts_updated_at ON public.household_tracked_accounts USING btree (updated_at);
+
+
+--
+-- Name: idx_household_transaction_rules_enabled; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_transaction_rules_enabled ON public.household_transaction_rules USING btree (enabled);
+
+
+--
+-- Name: idx_household_transaction_rules_merchant_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_transaction_rules_merchant_id ON public.household_transaction_rules USING btree (merchant_id);
+
+
+--
 -- Name: idx_household_transactions_document_id; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_household_transactions_document_id ON public.household_transactions USING btree (document_id);
+
+
+--
+-- Name: idx_household_transactions_external_transaction_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_transactions_external_transaction_id ON public.household_transactions USING btree (external_transaction_id);
 
 
 --
@@ -7515,6 +8535,13 @@ CREATE INDEX idx_household_transactions_flow_type ON public.household_transactio
 
 
 --
+-- Name: idx_household_transactions_household_account_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_transactions_household_account_id ON public.household_transactions USING btree (household_account_id);
+
+
+--
 -- Name: idx_household_transactions_merchant_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7522,10 +8549,24 @@ CREATE INDEX idx_household_transactions_merchant_id ON public.household_transact
 
 
 --
+-- Name: idx_household_transactions_source_system; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_transactions_source_system ON public.household_transactions USING btree (source_system);
+
+
+--
 -- Name: idx_household_transactions_transaction_date; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_household_transactions_transaction_date ON public.household_transactions USING btree (transaction_date);
+
+
+--
+-- Name: idx_household_transactions_transaction_rule_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_transactions_transaction_rule_id ON public.household_transactions USING btree (transaction_rule_id);
 
 
 --
@@ -7603,6 +8644,13 @@ CREATE INDEX idx_institutional_holdings_symbol ON public.institutional_holdings 
 --
 
 CREATE INDEX idx_institutional_summary_symbol ON public.institutional_ownership_summary USING btree (symbol);
+
+
+--
+-- Name: idx_intraday_bars_symbol_session_ts; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_intraday_bars_symbol_session_ts ON public.intraday_bars USING btree (symbol, session_date DESC, ts);
 
 
 --
@@ -7704,24 +8752,10 @@ CREATE INDEX idx_jenny_trade_reviews_symbol ON public.jenny_trade_reviews USING 
 
 
 --
--- Name: idx_lineage_child; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_macro_conditions_history_recorded_at; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lineage_child ON public.strategy_lineage USING btree (child_strategy_id);
-
-
---
--- Name: idx_lineage_created; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_lineage_created ON public.strategy_lineage USING btree (created_at DESC);
-
-
---
--- Name: idx_lineage_parent; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_lineage_parent ON public.strategy_lineage USING btree (parent_strategy_id);
+CREATE INDEX idx_macro_conditions_history_recorded_at ON public.macro_conditions_history USING btree (recorded_at);
 
 
 --
@@ -7970,24 +9004,73 @@ CREATE INDEX idx_paper_trade_transactions_type ON public.paper_trade_transaction
 
 
 --
--- Name: idx_performance_date; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_paper_trades_household_executed; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_performance_date ON public.strategy_performance USING btree (date DESC);
-
-
---
--- Name: idx_performance_status; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_performance_status ON public.strategy_performance USING btree (status, date DESC);
+CREATE INDEX idx_paper_trades_household_executed ON public.paper_trades USING btree (household_id, executed_at DESC);
 
 
 --
--- Name: idx_performance_strategy; Type: INDEX; Schema: public; Owner: -
+-- Name: idx_paper_trades_open; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_performance_strategy ON public.strategy_performance USING btree (strategy_id, date DESC);
+CREATE INDEX idx_paper_trades_open ON public.paper_trades USING btree (symbol, executed_at DESC) WHERE (closed_at IS NULL);
+
+
+--
+-- Name: idx_paper_trades_symbol_executed; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_paper_trades_symbol_executed ON public.paper_trades USING btree (symbol, executed_at DESC);
+
+
+--
+-- Name: idx_plaid_accounts_household_account_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_plaid_accounts_household_account_id ON public.plaid_accounts USING btree (household_account_id);
+
+
+--
+-- Name: idx_plaid_accounts_item_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_plaid_accounts_item_id ON public.plaid_accounts USING btree (item_id);
+
+
+--
+-- Name: idx_plaid_items_institution_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_plaid_items_institution_id ON public.plaid_items USING btree (institution_id);
+
+
+--
+-- Name: idx_plaid_items_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_plaid_items_status ON public.plaid_items USING btree (status);
+
+
+--
+-- Name: idx_plaid_transactions_account_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_plaid_transactions_account_id ON public.plaid_transactions USING btree (account_id);
+
+
+--
+-- Name: idx_plaid_transactions_item_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_plaid_transactions_item_id ON public.plaid_transactions USING btree (item_id);
+
+
+--
+-- Name: idx_plaid_transactions_transaction_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_plaid_transactions_transaction_date ON public.plaid_transactions USING btree (transaction_date);
 
 
 --
@@ -8044,6 +9127,41 @@ CREATE INDEX idx_portfolio_snapshots_drawdown ON public.portfolio_snapshots USIN
 --
 
 CREATE INDEX idx_portfolio_snapshots_equity ON public.portfolio_snapshots USING btree (account_id, equity DESC);
+
+
+--
+-- Name: idx_portfolio_tax_lots_acquired_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_portfolio_tax_lots_acquired_date ON public.portfolio_tax_lots USING btree (acquired_date);
+
+
+--
+-- Name: idx_portfolio_tax_lots_fifo; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_portfolio_tax_lots_fifo ON public.portfolio_tax_lots USING btree (account_id, symbol, acquired_date);
+
+
+--
+-- Name: idx_portfolio_tax_lots_open; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_portfolio_tax_lots_open ON public.portfolio_tax_lots USING btree (account_id, symbol, remaining_shares);
+
+
+--
+-- Name: idx_portfolio_transactions_account_symbol_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_portfolio_transactions_account_symbol_date ON public.portfolio_transactions USING btree (account_id, symbol, trade_date);
+
+
+--
+-- Name: idx_portfolio_transactions_trade_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_portfolio_transactions_trade_date ON public.portfolio_transactions USING btree (trade_date);
 
 
 --
@@ -8187,27 +9305,6 @@ CREATE INDEX idx_sec_cik_cache_updated ON public.sec_cik_cache USING btree (last
 
 
 --
--- Name: idx_seed_confidence; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_seed_confidence ON public.strategy_seeds USING btree (confidence DESC) WHERE ((status)::text = 'pending'::text);
-
-
---
--- Name: idx_seed_status; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_seed_status ON public.strategy_seeds USING btree (status, created_at DESC);
-
-
---
--- Name: idx_seed_symbol; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_seed_symbol ON public.strategy_seeds USING btree (symbol);
-
-
---
 -- Name: idx_settings_profiles_active; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8299,6 +9396,111 @@ CREATE UNIQUE INDEX idx_snapshots_core_item_fetched ON public.watchlist_snapshot
 
 
 --
+-- Name: idx_snaptrade_accounts_authorization_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_snaptrade_accounts_authorization_id ON public.snaptrade_accounts USING btree (authorization_id);
+
+
+--
+-- Name: idx_snaptrade_accounts_household_account_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_snaptrade_accounts_household_account_id ON public.snaptrade_accounts USING btree (household_account_id);
+
+
+--
+-- Name: idx_snaptrade_accounts_portfolio_account_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_snaptrade_accounts_portfolio_account_id ON public.snaptrade_accounts USING btree (portfolio_account_id);
+
+
+--
+-- Name: idx_snaptrade_accounts_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_snaptrade_accounts_user_id ON public.snaptrade_accounts USING btree (user_id);
+
+
+--
+-- Name: idx_snaptrade_activities_account_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_snaptrade_activities_account_id ON public.snaptrade_activities USING btree (account_id);
+
+
+--
+-- Name: idx_snaptrade_activities_trade_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_snaptrade_activities_trade_date ON public.snaptrade_activities USING btree (trade_date);
+
+
+--
+-- Name: idx_snaptrade_connections_brokerage_slug; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_snaptrade_connections_brokerage_slug ON public.snaptrade_connections USING btree (brokerage_slug);
+
+
+--
+-- Name: idx_snaptrade_connections_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_snaptrade_connections_user_id ON public.snaptrade_connections USING btree (user_id);
+
+
+--
+-- Name: idx_snaptrade_orders_account_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_snaptrade_orders_account_id ON public.snaptrade_orders USING btree (account_id);
+
+
+--
+-- Name: idx_snaptrade_orders_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_snaptrade_orders_status ON public.snaptrade_orders USING btree (status);
+
+
+--
+-- Name: idx_snaptrade_orders_symbol; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_snaptrade_orders_symbol ON public.snaptrade_orders USING btree (symbol);
+
+
+--
+-- Name: idx_snaptrade_orders_time_executed; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_snaptrade_orders_time_executed ON public.snaptrade_orders USING btree (time_executed DESC);
+
+
+--
+-- Name: idx_snaptrade_positions_account_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_snaptrade_positions_account_id ON public.snaptrade_positions USING btree (account_id);
+
+
+--
+-- Name: idx_snaptrade_positions_symbol; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_snaptrade_positions_symbol ON public.snaptrade_positions USING btree (symbol);
+
+
+--
+-- Name: idx_snaptrade_users_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_snaptrade_users_status ON public.snaptrade_users USING btree (status);
+
+
+--
 -- Name: idx_source_metrics_calculated_at; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8324,132 +9526,6 @@ CREATE INDEX idx_source_metrics_vendor ON public.source_metrics USING btree (ven
 --
 
 CREATE INDEX idx_source_priority ON public.source_registry USING btree (priority, enabled);
-
-
---
--- Name: idx_strategy_created; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_strategy_created ON public.strategy_definitions USING btree (created_at DESC);
-
-
---
--- Name: idx_strategy_metrics_date; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_strategy_metrics_date ON public.strategy_metrics USING btree (metric_date DESC);
-
-
---
--- Name: idx_strategy_metrics_drift; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_strategy_metrics_drift ON public.strategy_metrics USING btree (score_stdev DESC);
-
-
---
--- Name: idx_strategy_metrics_provider_disagreement; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_strategy_metrics_provider_disagreement ON public.strategy_metrics USING btree (provider_disagreement_rate_pct DESC) WHERE (provider_disagreement_rate_pct > (20)::numeric);
-
-
---
--- Name: idx_strategy_metrics_winrate; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_strategy_metrics_winrate ON public.strategy_metrics USING btree (win_rate_pct DESC);
-
-
---
--- Name: idx_strategy_reviews_agent_run_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_strategy_reviews_agent_run_id ON public.strategy_reviews USING btree (agent_run_id);
-
-
---
--- Name: idx_strategy_reviews_disagreement; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_strategy_reviews_disagreement ON public.strategy_reviews USING btree (disagreement) WHERE (disagreement = true);
-
-
---
--- Name: idx_strategy_reviews_item; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_strategy_reviews_item ON public.strategy_reviews USING btree (watchlist_item_id);
-
-
---
--- Name: idx_strategy_reviews_pair; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_strategy_reviews_pair ON public.strategy_reviews USING btree (review_pair_id) WHERE (review_pair_id IS NOT NULL);
-
-
---
--- Name: idx_strategy_reviews_provider; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_strategy_reviews_provider ON public.strategy_reviews USING btree (provider);
-
-
---
--- Name: idx_strategy_reviews_provider_disagreement; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_strategy_reviews_provider_disagreement ON public.strategy_reviews USING btree (provider_disagreement) WHERE (provider_disagreement = true);
-
-
---
--- Name: idx_strategy_reviews_severity; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_strategy_reviews_severity ON public.strategy_reviews USING btree (disagreement_severity) WHERE (disagreement_severity = ANY (ARRAY['minor'::text, 'major'::text]));
-
-
---
--- Name: idx_strategy_reviews_symbol; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_strategy_reviews_symbol ON public.strategy_reviews USING btree (symbol);
-
-
---
--- Name: idx_strategy_seed_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_strategy_seed_id ON public.strategy_definitions USING btree (seed_id) WHERE (seed_id IS NOT NULL);
-
-
---
--- Name: idx_strategy_signals_date; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_strategy_signals_date ON public.strategy_signals USING btree (signal_date DESC);
-
-
---
--- Name: idx_strategy_signals_type; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_strategy_signals_type ON public.strategy_signals USING btree (signal_type, signal_date DESC);
-
-
---
--- Name: idx_strategy_status; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_strategy_status ON public.strategy_definitions USING btree (status, symbol);
-
-
---
--- Name: idx_strategy_type; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_strategy_type ON public.strategy_definitions USING btree (strategy_type, status);
 
 
 --
@@ -8761,10 +9837,171 @@ CREATE INDEX idx_yield_curve_inverted ON public.yield_curve USING btree (is_inve
 
 
 --
+-- Name: ix_fomc_meetings_meeting_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_fomc_meetings_meeting_date ON public.fomc_meetings USING btree (meeting_date);
+
+
+--
+-- Name: ix_ips_drift_history_scope_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_ips_drift_history_scope_id ON public.ips_drift_history USING btree (scope, scope_id, snapshot_date);
+
+
+--
+-- Name: ix_ips_drift_history_snapshot_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_ips_drift_history_snapshot_date ON public.ips_drift_history USING btree (snapshot_date DESC);
+
+
+--
+-- Name: ix_ips_targets_scope_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_ips_targets_scope_id ON public.ips_targets USING btree (scope, scope_id);
+
+
+--
+-- Name: ix_research_universe_symbols_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_research_universe_symbols_active ON public.research_universe_symbols USING btree (symbol) WHERE (removed_at IS NULL);
+
+
+--
+-- Name: ix_research_universe_symbols_sector; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_research_universe_symbols_sector ON public.research_universe_symbols USING btree (sector) WHERE (removed_at IS NULL);
+
+
+--
+-- Name: ix_retirement_scenarios_household_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_retirement_scenarios_household_created ON public.retirement_scenarios USING btree (household_id, created_at DESC);
+
+
+--
+-- Name: ix_signal_macro_snapshots_zone; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_signal_macro_snapshots_zone ON public.signal_macro_snapshots USING btree (zone, snapshot_date);
+
+
+--
+-- Name: ix_tlh_scan_results_scan_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_tlh_scan_results_scan_date ON public.tlh_scan_results USING btree (scan_date DESC);
+
+
+--
+-- Name: ix_tlh_scan_results_scan_date_account; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_tlh_scan_results_scan_date_account ON public.tlh_scan_results USING btree (scan_date, account_id);
+
+
+--
+-- Name: ix_tlh_scan_results_scan_date_symbol; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_tlh_scan_results_scan_date_symbol ON public.tlh_scan_results USING btree (scan_date, symbol);
+
+
+--
 -- Name: news_cache_symbol_hash; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX news_cache_symbol_hash ON public.news_cache USING btree (symbol, content_hash);
+CREATE UNIQUE INDEX news_cache_symbol_hash ON public.news_cache USING btree (symbol, content_hash);
+
+
+--
+-- Name: uq_household_account_identities_identity_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_household_account_identities_identity_key ON public.household_account_identities USING btree (identity_key);
+
+
+--
+-- Name: uq_household_account_preferences_household_account_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_household_account_preferences_household_account_id ON public.household_account_preferences USING btree (household_account_id);
+
+
+--
+-- Name: uq_household_accounts_primary_identity_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_household_accounts_primary_identity_key ON public.household_accounts USING btree (primary_identity_key) WHERE (primary_identity_key IS NOT NULL);
+
+
+--
+-- Name: uq_household_tracked_accounts_household_account_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_household_tracked_accounts_household_account_id ON public.household_tracked_accounts USING btree (household_account_id) WHERE (household_account_id IS NOT NULL);
+
+
+--
+-- Name: uq_household_tracked_accounts_match_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_household_tracked_accounts_match_key ON public.household_tracked_accounts USING btree (match_key) WHERE (match_key IS NOT NULL);
+
+
+--
+-- Name: uq_household_transaction_rules_active_merchant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_household_transaction_rules_active_merchant ON public.household_transaction_rules USING btree (merchant_id) WHERE ((enabled IS TRUE) AND (merchant_id IS NOT NULL));
+
+
+--
+-- Name: uq_portfolio_accounts_household_account_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_portfolio_accounts_household_account_id ON public.portfolio_accounts USING btree (household_account_id) WHERE (household_account_id IS NOT NULL);
+
+
+--
+-- Name: uq_portfolio_transactions_account_external_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_portfolio_transactions_account_external_id ON public.portfolio_transactions USING btree (account_id, external_id) WHERE (external_id IS NOT NULL);
+
+
+--
+-- Name: uq_price_cache_symbol_current; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_price_cache_symbol_current ON public.price_cache USING btree (upper(symbol));
+
+
+--
+-- Name: uq_sector_targets_global_sector; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_sector_targets_global_sector ON public.sector_targets USING btree (sector) WHERE (household_id IS NULL);
+
+
+--
+-- Name: uq_sector_targets_household_sector; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_sector_targets_household_sector ON public.sector_targets USING btree (household_id, sector) WHERE (household_id IS NOT NULL);
+
+
+--
+-- Name: uq_tlh_scan_results_day_position; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_tlh_scan_results_day_position ON public.tlh_scan_results USING btree (scan_date, account_id, symbol);
 
 
 --
@@ -8915,6 +10152,78 @@ ALTER TABLE ONLY public.backtest_trades
 
 
 --
+-- Name: committee_events committee_events_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.committee_events
+    ADD CONSTRAINT committee_events_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.committee_runs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: committee_evidence committee_evidence_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.committee_evidence
+    ADD CONSTRAINT committee_evidence_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.committee_events(id) ON DELETE SET NULL;
+
+
+--
+-- Name: committee_evidence committee_evidence_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.committee_evidence
+    ADD CONSTRAINT committee_evidence_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.committee_runs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: committee_inputs committee_inputs_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.committee_inputs
+    ADD CONSTRAINT committee_inputs_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.committee_runs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: committee_inputs committee_inputs_triggered_event_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.committee_inputs
+    ADD CONSTRAINT committee_inputs_triggered_event_id_fkey FOREIGN KEY (triggered_event_id) REFERENCES public.committee_events(id) ON DELETE SET NULL;
+
+
+--
+-- Name: committee_runs committee_runs_parent_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.committee_runs
+    ADD CONSTRAINT committee_runs_parent_run_id_fkey FOREIGN KEY (parent_run_id) REFERENCES public.committee_runs(id) ON DELETE SET NULL;
+
+
+--
+-- Name: committee_source_ingestion_health committee_source_ingestion_health_source_key_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.committee_source_ingestion_health
+    ADD CONSTRAINT committee_source_ingestion_health_source_key_fkey FOREIGN KEY (source_key) REFERENCES public.committee_data_source_approvals(source_key) ON DELETE CASCADE;
+
+
+--
+-- Name: committee_source_snapshots committee_source_snapshots_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.committee_source_snapshots
+    ADD CONSTRAINT committee_source_snapshots_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.committee_runs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: committee_widgets committee_widgets_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.committee_widgets
+    ADD CONSTRAINT committee_widgets_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.committee_runs(id) ON DELETE CASCADE;
+
+
+--
 -- Name: corporate_actions corporate_actions_symbol_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8952,14 +10261,6 @@ ALTER TABLE ONLY public.endpoint_catalog
 
 ALTER TABLE ONLY public.agent_messages
     ADD CONSTRAINT fk_agent_messages_from_run FOREIGN KEY (from_agent_run_id) REFERENCES public.agent_runs(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: backtest_runs fk_backtest_runs_strategy; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.backtest_runs
-    ADD CONSTRAINT fk_backtest_runs_strategy FOREIGN KEY (strategy_definition_id) REFERENCES public.strategy_definitions(id) ON DELETE SET NULL;
 
 
 --
@@ -9011,19 +10312,51 @@ ALTER TABLE ONLY public.financial_health_scores
 
 
 --
+-- Name: household_evidence_accounts fk_household_evidence_accounts_household_account_id; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_evidence_accounts
+    ADD CONSTRAINT fk_household_evidence_accounts_household_account_id FOREIGN KEY (household_account_id) REFERENCES public.household_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: household_tracked_accounts fk_household_tracked_accounts_household_account_id; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_tracked_accounts
+    ADD CONSTRAINT fk_household_tracked_accounts_household_account_id FOREIGN KEY (household_account_id) REFERENCES public.household_accounts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: household_transactions fk_household_transactions_household_account_id; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_transactions
+    ADD CONSTRAINT fk_household_transactions_household_account_id FOREIGN KEY (household_account_id) REFERENCES public.household_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: household_transactions fk_household_transactions_import_row_id; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_transactions
+    ADD CONSTRAINT fk_household_transactions_import_row_id FOREIGN KEY (import_row_id) REFERENCES public.household_import_rows(id) ON DELETE SET NULL;
+
+
+--
+-- Name: household_transactions fk_household_transactions_transaction_rule_id; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_transactions
+    ADD CONSTRAINT fk_household_transactions_transaction_rule_id FOREIGN KEY (transaction_rule_id) REFERENCES public.household_transaction_rules(id) ON DELETE SET NULL;
+
+
+--
 -- Name: idea_outcomes fk_idea_outcomes_backtest_run; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.idea_outcomes
     ADD CONSTRAINT fk_idea_outcomes_backtest_run FOREIGN KEY (backtest_run_id) REFERENCES public.backtest_runs(id) ON DELETE SET NULL;
-
-
---
--- Name: idea_outcomes fk_idea_outcomes_strategy; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.idea_outcomes
-    ADD CONSTRAINT fk_idea_outcomes_strategy FOREIGN KEY (strategy_id) REFERENCES public.strategy_definitions(id) ON DELETE SET NULL;
 
 
 --
@@ -9083,11 +10416,11 @@ ALTER TABLE ONLY public.paper_trade_transactions
 
 
 --
--- Name: portfolio_positions fk_portfolio_positions_strategy; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: portfolio_accounts fk_portfolio_accounts_household_account_id; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.portfolio_positions
-    ADD CONSTRAINT fk_portfolio_positions_strategy FOREIGN KEY (strategy_id) REFERENCES public.strategy_definitions(id) ON DELETE SET NULL;
+ALTER TABLE ONLY public.portfolio_accounts
+    ADD CONSTRAINT fk_portfolio_accounts_household_account_id FOREIGN KEY (household_account_id) REFERENCES public.household_accounts(id) ON DELETE SET NULL;
 
 
 --
@@ -9128,38 +10461,6 @@ ALTER TABLE ONLY public.short_interest_summary
 
 ALTER TABLE ONLY public.short_interest
     ADD CONSTRAINT fk_short_interest_symbol FOREIGN KEY (symbol) REFERENCES public.symbols(symbol) ON UPDATE CASCADE ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: strategy_definitions fk_strategy_definitions_symbol; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_definitions
-    ADD CONSTRAINT fk_strategy_definitions_symbol FOREIGN KEY (symbol) REFERENCES public.symbols(symbol) ON UPDATE CASCADE ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: strategy_reviews fk_strategy_reviews_symbol; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_reviews
-    ADD CONSTRAINT fk_strategy_reviews_symbol FOREIGN KEY (symbol) REFERENCES public.symbols(symbol) ON UPDATE CASCADE ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
-
-
---
--- Name: strategy_definitions fk_strategy_seed; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_definitions
-    ADD CONSTRAINT fk_strategy_seed FOREIGN KEY (seed_id) REFERENCES public.strategy_seeds(id) ON DELETE SET NULL;
-
-
---
--- Name: strategy_signals fk_strategy_signals_symbol; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_signals
-    ADD CONSTRAINT fk_strategy_signals_symbol FOREIGN KEY (symbol) REFERENCES public.symbols(symbol) ON UPDATE CASCADE ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 
 --
@@ -9219,6 +10520,30 @@ ALTER TABLE ONLY public.watchlist_thesis
 
 
 --
+-- Name: household_account_identities household_account_identities_household_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_account_identities
+    ADD CONSTRAINT household_account_identities_household_account_id_fkey FOREIGN KEY (household_account_id) REFERENCES public.household_accounts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: household_account_identities household_account_identities_source_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_account_identities
+    ADD CONSTRAINT household_account_identities_source_document_id_fkey FOREIGN KEY (source_document_id) REFERENCES public.household_documents(id) ON DELETE SET NULL;
+
+
+--
+-- Name: household_account_preferences household_account_preferences_household_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_account_preferences
+    ADD CONSTRAINT household_account_preferences_household_account_id_fkey FOREIGN KEY (household_account_id) REFERENCES public.household_accounts(id) ON DELETE CASCADE;
+
+
+--
 -- Name: household_debt_obligations household_debt_obligations_source_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9248,6 +10573,14 @@ ALTER TABLE ONLY public.household_document_reviews
 
 ALTER TABLE ONLY public.household_document_signatures
     ADD CONSTRAINT household_document_signatures_sample_document_id_fkey FOREIGN KEY (sample_document_id) REFERENCES public.household_documents(id) ON DELETE SET NULL;
+
+
+--
+-- Name: household_evidence_accounts household_evidence_accounts_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_evidence_accounts
+    ADD CONSTRAINT household_evidence_accounts_document_id_fkey FOREIGN KEY (document_id) REFERENCES public.household_documents(id) ON DELETE CASCADE;
 
 
 --
@@ -9320,6 +10653,14 @@ ALTER TABLE ONLY public.household_questions
 
 ALTER TABLE ONLY public.household_retirement_income_sources
     ADD CONSTRAINT household_retirement_income_sources_source_document_id_fkey FOREIGN KEY (source_document_id) REFERENCES public.household_documents(id) ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+--
+-- Name: household_transaction_rules household_transaction_rules_merchant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_transaction_rules
+    ADD CONSTRAINT household_transaction_rules_merchant_id_fkey FOREIGN KEY (merchant_id) REFERENCES public.household_merchants(id) ON DELETE CASCADE;
 
 
 --
@@ -9427,11 +10768,43 @@ ALTER TABLE ONLY public.paper_trade_transactions
 
 
 --
--- Name: portfolio_positions portfolio_positions_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: paper_trades paper_trades_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.portfolio_accounts
-    ADD CONSTRAINT fk_portfolio_accounts_household_account_id FOREIGN KEY (household_account_id) REFERENCES public.household_accounts(id) ON DELETE SET NULL;
+ALTER TABLE ONLY public.paper_trades
+    ADD CONSTRAINT paper_trades_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.committee_runs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: plaid_accounts plaid_accounts_household_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.plaid_accounts
+    ADD CONSTRAINT plaid_accounts_household_account_id_fkey FOREIGN KEY (household_account_id) REFERENCES public.household_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: plaid_accounts plaid_accounts_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.plaid_accounts
+    ADD CONSTRAINT plaid_accounts_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.plaid_items(item_id) ON DELETE CASCADE;
+
+
+--
+-- Name: plaid_transactions plaid_transactions_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.plaid_transactions
+    ADD CONSTRAINT plaid_transactions_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.plaid_accounts(account_id) ON DELETE CASCADE;
+
+
+--
+-- Name: plaid_transactions plaid_transactions_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.plaid_transactions
+    ADD CONSTRAINT plaid_transactions_item_id_fkey FOREIGN KEY (item_id) REFERENCES public.plaid_items(item_id) ON DELETE CASCADE;
 
 
 --
@@ -9448,6 +10821,30 @@ ALTER TABLE ONLY public.portfolio_positions
 
 ALTER TABLE ONLY public.portfolio_snapshots
     ADD CONSTRAINT portfolio_snapshots_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.portfolio_accounts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: portfolio_tax_lots portfolio_tax_lots_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.portfolio_tax_lots
+    ADD CONSTRAINT portfolio_tax_lots_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.portfolio_accounts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: portfolio_tax_lots portfolio_tax_lots_acquisition_txn_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.portfolio_tax_lots
+    ADD CONSTRAINT portfolio_tax_lots_acquisition_txn_id_fkey FOREIGN KEY (acquisition_txn_id) REFERENCES public.portfolio_transactions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: portfolio_transactions portfolio_transactions_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.portfolio_transactions
+    ADD CONSTRAINT portfolio_transactions_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.portfolio_accounts(id) ON DELETE CASCADE;
 
 
 --
@@ -9475,67 +10872,83 @@ ALTER TABLE ONLY public.sitemap_health_history
 
 
 --
+-- Name: snaptrade_accounts snaptrade_accounts_authorization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_accounts
+    ADD CONSTRAINT snaptrade_accounts_authorization_id_fkey FOREIGN KEY (authorization_id) REFERENCES public.snaptrade_connections(authorization_id) ON DELETE SET NULL;
+
+
+--
+-- Name: snaptrade_accounts snaptrade_accounts_household_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_accounts
+    ADD CONSTRAINT snaptrade_accounts_household_account_id_fkey FOREIGN KEY (household_account_id) REFERENCES public.household_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: snaptrade_accounts snaptrade_accounts_portfolio_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_accounts
+    ADD CONSTRAINT snaptrade_accounts_portfolio_account_id_fkey FOREIGN KEY (portfolio_account_id) REFERENCES public.portfolio_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: snaptrade_accounts snaptrade_accounts_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_accounts
+    ADD CONSTRAINT snaptrade_accounts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.snaptrade_users(user_id) ON DELETE CASCADE;
+
+
+--
+-- Name: snaptrade_activities snaptrade_activities_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_activities
+    ADD CONSTRAINT snaptrade_activities_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.snaptrade_accounts(account_id) ON DELETE CASCADE;
+
+
+--
+-- Name: snaptrade_connections snaptrade_connections_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_connections
+    ADD CONSTRAINT snaptrade_connections_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.snaptrade_users(user_id) ON DELETE CASCADE;
+
+
+--
+-- Name: snaptrade_orders snaptrade_orders_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_orders
+    ADD CONSTRAINT snaptrade_orders_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.snaptrade_accounts(account_id) ON DELETE CASCADE;
+
+
+--
+-- Name: snaptrade_positions snaptrade_positions_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_positions
+    ADD CONSTRAINT snaptrade_positions_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.snaptrade_accounts(account_id) ON DELETE CASCADE;
+
+
+--
+-- Name: snaptrade_positions snaptrade_positions_portfolio_position_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.snaptrade_positions
+    ADD CONSTRAINT snaptrade_positions_portfolio_position_id_fkey FOREIGN KEY (portfolio_position_id) REFERENCES public.portfolio_positions(id) ON DELETE SET NULL;
+
+
+--
 -- Name: source_credentials source_credentials_source_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.source_credentials
     ADD CONSTRAINT source_credentials_source_id_fkey FOREIGN KEY (source_id) REFERENCES public.source_registry(source_id) ON DELETE CASCADE;
-
-
---
--- Name: strategy_lineage strategy_lineage_child_strategy_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_lineage
-    ADD CONSTRAINT strategy_lineage_child_strategy_id_fkey FOREIGN KEY (child_strategy_id) REFERENCES public.strategy_definitions(id) ON DELETE CASCADE;
-
-
---
--- Name: strategy_lineage strategy_lineage_parent_strategy_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_lineage
-    ADD CONSTRAINT strategy_lineage_parent_strategy_id_fkey FOREIGN KEY (parent_strategy_id) REFERENCES public.strategy_definitions(id) ON DELETE SET NULL;
-
-
---
--- Name: strategy_performance strategy_performance_strategy_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_performance
-    ADD CONSTRAINT strategy_performance_strategy_id_fkey FOREIGN KEY (strategy_id) REFERENCES public.strategy_definitions(id) ON DELETE CASCADE;
-
-
---
--- Name: strategy_reviews strategy_reviews_agent_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_reviews
-    ADD CONSTRAINT strategy_reviews_agent_run_id_fkey FOREIGN KEY (agent_run_id) REFERENCES public.agent_runs(id) ON DELETE SET NULL;
-
-
---
--- Name: strategy_seeds strategy_seeds_strategy_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_seeds
-    ADD CONSTRAINT strategy_seeds_strategy_id_fkey FOREIGN KEY (strategy_id) REFERENCES public.strategy_definitions(id);
-
-
---
--- Name: strategy_seeds strategy_seeds_symbol_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_seeds
-    ADD CONSTRAINT strategy_seeds_symbol_fkey FOREIGN KEY (symbol) REFERENCES public.symbols(symbol) ON DELETE RESTRICT;
-
-
---
--- Name: strategy_signals strategy_signals_strategy_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.strategy_signals
-    ADD CONSTRAINT strategy_signals_strategy_id_fkey FOREIGN KEY (strategy_id) REFERENCES public.strategy_definitions(id) ON DELETE CASCADE;
 
 
 --
@@ -9552,6 +10965,14 @@ ALTER TABLE ONLY public.symbol_workflow_events
 
 ALTER TABLE ONLY public.symbol_workflows
     ADD CONSTRAINT symbol_workflows_symbol_fkey FOREIGN KEY (symbol) REFERENCES public.symbols(symbol) ON DELETE CASCADE;
+
+
+--
+-- Name: tlh_scan_results tlh_scan_results_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tlh_scan_results
+    ADD CONSTRAINT tlh_scan_results_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.portfolio_accounts(id) ON DELETE CASCADE;
 
 
 --
@@ -9606,4 +11027,5 @@ ALTER TABLE ONLY public.watchlist_technical_metrics
 -- PostgreSQL database dump complete
 --
 
-\unrestrict vkRqVkwyYCmVowZW2ufUzKpekNWJXTQWEO9gJhoIOnqaZgyp4PioeKk2flFDqaM
+\unrestrict m5JP5xXaFwLjRNyeNiK1GsrGdz8b7vzBUrBm3LHD5JX986I8Of1NSEMZtFxST9E
+

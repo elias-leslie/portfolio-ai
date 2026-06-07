@@ -1086,7 +1086,7 @@ providers:
 
     endpoints:
       filings:
-        method: "edgartools library"
+        method: "optional EDGAR client"
         description: "SEC filings as news (8-K, Form 4, 10-K, 10-Q)"
         fields_returned:
           - form_type (8-K, 4, 10-K, 10-Q)

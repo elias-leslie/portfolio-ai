@@ -36,7 +36,7 @@ const configuredStatus = {
   encryptionReady: true,
   accessMode: 'read_only' as const,
   defaultBroker: 'FIDELITY',
-  redirectUri: 'https://port.summitflow.dev/money',
+  redirectUri: 'https://portfolio-ai.example/money',
   userRegistered: false,
   connectionCount: 0,
   accountCount: 0,
@@ -91,7 +91,7 @@ describe('SnapTradePanel', () => {
 
     expect(await screen.findByDisplayValue('FIDELITY')).toBeInTheDocument()
     expect(
-      screen.getByDisplayValue('https://port.summitflow.dev/money'),
+      screen.getByDisplayValue('https://portfolio-ai.example/money'),
     ).toBeInTheDocument()
     expect(screen.getByLabelText('Client ID')).not.toBeRequired()
     expect(screen.getByLabelText('Consumer key')).not.toBeRequired()
@@ -99,7 +99,7 @@ describe('SnapTradePanel', () => {
     await user.click(screen.getByRole('button', { name: 'Save configuration' }))
 
     expect(configureSnapTradeMutateAsync).toHaveBeenCalledWith({
-      redirectUri: 'https://port.summitflow.dev/money',
+      redirectUri: 'https://portfolio-ai.example/money',
       defaultBroker: 'FIDELITY',
     })
   })

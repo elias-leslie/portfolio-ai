@@ -17,7 +17,7 @@ def test_collapse_report_rows_prefers_import_row_over_matching_transaction() -> 
         [
             {
                 "date": shared_date,
-                "merchant": "Walmart (Store #5831, Largo, FL)",
+                "merchant": "Walmart (Store #5831, Anytown, ST)",
                 "description": "Imported Walmart order",
                 "amount": 164.14,
                 "category": "Household shopping",
@@ -30,7 +30,7 @@ def test_collapse_report_rows_prefers_import_row_over_matching_transaction() -> 
             },
             {
                 "date": shared_date,
-                "merchant": "WM SUPERCENTER #5831 LARGO FL",
+                "merchant": "WM SUPERCENTER #5831 ANYTOWN ST",
                 "description": "Walmart receipt",
                 "amount": 164.14,
                 "category": "Retail",

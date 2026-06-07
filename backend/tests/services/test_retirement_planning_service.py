@@ -393,7 +393,7 @@ def test_split_members_picks_primary_and_spouse_by_role() -> None:
 def test_split_members_uses_relationship_and_birthday_notes_for_current_age() -> None:
     members = [
         {
-            "display_name": "Elias",
+            "display_name": "Alex Demo",
             "role": "adult",
             "relationship": "father",
             "birth_year": 1977,
@@ -401,7 +401,7 @@ def test_split_members_uses_relationship_and_birthday_notes_for_current_age() ->
             "is_dependent": False,
         },
         {
-            "display_name": "Mariana",
+            "display_name": "Jordan Demo",
             "role": "adult",
             "relationship": "mother",
             "birth_year": 1982,

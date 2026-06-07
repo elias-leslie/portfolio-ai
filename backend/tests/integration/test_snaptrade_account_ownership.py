@@ -25,7 +25,7 @@ def _seed(conn, *, user_id: str) -> None:
     )
     # Two logins: one is the spouse's, one is the primary's.
     for auth_id, owner_is_spouse, owner_name in (
-        ("auth-spouse", True, "Mariana"),
+        ("auth-spouse", True, "Jordan Demo"),
         ("auth-primary", False, None),
     ):
         conn.execute(
@@ -131,9 +131,9 @@ def test_set_connection_owner_persists_and_reapplies_attribution() -> None:
         )
         conn.commit()
 
-    result = service.set_connection_owner("auth-spouse", is_spouse=True, owner_name="Mariana")
+    result = service.set_connection_owner("auth-spouse", is_spouse=True, owner_name="Jordan Demo")
     assert result["owner_is_spouse"] is True
-    assert result["owner_name"] == "Mariana"
+    assert result["owner_name"] == "Jordan Demo"
 
     with service.storage.connection() as conn:
         assert _is_spouse_map(conn)["pa-spouse"] is True
@@ -142,7 +142,7 @@ def test_set_connection_owner_persists_and_reapplies_attribution() -> None:
         ).fetchone()
     assert owner is not None
     assert bool(owner[0]) is True
-    assert str(owner[1]) == "Mariana"
+    assert str(owner[1]) == "Jordan Demo"
 
     # Reassigning ownership back to the household re-derives attribution.
     service.set_connection_owner("auth-spouse", is_spouse=False)

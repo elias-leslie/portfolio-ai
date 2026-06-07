@@ -63,7 +63,7 @@ def _fake_service(storage: MagicMock) -> MagicMock:
 
 def _reviewed_with_one_txn(
     *,
-    account_mask: str = "Z35217544",
+    account_mask: str = "Z00000002",
     household_account_id: str = "hh-1",
     transaction_type: str = "sell",
     shares: float = 11.0,
@@ -130,10 +130,10 @@ def test_external_id_is_deterministic() -> None:
         "amount": -12933.2,
         "raw_action": "YOU BOUGHT VANGUARD WORLD FD INF TECH ETF (VGT) (Cash)",
     }
-    a = _txn_external_id(account_number="245944181", txn=txn)
-    b = _txn_external_id(account_number="245944181", txn=txn)
+    a = _txn_external_id(account_number="000000001", txn=txn)
+    b = _txn_external_id(account_number="000000001", txn=txn)
     assert a == b
-    different_account = _txn_external_id(account_number="Z35217544", txn=txn)
+    different_account = _txn_external_id(account_number="Z00000002", txn=txn)
     assert different_account != a
 
 
@@ -184,7 +184,7 @@ def test_sync_handles_multi_account_document() -> None:
             "financial_accounts": [
                 {
                     "transaction_source": "fidelity_activity_history_csv",
-                    "account_mask": "Z35217544",
+                    "account_mask": "Z00000002",
                     "household_account_id": "hh-1",
                     "transactions": [
                         {
@@ -200,7 +200,7 @@ def test_sync_handles_multi_account_document() -> None:
                 },
                 {
                     "transaction_source": "fidelity_activity_history_csv",
-                    "account_mask": "245944181",
+                    "account_mask": "000000001",
                     "household_account_id": "hh-2",
                     "transactions": [
                         {
@@ -237,7 +237,7 @@ def test_sync_ignores_non_activity_history_accounts() -> None:
                 {
                     # Note: position_source, NOT transaction_source.
                     "position_source": "fidelity_positions_csv",
-                    "account_mask": "Z35217544",
+                    "account_mask": "Z00000002",
                     "holdings": [{"symbol": "VTI", "quantity": 100}],
                 }
             ]
@@ -260,7 +260,7 @@ def test_sync_skips_malformed_transaction_rows() -> None:
             "financial_accounts": [
                 {
                     "transaction_source": "fidelity_activity_history_csv",
-                    "account_mask": "Z35217544",
+                    "account_mask": "Z00000002",
                     "household_account_id": "hh-1",
                     "transactions": [
                         # missing shares

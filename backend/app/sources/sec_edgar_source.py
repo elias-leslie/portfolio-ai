@@ -1,9 +1,7 @@
-"""SEC EDGAR data source adapter using edgartools library.
+"""SEC EDGAR data source adapter.
 
 This module provides access to SEC EDGAR filings as a news source,
 including 8-K material events, Form 4 insider trades, and quarterly/annual reports.
-
-Free tier, no API key required. Uses edgartools library for compliance and performance.
 """
 
 from __future__ import annotations
@@ -41,14 +39,17 @@ _MATERIAL_FORMS: frozenset[str] = frozenset({"8-K", "4"})
 
 
 def _get_edgar() -> Any:
-    """Lazy import edgartools and set User-Agent identity."""
+    """Lazy import an optional EDGAR client and set User-Agent identity."""
     global _edgar, _set_identity_called  # noqa: PLW0603
 
     if not SEC_USER_AGENT:
         raise RuntimeError("SEC_USER_AGENT must be configured to use SEC EDGAR")
 
     if _edgar is None:
-        import edgar as edgar_module  # noqa: PLC0415
+        try:
+            import edgar as edgar_module  # noqa: PLC0415
+        except ImportError as exc:
+            raise RuntimeError("SEC EDGAR optional client is not installed") from exc
 
         _edgar = edgar_module
 
@@ -64,7 +65,7 @@ def _get_edgar() -> Any:
 
 
 class SECEdgarSource(BaseSource):
-    """SEC EDGAR filings source using edgartools library.
+    """SEC EDGAR filings source.
 
     Provides access to:
     - 8-K: Material events (earnings, M&A, exec changes)
@@ -72,8 +73,9 @@ class SECEdgarSource(BaseSource):
     - 10-Q: Quarterly reports
     - 10-K: Annual reports
 
-    All filings are free and publicly available. No API key required.
-    Compliance (User-Agent, rate limiting) handled by edgartools.
+    All filings are free and publicly available. The optional EDGAR client is
+    not installed by the base public package; without it this source degrades
+    to no data and logs a warning.
     """
 
     name = "sec_edgar"
@@ -92,7 +94,7 @@ class SECEdgarSource(BaseSource):
             storage: Optional PortfolioStorage instance for CIK cache lookups.
                     If not provided, will create one on first use.
         """
-        # edgartools will be imported lazily on first use
+        # The optional EDGAR client is imported lazily on first use.
         self._storage = storage
         logger.info("sec_edgar_source_initialized")
 
@@ -127,7 +129,11 @@ class SECEdgarSource(BaseSource):
             DataFrame with columns: symbol, headline, url, published_at, source, summary,
                                    filing_type, filing_items, is_material_event
         """
-        edgar = _get_edgar()
+        try:
+            edgar = _get_edgar()
+        except RuntimeError as exc:
+            logger.warning("sec_edgar_unavailable", error=str(exc))
+            return None
         records: list[dict[str, Any]] = []
 
         start_date = start.date()
@@ -242,7 +248,7 @@ class SECEdgarSource(BaseSource):
         """Process a single filing into a news record.
 
         Args:
-            filings: Filings object from edgartools
+            filings: Filings object from the optional EDGAR client
             index: Index of filing to process
             symbol: Stock symbol
 

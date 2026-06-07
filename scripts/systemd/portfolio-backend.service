@@ -7,7 +7,8 @@ Type=simple
 WorkingDirectory=__PROJECT_ROOT__/backend
 Environment="PATH=%h/.local/bin:__PROJECT_ROOT__/backend/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="HOME=%h"
-EnvironmentFile=-%h/.env.local
+EnvironmentFile=-__PROJECT_ROOT__/.env
+EnvironmentFile=-__PROJECT_ROOT__/.env.local
 Environment="PYTHONUNBUFFERED=1"
 Environment="HATCHET_CLIENT_HOST_PORT=127.0.0.1:7070"
 Environment="HATCHET_CLIENT_TLS_STRATEGY=none"

@@ -57,6 +57,10 @@ def test_refresh_returns_detailed_results_all_success(
     def mock_query(sql: str, params: list[str] | None = None) -> pl.DataFrame:
         if "watchlist_items" in sql:
             return items_df
+        # Technical indicators query includes a day_bars CTE; match it before
+        # the simpler day_bars fixtures below.
+        if "technical_indicators" in sql:
+            return pl.DataFrame()
         # Day_bars data - provide volume data (at least 20 rows as required by service)
         if "day_bars" in sql:
             if "volume" in sql:
@@ -72,9 +76,6 @@ def test_refresh_returns_detailed_results_all_success(
                     "watchlist_refresh_minutes": [5],
                 }
             )
-        # Technical indicators
-        if "technical_indicators" in sql:
-            return pl.DataFrame()  # Empty for simplicity
         return pl.DataFrame()
 
     mock_storage.query.side_effect = mock_query
@@ -133,6 +134,8 @@ def test_refresh_returns_detailed_results_partial_failure(
     def mock_query(sql: str, params: list[str] | None = None) -> pl.DataFrame:
         if "watchlist_items" in sql:
             return items_df
+        if "technical_indicators" in sql:
+            return pl.DataFrame()
         # Day_bars data - provide volume data (at least 20 rows as required by service)
         if "day_bars" in sql:
             if "volume" in sql:
@@ -148,9 +151,6 @@ def test_refresh_returns_detailed_results_partial_failure(
                     "watchlist_refresh_minutes": [5],
                 }
             )
-        # Technical indicators
-        if "technical_indicators" in sql:
-            return pl.DataFrame()
         return pl.DataFrame()
 
     mock_storage.query.side_effect = mock_query
@@ -222,6 +222,8 @@ def test_refresh_continues_after_individual_failures(
         call_count["query"] += 1
         if "watchlist_items" in sql:
             return items_df
+        if "technical_indicators" in sql:
+            return pl.DataFrame()
         if "day_bars" in sql:
             if "volume" in sql:
                 # Volume query returns 20 rows for RVOL calculation
@@ -236,8 +238,6 @@ def test_refresh_continues_after_individual_failures(
                     "watchlist_refresh_minutes": [5],
                 }
             )
-        if "technical_indicators" in sql:
-            return pl.DataFrame()
         return pl.DataFrame()
 
     mock_storage.query.side_effect = mock_query

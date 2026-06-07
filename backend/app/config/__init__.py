@@ -15,7 +15,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from ..utils.project_paths import resolve_project_root
 
 # Ensure HOME is set before any library tries to create cache directories.
-# Libraries like yfinance, transformers, and edgartools fail without it.
+# Libraries like yfinance and transformers fail without it.
 if not os.environ.get("HOME"):
     os.environ["HOME"] = "/var/cache/portfolio-ai"
 
@@ -29,7 +29,6 @@ REDIS_PORT = 6379
 HATCHET_GRPC_PORT = 7070
 PROJECT_ROOT = resolve_project_root(Path(__file__).resolve())
 ENV_FILES = (
-    Path.home() / ".env.local",
     PROJECT_ROOT / ".env",
     PROJECT_ROOT / ".env.local",
 )
@@ -38,8 +37,8 @@ ENV_FILES = (
 class Settings(BaseSettings):
     """Application settings loaded from environment variables.
 
-    Loads from repo-local env files first, with ~/.env.local kept as a fallback
-    for the current internal runtime.
+    Loads from repo-local env files only. Docker Compose injects its own
+    container-specific values through service environment variables.
     """
 
     model_config = SettingsConfigDict(

@@ -260,6 +260,10 @@ def test_gather_service_data_uses_dashboard_sync_gate_before_raw_registry_sync()
                 source_owned_account_values={},
             ),
         ),
+        patch(
+            "app.services._household_dashboard_assembly.fetch_closed_household_account_ids",
+            return_value=set(),
+        ),
     ):
         gather_service_data(service)
 

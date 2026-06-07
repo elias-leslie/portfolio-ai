@@ -339,7 +339,7 @@ export function TrackedAccountDialog({
                   ownerName: event.target.value,
                 }))
               }
-              placeholder="Elias B. Leslie"
+              placeholder="Alex Demo"
             />
           </div>
 

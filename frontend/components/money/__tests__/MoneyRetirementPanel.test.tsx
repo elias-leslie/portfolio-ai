@@ -168,7 +168,7 @@ const dashboard = {
     members: [
       {
         id: 'member-primary',
-        displayName: 'Elias',
+        displayName: 'Alex Demo',
         role: 'adult',
         relationship: 'father',
         birthYear: 1977,
@@ -180,7 +180,7 @@ const dashboard = {
       },
       {
         id: 'member-spouse',
-        displayName: 'Mariana',
+        displayName: 'Jordan Demo',
         role: 'adult',
         relationship: 'mother',
         birthYear: 1982,

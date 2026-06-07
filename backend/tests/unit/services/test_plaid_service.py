@@ -55,14 +55,14 @@ def test_configure_keeps_saved_credentials_when_secret_inputs_are_blank(monkeypa
         environment="production",
         products=["transactions"],
         country_codes=["US"],
-        redirect_uri="https://port.summitflow.dev/money",
+        redirect_uri="https://portfolio-ai.example/money",
     )
 
     assert result == {"configured": True}
     assert ("client_id", "existing-client", True) not in saved_fields
     assert ("secret", "existing-secret", True) not in saved_fields
     assert ("environment", "production", False) in saved_fields
-    assert ("redirect_uri", "https://port.summitflow.dev/money", False) in saved_fields
+    assert ("redirect_uri", "https://portfolio-ai.example/money", False) in saved_fields
 
 
 def test_configure_still_requires_credentials_for_first_setup(monkeypatch) -> None:

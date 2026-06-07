@@ -209,7 +209,7 @@ class HouseholdPortfolioTransactionSyncService:
         behavior). Fall back to ``portfolio_accounts.account_mask`` —
         not a column today, so this is a string-match against the
         account *name* which Fidelity exports identically to the mask
-        field on related statements (e.g. ``Z35217544``).
+        field on related statements (e.g. ``Z00000002``).
         """
         with storage.connection() as conn:
             if household_account_id is not None:

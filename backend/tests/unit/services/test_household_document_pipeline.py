@@ -256,9 +256,9 @@ def test_signature_structured_data_strips_volatile_money_fields() -> None:
                         "account_type": "credit_card",
                         "asset_group": "credit",
                         "institution_name": "Chase",
-                        "owner_name": "Elias B Leslie",
+                        "owner_name": "Alex Demo",
                         "account_mask": "9728",
-                        "match_key": "credit-lineage|chase|prime visa|elias b leslie|credit_card",
+                        "match_key": "credit-lineage|chase|prime visa|alex demo|credit_card",
                         "balance": "2958.17",
                         "as_of_date": "2026-04-11",
                     }
@@ -452,8 +452,8 @@ def test_upload_account_binding_attaches_single_account_to_selected_household_ac
         "ira",
         "Fidelity",
         None,
-        "245944181",
-        "institution-mask::fidelity|245944181",
+        "000000001",
+        "institution-mask::fidelity|000000001",
     )
     context_manager = MagicMock()
     context_manager.__enter__.return_value = connection
@@ -484,7 +484,7 @@ def test_upload_account_binding_attaches_single_account_to_selected_household_ac
                     {
                         "account_name": "Traditional IRA",
                         "institution_name": "Fidelity",
-                        "account_mask": "245944181",
+                        "account_mask": "000000001",
                         "balance": "372006.79",
                     }
                 ]
@@ -499,7 +499,7 @@ def test_upload_account_binding_attaches_single_account_to_selected_household_ac
     account = accounts[0]
     assert isinstance(account, dict)
     assert account["household_account_id"] == "household-ira"
-    assert account["match_key"] == "institution-mask::fidelity|245944181"
+    assert account["match_key"] == "institution-mask::fidelity|000000001"
     assert reviewed.get("questions") == []
     assert reviewed.get("review_checks") == {"ambiguity_remaining": False}
 
@@ -513,9 +513,9 @@ def test_upload_account_binding_accepts_provider_prefixed_matching_mask() -> Non
         "credit",
         "credit_card",
         "Chase",
-        "Elias B Leslie",
+        "Alex Demo",
         "9728",
-        "credit-lineage|chase|chase prime visa / amazon card|elias b leslie|credit_card",
+        "credit-lineage|chase|chase prime visa / amazon card|alex demo|credit_card",
     )
     context_manager = MagicMock()
     context_manager.__enter__.return_value = connection
@@ -576,7 +576,7 @@ def test_upload_account_binding_synthesizes_selected_balance_when_parse_missed_a
         "retirement",
         "retirement",
         "Florida Retirement System (FRS)",
-        "Elias B Leslie",
+        "Alex Demo",
         None,
         "institution-label::frs|investment-plan",
     )
@@ -646,8 +646,8 @@ def test_upload_account_binding_asks_when_selected_account_conflicts() -> None:
         "ira",
         "Fidelity",
         None,
-        "245944181",
-        "institution-mask::fidelity|245944181",
+        "000000001",
+        "institution-mask::fidelity|000000001",
     )
     context_manager = MagicMock()
     context_manager.__enter__.return_value = connection

@@ -37,7 +37,6 @@ RUN uv export --frozen --no-dev --no-editable --format requirements-txt \
     rm -rf /root/.cache/uv /root/.cache/pip requirements.txt
 
 # Copy application source
-COPY .index.yaml ./.index.yaml
 COPY backend/app ./app
 COPY backend/alembic.ini ./
 COPY backend/alembic ./alembic
@@ -55,7 +54,6 @@ RUN useradd -m -s /bin/bash appuser
 WORKDIR /app
 
 COPY --chown=appuser:appuser --from=builder /app/.venv /app/.venv
-COPY --chown=appuser:appuser --from=builder /app/.index.yaml /app/.index.yaml
 COPY --chown=appuser:appuser --from=builder /app/app ./app
 COPY --chown=appuser:appuser --from=builder /app/alembic.ini ./
 COPY --chown=appuser:appuser --from=builder /app/alembic ./alembic

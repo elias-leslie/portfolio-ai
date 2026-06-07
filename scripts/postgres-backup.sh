@@ -12,28 +12,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/lib/project-root.sh"
 
 load_portfolio_db_env() {
-    local summitflow_root=""
     local env_file=""
 
     if [ -n "${PORTFOLIO_DB_URL:-}" ] || [ -n "${PORTFOLIO_AI_DB_URL:-}" ]; then
         return 0
     fi
 
-    if [ -f "$HOME/.env.local" ]; then
-        env_file="$HOME/.env.local"
-    elif command -v st >/dev/null 2>&1; then
-        summitflow_root="$(ST_PROGRESS_ONLY=1 st projects root summitflow 2>/dev/null | head -n 1 | tr -d '\r')"
-        if [ -n "$summitflow_root" ] && [ -f "$summitflow_root/docker/compose/.env" ]; then
-            env_file="$summitflow_root/docker/compose/.env"
+    for env_file in "$PORTFOLIO_ROOT/.env" "$PORTFOLIO_ROOT/.env.local"; do
+        if [ -f "$env_file" ]; then
+            set -a
+            # shellcheck disable=SC1090
+            . "$env_file"
+            set +a
         fi
-    fi
-
-    if [ -n "$env_file" ]; then
-        set -a
-        # shellcheck disable=SC1090
-        . "$env_file"
-        set +a
-    fi
+    done
 }
 
 parse_database_url() {

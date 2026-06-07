@@ -1,9 +1,8 @@
-# Frontend Test Organization
+# Frontend tests
 
-Frontend automated tests in this repo use Vitest and React Testing Library.
-Live page verification uses `st browser`, not Playwright.
+Frontend automated tests use Vitest and React Testing Library.
 
-## Directory Structure
+## Directory structure
 
 ```text
 frontend/tests/
@@ -12,57 +11,29 @@ frontend/tests/
 └── README.md      # This file
 ```
 
-Most tests are colocated with the source file they cover:
+Most tests are colocated with the source they cover:
 
 - `components/**/*.test.tsx`
 - `lib/api/*.test.ts`
 - `app/**/*.test.tsx`
 
-## Automated Tests
-
-Use the repo wrappers from the project root:
+## Commands
 
 ```bash
-dt --frontend-only
-dt --check
+pnpm lint
+pnpm exec tsc --noEmit
+pnpm test -- --run
+pnpm build
 ```
 
-These tests should cover:
-
-- component rendering and interaction
-- API request/response shaping
-- error and empty states
-- regression coverage for fixed defects
-
-## Browser Verification
-
-For real browser checks, use `st browser` against the running app:
+Use a real browser against a running local app for manual smoke checks:
 
 ```bash
-st browser health
-st browser check http://<host-ip-from-.index.yaml>:3000/status /tmp/status-check.png
+curl -fsS http://localhost:3000 >/dev/null
 ```
 
-Use it to verify:
+Also inspect the browser console before trusting UI changes.
 
-- page load succeeds
-- navigation works
-- console stays clean
-- visible controls behave correctly
+## Shared utilities
 
-## Shared Utilities
-
-`fixtures/mockData.ts` provides reusable factories for frontend tests.
-
-`setup.ts` loads:
-
-- React Testing Library cleanup
-- `jest-dom` matchers
-- `matchMedia` mock
-- `IntersectionObserver` mock
-
-## Notes
-
-- Prefer colocated regression tests over large framework-level harnesses.
-- Keep docs aligned with current repo tooling.
-- Do not reintroduce Playwright-based ad hoc verification for this project workflow.
+`fixtures/mockData.ts` provides reusable factories. `setup.ts` loads React Testing Library cleanup, `jest-dom` matchers, `matchMedia`, and `IntersectionObserver` mocks.

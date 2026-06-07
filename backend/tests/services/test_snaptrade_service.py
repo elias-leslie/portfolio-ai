@@ -72,7 +72,7 @@ def test_connection_portal_is_read_only() -> None:
     kwargs = _connection_portal_kwargs(
         user=SnapTradeUser(user_id="user", user_secret="secret"),
         broker="FIDELITY",
-        redirect_uri="https://port.summitflow.dev/money",
+        redirect_uri="https://portfolio-ai.example/money",
     )
 
     assert kwargs["connection_type"] == _READ_ONLY_CONNECTION_TYPE
@@ -89,7 +89,7 @@ def test_read_only_client_blocks_trading_surfaces() -> None:
 
 
 def test_account_number_is_reduced_to_mask() -> None:
-    assert _redact_account_number("Z38367298") == "7298"
+    assert _redact_account_number("Z00000001") == "0001"
     assert _redact_account_number("****1234") == "1234"
     assert _redact_account_number("123") == "123"
 
@@ -348,14 +348,14 @@ def test_configure_keeps_saved_credentials_when_secret_inputs_are_blank(monkeypa
     result = service.configure(
         client_id="",
         consumer_key=None,
-        redirect_uri="https://port.summitflow.dev/money",
+        redirect_uri="https://portfolio-ai.example/money",
         default_broker="FIDELITY",
     )
 
     assert result == {"configured": True}
     assert ("client_id", "existing-client", True) not in saved_fields
     assert ("consumer_key", "existing-key", True) not in saved_fields
-    assert ("redirect_uri", "https://port.summitflow.dev/money", False) in saved_fields
+    assert ("redirect_uri", "https://portfolio-ai.example/money", False) in saved_fields
     assert ("default_broker", "FIDELITY", False) in saved_fields
 
 

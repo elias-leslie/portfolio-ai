@@ -35,7 +35,7 @@ def test_household_profile_is_created_and_can_be_updated(client: TestClient) -> 
     update_response = client.post(
         "/api/household/profile",
         json={
-            "household_name": "Kasadis Family",
+            "household_name": "Demo Family",
             "monthly_net_income_target": 12500,
             "monthly_essential_target": 5200,
             "monthly_discretionary_target": 1800,
@@ -47,7 +47,7 @@ def test_household_profile_is_created_and_can_be_updated(client: TestClient) -> 
     )
     assert update_response.status_code == 200
     updated = update_response.json()
-    assert updated["household_name"] == "Kasadis Family"
+    assert updated["household_name"] == "Demo Family"
     assert updated["monthly_net_income_target"] == 12500
     assert updated["target_retirement_age"] == 60
 
@@ -104,7 +104,7 @@ def test_household_planning_snapshot_can_be_updated_and_surfaces_document_placeh
     profile_response = client.post(
         "/api/household/profile",
         json={
-            "household_name": "Kasadis Family",
+            "household_name": "Demo Family",
             "adult_count": 2,
             "dependent_count": 2,
             "filing_status": "married_filing_jointly",
@@ -327,7 +327,7 @@ def test_household_dashboard_uses_profile_documents_and_portfolio(
     client.post(
         "/api/household/profile",
         json={
-            "household_name": "Kasadis Family",
+            "household_name": "Demo Family",
             "monthly_net_income_target": 12500,
             "monthly_essential_target": 5200,
             "monthly_discretionary_target": 1800,
@@ -406,7 +406,7 @@ def test_household_dashboard_uses_profile_documents_and_portfolio(
 
     assert response.status_code == 200
     dashboard = response.json()
-    assert dashboard["profile"]["household_name"] == "Kasadis Family"
+    assert dashboard["profile"]["household_name"] == "Demo Family"
     assert dashboard["overview"]["invested_assets"] == 3990
     assert dashboard["overview"]["cash_reserve"] == 15500
     assert dashboard["overview"]["retirement_assets"] == 4740
@@ -442,11 +442,11 @@ def test_household_dashboard_includes_transaction_reports_from_documents(
         "inferred_values": [],
         "questions": [],
         "extracted_text": (
-            "ELIAS B LESLIE Page 2 of 4 Statement Date: 01/11/26\n"
+            "ALEX DEMO Page 2 of 4 Statement Date: 01/11/26\n"
             "Date of Transaction Merchant Name or Transaction Description $ Amount\n"
-            "12/11 & WAL-MART #5831 LARGO FL 149.21\n"
-            "12/12 & WM SUPERCENTER #5831 LARGO FL 30.00\n"
-            "12/14 & PUBLIX #1309 BELLEAIR BLUF FL 27.50\n"
+            "12/11 & WAL-MART #5831 ANYTOWN ST 149.21\n"
+            "12/12 & WM SUPERCENTER #5831 ANYTOWN ST 30.00\n"
+            "12/14 & PUBLIX #1309 RIVERTON FL 27.50\n"
             "12/23 & Payment Thank You-Mobile -5757.53\n"
         ),
     }
@@ -456,7 +456,7 @@ def test_household_dashboard_includes_transaction_reports_from_documents(
         "source_type": "receipt",
         "confidence": 0.95,
         "structured_data": {
-            "merchant": "Walmart (Store #5831, Largo, FL)",
+            "merchant": "Walmart (Store #5831, Anytown, ST)",
             "account_hint": "Visa Credit ****4635",
             "total_amount": "164.14",
             "statement_period": "2025-12-22",
@@ -569,9 +569,9 @@ def test_household_dashboard_dedupes_overlapping_transaction_and_import_rows(
         "inferred_values": [],
         "questions": [],
         "extracted_text": (
-            "ELIAS B LESLIE Page 2 of 4 Statement Date: 01/11/26\n"
+            "ALEX DEMO Page 2 of 4 Statement Date: 01/11/26\n"
             "Date of Transaction Merchant Name or Transaction Description $ Amount\n"
-            "12/22 & WAL-MART #5831 LARGO FL 164.14\n"
+            "12/22 & WAL-MART #5831 ANYTOWN ST 164.14\n"
         ),
     }
     receipt_review = {
@@ -580,7 +580,7 @@ def test_household_dashboard_dedupes_overlapping_transaction_and_import_rows(
         "source_type": "receipt",
         "confidence": 0.95,
         "structured_data": {
-            "merchant": "Walmart (Store #5831, Largo, FL)",
+            "merchant": "Walmart (Store #5831, Anytown, ST)",
             "account_hint": "Visa Credit ****4635",
             "total_amount": "164.14",
             "statement_period": "2025-12-22",
@@ -1137,7 +1137,7 @@ def test_household_list_questions_suppresses_inferable_merchant_frequency_questi
             "source_type": "receipt",
             "confidence": 0.94,
             "structured_data": {
-                "merchant": "Walmart (Store #5831, Largo, FL)",
+                "merchant": "Walmart (Store #5831, Anytown, ST)",
                 "statement_period": "2026-01-03",
             },
             "inferred_values": [],
@@ -1149,7 +1149,7 @@ def test_household_list_questions_suppresses_inferable_merchant_frequency_questi
             "source_type": "receipt",
             "confidence": 0.94,
             "structured_data": {
-                "merchant": "Walmart (Store #5831, Largo, FL)",
+                "merchant": "Walmart (Store #5831, Anytown, ST)",
                 "statement_period": "2026-01-10",
             },
             "inferred_values": [],
@@ -1161,7 +1161,7 @@ def test_household_list_questions_suppresses_inferable_merchant_frequency_questi
             "source_type": "receipt",
             "confidence": 0.94,
             "structured_data": {
-                "merchant": "Walmart (Store #5831, Largo, FL)",
+                "merchant": "Walmart (Store #5831, Anytown, ST)",
                 "statement_period": "2026-01-17",
             },
             "inferred_values": [],
@@ -1213,7 +1213,7 @@ def test_household_list_questions_keeps_frequency_question_when_cadence_is_unkno
             "source_type": "receipt",
             "confidence": 0.94,
             "structured_data": {
-                "merchant": "Walmart (Store #5831, Largo, FL)",
+                "merchant": "Walmart (Store #5831, Anytown, ST)",
                 "statement_period": "2026-01-03",
             },
             "inferred_values": [],
@@ -1225,7 +1225,7 @@ def test_household_list_questions_keeps_frequency_question_when_cadence_is_unkno
             "source_type": "receipt",
             "confidence": 0.94,
             "structured_data": {
-                "merchant": "Walmart (Store #5831, Largo, FL)",
+                "merchant": "Walmart (Store #5831, Anytown, ST)",
                 "statement_period": "2026-01-03",
             },
             "inferred_values": [],
@@ -1280,12 +1280,12 @@ def test_household_list_questions_uses_statement_merchant_aliases_for_frequency_
             "inferred_values": [],
             "questions": [],
             "extracted_text": (
-                "ELIAS B LESLIE Page 2 of 4 Statement Date: 01/11/26\n"
+                "ALEX DEMO Page 2 of 4 Statement Date: 01/11/26\n"
                 "Date of Transaction Merchant Name or Transaction Description $ Amount\n"
-                "12/11 & WAL-MART #5831 LARGO FL 149.21\n"
-                "12/12 & WM SUPERCENTER #5831 LARGO FL 30.00\n"
-                "12/15 & WAL-MART #5831 LARGO FL 222.62\n"
-                "12/22 & WM SUPERCENTER #5831 LARGO FL 164.39\n"
+                "12/11 & WAL-MART #5831 ANYTOWN ST 149.21\n"
+                "12/12 & WM SUPERCENTER #5831 ANYTOWN ST 30.00\n"
+                "12/15 & WAL-MART #5831 ANYTOWN ST 222.62\n"
+                "12/22 & WM SUPERCENTER #5831 ANYTOWN ST 164.39\n"
             ),
         },
         {
@@ -1294,7 +1294,7 @@ def test_household_list_questions_uses_statement_merchant_aliases_for_frequency_
             "source_type": "receipt",
             "confidence": 0.95,
             "structured_data": {
-                "merchant": "Walmart (Store #5831, Largo, FL)",
+                "merchant": "Walmart (Store #5831, Anytown, ST)",
                 "account_hint": "Visa Credit ****4635",
                 "statement_period": "2026-01-03",
             },

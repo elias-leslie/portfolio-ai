@@ -124,9 +124,9 @@ def test_sync_tracked_identity_snapshot_preserves_display_owner_for_linked_accou
         account_type="401k",
         source_type="retirement",
         institution_name="Florida Retirement System (FRS)",
-        owner_name="Elias",
+        owner_name="Alex Demo",
         account_mask=None,
-        match_key="identity::frs|elias",
+        match_key="identity::frs|alex-demo",
     )
     tracked.household_account_id = "household-frs"
     canonical = _canonical(
@@ -136,7 +136,7 @@ def test_sync_tracked_identity_snapshot_preserves_display_owner_for_linked_accou
         account_type="401k",
         source_type="retirement",
         institution_name="Florida Retirement System (FRS)",
-        owner_name="Mariana Leslie",
+        owner_name="Jordan Demo",
         account_mask="8891",
     )
     conn = _ConnectionRecorder()
@@ -150,7 +150,7 @@ def test_sync_tracked_identity_snapshot_preserves_display_owner_for_linked_accou
     assert conn.calls
     _, params = conn.calls[0]
     assert params is not None
-    assert params[5] == "Elias"
+    assert params[5] == "Alex Demo"
 
 
 def test_account_identity_candidates_do_not_emit_owner_level_education_keys() -> None:
@@ -159,16 +159,16 @@ def test_account_identity_candidates_do_not_emit_owner_level_education_keys() ->
         asset_group="education",
         account_type="529",
         institution_name="CollegeAmerica / VCSP",
-        account_name="529 - Nadia R Leslie",
-        owner_name="Mariana Leslie",
-        account_mask="87595982",
-        explicit_match_key="evidence|87595982|529",
+        account_name="529 - Demo Child Two",
+        owner_name="Jordan Demo",
+        account_mask="00022222",
+        explicit_match_key="evidence|00022222|529",
     )
 
-    assert "institution-owner-asset::collegeamerica / vcsp|mariana|education" not in candidates
-    assert "institution-owner::collegeamerica / vcsp|mariana leslie|education|529" not in candidates
-    assert "institution-mask::collegeamerica / vcsp|87595982" in candidates
-    assert "match::evidence|87595982|529" in candidates
+    assert "institution-owner-asset::collegeamerica / vcsp|jordan-demo|education" not in candidates
+    assert "institution-owner::collegeamerica / vcsp|jordan demo|education|529" not in candidates
+    assert "institution-mask::collegeamerica / vcsp|00022222" in candidates
+    assert "match::evidence|00022222|529" in candidates
 
 
 def test_account_identity_candidates_emit_credit_lineage_before_mask() -> None:
@@ -178,11 +178,11 @@ def test_account_identity_candidates_emit_credit_lineage_before_mask() -> None:
         account_type="credit_card",
         institution_name="Chase",
         account_name="Prime Visa",
-        owner_name="Elias B Leslie",
+        owner_name="Alex Demo",
         account_mask="5313",
     )
 
-    assert candidates[0] == "credit-lineage|chase|prime visa|elias b leslie|credit_card"
+    assert candidates[0] == "credit-lineage|chase|prime visa|alex demo|credit_card"
     assert "institution-mask::chase|5313" in candidates
 
 
@@ -193,20 +193,20 @@ def test_registry_matching_uses_only_mask_identity_candidates() -> None:
         account_type="credit_card",
         institution_name="Chase",
         account_name="Prime Visa",
-        owner_name="Elias B Leslie",
+        owner_name="Alex Demo",
         account_mask="5313",
     )
 
     filtered = _mask_identity_candidates(candidates)
 
-    assert "credit-lineage|chase|prime visa|elias b leslie|credit_card" not in filtered
+    assert "credit-lineage|chase|prime visa|alex demo|credit_card" not in filtered
     assert "institution-mask::chase|5313" in filtered
 
 
 def test_registry_matching_allows_explicit_review_match_key_without_mask() -> None:
     explicit_key = (
         "institution-name-owner::florida retirement system (frs)|frs investment plan|"
-        "elias b. leslie|retirement|retirement"
+        "alex-demo b. leslie|retirement|retirement"
     )
     candidates = account_identity_candidates(
         source_type="retirement",
@@ -214,7 +214,7 @@ def test_registry_matching_allows_explicit_review_match_key_without_mask() -> No
         account_type="retirement",
         institution_name="Florida Retirement System (FRS)",
         account_name="FRS Investment Plan",
-        owner_name="Elias B. Leslie",
+        owner_name="Alex Demo",
         account_mask=None,
         explicit_match_key=explicit_key,
     )
@@ -223,7 +223,7 @@ def test_registry_matching_allows_explicit_review_match_key_without_mask() -> No
 
     assert explicit_key in filtered
     assert f"match::{explicit_key}" in filtered
-    assert "name-owner::frs investment plan|elias b. leslie|retirement|retirement" not in filtered
+    assert "name-owner::frs investment plan|alex-demo b. leslie|retirement|retirement" not in filtered
 
 
 def test_derive_account_mask_ignores_year_like_export_tokens() -> None:
@@ -296,7 +296,7 @@ def test_resolve_from_evidence_uses_extracted_mask_for_identity_matching() -> No
             institution_name="Chase",
             account_name="Chase Prime Visa / Amazon card",
             account_mask="1000020670",
-            owner_name="Elias B Leslie",
+            owner_name="Alex Demo",
             currency="USD",
             balance=None,
             holdings_value=None,
@@ -319,7 +319,7 @@ def test_resolve_from_evidence_uses_explicit_review_match_key_without_mask() -> 
     conn = Mock()
     match_key = (
         "institution-name-owner::florida retirement system (frs)|frs investment plan|"
-        "elias b. leslie|retirement|retirement"
+        "alex-demo b. leslie|retirement|retirement"
     )
     canonical_accounts = {
         "canonical": _canonical(
@@ -329,7 +329,7 @@ def test_resolve_from_evidence_uses_explicit_review_match_key_without_mask() -> 
             account_type="retirement",
             source_type="retirement",
             institution_name="Florida Retirement System (FRS)",
-            owner_name="Elias B. Leslie",
+            owner_name="Alex Demo",
             account_mask=None,
         ),
     }
@@ -347,7 +347,7 @@ def test_resolve_from_evidence_uses_explicit_review_match_key_without_mask() -> 
             institution_name="Florida Retirement System (FRS)",
             account_name="FRS Investment Plan",
             account_mask=None,
-            owner_name="Elias B. Leslie",
+            owner_name="Alex Demo",
             currency="USD",
             balance=44913.86,
             holdings_value=44913.86,
@@ -376,7 +376,7 @@ def test_resolve_from_evidence_uses_preserved_account_id_without_mask() -> None:
             account_type="brokerage",
             source_type="brokerage",
             institution_name="Fidelity",
-            account_mask="Z38367298",
+            account_mask="Z00000001",
         ),
     }
     identity_map: dict[str, str] = {}
@@ -420,7 +420,7 @@ def test_should_not_merge_same_owner_sibling_evidence_accounts() -> None:
         account_type="retirement",
         source_type="retirement",
         institution_name="Pinellas County Schools",
-        owner_name="Mariana Leslie",
+        owner_name="Jordan Demo",
     )
     right = _canonical(
         account_id="right",
@@ -429,7 +429,7 @@ def test_should_not_merge_same_owner_sibling_evidence_accounts() -> None:
         account_type="retirement",
         source_type="retirement",
         institution_name="Pinellas County Schools",
-        owner_name="Mariana Leslie",
+        owner_name="Jordan Demo",
     )
 
     assert not registry._should_merge_accounts(
@@ -451,7 +451,7 @@ def test_should_not_merge_shadow_alias_without_account_mask() -> None:
         account_type="retirement",
         source_type="retirement",
         institution_name="Florida Retirement System (FRS)",
-        owner_name="Elias B. Leslie",
+        owner_name="Alex Demo",
     )
     shadow = _canonical(
         account_id="shadow",
@@ -460,7 +460,7 @@ def test_should_not_merge_shadow_alias_without_account_mask() -> None:
         account_type="401k",
         source_type="retirement",
         institution_name="Florida Retirement System (FRS)",
-        owner_name="Elias",
+        owner_name="Alex Demo",
     )
 
     assert not registry._should_merge_accounts(
@@ -493,11 +493,11 @@ def test_should_not_merge_masked_accounts_when_masks_conflict() -> None:
         account_type="credit_card",
         source_type="credit_card",
         institution_name="Chase",
-        owner_name="Elias B Leslie",
+        owner_name="Alex Demo",
         account_mask="9728",
     )
     current.primary_identity_key = (
-        "credit-lineage|chase|chase prime visa / amazon card|elias b leslie|credit_card"
+        "credit-lineage|chase|chase prime visa / amazon card|alex demo|credit_card"
     )
 
     assert not registry._should_merge_accounts(
@@ -576,53 +576,53 @@ def test_resolve_from_tracked_prefers_structural_identity_over_stale_match_key()
     registry = HouseholdAccountRegistryService()
     conn = Mock()
     canonical_accounts = {
-        "nadia": _canonical(
-            account_id="nadia",
-            label="529 - Nadia R Leslie",
+        "child_two": _canonical(
+            account_id="child_two",
+            label="529 - Demo Child Two",
             asset_group="education",
             account_type="529",
             source_type="education",
             institution_name="CollegeAmerica / VCSP",
-            owner_name="Mariana Leslie",
-            account_mask="87595982",
+            owner_name="Jordan Demo",
+            account_mask="00022222",
         ),
-        "sophia": _canonical(
-            account_id="sophia",
-            label="529 - Sophia O Leslie",
+        "child_one": _canonical(
+            account_id="child_one",
+            label="529 - Demo Child One",
             asset_group="education",
             account_type="529",
             source_type="education",
             institution_name="CollegeAmerica / VCSP",
-            owner_name="Mariana Leslie",
-            account_mask="87595967",
+            owner_name="Jordan Demo",
+            account_mask="00011111",
         ),
     }
     identity_map = {
-        "institution-mask::collegeamerica / vcsp|87595982": "nadia",
-        "institution-mask::collegeamerica / vcsp|87595967": "sophia",
-        "evidence|87595967|529": "sophia",
-        "match::evidence|87595967|529": "sophia",
+        "institution-mask::collegeamerica / vcsp|00022222": "child_two",
+        "institution-mask::collegeamerica / vcsp|00011111": "child_one",
+        "evidence|00011111|529": "child_one",
+        "match::evidence|00011111|529": "child_one",
     }
 
     account_id, created = registry._resolve_from_tracked(
         conn,
         tracked=_tracked(
             account_id="tracked-1",
-            label="CollegeAmerica / VCSP · 529 - Nadia R Leslie",
+            label="CollegeAmerica / VCSP · 529 - Demo Child Two",
             asset_group="education",
             account_type="529",
             source_type="education",
             institution_name="CollegeAmerica / VCSP",
-            owner_name="Mariana Leslie",
-            account_mask="87595982",
-            match_key="evidence|87595967|529",
+            owner_name="Jordan Demo",
+            account_mask="00022222",
+            match_key="evidence|00011111|529",
         ),
         canonical_accounts=canonical_accounts,
         identity_map=identity_map,
     )
 
     assert created == 0
-    assert account_id == "nadia"
+    assert account_id == "child_two"
 
 
 def test_resolve_from_tracked_prefers_mask_over_label_when_both_are_present() -> None:
@@ -636,7 +636,7 @@ def test_resolve_from_tracked_prefers_mask_over_label_when_both_are_present() ->
             account_type="brokerage",
             source_type="brokerage",
             institution_name="Fidelity",
-            account_mask="Z38367298",
+            account_mask="Z00000001",
         ),
         "rollover": _canonical(
             account_id="rollover",
@@ -649,7 +649,7 @@ def test_resolve_from_tracked_prefers_mask_over_label_when_both_are_present() ->
         ),
     }
     identity_map = {
-        "institution-mask::fidelity|z38367298": "cash",
+        "institution-mask::fidelity|z00000001": "cash",
         "institution-mask::fidelity|267328698": "rollover",
     }
 
@@ -686,7 +686,7 @@ def test_resolve_from_tracked_does_not_merge_shadow_linked_row_without_account_m
             account_type="retirement",
             source_type="retirement",
             institution_name="Florida Retirement System (FRS)",
-            owner_name="Mariana Leslie",
+            owner_name="Jordan Demo",
         ),
         "evidence": _canonical(
             account_id="evidence",
@@ -695,12 +695,12 @@ def test_resolve_from_tracked_does_not_merge_shadow_linked_row_without_account_m
             account_type="retirement",
             source_type="retirement",
             institution_name="Florida Retirement System (FRS)",
-            owner_name="Mariana Leslie",
+            owner_name="Jordan Demo",
         ),
     }
     identity_map = {
-        "institution-name-owner::florida retirement system (frs)|frs investment plan|mariana leslie|retirement|retirement": "evidence",
-        "match::institution-name-owner::florida retirement system (frs)|frs investment plan|mariana leslie|retirement|retirement": "evidence",
+        "institution-name-owner::florida retirement system (frs)|frs investment plan|jordan demo|retirement|retirement": "evidence",
+        "match::institution-name-owner::florida retirement system (frs)|frs investment plan|jordan demo|retirement|retirement": "evidence",
     }
     tracked = _tracked(
         account_id="tracked-frs",
@@ -709,8 +709,8 @@ def test_resolve_from_tracked_does_not_merge_shadow_linked_row_without_account_m
         account_type="retirement",
         source_type="retirement",
         institution_name="Florida Retirement System (FRS)",
-        owner_name="Mariana Leslie",
-        match_key="institution-name-owner::florida retirement system (frs)|frs investment plan|mariana leslie|retirement|retirement",
+        owner_name="Jordan Demo",
+        match_key="institution-name-owner::florida retirement system (frs)|frs investment plan|jordan demo|retirement|retirement",
     )
     tracked.household_account_id = "shadow"
     merge_accounts = Mock(return_value="evidence")
@@ -741,7 +741,7 @@ def test_resolve_from_evidence_does_not_merge_credit_card_mask_changes_by_lineag
             document_id="doc-1",
             institution_name="Chase",
             account_name="Prime Visa",
-            owner_name="Elias B Leslie",
+            owner_name="Alex Demo",
             account_mask="5313",
             asset_group="credit",
             account_type="credit_card",
@@ -757,7 +757,7 @@ def test_resolve_from_evidence_does_not_merge_credit_card_mask_changes_by_lineag
             document_id="doc-2",
             institution_name="Chase",
             account_name="Prime Visa",
-            owner_name="Elias B Leslie",
+            owner_name="Alex Demo",
             account_mask="9728",
             asset_group="credit",
             account_type="credit_card",
@@ -785,7 +785,7 @@ def test_resolve_from_evidence_carries_closed_lifecycle_to_created_account() -> 
         document_id="doc-closed",
         institution_name="Test Bank",
         account_name="Closed Checking",
-        owner_name="Elias B Leslie",
+        owner_name="Alex Demo",
         account_mask=None,
         asset_group="cash",
         account_type="checking",
@@ -851,7 +851,7 @@ def test_resolve_from_evidence_can_link_weak_statement_rows_by_filename_mask() -
             document_id="doc-strong",
             institution_name="Chase",
             account_name="Prime Visa",
-            owner_name="Elias B Leslie",
+            owner_name="Alex Demo",
             account_mask="5313",
             asset_group="credit",
             account_type="credit_card",
@@ -941,7 +941,7 @@ def test_resolve_from_evidence_rejects_incompatible_existing_household_account_l
             account_type="brokerage",
             source_type="brokerage",
             institution_name="Fidelity",
-            account_mask="Z38367298",
+            account_mask="Z00000001",
         )
     }
     identity_map: dict[str, str] = {}
@@ -986,7 +986,7 @@ def test_resolve_from_evidence_reassigns_stale_identity_key_to_compatible_accoun
             account_mask="267328698",
         )
     }
-    identity_map = {"institution-mask::fidelity|z38367298": "wrong"}
+    identity_map = {"institution-mask::fidelity|z00000001": "wrong"}
 
     account_id, created, merged = registry._resolve_from_evidence(
         conn,
@@ -996,7 +996,7 @@ def test_resolve_from_evidence_reassigns_stale_identity_key_to_compatible_accoun
             institution_name="Fidelity",
             account_name="Cash Management (Joint WROS)",
             owner_name=None,
-            account_mask="Z38367298",
+            account_mask="Z00000001",
             asset_group="taxable",
             account_type="brokerage",
             source_type="brokerage",
@@ -1008,7 +1008,7 @@ def test_resolve_from_evidence_reassigns_stale_identity_key_to_compatible_accoun
     assert created == 1
     assert merged == 0
     assert account_id != "wrong"
-    assert identity_map["institution-mask::fidelity|z38367298"] == account_id
+    assert identity_map["institution-mask::fidelity|z00000001"] == account_id
     assert canonical_accounts[account_id].account_type == "brokerage"
     assert canonical_accounts[account_id].asset_group == "taxable"
 
@@ -1062,10 +1062,10 @@ def test_prune_orphan_accounts_keeps_portfolio_linked_canonical_rows() -> None:
             account_type="brokerage",
             source_type="brokerage",
             institution_name="Fidelity",
-            account_mask="Z35217544",
+            account_mask="Z00000002",
         )
     }
-    identity_map = {"institution-mask::fidelity|z35217544": "portfolio-linked"}
+    identity_map = {"institution-mask::fidelity|z00000002": "portfolio-linked"}
 
     removed = registry._prune_orphan_accounts(
         conn,
@@ -1088,7 +1088,7 @@ def test_sync_portfolio_accounts_links_exact_name_to_canonical_account() -> None
             account_type="brokerage",
             source_type="brokerage",
             institution_name="Fidelity",
-            account_mask="Z35217544",
+            account_mask="Z00000002",
         )
     }
     tracked_account = _tracked(
@@ -1172,20 +1172,20 @@ def test_resolve_from_evidence_creates_distinct_sibling_accounts() -> None:
     registry = HouseholdAccountRegistryService()
     conn = Mock()
     canonical_accounts = {
-        "nadia": _canonical(
-            account_id="nadia",
-            label="529 - Nadia R Leslie",
+        "child_two": _canonical(
+            account_id="child_two",
+            label="529 - Demo Child Two",
             asset_group="education",
             account_type="529",
             source_type="education",
             institution_name="CollegeAmerica / VCSP",
-            owner_name="Mariana Leslie",
-            account_mask="87595982",
+            owner_name="Jordan Demo",
+            account_mask="00022222",
         )
     }
     identity_map = {
-        "institution-mask::collegeamerica / vcsp|87595982": "nadia",
-        "mask::87595982|education|529": "nadia",
+        "institution-mask::collegeamerica / vcsp|00022222": "child_two",
+        "mask::00022222|education|529": "child_two",
     }
 
     account_id, created, merged = registry._resolve_from_evidence(
@@ -1194,9 +1194,9 @@ def test_resolve_from_evidence_creates_distinct_sibling_accounts() -> None:
             evidence_id="evidence-2",
             document_id="doc-2",
             institution_name="CollegeAmerica / VCSP",
-            account_name="529 - Sophia O Leslie",
-            owner_name="Mariana Leslie",
-            account_mask="87595967",
+            account_name="529 - Demo Child One",
+            owner_name="Jordan Demo",
+            account_mask="00011111",
             asset_group="education",
             account_type="529",
             source_type="education",
@@ -1207,4 +1207,4 @@ def test_resolve_from_evidence_creates_distinct_sibling_accounts() -> None:
 
     assert created == 1
     assert merged == 0
-    assert account_id != "nadia"
+    assert account_id != "child_two"
