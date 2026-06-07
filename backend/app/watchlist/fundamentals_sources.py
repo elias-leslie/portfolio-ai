@@ -141,7 +141,7 @@ class FMPSource(BaseFundamentalSource):
             api_key: FMP API key
         """
         self.api_key = api_key
-        self.base_url = "https://financialmodelingprep.com/api/v3"
+        self.base_url = "https://financialmodelingprep.com/stable"
 
     def fetch_fundamentals(self, symbol: str) -> FundamentalData | None:
         """Fetch fundamentals from FMP.
@@ -153,8 +153,8 @@ class FMPSource(BaseFundamentalSource):
             FundamentalData if successful, None if failed
         """
         try:
-            url = f"{self.base_url}/ratios/{symbol}"
-            params = {"apikey": self.api_key}
+            url = f"{self.base_url}/ratios"
+            params = {"symbol": symbol, "apikey": self.api_key}
 
             response = requests.get(url, params=params, timeout=SHORT_HTTP_TIMEOUT)
             response.raise_for_status()
@@ -170,7 +170,7 @@ class FMPSource(BaseFundamentalSource):
             # Extract fields (FMP returns decimals, not percentages)
             profit_margin = ratios.get("netProfitMargin")
             revenue_growth = ratios.get("revenueGrowth")
-            debt_to_equity = ratios.get("debtEquityRatio")
+            debt_to_equity = ratios.get("debtToEquityRatio")
 
             return FundamentalData(
                 symbol=symbol,

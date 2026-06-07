@@ -131,8 +131,7 @@ class FMPClient(BaseHTTPClient):
             >>> client.get_profile("AAPL")
             [{"symbol": "AAPL", "companyName": "Apple Inc", "sector": "Technology", ...}]
         """
-        path = f"/profile/{symbol}"
-        result: list[dict[str, Any]] = self.get(path)
+        result: list[dict[str, Any]] = self.get_stable("/profile", {"symbol": symbol})
         return result
 
 
