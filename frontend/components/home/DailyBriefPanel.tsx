@@ -670,12 +670,7 @@ function MarketConditionHero({
     .join(', ')
 
   return (
-    <div
-      className={cn(
-        'rounded-2xl border px-5 py-4 xl:min-h-[14.5rem]',
-        stateStyle.className,
-      )}
-    >
+    <div className={cn('rounded-2xl border px-5 py-4', stateStyle.className)}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full border border-current px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] sm:px-3">
@@ -916,7 +911,7 @@ function DecisionBrief({
       : 'No stress alert'
 
   return (
-    <div className="rounded-2xl border border-border-subtle bg-bg/20 p-4 xl:min-h-[14.5rem]">
+    <div className="rounded-2xl border border-border-subtle bg-bg/20 p-4">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-text-muted">
@@ -1044,18 +1039,18 @@ function CapitalContext({
   return (
     <div
       className={cn(
-        'space-y-3 rounded-2xl border border-border-subtle bg-bg/20 p-4',
+        'flex flex-col gap-3 rounded-2xl border border-border-subtle bg-bg/20 p-4',
         className,
       )}
     >
       <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-text-muted">
         Portfolio Snapshot
       </p>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid flex-1 auto-rows-fr grid-cols-2 gap-2">
         {capital.map((metric) => (
           <div
             key={metric.label}
-            className="rounded-xl border border-border-subtle bg-bg/25 px-3 py-2.5"
+            className="flex flex-col justify-center rounded-xl border border-border-subtle bg-bg/25 px-3 py-2.5"
           >
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
               {metric.label}
@@ -1123,7 +1118,7 @@ export function DailyBriefPanel() {
         </div>
       </div>
 
-      <div className="grid items-start gap-4 p-4 lg:grid-cols-[minmax(17rem,0.68fr)_minmax(34rem,1.4fr)] xl:grid-cols-[minmax(17rem,0.68fr)_minmax(34rem,1.4fr)_minmax(18rem,0.7fr)]">
+      <div className="grid items-start gap-4 p-4 lg:grid-cols-[minmax(16rem,0.82fr)_minmax(30rem,1.7fr)]">
         <MarketConditionHero
           conditions={conditions}
           macro={macro}
@@ -1133,18 +1128,17 @@ export function DailyBriefPanel() {
           error={conditionsError ?? macroError}
         />
 
-        <DecisionBrief conditions={conditions} />
-
-        <CapitalContext
-          household={household}
-          analytics={analytics}
-          householdLoading={householdLoading}
-          className="lg:col-span-2 xl:col-span-1"
-        />
-      </div>
-
-      <div className="px-4 pb-2">
-        <OverallCautionTrendLine />
+        <div className="flex flex-col gap-4">
+          <DecisionBrief conditions={conditions} />
+          <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
+            <CapitalContext
+              household={household}
+              analytics={analytics}
+              householdLoading={householdLoading}
+            />
+            <OverallCautionTrendLine />
+          </div>
+        </div>
       </div>
 
       <MarketEvidenceStrip evidence={conditions?.evidence} />
