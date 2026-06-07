@@ -10,6 +10,8 @@ Portfolio AI is a full-stack investment intelligence workspace for portfolio tra
 
 > Portfolio AI is software for analysis and research. It is not financial advice, and it should not be used as the sole basis for investment decisions.
 
+![Portfolio AI — AI-scored watchlist with signals, trend sparklines, and risk ratings](docs/images/portfolio-ai-investing.png)
+
 ## What it does
 
 - Tracks portfolios, accounts, positions, tax lots, snapshots, and allocation drift.
