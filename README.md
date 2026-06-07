@@ -1,5 +1,11 @@
 # Portfolio AI
 
+[![CI](https://github.com/elias-leslie/portfolio-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/elias-leslie/portfolio-ai/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-000000.svg?logo=next.js&logoColor=white)](https://nextjs.org/)
+
 Portfolio AI is a full-stack investment intelligence workspace for portfolio tracking, watchlists, market-data health, strategy research, and AI-assisted investment review. It combines a FastAPI backend, a Next.js frontend, PostgreSQL, Redis, Hatchet workflows, and optional external data/AI integrations.
 
 > Portfolio AI is software for analysis and research. It is not financial advice, and it should not be used as the sole basis for investment decisions.
