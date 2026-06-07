@@ -17,6 +17,9 @@ global.IntersectionObserver =
 vi.mock('@/components/home/DailyBriefPanel', () => ({
   DailyBriefPanel: () => <div>Daily Brief Panel</div>,
 }))
+vi.mock('@/components/home/TodayOverviewPanel', () => ({
+  TodayOverviewPanel: () => <div>Today Overview Panel</div>,
+}))
 vi.mock('@/components/portfolio/InvestingMarketPanel', () => ({
   InvestingMarketTrendPanels: () => <div>Today Market Pulse Panel</div>,
 }))

@@ -25,6 +25,10 @@ vi.mock('@/components/market/IndicatorsTrendChart', () => ({
   IndicatorsTrendChart: () => <div>Indicators Trend</div>,
 }))
 
+vi.mock('@/components/market/OvernightLeanChart', () => ({
+  OvernightLeanChart: () => <div>Overnight Lean Trend</div>,
+}))
+
 vi.mock('@/components/market/MacroRegimeDriversTrendChart', () => ({
   MacroRegimeDriversTrendChart: () => <div>Regime Drivers Trend</div>,
 }))
