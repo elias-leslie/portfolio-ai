@@ -16,7 +16,12 @@ Environment="HATCHET_CLIENT_TLS_STRATEGY=none"
 ExecStart=__PROJECT_ROOT__/backend/.venv/bin/python -m app.worker
 Restart=always
 RestartSec=10
-KillMode=process
+# control-group (not process): on stop/restart systemd kills the whole cgroup —
+# the worker main AND its multiprocessing action-runner children. KillMode=process
+# only kills the main, orphaning the children; they stay connected to Hatchet,
+# keep accepting dispatched step runs, never execute them (their event loop is
+# gone), and black-hole scheduled jobs (e.g. account sync) across restarts.
+KillMode=control-group
 KillSignal=SIGTERM
 TimeoutStopSec=30
 StandardOutput=journal

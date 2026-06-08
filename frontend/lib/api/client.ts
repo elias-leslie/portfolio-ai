@@ -4,6 +4,7 @@
 
 import { toCamelCaseKeys, toSnakeCaseKeys } from 'es-toolkit'
 import { getApiBaseUrl } from '../api-config'
+import { demoResponseForPath, isDemoMode } from './demo-mode'
 
 /**
  * Custom API error class with status code
@@ -137,6 +138,15 @@ export async function apiRequest<T>(
 
   if (signal?.aborted) {
     throw createAbortError(signal)
+  }
+
+  // Demo mode: serve synthetic data for sensitive GET paths without ever hitting
+  // the real backend, so a public recording cannot leak personal finances.
+  if (method === 'GET' && isDemoMode()) {
+    const demo = demoResponseForPath(url)
+    if (demo !== undefined) {
+      return demo as T
+    }
   }
 
   // Retry loop with exponential backoff
