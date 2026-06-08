@@ -8,7 +8,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import type { HouseholdFinanceDashboard } from '@/lib/api/household'
 import type {
   MacroConditionEvidence,
   MacroConditionShift,
@@ -17,13 +16,6 @@ import type {
   MacroSnapshot,
   OvernightLean,
 } from '@/lib/api/macro'
-import type { PortfolioAnalytics } from '@/lib/api/portfolio'
-import {
-  netWorthBadgeLabel,
-  normalizeQualityStatus,
-  qualityLabel,
-} from '@/lib/dataQuality'
-import { formatCurrencyWhole, formatEnumLabel } from '@/lib/formatters'
 import {
   useHouseholdDashboard,
   useHouseholdNetWorthTrend,
@@ -33,6 +25,8 @@ import { usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
 import { useTodayRefresh } from '@/lib/hooks/useTodayRefresh'
 import { cn } from '@/lib/utils'
 import { OverallCautionTrendLine } from './OverallCautionTrendLine'
+import { LeadingLaggingStrip } from './today/LeadingLaggingStrip'
+import { PrimaryTilesGrid } from './today/PrimaryTilesGrid'
 
 interface ZoneStyle {
   label: string
@@ -152,11 +146,6 @@ function formatCatalystDate(value: string | null | undefined): string | null {
     month: 'short',
     day: 'numeric',
   }).format(parsed)
-}
-
-function formatMoney(value: number | null | undefined, loading: boolean) {
-  if (loading) return 'Loading...'
-  return formatCurrencyWhole(value, { nullDisplay: '-' })
 }
 
 function scoreTone(value: number | null | undefined): string {
@@ -334,96 +323,6 @@ function TrendChip({
       <span>{trend.changeLabel}</span>
     </span>
   )
-}
-
-function capitalMetrics({
-  household,
-  analytics,
-  netWorthTrend,
-  householdLoading,
-}: {
-  household?: HouseholdFinanceDashboard
-  analytics?: PortfolioAnalytics
-  netWorthTrend?: { points: { netWorth: number }[]; status?: string | null }
-  householdLoading: boolean
-}) {
-  const trendLatest = netWorthTrend?.points.at(-1)?.netWorth ?? null
-  const netWorth = trendLatest ?? household?.overview.netWorth ?? null
-  const accountControl = household?.accountControl
-  const accountBlocked = Boolean(
-    accountControl && accountControl.blockingIssueCount > 0,
-  )
-  const netWorthStatus = accountBlocked
-    ? 'blocked'
-    : (netWorthTrend?.status ?? household?.overview.netWorthStatus ?? null)
-  const investedFreshness = analytics?.quoteFreshnessStatus ?? 'unavailable'
-  const cashReserveMonths =
-    household?.portfolioContext?.cashReservesMonths ?? null
-  const paceStatus = household?.budgetSnapshot.paceStatus ?? null
-  const monthToDateVariance =
-    household?.budgetSnapshot.monthToDatePlan != null
-      ? household.budgetSnapshot.monthToDateSpend -
-        household.budgetSnapshot.monthToDatePlan
-      : null
-  let spendPace = 'Loading...'
-  if (household) {
-    if (paceStatus === 'on_track') {
-      spendPace = 'On plan'
-    } else if (
-      (paceStatus === 'running_hot' || paceStatus === 'under_plan') &&
-      monthToDateVariance != null
-    ) {
-      const sign = monthToDateVariance > 0 ? '+' : '-'
-      spendPace = `${sign}${formatCurrencyWhole(Math.abs(monthToDateVariance))}`
-    } else {
-      spendPace = formatEnumLabel(paceStatus, 'Unavailable')
-    }
-  }
-
-  return [
-    {
-      label: 'Net Worth',
-      value: formatMoney(netWorth, householdLoading && !household),
-      detail: netWorthBadgeLabel(netWorthStatus),
-      tone:
-        normalizeQualityStatus(netWorthStatus) === 'current'
-          ? 'text-gain'
-          : normalizeQualityStatus(netWorthStatus) === 'stale'
-            ? 'text-warning'
-            : 'text-text-muted',
-    },
-    {
-      label: 'Invested',
-      value: formatMoney(
-        household?.overview.investedAssets ?? null,
-        householdLoading && !household,
-      ),
-      detail: qualityLabel(investedFreshness),
-      tone:
-        normalizeQualityStatus(investedFreshness) === 'current'
-          ? 'text-gain'
-          : 'text-text-muted',
-    },
-    {
-      label: 'Cash',
-      value: formatMoney(
-        household?.overview.cashReserve ?? null,
-        householdLoading && !household,
-      ),
-      detail:
-        cashReserveMonths != null ? `${cashReserveMonths.toFixed(1)} mo` : '-',
-      tone: 'text-text-muted',
-    },
-    {
-      label: 'Spend Pace',
-      value: spendPace,
-      detail: formatEnumLabel(paceStatus, '-'),
-      tone:
-        paceStatus === 'running_hot' || paceStatus === 'above_plan'
-          ? 'text-warning'
-          : 'text-text-muted',
-    },
-  ]
 }
 
 function formatRawComponent(
@@ -1017,57 +916,6 @@ function MarketEvidenceStrip({
   )
 }
 
-function CapitalContext({
-  household,
-  analytics,
-  householdLoading,
-  className,
-}: {
-  household?: HouseholdFinanceDashboard
-  analytics?: PortfolioAnalytics
-  householdLoading: boolean
-  className?: string
-}) {
-  const { data: netWorthTrend } = useHouseholdNetWorthTrend({ days: 180 })
-  const capital = capitalMetrics({
-    household,
-    analytics,
-    netWorthTrend,
-    householdLoading,
-  })
-
-  return (
-    <div
-      className={cn(
-        'flex flex-col gap-3 rounded-2xl border border-border-subtle bg-bg/20 p-4',
-        className,
-      )}
-    >
-      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-text-muted">
-        Portfolio Snapshot
-      </p>
-      <div className="grid flex-1 auto-rows-fr grid-cols-2 gap-2">
-        {capital.map((metric) => (
-          <div
-            key={metric.label}
-            className="flex flex-col justify-center rounded-xl border border-border-subtle bg-bg/25 px-3 py-2.5"
-          >
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
-              {metric.label}
-            </p>
-            <p className="mt-1 font-semibold leading-none tracking-tight text-text">
-              {metric.value}
-            </p>
-            <p className={cn('mt-1 text-[10px]', metric.tone)}>
-              {metric.detail}
-            </p>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 export function DailyBriefPanel() {
   const refreshToday = useTodayRefresh()
   const {
@@ -1082,7 +930,10 @@ export function DailyBriefPanel() {
   } = useMacroConditions()
   const { data: household, isLoading: householdLoading } =
     useHouseholdDashboard()
-  const { data: analytics } = usePortfolioAnalytics()
+  const { data: analytics, isLoading: analyticsLoading } =
+    usePortfolioAnalytics()
+  const { data: netWorthTrend, isLoading: trendLoading } =
+    useHouseholdNetWorthTrend({ days: 180 })
   const updateTimestamp =
     conditions?.computedAt ??
     macro?.computedAt ??
@@ -1130,14 +981,16 @@ export function DailyBriefPanel() {
 
         <div className="flex flex-col gap-4">
           <DecisionBrief conditions={conditions} />
-          <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
-            <CapitalContext
-              household={household}
-              analytics={analytics}
-              householdLoading={householdLoading}
-            />
-            <OverallCautionTrendLine />
-          </div>
+          <PrimaryTilesGrid
+            household={household}
+            householdLoading={householdLoading}
+            analytics={analytics}
+            analyticsLoading={analyticsLoading}
+            netWorthTrend={netWorthTrend}
+            trendLoading={trendLoading}
+          />
+          <LeadingLaggingStrip />
+          <OverallCautionTrendLine />
         </div>
       </div>
 

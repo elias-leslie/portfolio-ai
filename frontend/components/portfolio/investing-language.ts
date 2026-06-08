@@ -360,8 +360,7 @@ export function describeNewsTone(summary?: NewsSentimentDetail | null): {
   }
 }
 
-// Mirrors backend account_valuation._quote_freshness "stale" tier and the Market
-// Strip threshold used in MarketStripGrid.
+// Mirrors backend account_valuation._quote_freshness "stale" tier.
 const POSITIONING_STALE_MS_OPEN = 15 * 60 * 1000
 const POSITIONING_STALE_MS_CLOSED = 24 * 60 * 60 * 1000
 

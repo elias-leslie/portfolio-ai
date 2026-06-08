@@ -18,6 +18,7 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
 
 vi.mock('@/lib/hooks/useMarketIntelligence', () => ({
   useMarketStatus: () => useMarketStatusMock(),
+  useSectorHistory: () => ({ data: undefined, isLoading: false, error: null }),
 }))
 
 vi.mock('@/lib/hooks/usePortfolio', () => ({
@@ -259,7 +260,7 @@ describe('DailyBriefPanel', () => {
           investedAssets: 620_000,
           cashReserve: 55_000,
         },
-        accountControl: { blockingIssueCount: 0 },
+        accountControl: { blockingIssueCount: 0, issues: [] },
         portfolioContext: { cashReservesMonths: 7.2 },
         budgetSnapshot: {
           paceStatus: 'on_track',
