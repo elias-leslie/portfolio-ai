@@ -29,7 +29,7 @@ export function proxyResponse(response: Response): Response {
   })
 }
 
-type ProxyRouteContext = { params: Promise<{ path: string[] }> }
+export type ProxyRouteContext = { params: Promise<{ path: string[] }> }
 
 export async function proxyRequest(
   request: Request,

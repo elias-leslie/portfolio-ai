@@ -1,13 +1,11 @@
-import { proxyRequest } from '@/lib/upstream-proxy'
+import { type ProxyRouteContext, proxyRequest } from '@/lib/upstream-proxy'
 
 export const runtime = 'nodejs'
 
-type RouteContext = { params: Promise<{ path: string[] }> }
-
-export async function GET(request: Request, context: RouteContext) {
+export async function GET(request: Request, context: ProxyRouteContext) {
   return proxyRequest(request, context, 'health', 'GET')
 }
 
-export async function POST(request: Request, context: RouteContext) {
+export async function POST(request: Request, context: ProxyRouteContext) {
   return proxyRequest(request, context, 'health', 'POST')
 }

@@ -24,54 +24,10 @@ sys.path.insert(0, str(backend_dir))
 
 from app.storage import get_storage  # noqa: E402
 from app.storage.facade import PortfolioStorage  # noqa: E402
-
-
-def calculate_rsi(prices: list[float], period: int = 14) -> float | None:
-    """Calculate RSI indicator.
-
-    Args:
-        prices: List of closing prices (oldest first)
-        period: RSI period (default 14)
-
-    Returns:
-        RSI value (0-100) or None if insufficient data
-    """
-    if len(prices) < period + 1:
-        return None
-
-    # Calculate price changes
-    deltas = [prices[i] - prices[i - 1] for i in range(1, len(prices))]
-
-    # Separate gains and losses
-    gains = [d if d > 0 else 0 for d in deltas]
-    losses = [-d if d < 0 else 0 for d in deltas]
-
-    # Calculate average gain/loss
-    avg_gain = sum(gains[-period:]) / period
-    avg_loss = sum(losses[-period:]) / period
-
-    if avg_loss == 0:
-        return 100.0
-
-    rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-
-    return rsi
-
-
-def calculate_sma(prices: list[float], period: int) -> float | None:
-    """Calculate Simple Moving Average.
-
-    Args:
-        prices: List of closing prices (oldest first)
-        period: SMA period
-
-    Returns:
-        SMA value or None if insufficient data
-    """
-    if len(prices) < period:
-        return None
-    return sum(prices[-period:]) / period
+from app.tasks.market_data.fear_greed_indicators import (  # noqa: E402
+    calculate_rsi,
+    calculate_sma,
+)
 
 
 def fetch_spy_data(storage: PortfolioStorage, start_date: dt.date, end_date: dt.date) -> list[tuple[dt.date, float]]:

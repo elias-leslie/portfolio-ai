@@ -21,8 +21,7 @@ import {
   freshnessToneClass,
   moneyRoleLabel,
 } from './moneyAccountsUtils'
-
-type MoneyAccountsIntent = 'evidence' | 'review' | null
+import type { MoneyAccountsIntent } from './types'
 
 type Props = {
   account: HouseholdAccountSummary

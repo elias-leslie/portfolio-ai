@@ -20,6 +20,7 @@ import { useHomeActionQueue } from '@/lib/hooks/useHomeActionQueue'
 import { useAcknowledgeJennyNotification } from '@/lib/hooks/usePortfolio'
 import { useTransitionSymbolWorkflow } from '@/lib/hooks/useSymbolIntelligence'
 import { cn } from '@/lib/utils'
+import { quickActionLabel, quickActionTitle } from './quickActionHelpers'
 
 const categoryIcons = {
   household: House,
@@ -34,29 +35,6 @@ const priorityDot = {
   warning: 'bg-warning',
   medium: 'bg-primary',
   low: 'bg-text-muted',
-}
-
-function quickActionLabel(action: HomeActionItem) {
-  if (!action.execution) {
-    return null
-  }
-
-  switch (action.execution.kind) {
-    case 'acknowledge_notification':
-      return 'Dismiss alert'
-    case 'workflow_transition':
-      return 'Advance workflow'
-    default:
-      return 'Quick action'
-  }
-}
-
-function quickActionTitle(action: HomeActionItem) {
-  if (action.execution?.kind === 'acknowledge_notification') {
-    return 'Dismisses this Today alert only. It does not place a trade or approve the recommendation.'
-  }
-
-  return undefined
 }
 
 export function HomeActionQueueBadge() {

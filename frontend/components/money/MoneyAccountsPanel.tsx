@@ -16,9 +16,7 @@ import { AccountAccordionItem } from './AccountAccordionItem'
 import { DeleteAccountDialog } from './DeleteAccountDialog'
 import { DiscoveredAccountsSection } from './DiscoveredAccountsSection'
 import { TrackedAccountDialog } from './TrackedAccountDialog'
-
-type MoneyAccountsFocus = 'coverage' | 'discovered' | null
-type MoneyAccountsIntent = 'evidence' | 'review' | null
+import type { MoneyAccountsFocus, MoneyAccountsIntent } from './types'
 
 export function MoneyAccountsPanel({
   accounts,

@@ -4,8 +4,7 @@ import type {
   HouseholdDiscoveredAccount,
   HouseholdTrackedAccountInput,
 } from '@/lib/api/household'
-
-type MoneyAccountsFocus = 'coverage' | 'discovered' | null
+import type { MoneyAccountsFocus } from './types'
 
 type Props = {
   accounts: HouseholdDiscoveredAccount[]

@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import type { CommitteeUiState } from '@/lib/committee/reducer'
+import { formatElapsed } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 
 function shortRunId(runId: string | null): string {
@@ -19,14 +20,6 @@ function formatStartedTime(iso: string | null): string {
     second: '2-digit',
     hour12: false,
   })
-}
-
-function formatElapsed(ms: number | null): string {
-  if (ms === null || !Number.isFinite(ms)) return '—'
-  const seconds = Math.floor(ms / 1000)
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
 }
 
 const STAGE_ORDER = [

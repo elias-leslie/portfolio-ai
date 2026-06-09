@@ -71,6 +71,15 @@ export function formatSeconds(value: number | null | undefined): string {
   return `${Math.round(value)}s`
 }
 
+/** Format a millisecond duration as zero-padded mm:ss (e.g. "03:07"). */
+export function formatElapsed(ms: number | null): string {
+  if (ms === null || !Number.isFinite(ms)) return '—'
+  const seconds = Math.floor(ms / 1000)
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+}
+
 /** Convert an enum-style string to a human label (e.g. "my_value" → "My value"). */
 export function formatEnumLabel(
   value: string | null | undefined,

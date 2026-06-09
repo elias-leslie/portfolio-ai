@@ -1,6 +1,7 @@
 'use client'
 
 import type { CommitteeUiState } from '@/lib/committee/reducer'
+import { formatElapsed } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 
 function formatTokens(total: number): string {
@@ -13,14 +14,6 @@ function formatCost(cost: number): string {
   if (cost === 0) return '$0.00'
   if (cost < 0.01) return '<$0.01'
   return `$${cost.toFixed(2)}`
-}
-
-function formatElapsed(ms: number | null): string {
-  if (ms === null || !Number.isFinite(ms)) return '—'
-  const seconds = Math.floor(ms / 1000)
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
 }
 
 function decisionToneClass(action: string | null | undefined): string {
