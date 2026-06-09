@@ -20,6 +20,29 @@ Portfolio AI is a full-stack investment intelligence workspace for portfolio tra
 - Provides household money, document-intake, budgeting, and retirement-planning surfaces when users choose to configure those integrations.
 - Offers an optional Agent Hub companion path for AI chat, thesis validation, document review, and investment committee workflows.
 
+## How it compares
+
+Self-hosted finance tools split into three camps — trackers, budgeters, and
+research terminals. Portfolio AI is the only one that spans all three *and* layers
+AI-scored research on top: it scores each watchlist symbol from market data, news,
+technicals, and fundamentals into a **plain-language narrative**, and (with the
+optional Agent Hub companion) runs thesis validation and an **AI investment-committee**
+review.
+
+| | Portfolio AI | Ghostfolio · Wealthfolio | Maybe · Investbrain | OpenBB |
+|---|:---:|:---:|:---:|:---:|
+| Portfolio + tax-lot + drift tracking | ✅ | ✅ | ✅ | partial |
+| AI-scored watchlist with narratives | ✅ | — | — | bring-your-own copilot |
+| Household budgeting + retirement | ✅ | — | Maybe only | — |
+| AI thesis validation / investment-committee | ✅ | — | chatbot only | — |
+| Self-hosted, no SaaS required | ✅ | ✅ | ✅ | ✅ |
+
+Trackers like Ghostfolio stop at performance math; Maybe and Investbrain bolt on a
+chatbot; OpenBB has the research depth but no budgeting or household surfaces.
+Portfolio AI brings scoring, narratives, budgeting, and committee review together.
+
+> ⭐ If this is the finance workspace you've wanted, a star helps others find it.
+
 ## Stack
 
 | Layer | Technology |
