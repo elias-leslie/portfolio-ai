@@ -25,11 +25,12 @@ _Sessions: 1 | Last run: 2026-06-08 | State: ISSUES_
 - [task-410a5480] MEDIUM OPEN P2 feature "[TRIAGE] Jenny financial lanes integration" - feature scope, needs product judgment; not pure hygiene.
 - [failed-P1s] OPEN Large P1 feature/task items in `failed` state (task-60774303, d25816b6, 1c098821, a42b5e7c, f5d4b40f) + paused task-b9a45c5e (net-worth cockpit). Large features, not session-hygiene scope; need owner/product triage.
 - [774dfb6f] LOW OPEN Feedback: "Portfolio-AI fundamentals payload missing literature-standard ratios" - 1 vote; candidate enhancement to `sources/yfinance_parsers.parse_quarterly_fundamentals` / fundamentals payload.
+- [market-prediction-backlog] OPEN P3 [TRIAGE] feature/task items (task-da4464d4 expand prediction universe, task-9969d01e manual override storage for adaptive prediction, task-6872beeb new prediction seat types) - feature enhancements tied to the failed P1 market-prediction tasks; product judgment / owner scope, not session hygiene.
 
 ## Completed
 - [task-bf3c32e0] 2026-06-08 - P1 bug stale VIX/macro-gate: verified fix already in place+deployed (yfinance previousClose no longer masquerades as live quote; vendor quote_time threaded; macro-gate degradation + Live freshness badge). 51 tests green. Closed.
 - [consolidations] 2026-06-08 - 8 real DRY consolidations done+verified (ruff/types/biome/tsc green, rebuilt, /money + / render clean console): backend calculate_sma+calculate_rsi (script imports canonical app fns); frontend formatElapsed→lib/formatters; MoneyAccountsFocus+MoneyAccountsIntent→money/types.ts; RouteContext→export ProxyRouteContext; quickActionLabel+quickActionTitle→home/quickActionHelpers.
-- [false-positive-triage] 2026-06-08 - Cancelled 14 [TRIAGE] consolidate-duplicate tasks with evidence (fetch_spy_data, emit_event, AccountAccordionItem, PILLAR_WEIGHTS, PROJECT_ROOT, syncFromLocation, STATUS_DOWN, KeyEvent, NewsSentimentDetail, RecentNewsPayload, load_latest_technical, formatXAxis, YFINANCE_AVAILABLE, iso).
+- [false-positive-triage] 2026-06-08 - Cancelled 15 [TRIAGE] consolidate-duplicate tasks with evidence (fetch_spy_data, emit_event, AccountAccordionItem, PILLAR_WEIGHTS, PROJECT_ROOT, syncFromLocation, STATUS_DOWN, KeyEvent, NewsSentimentDetail, RecentNewsPayload, load_latest_technical, formatXAxis, YFINANCE_AVAILABLE, iso, ComponentScore/ScoreComponent). Every consolidate-duplicate task in the queue is now triaged (8 done, 15 cancelled).
 
 ## Decisions
 - Auto-generated [TRIAGE] consolidate-duplicate tasks: triage each at file:line; cancel false positives with evidence rather than leave noise (matches prior-session precedent of cancelling siblings).
