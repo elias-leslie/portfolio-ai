@@ -31,6 +31,7 @@ from app.services.credential_crypto import (
     SecretKeyUnavailableError,
 )
 from app.services.household_account_identity import account_identity_candidates
+from app.services.household_soft_charge_service import SoftChargeReconciler
 from app.services.household_transaction_service import HouseholdTransactionService
 from app.services.source_credentials import get_source_credentials, set_source_credential
 from app.storage import get_storage
@@ -1410,6 +1411,18 @@ class PlaidService:
                 now,
                 now,
             ],
+        )
+        # Reconcile any pending soft charge against this hard row, in the same
+        # DB transaction, so the soft mirror void is atomic with the hard upsert
+        # (plan §5 — no double counting).
+        SoftChargeReconciler.try_match(
+            conn=conn,
+            hard_row_hash=row_hash,
+            household_account_id=household_account_id,
+            amount=household_amount,
+            occurred_on=transaction_date,
+            merchant=canonical_name,
+            description=str(transaction.get("name") or merchant),
         )
 
     def _record_item_error(self, item_id: str, message: str) -> None:

@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import (
+    cards,
     committee_runs,
     committee_stream,
     health,
@@ -146,6 +147,7 @@ app.include_router(health.router)
 app.include_router(home.router)
 app.include_router(intake.router)
 app.include_router(household.router)
+app.include_router(cards.router)
 app.include_router(portfolio.router)
 app.include_router(catalyst_router)
 app.include_router(retirement_router)
