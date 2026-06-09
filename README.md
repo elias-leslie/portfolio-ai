@@ -14,11 +14,14 @@ Portfolio AI is a full-stack investment intelligence workspace for portfolio tra
 
 ## What it does
 
-- Tracks portfolios, accounts, positions, tax lots, snapshots, and allocation drift.
-- Scores watchlist symbols with market data, news, technicals, fundamentals, and plain-language narratives.
-- Runs macro and symbol workflows for market-readiness, scanner fan-out, strategy research, and data freshness.
-- Provides household money, document-intake, budgeting, and retirement-planning surfaces when users choose to configure those integrations.
-- Offers an optional Agent Hub companion path for AI chat, thesis validation, document review, and investment committee workflows.
+- Tracks portfolios, accounts, positions, tax lots, transactions, snapshots, and allocation drift, with lot-level cost basis and P&L, tax-loss-harvesting scans (with wash-sale checks), and IPS targets / drift / rebalance plans.
+- Scores watchlist symbols across price, technical, fundamental, catalyst, and options pillars into a per-symbol composite with a plain-language narrative, and discovers/trims candidates from an S&P 500 research universe.
+- Computes a macro "deployment gate" (FULL_DEPLOY / REDUCED / DEFENSIVE) from VIX term structure, credit spreads, put/call, breadth, and factor crowding, with walk-forward and Monte Carlo backtests.
+- Runs ~63 Hatchet workflows on cron for OHLCV / intraday / fundamentals / macro ingestion, scoring, catalysts, strategy research, data-freshness monitoring, and maintenance.
+- Applies a lightweight ML layer (scikit-learn article-quality classifier, TF-IDF news story clustering) and technical analysis (RSI, MACD, Bollinger Bands, ATR, VWAP, and more) on top of the ingested data.
+- Provides optional household money, document-intake, budgeting, and retirement-planning (Monte Carlo) surfaces, plus encrypted Plaid and SnapTrade account linking.
+- Offers an optional Agent Hub companion path for AI chat, thesis validation/invalidation, cross-validation, document review, and a multi-stage AI investment-committee review — all routed through Agent Hub with no hardcoded model IDs.
+- Ships a read-only MCP server that exposes the signal stack to MCP clients over stdio.
 
 ## How it compares
 
@@ -47,9 +50,9 @@ Portfolio AI brings scoring, narratives, budgeting, and committee review togethe
 
 | Layer | Technology |
 | --- | --- |
-| Backend | Python 3.13, FastAPI, SQLAlchemy 2, Alembic, Pydantic 2 |
+| Backend | Python 3.13, FastAPI, SQLAlchemy 2, Alembic, Pydantic 2, pandas, scikit-learn, pandas-ta |
 | Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
-| Data | PostgreSQL 16, Redis, yfinance, RSS feeds, optional paid market-data APIs |
+| Data | PostgreSQL 16, Redis; yfinance + CBOE (always-on, no key), FRED macro, SEC EDGAR; optional TwelveData / FMP / Polygon / Finnhub / AlphaVantage; RSS news (CNBC, MarketWatch, Nasdaq, FT, Seeking Alpha, and more) |
 | Workflows | Hatchet |
 | Quality | Ruff, ty, pytest, Biome, Vitest, TypeScript |
 | Packaging | Docker Compose, uv, pnpm |
@@ -201,7 +204,7 @@ curl -fsS http://localhost:3000 >/dev/null
 
 ## MCP server
 
-The backend package installs a read-only MCP server named `portfolio-ai-mcp`. It exposes the signal stack to MCP clients over stdio.
+The backend package installs a read-only MCP server named `portfolio-ai-mcp`. It exposes the signal stack to MCP clients over stdio, with four read-only tools: `get_deployment_zone`, `get_deployment_history`, `get_committee_runs_today`, and `get_symbol_full_picture`.
 
 From `backend/`:
 
@@ -223,8 +226,10 @@ Common endpoint groups:
 | Portfolio | `/api/portfolio/*` | Accounts, positions, analytics, IPS, TLH |
 | Watchlist | `/api/watchlist/*` | Watchlist items, refreshes, narratives |
 | Symbols | `/api/symbols/*` | Per-symbol intelligence and decision context |
-| Market | `/api/market/*` | Market data, events, source status |
-| Strategies | `/api/strategies/*` | Strategy definitions, signals, backtests |
+| Market | `/api/market/*` | Market data, events, corporate actions, source status |
+| Macro | `/api/macro/*` | Deployment-gate score, conditions, history, backtests |
+| Thesis & committee | `/api/thesis/*`, `/api/committee/*` | AI thesis validation and investment-committee runs |
+| Catalysts & retirement | `/api/catalysts/*`, `/api/retirement/*` | Forward catalyst calendar; retirement scenarios |
 | Household | `/api/household/*` | Optional household finance workspace |
 
 ## Security and privacy
