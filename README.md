@@ -52,7 +52,7 @@ Portfolio AI brings scoring, narratives, budgeting, and committee review togethe
 | --- | --- |
 | Backend | Python 3.13, FastAPI, SQLAlchemy 2, Alembic, Pydantic 2, pandas, scikit-learn, pandas-ta |
 | Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
-| Data | PostgreSQL 16, Redis; yfinance + CBOE (always-on, no key), FRED macro, SEC EDGAR; optional TwelveData / FMP / Polygon / Finnhub / AlphaVantage; RSS news (CNBC, MarketWatch, Nasdaq, FT, Seeking Alpha, and more) |
+| Data | PostgreSQL 16, Redis; yfinance + CBOE + SEC EDGAR (always-on, no key); optional FRED macro / TwelveData / FMP / Polygon / Finnhub / AlphaVantage (API key); RSS news (CNBC, MarketWatch, Nasdaq, FT, Seeking Alpha, and more) |
 | Workflows | Hatchet |
 | Quality | Ruff, ty, pytest, Biome, Vitest, TypeScript |
 | Packaging | Docker Compose, uv, pnpm |
