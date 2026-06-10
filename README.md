@@ -20,6 +20,7 @@ Portfolio AI is a full-stack investment intelligence workspace for portfolio tra
 - Runs ~63 Hatchet workflows on cron for OHLCV / intraday / fundamentals / macro ingestion, scoring, catalysts, strategy research, data-freshness monitoring, and maintenance.
 - Applies a lightweight ML layer (scikit-learn article-quality classifier, TF-IDF news story clustering) and technical analysis (RSI, MACD, Bollinger Bands, ATR, VWAP, and more) on top of the ingested data.
 - Provides optional household money, document-intake, budgeting, and retirement-planning (Monte Carlo) surfaces, plus encrypted Plaid and SnapTrade account linking.
+- Manages household credit cards: a catalog-driven rewards ranking (valuation/credit stances), a two-player 90-day rotation planner that respects issuer rules (Chase 5/24, Amex lifetime, Capital One velocity), keeper-card routing, welcome-bonus spend tracking with soft/provisional charges, AI offer-screenshot intake and monthly catalog research via Agent Hub, and Telegram alerts for spend pace, bonus deadlines, rotation actions, and annual-fee renewals.
 - Offers an optional Agent Hub companion path for AI chat, thesis validation/invalidation, cross-validation, document review, and a multi-stage AI investment-committee review — all routed through Agent Hub with no hardcoded model IDs.
 - Ships a read-only MCP server that exposes the signal stack to MCP clients over stdio.
 
@@ -231,6 +232,7 @@ Common endpoint groups:
 | Thesis & committee | `/api/thesis/*`, `/api/committee/*` | AI thesis validation and investment-committee runs |
 | Catalysts & retirement | `/api/catalysts/*`, `/api/retirement/*` | Forward catalyst calendar; retirement scenarios |
 | Household | `/api/household/*` | Optional household finance workspace |
+| Credit cards | `/api/household/cards/*` | Card catalog, rewards ranking, two-player rotation plans, soft charges, offer intake, catalog research |
 
 ## Security and privacy
 

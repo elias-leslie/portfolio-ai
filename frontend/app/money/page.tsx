@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import { Database, PlusCircle, Settings2 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { MoneyCardsPanel } from '@/components/money/cards/MoneyCardsPanel'
 import { HouseholdDocumentCenter } from '@/components/money/HouseholdDocumentCenter'
 import { JennyQuestionInbox } from '@/components/money/JennyQuestionInbox'
 import { MoneyAccountsPanel } from '@/components/money/MoneyAccountsPanel'
@@ -189,6 +190,11 @@ function MoneyPageContent() {
           priceInsights={dashboard?.reports.priceInsights ?? []}
         />
       ),
+    },
+    {
+      value: 'cards',
+      label: 'Cards',
+      content: <MoneyCardsPanel dashboard={dashboard ?? undefined} />,
     },
     {
       value: 'retirement',
