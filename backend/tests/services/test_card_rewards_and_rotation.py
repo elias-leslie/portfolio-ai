@@ -91,10 +91,19 @@ def test_credit_realization_haircut() -> None:
             CardCredit(name="hard", annual_value=200, type="hard"),
         ],
     )
+    # Default easy_only stance (hands-off): hard credits count $0.
     est = svc.evaluate_card(product, profile, point_value_cents=2.0)
+    assert est.credits_value == 300.0
+    assert est.annual_value == round(300.0 - 695.0, 2)
+    assert any("easy_only" in w for w in est.warnings)
+    # Balanced stance keeps the fractional realization haircut.
+    est_balanced = svc.evaluate_card(product, profile, point_value_cents=2.0, credit_stance="balanced")
     # credits = 300*1.0 + 200*0.25 = 350
-    assert est.credits_value == 350.0
-    assert est.annual_value == round(350.0 - 695.0, 2)
+    assert est_balanced.credits_value == 350.0
+    assert est_balanced.annual_value == round(350.0 - 695.0, 2)
+    # Face value counts everything.
+    est_face = svc.evaluate_card(product, profile, point_value_cents=2.0, credit_stance="face_value")
+    assert est_face.credits_value == 500.0
 
 
 def test_point_value_stance_scaling_and_cash_floor() -> None:
@@ -190,3 +199,71 @@ def test_maximize_category_earn_holds_one_card() -> None:
     )
     # with welcome_factor 0 it should settle on the best earner every quarter
     assert all(s.product_slug == "best-dining" for s in plan.steps)
+
+
+def test_two_player_rotation_alternates_and_avoids_5_24() -> None:
+    """Two players alternating keep each under 5/24 across 8 quarters, so a
+    Chase open in a late quarter draws no 5/24 warning; a solo player at the
+    same cadence trips it."""
+    svc = CardRewardsService()
+    engine = CardRotationEngine(svc)
+    profile = SpendProfile(monthly_total=6500.0, by_bucket={"other": 6500.0})
+    products = [
+        _product(
+            slug=f"chase-{i}",
+            issuer="Chase",
+            reward_multipliers={"other": 1.0},
+            welcome_bonus_points=60000,
+            welcome_min_spend=4000,
+            welcome_window_days=90,
+            issuer_rules={"chase_5_24": True},
+        )
+        for i in range(10)
+    ]
+
+    duo = engine.build_rotation_plan(products, profile, horizon_quarters=8)
+    opens_by_player: dict[str, int] = {}
+    for step in duo.steps:
+        if step.action == "open_and_spend":
+            opens_by_player[step.player or "?"] = opens_by_player.get(step.player or "?", 0) + 1
+    # alternation: both players open, neither exceeds 4 in 8 quarters
+    assert set(opens_by_player) == {"p1", "p2"}
+    assert max(opens_by_player.values()) <= 4
+    assert not any("5/24" in w for w in duo.warnings)
+
+    solo = engine.build_rotation_plan(products, profile, horizon_quarters=8, players=["p1"])
+    assert all(s.player == "p1" for s in solo.steps)
+    assert any("5/24" in w for w in solo.warnings)
+
+
+def test_keeper_routing_excludes_covered_bucket() -> None:
+    """Amazon-style keeper absorbs the amazon bucket; rotating profile shrinks
+    and the note names the keeper."""
+    svc = CardRewardsService()
+    profile = SpendProfile(
+        monthly_total=6500.0,
+        by_bucket={"amazon": 600.0, "dining": 1200.0, "other": 4700.0},
+    )
+    keeper = _product(
+        slug="amazon-prime-visa",
+        product_name="Amazon Prime Visa",
+        issuer="Chase",
+        reward_multipliers={"amazon": 5.0, "dining": 2.0, "other": 1.0},
+        point_program="cash",
+        est_point_value_cents=1.0,
+    )
+    rotating = _product(
+        slug="csp",
+        issuer="Chase",
+        reward_multipliers={"dining": 3.0, "other": 1.0},
+        est_point_value_cents=1.5,
+    )
+    adjusted, notes = svc.route_keeper_buckets(profile, [keeper], [keeper, rotating])
+    # amazon (5.0 vs 1.5 c/$) routed to keeper; dining (2.0 vs 4.5 c/$) stays
+    assert "amazon" not in adjusted.by_bucket
+    assert adjusted.by_bucket["dining"] == 1200.0
+    assert adjusted.monthly_total == 5900.0
+    assert any("amazon-prime" in n.lower() or "Amazon" in n for n in notes)
+    # no keepers -> profile unchanged
+    same, no_notes = svc.route_keeper_buckets(profile, [], [rotating])
+    assert same == profile and no_notes == []

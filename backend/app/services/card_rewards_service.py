@@ -19,7 +19,9 @@ from app.models.credit_cards import (
 from app.models.household_finance_types import HouseholdSpendingView
 
 # Canonical reward buckets used by both the catalog multipliers and the profile.
-REWARD_BUCKETS: tuple[str, ...] = ("dining", "travel", "flights", "groceries", "gas", "other")
+# "amazon" exists so keeper cards (Amazon Prime Visa, 5% Amazon/Whole Foods) can
+# absorb that spend instead of the rotating card.
+REWARD_BUCKETS: tuple[str, ...] = ("dining", "travel", "flights", "groceries", "gas", "amazon", "other")
 
 # Map canonical household transaction categories onto reward buckets. Anything not
 # listed and not excluded falls through to "other" (base earn).
@@ -39,8 +41,16 @@ EXCLUDED_CATEGORIES: frozenset[str] = frozenset(
     {"Cash", "Debt Payments", "Income", "Transfers", "Peer Payments", "Investments"}
 )
 
-# How much of a stated statement credit a typical user actually realizes.
-CREDIT_REALIZATION: dict[str, float] = {"easy": 1.0, "moderate": 0.6, "hard": 0.25}
+# How much of a stated statement credit counts, by stance. Default easy_only:
+# premium "coupon book" credits (StubHub, DoorDash, monthly partner credits)
+# require active management, which conflicts with a hands-off setup — only
+# credits that redeem themselves with existing spending count.
+CREDIT_REALIZATION_STANCES: dict[str, dict[str, float]] = {
+    "easy_only": {"easy": 1.0, "moderate": 0.0, "hard": 0.0},
+    "balanced": {"easy": 1.0, "moderate": 0.6, "hard": 0.25},
+    "face_value": {"easy": 1.0, "moderate": 1.0, "hard": 1.0},
+}
+DEFAULT_CREDIT_STANCE = "easy_only"
 
 # Valuation stance scales the balanced/TPG-style floor. Cash-like programs
 # (<=1.0c) are never scaled — a cent is a cent.
@@ -53,7 +63,8 @@ DEFAULT_BUCKET_MIX: dict[str, float] = {
     "gas": 300.0,
     "travel": 600.0,
     "flights": 0.0,
-    "other": 3500.0,
+    "amazon": 600.0,
+    "other": 2900.0,
 }
 
 
@@ -127,6 +138,7 @@ class CardRewardsService:
         *,
         point_value_cents: float,
         amortization_years: int = 3,
+        credit_stance: str = DEFAULT_CREDIT_STANCE,
     ) -> CardRewardEstimate:
         """Value a single card for a spend profile.
 
@@ -153,8 +165,9 @@ class CardRewardsService:
                 )
             )
 
+        realization = CREDIT_REALIZATION_STANCES.get(credit_stance, CREDIT_REALIZATION_STANCES[DEFAULT_CREDIT_STANCE])
         credits_value = sum(
-            credit.annual_value * CREDIT_REALIZATION.get(credit.type, 0.6) for credit in product.credits
+            credit.annual_value * realization.get(credit.type, 0.0) for credit in product.credits
         )
         annual_value = earn_value + credits_value - product.annual_fee
 
@@ -177,7 +190,13 @@ class CardRewardsService:
                 f"${profile.monthly_total:,.0f}/mo."
             )
         if any(credit.type == "hard" for credit in product.credits):
-            warnings.append("Some statement credits are hard to fully use; valued at a fraction.")
+            if realization.get("hard", 0.0) <= 0.0:
+                warnings.append(
+                    "Hard-to-use statement credits valued at $0 (easy_only stance) — "
+                    "this card needs active credit management to beat that."
+                )
+            else:
+                warnings.append("Some statement credits are hard to fully use; valued at a fraction.")
 
         first_year_value = annual_value + welcome_value
         steady_state_value = annual_value + (
@@ -204,6 +223,59 @@ class CardRewardsService:
             warnings=warnings,
         )
 
+    def route_keeper_buckets(
+        self,
+        profile: SpendProfile,
+        keeper_products: list[CreditCardProduct],
+        candidates: list[CreditCardProduct],
+        *,
+        stance: str = "balanced",
+        overrides: dict[str, float] | None = None,
+    ) -> tuple[SpendProfile, list[str]]:
+        """Route buckets a keeper card already wins to the keeper.
+
+        A bucket is keeper-covered when the keeper's effective earn rate
+        (multiplier x cents-per-point) meets or beats the best rotating
+        candidate's rate for that bucket — e.g. Amazon Prime Visa at 5%/1.0¢ on
+        the amazon bucket. Covered buckets are removed from the rotating spend
+        profile so rankings/rotation value only the spend the rotating card will
+        actually see. Returns the adjusted profile + human-readable notes."""
+        if not keeper_products or not profile.by_bucket:
+            return profile, []
+        keeper_slugs = {p.slug for p in keeper_products}
+        rotating = [p for p in candidates if p.slug not in keeper_slugs]
+
+        def rate(product: CreditCardProduct, bucket: str) -> float:
+            multiplier = product.reward_multipliers.get(bucket)
+            if multiplier is None:
+                multiplier = product.reward_multipliers.get("other", 1.0)
+            return float(multiplier) * self.point_value_cents(product, stance=stance, overrides=overrides)
+
+        remaining: dict[str, float] = {}
+        notes: list[str] = []
+        for bucket, monthly_spend in profile.by_bucket.items():
+            if monthly_spend <= 0:
+                continue
+            best_keeper = max(keeper_products, key=lambda p: rate(p, bucket))
+            keeper_rate = rate(best_keeper, bucket)
+            best_rotating_rate = max((rate(p, bucket) for p in rotating), default=0.0)
+            if keeper_rate > 0 and keeper_rate >= best_rotating_rate:
+                notes.append(
+                    f"${monthly_spend:,.0f}/mo {bucket} spend routed to keeper card "
+                    f"{best_keeper.product_name} ({keeper_rate:.1f}¢/$ vs best rotating "
+                    f"{best_rotating_rate:.1f}¢/$) and excluded from rotating-card value."
+                )
+            else:
+                remaining[bucket] = monthly_spend
+        if not notes:
+            return profile, []
+        adjusted = SpendProfile(
+            monthly_total=round(sum(remaining.values()), 2),
+            by_bucket={k: round(v, 2) for k, v in remaining.items()},
+            source=profile.source,
+        )
+        return adjusted, notes
+
     def rank(
         self,
         products: list[CreditCardProduct],
@@ -212,6 +284,8 @@ class CardRewardsService:
         stance: str = "balanced",
         overrides: dict[str, float] | None = None,
         amortization_years: int = 3,
+        credit_stance: str = DEFAULT_CREDIT_STANCE,
+        extra_assumptions: list[str] | None = None,
     ) -> CardRanking:
         """Rank products by first-year and steady-state value for the profile."""
         estimates = [
@@ -220,6 +294,7 @@ class CardRewardsService:
                 profile,
                 point_value_cents=self.point_value_cents(product, stance=stance, overrides=overrides),
                 amortization_years=amortization_years,
+                credit_stance=credit_stance,
             )
             for product in products
         ]
@@ -231,15 +306,22 @@ class CardRewardsService:
             f"{est.slug}: {est.assumed_point_value_cents:.2f}¢/pt"
             for est in sorted(estimates, key=lambda e: e.slug)
         ]
+        realization = CREDIT_REALIZATION_STANCES.get(credit_stance, CREDIT_REALIZATION_STANCES[DEFAULT_CREDIT_STANCE])
+        realization_line = (
+            f"Statement credits valued by '{credit_stance}' stance "
+            f"(easy {realization['easy']:.0%} / moderate {realization['moderate']:.0%} / hard {realization['hard']:.0%})."
+        )
         assumptions = [
-            f"Valuation stance: {stance} (point values scaled from the balanced/TPG-style floor).",
+            f"Valuation stance: {stance} (point values scaled from the balanced floor).",
             f"Welcome bonuses amortized over {amortization_years} years for steady-state ranking.",
             "Transit/rideshare spend is treated as travel; transfer-partner upside is excluded.",
             "Welcome bonus counted only when the minimum spend is reachable at the assumed rate.",
-            "Statement credits valued by realization difficulty (easy 100% / moderate 60% / hard 25%).",
+            realization_line,
             f"Programs valued: {', '.join(programs_used)}.",
             "Per-card cents-per-point — " + "; ".join(cpp_lines) + ".",
         ]
+        if extra_assumptions:
+            assumptions.extend(extra_assumptions)
 
         return CardRanking(
             spend_profile=profile,

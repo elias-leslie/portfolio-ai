@@ -48,7 +48,7 @@ _PRODUCT_COLUMNS = (
 _CARD_COLUMNS = (
     "id, product_id, household_account_id, status, is_primary_active, opened_date, "
     "closed_date, annual_fee_due_date, welcome_progress_amount, welcome_deadline, "
-    "welcome_status, notes, metadata, created_at, updated_at"
+    "welcome_status, notes, metadata, created_at, updated_at, player, role"
 )
 
 
@@ -124,6 +124,8 @@ def _row_to_card(row: tuple[Any, ...]) -> HouseholdCreditCard:
         metadata=dict(_loads(row[12], {}) or {}),
         created_at=_iso(row[13]),
         updated_at=_iso(row[14]),
+        player=str(row[15]) if len(row) > 15 and row[15] else "p1",
+        role=str(row[16]) if len(row) > 16 and row[16] else "rotating",
     )
 
 
@@ -196,15 +198,17 @@ class CardManagementService:
             conn.execute(
                 """
                 INSERT INTO household_credit_cards (
-                    id, product_id, household_account_id, status, opened_date,
-                    welcome_deadline, notes, created_at, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    id, product_id, household_account_id, status, player, role,
+                    opened_date, welcome_deadline, notes, created_at, updated_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 [
                     card_id,
                     req.product_id,
                     req.household_account_id,
                     req.status,
+                    req.player,
+                    req.role,
                     _opt_date(req.opened_date),
                     _opt_date(req.welcome_deadline),
                     req.notes,
@@ -241,10 +245,22 @@ class CardManagementService:
             return self._get_card(conn, card_id)
 
     def activate_card(self, card_id: str) -> HouseholdCreditCard:
-        """Flip the "one card at a time" pointer to this card (plan §7)."""
+        """Flip the "one rotating card at a time" pointer to this card (plan §7).
+
+        Keeper cards (role='keeper', e.g. Amazon Prime Visa) activate without
+        touching the primary pointer — they sit alongside the rotating card."""
         now = _now()
         with self.storage.connection() as conn:
             target = self._get_card(conn, card_id)
+            if target.role == "keeper":
+                conn.execute(
+                    "UPDATE household_credit_cards SET status = 'active', updated_at = %s WHERE id = %s",
+                    [now, card_id],
+                )
+                conn.commit()
+                card = self._get_card(conn, card_id)
+                logger.info("credit_card_keeper_activated", card_id=card_id, product_id=target.product_id)
+                return card
             # Clear the current primary before setting the new one (the partial
             # unique index allows at most one is_primary_active=TRUE).
             conn.execute(
@@ -282,12 +298,51 @@ class CardManagementService:
 
     # --------------------------------------------------------- spend profile
 
+    def _amazon_monthly_spend(self) -> float:
+        """Average monthly Amazon/Whole Foods spend over the last 90 days.
+
+        Category mapping can't see the merchant (Amazon lands in Shopping →
+        other), so the amazon bucket is carved out by merchant match instead."""
+        with self.storage.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT COALESCE(SUM(amount), 0)
+                FROM household_transactions
+                WHERE flow_type = 'expense' AND removed = FALSE
+                  AND transaction_date >= CURRENT_DATE - INTERVAL '90 days'
+                  AND (raw_merchant ILIKE '%%amazon%%' OR raw_merchant ILIKE '%%amzn%%'
+                       OR description ILIKE '%%amazon%%' OR description ILIKE '%%amzn%%'
+                       OR raw_merchant ILIKE '%%whole foods%%' OR description ILIKE '%%whole foods%%')
+                """,
+            ).fetchone()
+        return round(float((row[0] if row else 0) or 0.0) / 3.0, 2)
+
     def _resolve_profile(
         self, *, monthly_total: float | None, by_bucket: dict[str, float] | None
     ) -> SpendProfile:
         try:
             view = self.transaction_service.build_spending_view(window="3m")
             profile = self._rewards.build_spend_profile(view)
+            if profile.source != "default":
+                # Carve merchant-matched Amazon spend out of the buckets the
+                # category mapping put it in (other first, then groceries).
+                amazon = self._amazon_monthly_spend()
+                if amazon > 0:
+                    buckets = dict(profile.by_bucket)
+                    remaining = amazon
+                    for source_bucket in ("other", "groceries"):
+                        take = min(remaining, buckets.get(source_bucket, 0.0))
+                        if take > 0:
+                            buckets[source_bucket] = round(buckets[source_bucket] - take, 2)
+                            remaining = round(remaining - take, 2)
+                    moved = round(amazon - remaining, 2)
+                    if moved > 0:
+                        buckets["amazon"] = round(buckets.get("amazon", 0.0) + moved, 2)
+                        profile = SpendProfile(
+                            monthly_total=profile.monthly_total,
+                            by_bucket={k: v for k, v in buckets.items() if v > 0},
+                            source=profile.source,
+                        )
         except Exception:
             logger.warning("card_spend_profile_fallback", exc_info=True)
             profile = SpendProfile(
@@ -297,17 +352,35 @@ class CardManagementService:
             )
         return self._rewards.apply_overrides(profile, monthly_total=monthly_total, by_bucket=by_bucket)
 
+    def _active_keeper_products(self) -> list[CreditCardProduct]:
+        """Products of cards held permanently alongside the rotating card."""
+        cards = self.list_owned_cards()
+        return [
+            card.product
+            for card in cards
+            if card.role == "keeper" and card.status == "active" and card.product is not None
+        ]
+
     # ---------------------------------------------------------------- ranking
 
     def build_ranking(self, req: RankingRequest) -> CardRanking:
         products = self._load_products(owned_only=req.include_owned_only)
         profile = self._resolve_profile(monthly_total=req.monthly_total, by_bucket=req.by_bucket)
+        profile, keeper_notes = self._rewards.route_keeper_buckets(
+            profile,
+            self._active_keeper_products(),
+            products,
+            stance=req.valuation_stance,
+            overrides=req.point_value_overrides,
+        )
         return self._rewards.rank(
             products,
             profile,
             stance=req.valuation_stance,
             overrides=req.point_value_overrides,
             amortization_years=req.amortization_years,
+            credit_stance=req.credit_stance,
+            extra_assumptions=keeper_notes,
         )
 
     # --------------------------------------------------------------- rotation
@@ -315,14 +388,28 @@ class CardManagementService:
     def build_rotation(self, req: RotationRequest) -> RotationPlanView:
         products = self._load_products()
         profile = self._resolve_profile(monthly_total=req.monthly_total, by_bucket=req.by_bucket)
-        view = self._rotation.build_rotation_plan(
+        keepers = self._active_keeper_products()
+        profile, keeper_notes = self._rewards.route_keeper_buckets(
+            profile,
+            keepers,
             products,
+            stance=req.valuation_stance,
+            overrides=req.point_value_overrides,
+        )
+        # Never rotate into a card the household already holds permanently.
+        keeper_slugs = {p.slug for p in keepers}
+        candidates = [p for p in products if p.slug not in keeper_slugs]
+        view = self._rotation.build_rotation_plan(
+            candidates,
             profile,
             objective=req.objective,
             horizon_quarters=req.horizon_quarters,
             stance=req.valuation_stance,
             overrides=req.point_value_overrides,
+            credit_stance=req.credit_stance,
+            players=req.players,
             name=req.name,
+            extra_assumptions=keeper_notes,
         )
         if req.persist:
             view.plan_id = self._persist_rotation_plan(view, profile)
@@ -359,9 +446,9 @@ class CardManagementService:
                     """
                     INSERT INTO card_rotation_steps (
                         id, plan_id, sequence_index, product_id, household_credit_card_id,
-                        action, target_spend, projected_welcome_value, projected_earn_value,
+                        player, action, target_spend, projected_welcome_value, projected_earn_value,
                         rule_warnings, created_at, updated_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
                     """,
                     [
                         str(uuid.uuid4()),
@@ -369,6 +456,7 @@ class CardManagementService:
                         step.sequence_index,
                         step.product_id,
                         step.household_credit_card_id,
+                        step.player,
                         step.action,
                         _money(step.target_spend),
                         _money(step.projected_welcome_value),

@@ -71,6 +71,11 @@ class HouseholdCreditCard(BaseModel):
     household_account_id: str | None = None
     status: str = "candidate"
     is_primary_active: bool = False
+    # Which household member holds/applies for the card (two-player rotation).
+    player: str = "p1"
+    # rotating = participates in the 90-day rotation (≤1 is_primary_active);
+    # keeper = held permanently for a spend niche (e.g. Amazon Prime Visa).
+    role: str = "rotating"
     opened_date: str | None = None
     closed_date: str | None = None
     annual_fee_due_date: str | None = None
@@ -169,6 +174,8 @@ class RotationStepView(BaseModel):
     product_name: str | None = None
     issuer: str | None = None
     household_credit_card_id: str | None = None
+    # Which player opens/holds the card this quarter (two-player rotation).
+    player: str | None = None
     action: str  # open_and_spend | switch_to | hold
     target_spend: float
     projected_welcome_value: float
@@ -214,6 +221,9 @@ class RankingRequest(BaseModel):
     point_value_overrides: dict[str, float] | None = None  # keyed by point_program
     amortization_years: int = 3
     include_owned_only: bool = False
+    # How statement credits count toward value. Default easy_only: only credits
+    # that redeem themselves hands-off (easy 1.0 / moderate 0 / hard 0).
+    credit_stance: str = "easy_only"  # easy_only | balanced | face_value
 
 
 class RotationRequest(BaseModel):
@@ -223,6 +233,10 @@ class RotationRequest(BaseModel):
     by_bucket: dict[str, float] | None = None
     valuation_stance: str = "balanced"
     point_value_overrides: dict[str, float] | None = None
+    credit_stance: str = "easy_only"
+    # Household members who alternate applications; one player solo is allowed
+    # but exceeds Chase 5/24 within a year at a 90-day cadence.
+    players: list[str] = Field(default_factory=lambda: ["p1", "p2"])
     name: str | None = None
     persist: bool = False
 
@@ -231,6 +245,8 @@ class CreditCardCreate(BaseModel):
     product_id: str
     status: str = "candidate"
     household_account_id: str | None = None
+    player: str = "p1"
+    role: str = "rotating"  # rotating | keeper
     opened_date: str | None = None
     welcome_deadline: str | None = None
     notes: str | None = None
@@ -239,6 +255,8 @@ class CreditCardCreate(BaseModel):
 class CreditCardUpdate(BaseModel):
     status: str | None = None
     household_account_id: str | None = None
+    player: str | None = None
+    role: str | None = None
     opened_date: str | None = None
     closed_date: str | None = None
     annual_fee_due_date: str | None = None
