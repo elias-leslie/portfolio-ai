@@ -15,9 +15,63 @@ opt-in via ``GET /api/retirement/scenarios/{id}?detail=true``.
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class WithdrawalPhaseConfig(BaseModel):
+    """Go-go / slow-go / no-go spending bands for ``decline_mode="phase"``."""
+
+    model_config = ConfigDict(frozen=True)
+
+    slow_go_age: int = Field(75, ge=40, le=110)
+    no_go_age: int = Field(85, ge=40, le=120)
+    go_go_pct: float = Field(1.0, ge=0.0, le=1.5)
+    slow_go_pct: float = Field(0.85, ge=0.0, le=1.5)
+    no_go_pct: float = Field(0.75, ge=0.0, le=1.5)
+
+
+class WithdrawalBridgeConfig(BaseModel):
+    """Pre-Social-Security bridge sleeve sizing (real dollars)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    mode: Literal["auto", "manual"] = "auto"
+    manual_amount: float | None = Field(None, ge=0.0)
+    real_return: float = Field(0.01, ge=-0.05, le=0.10)
+
+
+class WithdrawalHealthcarePoint(BaseModel):
+    """Absolute real healthcare/LTC annual spend from ``age`` onward."""
+
+    model_config = ConfigDict(frozen=True)
+
+    age: int = Field(..., ge=18, le=120)
+    real_amount: float = Field(..., ge=0.0)
+
+
+class WithdrawalConfig(BaseModel):
+    """Floor-and-upside spending-plan configuration (real dollars).
+
+    ``essential_floor`` / ``base_discretionary`` are *resolved* annual real
+    amounts. When both are ``None`` (the default, e.g. the persisted
+    ``/scenarios`` route with no planner UI) the engine falls back to
+    spend-the-gap semantics: the whole ``annual_expenses`` is treated as
+    floor, no discretionary layer, and no bridge sleeve.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    strategy: Literal["vpw", "guardrails"] = "vpw"
+    initial_rate: float = Field(0.05, ge=0.0, le=0.2)
+    decline_mode: Literal["smooth", "phase"] = "smooth"
+    discretionary_decline_rate: float = Field(0.01, ge=0.0, le=0.025)
+    phase: WithdrawalPhaseConfig = Field(default_factory=WithdrawalPhaseConfig)
+    bridge: WithdrawalBridgeConfig = Field(default_factory=WithdrawalBridgeConfig)
+    healthcare_schedule: tuple[WithdrawalHealthcarePoint, ...] = ()
+    essential_floor: float | None = Field(None, ge=0.0)
+    base_discretionary: float | None = Field(None, ge=0.0)
 
 
 class RetirementIncomeSource(BaseModel):
@@ -62,6 +116,7 @@ class RetirementInputs(BaseModel):
     inflation_rate: float = Field(0.025, ge=0.0, le=0.2)
     social_security_payable_ratio: float = Field(1.0, ge=0.0, le=1.0)
     social_security_depletion_year: int | None = Field(None, ge=1900, le=2200)
+    withdrawal: WithdrawalConfig = Field(default_factory=WithdrawalConfig)
     as_of_date: date
 
 
@@ -191,7 +246,12 @@ class RetirementAccountAllocationCoverage(BaseModel):
 
 
 class RetirementDrawdownYear(BaseModel):
-    """One calendar year in the deterministic drawdown schedule."""
+    """One calendar year in the deterministic drawdown schedule.
+
+    The ``spending_target`` .. ``withdrawal_rate`` block reports the
+    floor-and-upside engine decision in REAL (today's) dollars; nominal
+    amounts (``spending_need``, taxes, bucket draws) stay nominal.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -209,6 +269,14 @@ class RetirementDrawdownYear(BaseModel):
     rmd_applied: bool = False
     withdrawals_by_bucket: dict[str, float] = Field(default_factory=dict)
     balances_by_bucket: dict[str, float] = Field(default_factory=dict)
+    spending_target: float = Field(0.0, ge=0.0)
+    floor_amount: float = Field(0.0, ge=0.0)
+    discretionary_target: float = Field(0.0, ge=0.0)
+    guaranteed_income: float = Field(0.0, ge=0.0)
+    bridge_draw: float = Field(0.0, ge=0.0)
+    portfolio_draw: float = Field(0.0, ge=0.0)
+    bridge_balance: float = Field(0.0, ge=0.0)
+    withdrawal_rate: float = Field(0.0, ge=0.0)
 
 
 class RetirementAccountRule(BaseModel):
@@ -273,3 +341,4 @@ class RetirementPreview(BaseModel):
     lever_impacts: tuple[RetirementLeverImpact, ...] = ()
     first_depletion_age: int | None = None
     estimated_monthly_contribution_gap: float = Field(0.0, ge=0.0)
+    median_discretionary_path: tuple[float, ...] = ()

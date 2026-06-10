@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from importlib import import_module
@@ -36,6 +37,10 @@ from app.portfolio.contracts.retirement import (
     RetirementPreview,
     ScenarioResults,
     ScenarioSummary,
+    WithdrawalBridgeConfig,
+    WithdrawalConfig,
+    WithdrawalHealthcarePoint,
+    WithdrawalPhaseConfig,
 )
 from app.services._retirement_simulation import (
     PERCENTILE_KEYS,
@@ -43,8 +48,25 @@ from app.services._retirement_simulation import (
     SimulationOutputs,
     _covariance_matrix,
     _normalize_allocation,
-    income_streams_from_inputs,
-    run_monte_carlo,
+)
+from app.services._withdrawal_engine import (
+    BridgeConfig as EngineBridgeConfig,
+)
+from app.services._withdrawal_engine import (
+    GuardrailsState,
+    bridge_initial_size,
+    guardrails_capacity_and_update,
+    healthcare_ltc,
+    step_year,
+)
+from app.services._withdrawal_engine import (
+    HealthcarePoint as EngineHealthcarePoint,
+)
+from app.services._withdrawal_engine import (
+    PhaseConfig as EnginePhaseConfig,
+)
+from app.services._withdrawal_engine import (
+    WithdrawalConfig as EngineWithdrawalConfig,
 )
 
 logger = get_logger(__name__)
@@ -412,34 +434,19 @@ class RetirementPlanningService:
         tax_context: FederalTaxContext | None = None,
         buckets: tuple[RetirementAccountBucket, ...] = (),
     ) -> SimulationOutputs:
-        """Run the Monte Carlo without persisting; pure compute."""
+        """Run the Monte Carlo without persisting; pure compute.
+
+        Single unified path: with no explicit buckets the tax-aware
+        engine synthesizes one taxable bucket from ``portfolio_value``
+        (see ``_bucket_balances``).
+        """
         trials = max(1, min(trials, MAX_TRIALS))
         tax_context = tax_context or _tax_context_from_profile(None, inputs)
         cma = _cma_with_cash_yield(self._cma, inputs.cash_yield)
-        if buckets:
-            return _run_tax_aware_monte_carlo(
-                inputs,
-                tax_context=tax_context,
-                buckets=buckets,
-                cma=cma,
-                trials=trials,
-                seed=seed,
-            )
-        tax_adjusted_expenses = _tax_adjusted_annual_expenses(
+        return _run_tax_aware_monte_carlo(
             inputs,
             tax_context=tax_context,
             buckets=buckets,
-        )
-        return run_monte_carlo(
-            portfolio_value=inputs.portfolio_value,
-            asset_allocation=inputs.asset_allocation,
-            annual_expenses=tax_adjusted_expenses,
-            annual_contribution=inputs.annual_contribution,
-            inflation_rate=inputs.inflation_rate,
-            horizon_years=inputs.horizon_years,
-            primary_age=inputs.primary_age,
-            retirement_age=_household_retirement_primary_age(inputs),
-            income_sources=income_streams_from_inputs(_adjusted_sim_income_sources(inputs)),
             cma=cma,
             trials=trials,
             seed=seed,
@@ -468,6 +475,7 @@ class RetirementPlanningService:
         primary_social_security_start_age: int | None = None,
         spouse_social_security_start_age: int | None = None,
         social_security_payable_ratio: float | None = None,
+        withdrawal: WithdrawalConfig | None = None,
         trials: int = DEFAULT_PREVIEW_TRIALS,
         seed: int | None = 7,
         as_of_date: date | None = None,
@@ -605,6 +613,16 @@ class RetirementPlanningService:
             if value is not None and value > 0
         )
 
+        healthcare_schedule = self._load_retirement_healthcare_schedule()
+        base_config = withdrawal or _withdrawal_config_from_profile(profile, healthcare_schedule)
+        if withdrawal is not None and not withdrawal.healthcare_schedule:
+            # Requests that omit healthcare points inherit the persisted
+            # schedule; an explicit list (even edited) wins.
+            base_config = base_config.model_copy(update={"healthcare_schedule": healthcare_schedule})
+        inputs = inputs.model_copy(
+            update={"withdrawal": _withdrawal_config_from_inputs(inputs, profile, base_config)}
+        )
+
         tax_context = _tax_context_from_profile(profile, inputs)
         sim = self.run_simulation(inputs, trials=trials, seed=seed, tax_context=tax_context, buckets=buckets)
         drawdown = self._drawdown_schedule(
@@ -630,14 +648,17 @@ class RetirementPlanningService:
             tax_assumptions=_tax_assumptions(
                 tax_context, buckets=buckets, inputs=inputs, gain_ratio_meta=gain_ratio_meta
             ),
-            return_assumptions=self._return_assumptions(
-                inputs,
-                allocation_holdings=return_allocation_holdings,
-                account_allocation_coverage=account_allocation_coverage,
-                tax_context=tax_context,
-                buckets=buckets,
-                baseline_ordinary_income=baseline_ordinary_income,
-            ),
+            return_assumptions={
+                **self._return_assumptions(
+                    inputs,
+                    allocation_holdings=return_allocation_holdings,
+                    account_allocation_coverage=account_allocation_coverage,
+                    tax_context=tax_context,
+                    buckets=buckets,
+                    baseline_ordinary_income=baseline_ordinary_income,
+                ),
+                **_withdrawal_summary(inputs, drawdown),
+            },
             drawdown_schedule=tuple(drawdown),
             account_rules=_account_rule_explanations(buckets),
             lever_impacts=self._lever_impacts(
@@ -652,6 +673,7 @@ class RetirementPlanningService:
             estimated_monthly_contribution_gap=_monthly_contribution_gap(
                 inputs, annual_return=self._expected_return(inputs.asset_allocation, inputs.cash_yield)
             ),
+            median_discretionary_path=tuple(sim.median_discretionary_path),
         )
 
     def save_scenario(
@@ -861,6 +883,18 @@ class RetirementPlanningService:
         """Load the canonical Money dashboard so account controls and values align."""
         service_mod = import_module("app.services.household_finance_service")
         return service_mod.HouseholdFinanceService().get_dashboard()
+
+    def _load_retirement_healthcare_schedule(self) -> tuple[WithdrawalHealthcarePoint, ...]:
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                "SELECT age, real_amount FROM household_retirement_healthcare_schedule"
+                " ORDER BY age ASC"
+            ).fetchall()
+        return tuple(
+            WithdrawalHealthcarePoint(age=int(row[0]), real_amount=float(row[1] or 0.0))
+            for row in rows
+            if row[0] is not None
+        )
 
     def _account_buckets_from_dashboard(self, dashboard: Any) -> tuple[RetirementAccountBucket, ...]:
         buckets: list[RetirementAccountBucket] = []
@@ -1169,21 +1203,29 @@ class RetirementPlanningService:
         del ordinary_tax_rate, capital_gains_rate  # kept for older direct unit-call compatibility
         tax_context = tax_context or _tax_context_from_profile(None, inputs)
         annual_return = self._expected_return(inputs.asset_allocation, inputs.cash_yield)
+        r_real = (1.0 + annual_return) / (1.0 + inputs.inflation_rate) - 1.0
         gain_ratio = _effective_gain_ratio(inputs)
         household_retirement_age = _household_retirement_primary_age(inputs)
         balances = _bucket_balances(inputs, buckets)
         contribution_bucket = _contribution_bucket(balances)
+        cfg = _engine_withdrawal_config(inputs, r_real=r_real)
+        bridge_balance = _carve_bridge_from_balances(
+            balances, bridge_initial_size(cfg, _real_guaranteed_income_fn(inputs))
+        )
+        guardrails_state = (
+            GuardrailsState(initial_rate=cfg.initial_rate) if cfg.strategy == "guardrails" else None
+        )
         rows: list[RetirementDrawdownYear] = []
         for year_index in range(inputs.horizon_years):
             primary_age = inputs.primary_age + year_index
             if year_index > 0:
                 for bucket in list(balances):
                     balances[bucket] = max(0.0, balances[bucket] * (1.0 + annual_return))
+                bridge_balance *= 1.0 + cfg.bridge.real_return
                 if primary_age < household_retirement_age and inputs.annual_contribution > 0:
                     balances[contribution_bucket] = balances.get(contribution_bucket, 0.0) + inputs.annual_contribution
 
             inflation_factor = (1.0 + inputs.inflation_rate) ** year_index
-            spending = inputs.annual_expenses * inflation_factor if primary_age >= household_retirement_age else 0.0
             spouse_age = inputs.spouse_age + year_index if inputs.spouse_age is not None else None
             income_components = _income_components_for_age(
                 inputs.income_sources,
@@ -1194,6 +1236,35 @@ class RetirementPlanningService:
                 social_security_depletion_year=inputs.social_security_depletion_year,
             )
             income = income_components["total"]
+
+            wy = None
+            spending = 0.0
+            portfolio_bal_real = sum(balances.values()) / inflation_factor
+            if primary_age >= household_retirement_age:
+                if guardrails_state is not None:
+                    # Deterministic path: the expected return never flips
+                    # sign year-to-year, so prev_return_negative is static.
+                    guardrails_capacity_and_update(
+                        portfolio_bal_real,
+                        guardrails_state,
+                        annual_return < 0 and year_index > 0,
+                        inputs.inflation_rate,
+                    )
+                wy = step_year(
+                    cfg,
+                    year_index=year_index,
+                    age=primary_age,
+                    portfolio_bal_real=portfolio_bal_real,
+                    bridge_bal_real=bridge_balance,
+                    guaranteed_real=income / inflation_factor,
+                    strategy_state=guardrails_state,
+                )
+                bridge_balance = wy.bridge_balance_end
+                # R3 seam: gross-up target = portfolio draw (nominal) plus the
+                # full nominal income so the tax estimate still sees income
+                # for SS-taxability/bracket fill, with no double-count.
+                spending = wy.portfolio_draw * inflation_factor + income
+
             outcome = _apply_tax_aware_withdrawals(
                 balances,
                 spending=spending,
@@ -1205,15 +1276,24 @@ class RetirementPlanningService:
                 gain_ratio=gain_ratio,
             )
             withdrawals = outcome.withdrawals
+            gross_withdrawal = round(sum(withdrawals.values()), 2)
+            if wy is not None:
+                # R1: an RMD forced beyond the plan leaves post-tax surplus —
+                # reinvest it in taxable so the household only consumes the
+                # spending target.
+                surplus_net = (
+                    income + gross_withdrawal - outcome.tax_estimate - outcome.penalty_estimate - spending
+                )
+                if surplus_net > 0.01:
+                    balances["taxable"] = balances.get("taxable", 0.0) + surplus_net
 
             ending_balance = round(sum(balances.values()), 2)
-            gross_withdrawal = round(sum(withdrawals.values()), 2)
             rows.append(
                 RetirementDrawdownYear(
                     year_index=year_index,
                     calendar_year=inputs.as_of_date.year + year_index,
                     primary_age=primary_age,
-                    spending_need=round(spending, 2),
+                    spending_need=round(wy.spending_target * inflation_factor, 2) if wy is not None else 0.0,
                     income=round(income, 2),
                     gross_withdrawal=gross_withdrawal,
                     tax_estimate=round(outcome.tax_estimate, 2),
@@ -1227,6 +1307,18 @@ class RetirementPlanningService:
                     rmd_applied=outcome.rmd_amount > 0,
                     withdrawals_by_bucket={k: round(v, 2) for k, v in withdrawals.items()},
                     balances_by_bucket={k: round(v, 2) for k, v in balances.items()},
+                    spending_target=round(wy.spending_target, 2) if wy is not None else 0.0,
+                    floor_amount=round(wy.floor, 2) if wy is not None else 0.0,
+                    discretionary_target=round(wy.discretionary_target, 2) if wy is not None else 0.0,
+                    guaranteed_income=round(wy.guaranteed_income, 2) if wy is not None else 0.0,
+                    bridge_draw=round(wy.bridge_draw, 2) if wy is not None else 0.0,
+                    portfolio_draw=round(wy.portfolio_draw, 2) if wy is not None else 0.0,
+                    bridge_balance=round(bridge_balance, 2),
+                    withdrawal_rate=(
+                        round(wy.portfolio_draw / portfolio_bal_real, 6)
+                        if wy is not None and portfolio_bal_real > 0
+                        else 0.0
+                    ),
                 )
             )
         return rows
@@ -1971,6 +2063,224 @@ def _income_tax_category_for_asset_class(asset_class: str) -> str:
     return "ordinary_income"
 
 
+def _withdrawal_config_from_profile(
+    profile: Any,
+    healthcare_schedule: tuple[WithdrawalHealthcarePoint, ...],
+) -> WithdrawalConfig:
+    """Build the planner WithdrawalConfig from persisted profile columns."""
+    if profile is None:
+        return WithdrawalConfig(healthcare_schedule=healthcare_schedule)
+
+    def value(name: str, default: Any) -> Any:
+        raw = getattr(profile, name, None)
+        return default if raw is None else raw
+
+    return WithdrawalConfig(
+        strategy=str(value("withdrawal_strategy", "vpw")),
+        initial_rate=float(value("withdrawal_initial_rate", 0.05)),
+        decline_mode=str(value("withdrawal_decline_mode", "smooth")),
+        discretionary_decline_rate=float(value("discretionary_decline_rate", 0.01)),
+        phase=WithdrawalPhaseConfig(
+            slow_go_age=int(value("phase_slow_go_age", 75)),
+            no_go_age=int(value("phase_no_go_age", 85)),
+            go_go_pct=float(value("phase_go_go_pct", 1.0)),
+            slow_go_pct=float(value("phase_slow_go_pct", 0.85)),
+            no_go_pct=float(value("phase_no_go_pct", 0.75)),
+        ),
+        bridge=WithdrawalBridgeConfig(
+            mode=str(value("bridge_mode", "auto")),
+            manual_amount=getattr(profile, "bridge_manual_amount", None),
+            real_return=float(value("bridge_real_return", 0.01)),
+        ),
+        healthcare_schedule=healthcare_schedule,
+        essential_floor=getattr(profile, "retirement_essential_floor_override", None),
+        base_discretionary=getattr(profile, "retirement_discretionary_override", None),
+    )
+
+
+def _withdrawal_config_from_inputs(
+    inputs: RetirementInputs,
+    profile: Any,
+    base: WithdrawalConfig,
+) -> WithdrawalConfig:
+    """Resolve floor/discretionary via the budget ratio (R7 baseline carve-out).
+
+    ``e = monthly_essential_target / (essential + discretionary)`` (0.6 when
+    the budget is unset) split of ``annual_expenses``; healthcare at the
+    household retirement age is netted out of the essential portion so the
+    year-0 spending total equals the retirement spend target exactly.
+    """
+    essential = float(getattr(profile, "monthly_essential_target", None) or 0.0)
+    discretionary = float(getattr(profile, "monthly_discretionary_target", None) or 0.0)
+    budget_total = essential + discretionary
+    essential_share = essential / budget_total if budget_total > 0 else 0.6
+    total = inputs.annual_expenses
+    retirement_age = _household_retirement_primary_age(inputs)
+    healthcare_at_retirement = healthcare_ltc(
+        EngineWithdrawalConfig(
+            healthcare_schedule=tuple(
+                EngineHealthcarePoint(age=point.age, real_amount=point.real_amount)
+                for point in base.healthcare_schedule
+            )
+        ),
+        retirement_age,
+    )
+    base_discretionary = (
+        base.base_discretionary
+        if base.base_discretionary is not None
+        else max(0.0, (1.0 - essential_share) * total)
+    )
+    essential_floor = (
+        base.essential_floor
+        if base.essential_floor is not None
+        else max(0.0, essential_share * total - healthcare_at_retirement)
+    )
+    return base.model_copy(
+        update={"essential_floor": essential_floor, "base_discretionary": base_discretionary}
+    )
+
+
+def _withdrawal_summary(
+    inputs: RetirementInputs,
+    drawdown: list[RetirementDrawdownYear],
+) -> dict[str, Any]:
+    """Bridge size/length + first-year and post-SS withdrawal rates for the UI summary strip."""
+    retirement_age = _household_retirement_primary_age(inputs)
+    primary_claim, spouse_claim = _ss_claim_ages(inputs)
+    earliest_claim = min(
+        [primary_claim] + ([spouse_claim] if spouse_claim is not None else [])
+    )
+    first_retirement = next((row for row in drawdown if row.primary_age >= retirement_age), None)
+    post_ss = next(
+        (row for row in drawdown if row.primary_age >= max(earliest_claim, retirement_age)),
+        None,
+    )
+    bridge_rows = [row for row in drawdown if row.bridge_draw > 0]
+    bridge_size = (
+        round(first_retirement.bridge_draw + first_retirement.bridge_balance, 2)
+        if first_retirement is not None
+        else 0.0
+    )
+    return {
+        "withdrawal_strategy": inputs.withdrawal.strategy,
+        "bridge_size": bridge_size,
+        "bridge_length_years": len(bridge_rows),
+        "first_year_withdrawal_rate": (
+            first_retirement.withdrawal_rate if first_retirement is not None else 0.0
+        ),
+        "post_social_security_withdrawal_rate": (
+            post_ss.withdrawal_rate if post_ss is not None else 0.0
+        ),
+    }
+
+
+def _ss_claim_ages(inputs: RetirementInputs) -> tuple[int, int | None]:
+    """Social-Security claim ages from income sources (primary, spouse).
+
+    With no SS sources the primary claim age collapses to the household
+    retirement age so the auto bridge sizes to zero (there is nothing to
+    bridge *to*).
+    """
+    claim_ages = sorted(
+        source.start_age
+        for source in inputs.income_sources
+        if (source.source_type or "").lower() == "social_security"
+    )
+    if not claim_ages:
+        return _household_retirement_primary_age(inputs), None
+    primary = claim_ages[0]
+    spouse = claim_ages[-1] if len(claim_ages) > 1 else None
+    return primary, spouse
+
+
+def _engine_withdrawal_config(
+    inputs: RetirementInputs, *, r_real: float
+) -> EngineWithdrawalConfig:
+    """Convert the contract ``WithdrawalConfig`` to the pure-engine config.
+
+    Unresolved floors (``essential_floor is None``, e.g. the persisted
+    ``/scenarios`` route) fall back to spend-the-gap semantics: whole
+    ``annual_expenses`` as floor, no discretionary layer, no bridge.
+    """
+    wc = inputs.withdrawal
+    retirement_age = _household_retirement_primary_age(inputs)
+    primary_claim, spouse_claim = _ss_claim_ages(inputs)
+    if wc.essential_floor is None:
+        essential_floor = inputs.annual_expenses
+        base_discretionary = 0.0
+        bridge = EngineBridgeConfig(mode="manual", manual_amount=0.0)
+    else:
+        essential_floor = wc.essential_floor
+        base_discretionary = wc.base_discretionary or 0.0
+        bridge = EngineBridgeConfig(
+            mode=wc.bridge.mode,
+            manual_amount=wc.bridge.manual_amount,
+            real_return=wc.bridge.real_return,
+        )
+    return EngineWithdrawalConfig(
+        strategy=wc.strategy,
+        initial_rate=wc.initial_rate,
+        decline_mode=wc.decline_mode,
+        discretionary_decline_rate=wc.discretionary_decline_rate,
+        phase=EnginePhaseConfig(
+            slow_go_age=wc.phase.slow_go_age,
+            no_go_age=wc.phase.no_go_age,
+            go_go_pct=wc.phase.go_go_pct,
+            slow_go_pct=wc.phase.slow_go_pct,
+            no_go_pct=wc.phase.no_go_pct,
+        ),
+        bridge=bridge,
+        healthcare_schedule=tuple(
+            EngineHealthcarePoint(age=point.age, real_amount=point.real_amount)
+            for point in wc.healthcare_schedule
+        ),
+        essential_floor=essential_floor,
+        base_discretionary=base_discretionary,
+        retirement_age=retirement_age,
+        horizon_years=inputs.horizon_years,
+        horizon_end_age=inputs.primary_age + inputs.horizon_years,
+        primary_ss_claim_age=primary_claim,
+        spouse_ss_claim_age=spouse_claim,
+        r=r_real,
+    )
+
+
+def _real_guaranteed_income_fn(inputs: RetirementInputs) -> Callable[[int], float]:
+    """Real guaranteed income at a primary age, for bridge sizing."""
+
+    def fn(age: int) -> float:
+        year_index = max(0, age - inputs.primary_age)
+        inflation_factor = (1.0 + inputs.inflation_rate) ** year_index
+        components = _income_components_for_age(
+            inputs.income_sources,
+            age,
+            inflation_factor=inflation_factor,
+            calendar_year=inputs.as_of_date.year + year_index,
+            social_security_payable_ratio=inputs.social_security_payable_ratio,
+            social_security_depletion_year=inputs.social_security_depletion_year,
+        )
+        return components["total"] / inflation_factor
+
+    return fn
+
+
+def _carve_bridge_from_balances(balances: dict[str, float], target: float) -> float:
+    """Carve the bridge sleeve out of cash, then taxable (R2: scalar, not a bucket).
+
+    At t=0 real == nominal, so the carve is a straight subtraction. Returns
+    the amount actually carved (capped by what those buckets hold).
+    """
+    remaining = max(0.0, target)
+    for bucket in ("cash", "taxable"):
+        if remaining <= 0:
+            break
+        take = min(balances.get(bucket, 0.0), remaining)
+        if take > 0:
+            balances[bucket] -= take
+            remaining -= take
+    return max(0.0, target) - remaining
+
+
 def _effective_gain_ratio(inputs: RetirementInputs) -> float:
     """Lots-derived embedded-gain ratio when known, else planning default."""
     if inputs.taxable_gain_ratio is not None:
@@ -2098,22 +2408,40 @@ def _run_tax_aware_monte_carlo(
     starting_balances = _bucket_balances(inputs, buckets)
     contribution_bucket = _contribution_bucket(starting_balances)
     household_retirement_age = _household_retirement_primary_age(inputs)
+    # R5: VPW capacity uses the fixed expected real return, never the
+    # sampled one.
+    expected_nominal = float(mus @ weights)
+    cfg = _engine_withdrawal_config(
+        inputs, r_real=(1.0 + expected_nominal) / (1.0 + inputs.inflation_rate) - 1.0
+    )
+    # R2: the bridge is a scalar sleeve carved from cash+taxable once at
+    # setup — invisible to RMD/greedy/volatility logic, untaxed on draw.
+    bridge_initial = _carve_bridge_from_balances(
+        starting_balances, bridge_initial_size(cfg, _real_guaranteed_income_fn(inputs))
+    )
     failure_year = np.full(trials, -1, dtype=np.int32)
     yearly_balances = np.empty((trials, inputs.horizon_years), dtype=np.float64)
+    discretionary_paths = np.zeros((trials, inputs.horizon_years), dtype=np.float64)
 
     for trial in range(trials):
         balances = dict(starting_balances)
+        bridge_balance = bridge_initial
+        guardrails_state = (
+            GuardrailsState(initial_rate=cfg.initial_rate) if cfg.strategy == "guardrails" else None
+        )
+        prev_return_negative = False
         for year_index in range(inputs.horizon_years):
             primary_age = inputs.primary_age + year_index
             portfolio_return = float(portfolio_returns[trial, year_index])
             for bucket in list(balances):
                 annual_return = cash_return if bucket == "cash" else portfolio_return
                 balances[bucket] = max(0.0, balances[bucket] * (1.0 + annual_return))
+            if year_index > 0:
+                bridge_balance *= 1.0 + cfg.bridge.real_return
             if primary_age < household_retirement_age and inputs.annual_contribution > 0:
                 balances[contribution_bucket] = balances.get(contribution_bucket, 0.0) + inputs.annual_contribution
 
             inflation_factor = (1.0 + inputs.inflation_rate) ** year_index
-            spending = inputs.annual_expenses * inflation_factor if primary_age >= household_retirement_age else 0.0
             spouse_age = inputs.spouse_age + year_index if inputs.spouse_age is not None else None
             income_components = _income_components_for_age(
                 inputs.income_sources,
@@ -2123,6 +2451,32 @@ def _run_tax_aware_monte_carlo(
                 social_security_payable_ratio=inputs.social_security_payable_ratio,
                 social_security_depletion_year=inputs.social_security_depletion_year,
             )
+            income = income_components["total"]
+
+            wy = None
+            spending = 0.0
+            if primary_age >= household_retirement_age:
+                portfolio_bal_real = sum(balances.values()) / inflation_factor
+                if guardrails_state is not None:
+                    guardrails_capacity_and_update(
+                        portfolio_bal_real,
+                        guardrails_state,
+                        prev_return_negative,
+                        inputs.inflation_rate,
+                    )
+                wy = step_year(
+                    cfg,
+                    year_index=year_index,
+                    age=primary_age,
+                    portfolio_bal_real=portfolio_bal_real,
+                    bridge_bal_real=bridge_balance,
+                    guaranteed_real=income / inflation_factor,
+                    strategy_state=guardrails_state,
+                )
+                bridge_balance = wy.bridge_balance_end
+                spending = wy.portfolio_draw * inflation_factor + income
+                discretionary_paths[trial, year_index] = wy.discretionary_funded
+
             outcome = _apply_tax_aware_withdrawals(
                 balances,
                 spending=spending,
@@ -2133,8 +2487,17 @@ def _run_tax_aware_monte_carlo(
                 tax_context=tax_context,
                 gain_ratio=gain_ratio,
             )
-            if outcome.shortfall > 1.0 and failure_year[trial] < 0:
+            if wy is not None:
+                gross_withdrawal = sum(outcome.withdrawals.values())
+                surplus_net = (
+                    income + gross_withdrawal - outcome.tax_estimate - outcome.penalty_estimate - spending
+                )
+                if surplus_net > 0.01:
+                    balances["taxable"] = balances.get("taxable", 0.0) + surplus_net
+            failed = outcome.shortfall > 1.0 or (wy is not None and wy.failed)
+            if failed and failure_year[trial] < 0:
                 failure_year[trial] = year_index
+            prev_return_negative = portfolio_return < 0
             yearly_balances[trial, year_index] = max(0.0, sum(balances.values()))
 
     success_count = int(np.sum(failure_year < 0))
@@ -2158,6 +2521,7 @@ def _run_tax_aware_monte_carlo(
             if count:
                 failure_distribution[f"year_{idx + 1}"] = int(count)
 
+    median_discretionary = np.median(discretionary_paths, axis=0)
     return SimulationOutputs(
         success_probability=round(success_probability, 6),
         median_ending_balance=round(median_ending, 2),
@@ -2165,71 +2529,8 @@ def _run_tax_aware_monte_carlo(
         percentiles={k: round(v, 2) for k, v in percentiles.items()},
         failure_year_distribution=failure_distribution,
         ending_balance_paths={k: [round(x, 2) for x in v] for k, v in paths.items()},
+        median_discretionary_path=[round(float(v), 2) for v in median_discretionary],
     )
-
-
-def _adjusted_sim_income_sources(inputs: RetirementInputs) -> list[RetirementIncomeSource]:
-    if inputs.social_security_payable_ratio >= 1.0 or inputs.social_security_depletion_year is None:
-        return list(inputs.income_sources)
-    adjusted: list[RetirementIncomeSource] = []
-    for source in inputs.income_sources:
-        if (source.source_type or "").lower() != "social_security":
-            adjusted.append(source)
-            continue
-        start_calendar_year = inputs.as_of_date.year + max(0, source.start_age - inputs.primary_age)
-        if start_calendar_year < inputs.social_security_depletion_year:
-            adjusted.append(source)
-            continue
-        adjusted.append(
-            source.model_copy(
-                update={"monthly_amount": round(source.monthly_amount * inputs.social_security_payable_ratio, 2)}
-            )
-        )
-    return adjusted
-
-
-def _tax_adjusted_annual_expenses(
-    inputs: RetirementInputs,
-    *,
-    tax_context: FederalTaxContext,
-    buckets: tuple[RetirementAccountBucket, ...],
-) -> float:
-    if inputs.annual_expenses <= 0:
-        return 0.0
-    household_retirement_age = _household_retirement_primary_age(inputs)
-    available: dict[str, float] = {}
-    for bucket in buckets:
-        available[bucket.bucket_type] = available.get(bucket.bucket_type, 0.0) + bucket.current_value
-    if not available and inputs.portfolio_value > 0:
-        available = {"taxable": inputs.portfolio_value}
-    withdrawals = dict.fromkeys(DEFAULT_DRAWDOWN_ORDER, 0.0)
-    remaining = inputs.annual_expenses
-    for bucket in DEFAULT_DRAWDOWN_ORDER:
-        if remaining <= 0:
-            break
-        if available and available.get(bucket, 0.0) <= 0:
-            continue
-        gross = remaining
-        withdrawals[bucket] = withdrawals.get(bucket, 0.0) + gross
-        remaining -= gross
-    tax_estimate = _federal_tax_estimate(
-        tax_context,
-        ordinary_income=withdrawals.get("pre_tax", 0.0) + withdrawals.get("governmental_457b", 0.0),
-        social_security_benefits=0.0,
-        long_term_capital_gains=withdrawals.get("taxable", 0.0) * _effective_gain_ratio(inputs),
-        primary_age=household_retirement_age,
-        spouse_age=(
-            inputs.spouse_age + max(0, household_retirement_age - inputs.primary_age)
-            if inputs.spouse_age is not None
-            else None
-        ),
-        inflation_factor=1.0,
-    )
-    penalty_estimate = sum(
-        amount * _early_withdrawal_penalty_rate(bucket, household_retirement_age)
-        for bucket, amount in withdrawals.items()
-    )
-    return round(inputs.annual_expenses + tax_estimate + penalty_estimate, 2)
 
 
 def _account_rule_explanations(

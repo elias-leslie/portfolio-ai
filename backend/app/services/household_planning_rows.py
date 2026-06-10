@@ -13,6 +13,7 @@ from app.models.household_planning import (
     HouseholdInsurancePolicy,
     HouseholdPlannedExpense,
     HouseholdPlanningMember,
+    HouseholdRetirementHealthcareSchedule,
     HouseholdRetirementIncomeSource,
 )
 
@@ -172,6 +173,26 @@ def row_to_retirement_income_source(
         source_document_id=str(row[13]) if row[13] is not None else None,
         created_at=iso(row[14]),
         updated_at=iso(row[15]),
+    )
+
+
+def row_to_retirement_healthcare_schedule(
+    row: tuple[Any, ...],
+    *,
+    iso: Callable[[Any], str],
+    to_float: Callable[[Any], float | None],
+) -> HouseholdRetirementHealthcareSchedule:
+    return HouseholdRetirementHealthcareSchedule(
+        id=str(row[0]),
+        age=int(row[1]),
+        real_amount=to_float(row[2]) or 0.0,
+        notes=str(row[3]) if row[3] is not None else None,
+        confirmation_status=str(row[4]),
+        provenance=str(row[5]),
+        evidence_note=str(row[6]) if row[6] is not None else None,
+        source_document_id=str(row[7]) if row[7] is not None else None,
+        created_at=iso(row[8]),
+        updated_at=iso(row[9]),
     )
 
 

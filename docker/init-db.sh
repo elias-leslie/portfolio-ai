@@ -13,6 +13,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname portfolio_ai \
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname portfolio_ai <<-EOSQL
   INSERT INTO alembic_version (version_num)
-  SELECT 'be759a462b74'
+  SELECT 'b3d9e1c4a7f2'
   WHERE NOT EXISTS (SELECT 1 FROM alembic_version);
 EOSQL

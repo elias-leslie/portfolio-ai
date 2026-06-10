@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict m5JP5xXaFwLjRNyeNiK1GsrGdz8b7vzBUrBm3LHD5JX986I8Of1NSEMZtFxST9E
+\restrict i9ViFj3KaSAybpr8sKVcYjzXh5Y7IrmJ12kkgnbZHBogtQcosYoeQXWqq9r9Ocg
 
 -- Dumped from database version 16.13 (Debian 16.13-1.pgdg12+1)
 -- Dumped by pg_dump version 16.14 (Ubuntu 16.14-0ubuntu0.24.04.1)
@@ -30,6 +30,20 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
 --
 
 COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
+
+
+--
+-- Name: vector; Type: EXTENSION; Schema: -; Owner: -
+--
+
+CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;
+
+
+--
+-- Name: EXTENSION vector; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON EXTENSION vector IS 'vector data type and ivfflat and hnsw access methods';
 
 
 --
@@ -1025,6 +1039,47 @@ COMMENT ON COLUMN public.backtest_trades.max_adverse_pct IS 'Worst return percen
 
 
 --
+-- Name: card_rotation_plans; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.card_rotation_plans (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    objective text NOT NULL,
+    horizon_quarters integer DEFAULT 8 NOT NULL,
+    assumed_monthly_spend numeric(12,2) NOT NULL,
+    spend_profile jsonb DEFAULT '{}'::jsonb NOT NULL,
+    projected_total_value numeric(14,2),
+    baseline_single_card_value numeric(14,2),
+    status text DEFAULT 'draft'::text NOT NULL,
+    generated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: card_rotation_steps; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.card_rotation_steps (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    plan_id uuid NOT NULL,
+    sequence_index integer NOT NULL,
+    quarter_start date,
+    product_id uuid,
+    household_credit_card_id uuid,
+    action text NOT NULL,
+    target_spend numeric(12,2),
+    projected_welcome_value numeric(14,2),
+    projected_earn_value numeric(14,2),
+    rule_warnings jsonb DEFAULT '[]'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
 -- Name: cash_flow_metrics; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1062,6 +1117,59 @@ CREATE SEQUENCE public.cash_flow_metrics_id_seq
 --
 
 ALTER SEQUENCE public.cash_flow_metrics_id_seq OWNED BY public.cash_flow_metrics.id;
+
+
+--
+-- Name: claude_progress_log; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.claude_progress_log (
+    id integer NOT NULL,
+    session_id text,
+    logged_at timestamp with time zone DEFAULT now(),
+    action text NOT NULL,
+    action_type text,
+    feature_id text,
+    task_file text,
+    files_modified text[],
+    details jsonb,
+    git_commit text,
+    context_percent integer
+);
+
+
+--
+-- Name: TABLE claude_progress_log; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.claude_progress_log IS 'Session progress tracking for Claude Code sessions. Replaces text-based claude-progress.txt';
+
+
+--
+-- Name: COLUMN claude_progress_log.action_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.claude_progress_log.action_type IS 'Categories: start, progress, complete, verify, audit, pause, plan';
+
+
+--
+-- Name: claude_progress_log_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.claude_progress_log_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: claude_progress_log_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.claude_progress_log_id_seq OWNED BY public.claude_progress_log.id;
 
 
 --
@@ -1287,6 +1395,36 @@ CREATE SEQUENCE public.corporate_actions_id_seq
 --
 
 ALTER SEQUENCE public.corporate_actions_id_seq OWNED BY public.corporate_actions.id;
+
+
+--
+-- Name: credit_card_products; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.credit_card_products (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    slug text NOT NULL,
+    issuer text NOT NULL,
+    network text,
+    product_name text NOT NULL,
+    card_kind text DEFAULT 'personal'::text NOT NULL,
+    annual_fee numeric(12,2) DEFAULT 0 NOT NULL,
+    reward_multipliers jsonb DEFAULT '{}'::jsonb NOT NULL,
+    point_program text,
+    est_point_value_cents numeric(6,3),
+    welcome_bonus_points integer DEFAULT 0 NOT NULL,
+    welcome_bonus_cash numeric(12,2) DEFAULT 0 NOT NULL,
+    welcome_min_spend numeric(12,2),
+    welcome_window_days integer,
+    transfer_partners jsonb DEFAULT '[]'::jsonb NOT NULL,
+    credits jsonb DEFAULT '[]'::jsonb NOT NULL,
+    issuer_rules jsonb DEFAULT '{}'::jsonb NOT NULL,
+    source text DEFAULT 'seed'::text NOT NULL,
+    source_document_id uuid,
+    last_verified_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
 
 
 --
@@ -1945,6 +2083,29 @@ CREATE TABLE public.household_confirmed_facts (
 
 
 --
+-- Name: household_credit_cards; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_credit_cards (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    product_id uuid NOT NULL,
+    household_account_id uuid,
+    status text DEFAULT 'candidate'::text NOT NULL,
+    is_primary_active boolean DEFAULT false NOT NULL,
+    opened_date date,
+    closed_date date,
+    annual_fee_due_date date,
+    welcome_progress_amount numeric(12,2) DEFAULT 0 NOT NULL,
+    welcome_deadline date,
+    welcome_status text DEFAULT 'not_started'::text NOT NULL,
+    notes text,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
 -- Name: household_debt_obligations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2293,7 +2454,21 @@ CREATE TABLE public.household_profiles (
     primary_social_security_start_age integer,
     spouse_social_security_start_age integer,
     social_security_payable_ratio numeric(6,5),
-    target_spouse_retirement_age integer
+    target_spouse_retirement_age integer,
+    withdrawal_strategy text,
+    withdrawal_initial_rate numeric(6,5),
+    withdrawal_decline_mode text,
+    discretionary_decline_rate numeric(6,5),
+    phase_slow_go_age integer,
+    phase_no_go_age integer,
+    phase_go_go_pct numeric(5,4),
+    phase_slow_go_pct numeric(5,4),
+    phase_no_go_pct numeric(5,4),
+    bridge_mode text,
+    bridge_manual_amount numeric(12,2),
+    bridge_real_return numeric(6,5),
+    retirement_essential_floor_override numeric(12,2),
+    retirement_discretionary_override numeric(12,2)
 );
 
 
@@ -2320,6 +2495,24 @@ CREATE TABLE public.household_questions (
 
 
 --
+-- Name: household_retirement_healthcare_schedule; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_retirement_healthcare_schedule (
+    id uuid NOT NULL,
+    age integer NOT NULL,
+    real_amount numeric(12,2) NOT NULL,
+    notes text,
+    confirmation_status text DEFAULT 'confirmed'::text NOT NULL,
+    provenance text DEFAULT 'manual'::text NOT NULL,
+    evidence_note text,
+    source_document_id uuid,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
 -- Name: household_retirement_income_sources; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2338,6 +2531,32 @@ CREATE TABLE public.household_retirement_income_sources (
     provenance text DEFAULT 'manual'::text NOT NULL,
     evidence_note text,
     source_document_id uuid,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: household_soft_charges; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_soft_charges (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    household_account_id uuid,
+    amount numeric(12,2) NOT NULL,
+    description text NOT NULL,
+    merchant text,
+    category text,
+    essentiality text,
+    occurred_at date NOT NULL,
+    source_document_id uuid,
+    status text DEFAULT 'pending'::text NOT NULL,
+    matched_plaid_transaction_id uuid,
+    matched_at timestamp with time zone,
+    match_confidence double precision,
+    match_method text,
+    ledger_transaction_id uuid,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -5812,6 +6031,13 @@ ALTER TABLE ONLY public.cash_flow_metrics ALTER COLUMN id SET DEFAULT nextval('p
 
 
 --
+-- Name: claude_progress_log id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.claude_progress_log ALTER COLUMN id SET DEFAULT nextval('public.claude_progress_log_id_seq'::regclass);
+
+
+--
 -- Name: corporate_actions id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -6156,6 +6382,22 @@ ALTER TABLE ONLY public.backtest_trades
 
 
 --
+-- Name: card_rotation_plans card_rotation_plans_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.card_rotation_plans
+    ADD CONSTRAINT card_rotation_plans_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: card_rotation_steps card_rotation_steps_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.card_rotation_steps
+    ADD CONSTRAINT card_rotation_steps_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: cash_flow_metrics cash_flow_metrics_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6169,6 +6411,14 @@ ALTER TABLE ONLY public.cash_flow_metrics
 
 ALTER TABLE ONLY public.cash_flow_metrics
     ADD CONSTRAINT cash_flow_metrics_symbol_as_of_date_key UNIQUE (symbol, as_of_date);
+
+
+--
+-- Name: claude_progress_log claude_progress_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.claude_progress_log
+    ADD CONSTRAINT claude_progress_log_pkey PRIMARY KEY (id);
 
 
 --
@@ -6249,6 +6499,22 @@ ALTER TABLE ONLY public.corporate_actions
 
 ALTER TABLE ONLY public.corporate_actions
     ADD CONSTRAINT corporate_actions_symbol_action_type_action_date_key UNIQUE (symbol, action_type, action_date);
+
+
+--
+-- Name: credit_card_products credit_card_products_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.credit_card_products
+    ADD CONSTRAINT credit_card_products_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: credit_card_products credit_card_products_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.credit_card_products
+    ADD CONSTRAINT credit_card_products_slug_key UNIQUE (slug);
 
 
 --
@@ -6420,6 +6686,14 @@ ALTER TABLE ONLY public.household_confirmed_facts
 
 
 --
+-- Name: household_credit_cards household_credit_cards_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_credit_cards
+    ADD CONSTRAINT household_credit_cards_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: household_debt_obligations household_debt_obligations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6548,11 +6822,27 @@ ALTER TABLE ONLY public.household_questions
 
 
 --
+-- Name: household_retirement_healthcare_schedule household_retirement_healthcare_schedule_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_retirement_healthcare_schedule
+    ADD CONSTRAINT household_retirement_healthcare_schedule_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: household_retirement_income_sources household_retirement_income_sources_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.household_retirement_income_sources
     ADD CONSTRAINT household_retirement_income_sources_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: household_soft_charges household_soft_charges_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_soft_charges
+    ADD CONSTRAINT household_soft_charges_pkey PRIMARY KEY (id);
 
 
 --
@@ -7898,6 +8188,27 @@ CREATE INDEX idx_backtest_trades_symbol ON public.backtest_trades USING btree (s
 
 
 --
+-- Name: idx_card_rotation_plans_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_card_rotation_plans_status ON public.card_rotation_plans USING btree (status);
+
+
+--
+-- Name: idx_card_rotation_steps_plan_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_card_rotation_steps_plan_id ON public.card_rotation_steps USING btree (plan_id);
+
+
+--
+-- Name: idx_card_rotation_steps_plan_sequence; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_card_rotation_steps_plan_sequence ON public.card_rotation_steps USING btree (plan_id, sequence_index);
+
+
+--
 -- Name: idx_cash_flow_metrics_date; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7909,6 +8220,34 @@ CREATE INDEX idx_cash_flow_metrics_date ON public.cash_flow_metrics USING btree 
 --
 
 CREATE INDEX idx_cash_flow_metrics_symbol ON public.cash_flow_metrics USING btree (symbol);
+
+
+--
+-- Name: idx_claude_progress_action_type; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_claude_progress_action_type ON public.claude_progress_log USING btree (action_type);
+
+
+--
+-- Name: idx_claude_progress_feature; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_claude_progress_feature ON public.claude_progress_log USING btree (feature_id);
+
+
+--
+-- Name: idx_claude_progress_logged_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_claude_progress_logged_at ON public.claude_progress_log USING btree (logged_at DESC);
+
+
+--
+-- Name: idx_claude_progress_session; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_claude_progress_session ON public.claude_progress_log USING btree (session_id);
 
 
 --
@@ -8007,6 +8346,20 @@ CREATE INDEX idx_corporate_actions_symbol ON public.corporate_actions USING btre
 --
 
 CREATE INDEX idx_corporate_actions_type_date ON public.corporate_actions USING btree (action_type, action_date DESC);
+
+
+--
+-- Name: idx_credit_card_products_issuer; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_credit_card_products_issuer ON public.credit_card_products USING btree (issuer);
+
+
+--
+-- Name: idx_credit_card_products_point_program; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_credit_card_products_point_program ON public.credit_card_products USING btree (point_program);
 
 
 --
@@ -8203,6 +8556,27 @@ CREATE INDEX idx_household_account_preferences_updated_at ON public.household_ac
 --
 
 CREATE INDEX idx_household_accounts_asset_group ON public.household_accounts USING btree (asset_group);
+
+
+--
+-- Name: idx_household_credit_cards_household_account_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_credit_cards_household_account_id ON public.household_credit_cards USING btree (household_account_id);
+
+
+--
+-- Name: idx_household_credit_cards_product_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_credit_cards_product_id ON public.household_credit_cards USING btree (product_id);
+
+
+--
+-- Name: idx_household_credit_cards_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_credit_cards_status ON public.household_credit_cards USING btree (status);
 
 
 --
@@ -8472,6 +8846,20 @@ CREATE INDEX idx_household_questions_status ON public.household_questions USING 
 
 
 --
+-- Name: idx_household_retirement_healthcare_schedule_source_document_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_retirement_healthcare_schedule_source_document_id ON public.household_retirement_healthcare_schedule USING btree (source_document_id);
+
+
+--
+-- Name: idx_household_retirement_healthcare_schedule_updated_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_retirement_healthcare_schedule_updated_at ON public.household_retirement_healthcare_schedule USING btree (updated_at);
+
+
+--
 -- Name: idx_household_retirement_income_sources_source_document_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8483,6 +8871,27 @@ CREATE INDEX idx_household_retirement_income_sources_source_document_id ON publi
 --
 
 CREATE INDEX idx_household_retirement_income_sources_updated_at ON public.household_retirement_income_sources USING btree (updated_at);
+
+
+--
+-- Name: idx_household_soft_charges_account_occurred; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_soft_charges_account_occurred ON public.household_soft_charges USING btree (household_account_id, occurred_at);
+
+
+--
+-- Name: idx_household_soft_charges_matched_plaid; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_soft_charges_matched_plaid ON public.household_soft_charges USING btree (matched_plaid_transaction_id);
+
+
+--
+-- Name: idx_household_soft_charges_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_soft_charges_status ON public.household_soft_charges USING btree (status);
 
 
 --
@@ -9942,6 +10351,13 @@ CREATE UNIQUE INDEX uq_household_accounts_primary_identity_key ON public.househo
 
 
 --
+-- Name: uq_household_credit_cards_primary_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_household_credit_cards_primary_active ON public.household_credit_cards USING btree (is_primary_active) WHERE is_primary_active;
+
+
+--
 -- Name: uq_household_tracked_accounts_household_account_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10152,6 +10568,30 @@ ALTER TABLE ONLY public.backtest_trades
 
 
 --
+-- Name: card_rotation_steps card_rotation_steps_household_credit_card_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.card_rotation_steps
+    ADD CONSTRAINT card_rotation_steps_household_credit_card_id_fkey FOREIGN KEY (household_credit_card_id) REFERENCES public.household_credit_cards(id) ON DELETE SET NULL;
+
+
+--
+-- Name: card_rotation_steps card_rotation_steps_plan_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.card_rotation_steps
+    ADD CONSTRAINT card_rotation_steps_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES public.card_rotation_plans(id) ON DELETE CASCADE;
+
+
+--
+-- Name: card_rotation_steps card_rotation_steps_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.card_rotation_steps
+    ADD CONSTRAINT card_rotation_steps_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.credit_card_products(id) ON DELETE SET NULL;
+
+
+--
 -- Name: committee_events committee_events_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10229,6 +10669,14 @@ ALTER TABLE ONLY public.committee_widgets
 
 ALTER TABLE ONLY public.corporate_actions
     ADD CONSTRAINT corporate_actions_symbol_fkey FOREIGN KEY (symbol) REFERENCES public.symbols(symbol) ON DELETE CASCADE;
+
+
+--
+-- Name: credit_card_products credit_card_products_source_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.credit_card_products
+    ADD CONSTRAINT credit_card_products_source_document_id_fkey FOREIGN KEY (source_document_id) REFERENCES public.household_documents(id) ON DELETE SET NULL;
 
 
 --
@@ -10544,6 +10992,22 @@ ALTER TABLE ONLY public.household_account_preferences
 
 
 --
+-- Name: household_credit_cards household_credit_cards_household_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_credit_cards
+    ADD CONSTRAINT household_credit_cards_household_account_id_fkey FOREIGN KEY (household_account_id) REFERENCES public.household_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: household_credit_cards household_credit_cards_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_credit_cards
+    ADD CONSTRAINT household_credit_cards_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.credit_card_products(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: household_debt_obligations household_debt_obligations_source_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10648,11 +11112,51 @@ ALTER TABLE ONLY public.household_questions
 
 
 --
+-- Name: household_retirement_healthcare_schedule household_retirement_healthcare_schedul_source_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_retirement_healthcare_schedule
+    ADD CONSTRAINT household_retirement_healthcare_schedul_source_document_id_fkey FOREIGN KEY (source_document_id) REFERENCES public.household_documents(id) ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+--
 -- Name: household_retirement_income_sources household_retirement_income_sources_source_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.household_retirement_income_sources
     ADD CONSTRAINT household_retirement_income_sources_source_document_id_fkey FOREIGN KEY (source_document_id) REFERENCES public.household_documents(id) ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+--
+-- Name: household_soft_charges household_soft_charges_household_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_soft_charges
+    ADD CONSTRAINT household_soft_charges_household_account_id_fkey FOREIGN KEY (household_account_id) REFERENCES public.household_accounts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: household_soft_charges household_soft_charges_ledger_transaction_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_soft_charges
+    ADD CONSTRAINT household_soft_charges_ledger_transaction_id_fkey FOREIGN KEY (ledger_transaction_id) REFERENCES public.household_transactions(id) ON DELETE SET NULL;
+
+
+--
+-- Name: household_soft_charges household_soft_charges_matched_plaid_transaction_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_soft_charges
+    ADD CONSTRAINT household_soft_charges_matched_plaid_transaction_id_fkey FOREIGN KEY (matched_plaid_transaction_id) REFERENCES public.household_transactions(id) ON DELETE SET NULL;
+
+
+--
+-- Name: household_soft_charges household_soft_charges_source_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_soft_charges
+    ADD CONSTRAINT household_soft_charges_source_document_id_fkey FOREIGN KEY (source_document_id) REFERENCES public.household_documents(id) ON DELETE SET NULL;
 
 
 --
@@ -11027,5 +11531,5 @@ ALTER TABLE ONLY public.watchlist_technical_metrics
 -- PostgreSQL database dump complete
 --
 
-\unrestrict m5JP5xXaFwLjRNyeNiK1GsrGdz8b7vzBUrBm3LHD5JX986I8Of1NSEMZtFxST9E
+\unrestrict i9ViFj3KaSAybpr8sKVcYjzXh5Y7IrmJ12kkgnbZHBogtQcosYoeQXWqq9r9Ocg
 

@@ -32,6 +32,12 @@ class HouseholdProfileService:
                        filing_status, state_of_residence, effective_tax_rate,
                        marginal_federal_tax_rate, marginal_state_tax_rate,
                        emergency_fund_target_months, emergency_fund_target_amount,
+                       withdrawal_strategy, withdrawal_initial_rate, withdrawal_decline_mode,
+                       discretionary_decline_rate,
+                       phase_slow_go_age, phase_no_go_age,
+                       phase_go_go_pct, phase_slow_go_pct, phase_no_go_pct,
+                       bridge_mode, bridge_manual_amount, bridge_real_return,
+                       retirement_essential_floor_override, retirement_discretionary_override,
                        notes, created_at, updated_at
                 FROM household_profiles ORDER BY created_at ASC LIMIT 1
                 """

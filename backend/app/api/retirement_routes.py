@@ -28,6 +28,7 @@ from app.portfolio.contracts.retirement import (
     RetirementPreview,
     ScenarioResults,
     ScenarioSummary,
+    WithdrawalConfig,
 )
 from app.services.retirement_planning_service import (
     DEFAULT_LIST_LIMIT,
@@ -76,6 +77,9 @@ class RunScenarioRequest(BaseModel):
     primary_age: int | None = Field(None, ge=18, le=120)
     spouse_age: int | None = Field(None, ge=18, le=120)
     as_of_date: date | None = None
+    # Floor-and-upside withdrawal plan; omit for profile-persisted
+    # defaults (preview) or spend-the-gap semantics (scenarios).
+    withdrawal: WithdrawalConfig | None = None
 
 
 class PreviewRequest(RunScenarioRequest):
@@ -110,6 +114,8 @@ async def run_scenario(payload: RunScenarioRequest) -> dict[str, Any]:
             spouse_age=payload.spouse_age,
             as_of_date=payload.as_of_date,
         )
+        if payload.withdrawal is not None:
+            inputs = inputs.model_copy(update={"withdrawal": payload.withdrawal})
         sim = service.run_simulation(inputs, trials=payload.trials, seed=payload.seed)
         name = payload.name or _default_scenario_name(inputs)
         return service.save_scenario(
@@ -147,6 +153,7 @@ async def preview(payload: PreviewRequest) -> dict[str, Any]:
             spouse_social_security_annual_earnings=payload.spouse_social_security_annual_earnings,
             primary_social_security_start_age=payload.primary_social_security_start_age,
             spouse_social_security_start_age=payload.spouse_social_security_start_age,
+            withdrawal=payload.withdrawal,
             trials=payload.trials,
             seed=payload.seed,
             as_of_date=payload.as_of_date,

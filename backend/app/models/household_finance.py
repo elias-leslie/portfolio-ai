@@ -150,6 +150,20 @@ class HouseholdProfile(BaseModel):
     marginal_state_tax_rate: float | None = None
     emergency_fund_target_months: float | None = None
     emergency_fund_target_amount: float | None = None
+    withdrawal_strategy: str | None = None
+    withdrawal_initial_rate: float | None = None
+    withdrawal_decline_mode: str | None = None
+    discretionary_decline_rate: float | None = None
+    phase_slow_go_age: int | None = None
+    phase_no_go_age: int | None = None
+    phase_go_go_pct: float | None = None
+    phase_slow_go_pct: float | None = None
+    phase_no_go_pct: float | None = None
+    bridge_mode: str | None = None
+    bridge_manual_amount: float | None = None
+    bridge_real_return: float | None = None
+    retirement_essential_floor_override: float | None = None
+    retirement_discretionary_override: float | None = None
     notes: str | None = None
     created_at: str
     updated_at: str
@@ -182,6 +196,20 @@ class HouseholdProfileUpdate(BaseModel):
     marginal_state_tax_rate: float | None = None
     emergency_fund_target_months: float | None = None
     emergency_fund_target_amount: float | None = None
+    withdrawal_strategy: str | None = None
+    withdrawal_initial_rate: float | None = None
+    withdrawal_decline_mode: str | None = None
+    discretionary_decline_rate: float | None = None
+    phase_slow_go_age: int | None = None
+    phase_no_go_age: int | None = None
+    phase_go_go_pct: float | None = None
+    phase_slow_go_pct: float | None = None
+    phase_no_go_pct: float | None = None
+    bridge_mode: str | None = None
+    bridge_manual_amount: float | None = None
+    bridge_real_return: float | None = None
+    retirement_essential_floor_override: float | None = None
+    retirement_discretionary_override: float | None = None
     notes: str | None = None
 
 

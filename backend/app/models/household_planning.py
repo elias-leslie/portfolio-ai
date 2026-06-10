@@ -184,6 +184,22 @@ class HouseholdRetirementIncomeSourceInput(HouseholdPlanningItemBase):
     notes: str | None = None
 
 
+class HouseholdRetirementHealthcareSchedule(HouseholdPlanningItemBase):
+    id: str
+    age: int
+    real_amount: float
+    notes: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class HouseholdRetirementHealthcareScheduleInput(HouseholdPlanningItemBase):
+    id: str | None = None
+    age: int
+    real_amount: float
+    notes: str | None = None
+
+
 class HouseholdPlannedExpense(HouseholdPlanningItemBase):
     id: str
     label: str
@@ -258,6 +274,7 @@ class HouseholdPlanningSnapshot(BaseModel):
     housing_costs: list[HouseholdHousingCost] = Field(default_factory=list)
     insurance_policies: list[HouseholdInsurancePolicy] = Field(default_factory=list)
     retirement_income_sources: list[HouseholdRetirementIncomeSource] = Field(default_factory=list)
+    retirement_healthcare_schedule: list[HouseholdRetirementHealthcareSchedule] = Field(default_factory=list)
     planned_expenses: list[HouseholdPlannedExpense] = Field(default_factory=list)
     document_requirements: list[HouseholdDocumentRequirement] = Field(default_factory=list)
 
@@ -269,6 +286,7 @@ class HouseholdPlanningUpdate(BaseModel):
     housing_costs: list[HouseholdHousingCostInput] | None = None
     insurance_policies: list[HouseholdInsurancePolicyInput] | None = None
     retirement_income_sources: list[HouseholdRetirementIncomeSourceInput] | None = None
+    retirement_healthcare_schedule: list[HouseholdRetirementHealthcareScheduleInput] | None = None
     planned_expenses: list[HouseholdPlannedExpenseInput] | None = None
     document_requirements: list[HouseholdDocumentRequirementUpdate] | None = None
 
