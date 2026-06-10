@@ -88,6 +88,10 @@ export type {
   RetirementPreparedness,
   RetirementPreview,
   RetirementPreviewRequest,
+  RetirementWithdrawalBridgeConfig,
+  RetirementWithdrawalConfig,
+  RetirementWithdrawalHealthcarePoint,
+  RetirementWithdrawalPhaseConfig,
 } from './household/types'
 // File validation constant and function
 // Upload functions

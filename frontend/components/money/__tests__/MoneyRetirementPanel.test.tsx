@@ -10,12 +10,14 @@ import type {
 } from '@/lib/api/household'
 import {
   useRetirementPreview,
+  useUpdateHouseholdPlanning,
   useUpdateHouseholdProfile,
 } from '@/lib/hooks/useHousehold'
 import { MoneyRetirementPanel } from '../MoneyRetirementPanel'
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useRetirementPreview: vi.fn(),
+  useUpdateHouseholdPlanning: vi.fn(),
   useUpdateHouseholdProfile: vi.fn(),
 }))
 
@@ -32,6 +34,7 @@ vi.mock('recharts', () => {
     BarChart: MockChart,
     Bar: MockPart,
     CartesianGrid: MockPart,
+    ComposedChart: MockChart,
     Legend: MockPart,
     LineChart: MockChart,
     Line: MockPart,
@@ -196,6 +199,7 @@ const dashboard = {
     housingCosts: [],
     insurancePolicies: [],
     retirementIncomeSources: [],
+    retirementHealthcareSchedule: [],
     plannedExpenses: [],
     documentRequirements: [],
   },
@@ -407,6 +411,14 @@ const preview: RetirementPreview = {
       endingBalance: 950000,
       rmdAmount: 0,
       rmdApplied: false,
+      spendingTarget: 72000,
+      floorAmount: 45000,
+      discretionaryTarget: 27000,
+      guaranteedIncome: 0,
+      bridgeDraw: 0,
+      portfolioDraw: 72000,
+      bridgeBalance: 0,
+      withdrawalRate: 0.045,
       withdrawalsByBucket: {
         taxable: 74000,
         governmental457b: 0,
@@ -433,6 +445,14 @@ const preview: RetirementPreview = {
       endingBalance: 800000,
       rmdAmount: 18000,
       rmdApplied: true,
+      spendingTarget: 72000,
+      floorAmount: 45000,
+      discretionaryTarget: 27000,
+      guaranteedIncome: 0,
+      bridgeDraw: 0,
+      portfolioDraw: 72000,
+      bridgeBalance: 0,
+      withdrawalRate: 0.045,
       withdrawalsByBucket: {
         taxable: 20000,
         governmental457b: 0,
@@ -477,11 +497,14 @@ const preview: RetirementPreview = {
   ],
   firstDepletionAge: null,
   estimatedMonthlyContributionGap: 0,
+  medianDiscretionaryPath: [],
 }
 
 const usePreviewMock = vi.mocked(useRetirementPreview)
 const useUpdateProfileMock = vi.mocked(useUpdateHouseholdProfile)
+const useUpdatePlanningMock = vi.mocked(useUpdateHouseholdPlanning)
 const updateProfileMutateAsync = vi.fn()
+const updatePlanningMutateAsync = vi.fn()
 
 describe('MoneyRetirementPanel', () => {
   beforeEach(() => {
@@ -492,6 +515,12 @@ describe('MoneyRetirementPanel', () => {
       mutateAsync: updateProfileMutateAsync,
       isPending: false,
     } as unknown as ReturnType<typeof useUpdateHouseholdProfile>)
+    updatePlanningMutateAsync.mockReset()
+    updatePlanningMutateAsync.mockResolvedValue({})
+    useUpdatePlanningMock.mockReturnValue({
+      mutateAsync: updatePlanningMutateAsync,
+      isPending: false,
+    } as unknown as ReturnType<typeof useUpdateHouseholdPlanning>)
   })
 
   it('renders visual retirement readiness, buckets, levers, and collapsed account details', async () => {
@@ -513,7 +542,7 @@ describe('MoneyRetirementPanel', () => {
       screen.getByRole('button', { name: /expand allocation/i }),
     ).toBeInTheDocument()
     expect(screen.queryByText('Your retire age')).not.toBeInTheDocument()
-    expect(screen.getByText('82%')).toBeInTheDocument()
+    expect(screen.getAllByText('82%').length).toBeGreaterThan(0)
     expect(screen.getByText('$1,250,000')).toBeInTheDocument()
     expect(screen.getAllByText('Taxable').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Gov 457(b)').length).toBeGreaterThan(0)

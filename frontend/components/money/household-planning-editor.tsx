@@ -36,6 +36,7 @@ export function emptyPlanning(): HouseholdPlanningSnapshot {
     housingCosts: [],
     insurancePolicies: [],
     retirementIncomeSources: [],
+    retirementHealthcareSchedule: [],
     plannedExpenses: [],
     documentRequirements: [],
   }

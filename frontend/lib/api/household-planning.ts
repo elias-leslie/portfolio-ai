@@ -218,6 +218,30 @@ export interface HouseholdRetirementIncomeSourceInput {
   sourceDocumentId?: string | null
 }
 
+export interface HouseholdRetirementHealthcareSchedule {
+  id: string
+  age: number
+  realAmount: number
+  notes?: string | null
+  confirmationStatus?: string
+  provenance?: string
+  evidenceNote?: string | null
+  sourceDocumentId?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface HouseholdRetirementHealthcareScheduleInput {
+  id?: string | null
+  age: number
+  realAmount: number
+  notes?: string | null
+  confirmationStatus?: string
+  provenance?: string
+  evidenceNote?: string | null
+  sourceDocumentId?: string | null
+}
+
 export interface HouseholdPlannedExpense {
   id: string
   label: string
@@ -300,6 +324,7 @@ export interface HouseholdPlanningSnapshot {
   housingCosts: HouseholdHousingCost[]
   insurancePolicies: HouseholdInsurancePolicy[]
   retirementIncomeSources: HouseholdRetirementIncomeSource[]
+  retirementHealthcareSchedule: HouseholdRetirementHealthcareSchedule[]
   plannedExpenses: HouseholdPlannedExpense[]
   documentRequirements: HouseholdDocumentRequirement[]
 }
@@ -311,6 +336,7 @@ export interface HouseholdPlanningUpdate {
   housingCosts?: HouseholdHousingCostInput[]
   insurancePolicies?: HouseholdInsurancePolicyInput[]
   retirementIncomeSources?: HouseholdRetirementIncomeSourceInput[]
+  retirementHealthcareSchedule?: HouseholdRetirementHealthcareScheduleInput[]
   plannedExpenses?: HouseholdPlannedExpenseInput[]
   documentRequirements?: HouseholdDocumentRequirementUpdate[]
 }

@@ -72,6 +72,20 @@ export interface HouseholdProfile {
   marginalStateTaxRate?: number | null
   emergencyFundTargetMonths?: number | null
   emergencyFundTargetAmount?: number | null
+  withdrawalStrategy?: string | null
+  withdrawalInitialRate?: number | null
+  withdrawalDeclineMode?: string | null
+  discretionaryDeclineRate?: number | null
+  phaseSlowGoAge?: number | null
+  phaseNoGoAge?: number | null
+  phaseGoGoPct?: number | null
+  phaseSlowGoPct?: number | null
+  phaseNoGoPct?: number | null
+  bridgeMode?: string | null
+  bridgeManualAmount?: number | null
+  bridgeRealReturn?: number | null
+  retirementEssentialFloorOverride?: number | null
+  retirementDiscretionaryOverride?: number | null
   notes: string | null
   createdAt: string
   updatedAt: string
@@ -313,6 +327,37 @@ export interface HouseholdRetirementScenario {
   detail: string
 }
 
+export interface RetirementWithdrawalPhaseConfig {
+  slowGoAge: number
+  noGoAge: number
+  goGoPct: number
+  slowGoPct: number
+  noGoPct: number
+}
+
+export interface RetirementWithdrawalBridgeConfig {
+  mode: 'auto' | 'manual'
+  manualAmount?: number | null
+  realReturn: number
+}
+
+export interface RetirementWithdrawalHealthcarePoint {
+  age: number
+  realAmount: number
+}
+
+export interface RetirementWithdrawalConfig {
+  strategy: 'vpw' | 'guardrails'
+  initialRate: number
+  declineMode: 'smooth' | 'phase'
+  discretionaryDeclineRate: number
+  phase: RetirementWithdrawalPhaseConfig
+  bridge: RetirementWithdrawalBridgeConfig
+  healthcareSchedule: RetirementWithdrawalHealthcarePoint[]
+  essentialFloor?: number | null
+  baseDiscretionary?: number | null
+}
+
 export interface RetirementPreviewRequest {
   householdId: string
   name?: string | null
@@ -341,6 +386,7 @@ export interface RetirementPreviewRequest {
   primarySocialSecurityStartAge?: number | null
   spouseSocialSecurityStartAge?: number | null
   socialSecurityPayableRatio?: number | null
+  withdrawal?: RetirementWithdrawalConfig | null
   asOfDate?: string | null
 }
 
@@ -442,6 +488,15 @@ export interface RetirementDrawdownYear {
   rmdApplied: boolean
   withdrawalsByBucket: Record<string, number>
   balancesByBucket: Record<string, number>
+  // Floor-and-upside engine outputs in real (today's) dollars
+  spendingTarget: number
+  floorAmount: number
+  discretionaryTarget: number
+  guaranteedIncome: number
+  bridgeDraw: number
+  portfolioDraw: number
+  bridgeBalance: number
+  withdrawalRate: number
 }
 
 export interface RetirementLeverImpact {
@@ -493,6 +548,7 @@ export interface RetirementPreview {
   leverImpacts: RetirementLeverImpact[]
   firstDepletionAge: number | null
   estimatedMonthlyContributionGap: number
+  medianDiscretionaryPath: number[]
 }
 
 export interface ImportFormat {
@@ -938,6 +994,20 @@ export interface HouseholdProfileUpdate {
   marginalStateTaxRate?: number | null
   emergencyFundTargetMonths?: number | null
   emergencyFundTargetAmount?: number | null
+  withdrawalStrategy?: string | null
+  withdrawalInitialRate?: number | null
+  withdrawalDeclineMode?: string | null
+  discretionaryDeclineRate?: number | null
+  phaseSlowGoAge?: number | null
+  phaseNoGoAge?: number | null
+  phaseGoGoPct?: number | null
+  phaseSlowGoPct?: number | null
+  phaseNoGoPct?: number | null
+  bridgeMode?: string | null
+  bridgeManualAmount?: number | null
+  bridgeRealReturn?: number | null
+  retirementEssentialFloorOverride?: number | null
+  retirementDiscretionaryOverride?: number | null
   notes?: string | null
 }
 

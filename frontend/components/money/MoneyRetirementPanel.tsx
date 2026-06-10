@@ -7,6 +7,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  ComposedChart,
   Legend,
   Line,
   ResponsiveContainer,
@@ -20,12 +21,14 @@ import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Slider } from '@/components/ui/slider'
 import { Textarea } from '@/components/ui/textarea'
 import type {
   HouseholdFinanceDashboard,
   HouseholdProfileUpdate,
   RetirementAccountRule,
   RetirementPreviewRequest,
+  RetirementWithdrawalConfig,
 } from '@/lib/api/household'
 import {
   formatCurrency,
@@ -33,8 +36,10 @@ import {
   formatEnumLabel,
   formatPercent,
 } from '@/lib/formatters'
+import { useDebounce } from '@/lib/hooks/useDebounce'
 import {
   useRetirementPreview,
+  useUpdateHouseholdPlanning,
   useUpdateHouseholdProfile,
 } from '@/lib/hooks/useHousehold'
 
@@ -409,12 +414,101 @@ function defaultDraft(dashboard: HouseholdFinanceDashboard) {
   }
 }
 
+type WithdrawalDraft = {
+  strategy: 'vpw' | 'guardrails'
+  initialRatePct: string
+  declineMode: 'smooth' | 'phase'
+  declineRate: number
+  phaseSlowGoAge: string
+  phaseNoGoAge: string
+  phaseGoGoPct: string
+  phaseSlowGoPct: string
+  phaseNoGoPct: string
+  bridgeMode: 'auto' | 'manual'
+  bridgeManualAmount: string
+  bridgeRealReturnPct: string
+  healthcare: Array<{ age: string; realAmount: string }>
+}
+
+function defaultWithdrawalDraft(
+  dashboard: HouseholdFinanceDashboard,
+): WithdrawalDraft {
+  const profile = dashboard.profile
+  const schedule = dashboard.planning?.retirementHealthcareSchedule ?? []
+  return {
+    strategy:
+      profile.withdrawalStrategy === 'guardrails' ? 'guardrails' : 'vpw',
+    initialRatePct: percentInput(profile.withdrawalInitialRate, '5'),
+    declineMode: profile.withdrawalDeclineMode === 'phase' ? 'phase' : 'smooth',
+    declineRate: profile.discretionaryDeclineRate ?? 0.01,
+    phaseSlowGoAge: numberInput(profile.phaseSlowGoAge, '75'),
+    phaseNoGoAge: numberInput(profile.phaseNoGoAge, '85'),
+    phaseGoGoPct: percentInput(profile.phaseGoGoPct, '100'),
+    phaseSlowGoPct: percentInput(profile.phaseSlowGoPct, '85'),
+    phaseNoGoPct: percentInput(profile.phaseNoGoPct, '75'),
+    bridgeMode: profile.bridgeMode === 'manual' ? 'manual' : 'auto',
+    bridgeManualAmount: numberInput(profile.bridgeManualAmount, '0'),
+    bridgeRealReturnPct: percentInput(profile.bridgeRealReturn, '1'),
+    healthcare: schedule.map((row) => ({
+      age: String(row.age),
+      realAmount: String(Math.round(row.realAmount)),
+    })),
+  }
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function withdrawalConfigFromDraft(
+  withdrawal: WithdrawalDraft,
+): RetirementWithdrawalConfig {
+  return {
+    strategy: withdrawal.strategy,
+    initialRate: clamp(parseNumber(withdrawal.initialRatePct, 5) / 100, 0, 0.2),
+    declineMode: withdrawal.declineMode,
+    discretionaryDeclineRate: clamp(withdrawal.declineRate, 0, 0.025),
+    phase: {
+      slowGoAge: clamp(parseNumber(withdrawal.phaseSlowGoAge, 75), 40, 110),
+      noGoAge: clamp(parseNumber(withdrawal.phaseNoGoAge, 85), 40, 120),
+      goGoPct: clamp(parseNumber(withdrawal.phaseGoGoPct, 100) / 100, 0, 1.5),
+      slowGoPct: clamp(
+        parseNumber(withdrawal.phaseSlowGoPct, 85) / 100,
+        0,
+        1.5,
+      ),
+      noGoPct: clamp(parseNumber(withdrawal.phaseNoGoPct, 75) / 100, 0, 1.5),
+    },
+    bridge: {
+      mode: withdrawal.bridgeMode,
+      manualAmount:
+        withdrawal.bridgeMode === 'manual'
+          ? Math.max(parseNumber(withdrawal.bridgeManualAmount, 0), 0)
+          : null,
+      realReturn: clamp(
+        parseNumber(withdrawal.bridgeRealReturnPct, 1) / 100,
+        -0.05,
+        0.1,
+      ),
+    },
+    healthcareSchedule: withdrawal.healthcare
+      .map((row) => ({
+        age: Math.round(parseNumber(row.age, 0)),
+        realAmount: parseNumber(row.realAmount, 0),
+      }))
+      .filter((row) => row.age >= 18 && row.age <= 120 && row.realAmount >= 0),
+    essentialFloor: null,
+    baseDiscretionary: null,
+  }
+}
+
 function buildRequest(
   householdId: string,
   draft: ReturnType<typeof defaultDraft>,
   allocationMode: AllocationMode = 'current',
   allocationDraft?: Record<(typeof allocationClasses)[number]['key'], string>,
   tickerMix = '',
+  withdrawal?: WithdrawalDraft,
 ): RetirementPreviewRequest {
   const assetAllocation =
     allocationMode === 'classes' && allocationDraft
@@ -458,6 +552,7 @@ function buildRequest(
         draft.socialSecurityPayableRatio,
         defaultSocialSecurityPayableRatio * 100,
       ) / 100,
+    withdrawal: withdrawal ? withdrawalConfigFromDraft(withdrawal) : null,
     trials: 2500,
     seed: 7,
   }
@@ -533,7 +628,11 @@ export function MoneyRetirementPanel({
   onEditTargets?: () => void
 }) {
   const [draft, setDraft] = useState(() => defaultDraft(dashboard))
+  const [withdrawalDraft, setWithdrawalDraft] = useState(() =>
+    defaultWithdrawalDraft(dashboard),
+  )
   const [plannerOpen, setPlannerOpen] = useState(false)
+  const [withdrawalOpen, setWithdrawalOpen] = useState(true)
   const [allocationOpen, setAllocationOpen] = useState(false)
   const [accountDetailsOpen, setAccountDetailsOpen] = useState(false)
   const [allocationMode, setAllocationMode] =
@@ -545,11 +644,28 @@ export function MoneyRetirementPanel({
     'VTI 70\nSCHD 10 3.6\nBND 10 4.0\nSPAXX 10',
   )
   const [request, setRequest] = useState<RetirementPreviewRequest>(() =>
-    buildRequest(dashboard.profile.id, defaultDraft(dashboard)),
+    buildRequest(
+      dashboard.profile.id,
+      defaultDraft(dashboard),
+      'current',
+      undefined,
+      '',
+      defaultWithdrawalDraft(dashboard),
+    ),
   )
   const updateProfile = useUpdateHouseholdProfile()
+  const updatePlanning = useUpdateHouseholdPlanning()
   const previewQuery = useRetirementPreview(request)
   const preview = previewQuery.data
+  // Withdrawal-plan knobs re-project live (debounced); the other planner
+  // inputs still wait for an explicit "Run preview".
+  const debouncedWithdrawal = useDebounce(withdrawalDraft, 250)
+  useEffect(() => {
+    setRequest((current) => ({
+      ...current,
+      withdrawal: withdrawalConfigFromDraft(debouncedWithdrawal),
+    }))
+  }, [debouncedWithdrawal])
   const pendingRequest = useMemo(
     () =>
       buildRequest(
@@ -558,8 +674,16 @@ export function MoneyRetirementPanel({
         allocationMode,
         allocationDraft,
         tickerMix,
+        withdrawalDraft,
       ),
-    [dashboard.profile.id, draft, allocationMode, allocationDraft, tickerMix],
+    [
+      dashboard.profile.id,
+      draft,
+      allocationMode,
+      allocationDraft,
+      tickerMix,
+      withdrawalDraft,
+    ],
   )
   // Edits update `draft`/allocation state but only "Run preview" pushes them
   // into `request` (the query key), so results can lag the inputs. Flag that
@@ -577,11 +701,22 @@ export function MoneyRetirementPanel({
 
   useEffect(() => {
     const nextDraft = defaultDraft(dashboard)
+    const nextWithdrawal = defaultWithdrawalDraft(dashboard)
     setDraft(nextDraft)
+    setWithdrawalDraft(nextWithdrawal)
     setAllocationMode('current')
     setAllocationDraft(allocationDraftFromPreview(undefined))
     setAccountDetailsOpen(false)
-    setRequest(buildRequest(dashboard.profile.id, nextDraft))
+    setRequest(
+      buildRequest(
+        dashboard.profile.id,
+        nextDraft,
+        'current',
+        undefined,
+        '',
+        nextWithdrawal,
+      ),
+    )
   }, [dashboard])
 
   const projectionData = useMemo(() => {
@@ -677,6 +812,44 @@ export function MoneyRetirementPanel({
       ),
     [preview, fullRetirementAge],
   )
+
+  // Spending smile in real dollars: stacked funding sources vs floor/target,
+  // mirrors withdrawalData's retirement-rows windowing.
+  const spendingPathData = useMemo(() => {
+    const medianPath = preview?.medianDiscretionaryPath ?? []
+    const baseAge = preview?.inputs.primaryAge ?? 0
+    return (preview?.drawdownSchedule ?? [])
+      .filter((row) => row.primaryAge >= fullRetirementAge)
+      .slice(0, 35)
+      .map((row) => ({
+        age: row.primaryAge,
+        guaranteed: row.guaranteedIncome,
+        bridge: row.bridgeDraw,
+        portfolio: row.portfolioDraw,
+        floor: row.floorAmount,
+        target: row.spendingTarget,
+        medianDiscretionary: medianPath[row.primaryAge - baseAge] ?? null,
+      }))
+  }, [preview, fullRetirementAge])
+
+  const withdrawalSummary = {
+    bridgeSize: returnAssumptionNumber(
+      preview?.returnAssumptions,
+      'bridge_size',
+    ),
+    bridgeYears: returnAssumptionNumber(
+      preview?.returnAssumptions,
+      'bridge_length_years',
+    ),
+    firstYearRate: returnAssumptionNumber(
+      preview?.returnAssumptions,
+      'first_year_withdrawal_rate',
+    ),
+    postSocialSecurityRate: returnAssumptionNumber(
+      preview?.returnAssumptions,
+      'post_social_security_withdrawal_rate',
+    ),
+  }
 
   const socialSecurityEstimate = useMemo(() => {
     const primaryManual = parseOptionalNumber(
@@ -777,6 +950,7 @@ export function MoneyRetirementPanel({
         allocationMode,
         allocationDraft,
         tickerMix,
+        withdrawalDraft,
       ),
     )
   }
@@ -812,8 +986,59 @@ export function MoneyRetirementPanel({
           draft.socialSecurityPayableRatio,
           defaultSocialSecurityPayableRatio * 100,
         ) / 100,
+      withdrawalStrategy: withdrawalDraft.strategy,
+      withdrawalInitialRate: clamp(
+        parseNumber(withdrawalDraft.initialRatePct, 5) / 100,
+        0,
+        0.2,
+      ),
+      withdrawalDeclineMode: withdrawalDraft.declineMode,
+      discretionaryDeclineRate: clamp(withdrawalDraft.declineRate, 0, 0.025),
+      phaseSlowGoAge: clamp(
+        parseNumber(withdrawalDraft.phaseSlowGoAge, 75),
+        40,
+        110,
+      ),
+      phaseNoGoAge: clamp(
+        parseNumber(withdrawalDraft.phaseNoGoAge, 85),
+        40,
+        120,
+      ),
+      phaseGoGoPct: clamp(
+        parseNumber(withdrawalDraft.phaseGoGoPct, 100) / 100,
+        0,
+        1.5,
+      ),
+      phaseSlowGoPct: clamp(
+        parseNumber(withdrawalDraft.phaseSlowGoPct, 85) / 100,
+        0,
+        1.5,
+      ),
+      phaseNoGoPct: clamp(
+        parseNumber(withdrawalDraft.phaseNoGoPct, 75) / 100,
+        0,
+        1.5,
+      ),
+      bridgeMode: withdrawalDraft.bridgeMode,
+      bridgeManualAmount:
+        withdrawalDraft.bridgeMode === 'manual'
+          ? Math.max(parseNumber(withdrawalDraft.bridgeManualAmount, 0), 0)
+          : null,
+      bridgeRealReturn: clamp(
+        parseNumber(withdrawalDraft.bridgeRealReturnPct, 1) / 100,
+        -0.05,
+        0.1,
+      ),
     }
     await updateProfile.mutateAsync(profileUpdate)
+    await updatePlanning.mutateAsync({
+      retirementHealthcareSchedule: withdrawalConfigFromDraft(
+        withdrawalDraft,
+      ).healthcareSchedule.map((row) => ({
+        age: row.age,
+        realAmount: row.realAmount,
+      })),
+    })
     setRequest(
       buildRequest(
         dashboard.profile.id,
@@ -821,12 +1046,49 @@ export function MoneyRetirementPanel({
         allocationMode,
         allocationDraft,
         tickerMix,
+        withdrawalDraft,
       ),
     )
   }
 
   const updateDraft = (key: keyof typeof draft, value: string) => {
     setDraft((current) => ({ ...current, [key]: value }))
+  }
+
+  const updateWithdrawalDraft = <K extends keyof WithdrawalDraft>(
+    key: K,
+    value: WithdrawalDraft[K],
+  ) => {
+    setWithdrawalDraft((current) => ({ ...current, [key]: value }))
+  }
+
+  const updateHealthcareRow = (
+    index: number,
+    key: 'age' | 'realAmount',
+    value: string,
+  ) => {
+    setWithdrawalDraft((current) => ({
+      ...current,
+      healthcare: current.healthcare.map((row, rowIndex) =>
+        rowIndex === index ? { ...row, [key]: value } : row,
+      ),
+    }))
+  }
+
+  const addHealthcareRow = () => {
+    setWithdrawalDraft((current) => ({
+      ...current,
+      healthcare: [...current.healthcare, { age: '65', realAmount: '6000' }],
+    }))
+  }
+
+  const removeHealthcareRow = (index: number) => {
+    setWithdrawalDraft((current) => ({
+      ...current,
+      healthcare: current.healthcare.filter(
+        (_, rowIndex) => rowIndex !== index,
+      ),
+    }))
   }
 
   const updateAllocationDraft = (
@@ -1171,6 +1433,436 @@ export function MoneyRetirementPanel({
               . Replace rough salary estimates with exact SSA calculator values
               for planning-grade accuracy.
             </p>
+          </>
+        ) : null}
+      </SectionCard>
+
+      <SectionCard
+        variant="surface"
+        title="Withdrawal plan"
+        description="Floor-and-upside spending: guaranteed income plus a bridge sleeve cover essentials, the portfolio funds discretionary spend that declines with age. Amounts are in today's dollars."
+        padding={withdrawalOpen ? 'md' : 'none'}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setWithdrawalOpen((open) => !open)}
+            >
+              {withdrawalOpen ? 'Collapse plan' : 'Expand plan'}
+            </Button>
+            {withdrawalOpen ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void saveDraftDefaults()}
+                disabled={updateProfile.isPending || updatePlanning.isPending}
+              >
+                {updateProfile.isPending || updatePlanning.isPending
+                  ? 'Saving…'
+                  : 'Save plan'}
+              </Button>
+            ) : null}
+          </div>
+        }
+      >
+        {withdrawalOpen ? (
+          <>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Upside strategy
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(
+                    [
+                      ['vpw', 'VPW'],
+                      ['guardrails', 'Guardrails'],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <Button
+                      key={value}
+                      type="button"
+                      size="sm"
+                      variant={
+                        withdrawalDraft.strategy === value
+                          ? 'default'
+                          : 'outline'
+                      }
+                      onClick={() => updateWithdrawalDraft('strategy', value)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+                {withdrawalDraft.strategy === 'guardrails' ? (
+                  <label className="mt-3 block text-xs text-text-muted">
+                    Initial withdrawal rate %
+                    <Input
+                      className="mt-1"
+                      inputMode="decimal"
+                      aria-label="Guardrails initial withdrawal rate percent"
+                      value={withdrawalDraft.initialRatePct}
+                      onChange={(event) =>
+                        updateWithdrawalDraft(
+                          'initialRatePct',
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </label>
+                ) : (
+                  <p className="mt-3 text-xs text-text-muted">
+                    VPW sizes each year&apos;s draw from remaining capital and
+                    horizon, so spending can never deplete early.
+                  </p>
+                )}
+              </div>
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                    Discretionary decline
+                  </p>
+                  <span className="font-mono text-xs text-text">
+                    {formatPercent(withdrawalDraft.declineRate * 100, {
+                      decimals: 1,
+                    })}
+                    /yr
+                  </span>
+                </div>
+                <Slider
+                  className="mt-3"
+                  aria-label="Discretionary decline rate per year"
+                  min={0}
+                  max={0.025}
+                  step={0.001}
+                  value={[withdrawalDraft.declineRate]}
+                  onValueChange={(values) =>
+                    updateWithdrawalDraft('declineRate', values[0] ?? 0.01)
+                  }
+                />
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(
+                    [
+                      ['smooth', 'Smooth'],
+                      ['phase', 'Go-go phases'],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <Button
+                      key={value}
+                      type="button"
+                      size="sm"
+                      variant={
+                        withdrawalDraft.declineMode === value
+                          ? 'default'
+                          : 'outline'
+                      }
+                      onClick={() =>
+                        updateWithdrawalDraft('declineMode', value)
+                      }
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+                {withdrawalDraft.declineMode === 'phase' ? (
+                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {(
+                      [
+                        ['phaseSlowGoAge', 'Slow-go age'],
+                        ['phaseNoGoAge', 'No-go age'],
+                        ['phaseGoGoPct', 'Go-go %'],
+                        ['phaseSlowGoPct', 'Slow-go %'],
+                        ['phaseNoGoPct', 'No-go %'],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <label key={key} className="text-xs text-text-muted">
+                        {label}
+                        <Input
+                          className="mt-1"
+                          inputMode="numeric"
+                          aria-label={label}
+                          value={withdrawalDraft[key]}
+                          onChange={(event) =>
+                            updateWithdrawalDraft(key, event.target.value)
+                          }
+                        />
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Social Security bridge
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(
+                    [
+                      ['auto', 'Auto size'],
+                      ['manual', 'Manual'],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <Button
+                      key={value}
+                      type="button"
+                      size="sm"
+                      variant={
+                        withdrawalDraft.bridgeMode === value
+                          ? 'default'
+                          : 'outline'
+                      }
+                      onClick={() => updateWithdrawalDraft('bridgeMode', value)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {withdrawalDraft.bridgeMode === 'manual' ? (
+                    <label className="text-xs text-text-muted">
+                      Bridge amount $
+                      <Input
+                        className="mt-1"
+                        inputMode="decimal"
+                        aria-label="Manual bridge amount"
+                        value={withdrawalDraft.bridgeManualAmount}
+                        onChange={(event) =>
+                          updateWithdrawalDraft(
+                            'bridgeManualAmount',
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </label>
+                  ) : null}
+                  <label className="text-xs text-text-muted">
+                    Bridge real return %
+                    <Input
+                      className="mt-1"
+                      inputMode="decimal"
+                      aria-label="Bridge sleeve real return percent"
+                      value={withdrawalDraft.bridgeRealReturnPct}
+                      onChange={(event) =>
+                        updateWithdrawalDraft(
+                          'bridgeRealReturnPct',
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </label>
+                </div>
+                <p className="mt-2 text-xs text-text-muted">
+                  Auto sizes the sleeve to cover essential-floor gaps from
+                  retirement until Social Security starts.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Healthcare / LTC schedule (annual, today&apos;s dollars)
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={addHealthcareRow}
+                >
+                  Add line
+                </Button>
+              </div>
+              {withdrawalDraft.healthcare.length === 0 ? (
+                <p className="mt-2 text-xs text-text-muted">
+                  No healthcare lines yet — the floor then has no healthcare
+                  carve-out. Add lines like pre-Medicare premiums at 62 or LTC
+                  reserves at 85.
+                </p>
+              ) : (
+                <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  {withdrawalDraft.healthcare.map((row, index) => (
+                    <div
+                      key={index}
+                      className="flex items-end gap-2 rounded-xl border border-border/25 px-3 py-2"
+                    >
+                      <label className="text-xs text-text-muted">
+                        From age
+                        <Input
+                          className="mt-1"
+                          inputMode="numeric"
+                          aria-label={`Healthcare line ${index + 1} age`}
+                          value={row.age}
+                          onChange={(event) =>
+                            updateHealthcareRow(
+                              index,
+                              'age',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="text-xs text-text-muted">
+                        Annual $
+                        <Input
+                          className="mt-1"
+                          inputMode="decimal"
+                          aria-label={`Healthcare line ${index + 1} annual amount`}
+                          value={row.realAmount}
+                          onChange={(event) =>
+                            updateHealthcareRow(
+                              index,
+                              'realAmount',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => removeHealthcareRow(index)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                  Success odds
+                </p>
+                <p className="mt-2 font-mono text-2xl text-text">
+                  {preview ? percentPoints(preview.successProbability) : '—'}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                  Bridge size
+                </p>
+                <p className="mt-2 font-mono text-2xl text-text">
+                  {withdrawalSummary.bridgeSize == null
+                    ? '—'
+                    : formatCurrencyWhole(withdrawalSummary.bridgeSize)}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                  Bridge length
+                </p>
+                <p className="mt-2 font-mono text-2xl text-text">
+                  {withdrawalSummary.bridgeYears == null
+                    ? '—'
+                    : `${withdrawalSummary.bridgeYears} yrs`}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                  First-year rate
+                </p>
+                <p className="mt-2 font-mono text-2xl text-text">
+                  {withdrawalSummary.firstYearRate == null
+                    ? '—'
+                    : formatPercent(withdrawalSummary.firstYearRate * 100, {
+                        decimals: 1,
+                      })}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                  Post-SS rate
+                </p>
+                <p className="mt-2 font-mono text-2xl text-text">
+                  {withdrawalSummary.postSocialSecurityRate == null
+                    ? '—'
+                    : formatPercent(
+                        withdrawalSummary.postSocialSecurityRate * 100,
+                        { decimals: 1 },
+                      )}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                Spending plan by age (today&apos;s dollars)
+              </p>
+              <div className="mt-3 h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart
+                    data={spendingPathData}
+                    margin={{ left: 8, right: 8 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="var(--color-border)"
+                    />
+                    <XAxis dataKey="age" tickLine={false} />
+                    <YAxis
+                      tickFormatter={(value) =>
+                        `$${Math.round(Number(value) / 1000)}k`
+                      }
+                    />
+                    <Tooltip formatter={currencyTooltip} />
+                    <Legend />
+                    <Bar
+                      dataKey="guaranteed"
+                      stackId="funding"
+                      name="Guaranteed income"
+                      fill="var(--color-chart-2)"
+                    />
+                    <Bar
+                      dataKey="bridge"
+                      stackId="funding"
+                      name="Bridge sleeve"
+                      fill="var(--color-chart-5)"
+                    />
+                    <Bar
+                      dataKey="portfolio"
+                      stackId="funding"
+                      name="Portfolio draw"
+                      fill="var(--color-chart-1)"
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="floor"
+                      name="Essential floor"
+                      stroke="var(--color-warning)"
+                      dot={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="target"
+                      name="Spending target"
+                      stroke="var(--color-chart-3)"
+                      strokeDasharray="4 4"
+                      dot={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="medianDiscretionary"
+                      name="Median funded discretionary (MC)"
+                      stroke="var(--color-chart-4)"
+                      strokeDasharray="2 4"
+                      dot={false}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+              <p className="mt-2 text-xs text-text-muted">
+                Stacked bars show how each year&apos;s spending target is
+                funded. The floor line is essentials plus the healthcare
+                schedule; discretionary spend above it declines with age — the
+                retirement smile.
+              </p>
+            </div>
           </>
         ) : null}
       </SectionCard>
