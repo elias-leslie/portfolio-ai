@@ -123,6 +123,43 @@ async def get_rotation_plan(plan_id: str) -> RotationPlanView:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+# ----------------------------------------------------------- offer intake
+
+
+@router.post("/intake", status_code=201)
+async def intake_card_offer(
+    file: UploadFile = File(...),
+    document_type: str = Form("offer_screenshot"),
+) -> object:
+    """Upload a card-offer screenshot/agreement; the credit-card-offer-reviewer
+    Agent Hub agent extracts terms into the catalog synchronously so the UI can
+    show them for confirmation (plan §9)."""
+    service = _household_service()
+    document = await service.ingest_document(
+        upload=file, source_type="credit_card_offer", document_type=document_type
+    )
+    offer_service = import_module("app.services.card_offer_agent_service").get_card_offer_agent_service()
+    try:
+        return await run_in_threadpool(offer_service.process_offer_document, service, document)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=422, detail=f"Card offer extraction failed: {exc}") from exc
+
+
+# ----------------------------------------------------------- catalog research
+
+
+@router.post("/research/refresh")
+async def refresh_catalog_research() -> dict[str, object]:
+    """On-demand catalog refresh via the credit-card-researcher Agent Hub agent
+    (also runs monthly from household maintenance). Verifies fees/bonuses/
+    valuations against current public sources and applies whitelisted changes."""
+    research_service = import_module("app.services.card_research_service").get_card_research_service()
+    try:
+        return await run_in_threadpool(research_service.refresh_catalog, trigger="on_demand")
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=502, detail=f"Catalog research failed: {exc}") from exc
+
+
 # ----------------------------------------------------------- soft charges
 
 
@@ -147,7 +184,7 @@ async def create_soft_charge(
         )
         source_document_id = document.id
     try:
-        return await run_in_threadpool(
+        soft_charge = await run_in_threadpool(
             _soft_service().create_soft_charge,
             amount=amount,
             description=description,
@@ -160,6 +197,14 @@ async def create_soft_charge(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # A phone-entered charge that trips the cap must push immediately (plan §8:
+    # the "never surprised" requirement). Alert failures never fail the charge.
+    try:
+        alert_service = import_module("app.services.spend_alert_service")
+        await run_in_threadpool(alert_service.evaluate_and_dispatch, trigger="soft_charge")
+    except Exception:
+        pass
+    return soft_charge
 
 
 @router.get("/soft-charges", response_model=list[SoftCharge])

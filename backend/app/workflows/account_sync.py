@@ -61,4 +61,15 @@ async def sync_accounts_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
         logger.warning("account_sync_plaid_failed", error=str(exc))
         results["plaid"] = {"status": "error", "error": str(exc)}
 
+    # Card spend/welcome alerts run on the fresh ledger (plan §8: post-sync,
+    # immediate). Alerting must never fail the sync.
+    try:
+        from app.services.spend_alert_service import evaluate_and_dispatch
+
+        dispatched = await asyncio.to_thread(evaluate_and_dispatch, trigger="account_sync")
+        results["card_alerts"] = {"dispatched": [a.kind for a in dispatched]}
+    except Exception as exc:
+        logger.warning("account_sync_card_alerts_failed", error=str(exc))
+        results["card_alerts"] = {"status": "error", "error": str(exc)}
+
     return results

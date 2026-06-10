@@ -326,6 +326,15 @@ class HouseholdDocumentPipeline:
         document: HouseholdDocument,
         review_session_id: str | None = None,
     ) -> None:
+        if document.source_type == "credit_card_offer":
+            # Card offers feed the credit-card catalog, not the finance ledger
+            # review loop (plan §9).
+            from app.services.card_offer_agent_service import (  # noqa: PLC0415 — avoids importing the agent stack at pipeline load
+                get_card_offer_agent_service,
+            )
+
+            get_card_offer_agent_service().process_offer_document(service, document)
+            return
         stored_path = document.metadata.get("stored_path")
         if not isinstance(stored_path, str) or not stored_path:
             self._recover_review_from_latest_persisted_review(service, document)
