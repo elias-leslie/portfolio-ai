@@ -6,6 +6,7 @@ equity, peak values, and underwater days calculations.
 
 from __future__ import annotations
 
+import math
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
@@ -316,6 +317,16 @@ def save_portfolio_snapshot(
     current_equity, peak_equity, drawdown_pct = _resolve_snapshot_values(
         storage, account_id, current_equity, peak_equity, drawdown_pct
     )
+    if not all(math.isfinite(v) for v in (current_equity, peak_equity, drawdown_pct)):
+        # NaN stored in numeric columns panics polars on every later read.
+        logger.warning(
+            "portfolio_snapshot_skipped_non_finite",
+            account_id=account_id,
+            equity=str(current_equity),
+            peak_equity=str(peak_equity),
+            drawdown_pct=str(drawdown_pct),
+        )
+        return
     position_value = current_equity - cash
 
     _upsert_snapshot(

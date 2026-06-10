@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "tradingview": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "/home/kasadis/mcp-servers/tradingview-mcp/src/server.js"
+      ],
+      "env": {}
+    }
+  }
+}
