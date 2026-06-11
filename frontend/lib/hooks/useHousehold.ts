@@ -9,6 +9,7 @@ import {
   deleteHouseholdDocument,
   deleteHouseholdTrackedAccount,
   fetchConfirmedFacts,
+  fetchHouseholdAccountHoldings,
   fetchHouseholdDashboard,
   fetchHouseholdDocuments,
   fetchHouseholdLedger,
@@ -21,7 +22,9 @@ import {
   type HouseholdPlanningUpdate,
   type HouseholdProfileUpdate,
   type HouseholdTrackedAccountInput,
+  type ManualHoldingsReplaceInput,
   type RetirementPreviewRequest,
+  replaceHouseholdAccountHoldings,
   updateHouseholdPlanning,
   updateHouseholdProfile,
   updateHouseholdTrackedAccount,
@@ -151,6 +154,44 @@ export function useRetirementPreview(params: RetirementPreviewRequest) {
     queryFn: ({ signal }) => fetchRetirementPreview(params, { signal }),
     staleTime: HOUSEHOLD_MARKET_VALUE_REFRESH_MS,
     refetchOnWindowFocus: false,
+  })
+}
+
+export function useHouseholdAccountHoldings(householdAccountId: string | null) {
+  return useQuery({
+    queryKey: ['household', 'account-holdings', householdAccountId],
+    queryFn: ({ signal }) =>
+      fetchHouseholdAccountHoldings(householdAccountId as string, { signal }),
+    enabled: householdAccountId !== null,
+    staleTime: HOUSEHOLD_MARKET_VALUE_REFRESH_MS,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useReplaceHouseholdAccountHoldings() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      householdAccountId,
+      payload,
+    }: {
+      householdAccountId: string
+      payload: ManualHoldingsReplaceInput
+    }) => replaceHouseholdAccountHoldings(householdAccountId, payload),
+    onSuccess: async () => {
+      await refreshHouseholdQueries(queryClient)
+      await queryClient.invalidateQueries({
+        queryKey: ['retirement'],
+        exact: false,
+      })
+      toast.success('Holdings saved. Projections will refresh.')
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to save holdings',
+      )
+    },
   })
 }
 

@@ -222,7 +222,12 @@ def _match_portfolio_account(
     matches = [
         account
         for account in portfolio_accounts
-        if _portfolio_asset_group(account) == asset_group
+        # An account FK-linked to a household account is claimed; it must not
+        # be label-matched to a different household account (two same-label
+        # accounts, e.g. his/hers FRS plans, would otherwise collapse onto one
+        # valuation).
+        if not str(getattr(account, "household_account_id", "") or "")
+        and _portfolio_asset_group(account) == asset_group
         and _normalize_text(_portfolio_label(account)) in {normalized_label, normalized_account_name}
     ]
     return matches[0] if len(matches) == 1 else None

@@ -4,6 +4,7 @@ import type {
   HouseholdPlanningUpdate,
 } from '../household-planning'
 import type {
+  HouseholdAccountHoldings,
   HouseholdConfirmedFact,
   HouseholdDocumentList,
   HouseholdFinanceDashboard,
@@ -19,6 +20,7 @@ import type {
   HouseholdTrackedAccount,
   HouseholdTrackedAccountInput,
   HouseholdTransactionCategoryUpdate,
+  ManualHoldingsReplaceInput,
   RetirementPreview,
   RetirementPreviewRequest,
 } from './types'
@@ -118,6 +120,26 @@ export async function fetchRetirementPreview(
   options: RequestInit = {},
 ): Promise<RetirementPreview> {
   return post<RetirementPreview>('/api/retirement/preview', payload, options)
+}
+
+export async function fetchHouseholdAccountHoldings(
+  householdAccountId: string,
+  options: RequestInit = {},
+): Promise<HouseholdAccountHoldings> {
+  return get<HouseholdAccountHoldings>(
+    `/api/household/accounts/${householdAccountId}/holdings`,
+    options,
+  )
+}
+
+export async function replaceHouseholdAccountHoldings(
+  householdAccountId: string,
+  payload: ManualHoldingsReplaceInput,
+): Promise<HouseholdAccountHoldings> {
+  return put<HouseholdAccountHoldings>(
+    `/api/household/accounts/${householdAccountId}/holdings`,
+    payload,
+  )
 }
 
 export async function updateHouseholdTrackedAccount(

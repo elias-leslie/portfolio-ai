@@ -183,6 +183,12 @@ class RetirementHoldingsCoverageAccount(BaseModel):
     label: str
     bucket_type: str
     account_type: str
+    # Lets the UI open manual holdings entry for this account; None for
+    # synthetic rows (e.g. the carved-out cash slice of a brokerage account).
+    household_account_id: str | None = None
+    # False when positions are owned by a live sync (SnapTrade) that would
+    # overwrite manual entries on the next refresh.
+    manual_holdings_editable: bool = False
     current_value: float = Field(0.0, ge=0.0)
     exact_value: float = Field(0.0, ge=0.0)
     inferred_value: float = Field(0.0, ge=0.0)

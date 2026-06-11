@@ -39,6 +39,7 @@ from app.models.household_finance import (
     HouseholdTransactionCategoryUpdate,
 )
 from app.models.household_planning import HouseholdPlanningSnapshot, HouseholdPlanningUpdate
+from app.services.household_manual_holdings_service import ManualHoldingsReplaceRequest
 from app.services.household_upload_validation import (
     HouseholdUploadValidationError,
     validate_household_upload_metadata,
@@ -186,6 +187,42 @@ async def delete_household_account(account_id: str) -> dict[str, bool]:
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Household account not found: {account_id}")
     return {"ok": True}
+
+
+@lru_cache(maxsize=1)
+def _manual_holdings_service():
+    return import_module(
+        "app.services.household_manual_holdings_service"
+    ).ManualHoldingsService()
+
+
+@router.get("/accounts/{household_account_id}/holdings")
+async def get_household_account_holdings(household_account_id: str) -> dict:
+    """Return manually entered / synced holdings for a household account."""
+    try:
+        return await run_in_threadpool(
+            _manual_holdings_service().get_holdings, household_account_id
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.put("/accounts/{household_account_id}/holdings")
+async def replace_household_account_holdings(
+    household_account_id: str,
+    payload: ManualHoldingsReplaceRequest,
+) -> dict:
+    """Replace the holdings for a household account with a manual snapshot."""
+    try:
+        return await run_in_threadpool(
+            _manual_holdings_service().replace_holdings,
+            household_account_id,
+            payload,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post("/questions/{question_id}/answer", response_model=HouseholdQuestion)

@@ -974,6 +974,13 @@ class RetirementPlanningService:
                 value = max(value - cash_balance, 0.0)
                 if value <= 0:
                     continue
+            household_account_id = getattr(account, "household_account_id", None)
+            linked_portfolio_id = str(
+                getattr(account, "linked_portfolio_account_id", "") or ""
+            )
+            manual_editable = bool(household_account_id) and not linked_portfolio_id.startswith(
+                "snaptrade:"
+            )
             priced_count = int(getattr(account, "priced_position_count", 0) or 0)
             holdings_value = getattr(account, "holdings_value", None)
             if priced_count > 0:
@@ -985,6 +992,8 @@ class RetirementPlanningService:
                         label=label or BUCKET_LABELS[bucket_type],
                         bucket_type=bucket_type,
                         account_type=account_type,
+                        household_account_id=household_account_id,
+                        manual_holdings_editable=manual_editable,
                         current_value=round(value, 2),
                         exact_value=round(exact_value, 2),
                         inferred_value=round(inferred_value, 2),
@@ -1003,6 +1012,8 @@ class RetirementPlanningService:
                     label=label or BUCKET_LABELS[bucket_type],
                     bucket_type=bucket_type,
                     account_type=account_type,
+                    household_account_id=household_account_id,
+                    manual_holdings_editable=manual_editable,
                     current_value=round(value, 2),
                     inferred_value=round(value, 2),
                     coverage_status="account_value_only",

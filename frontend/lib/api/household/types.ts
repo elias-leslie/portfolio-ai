@@ -423,6 +423,8 @@ export interface RetirementHoldingsCoverageAccount {
   label: string
   bucketType: string
   accountType: string
+  householdAccountId: string | null
+  manualHoldingsEditable: boolean
   currentValue: number
   exactValue: number
   inferredValue: number
@@ -431,6 +433,32 @@ export interface RetirementHoldingsCoverageAccount {
   coverageStatus: string
   coverageLabel: string
   detail: string
+}
+
+export interface HouseholdAccountHoldingPosition {
+  symbol: string
+  shares: number
+  price: number | null
+  value: number | null
+}
+
+export interface HouseholdAccountHoldings {
+  householdAccountId: string
+  label: string
+  accountType: string
+  positions: HouseholdAccountHoldingPosition[]
+  pricedValue: number
+}
+
+export interface ManualHoldingEntryInput {
+  symbol: string
+  shares?: number
+  percent?: number
+}
+
+export interface ManualHoldingsReplaceInput {
+  entries: ManualHoldingEntryInput[]
+  accountValue?: number
 }
 
 export interface RetirementHoldingsCoverage {

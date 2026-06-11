@@ -15,6 +15,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { HouseholdHoldingsDialog } from '@/components/money/HouseholdHoldingsDialog'
 import { freshnessToneClass } from '@/components/money/moneyAccountsUtils'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
@@ -639,6 +640,11 @@ export function MoneyRetirementPanel({
   const [withdrawalOpen, setWithdrawalOpen] = useState(true)
   const [allocationOpen, setAllocationOpen] = useState(false)
   const [accountDetailsOpen, setAccountDetailsOpen] = useState(false)
+  const [holdingsDialogAccount, setHoldingsDialogAccount] = useState<{
+    householdAccountId: string
+    label: string
+    currentValue: number
+  } | null>(null)
   const [allocationMode, setAllocationMode] =
     useState<AllocationMode>('current')
   const [allocationDraft, setAllocationDraft] = useState(() =>
@@ -2327,6 +2333,17 @@ export function MoneyRetirementPanel({
                     </div>
                   ) : null}
                 </div>
+                <HouseholdHoldingsDialog
+                  open={holdingsDialogAccount !== null}
+                  onOpenChange={(nextOpen) => {
+                    if (!nextOpen) setHoldingsDialogAccount(null)
+                  }}
+                  householdAccountId={
+                    holdingsDialogAccount?.householdAccountId ?? null
+                  }
+                  accountLabel={holdingsDialogAccount?.label ?? ''}
+                  accountValue={holdingsDialogAccount?.currentValue ?? 0}
+                />
                 {holdingsCoverage.accounts.length > 0 ? (
                   <>
                     <Button
@@ -2358,9 +2375,33 @@ export function MoneyRetirementPanel({
                                   {bucketLabel(account.bucketType)}
                                 </p>
                               </div>
-                              <p className="font-mono text-sm text-text">
-                                {formatCurrencyWhole(account.currentValue)}
-                              </p>
+                              <div className="flex items-center gap-2">
+                                {account.householdAccountId &&
+                                account.manualHoldingsEditable &&
+                                account.coverageStatus !== 'cash' ? (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                      setHoldingsDialogAccount({
+                                        householdAccountId:
+                                          account.householdAccountId as string,
+                                        label: account.label,
+                                        currentValue: account.currentValue,
+                                      })
+                                    }
+                                  >
+                                    {account.coverageStatus ===
+                                    'account_value_only'
+                                      ? 'Add holdings'
+                                      : 'Edit holdings'}
+                                  </Button>
+                                ) : null}
+                                <p className="font-mono text-sm text-text">
+                                  {formatCurrencyWhole(account.currentValue)}
+                                </p>
+                              </div>
                             </div>
                             <p className="mt-1 text-xs text-text-muted">
                               {account.detail}
