@@ -6,7 +6,7 @@ import hashlib
 import json
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -32,6 +32,9 @@ from app.services.credential_crypto import (
 )
 from app.services.household_account_identity import account_identity_candidates
 from app.services.household_soft_charge_service import SoftChargeReconciler
+from app.services.household_transaction_dedup_service import (
+    HouseholdTransactionDedupService,
+)
 from app.services.household_transaction_service import HouseholdTransactionService
 from app.services.source_credentials import get_source_credentials, set_source_credential
 from app.storage import get_storage
@@ -534,6 +537,17 @@ class PlaidService:
             totals["transaction_removed_count"] = int(totals["transaction_removed_count"]) + int(
                 item_result["transaction_removed_count"]
             )
+
+        # Plaid re-delivers charges that statement imports already hold (often
+        # with a 1-2 day posted-date skew); collapse cross-source duplicates
+        # over the recent sync window.
+        if int(totals["transaction_added_count"]) > 0:
+            dedup_summary = HouseholdTransactionDedupService(
+                self.storage
+            ).dedupe_transactions(
+                date_start=datetime.now(UTC).date() - timedelta(days=45),
+            )
+            totals["transaction_deduplicated_count"] = int(dedup_summary.get("removed", 0))
 
         return totals
 

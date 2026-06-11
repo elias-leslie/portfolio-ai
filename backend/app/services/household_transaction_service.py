@@ -45,6 +45,9 @@ from app.services.household_account_identity import (
     account_masks_match,
     derive_account_mask,
 )
+from app.services.household_transaction_dedup_service import (
+    HouseholdTransactionDedupService,
+)
 from app.storage import get_storage
 
 logger = get_logger(__name__)
@@ -212,6 +215,7 @@ class HouseholdTransactionService:
         deleted = 0
         now = datetime.now(UTC).isoformat()
         current_row_hashes: set[str] = set()
+        touched_account_ids: set[str] = set()
 
         with self.storage.connection() as conn:
             for transaction in transactions:
@@ -252,6 +256,8 @@ class HouseholdTransactionService:
                     account_label=effective_account_label,
                     metadata=transaction_metadata,
                 )
+                if household_account_id:
+                    touched_account_ids.add(str(household_account_id))
                 source_system = (
                     _metadata_text(transaction_metadata, "source")
                     or str(reviewed.get("source_type") or document.source_type or "")
@@ -455,10 +461,25 @@ class HouseholdTransactionService:
             )
             conn.commit()
 
+        # Collapse cross-document duplicates this import may have introduced
+        # (overlapping CSV exports, Plaid/statement re-coverage). Scoped to
+        # the touched accounts and imported date window.
+        deduplicated = 0
+        if touched_account_ids and transactions:
+            dedup_summary = HouseholdTransactionDedupService(
+                self.storage
+            ).dedupe_transactions(
+                household_account_ids=sorted(touched_account_ids),
+                date_start=min(t.transaction_date for t in transactions),
+                date_end=max(t.transaction_date for t in transactions),
+            )
+            deduplicated = int(dedup_summary.get("removed", 0))
+
         return {
             "inserted": inserted,
             "updated": updated,
             "deleted": deleted,
+            "deduplicated": deduplicated,
             "held_for_date_review": len(date_issues),
         }
 

@@ -452,7 +452,7 @@ def test_import_document_transactions_holds_future_dated_receipts_for_review() -
         },
     )
 
-    assert result == {"inserted": 0, "updated": 0, "deleted": 0, "held_for_date_review": 1}
+    assert result == {"inserted": 0, "updated": 0, "deleted": 0, "deduplicated": 0, "held_for_date_review": 1}
     assert fake_storage.conn.committed is True
     assert not any("INSERT INTO household_transactions" in sql for sql, _ in fake_storage.conn.executed)
     assert any("DELETE FROM household_transactions" in sql for sql, _ in fake_storage.conn.executed)
@@ -543,7 +543,7 @@ def test_import_document_transactions_keeps_transfer_categories_even_with_old_me
         },
     )
 
-    assert result == {"inserted": 1, "updated": 0, "deleted": 0, "held_for_date_review": 0}
+    assert result == {"inserted": 1, "updated": 0, "deleted": 0, "deduplicated": 0, "held_for_date_review": 0}
     assert service.storage.conn.insert_params is not None
     assert service.storage.conn.insert_params[12] == "transfer_out"
     assert service.storage.conn.insert_params[13] == "Transfers"

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from importlib import import_module
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastapi import (
     APIRouter,
@@ -294,6 +294,22 @@ async def ask_jenny(payload: AskJennyRequest) -> HouseholdQuestion:
     if not question_text:
         raise HTTPException(status_code=422, detail="Question text cannot be empty")
     return await run_in_threadpool(_service().ask_jenny, question_text)
+
+
+@router.post("/transactions/dedupe")
+async def dedupe_household_transactions(dry_run: bool = False) -> dict[str, Any]:
+    """Collapse cross-document/source duplicate transactions ledger-wide.
+
+    Imports and Plaid syncs run this automatically over their own window;
+    this route exists for full-history backfills and audits (dry_run=true
+    reports what would be removed without writing).
+    """
+    dedup_service = import_module(
+        "app.services.household_transaction_dedup_service"
+    ).HouseholdTransactionDedupService()
+    return await run_in_threadpool(
+        lambda: dedup_service.dedupe_transactions(dry_run=dry_run)
+    )
 
 
 @router.post("/transactions/{transaction_id}/categorize")
