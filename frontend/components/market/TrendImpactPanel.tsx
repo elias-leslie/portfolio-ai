@@ -1,6 +1,7 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { type ReactNode, useState } from 'react'
 import { cn } from '@/lib/utils'
 
 export type ImpactTone = 'positive' | 'neutral' | 'warning' | 'negative'
@@ -144,6 +145,8 @@ export function TrendImpactPanel({
   impact: ReactNode
   collapsed: boolean
 }) {
+  const [panelCollapsed, setPanelCollapsed] = useState(false)
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
@@ -157,17 +160,37 @@ export function TrendImpactPanel({
             </p>
           ) : null}
         </div>
-        {controls}
+        <div className="flex items-center gap-2">
+          {panelCollapsed ? null : controls}
+          <button
+            type="button"
+            aria-expanded={!panelCollapsed}
+            aria-label={
+              panelCollapsed ? `Expand ${title}` : `Collapse ${title}`
+            }
+            onClick={() => setPanelCollapsed((value) => !value)}
+            className="rounded-md p-1 text-text-muted transition-colors hover:bg-surface-muted/60 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          >
+            <ChevronDown
+              className={cn(
+                'h-4 w-4 transition-transform',
+                panelCollapsed && '-rotate-90',
+              )}
+            />
+          </button>
+        </div>
       </div>
-      <div
-        className={cn(
-          'grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]',
-          collapsed && 'lg:grid-cols-[minmax(0,1fr)_5rem]',
-        )}
-      >
-        <div>{chart}</div>
-        {impact}
-      </div>
+      {panelCollapsed ? null : (
+        <div
+          className={cn(
+            'grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]',
+            collapsed && 'lg:grid-cols-[minmax(0,1fr)_5rem]',
+          )}
+        >
+          <div>{chart}</div>
+          {impact}
+        </div>
+      )}
     </div>
   )
 }

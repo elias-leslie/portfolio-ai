@@ -1,7 +1,7 @@
 'use client'
 
-import { Loader2 } from 'lucide-react'
-import { useMemo } from 'react'
+import { ChevronDown, Loader2 } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import {
   Line,
   LineChart,
@@ -99,6 +99,7 @@ function CautionDot({ cx, cy, payload }: CautionDotProps) {
 }
 
 export function OverallCautionTrendLine() {
+  const [chartCollapsed, setChartCollapsed] = useState(false)
   const { data, isLoading, error } = useMacroConditionsHistory(WINDOW_DAYS)
   const selective = data?.selectiveThreshold ?? 35
   const severe = data?.severeThreshold ?? 65
@@ -184,131 +185,156 @@ export function OverallCautionTrendLine() {
             </p>
           ) : null}
         </div>
-      </div>
-
-      <div className="mt-3 h-40">
-        {isLoading ? (
-          <div className="flex h-full items-center justify-center">
-            <Loader2 className="h-5 w-5 animate-spin text-text-muted" />
-          </div>
-        ) : error ? (
-          <div className="flex h-full items-center justify-center text-xs text-text-muted">
-            Unable to load caution history right now.
-          </div>
-        ) : chartData.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-xs text-text-muted">
-            Caution history is still building — points appear as the number
-            changes.
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={chartData}
-              margin={{ top: 6, right: 20, left: -4, bottom: 2 }}
-            >
-              <XAxis
-                dataKey="recordedAt"
-                tickFormatter={formatTick}
-                tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }}
-                axisLine={{ stroke: 'var(--color-border)' }}
-                tickLine={false}
-                ticks={dayTicks}
-                interval={0}
-              />
-              <YAxis
-                domain={[0, 100]}
-                tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }}
-                axisLine={false}
-                tickLine={false}
-                width={30}
-              />
-              <ReferenceLine
-                y={severe}
-                stroke="var(--color-loss)"
-                strokeDasharray="3 3"
-                opacity={0.4}
-                label={{
-                  value: `Defensive ${severe}`,
-                  position: 'insideTopRight',
-                  fontSize: 9,
-                  fill: 'var(--color-loss)',
-                }}
-              />
-              <ReferenceLine
-                y={selective}
-                stroke="var(--color-warning)"
-                strokeDasharray="3 3"
-                opacity={0.4}
-                label={{
-                  value: `Selective ${selective}`,
-                  position: 'insideBottomRight',
-                  fontSize: 9,
-                  fill: 'var(--color-warning)',
-                }}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'var(--color-surface)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '8px',
-                  fontSize: '12px',
-                }}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                formatter={
-                  ((value: number | undefined, name: string | undefined) => {
-                    const labels: Record<string, string> = {
-                      caution: 'Overall Caution',
-                      macroStress: 'Macro Stress',
-                      tapePressure: 'Tape Pressure',
-                    }
-                    return [
-                      value != null ? `${value}` : '—',
-                      labels[name ?? ''] ?? name,
-                    ]
-                  }) as any
-                }
-                labelFormatter={(label) => formatStamp(String(label))}
-              />
-              <Line
-                type="monotone"
-                dataKey="caution"
-                stroke="var(--color-warning)"
-                strokeWidth={2}
-                dot={<CautionDot />}
-                connectNulls
-                isAnimationActive={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-text-muted">
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-warning" />
-          Live (incl. tape)
-        </span>
-        <span className="flex items-center gap-1">
-          <span
-            className="h-2 w-2 rounded-full border border-warning"
-            style={{
-              background:
-                'linear-gradient(90deg, var(--color-warning) 50%, var(--color-surface) 50%)',
-            }}
+        <button
+          type="button"
+          aria-expanded={!chartCollapsed}
+          aria-label={
+            chartCollapsed
+              ? 'Expand caution trend chart'
+              : 'Collapse caution trend chart'
+          }
+          onClick={() => setChartCollapsed((value) => !value)}
+          className="self-start rounded-md p-1 text-text-muted transition-colors hover:bg-surface-muted/60 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+        >
+          <ChevronDown
+            className={cn(
+              'h-4 w-4 transition-transform',
+              chartCollapsed && '-rotate-90',
+            )}
           />
-          Held (last live tape)
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full border border-warning bg-surface" />
-          Macro-only (tape unavailable / market closed)
-        </span>
-        {!anyLive ? (
-          <span className="text-text-muted/80">
-            History so far is macro-only; live tape points start logging during
-            market hours.
-          </span>
-        ) : null}
+        </button>
       </div>
+
+      {chartCollapsed ? null : (
+        <>
+          <div className="mt-3 h-40">
+            {isLoading ? (
+              <div className="flex h-full items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-text-muted" />
+              </div>
+            ) : error ? (
+              <div className="flex h-full items-center justify-center text-xs text-text-muted">
+                Unable to load caution history right now.
+              </div>
+            ) : chartData.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-xs text-text-muted">
+                Caution history is still building — points appear as the number
+                changes.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={chartData}
+                  margin={{ top: 6, right: 20, left: -4, bottom: 2 }}
+                >
+                  <XAxis
+                    dataKey="recordedAt"
+                    tickFormatter={formatTick}
+                    tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }}
+                    axisLine={{ stroke: 'var(--color-border)' }}
+                    tickLine={false}
+                    ticks={dayTicks}
+                    interval={0}
+                  />
+                  <YAxis
+                    domain={[0, 100]}
+                    tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={30}
+                  />
+                  <ReferenceLine
+                    y={severe}
+                    stroke="var(--color-loss)"
+                    strokeDasharray="3 3"
+                    opacity={0.4}
+                    label={{
+                      value: `Defensive ${severe}`,
+                      position: 'insideTopRight',
+                      fontSize: 9,
+                      fill: 'var(--color-loss)',
+                    }}
+                  />
+                  <ReferenceLine
+                    y={selective}
+                    stroke="var(--color-warning)"
+                    strokeDasharray="3 3"
+                    opacity={0.4}
+                    label={{
+                      value: `Selective ${selective}`,
+                      position: 'insideBottomRight',
+                      fontSize: 9,
+                      fill: 'var(--color-warning)',
+                    }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'var(--color-surface)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                    }}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    formatter={
+                      ((
+                        value: number | undefined,
+                        name: string | undefined,
+                      ) => {
+                        const labels: Record<string, string> = {
+                          caution: 'Overall Caution',
+                          macroStress: 'Macro Stress',
+                          tapePressure: 'Tape Pressure',
+                        }
+                        return [
+                          value != null ? `${value}` : '—',
+                          labels[name ?? ''] ?? name,
+                        ]
+                      }) as any
+                    }
+                    labelFormatter={(label) => formatStamp(String(label))}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="caution"
+                    stroke="var(--color-warning)"
+                    strokeWidth={2}
+                    dot={<CautionDot />}
+                    connectNulls
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-text-muted">
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-warning" />
+              Live (incl. tape)
+            </span>
+            <span className="flex items-center gap-1">
+              <span
+                className="h-2 w-2 rounded-full border border-warning"
+                style={{
+                  background:
+                    'linear-gradient(90deg, var(--color-warning) 50%, var(--color-surface) 50%)',
+                }}
+              />
+              Held (last live tape)
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full border border-warning bg-surface" />
+              Macro-only (tape unavailable / market closed)
+            </span>
+            {!anyLive ? (
+              <span className="text-text-muted/80">
+                History so far is macro-only; live tape points start logging
+                during market hours.
+              </span>
+            ) : null}
+          </div>
+        </>
+      )}
     </div>
   )
 }

@@ -28,7 +28,7 @@ function sectorSummaryText(
 // former Overview MarketSummaryGrid — only the sector ranking survives; the
 // market narrative/positioning header it used to carry was dropped.
 export function LeadingLaggingStrip() {
-  const [showTrend, setShowTrend] = useState(false)
+  const [showTrend, setShowTrend] = useState(true)
   const [timeframe, setTimeframe] = useState<Timeframe>(
     DEFAULT_MARKET_TIMEFRAME,
   )
