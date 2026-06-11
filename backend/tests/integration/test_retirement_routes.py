@@ -126,7 +126,6 @@ def stub_service(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
             drawdown_schedule=(),
             lever_impacts=(),
             first_depletion_age=None,
-            estimated_monthly_contribution_gap=0.0,
         )
 
     def fake_list_scenarios(self: RetirementPlanningService, household_id: str, *, limit: int) -> list[ScenarioSummary]:

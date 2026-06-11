@@ -32,6 +32,7 @@ from app.services._retirement_simulation import (
     _normalize_allocation,
 )
 from app.services.retirement_planning_service import (
+    DEFAULT_DRAWDOWN_ORDER,
     DEFAULT_SPAXX_CASH_YIELD_AS_OF,
     TAXABLE_WITHDRAWAL_GAIN_RATIO,
     RetirementPlanningService,
@@ -41,11 +42,13 @@ from app.services.retirement_planning_service import (
     _early_withdrawal_penalty_rate,
     _effective_gain_ratio,
     _estimate_social_security_monthly,
+    _failure_age_distribution,
     _federal_tax_estimate,
     _rmd_amount,
     _split_members,
     _tax_assumptions,
     _tax_context_from_profile,
+    _withdrawal_config_from_inputs,
     _yield_freshness,
 )
 
@@ -1408,6 +1411,182 @@ def test_account_rule_explanations_cover_present_buckets() -> None:
     assert by_type["governmental_457b"].rmd.startswith("Required minimum")
     assert "no lifetime RMDs" in by_type["roth"].rmd
     assert by_type["roth"].tax_treatment == "Tax-free if qualified"
+
+
+# ----------------------------------------------------------------------
+# budget-ratio floor resolution (NULL vs explicit-zero discretionary)
+# ----------------------------------------------------------------------
+
+
+def _budget_profile(**overrides: Any) -> SimpleNamespace:
+    base: dict[str, Any] = _args(
+        monthly_essential_target=5_000.0,
+        monthly_discretionary_target=None,
+        target_retirement_spend=7_500.0,
+    )
+    base.update(overrides)
+    return SimpleNamespace(**base)
+
+
+def test_null_discretionary_derived_from_retirement_spend_target() -> None:
+    inputs = _engine_inputs(annual_expenses=90_000.0)
+    cfg = _withdrawal_config_from_inputs(inputs, _budget_profile(), WithdrawalConfig())
+    # essential share = 5000 / 7500; discretionary derived from the spend
+    # target instead of collapsing to zero.
+    assert cfg.essential_floor == pytest.approx(60_000.0)
+    assert cfg.base_discretionary == pytest.approx(30_000.0)
+
+
+def test_explicit_zero_discretionary_stays_all_floor() -> None:
+    inputs = _engine_inputs(annual_expenses=90_000.0)
+    profile = _budget_profile(monthly_discretionary_target=0.0)
+    cfg = _withdrawal_config_from_inputs(inputs, profile, WithdrawalConfig())
+    assert cfg.essential_floor == pytest.approx(90_000.0)
+    assert cfg.base_discretionary == pytest.approx(0.0)
+
+
+def test_null_essential_derived_from_retirement_spend_target() -> None:
+    inputs = _engine_inputs(annual_expenses=90_000.0)
+    profile = _budget_profile(
+        monthly_essential_target=None, monthly_discretionary_target=2_500.0
+    )
+    cfg = _withdrawal_config_from_inputs(inputs, profile, WithdrawalConfig())
+    assert cfg.essential_floor == pytest.approx(60_000.0)
+    assert cfg.base_discretionary == pytest.approx(30_000.0)
+
+
+def test_unset_budget_uses_default_essential_share() -> None:
+    inputs = _engine_inputs(annual_expenses=90_000.0)
+    profile = _budget_profile(
+        monthly_essential_target=None, monthly_discretionary_target=None
+    )
+    cfg = _withdrawal_config_from_inputs(inputs, profile, WithdrawalConfig())
+    assert cfg.essential_floor == pytest.approx(54_000.0)
+    assert cfg.base_discretionary == pytest.approx(36_000.0)
+
+
+# ----------------------------------------------------------------------
+# lever impacts — spend_less must move the resolved floor, not just
+# annual_expenses (which the floor-and-upside engine never spends)
+# ----------------------------------------------------------------------
+
+
+def test_spend_less_lever_raises_success_probability() -> None:
+    service = _make_service(_StubConn())
+    inputs = _engine_inputs(
+        portfolio_value=700_000.0,
+        annual_expenses=60_000.0,
+        withdrawal=WithdrawalConfig(
+            essential_floor=40_000.0, base_discretionary=20_000.0
+        ),
+    )
+    base = service.run_simulation(inputs, trials=500, seed=11)
+    levers = service._lever_impacts(
+        inputs, base.success_probability, trials=500, seed=11
+    )
+    by_id = {lever.id: lever for lever in levers}
+    assert by_id["spend_less"].delta_success_probability > 0
+
+
+# ----------------------------------------------------------------------
+# bridge sleeve visibility in balance outputs
+# ----------------------------------------------------------------------
+
+
+def _bridge_inputs() -> RetirementInputs:
+    # Retire at 60, Social Security at 67 → a seven-year bridge carve.
+    return _engine_inputs(
+        primary_age=60,
+        retirement_age=60,
+        portfolio_value=1_000_000.0,
+        asset_allocation={"cash": 1.0},
+        annual_expenses=60_000.0,
+        income_sources=(
+            RetirementIncomeSource(
+                label="Social Security",
+                source_type="social_security",
+                start_age=67,
+                monthly_amount=2500.0,
+                inflation_adjusted=True,
+            ),
+        ),
+        withdrawal=WithdrawalConfig(
+            essential_floor=50_000.0, base_discretionary=10_000.0
+        ),
+    )
+
+
+def test_monte_carlo_balances_include_bridge_sleeve() -> None:
+    service = _make_service(_StubConn())
+    out = service.run_simulation(_bridge_inputs(), trials=50, seed=9)
+    # The six-figure bridge carve must not read as a phantom year-0 drop.
+    assert out.ending_balance_paths["p50"][0] > 800_000.0
+
+
+def test_drawdown_ending_balance_includes_bridge_sleeve() -> None:
+    service = _make_service(_StubConn())
+    rows = service._drawdown_schedule(_bridge_inputs(), buckets=())
+    first = rows[0]
+    assert first.balances_by_bucket.get("bridge", 0.0) > 0.0
+    assert first.ending_balance == pytest.approx(
+        sum(first.balances_by_bucket.values()), abs=0.05
+    )
+
+
+# ----------------------------------------------------------------------
+# HSA modeled as non-medical: ordinary income + 20% penalty before 65
+# ----------------------------------------------------------------------
+
+
+def test_hsa_penalty_rate_ends_at_65_and_drains_after_roth() -> None:
+    assert _early_withdrawal_penalty_rate("hsa", 64) == pytest.approx(0.20)
+    assert _early_withdrawal_penalty_rate("hsa", 65) == pytest.approx(0.0)
+    assert DEFAULT_DRAWDOWN_ORDER.index("roth") < DEFAULT_DRAWDOWN_ORDER.index("hsa")
+
+
+def test_drawdown_taxes_and_penalizes_hsa_before_65() -> None:
+    service = _make_service(_StubConn())
+    inputs = _engine_inputs(
+        primary_age=60,
+        retirement_age=60,
+        annual_expenses=60_000.0,
+        income_sources=(),
+        portfolio_value=0.0,
+    )
+    buckets = (
+        RetirementAccountBucket(
+            bucket_type="hsa",
+            label="HSA",
+            account_type="hsa",
+            tax_treatment="tax_free_for_qualified_medical",
+            current_value=500_000.0,
+            withdrawal_priority=6,
+        ),
+    )
+    first = service._drawdown_schedule(inputs, buckets=buckets)[0]
+    hsa_draw = first.withdrawals_by_bucket["hsa"]
+    assert hsa_draw > 0.0
+    assert first.penalty_estimate == pytest.approx(hsa_draw * 0.20, rel=1e-3)
+    # Ordinary income tax on the draw (well above the standard deduction).
+    assert first.tax_estimate > 0.0
+
+
+# ----------------------------------------------------------------------
+# failure-age distribution (preview contract)
+# ----------------------------------------------------------------------
+
+
+def test_failure_age_distribution_rekeys_by_primary_age() -> None:
+    sim = SimulationOutputs(
+        success_probability=0.5,
+        median_ending_balance=0.0,
+        sequence_of_returns_risk=0.1,
+        percentiles={},
+        failure_year_distribution={"year_1": 3, "year_12": 7},
+        ending_balance_paths={},
+    )
+    inputs = _engine_inputs(primary_age=50)
+    assert _failure_age_distribution(sim, inputs) == {"50": 3, "61": 7}
 
 
 _ = SimulationOutputs

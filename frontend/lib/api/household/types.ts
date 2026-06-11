@@ -547,8 +547,9 @@ export interface RetirementPreview {
   accountRules: RetirementAccountRule[]
   leverImpacts: RetirementLeverImpact[]
   firstDepletionAge: number | null
-  estimatedMonthlyContributionGap: number
   medianDiscretionaryPath: number[]
+  /** Monte Carlo failure counts keyed by primary age at first shortfall. */
+  failureAgeDistribution: Record<string, number>
 }
 
 export interface ImportFormat {

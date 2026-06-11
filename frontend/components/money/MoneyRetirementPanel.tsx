@@ -51,6 +51,7 @@ const bucketColors: Record<string, string> = {
   pre_tax: 'var(--color-chart-2)',
   roth: 'var(--color-chart-3)',
   hsa: 'var(--color-chart-4)',
+  bridge: 'var(--color-chart-cyan)',
   other: 'var(--color-chart-6)',
 }
 
@@ -59,8 +60,9 @@ const bucketOrder = [
   'taxable',
   'governmental_457b',
   'pre_tax',
-  'hsa',
   'roth',
+  'hsa',
+  'bridge',
   'other',
 ]
 const allocationClasses = [
@@ -112,6 +114,8 @@ function bucketLabel(value: string) {
       return 'Roth'
     case 'hsa':
       return 'HSA'
+    case 'bridge':
+      return 'Bridge sleeve'
     default:
       return formatEnumLabel(value)
   }
@@ -748,10 +752,25 @@ export function MoneyRetirementPanel({
         pre_tax: bucketMapValue(row.balancesByBucket, 'pre_tax'),
         hsa: bucketMapValue(row.balancesByBucket, 'hsa'),
         roth: bucketMapValue(row.balancesByBucket, 'roth'),
+        bridge: bucketMapValue(row.balancesByBucket, 'bridge'),
         other: bucketMapValue(row.balancesByBucket, 'other'),
       })),
     [preview?.drawdownSchedule],
   )
+
+  const failureAgeData = useMemo(() => {
+    const entries = Object.entries(preview?.failureAgeDistribution ?? {})
+    const totalFailures = entries.reduce((sum, [, count]) => sum + count, 0)
+    if (totalFailures === 0) return []
+    // Counts are per failed trial; rescale so bars read as % of all trials.
+    const failedShare = 1 - (preview?.successProbability ?? 1)
+    return entries
+      .map(([age, count]) => ({
+        age: Number(age),
+        share: (count / totalFailures) * failedShare * 100,
+      }))
+      .sort((a, b) => a.age - b.age)
+  }, [preview?.failureAgeDistribution, preview?.successProbability])
 
   const withdrawalData = useMemo(
     () =>
@@ -2407,6 +2426,37 @@ export function MoneyRetirementPanel({
           </div>
         </SectionCard>
 
+        {failureAgeData.length > 0 ? (
+          <SectionCard
+            variant="surface"
+            title="When plans fall short"
+            description="Share of Monte Carlo trials that first run short at each age. Early bars signal sequence-of-returns risk; late bars signal longevity risk."
+          >
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={failureAgeData} margin={{ left: 8, right: 8 }}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="var(--color-border)"
+                  />
+                  <XAxis dataKey="age" tickLine={false} />
+                  <YAxis
+                    tickFormatter={(value) => `${Number(value).toFixed(1)}%`}
+                  />
+                  <Tooltip
+                    formatter={(value) => [
+                      `${Number(value ?? 0).toFixed(2)}% of trials`,
+                      'First shortfall',
+                    ]}
+                    labelFormatter={(label) => `Age ${label}`}
+                  />
+                  <Bar dataKey="share" fill="var(--color-warning)" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </SectionCard>
+        ) : null}
+
         <SectionCard
           variant="surface"
           title="Annual drawdown by source"
@@ -2427,15 +2477,17 @@ export function MoneyRetirementPanel({
                 />
                 <Tooltip formatter={currencyTooltip} />
                 <Legend />
-                {bucketOrder.map((bucket) => (
-                  <Bar
-                    key={bucket}
-                    dataKey={bucket}
-                    stackId="withdrawals"
-                    name={bucketLabel(bucket)}
-                    fill={bucketColors[bucket]}
-                  />
-                ))}
+                {bucketOrder
+                  .filter((bucket) => bucket !== 'bridge')
+                  .map((bucket) => (
+                    <Bar
+                      key={bucket}
+                      dataKey={bucket}
+                      stackId="withdrawals"
+                      name={bucketLabel(bucket)}
+                      fill={bucketColors[bucket]}
+                    />
+                  ))}
               </BarChart>
             </ResponsiveContainer>
           </div>

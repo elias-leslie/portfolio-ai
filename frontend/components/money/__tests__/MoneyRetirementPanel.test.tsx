@@ -496,8 +496,8 @@ const preview: RetirementPreview = {
     },
   ],
   firstDepletionAge: null,
-  estimatedMonthlyContributionGap: 0,
   medianDiscretionaryPath: [],
+  failureAgeDistribution: {},
 }
 
 const usePreviewMock = vi.mocked(useRetirementPreview)

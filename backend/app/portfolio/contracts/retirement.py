@@ -340,5 +340,7 @@ class RetirementPreview(BaseModel):
     account_rules: tuple[RetirementAccountRule, ...] = ()
     lever_impacts: tuple[RetirementLeverImpact, ...] = ()
     first_depletion_age: int | None = None
-    estimated_monthly_contribution_gap: float = Field(0.0, ge=0.0)
     median_discretionary_path: tuple[float, ...] = ()
+    # Monte Carlo failure counts keyed by the primary age at which the trial
+    # first fell short (string keys survive JSON round-trips untouched).
+    failure_age_distribution: dict[str, int] = Field(default_factory=dict)

@@ -32,6 +32,7 @@ from app.portfolio.contracts.retirement import (
 )
 from app.services.retirement_planning_service import (
     DEFAULT_LIST_LIMIT,
+    DEFAULT_PREVIEW_TRIALS,
     DEFAULT_TRIALS,
     MAX_LIST_LIMIT,
     MAX_TRIALS,
@@ -83,6 +84,10 @@ class RunScenarioRequest(BaseModel):
 
 
 class PreviewRequest(RunScenarioRequest):
+    # Interactive preview defaults to fewer trials than persisted scenarios —
+    # it reruns on every slider change and latency matters more than tail
+    # precision. Explicit ``trials`` still wins, up to MAX_TRIALS.
+    trials: int = Field(DEFAULT_PREVIEW_TRIALS, ge=1, le=MAX_TRIALS)
     monthly_spend: float | None = Field(None, ge=0.0)
     primary_social_security_monthly: float | None = Field(None, ge=0.0)
     spouse_social_security_monthly: float | None = Field(None, ge=0.0)
