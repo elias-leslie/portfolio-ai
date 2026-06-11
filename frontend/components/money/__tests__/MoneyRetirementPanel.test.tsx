@@ -27,6 +27,30 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
     mutateAsync: vi.fn(),
     isPending: false,
   })),
+  useAllocationScenarios: vi.fn(() => ({
+    data: [
+      {
+        id: 'scenario-1',
+        name: 'Equity bridge',
+        holdings: [{ symbol: 'VTI', weight: 100 }],
+        bridgeGrowth: 'portfolio',
+        bridgeRealReturn: null,
+        notes: null,
+        createdAt: '2026-06-11T00:00:00Z',
+        updatedAt: '2026-06-11T00:00:00Z',
+      },
+    ],
+    isLoading: false,
+  })),
+  useReplaceAllocationScenarios: vi.fn(() => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  })),
+}))
+
+vi.mock('@/lib/api/household', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/api/household')>()),
+  fetchRetirementPreview: vi.fn(),
 }))
 
 vi.mock('recharts', () => {
@@ -843,5 +867,48 @@ describe('MoneyRetirementPanel', () => {
     await user.click(screen.getByRole('button', { name: /run preview/i }))
 
     expect(screen.queryByText(/Inputs changed since this plan ran/i)).toBeNull()
+  })
+
+  it('lists saved allocation scenarios and compares them against the current allocation', async () => {
+    const user = userEvent.setup()
+    usePreviewMock.mockReturnValue({
+      data: preview,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+    const fetchPreviewMock = vi.mocked(
+      (await import('@/lib/api/household')).fetchRetirementPreview,
+    )
+    fetchPreviewMock.mockReset()
+    fetchPreviewMock.mockResolvedValue({
+      successProbability: 0.71,
+      medianEndingBalance: 512_000,
+      firstDepletionAge: null,
+    } as unknown as RetirementPreview)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+    await user.click(screen.getByRole('button', { name: /expand allocation/i }))
+
+    expect(screen.getByText('Scenario lab')).toBeInTheDocument()
+    expect(screen.getByText('Equity bridge')).toBeInTheDocument()
+    expect(screen.getByText('bridge: invested')).toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('checkbox', { name: /compare equity bridge/i }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: /compare current \+ 1 selected/i }),
+    )
+
+    expect(await screen.findByText('Current accounts')).toBeInTheDocument()
+    expect(fetchPreviewMock).toHaveBeenCalledTimes(2)
+    const scenarioRequest = fetchPreviewMock.mock.calls[1][0]
+    expect(scenarioRequest.allocationHoldings).toEqual([
+      { symbol: 'VTI', weight: 100 },
+    ])
+    expect(scenarioRequest.withdrawal?.bridge.growth).toBe('portfolio')
+    expect(screen.getAllByText('71%').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('$512,000')).toHaveLength(2)
   })
 })

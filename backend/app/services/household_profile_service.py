@@ -38,7 +38,7 @@ class HouseholdProfileService:
                        phase_go_go_pct, phase_slow_go_pct, phase_no_go_pct,
                        bridge_mode, bridge_manual_amount, bridge_real_return,
                        retirement_essential_floor_override, retirement_discretionary_override,
-                       notes, created_at, updated_at
+                       notes, created_at, updated_at, bridge_growth
                 FROM household_profiles ORDER BY created_at ASC LIMIT 1
                 """
             ).fetchone()

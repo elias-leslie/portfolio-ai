@@ -26,6 +26,7 @@ from app.portfolio.contracts.retirement import (
     RetirementIncomeSource,
     RetirementInputs,
     ScenarioResults,
+    WithdrawalBridgeConfig,
     WithdrawalConfig,
 )
 from app.services._retirement_simulation import (
@@ -1748,3 +1749,50 @@ def test_social_security_estimate_ignores_stop_work_after_35_years() -> None:
     assert _estimate_social_security_monthly(
         100_000.0, claim_age=67, stop_work_age=60
     ) == _estimate_social_security_monthly(100_000.0, claim_age=67)
+
+
+# ----------------------------------------------------------------------
+# bridge growth mode (fixed vs portfolio)
+# ----------------------------------------------------------------------
+
+
+def _bridge_growth_inputs(growth: str) -> RetirementInputs:
+    return _bridge_inputs().model_copy(
+        update={
+            "asset_allocation": {"us_equity": 1.0},
+            "withdrawal": WithdrawalConfig(
+                essential_floor=50_000.0,
+                base_discretionary=10_000.0,
+                bridge=WithdrawalBridgeConfig(growth=growth),
+            ),
+        }
+    )
+
+
+def test_deterministic_bridge_portfolio_growth_uses_expected_real_return() -> None:
+    service = _make_service(_StubConn())
+    fixed = service._drawdown_schedule(_bridge_growth_inputs("fixed"), buckets=())
+    riding = service._drawdown_schedule(_bridge_growth_inputs("portfolio"), buckets=())
+    # Both start from the same carve (sizing always discounts at real_return)…
+    assert fixed[0].bridge_balance == pytest.approx(riding[0].bridge_balance)
+    assert fixed[0].bridge_balance > 0.0
+    # …but an all-equity portfolio bridge compounds faster than 1% real.
+    inputs = _bridge_growth_inputs("portfolio")
+    nominal = service._expected_return(inputs.asset_allocation, inputs.cash_yield)
+    r_real = (1.0 + nominal) / (1.0 + inputs.inflation_rate) - 1.0
+    assert r_real > 0.011
+    assert riding[1].bridge_balance > fixed[1].bridge_balance
+
+
+def test_monte_carlo_bridge_portfolio_growth_changes_outcomes_and_stays_seeded() -> None:
+    service = _make_service(_StubConn())
+    fixed = service.run_simulation(_bridge_growth_inputs("fixed"), trials=400, seed=11)
+    riding = service.run_simulation(_bridge_growth_inputs("portfolio"), trials=400, seed=11)
+    riding_again = service.run_simulation(
+        _bridge_growth_inputs("portfolio"), trials=400, seed=11
+    )
+    # The sleeve now rides the sampled returns, so outcomes must move…
+    assert riding.ending_balance_paths["p50"] != fixed.ending_balance_paths["p50"]
+    # …deterministically for a fixed seed.
+    assert riding.success_probability == riding_again.success_probability
+    assert riding.ending_balance_paths["p50"] == riding_again.ending_balance_paths["p50"]

@@ -21,6 +21,8 @@ import type {
   HouseholdTrackedAccountInput,
   HouseholdTransactionCategoryUpdate,
   ManualHoldingsReplaceInput,
+  RetirementAllocationScenario,
+  RetirementAllocationScenarioInput,
   RetirementPreview,
   RetirementPreviewRequest,
 } from './types'
@@ -120,6 +122,26 @@ export async function fetchRetirementPreview(
   options: RequestInit = {},
 ): Promise<RetirementPreview> {
   return post<RetirementPreview>('/api/retirement/preview', payload, options)
+}
+
+export async function fetchAllocationScenarios(
+  options: RequestInit = {},
+): Promise<RetirementAllocationScenario[]> {
+  return get<RetirementAllocationScenario[]>(
+    '/api/retirement/allocation-scenarios',
+    options,
+  )
+}
+
+export async function replaceAllocationScenarios(
+  scenarios: RetirementAllocationScenarioInput[],
+  options: RequestInit = {},
+): Promise<RetirementAllocationScenario[]> {
+  return put<RetirementAllocationScenario[]>(
+    '/api/retirement/allocation-scenarios',
+    { scenarios },
+    options,
+  )
 }
 
 export async function fetchHouseholdAccountHoldings(

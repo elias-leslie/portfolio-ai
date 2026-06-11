@@ -84,6 +84,7 @@ export interface HouseholdProfile {
   bridgeMode?: string | null
   bridgeManualAmount?: number | null
   bridgeRealReturn?: number | null
+  bridgeGrowth?: 'fixed' | 'portfolio' | null
   retirementEssentialFloorOverride?: number | null
   retirementDiscretionaryOverride?: number | null
   notes: string | null
@@ -339,6 +340,29 @@ export interface RetirementWithdrawalBridgeConfig {
   mode: 'auto' | 'manual'
   manualAmount?: number | null
   realReturn: number
+  /** fixed = deterministic realReturn; portfolio = rides simulated returns. */
+  growth?: 'fixed' | 'portfolio'
+}
+
+export interface RetirementAllocationScenarioHolding {
+  symbol: string
+  weight: number
+}
+
+export interface RetirementAllocationScenarioInput {
+  id?: string | null
+  name: string
+  holdings: RetirementAllocationScenarioHolding[]
+  bridgeGrowth?: 'fixed' | 'portfolio' | null
+  bridgeRealReturn?: number | null
+  notes?: string | null
+}
+
+export interface RetirementAllocationScenario
+  extends RetirementAllocationScenarioInput {
+  id: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface RetirementWithdrawalHealthcarePoint {
@@ -1047,6 +1071,7 @@ export interface HouseholdProfileUpdate {
   bridgeMode?: string | null
   bridgeManualAmount?: number | null
   bridgeRealReturn?: number | null
+  bridgeGrowth?: 'fixed' | 'portfolio' | null
   retirementEssentialFloorOverride?: number | null
   retirementDiscretionaryOverride?: number | null
   notes?: string | null

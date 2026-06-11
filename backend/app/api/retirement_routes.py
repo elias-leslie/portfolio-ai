@@ -31,6 +31,9 @@ from app.portfolio.contracts.retirement import (
     ScenarioSummary,
     WithdrawalConfig,
 )
+from app.services.retirement_allocation_scenarios_service import (
+    AllocationScenariosReplaceRequest,
+)
 from app.services.retirement_planning_service import (
     DEFAULT_LIST_LIMIT,
     DEFAULT_PREVIEW_TRIALS,
@@ -198,6 +201,30 @@ async def show_scenario(
     if results is None:
         raise HTTPException(status_code=404, detail="scenario_not_found")
     return results.model_dump(mode="json")
+
+
+@lru_cache(maxsize=1)
+def _allocation_scenarios_service() -> Any:
+    module = import_module("app.services.retirement_allocation_scenarios_service")
+    return module.AllocationScenariosService(_storage())
+
+
+@router.get("/allocation-scenarios")
+async def list_allocation_scenarios() -> list[dict[str, Any]]:
+    """Saved what-if allocation mixes for the allocation lab."""
+    rows = await run_in_threadpool(_allocation_scenarios_service().list_scenarios)
+    return [row.model_dump(mode="json") for row in rows]
+
+
+@router.put("/allocation-scenarios")
+async def replace_allocation_scenarios(
+    payload: AllocationScenariosReplaceRequest,
+) -> list[dict[str, Any]]:
+    """Replace the full saved scenario list (UI manages it as a set)."""
+    rows = await run_in_threadpool(
+        _allocation_scenarios_service().replace_scenarios, payload
+    )
+    return [row.model_dump(mode="json") for row in rows]
 
 
 def _default_scenario_name(inputs: RetirementInputs) -> str:

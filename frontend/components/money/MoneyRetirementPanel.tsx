@@ -28,10 +28,13 @@ import type {
   HouseholdFinanceDashboard,
   HouseholdProfileUpdate,
   RetirementAccountRule,
+  RetirementAllocationScenario,
+  RetirementAllocationScenarioInput,
   RetirementCollegeYear,
   RetirementPreviewRequest,
   RetirementWithdrawalConfig,
 } from '@/lib/api/household'
+import { fetchRetirementPreview } from '@/lib/api/household'
 import {
   formatCurrency,
   formatCurrencyWhole,
@@ -40,6 +43,8 @@ import {
 } from '@/lib/formatters'
 import { useDebounce } from '@/lib/hooks/useDebounce'
 import {
+  useAllocationScenarios,
+  useReplaceAllocationScenarios,
   useRetirementPreview,
   useUpdateHouseholdPlanning,
   useUpdateHouseholdProfile,
@@ -444,6 +449,7 @@ type WithdrawalDraft = {
   bridgeMode: 'auto' | 'manual'
   bridgeManualAmount: string
   bridgeRealReturnPct: string
+  bridgeGrowth: 'fixed' | 'portfolio'
   healthcare: Array<{ age: string; realAmount: string }>
   college: Array<{ calendarYear: string; realAmount: string }>
 }
@@ -467,6 +473,7 @@ function defaultWithdrawalDraft(
     bridgeMode: profile.bridgeMode === 'manual' ? 'manual' : 'auto',
     bridgeManualAmount: numberInput(profile.bridgeManualAmount, '0'),
     bridgeRealReturnPct: percentInput(profile.bridgeRealReturn, '1'),
+    bridgeGrowth: profile.bridgeGrowth === 'portfolio' ? 'portfolio' : 'fixed',
     healthcare: schedule.map((row) => ({
       age: String(row.age),
       realAmount: String(Math.round(row.realAmount)),
@@ -530,6 +537,7 @@ function withdrawalConfigFromDraft(
         -0.05,
         0.1,
       ),
+      growth: withdrawal.bridgeGrowth,
     },
     healthcareSchedule: withdrawal.healthcare
       .map((row) => ({
@@ -690,6 +698,18 @@ export function MoneyRetirementPanel({
   const [tickerMix, setTickerMix] = useState(
     'VTI 70\nSCHD 10 3.6\nBND 10 4.0\nSPAXX 10',
   )
+  const scenariosQuery = useAllocationScenarios()
+  const replaceScenarios = useReplaceAllocationScenarios()
+  const [scenarioName, setScenarioName] = useState('')
+  const [compareSelection, setCompareSelection] = useState<string[]>([])
+  const [compareResults, setCompareResults] = useState<Array<{
+    name: string
+    success: number
+    medianEnding: number
+    depletionAge: number | null
+  }> | null>(null)
+  const [compareRunning, setCompareRunning] = useState(false)
+  const [compareError, setCompareError] = useState<string | null>(null)
   const [request, setRequest] = useState<RetirementPreviewRequest>(() =>
     buildRequest(
       dashboard.profile.id,
@@ -1096,6 +1116,7 @@ export function MoneyRetirementPanel({
         -0.05,
         0.1,
       ),
+      bridgeGrowth: withdrawalDraft.bridgeGrowth,
     }
     await updateProfile.mutateAsync(profileUpdate)
     await updatePlanning.mutateAsync({
@@ -1128,6 +1149,124 @@ export function MoneyRetirementPanel({
     value: WithdrawalDraft[K],
   ) => {
     setWithdrawalDraft((current) => ({ ...current, [key]: value }))
+  }
+
+  const scenarioInputs = (
+    rows: RetirementAllocationScenario[],
+  ): RetirementAllocationScenarioInput[] =>
+    rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      holdings: row.holdings,
+      bridgeGrowth: row.bridgeGrowth ?? null,
+      bridgeRealReturn: row.bridgeRealReturn ?? null,
+      notes: row.notes ?? null,
+    }))
+
+  const saveScenarioFromMix = async () => {
+    const name = scenarioName.trim()
+    const holdings = (parseTickerMix(tickerMix) ?? []).map(
+      ({ symbol, weight }) => ({ symbol, weight }),
+    )
+    if (!name || holdings.length === 0) return
+    const existing = scenarioInputs(scenariosQuery.data ?? []).filter(
+      (row) => row.name.trim().toLowerCase() !== name.toLowerCase(),
+    )
+    await replaceScenarios.mutateAsync([
+      ...existing,
+      {
+        name,
+        holdings,
+        bridgeGrowth: withdrawalDraft.bridgeGrowth,
+        bridgeRealReturn: clamp(
+          parseNumber(withdrawalDraft.bridgeRealReturnPct, 1) / 100,
+          -0.05,
+          0.1,
+        ),
+      },
+    ])
+    setScenarioName('')
+  }
+
+  const loadScenario = (scenario: RetirementAllocationScenario) => {
+    setTickerMix(
+      scenario.holdings.map((row) => `${row.symbol} ${row.weight}`).join('\n'),
+    )
+    setAllocationMode('tickers')
+    setWithdrawalDraft((current) => ({
+      ...current,
+      bridgeGrowth: scenario.bridgeGrowth ?? current.bridgeGrowth,
+      bridgeRealReturnPct:
+        scenario.bridgeRealReturn != null
+          ? String(scenario.bridgeRealReturn * 100)
+          : current.bridgeRealReturnPct,
+    }))
+  }
+
+  const deleteScenario = async (id: string) => {
+    await replaceScenarios.mutateAsync(
+      scenarioInputs(scenariosQuery.data ?? []).filter((row) => row.id !== id),
+    )
+    setCompareSelection((current) => current.filter((item) => item !== id))
+  }
+
+  const runCompare = async () => {
+    const selected = (scenariosQuery.data ?? []).filter((row) =>
+      compareSelection.includes(row.id),
+    )
+    setCompareRunning(true)
+    setCompareError(null)
+    try {
+      const base = buildRequest(
+        dashboard.profile.id,
+        draft,
+        'current',
+        undefined,
+        '',
+        withdrawalDraft,
+      )
+      const targets = [
+        { name: 'Current accounts', request: base },
+        ...selected.map((scenario) => ({
+          name: scenario.name,
+          request: {
+            ...base,
+            allocationHoldings: scenario.holdings,
+            withdrawal: base.withdrawal
+              ? {
+                  ...base.withdrawal,
+                  bridge: {
+                    ...base.withdrawal.bridge,
+                    growth:
+                      scenario.bridgeGrowth ?? base.withdrawal.bridge.growth,
+                    realReturn:
+                      scenario.bridgeRealReturn ??
+                      base.withdrawal.bridge.realReturn,
+                  },
+                }
+              : base.withdrawal,
+          },
+        })),
+      ]
+      const results = await Promise.all(
+        targets.map(async (target) => {
+          const result = await fetchRetirementPreview(target.request)
+          return {
+            name: target.name,
+            success: result.successProbability,
+            medianEnding: result.medianEndingBalance,
+            depletionAge: result.firstDepletionAge ?? null,
+          }
+        }),
+      )
+      setCompareResults(results)
+    } catch (error) {
+      setCompareError(
+        error instanceof Error ? error.message : 'Comparison failed',
+      )
+    } finally {
+      setCompareRunning(false)
+    }
   }
 
   const updateHealthcareRow = (
@@ -1742,25 +1881,53 @@ export function MoneyRetirementPanel({
                       />
                     </label>
                   ) : null}
-                  <label className="text-xs text-text-muted">
-                    Bridge real return %
-                    <Input
-                      className="mt-1"
-                      inputMode="decimal"
-                      aria-label="Bridge sleeve real return percent"
-                      value={withdrawalDraft.bridgeRealReturnPct}
-                      onChange={(event) =>
-                        updateWithdrawalDraft(
-                          'bridgeRealReturnPct',
-                          event.target.value,
-                        )
+                  {withdrawalDraft.bridgeGrowth === 'fixed' ? (
+                    <label className="text-xs text-text-muted">
+                      Bridge real return %
+                      <Input
+                        className="mt-1"
+                        inputMode="decimal"
+                        aria-label="Bridge sleeve real return percent"
+                        value={withdrawalDraft.bridgeRealReturnPct}
+                        onChange={(event) =>
+                          updateWithdrawalDraft(
+                            'bridgeRealReturnPct',
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </label>
+                  ) : null}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(
+                    [
+                      ['fixed', 'Conservative (fixed return)'],
+                      ['portfolio', 'Invested with portfolio'],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <Button
+                      key={value}
+                      type="button"
+                      size="sm"
+                      variant={
+                        withdrawalDraft.bridgeGrowth === value
+                          ? 'default'
+                          : 'outline'
                       }
-                    />
-                  </label>
+                      onClick={() =>
+                        updateWithdrawalDraft('bridgeGrowth', value)
+                      }
+                    >
+                      {label}
+                    </Button>
+                  ))}
                 </div>
                 <p className="mt-2 text-xs text-text-muted">
                   Auto sizes the sleeve to cover essential-floor gaps from
-                  retirement until Social Security starts.
+                  retirement until Social Security starts. Conservative grows
+                  the sleeve at the fixed real return; invested lets it ride the
+                  simulated portfolio returns, sequence risk included.
                 </p>
               </div>
             </div>
@@ -2297,6 +2464,164 @@ export function MoneyRetirementPanel({
                   </div>
                 )}
               </div>
+            </div>
+
+            <div className="mt-5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Scenario lab
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={runCompare}
+                  disabled={compareRunning}
+                >
+                  {compareRunning
+                    ? 'Comparing…'
+                    : `Compare current + ${compareSelection.length} selected`}
+                </Button>
+              </div>
+              <p className="mt-1 text-xs text-text-muted">
+                Save ticker mixes as named scenarios, then compare them
+                side-by-side against your real account allocation. Each scenario
+                keeps its own bridge style.
+              </p>
+              <div className="mt-3 flex flex-wrap items-end gap-2">
+                <label className="text-xs text-text-muted">
+                  Scenario name
+                  <Input
+                    className="mt-1 w-56"
+                    aria-label="Scenario name"
+                    value={scenarioName}
+                    onChange={(event) => setScenarioName(event.target.value)}
+                    placeholder="e.g. Equity bridge"
+                  />
+                </label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={saveScenarioFromMix}
+                  disabled={
+                    replaceScenarios.isPending ||
+                    !scenarioName.trim() ||
+                    (parseTickerMix(tickerMix) ?? []).length === 0
+                  }
+                >
+                  Save ticker mix as scenario
+                </Button>
+              </div>
+              {(scenariosQuery.data ?? []).length === 0 ? (
+                <p className="mt-3 text-xs text-text-muted">
+                  No saved scenarios yet. Enter a ticker mix above and save it
+                  here to start comparing.
+                </p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {(scenariosQuery.data ?? []).map((scenario) => (
+                    <div
+                      key={scenario.id}
+                      className="flex flex-wrap items-center gap-3 rounded-xl border border-border/35 bg-surface-muted/15 px-3 py-2"
+                    >
+                      <label className="flex items-center gap-2 text-sm text-text">
+                        <input
+                          type="checkbox"
+                          aria-label={`Compare ${scenario.name}`}
+                          checked={compareSelection.includes(scenario.id)}
+                          onChange={(event) =>
+                            setCompareSelection((current) =>
+                              event.target.checked
+                                ? [...current, scenario.id]
+                                : current.filter(
+                                    (item) => item !== scenario.id,
+                                  ),
+                            )
+                          }
+                        />
+                        <span className="font-medium">{scenario.name}</span>
+                      </label>
+                      <span className="text-xs text-text-muted">
+                        {scenario.holdings
+                          .map((row) => `${row.symbol} ${row.weight}`)
+                          .join(' · ')}
+                      </span>
+                      <span className="text-xs text-text-muted">
+                        bridge:{' '}
+                        {scenario.bridgeGrowth === 'portfolio'
+                          ? 'invested'
+                          : `fixed ${formatPercent(
+                              (scenario.bridgeRealReturn ?? 0.01) * 100,
+                              { decimals: 1 },
+                            )}`}
+                      </span>
+                      <span className="ml-auto flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => loadScenario(scenario)}
+                        >
+                          Load
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => deleteScenario(scenario.id)}
+                          disabled={replaceScenarios.isPending}
+                        >
+                          Delete
+                        </Button>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {compareError ? (
+                <p className="mt-3 text-xs text-danger">{compareError}</p>
+              ) : null}
+              {compareResults ? (
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full min-w-[28rem] text-sm">
+                    <thead>
+                      <tr className="text-left text-xs uppercase tracking-[0.12em] text-text-muted">
+                        <th className="py-1.5 pr-3">Scenario</th>
+                        <th className="py-1.5 pr-3">Success</th>
+                        <th className="py-1.5 pr-3">Median ending</th>
+                        <th className="py-1.5">First depletion</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {compareResults.map((row) => (
+                        <tr
+                          key={row.name}
+                          className="border-t border-border/30"
+                        >
+                          <td className="py-1.5 pr-3 font-medium text-text">
+                            {row.name}
+                          </td>
+                          <td className="py-1.5 pr-3 font-mono tabular-nums">
+                            {percentPoints(row.success)}
+                          </td>
+                          <td className="py-1.5 pr-3 font-mono tabular-nums">
+                            {formatCurrencyWhole(row.medianEnding)}
+                          </td>
+                          <td className="py-1.5 font-mono tabular-nums">
+                            {row.depletionAge != null
+                              ? `age ${row.depletionAge}`
+                              : 'never'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="mt-2 text-xs text-text-muted">
+                    Same seed and knob set per run — only the allocation and
+                    bridge style differ.
+                  </p>
+                </div>
+              ) : null}
             </div>
           </>
         ) : null}

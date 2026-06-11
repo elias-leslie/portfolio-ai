@@ -1288,7 +1288,9 @@ class RetirementPlanningService:
             if year_index > 0:
                 for bucket in list(balances):
                     balances[bucket] = max(0.0, balances[bucket] * (1.0 + annual_return))
-                bridge_balance *= 1.0 + cfg.bridge.real_return
+                bridge_balance *= 1.0 + (
+                    r_real if cfg.bridge.growth == "portfolio" else cfg.bridge.real_return
+                )
                 college_balance *= 1.0 + inputs.college_529_real_return
                 if primary_age < household_retirement_age and inputs.annual_contribution > 0:
                     balances[contribution_bucket] = balances.get(contribution_bucket, 0.0) + inputs.annual_contribution
@@ -2199,6 +2201,7 @@ def _withdrawal_config_from_profile(
             mode=str(value("bridge_mode", "auto")),
             manual_amount=getattr(profile, "bridge_manual_amount", None),
             real_return=float(value("bridge_real_return", 0.01)),
+            growth=str(value("bridge_growth", "fixed")),
         ),
         healthcare_schedule=healthcare_schedule,
         essential_floor=getattr(profile, "retirement_essential_floor_override", None),
@@ -2340,6 +2343,7 @@ def _engine_withdrawal_config(
             mode=wc.bridge.mode,
             manual_amount=wc.bridge.manual_amount,
             real_return=wc.bridge.real_return,
+            growth=wc.bridge.growth,
         )
     return EngineWithdrawalConfig(
         strategy=wc.strategy,
@@ -2591,6 +2595,7 @@ def _run_tax_aware_monte_carlo(
     bridge_initial = _carve_bridge_from_balances(
         starting_balances, bridge_initial_size(cfg, _real_guaranteed_income_fn(inputs))
     )
+    bridge_rides_portfolio = cfg.bridge.growth == "portfolio"
     failure_year = np.full(trials, -1, dtype=np.int32)
     yearly_balances = np.empty((trials, inputs.horizon_years), dtype=np.float64)
     discretionary_paths = np.zeros((trials, inputs.horizon_years), dtype=np.float64)
@@ -2646,7 +2651,13 @@ def _run_tax_aware_monte_carlo(
                 annual_return = cash_return if bucket == "cash" else portfolio_return
                 balances[bucket] = max(0.0, balances[bucket] * (1.0 + annual_return))
             if year_index > 0:
-                bridge_balance *= 1.0 + cfg.bridge.real_return
+                # The bridge is tracked in real dollars, so a portfolio-grown
+                # bridge converts the sampled nominal return to real.
+                bridge_balance *= 1.0 + (
+                    (1.0 + portfolio_return) / (1.0 + inputs.inflation_rate) - 1.0
+                    if bridge_rides_portfolio
+                    else cfg.bridge.real_return
+                )
             if primary_age < household_retirement_age and inputs.annual_contribution > 0:
                 balances[contribution_bucket] = balances.get(contribution_bucket, 0.0) + inputs.annual_contribution
 

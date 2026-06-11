@@ -40,6 +40,11 @@ class WithdrawalBridgeConfig(BaseModel):
     mode: Literal["auto", "manual"] = "auto"
     manual_amount: float | None = Field(None, ge=0.0)
     real_return: float = Field(0.01, ge=-0.05, le=0.10)
+    # "fixed" grows the sleeve at real_return deterministically; "portfolio"
+    # lets it ride the simulated portfolio returns (volatility included).
+    # Sizing always discounts at real_return so the sleeve is funded
+    # conservatively either way.
+    growth: Literal["fixed", "portfolio"] = "fixed"
 
 
 class WithdrawalHealthcarePoint(BaseModel):

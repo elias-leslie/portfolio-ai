@@ -185,6 +185,7 @@ def row_to_profile(
         notes=str(row[41]) if row[41] is not None else None,
         created_at=iso(row[42]),
         updated_at=iso(row[43]),
+        bridge_growth=str(row[44]) if len(row) > 44 and row[44] is not None else None,
     )
 
 

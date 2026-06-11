@@ -8,6 +8,7 @@ import {
   createHouseholdTrackedAccount,
   deleteHouseholdDocument,
   deleteHouseholdTrackedAccount,
+  fetchAllocationScenarios,
   fetchConfirmedFacts,
   fetchHouseholdAccountHoldings,
   fetchHouseholdDashboard,
@@ -23,7 +24,9 @@ import {
   type HouseholdProfileUpdate,
   type HouseholdTrackedAccountInput,
   type ManualHoldingsReplaceInput,
+  type RetirementAllocationScenarioInput,
   type RetirementPreviewRequest,
+  replaceAllocationScenarios,
   replaceHouseholdAccountHoldings,
   updateHouseholdPlanning,
   updateHouseholdProfile,
@@ -154,6 +157,33 @@ export function useRetirementPreview(params: RetirementPreviewRequest) {
     queryFn: ({ signal }) => fetchRetirementPreview(params, { signal }),
     staleTime: HOUSEHOLD_MARKET_VALUE_REFRESH_MS,
     refetchOnWindowFocus: false,
+  })
+}
+
+export function useAllocationScenarios() {
+  return useQuery({
+    queryKey: ['retirement', 'allocation-scenarios'],
+    queryFn: ({ signal }) => fetchAllocationScenarios({ signal }),
+    staleTime: HOUSEHOLD_MARKET_VALUE_REFRESH_MS,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useReplaceAllocationScenarios() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (scenarios: RetirementAllocationScenarioInput[]) =>
+      replaceAllocationScenarios(scenarios),
+    onSuccess: async (rows) => {
+      queryClient.setQueryData(['retirement', 'allocation-scenarios'], rows)
+      toast.success('Allocation scenarios saved.')
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to save scenarios',
+      )
+    },
   })
 }
 

@@ -62,6 +62,10 @@ class BridgeConfig:
     mode: Literal["auto", "manual"] = "auto"
     manual_amount: float | None = None
     real_return: float = 0.01
+    # "fixed": sleeve grows at real_return; "portfolio": the simulation
+    # applies its sampled portfolio return instead. Sizing always uses
+    # real_return.
+    growth: Literal["fixed", "portfolio"] = "fixed"
 
 
 @dataclass(frozen=True, slots=True)

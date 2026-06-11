@@ -162,6 +162,7 @@ class HouseholdProfile(BaseModel):
     bridge_mode: str | None = None
     bridge_manual_amount: float | None = None
     bridge_real_return: float | None = None
+    bridge_growth: str | None = None
     retirement_essential_floor_override: float | None = None
     retirement_discretionary_override: float | None = None
     notes: str | None = None
@@ -208,6 +209,7 @@ class HouseholdProfileUpdate(BaseModel):
     bridge_mode: str | None = None
     bridge_manual_amount: float | None = None
     bridge_real_return: float | None = None
+    bridge_growth: str | None = None
     retirement_essential_floor_override: float | None = None
     retirement_discretionary_override: float | None = None
     notes: str | None = None
