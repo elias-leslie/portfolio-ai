@@ -1,10 +1,18 @@
 'use client'
 
-import { Briefcase, LayoutDashboard, Radar, Wallet } from 'lucide-react'
+import {
+  Briefcase,
+  LayoutDashboard,
+  MessageCircle,
+  MessageCircleOff,
+  Radar,
+  Wallet,
+} from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { HomeActionQueueBadge } from '@/components/home/HomeActionQueueBadge'
 import { MarketStatusBadge } from '@/components/market/MarketStatusBadge'
+import { useChatWidget } from '@/components/providers/ChatWidgetProvider'
 import { FreshnessStatusBadge } from '@/components/status/FreshnessStatusBadge'
 import {
   PRIMARY_PRODUCT_ROUTES,
@@ -25,6 +33,35 @@ export function Navigation() {
   const pathname = usePathname()
 
   return <NavigationContent pathname={pathname} />
+}
+
+function ChatWidgetToggle() {
+  const { enabled, setEnabled } = useChatWidget()
+  const label = enabled
+    ? 'Disable Jenny chat widget'
+    : 'Enable Jenny chat widget'
+
+  return (
+    <button
+      type="button"
+      aria-pressed={enabled}
+      aria-label={label}
+      title={label}
+      onClick={() => setEnabled(!enabled)}
+      className={cn(
+        'inline-flex h-8 items-center rounded-full border px-2.5 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
+        enabled
+          ? 'border-primary/40 bg-primary/10 text-text hover:bg-primary/15'
+          : 'border-border/40 bg-surface/60 text-text-muted hover:border-border/60 hover:bg-surface/80 hover:text-text',
+      )}
+    >
+      {enabled ? (
+        <MessageCircle className="size-4" aria-hidden />
+      ) : (
+        <MessageCircleOff className="size-4" aria-hidden />
+      )}
+    </button>
+  )
 }
 
 /**
@@ -91,6 +128,7 @@ function NavigationContent({ pathname }: { pathname: string }) {
             <div className="hidden md:block">
               <MarketStatusBadge />
             </div>
+            <ChatWidgetToggle />
             {SECONDARY_PRODUCT_ROUTES.map((link) => {
               const Icon = routeIcons[link.href]
               const isActive = activeUtilityRoute?.href === link.href

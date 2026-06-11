@@ -1,8 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { SectionCard } from '@/components/shared/SectionCard'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useJennyChat } from '@/lib/hooks/usePortfolio'
@@ -50,13 +48,7 @@ function loadStoredMessages(): ChatMessage[] {
   }
 }
 
-export function JennyChatPanel({
-  title = 'Chat with Jenny',
-  description = 'Ask about your portfolio, retirement plan, account balances, or answer Jenny in free-form.',
-}: {
-  title?: string
-  description?: string
-}) {
+export function JennyChatConversation() {
   const chatMutation = useJennyChat()
   const [message, setMessage] = useState('')
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -108,6 +100,11 @@ export function JennyChatPanel({
       const response = await chatMutation.mutateAsync({
         message: trimmed,
         sessionId,
+        pageContext: {
+          pathname: window.location.pathname,
+          title: document.title,
+          search: window.location.search,
+        },
       })
       const now = Date.now()
       setSessionId(response.sessionId)
@@ -128,82 +125,67 @@ export function JennyChatPanel({
   }
 
   return (
-    <SectionCard
-      variant="surface"
-      title={title}
-      description={description}
-      className="overflow-hidden"
-      contentClassName="grid gap-4"
-      actions={
-        <Badge variant={chatMutation.isPending ? 'warning' : 'secondary'}>
-          {chatMutation.isPending
-            ? 'Jenny is thinking'
-            : 'Portfolio-wide context'}
-        </Badge>
-      }
-    >
-      <div className="grid gap-4">
-        {messages.length === 0 ? (
-          <div className="rounded-2xl border border-border/40 bg-surface/70 px-4 py-3 text-sm text-text-muted">
-            Try: &quot;What does Jenny think about AMD?&quot;, &quot;How much
-            cash is in our IRA?&quot;, or &quot;I want to retire at 60.&quot;
-          </div>
-        ) : (
-          <div className="max-h-[26rem] space-y-3 overflow-y-auto pr-1">
-            {messages.map((entry) => (
-              <div
-                key={`${entry.role}-${entry.timestamp ?? 0}`}
-                className={cn(
-                  'rounded-2xl border px-4 py-3 text-sm',
-                  entry.role === 'user'
-                    ? 'border-primary/20 bg-primary/5 text-text'
-                    : 'border-border/40 bg-surface-muted/20 text-text',
-                )}
-              >
-                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-text-muted">
-                  {entry.role === 'user' ? 'You' : 'Jenny'}
-                </p>
-                <p className="whitespace-pre-wrap">{entry.content}</p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {lastResolvedCount > 0 ? (
-          <div className="rounded-2xl border border-gain/30 bg-gain/10 px-4 py-3 text-sm text-text">
-            Jenny reconciled {lastResolvedCount} question
-            {lastResolvedCount === 1 ? '' : 's'} from your last message.
-          </div>
-        ) : null}
-
-        {errorMessage ? (
-          <div className="rounded-2xl border border-loss/30 bg-loss/10 px-4 py-3 text-sm text-text">
-            Jenny could not reply yet. {errorMessage}
-          </div>
-        ) : null}
-
-        <div className="space-y-3">
-          <Textarea
-            value={message}
-            onChange={(event) => {
-              setMessage(event.target.value)
-              if (errorMessage) {
-                setErrorMessage(null)
-              }
-            }}
-            placeholder="Ask anything about Portfolio-AI, or answer Jenny in plain English."
-            rows={3}
-          />
-          <div className="flex justify-end">
-            <Button
-              onClick={() => void handleSend()}
-              disabled={chatMutation.isPending || !message.trim()}
+    <div className="grid gap-4">
+      {messages.length === 0 ? (
+        <div className="rounded-2xl border border-border/40 bg-surface/70 px-4 py-3 text-sm text-text-muted">
+          Try: &quot;What does Jenny think about AMD?&quot;, &quot;How much cash
+          is in our IRA?&quot;, or &quot;I want to retire at 60.&quot;
+        </div>
+      ) : (
+        <div className="max-h-[min(50vh,24rem)] space-y-3 overflow-y-auto pr-1">
+          {messages.map((entry) => (
+            <div
+              key={`${entry.role}-${entry.timestamp ?? 0}`}
+              className={cn(
+                'rounded-2xl border px-4 py-3 text-sm',
+                entry.role === 'user'
+                  ? 'border-primary/20 bg-primary/5 text-text'
+                  : 'border-border/40 bg-surface-muted/20 text-text',
+              )}
             >
-              {chatMutation.isPending ? 'Sending...' : 'Send to Jenny'}
-            </Button>
-          </div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-text-muted">
+                {entry.role === 'user' ? 'You' : 'Jenny'}
+              </p>
+              <p className="whitespace-pre-wrap">{entry.content}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {lastResolvedCount > 0 ? (
+        <div className="rounded-2xl border border-gain/30 bg-gain/10 px-4 py-3 text-sm text-text">
+          Jenny reconciled {lastResolvedCount} question
+          {lastResolvedCount === 1 ? '' : 's'} from your last message.
+        </div>
+      ) : null}
+
+      {errorMessage ? (
+        <div className="rounded-2xl border border-loss/30 bg-loss/10 px-4 py-3 text-sm text-text">
+          Jenny could not reply yet. {errorMessage}
+        </div>
+      ) : null}
+
+      <div className="space-y-3">
+        <Textarea
+          value={message}
+          onChange={(event) => {
+            setMessage(event.target.value)
+            if (errorMessage) {
+              setErrorMessage(null)
+            }
+          }}
+          placeholder="Ask anything about Portfolio-AI, or answer Jenny in plain English."
+          rows={3}
+        />
+        <div className="flex justify-end">
+          <Button
+            onClick={() => void handleSend()}
+            disabled={chatMutation.isPending || !message.trim()}
+          >
+            {chatMutation.isPending ? 'Sending...' : 'Send to Jenny'}
+          </Button>
         </div>
       </div>
-    </SectionCard>
+    </div>
   )
 }

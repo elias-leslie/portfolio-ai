@@ -282,9 +282,16 @@ class JennyRunResponseModel(BaseModel):
     dashboard: JennyDashboardResponse
 
 
+class JennyPageContext(BaseModel):
+    pathname: str = Field(..., description="Current app route, e.g. /money")
+    title: str | None = Field(default=None, description="document.title at send time")
+    search: str | None = Field(default=None, description="window.location.search at send time")
+
+
 class JennyChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="Free-form message to Jenny")
     session_id: str | None = Field(default=None, description="Existing Agent Hub session to continue")
+    page_context: JennyPageContext | None = Field(default=None, description="Screen the user is viewing")
 
 
 class JennyChatResolvedQuestionResponse(BaseModel):

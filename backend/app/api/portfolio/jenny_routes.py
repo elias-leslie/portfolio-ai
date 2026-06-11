@@ -60,7 +60,10 @@ def _acknowledge_jenny_notification_payload(notification_id: str) -> JennyNotifi
 
 
 def _chat_with_jenny_payload(payload: JennyChatRequest) -> JennyChatResponseModel:
-    response = _conversation_service().chat(payload.message, session_id=payload.session_id)
+    page_context = payload.page_context.model_dump() if payload.page_context else None
+    response = _conversation_service().chat(
+        payload.message, session_id=payload.session_id, page_context=page_context
+    )
     return JennyChatResponseModel.model_validate(response)
 
 

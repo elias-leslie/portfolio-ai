@@ -105,6 +105,22 @@ export interface OvernightLean {
   signals: OvernightLeanSignal[]
 }
 
+export interface MacroConditionTrigger {
+  key: string
+  label: string
+  current: number | null
+  currentDisplay: string
+  trigger: number
+  triggerDisplay: string
+  baseline: number
+  direction: 'above' | 'below' | string
+  unit: string
+  progress: number | null
+  fired: boolean
+  tone: 'gain' | 'warning' | 'loss' | 'neutral' | string
+  note: string
+}
+
 export interface MacroConditionsResponse {
   snapshotDate: string | null
   computedAt: string | null
@@ -141,6 +157,7 @@ export interface MacroConditionsResponse {
   whatMatters: string[]
   whatToDo: string[]
   watchItems: string[]
+  triggers: MacroConditionTrigger[]
   trend: Record<string, MacroConditionTrend>
   marketShifts: MacroConditionShift[]
   flags: string[]

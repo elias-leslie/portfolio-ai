@@ -150,6 +150,38 @@ const conditions = {
     'HY OAS above 5 or widening 100 bps would make credit a real warning.',
     'Buying conditions below 40 would turn the brief defensive.',
   ],
+  triggers: [
+    {
+      key: 'vix',
+      label: 'VIX',
+      current: 22.2,
+      currentDisplay: '22.2',
+      trigger: 30,
+      triggerDisplay: '30',
+      baseline: 12,
+      direction: 'above',
+      unit: '',
+      progress: 0.567,
+      fired: false,
+      tone: 'gain',
+      note: 'Above 30 flips volatility to stressed and the read to Elevated.',
+    },
+    {
+      key: 'buy_score',
+      label: 'Buying conditions',
+      current: 56,
+      currentDisplay: '56',
+      trigger: 40,
+      triggerDisplay: '40',
+      baseline: 75,
+      direction: 'below',
+      unit: '',
+      progress: 0.543,
+      fired: false,
+      tone: 'gain',
+      note: 'Below 40 turns the brief defensive.',
+    },
+  ],
   trend: {
     stress: stressTrend,
     vix: calmTrend,
@@ -318,10 +350,10 @@ describe('DailyBriefPanel', () => {
     expect(screen.getByText('Tape')).toBeInTheDocument()
     expect(screen.queryByText('7D +7')).not.toBeInTheDocument()
 
-    expect(screen.getByText('What matters')).toBeInTheDocument()
-    expect(screen.getByText('What to do')).toBeInTheDocument()
-    expect(screen.getByText('What changes this')).toBeInTheDocument()
-    expect(screen.getByText(/highest-conviction setups/i)).toBeInTheDocument()
+    expect(screen.getByText('What would change the read')).toBeInTheDocument()
+    expect(screen.getByText('Buying conditions')).toBeInTheDocument()
+    expect(screen.getByText('≥ 30')).toBeInTheDocument()
+    expect(screen.getByText('57% of the way')).toBeInTheDocument()
     expect(screen.getByText('Market shifts')).toBeInTheDocument()
     expect(screen.getByText('Macro stress reversed worse')).toBeInTheDocument()
 

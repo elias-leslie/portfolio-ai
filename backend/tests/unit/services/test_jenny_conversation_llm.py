@@ -131,7 +131,7 @@ def test_reconcile_message_uses_chat_agent_without_memory(mock_make_client: Mock
 
 @patch(_PROMPT_LOADER, return_value="system")
 @patch("app.services._jenny_conversation_llm.make_client")
-def test_complete_conversation_uses_chat_agent_without_memory(mock_make_client: Mock, _: Mock) -> None:
+def test_complete_conversation_uses_persona_agent_with_memory_and_tools(mock_make_client: Mock, _: Mock) -> None:
     client = Mock()
     client.complete_messages.return_value = SimpleNamespace(content="ok", session_id="session-1")
     mock_make_client.return_value = client
@@ -143,8 +143,11 @@ def test_complete_conversation_uses_chat_agent_without_memory(mock_make_client: 
         open_questions=[_question("question-1")],
     )
 
-    mock_make_client.assert_called_once_with(agent_slug="chat", use_memory=False)
-    assert client.complete_messages.call_args.kwargs["use_memory"] is False
+    mock_make_client.assert_called_once_with(agent_slug="persona", use_memory=True)
+    kwargs = client.complete_messages.call_args.kwargs
+    assert kwargs["use_memory"] is True
+    assert kwargs["execute_tools"] is True
+    assert kwargs["max_turns"] == 8
 
 
 @patch(_PROMPT_LOADER, return_value="system")

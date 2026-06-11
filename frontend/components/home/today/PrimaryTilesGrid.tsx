@@ -156,6 +156,10 @@ export function PrimaryTilesGrid({
   ) {
     const sign = monthToDateVariance > 0 ? '+' : '−'
     spendPaceValue = `${sign}${formatCurrencyWhole(Math.abs(monthToDateVariance))}`
+  } else if (paceStatus === 'partial_plan') {
+    spendPaceValue = formatCurrencyWhole(
+      household.budgetSnapshot.monthToDateSpend,
+    )
   } else {
     spendPaceValue = (paceStatus ?? 'unavailable').replaceAll('_', ' ')
   }
@@ -240,7 +244,11 @@ export function PrimaryTilesGrid({
     {
       label: 'Spend Pace',
       value: spendPaceValue,
-      detail: household ? 'This month vs plan' : 'Budget pacing unavailable',
+      detail: household
+        ? paceStatus === 'partial_plan'
+          ? 'Spent so far — budget plan only covers part of the month'
+          : 'This month vs plan'
+        : 'Budget pacing unavailable',
       labelDetail:
         'Shows whether this month is running below, near, or above your spending plan.',
       badge: household

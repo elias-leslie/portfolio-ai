@@ -328,6 +328,28 @@ def _build_portfolio_context(
     }
 
 
+def build_compact_context(full_context: dict[str, Any]) -> dict[str, Any]:
+    """Compact household snapshot for the tool-using chat call.
+
+    The advisor agent fetches detail on demand via ``st portfolio`` tools;
+    reconcile/extract keep the full context.
+    """
+    household = full_context.get("household", {})
+    overview = household.get("overview", {})
+    return {
+        "household": {
+            "net_worth": overview.get("net_worth"),
+            "total_tracked_assets": overview.get("total_tracked_assets"),
+            "liabilities_total": overview.get("liabilities_total"),
+            "cash_reserve": overview.get("cash_reserve"),
+            "tracked_account_count": overview.get("tracked_account_count"),
+            "needs_refresh_count": overview.get("needs_refresh_count"),
+            "open_questions": household.get("open_questions", []),
+        },
+        "symbols": {"detected": full_context.get("symbols", {}).get("detected", [])},
+    }
+
+
 def build_full_context(
     message: str,
     open_questions: list[HouseholdQuestion],

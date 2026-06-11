@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { JennyChatPanel } from '../JennyChatPanel'
+import { JennyChatConversation } from '../JennyChatConversation'
 
 const mutateAsync = vi.fn()
 
@@ -12,7 +12,13 @@ vi.mock('@/lib/hooks/usePortfolio', () => ({
   }),
 }))
 
-describe('JennyChatPanel', () => {
+const pageContext = {
+  pathname: window.location.pathname,
+  title: document.title,
+  search: window.location.search,
+}
+
+describe('JennyChatConversation', () => {
   beforeEach(() => {
     mutateAsync.mockReset()
     window.localStorage.clear()
@@ -28,7 +34,7 @@ describe('JennyChatPanel', () => {
       referencedSymbols: ['AMD'],
     })
 
-    render(<JennyChatPanel />)
+    render(<JennyChatConversation />)
 
     await user.type(
       screen.getByPlaceholderText(/ask anything about portfolio-ai/i),
@@ -40,6 +46,7 @@ describe('JennyChatPanel', () => {
       expect(mutateAsync).toHaveBeenCalledWith({
         message: 'What does Jenny think about AMD?',
         sessionId: null,
+        pageContext,
       }),
     )
     expect(
@@ -64,7 +71,7 @@ describe('JennyChatPanel', () => {
       referencedSymbols: [],
     })
 
-    render(<JennyChatPanel />)
+    render(<JennyChatConversation />)
 
     await user.type(
       screen.getByPlaceholderText(/ask anything about portfolio-ai/i),
@@ -81,7 +88,7 @@ describe('JennyChatPanel', () => {
     const user = userEvent.setup()
     mutateAsync.mockRejectedValueOnce(new Error('chat failed'))
 
-    render(<JennyChatPanel />)
+    render(<JennyChatConversation />)
 
     await user.type(
       screen.getByPlaceholderText(/ask anything about portfolio-ai/i),
@@ -93,6 +100,7 @@ describe('JennyChatPanel', () => {
       expect(mutateAsync).toHaveBeenCalledWith({
         message: 'Please try this again.',
         sessionId: null,
+        pageContext,
       }),
     )
 
@@ -114,7 +122,7 @@ describe('JennyChatPanel', () => {
     const user = userEvent.setup()
     mutateAsync.mockRejectedValueOnce(new Error('chat failed'))
 
-    render(<JennyChatPanel />)
+    render(<JennyChatConversation />)
 
     const input = screen.getByPlaceholderText(
       /ask anything about portfolio-ai/i,

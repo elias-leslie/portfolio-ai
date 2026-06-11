@@ -544,3 +544,63 @@ def test_driving_read_states_the_why_across_regimes() -> None:
         breadth_pct=None,
     )
     assert blank["tone"] == "neutral"
+
+
+def test_conditions_payload_triggers_report_live_distance_to_thresholds() -> None:
+    payload = conditions.build_conditions_payload(
+        _snapshot(vix_close=21.0, hy_spread=2.5, deployment_score=59.0, breadth_pct=59.0),
+        tape_stress=conditions.TapeStressEvidence(
+            stress_score=55,
+            as_of="2026-05-28T20:00:00+00:00",
+            sp500_change_pct=-0.4,
+            weakest_sector_symbol="XLY",
+            weakest_sector_name="Consumer Discretionary",
+            weakest_sector_change_pct=-1.2,
+            negative_sector_count=6,
+            sector_count=11,
+            sector_coverage=1.0,
+        ),
+    )
+
+    triggers = {row["key"]: row for row in payload["triggers"]}
+    assert set(triggers) == {
+        "sp500_day",
+        "vix",
+        "hy_oas",
+        "hy_widening",
+        "buy_score",
+        "tape_pressure",
+        "breadth",
+    }
+
+    vix = triggers["vix"]
+    assert vix["current"] == 21.0
+    assert vix["trigger"] == 30.0
+    assert vix["fired"] is False
+    assert vix["progress"] == 0.5  # (21 - 12) / (30 - 12)
+    assert vix["tone"] == "gain"
+
+    sp = triggers["sp500_day"]
+    assert sp["direction"] == "below"
+    assert sp["progress"] == 0.2  # (0 - -0.4) / (0 - -2)
+
+    # No HY change supplied: row present but value-less, neutral tone.
+    widening = triggers["hy_widening"]
+    assert widening["current"] is None
+    assert widening["tone"] == "neutral"
+    assert widening["current_display"] == "—"
+
+
+def test_conditions_payload_trigger_fires_and_clamps_when_threshold_crossed() -> None:
+    payload = conditions.build_conditions_payload(_snapshot(vix_close=33.0))
+
+    vix = {row["key"]: row for row in payload["triggers"]}["vix"]
+    assert vix["fired"] is True
+    assert vix["progress"] == 1.0
+    assert vix["tone"] == "loss"
+
+    # Near-trigger values get the warning tone before firing.
+    near = conditions.build_conditions_payload(_snapshot(vix_close=26.0))
+    vix_near = {row["key"]: row for row in near["triggers"]}["vix"]
+    assert vix_near["fired"] is False
+    assert vix_near["tone"] == "warning"

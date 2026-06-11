@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
+import { ChatWidgetProvider } from '@/components/providers/ChatWidgetProvider'
 import { ThemeProvider } from '@/components/providers/ThemeProvider'
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -20,7 +21,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeProvider>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <ChatWidgetProvider>{children}</ChatWidgetProvider>
+      </QueryClientProvider>
     </ThemeProvider>
   )
 }

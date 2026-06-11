@@ -79,7 +79,7 @@ export function netWorthBadgeLabel(status: string | null | undefined): string {
     case 'current':
       return 'Current'
     case 'stale':
-      return 'Stale'
+      return 'Needs refresh'
     case 'estimated':
     case 'known':
       return 'Known'

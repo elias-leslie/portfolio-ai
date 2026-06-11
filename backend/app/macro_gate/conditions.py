@@ -1187,6 +1187,154 @@ def _watch_items() -> list[str]:
     ]
 
 
+def _trigger_row(
+    *,
+    key: str,
+    label: str,
+    current: float | None,
+    trigger: float,
+    baseline: float,
+    direction: str,
+    unit: str,
+    digits: int,
+    note: str,
+) -> dict[str, Any]:
+    """One live watch-item: how far today's value sits from the level that flips the read.
+
+    ``baseline`` anchors the calm end of the distance bar; progress is the
+    position of ``current`` between baseline and trigger, clamped to 0..1.
+    """
+    fired = False
+    progress: float | None = None
+    if current is not None:
+        if direction == "above":
+            fired = current >= trigger
+            span = trigger - baseline
+            progress = (current - baseline) / span if span else None
+        else:
+            fired = current <= trigger
+            span = baseline - trigger
+            progress = (baseline - current) / span if span else None
+        if progress is not None:
+            progress = max(0.0, min(1.0, progress))
+    if current is None:
+        tone = "neutral"
+    elif fired:
+        tone = "loss"
+    elif progress is not None and progress >= 0.75:
+        tone = "warning"
+    else:
+        tone = "gain"
+    return {
+        "key": key,
+        "label": label,
+        "current": current,
+        "current_display": _fmt_number(current, digits) if current is not None else "—",
+        "trigger": trigger,
+        "trigger_display": _fmt_number(trigger, digits),
+        "baseline": baseline,
+        "direction": direction,
+        "unit": unit,
+        "progress": round(progress, 3) if progress is not None else None,
+        "fired": fired,
+        "tone": tone,
+        "note": note,
+    }
+
+
+def _build_triggers(
+    *,
+    vix_close: float | None,
+    hy_spread: float | None,
+    hy_change_bps: float | None,
+    deployment_score: float | None,
+    breadth_pct: float | None,
+    tape_stress: TapeStressEvidence | None,
+) -> list[dict[str, Any]]:
+    """Live distance-to-trigger rows mirroring the ``_severe_flags`` thresholds."""
+    sp500_change = tape_stress.sp500_change_pct if tape_stress else None
+    tape_score = float(tape_stress.stress_score) if tape_stress else None
+    return [
+        _trigger_row(
+            key="sp500_day",
+            label="S&P 500 day move",
+            current=sp500_change,
+            trigger=-2.0,
+            baseline=0.0,
+            direction="below",
+            unit="%",
+            digits=1,
+            note="A drop of 2%+ lifts tape pressure sharply.",
+        ),
+        _trigger_row(
+            key="vix",
+            label="VIX",
+            current=vix_close,
+            trigger=30.0,
+            baseline=12.0,
+            direction="above",
+            unit="",
+            digits=1,
+            note="Above 30 flips volatility to stressed and the read to Elevated.",
+        ),
+        _trigger_row(
+            key="hy_oas",
+            label="Credit spread (HY OAS)",
+            current=hy_spread,
+            trigger=5.0,
+            baseline=2.5,
+            direction="above",
+            unit="%",
+            digits=2,
+            note="Above 5 makes credit a severe warning.",
+        ),
+        _trigger_row(
+            key="hy_widening",
+            label="Credit widening",
+            current=hy_change_bps,
+            trigger=100.0,
+            baseline=0.0,
+            direction="above",
+            unit=" bps",
+            digits=0,
+            note="Widening 100 bps in the window is a severe credit signal.",
+        ),
+        _trigger_row(
+            key="buy_score",
+            label="Buying conditions",
+            current=deployment_score,
+            trigger=40.0,
+            baseline=75.0,
+            direction="below",
+            unit="",
+            digits=0,
+            note="Below 40 turns the brief defensive.",
+        ),
+        _trigger_row(
+            key="tape_pressure",
+            label="Tape pressure",
+            current=tape_score,
+            trigger=float(SEVERE_STRESS_THRESHOLD),
+            baseline=15.0,
+            direction="above",
+            unit="",
+            digits=0,
+            note="At 65+ the equity tape alone forces an Elevated read.",
+        ),
+        _trigger_row(
+            key="breadth",
+            label="Breadth",
+            current=breadth_pct,
+            trigger=45.0,
+            baseline=70.0,
+            direction="below",
+            unit="%",
+            digits=0,
+            note="Below 45% of stocks participating weakens rally quality.",
+        ),
+    ]
+
+
 def _build_evidence(
     *,
     overall_caution_score: int | None,
@@ -1442,6 +1590,14 @@ def build_conditions_payload(
             tape_stress,
         ),
         "watch_items": _watch_items(),
+        "triggers": _build_triggers(
+            vix_close=vix_close,
+            hy_spread=hy_spread,
+            hy_change_bps=hy_change_bps,
+            deployment_score=deployment_score,
+            breadth_pct=breadth_pct,
+            tape_stress=tape_stress,
+        ),
         "trend": trends,
         "market_shifts": _build_market_shifts(trends),
         "flags": flags,

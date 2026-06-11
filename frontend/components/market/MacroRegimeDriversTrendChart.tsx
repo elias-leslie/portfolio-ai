@@ -13,7 +13,7 @@ import {
 } from 'recharts'
 import type { MacroSnapshot } from '@/lib/api/macro'
 import { useMacroHistory } from '@/lib/hooks/useMacro'
-import { cn, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
 import { MarketPanelMessage } from './MarketPanelMessage'
 import {
   DEFAULT_MARKET_TIMEFRAME,
@@ -195,7 +195,6 @@ export function MacroRegimeDriversTrendChart() {
   const [timeframe, setTimeframe] = useState<Timeframe>(
     DEFAULT_MARKET_TIMEFRAME,
   )
-  const [highlighted, setHighlighted] = useState<DriverKey | null>(null)
   const [impactCollapsed, setImpactCollapsed] = useState(false)
   const days = timeframeToDays(timeframe)
   const { data, isLoading, error } = useMacroHistory(days)
@@ -251,115 +250,90 @@ export function MacroRegimeDriversTrendChart() {
       controls={<TimeframeSelector value={timeframe} onChange={setTimeframe} />}
       collapsed={impactCollapsed}
       chart={
-        <div className="space-y-2">
-          <div className="h-44">
-            <ResponsiveContainer width="100%" height={176}>
-              <LineChart
-                data={chartData}
-                margin={{ top: 5, right: 5, left: -20, bottom: 5 }}
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+          {(Object.keys(DRIVER_CONFIG) as DriverKey[]).map((key) => {
+            const latestSnapshot = snapshots.at(-1)
+            const current = latestSnapshot?.components[key]
+            return (
+              <div
+                key={key}
+                className="rounded-lg border border-border-subtle bg-bg/25 px-2.5 pt-2 pb-1"
               >
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={formatXAxis}
-                  tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }}
-                  axisLine={{ stroke: 'var(--color-border)' }}
-                  tickLine={false}
-                  interval="preserveStartEnd"
-                  minTickGap={36}
-                />
-                <YAxis
-                  domain={[0, 100]}
-                  tickFormatter={(v) => `${v}`}
-                  tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={34}
-                />
-                <ReferenceLine
-                  y={70}
-                  stroke="var(--color-gain)"
-                  strokeDasharray="3 3"
-                  opacity={0.35}
-                />
-                <ReferenceLine
-                  y={40}
-                  stroke="var(--color-warning)"
-                  strokeDasharray="3 3"
-                  opacity={0.35}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'var(--color-surface)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                  }}
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  formatter={
-                    ((value: number | undefined, name: string | undefined) => {
-                      if (!name) return ['', '']
-                      const key = name as DriverKey
-                      return [
-                        value != null ? value.toFixed(1) : '-',
-                        DRIVER_CONFIG[key]?.label ?? name,
-                      ]
-                    }) as any
-                  }
-                  labelFormatter={(label) =>
-                    new Date(`${label}T12:00:00`).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })
-                  }
-                />
-                {(Object.keys(DRIVER_CONFIG) as DriverKey[]).map((key) => (
-                  <Line
-                    key={key}
-                    type="monotone"
-                    dataKey={key}
-                    stroke={DRIVER_CONFIG[key].color}
-                    strokeWidth={highlighted === key ? 3 : 1.5}
-                    dot={false}
-                    connectNulls
-                    opacity={
-                      highlighted === null || highlighted === key ? 1 : 0.18
-                    }
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
-            {(Object.keys(DRIVER_CONFIG) as DriverKey[]).map((key) => {
-              const current = snapshots.at(-1)?.components[key]
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  aria-pressed={highlighted === key}
-                  onClick={() =>
-                    setHighlighted(highlighted === key ? null : key)
-                  }
-                  className={cn(
-                    'flex items-center gap-1 rounded-md px-1.5 py-0.5 transition-all hover:bg-surface-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
-                    highlighted !== null && highlighted !== key && 'opacity-40',
-                  )}
-                >
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: DRIVER_CONFIG[key].color }}
-                  />
-                  <span className="text-text-muted">
-                    {DRIVER_CONFIG[key].label}{' '}
-                    <span className="font-mono text-text">
-                      {formatScore(current)}
+                <div className="flex items-baseline justify-between">
+                  <span className="flex items-center gap-1.5 text-[11px] text-text-muted">
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ backgroundColor: DRIVER_CONFIG[key].color }}
+                    />
+                    {DRIVER_CONFIG[key].label}
+                  </span>
+                  <span className="font-mono text-xs text-text">
+                    {formatScore(current)}
+                    <span className="ml-1 text-[10px] text-text-muted">
+                      {formatRawValue(key, latestSnapshot)}
                     </span>
                   </span>
-                </button>
-              )
-            })}
-          </div>
+                </div>
+                <div className="h-14">
+                  <ResponsiveContainer width="100%" height={56}>
+                    <LineChart
+                      data={chartData}
+                      margin={{ top: 6, right: 2, left: 2, bottom: 2 }}
+                    >
+                      <XAxis dataKey="date" hide />
+                      <YAxis domain={[0, 100]} hide />
+                      <ReferenceLine
+                        y={70}
+                        stroke="var(--color-gain)"
+                        strokeDasharray="3 3"
+                        opacity={0.3}
+                      />
+                      <ReferenceLine
+                        y={40}
+                        stroke="var(--color-warning)"
+                        strokeDasharray="3 3"
+                        opacity={0.3}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'var(--color-surface)',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: '8px',
+                          fontSize: '11px',
+                          padding: '4px 8px',
+                        }}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        formatter={
+                          ((value: number | undefined) => [
+                            value != null ? value.toFixed(1) : '-',
+                            DRIVER_CONFIG[key].label,
+                          ]) as any
+                        }
+                        labelFormatter={(label) =>
+                          new Date(`${label}T12:00:00`).toLocaleDateString(
+                            'en-US',
+                            { month: 'short', day: 'numeric' },
+                          )
+                        }
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey={key}
+                        stroke={DRIVER_CONFIG[key].color}
+                        strokeWidth={1.5}
+                        dot={false}
+                        connectNulls
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <p className="text-right text-[9px] text-text-muted">
+                  {formatXAxis(chartData[0]?.date ?? '')} →{' '}
+                  {formatXAxis(chartData[chartData.length - 1]?.date ?? '')}
+                </p>
+              </div>
+            )
+          })}
         </div>
       }
       impact={

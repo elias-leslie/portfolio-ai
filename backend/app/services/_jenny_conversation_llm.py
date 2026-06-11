@@ -51,11 +51,11 @@ def complete_conversation(
     open_questions: list[HouseholdQuestion],
 ) -> Any:
     prompt = (
-        f"Portfolio-AI context:\n{_json_block(context)}\n\n"
+        f"Portfolio-AI snapshot:\n{_json_block(context)}\n\n"
         f"Open household questions:\n{_json_block([question_summary(q) for q in open_questions])}\n\n"
         f"User message:\n{message}"
     )
-    client = make_client(agent_slug="chat", use_memory=False)
+    client = make_client(agent_slug="persona", use_memory=True)
     try:
         return client.complete_messages(
             messages=[{"role": "user", "content": prompt}],
@@ -63,7 +63,9 @@ def complete_conversation(
             session_id=session_id,
             thinking_level="low",
             system_prompt=require_agent_hub_prompt(PROMPT_CHAT_SYSTEM),
-            use_memory=False,
+            use_memory=True,
+            execute_tools=True,
+            max_turns=8,
         )
     finally:
         client.close()

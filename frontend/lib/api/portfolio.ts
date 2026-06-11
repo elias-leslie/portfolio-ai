@@ -258,9 +258,16 @@ export interface JennyChatResponse {
   referencedSymbols: string[]
 }
 
+export interface JennyPageContext {
+  pathname: string
+  title?: string | null
+  search?: string | null
+}
+
 export interface JennyChatRequest {
   message: string
   sessionId?: string | null
+  pageContext?: JennyPageContext | null
 }
 
 export interface CreateAccountRequest {

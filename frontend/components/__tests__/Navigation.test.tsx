@@ -20,6 +20,14 @@ vi.mock('@/components/status/FreshnessStatusBadge', () => ({
   FreshnessStatusBadge: () => <div>Live</div>,
 }))
 
+vi.mock('@/components/providers/ChatWidgetProvider', () => ({
+  useChatWidget: () => ({
+    enabled: true,
+    ready: true,
+    setEnabled: vi.fn(),
+  }),
+}))
+
 describe('Navigation', () => {
   it('highlights the investing lane for nested symbol routes', () => {
     usePathnameMock.mockReturnValue('/symbols/VTI')

@@ -161,6 +161,22 @@ class MacroConditionOvernightLeanResponse(BaseModel):
     signals: list[MacroConditionOvernightSignalResponse] = Field(default_factory=list)
 
 
+class MacroConditionTriggerResponse(BaseModel):
+    key: str
+    label: str
+    current: float | None = None
+    current_display: str
+    trigger: float
+    trigger_display: str
+    baseline: float
+    direction: str
+    unit: str = ""
+    progress: float | None = None
+    fired: bool = False
+    tone: str = "neutral"
+    note: str = ""
+
+
 class MacroConditionsResponse(BaseModel):
     snapshot_date: str | None = None
     computed_at: str | None = None
@@ -188,6 +204,7 @@ class MacroConditionsResponse(BaseModel):
     what_matters: list[str] = Field(default_factory=list)
     what_to_do: list[str] = Field(default_factory=list)
     watch_items: list[str] = Field(default_factory=list)
+    triggers: list[MacroConditionTriggerResponse] = Field(default_factory=list)
     trend: dict[str, MacroConditionTrendResponse] = Field(default_factory=dict)
     market_shifts: list[MacroConditionShiftResponse] = Field(default_factory=list)
     flags: list[str] = Field(default_factory=list)

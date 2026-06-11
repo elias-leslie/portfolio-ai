@@ -13,6 +13,7 @@ import type {
   MacroConditionShift,
   MacroConditionsResponse,
   MacroConditionTrend,
+  MacroConditionTrigger,
   MacroSnapshot,
   OvernightLean,
 } from '@/lib/api/macro'
@@ -736,30 +737,98 @@ function MarketConditionHero({
   )
 }
 
-function BriefingList({
-  title,
-  items,
-  fallback,
-}: {
-  title: string
-  items?: string[]
-  fallback: string
-}) {
-  const displayItems = items?.length ? items.slice(0, 4) : [fallback]
+function triggerStatusText(row: MacroConditionTrigger): string {
+  if (row.current == null) return 'No data'
+  if (row.fired) return 'Triggered'
+  if (row.progress == null) return 'Watching'
+  if (row.progress >= 0.75) return 'Close — watch'
+  return `${Math.round(row.progress * 100)}% of the way`
+}
+
+function triggerTextClass(tone: string): string {
+  if (tone === 'loss') return 'text-loss'
+  if (tone === 'warning') return 'text-warning'
+  if (tone === 'gain') return 'text-gain'
+  return 'text-text-muted'
+}
+
+function triggerBarClass(tone: string): string {
+  if (tone === 'loss') return 'bg-loss'
+  if (tone === 'warning') return 'bg-warning'
+  if (tone === 'gain') return 'bg-gain'
+  return 'bg-text-muted/40'
+}
+
+function TriggerRow({ row }: { row: MacroConditionTrigger }) {
+  const widthPct =
+    row.current == null || row.progress == null
+      ? 0
+      : Math.max(row.progress * 100, row.fired ? 100 : 2)
 
   return (
-    <div className="rounded-xl border border-border-subtle bg-bg/25 px-3 py-3">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
-        {title}
-      </p>
-      <ul className="mt-2 space-y-1.5 text-xs leading-5 text-text-muted">
-        {displayItems.map((item) => (
-          <li key={item} className="flex gap-2">
-            <span className="mt-[0.45rem] h-1 w-1 shrink-0 rounded-full bg-primary/70" />
-            <span>{item}</span>
-          </li>
+    <div
+      className="grid grid-cols-[minmax(0,1.4fr)_auto_minmax(0,2fr)_auto_auto] items-center gap-x-3 py-1.5"
+      title={row.note}
+    >
+      <span className="truncate text-xs text-text-muted">{row.label}</span>
+      <span
+        className={cn(
+          'text-right font-mono text-xs tabular-nums',
+          triggerTextClass(row.tone),
+        )}
+      >
+        {row.currentDisplay}
+        {row.current != null ? row.unit : ''}
+      </span>
+      <div className="h-1.5 rounded-full bg-bg/60">
+        <div
+          className={cn(
+            'h-full rounded-full transition-[width]',
+            triggerBarClass(row.tone),
+          )}
+          style={{ width: `${widthPct}%` }}
+        />
+      </div>
+      <span className="font-mono text-[11px] tabular-nums text-text-muted">
+        {row.direction === 'below' ? '≤' : '≥'} {row.triggerDisplay}
+        {row.unit}
+      </span>
+      <span
+        className={cn(
+          'w-24 text-right text-[10px] uppercase tracking-[0.08em]',
+          row.fired ? 'font-semibold text-loss' : 'text-text-muted',
+        )}
+      >
+        {triggerStatusText(row)}
+      </span>
+    </div>
+  )
+}
+
+function TriggerBoard({ triggers }: { triggers?: MacroConditionTrigger[] }) {
+  if (!triggers?.length) {
+    return (
+      <div className="rounded-xl border border-border-subtle bg-bg/25 px-3 py-3 text-xs text-text-muted">
+        Live trigger levels are loading.
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-xl border border-border-subtle bg-bg/25 px-3 py-2">
+      <div className="flex items-baseline justify-between">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
+          What would change the read
+        </p>
+        <p className="text-[10px] text-text-muted">
+          today's value → trigger level
+        </p>
+      </div>
+      <div className="mt-1.5 divide-y divide-border-subtle/40">
+        {triggers.map((row) => (
+          <TriggerRow key={row.key} row={row} />
         ))}
-      </ul>
+      </div>
     </div>
   )
 }
@@ -817,7 +886,7 @@ function DecisionBrief({
             Today Briefing
           </p>
           <p className="mt-1 text-sm font-semibold text-text">
-            What matters, what to do, and what would change the read.
+            Live levels that would change the read — updated with the data.
           </p>
         </div>
         <span
@@ -834,22 +903,8 @@ function DecisionBrief({
 
       <MarketShifts shifts={conditions?.marketShifts} />
 
-      <div className="mt-3 grid gap-2 md:grid-cols-3">
-        <BriefingList
-          title="What matters"
-          items={conditions?.whatMatters}
-          fallback="Market evidence is loading."
-        />
-        <BriefingList
-          title="What to do"
-          items={conditions?.whatToDo}
-          fallback="Keep allocation decisions tied to the written plan."
-        />
-        <BriefingList
-          title="What changes this"
-          items={conditions?.watchItems}
-          fallback="Watch volatility, credit, breadth, and the macro score."
-        />
+      <div className="mt-3">
+        <TriggerBoard triggers={conditions?.triggers} />
       </div>
     </div>
   )
@@ -862,7 +917,7 @@ function MarketEvidenceStrip({
 }) {
   if (!evidence?.length) {
     return (
-      <div className="border-t border-border-subtle px-4 py-3 text-xs text-text-muted">
+      <div className="rounded-2xl border border-border-subtle bg-bg/20 p-4 text-xs text-text-muted">
         Market evidence is loading.
       </div>
     )
@@ -870,8 +925,8 @@ function MarketEvidenceStrip({
 
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="border-t border-border-subtle px-4 py-3">
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+      <div className="rounded-2xl border border-border-subtle bg-bg/20 p-4">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {evidence.map((item) => (
             <div
               key={item.key}
@@ -970,14 +1025,17 @@ export function DailyBriefPanel() {
       </div>
 
       <div className="grid items-start gap-4 p-4 lg:grid-cols-[minmax(16rem,0.82fr)_minmax(30rem,1.7fr)]">
-        <MarketConditionHero
-          conditions={conditions}
-          macro={macro}
-          loading={
-            (macroLoading && !macro) || (conditionsLoading && !conditions)
-          }
-          error={conditionsError ?? macroError}
-        />
+        <div className="flex flex-col gap-4">
+          <MarketConditionHero
+            conditions={conditions}
+            macro={macro}
+            loading={
+              (macroLoading && !macro) || (conditionsLoading && !conditions)
+            }
+            error={conditionsError ?? macroError}
+          />
+          <OverallCautionTrendLine />
+        </div>
 
         <div className="flex flex-col gap-4">
           <DecisionBrief conditions={conditions} />
@@ -990,11 +1048,9 @@ export function DailyBriefPanel() {
             trendLoading={trendLoading}
           />
           <LeadingLaggingStrip />
-          <OverallCautionTrendLine />
+          <MarketEvidenceStrip evidence={conditions?.evidence} />
         </div>
       </div>
-
-      <MarketEvidenceStrip evidence={conditions?.evidence} />
 
       <details className="mx-4 mb-4">
         <summary className="cursor-pointer rounded-xl border border-border-subtle bg-bg/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted transition hover:text-text">

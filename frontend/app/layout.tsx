@@ -4,6 +4,7 @@ import Script from 'next/script'
 import './globals.css'
 import './globals-watchlist.css'
 import { Toaster } from 'sonner'
+import { JennyChatWidget } from '@/components/chat/JennyChatWidget'
 import { Navigation } from '@/components/Navigation'
 import { cn } from '@/lib/utils'
 import { Providers } from './providers'
@@ -67,6 +68,7 @@ export default function RootLayout({
         <Providers>
           <Navigation />
           <main className="flex-1 overflow-auto">{children}</main>
+          <JennyChatWidget />
           <Toaster
             position="top-right"
             richColors

@@ -118,6 +118,27 @@ export function OverallCautionTrendLine() {
     [data],
   )
 
+  // History logs a point per change, so several points share one ET day and a
+  // categorical axis spaces them unevenly. Sample ticks evenly by index, then
+  // drop any that would repeat the previous tick's day label.
+  const dayTicks = useMemo(() => {
+    if (!chartData.length) return []
+    const tickCount = 5
+    const lastIndex = chartData.length - 1
+    const ticks: string[] = []
+    let previousLabel: string | null = null
+    for (let slot = 0; slot < tickCount; slot += 1) {
+      const index = Math.round((slot * lastIndex) / (tickCount - 1 || 1))
+      const recordedAt = chartData[index]?.recordedAt
+      if (!recordedAt) continue
+      const label = formatTick(recordedAt)
+      if (label === previousLabel) continue
+      previousLabel = label
+      ticks.push(recordedAt)
+    }
+    return ticks
+  }, [chartData])
+
   const latest = chartData.at(-1)
   const first = chartData[0]
   const delta =
@@ -183,7 +204,7 @@ export function OverallCautionTrendLine() {
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={chartData}
-              margin={{ top: 6, right: 8, left: -22, bottom: 2 }}
+              margin={{ top: 6, right: 20, left: -4, bottom: 2 }}
             >
               <XAxis
                 dataKey="recordedAt"
@@ -191,15 +212,15 @@ export function OverallCautionTrendLine() {
                 tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }}
                 axisLine={{ stroke: 'var(--color-border)' }}
                 tickLine={false}
-                interval="preserveStartEnd"
-                minTickGap={36}
+                ticks={dayTicks}
+                interval={0}
               />
               <YAxis
                 domain={[0, 100]}
                 tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }}
                 axisLine={false}
                 tickLine={false}
-                width={34}
+                width={30}
               />
               <ReferenceLine
                 y={severe}

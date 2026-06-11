@@ -23,7 +23,11 @@ from ._jenny_conversation_chat import (
     compose_reply,
 )
 from ._jenny_conversation_constants import DIRECTION_JENNY_TO_USER, STATUS_OPEN
-from ._jenny_conversation_context import build_full_context, load_project_index
+from ._jenny_conversation_context import (
+    build_compact_context,
+    build_full_context,
+    load_project_index,
+)
 from ._jenny_conversation_llm import (
     complete_conversation,
     extract_planning_updates,
@@ -44,7 +48,12 @@ class JennyConversationService:
         self.health_service = HealthCheckService()
         self.jenny_dashboard_reader = JennyDashboardReader()
 
-    def chat(self, message: str, session_id: str | None = None) -> dict[str, Any]:
+    def chat(
+        self,
+        message: str,
+        session_id: str | None = None,
+        page_context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         cleaned = message.strip()
         open_questions = [
             q for q in self.household_service.list_questions().items
@@ -53,9 +62,18 @@ class JennyConversationService:
         ]
         context = self._build_context(cleaned, open_questions)
 
+        chat_message = cleaned
+        if page_context and page_context.get("pathname"):
+            title = page_context.get("title") or page_context["pathname"]
+            location = f"{page_context['pathname']}{page_context.get('search') or ''}"
+            chat_message = f"[User is viewing: {title} ({location})]\n{cleaned}"
+
         try:
             completion = self._complete_conversation(
-                message=cleaned, session_id=session_id, context=context, open_questions=open_questions
+                message=chat_message,
+                session_id=session_id,
+                context=build_compact_context(context),
+                open_questions=open_questions,
             )
         except Exception as exc:
             logger.exception("jenny_chat_completion_failed", error=str(exc))

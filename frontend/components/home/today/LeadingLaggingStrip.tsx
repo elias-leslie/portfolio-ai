@@ -1,11 +1,15 @@
 'use client'
 
-import { useMemo } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { SectorPerformanceChart } from '@/components/market/SectorPerformanceChart'
 import {
   DEFAULT_MARKET_TIMEFRAME,
+  type Timeframe,
   timeframeToDays,
 } from '@/components/market/TimeframeSelector'
 import { useSectorHistory } from '@/lib/hooks/useMarketIntelligence'
+import { cn } from '@/lib/utils'
 
 function sectorSummaryText(
   sectors: { name: string; currentPct: number }[],
@@ -24,11 +28,15 @@ function sectorSummaryText(
 // former Overview MarketSummaryGrid — only the sector ranking survives; the
 // market narrative/positioning header it used to carry was dropped.
 export function LeadingLaggingStrip() {
+  const [showTrend, setShowTrend] = useState(false)
+  const [timeframe, setTimeframe] = useState<Timeframe>(
+    DEFAULT_MARKET_TIMEFRAME,
+  )
   const {
     data: sectorHistory,
     isLoading,
     error,
-  } = useSectorHistory(timeframeToDays(DEFAULT_MARKET_TIMEFRAME))
+  } = useSectorHistory(timeframeToDays(timeframe))
 
   // Defensive sort: backend currently sorts by currentPct desc, but trusting that
   // implicit contract silently swaps leaders/laggards if the backend ever changes.
@@ -52,9 +60,25 @@ export function LeadingLaggingStrip() {
 
   return (
     <div className="rounded-2xl border border-border-subtle bg-bg/20 p-4">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-text-muted">
-        Sector Rotation
-      </p>
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-text-muted">
+          Sector Rotation
+        </p>
+        <button
+          type="button"
+          aria-expanded={showTrend}
+          onClick={() => setShowTrend((value) => !value)}
+          className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted transition-colors hover:bg-surface-muted/60 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+        >
+          {showTrend ? 'Hide trend' : 'Show trend'}
+          <ChevronDown
+            className={cn(
+              'h-3 w-3 transition-transform',
+              showTrend && 'rotate-180',
+            )}
+          />
+        </button>
+      </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <div className="rounded-xl border border-border-subtle bg-bg/25 px-3 py-2.5">
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">
@@ -73,6 +97,17 @@ export function LeadingLaggingStrip() {
           </p>
         </div>
       </div>
+      {showTrend ? (
+        <div className="mt-3">
+          <SectorPerformanceChart
+            timeframe={timeframe}
+            onTimeframeChange={setTimeframe}
+            data={sectorHistory}
+            isLoading={isLoading}
+            error={error instanceof Error ? error : null}
+          />
+        </div>
+      ) : null}
     </div>
   )
 }
