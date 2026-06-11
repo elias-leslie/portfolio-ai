@@ -116,7 +116,6 @@ class CardResearchService:
                 )
             ],
             execute_tools=True,
-            max_turns=24,
             purpose=f"credit_card_catalog_research:{trigger}",
         )
         payload = _parse_json_response(response.content)

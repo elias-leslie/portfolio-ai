@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/tooltip'
 import type {
   MacroConditionEvidence,
+  MacroConditionFedOdds,
   MacroConditionShift,
   MacroConditionsResponse,
   MacroConditionTrend,
@@ -17,11 +18,13 @@ import type {
   MacroSnapshot,
   OvernightLean,
 } from '@/lib/api/macro'
+import type { MarketCalendarEvent } from '@/lib/api/market-types'
 import {
   useHouseholdDashboard,
   useHouseholdNetWorthTrend,
 } from '@/lib/hooks/useHousehold'
 import { useMacroConditions, useMacroCurrent } from '@/lib/hooks/useMacro'
+import { useMarketEventsWindow } from '@/lib/hooks/useMarketEvents'
 import { usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
 import { useTodayRefresh } from '@/lib/hooks/useTodayRefresh'
 import { cn } from '@/lib/utils'
@@ -131,6 +134,20 @@ function catalystLabel(eventType: string, title: string): string {
   return CATALYST_LABELS[eventType] ?? title
 }
 
+function fedOddsLine(odds: MacroConditionFedOdds): string {
+  return `Futures price: Cut ${odds.pCut}% · Hold ${odds.pHold}% · Hike ${odds.pHike}%`
+}
+
+function yearEndPricingText(odds: MacroConditionFedOdds): string | null {
+  if (odds.cutsPricedByYearEnd == null || odds.yearEndRate == null) return null
+  const moves = odds.cutsPricedByYearEnd
+  const rate = `${odds.yearEndRate.toFixed(2)}% implied`
+  if (Math.abs(moves) < 0.5) return `Steady rates priced through Dec (${rate})`
+  const count = Number(Math.abs(moves).toFixed(1))
+  const word = moves > 0 ? 'cut' : 'hike'
+  return `~${count} ${word}${count >= 1.5 ? 's' : ''} priced by Dec (${rate})`
+}
+
 function formatCatalystDate(value: string | null | undefined): string | null {
   if (!value) return null
   // event_date is a date-only string ("2026-06-10"); build a local date so it
@@ -147,6 +164,193 @@ function formatCatalystDate(value: string | null | undefined): string | null {
     month: 'short',
     day: 'numeric',
   }).format(parsed)
+}
+
+const CATALYST_PAST_DAYS = 14
+const CATALYST_FUTURE_DAYS = 30
+
+function parseEventDate(value: string | null | undefined): Date | null {
+  if (!value) return null
+  // Date-only string; build a local date so it does not shift under timezones.
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
+  if (!match) return null
+  const parsed = new Date(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+  )
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function formatEventTime(value: string | null | undefined): string | null {
+  if (!value) return null
+  const match = /^(\d{1,2}):(\d{2})/.exec(value)
+  if (!match) return null
+  const hour = Number(match[1])
+  const display = hour % 12 === 0 ? 12 : hour % 12
+  return `${display}:${match[2]} ${hour >= 12 ? 'PM' : 'AM'} ET`
+}
+
+function formatTimelineDate(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  }).format(date)
+}
+
+function CatalystTimeline({
+  events,
+  fedOdds,
+}: {
+  events?: MarketCalendarEvent[]
+  fedOdds?: MacroConditionFedOdds | null
+}) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const start = new Date(today)
+  start.setDate(start.getDate() - CATALYST_PAST_DAYS)
+  const end = new Date(today)
+  end.setDate(end.getDate() + CATALYST_FUTURE_DAYS)
+  const span = end.getTime() - start.getTime()
+
+  const groups = new Map<
+    string,
+    { date: Date; events: MarketCalendarEvent[] }
+  >()
+  for (const event of events ?? []) {
+    const date = parseEventDate(event.eventDate)
+    if (!date || date < start || date > end) continue
+    const group = groups.get(event.eventDate)
+    if (group) group.events.push(event)
+    else groups.set(event.eventDate, { date, events: [event] })
+  }
+  if (groups.size === 0) return null
+
+  const positionPct = (date: Date) =>
+    ((date.getTime() - start.getTime()) / span) * 100
+
+  return (
+    <div
+      className="col-span-2 rounded-xl border border-current/20 bg-bg/15 px-3 py-2"
+      title="Major macro calendar events around today — hover a dot for details."
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p>Catalyst Timeline</p>
+        <p className="text-[9px] font-medium normal-case tracking-normal text-current/60">
+          {CATALYST_PAST_DAYS}d back · {CATALYST_FUTURE_DAYS}d ahead
+        </p>
+      </div>
+      <TooltipProvider delayDuration={150}>
+        <div className="relative mt-2 h-9">
+          <div className="absolute inset-x-0 top-[13px] h-px bg-current/25" />
+          <div
+            className="absolute top-[6px] h-[15px] w-px -translate-x-1/2 bg-current/70"
+            style={{ left: `${positionPct(today)}%` }}
+          />
+          <p
+            className="absolute top-[24px] -translate-x-1/2 text-[8px] font-semibold tracking-[0.14em] text-current/60"
+            style={{ left: `${positionPct(today)}%` }}
+          >
+            Today
+          </p>
+          {[...groups.values()].map((group) => {
+            const isPast = group.date < today
+            const highImpact = group.events.some(
+              (event) => (event.impactScore ?? 0) >= 5,
+            )
+            return (
+              <Tooltip key={group.events[0].eventDate}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="absolute top-[13px] -translate-x-1/2 -translate-y-1/2 rounded-full p-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+                    style={{ left: `${positionPct(group.date)}%` }}
+                    aria-label={group.events
+                      .map((event) =>
+                        catalystLabel(event.eventType, event.title),
+                      )
+                      .join(', ')}
+                  >
+                    <span
+                      className={cn(
+                        'block rounded-full',
+                        highImpact ? 'h-2.5 w-2.5' : 'h-2 w-2',
+                        isPast
+                          ? 'border border-current/60 bg-transparent'
+                          : 'bg-current',
+                      )}
+                    />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs">
+                  <div className="space-y-1.5">
+                    {group.events.map((event) => {
+                      const time = formatEventTime(event.eventTime)
+                      const eventFedOdds =
+                        event.eventType === 'fomc_decision' &&
+                        fedOdds &&
+                        event.eventDate.startsWith(fedOdds.meetingDate)
+                          ? fedOdds
+                          : null
+                      return (
+                        <div key={event.id}>
+                          <p className="text-xs font-semibold">
+                            {catalystLabel(event.eventType, event.title)}
+                          </p>
+                          <p className="text-[11px] opacity-80">
+                            {isPast ? 'Past · ' : ''}
+                            {formatTimelineDate(group.date)}
+                            {time ? ` · ${time}` : ''}
+                            {event.impactScore != null
+                              ? ` · Impact ${event.impactScore}/5`
+                              : ''}
+                          </p>
+                          {event.actualValue != null ||
+                          event.expectedValue != null ? (
+                            <p className="text-[11px] opacity-80">
+                              {event.actualValue != null
+                                ? `Actual ${event.actualValue}`
+                                : ''}
+                              {event.actualValue != null &&
+                              event.expectedValue != null
+                                ? ' · '
+                                : ''}
+                              {event.expectedValue != null
+                                ? `Expected ${event.expectedValue}`
+                                : ''}
+                              {event.surprisePct != null
+                                ? ` · Surprise ${event.surprisePct > 0 ? '+' : ''}${event.surprisePct.toFixed(1)}%`
+                                : ''}
+                            </p>
+                          ) : null}
+                          {eventFedOdds ? (
+                            <>
+                              <p className="text-[11px] opacity-80">
+                                {fedOddsLine(eventFedOdds)} (now{' '}
+                                {eventFedOdds.effr.toFixed(2)}% →{' '}
+                                {eventFedOdds.impliedPostRate.toFixed(2)}%
+                                implied)
+                              </p>
+                              {yearEndPricingText(eventFedOdds) ? (
+                                <p className="text-[11px] opacity-80">
+                                  {yearEndPricingText(eventFedOdds)}
+                                </p>
+                              ) : null}
+                            </>
+                          ) : null}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            )
+          })}
+        </div>
+      </TooltipProvider>
+    </div>
+  )
 }
 
 function scoreTone(value: number | null | undefined): string {
@@ -548,7 +752,12 @@ function MarketConditionHero({
   // when the tape is truly unavailable — never for a held reading.
   const tapeUnavailable = conditions?.tapeAvailable === false && !tapeHeld
   const nextCatalyst = conditions?.nextCatalyst ?? null
+  const fedOdds = conditions?.fedOdds ?? null
   const nextCatalystDate = formatCatalystDate(nextCatalyst?.eventDate)
+  const { data: eventsWindow } = useMarketEventsWindow(
+    CATALYST_PAST_DAYS,
+    CATALYST_FUTURE_DAYS,
+  )
   // Forward off-hours read. Only surfaced when it applies (markets shut); during
   // RTH the live tape leads and the backend sends applies=false.
   const overnightLean = conditions?.overnightLean?.applies
@@ -703,8 +912,15 @@ function MarketConditionHero({
               {catalystLabel(nextCatalyst.eventType, nextCatalyst.title)}
               {nextCatalystDate ? ` · ${nextCatalystDate}` : ''}
             </p>
+            {nextCatalyst.eventType === 'fomc_decision' && fedOdds ? (
+              <p className="mt-0.5 text-[9px] font-medium normal-case tracking-normal opacity-70">
+                Cut {fedOdds.pCut}% · Hold {fedOdds.pHold}% · Hike{' '}
+                {fedOdds.pHike}%
+              </p>
+            ) : null}
           </div>
         ) : null}
+        <CatalystTimeline events={eventsWindow?.events} fedOdds={fedOdds} />
         {overnightLean ? (
           <div
             className={cn(
@@ -884,9 +1100,6 @@ function DecisionBrief({
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-text-muted">
             Today Briefing
-          </p>
-          <p className="mt-1 text-sm font-semibold text-text">
-            Live levels that would change the read — updated with the data.
           </p>
         </div>
         <span

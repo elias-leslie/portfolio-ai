@@ -33,6 +33,7 @@ from ._jenny_conversation_llm import (
     extract_planning_updates,
     reconcile_message,
 )
+from ._jenny_response_cleanup import strip_agent_output_tags
 
 logger = get_logger(__name__)
 
@@ -79,7 +80,10 @@ class JennyConversationService:
             logger.exception("jenny_chat_completion_failed", error=str(exc))
             completion = SimpleNamespace(content=build_fallback_reply(cleaned, context), session_id=session_id or "")
         else:
-            if not str(getattr(completion, "content", "") or "").strip():
+            # Check emptiness after tag cleanup: a reply that is nothing but
+            # protocol tags would otherwise pass here and render as an empty
+            # bubble once compose_reply strips the tags.
+            if not strip_agent_output_tags(str(getattr(completion, "content", "") or "")):
                 logger.warning("jenny_chat_empty_completion", session_id=session_id)
                 completion = SimpleNamespace(
                     content=build_fallback_reply(cleaned, context),

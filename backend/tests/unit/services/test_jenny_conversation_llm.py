@@ -147,7 +147,10 @@ def test_complete_conversation_uses_persona_agent_with_memory_and_tools(mock_mak
     kwargs = client.complete_messages.call_args.kwargs
     assert kwargs["use_memory"] is True
     assert kwargs["execute_tools"] is True
-    assert kwargs["max_turns"] == 8
+    assert kwargs["task_type"] == "chat"
+    # No max_turns: agent-hub applies its agentic default (5000 runaway
+    # backstop) so the loop terminates naturally, not at an arbitrary cap.
+    assert "max_turns" not in kwargs
 
 
 @patch(_PROMPT_LOADER, return_value="system")

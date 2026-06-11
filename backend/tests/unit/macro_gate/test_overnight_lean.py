@@ -88,6 +88,20 @@ def test_weeknight_risk_on_does_not_raise_caution(monkeypatch: pytest.MonkeyPatc
     assert lean.stress_score == 15
 
 
+def test_outvoted_futures_selloff_still_raises_caution(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Gold dumping, yields up and crypto firm outvote the equity dimension 3-1,
+    # but stress is driven by the futures move itself: a real selloff must not
+    # be masked by a contrary vote.
+    _patch_changes(
+        monkeypatch,
+        _changes(**{"ES=F": -1.3, "NQ=F": -1.5, "CL=F": 0.1, "GC=F": -4.0, "ZN=F": -0.4, "BTC-USD": 1.6}),
+    )
+    lean = overnight_lean.get_overnight_lean(now=WED_NIGHT)
+
+    assert lean.direction == "risk_on"  # the vote can still lean risk-on...
+    assert lean.stress_score is not None and lean.stress_score > 40  # ...caution can't ignore -1.4%
+
+
 def test_oil_spike_flags_watch_and_bumps_caution(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_changes(
         monkeypatch,

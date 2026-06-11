@@ -327,6 +327,24 @@ export interface MarketEventsChartResponse {
   endDate: string
 }
 
+/** Raw calendar event from GET /api/market/events (past + future window). */
+export interface MarketCalendarEvent {
+  id: number
+  eventType: string
+  eventDate: string
+  eventTime: string | null
+  title: string
+  impactScore: number | null
+  actualValue: number | null
+  expectedValue: number | null
+  surprisePct: number | null
+}
+
+export interface MarketEventsResponse {
+  events: MarketCalendarEvent[]
+  total: number
+}
+
 export interface MarketEventType {
   eventType: string
   label: string

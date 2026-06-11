@@ -25,6 +25,7 @@ SYMBOL_STOPWORDS = frozenset(
         "IS",
         "IT",
         "MY",
+        "NOW",
         "OF",
         "ON",
         "OR",

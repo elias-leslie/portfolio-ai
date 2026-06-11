@@ -80,21 +80,12 @@ def backfill_inputs(days: int = 1500) -> int:
         return 0
 
     dates = sorted(spy_dict.keys())
-    vix_data, hy_spread_dict, vix_estimate, hy_spread_fallback = _fetch_market_indicators(
-        storage, data_start, end_date
-    )
+    vix_data, hy_spread_dict = _fetch_market_indicators(storage, data_start, end_date)
     print(f"  Fetched {len(vix_data)} VIX data points")
     print(f"  Fetched {len(hy_spread_dict)} HY spread data points")
 
     updates_count = _calculate_and_upsert_inputs(
-        storage,
-        spy_dict,
-        dates,
-        start_date,
-        vix_data,
-        hy_spread_dict,
-        vix_estimate,
-        hy_spread_fallback,
+        storage, spy_dict, dates, start_date, vix_data, hy_spread_dict
     )
 
     print(f"  Updated {updates_count} fear_greed_inputs records")

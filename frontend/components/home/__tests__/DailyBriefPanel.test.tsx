@@ -39,6 +39,29 @@ vi.mock('@/lib/hooks/useTodayRefresh', () => ({
   useTodayRefresh: () => useTodayRefreshMock(),
 }))
 
+vi.mock('@/lib/hooks/useMarketEvents', () => ({
+  useMarketEventsWindow: () => ({
+    data: {
+      events: [
+        {
+          id: 1,
+          eventType: 'fomc_decision',
+          eventDate: '2026-06-17',
+          eventTime: null,
+          title: 'FOMC Meeting',
+          impactScore: 5,
+          actualValue: null,
+          expectedValue: null,
+          surprisePct: null,
+        },
+      ],
+      total: 1,
+    },
+    isLoading: false,
+    error: null,
+  }),
+}))
+
 const macroSnapshot = {
   snapshotDate: '2026-05-28',
   computedAt: '2026-05-28T21:45:00Z',
@@ -378,5 +401,47 @@ describe('DailyBriefPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /refresh/i }))
 
     expect(mutate).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows FedWatch odds on the FOMC catalyst tile and timeline tooltip', () => {
+    useMacroConditionsMock.mockReturnValue({
+      data: {
+        ...conditions,
+        nextCatalyst: {
+          eventType: 'fomc_decision',
+          eventDate: '2026-06-17',
+          eventTime: null,
+          title: 'FOMC Meeting',
+          impactScore: 5,
+        },
+        fedOdds: {
+          meetingDate: '2026-06-17',
+          effr: 3.62,
+          impliedPostRate: 3.63,
+          pCut: 0,
+          pHold: 98,
+          pHike: 2,
+          yearEndRate: 3.88,
+          cutsPricedByYearEnd: -1.0,
+          asOf: '2026-06-11T04:42:18+00:00',
+        },
+      },
+      isLoading: false,
+      error: null,
+    })
+
+    render(<DailyBriefPanel />)
+
+    // Next Catalyst tile carries the odds line when the catalyst is FOMC.
+    expect(screen.getByText(/Cut 0% · Hold 98% · Hike 2%/)).toBeInTheDocument()
+
+    // Timeline FOMC dot tooltip carries the odds plus the year-end pricing.
+    fireEvent.focus(screen.getByRole('button', { name: /fed rate decision/i }))
+    expect(
+      screen.getAllByText(/Futures price: Cut 0% · Hold 98% · Hike 2%/).length,
+    ).toBeGreaterThan(0)
+    expect(
+      screen.getAllByText(/~1 hike priced by Dec \(3\.88% implied\)/).length,
+    ).toBeGreaterThan(0)
   })
 })

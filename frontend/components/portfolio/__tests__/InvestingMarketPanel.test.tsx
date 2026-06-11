@@ -11,6 +11,7 @@ const useSectorHistoryMock = vi.fn()
 vi.mock('@/lib/hooks/useMarketIntelligence', () => ({
   useMarketIntelligence: () => useMarketIntelligenceMock(),
   useSectorHistory: (days: number) => useSectorHistoryMock(days),
+  useIndicatorHistory: () => ({ data: null, isLoading: false, error: null }),
 }))
 
 vi.mock('@/components/market/MarketStatusBadge', () => ({

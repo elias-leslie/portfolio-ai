@@ -122,6 +122,18 @@ export interface MacroConditionTrigger {
   note: string
 }
 
+export interface MacroConditionFedOdds {
+  meetingDate: string
+  effr: number
+  impliedPostRate: number
+  pCut: number
+  pHold: number
+  pHike: number
+  yearEndRate: number | null
+  cutsPricedByYearEnd: number | null
+  asOf: string | null
+}
+
 export interface MacroConditionsResponse {
   snapshotDate: string | null
   computedAt: string | null
@@ -148,6 +160,7 @@ export interface MacroConditionsResponse {
     title: string
     impactScore: number
   } | null
+  fedOdds: MacroConditionFedOdds | null
   overnightLean: OvernightLean | null
   summary: string
   actionText: string

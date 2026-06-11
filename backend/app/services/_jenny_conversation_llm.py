@@ -65,7 +65,7 @@ def complete_conversation(
             system_prompt=require_agent_hub_prompt(PROMPT_CHAT_SYSTEM),
             use_memory=True,
             execute_tools=True,
-            max_turns=8,
+            task_type="chat",
         )
     finally:
         client.close()

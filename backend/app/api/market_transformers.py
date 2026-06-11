@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from datetime import date, datetime
 from typing import Any, cast
 
@@ -18,7 +19,10 @@ def _parse_row(row: tuple[Any, ...]) -> tuple[str, float] | None:
     date_val = row[0]
     if not isinstance(date_val, (datetime, date)):
         return None
-    return date_val.isoformat(), float(row[1])
+    close = float(row[1])
+    if not math.isfinite(close):
+        return None
+    return date_val.isoformat(), close
 
 
 def _calc_pct_change(close: float, base_price: float | None) -> float:

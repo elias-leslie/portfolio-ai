@@ -7,7 +7,7 @@ nearby stored market evidence. It does not introduce a second scoring model.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from itertools import pairwise
 from typing import TYPE_CHECKING, Any
 
@@ -124,7 +124,14 @@ def _quote_market_date(value: object) -> date | None:
     if not isinstance(value, datetime):
         return None
     quote_ts = value if value.tzinfo else value.replace(tzinfo=UTC)
-    return quote_ts.astimezone(NY_TZ).date()
+    moment = quote_ts.astimezone(NY_TZ)
+    # From the 6 PM ET futures reopen the quote belongs to the NEXT trade date:
+    # the same-dated day bar is a completed settle by then, so it must serve as
+    # the baseline. Without the roll, an overnight quote skips back one extra bar
+    # and reports a two-session move (double-counting the finished cash session).
+    if moment.time() >= time(18, 0):
+        return moment.date() + timedelta(days=1)
+    return moment.date()
 
 
 def _parse_date(value: object) -> date | None:
@@ -460,7 +467,13 @@ def _tape_detail(tape_stress: TapeStressEvidence | None) -> str:
         pieces.append(
             f"{tape_stress.negative_sector_count}/{tape_stress.sector_count} sectors down"
         )
-    return ", ".join(pieces) if pieces else "Current tape pressure unavailable"
+    if pieces:
+        return ", ".join(pieces)
+    # A held tape carries the score + as-of stamp but no intraday breakdown.
+    held_date = _parse_date(tape_stress.as_of) if tape_stress.as_of else None
+    if held_date is not None:
+        return f"held from {held_date.strftime('%b %-d')}"
+    return "Current tape pressure unavailable"
 
 
 def _as_date(value: object) -> date | None:

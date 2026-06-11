@@ -252,7 +252,7 @@ def _stocks_vote(signals_by_key: dict[str, LeanSignal]) -> tuple[str, float | No
     live_members = [s for s in members if s.live and s.change_pct is not None]
     if not live_members:
         return "neutral", None, False
-    avg = sum(s.change_pct for s in live_members) / len(live_members)  # type: ignore[misc]
+    avg = sum(s.change_pct for s in live_members) / len(live_members)
     return _risk_direction(avg, True), avg, True
 
 
@@ -291,7 +291,6 @@ def _vote(signals: list[LeanSignal]) -> tuple[str, int, int, dict[str, str]]:
 def _overnight_stress(
     *,
     applies: bool,
-    direction: str,
     by_key: dict[str, LeanSignal],
 ) -> int | None:
     """Off-hours caution contribution on the SAME 0-100 scale as the cash tape.
@@ -325,10 +324,9 @@ def _overnight_stress(
     if oil and oil.live and oil.change_pct is not None and abs(oil.change_pct) >= _OIL_WATCH_PCT:
         stress += _OIL_STRESS_BUMP
 
-    # A risk-on / neutral overnight is not a reason for caution to climb.
-    if direction != "risk_off":
-        stress = min(stress, _STRESS_FLOOR + _OIL_STRESS_BUMP if oil and oil.note else _STRESS_FLOOR)
-
+    # No cap by vote direction: stress is driven by the equity-futures move itself,
+    # so a contrary gold/rates/crypto vote must never mask a real futures selloff.
+    # When futures aren't down the decline mapping already sits at the floor.
     return round(max(_STRESS_FLOOR, min(_STRESS_CAP, stress)))
 
 
@@ -420,7 +418,7 @@ def get_overnight_lean(now: datetime | None = None) -> OvernightLean:
     signals = _build_signals(changes=changes, futures_live=futures_live)
     by_key = {s.key: s for s in signals}
     direction, confidence, live_count, _dims = _vote(signals)
-    stress_score = _overnight_stress(applies=applies, direction=direction, by_key=by_key)
+    stress_score = _overnight_stress(applies=applies, by_key=by_key)
     headline = _headline(
         direction=direction,
         confidence=confidence,

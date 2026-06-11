@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from app.macro_gate import conditions
@@ -471,6 +471,44 @@ def test_held_tape_evidence_none_when_no_live_tape_ever(monkeypatch) -> None:
         )
         is None
     )
+
+
+def test_quote_market_date_rolls_to_next_trade_date_after_futures_reopen() -> None:
+    # 11:56 PM ET Wed belongs to Thursday's futures session: the Wednesday day
+    # bar is a completed settle and must be the change baseline, not skipped.
+    late_night = datetime(2026, 6, 11, 3, 56, tzinfo=UTC)  # 23:56 ET Jun 10
+    assert conditions._quote_market_date(late_night) == date(2026, 6, 11)
+    # During the cash session the calendar date stands (same-dated bar is partial).
+    midday = datetime(2026, 6, 10, 17, 30, tzinfo=UTC)  # 13:30 ET Jun 10
+    assert conditions._quote_market_date(midday) == date(2026, 6, 10)
+
+
+def test_prior_close_for_overnight_quote_is_last_completed_settle() -> None:
+    bars = [(date(2026, 6, 10), 7278.5), (date(2026, 6, 9), 7392.75)]
+    # Overnight quote (rolled to Jun 11) compares against the Jun 10 settle...
+    overnight = conditions._quote_market_date(
+        datetime(2026, 6, 11, 3, 56, tzinfo=UTC)
+    )
+    assert conditions._prior_close_for_quote(quote_date=overnight, bars=bars) == 7278.5
+    # ...while an in-session Jun 10 quote still compares against Jun 9.
+    in_session = conditions._quote_market_date(
+        datetime(2026, 6, 10, 17, 30, tzinfo=UTC)
+    )
+    assert conditions._prior_close_for_quote(quote_date=in_session, bars=bars) == 7392.75
+
+
+def test_tape_detail_names_held_session_instead_of_unavailable() -> None:
+    held = conditions.TapeStressEvidence(
+        stress_score=55,
+        as_of="2026-06-10T14:55:03-04:00",
+        sp500_change_pct=None,
+        weakest_sector_symbol=None,
+        weakest_sector_name=None,
+        weakest_sector_change_pct=None,
+        negative_sector_count=0,
+        sector_count=0,
+    )
+    assert conditions._tape_detail(held) == "held from Jun 10"
 
 
 def test_driving_read_states_the_why_across_regimes() -> None:

@@ -7,6 +7,7 @@ computed off persisted ``signal_macro_snapshots`` rows.
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -20,6 +21,7 @@ from ..macro_gate import conditions_history, repository
 from ..macro_gate.backtest.monte_carlo import as_dict as sensitivity_as_dict
 from ..macro_gate.backtest.monte_carlo import run_sensitivity
 from ..macro_gate.backtest.walk_forward import replay, sanity_checks
+from ..macro_gate.fed_odds import get_fed_odds
 from ..macro_gate.scoring import WEIGHTS, ZONES
 from ..macro_gate.service import run as run_macro_gate
 from ..services.market_events_service import get_macro_calendar_cluster
@@ -46,6 +48,12 @@ def _next_catalyst() -> dict[str, Any] | None:
     except Exception:
         logger.debug("next_catalyst_lookup_failed", exc_info=True)
         return None
+
+
+def _fed_odds() -> dict[str, Any] | None:
+    """FedWatch read for the Today panel (display-only; get_fed_odds never raises)."""
+    odds = get_fed_odds()
+    return asdict(odds) if odds is not None else None
 
 
 class MacroSnapshotResponse(BaseModel):
@@ -135,6 +143,18 @@ class MacroConditionNextCatalystResponse(BaseModel):
     impact_score: int
 
 
+class MacroConditionFedOddsResponse(BaseModel):
+    meeting_date: str
+    effr: float
+    implied_post_rate: float
+    p_cut: int
+    p_hold: int
+    p_hike: int
+    year_end_rate: float | None = None
+    cuts_priced_by_year_end: float | None = None
+    as_of: str | None = None
+
+
 class MacroConditionOvernightSignalResponse(BaseModel):
     key: str
     label: str
@@ -198,6 +218,7 @@ class MacroConditionsResponse(BaseModel):
     market_session: str | None = None
     tape_status: str | None = None
     next_catalyst: MacroConditionNextCatalystResponse | None = None
+    fed_odds: MacroConditionFedOddsResponse | None = None
     overnight_lean: MacroConditionOvernightLeanResponse | None = None
     summary: str
     action_text: str
@@ -371,6 +392,9 @@ async def current_conditions() -> MacroConditionsResponse:
     # Attached AFTER record() so it never enters the conditions history, and kept
     # out of get_conditions_payload so the capture cron skips this calendar read.
     payload["next_catalyst"] = await run_in_threadpool(_next_catalyst)
+    # FedWatch odds from fed-funds futures — display context for the FOMC
+    # catalyst, attached after record() like next_catalyst (never in history).
+    payload["fed_odds"] = await run_in_threadpool(_fed_odds)
     return MacroConditionsResponse(**payload)
 
 
