@@ -460,14 +460,15 @@ const preview: RetirementPreview = {
       college529Draw: 0,
       college529Balance: 0,
       withdrawalsByBucket: {
-        taxable: 74000,
-        governmental457b: 0,
+        taxable: 50000,
+        // es-toolkit camelizes governmental_457b with a capital B.
+        governmental457B: 24000,
         preTax: 0,
         roth: 0,
       },
       balancesByBucket: {
         taxable: 200000,
-        governmental457b: 95000,
+        governmental457B: 95000,
         preTax: 500000,
         roth: 250000,
       },
@@ -498,13 +499,13 @@ const preview: RetirementPreview = {
       college529Balance: 0,
       withdrawalsByBucket: {
         taxable: 20000,
-        governmental457b: 0,
+        governmental457B: 0,
         preTax: 45000,
         roth: 0,
       },
       balancesByBucket: {
         taxable: 0,
-        governmental457b: 90000,
+        governmental457B: 90000,
         preTax: 560000,
         roth: 240000,
       },
@@ -625,8 +626,17 @@ describe('MoneyRetirementPanel', () => {
     expect(screen.getByText('Allocation sandbox')).toBeInTheDocument()
     expect(screen.getByText('Retire 2 years later')).toBeInTheDocument()
     expect(screen.getByText('Drawdown schedule')).toBeInTheDocument()
+    // Default basis is today's dollars: nominal fixture values deflated by
+    // (1 + 0.025) ** yearIndex (yearIndex 23 → factor ≈ 1.7646).
+    expect(screen.getByText('$10,201')).toBeInTheDocument()
+    expect(screen.getByText('$25,501')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Future dollars' }))
     expect(screen.getByText('$18,000')).toBeInTheDocument()
     expect(screen.getByText('$45,000')).toBeInTheDocument()
+    // Gov 457(b) draw renders despite the governmental457B wire-key casing.
+    expect(screen.getByText('$24,000')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: "Today's dollars" }))
 
     await user.click(
       screen.getByRole('button', { name: /show 2 account details/i }),

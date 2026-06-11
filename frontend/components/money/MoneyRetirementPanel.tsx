@@ -132,7 +132,13 @@ function bucketLabel(value: string) {
 function bucketMapValue(values: Record<string, number>, bucket: string) {
   if (bucket === 'pre_tax') return values.pre_tax ?? values.preTax ?? 0
   if (bucket === 'governmental_457b') {
-    return values.governmental_457b ?? values.governmental457b ?? 0
+    // es-toolkit camelizes the API key to governmental457B (capital B).
+    return (
+      values.governmental_457b ??
+      values.governmental457b ??
+      values.governmental457B ??
+      0
+    )
   }
   return values[bucket] ?? 0
 }
@@ -685,6 +691,7 @@ export function MoneyRetirementPanel({
   const [withdrawalOpen, setWithdrawalOpen] = useState(true)
   const [allocationOpen, setAllocationOpen] = useState(false)
   const [accountDetailsOpen, setAccountDetailsOpen] = useState(false)
+  const [drawdownBasis, setDrawdownBasis] = useState<'real' | 'nominal'>('real')
   const [holdingsDialogAccount, setHoldingsDialogAccount] = useState<{
     householdAccountId: string
     label: string
@@ -894,6 +901,59 @@ export function MoneyRetirementPanel({
       ),
     [preview, fullRetirementAge],
   )
+
+  // Drawdown table rows in the chosen dollar basis. Backend rows are nominal
+  // except the engine-decision block (real); the deterministic schedule uses a
+  // constant inflation rate, so (1+i)^yearIndex converts exactly both ways.
+  // Spend is the spending actually funded (income + bridge + net withdrawal,
+  // minus portfolio-paid college) — the engine's target can exceed it in
+  // capacity-trimmed years, and RMD-forced surplus is reinvested, not spent.
+  const drawdownTableRows = useMemo(() => {
+    const inflation = preview?.inputs.inflationRate ?? 0
+    return drawdownRows.map((row) => {
+      const factor = (1 + inflation) ** row.yearIndex
+      const scale = drawdownBasis === 'real' ? 1 / factor : 1
+      const bridgeNominal = row.bridgeDraw * factor
+      const collegeNominal =
+        Math.max(0, row.collegeCost - row.college529Draw) * factor
+      const targetNominal = row.spendingTarget * factor
+      const spendNominal = Math.min(
+        targetNominal,
+        Math.max(
+          0,
+          row.income + bridgeNominal + row.netWithdrawal - collegeNominal,
+        ),
+      )
+      return {
+        ...row,
+        displaySpend: spendNominal * scale,
+        displayTarget: targetNominal * scale,
+        spendTrimmed: targetNominal - spendNominal > 1,
+        displayIncome: row.income * scale,
+        displayBridge: bridgeNominal * scale,
+        displayCollege: collegeNominal * scale,
+        displayGross: row.grossWithdrawal * scale,
+        displayTax: row.taxEstimate * scale,
+        displayPenalty: row.penaltyEstimate * scale,
+        displayEnding: row.endingBalance * scale,
+        displayRmd: row.rmdAmount * scale,
+        displayBuckets: Object.fromEntries(
+          Object.entries(row.withdrawalsByBucket).map(([key, value]) => [
+            key,
+            value * scale,
+          ]),
+        ),
+      }
+    })
+  }, [drawdownRows, drawdownBasis, preview?.inputs.inflationRate])
+  const drawdownHasBridge = drawdownTableRows.some(
+    (row) => row.displayBridge > 0.5,
+  )
+  const drawdownHasCollege = drawdownTableRows.some(
+    (row) => row.displayCollege > 0.5,
+  )
+  const drawdownColumnCount =
+    13 + (drawdownHasBridge ? 1 : 0) + (drawdownHasCollege ? 1 : 0)
 
   // Spending smile in real dollars: stacked funding sources vs floor/target,
   // mirrors withdrawalData's retirement-rows windowing.
@@ -2986,7 +3046,7 @@ export function MoneyRetirementPanel({
         <SectionCard
           variant="surface"
           title="Annual drawdown by source"
-          description="Gross withdrawals needed by account type after retirement income sources."
+          description="Gross withdrawals needed by account type after retirement income sources. Future (inflated) dollars."
         >
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
@@ -3022,7 +3082,7 @@ export function MoneyRetirementPanel({
         <SectionCard
           variant="surface"
           title="Account balances by age"
-          description="Stacked expected-path balances after contributions, withdrawals, tax estimates, and RMD estimates."
+          description="Stacked expected-path balances after contributions, withdrawals, tax estimates, and RMD estimates. Future (inflated) dollars."
         >
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
@@ -3060,8 +3120,30 @@ export function MoneyRetirementPanel({
       <SectionCard
         variant="surface"
         title="Drawdown schedule"
-        description="Year-by-year spending, income, taxes, early-withdrawal penalties, and withdrawal source mix."
+        description={`Year-by-year funded spending, income, taxes, early-withdrawal penalties, and withdrawal source mix in ${
+          drawdownBasis === 'real'
+            ? "today's dollars"
+            : 'future (inflated) dollars'
+        }.`}
       >
+        <div className="mb-3 flex flex-wrap gap-2">
+          {(
+            [
+              ['real', "Today's dollars"],
+              ['nominal', 'Future dollars'],
+            ] as const
+          ).map(([value, label]) => (
+            <Button
+              key={value}
+              type="button"
+              size="sm"
+              variant={drawdownBasis === value ? 'default' : 'outline'}
+              onClick={() => setDrawdownBasis(value)}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
         <div className="overflow-hidden rounded-2xl border border-border/35 bg-surface-muted/10">
           <div className="overflow-auto">
             <table className="w-full min-w-[1080px] border-separate border-spacing-0 text-sm">
@@ -3069,11 +3151,33 @@ export function MoneyRetirementPanel({
                 <tr>
                   {[
                     { label: 'Age' },
-                    { label: 'Spend' },
+                    {
+                      label: 'Spend',
+                      title:
+                        'Retirement spending actually funded this year (income + bridge + net withdrawal). Shown in amber when the withdrawal strategy trims it below the plan target.',
+                    },
                     { label: 'Income' },
+                    ...(drawdownHasBridge
+                      ? [
+                          {
+                            label: 'Bridge',
+                            title:
+                              'Spending covered by the bridge sleeve carved out at retirement. Not part of Withdrawal.',
+                          },
+                        ]
+                      : []),
                     { label: 'Withdrawal' },
                     { label: 'Tax est.', title: taxEstimateTooltip },
                     { label: 'Penalty' },
+                    ...(drawdownHasCollege
+                      ? [
+                          {
+                            label: 'College',
+                            title:
+                              'College costs paid from the portfolio after the 529 sleeve runs out. Included in Withdrawal; 529-funded amounts never touch retirement accounts.',
+                          },
+                        ]
+                      : []),
                     { label: 'Cash' },
                     { label: 'Taxable' },
                     { label: 'Gov 457(b)' },
@@ -3093,50 +3197,71 @@ export function MoneyRetirementPanel({
                 </tr>
               </thead>
               <tbody>
-                {drawdownRows.length === 0 ? (
+                {drawdownTableRows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={13}
+                      colSpan={drawdownColumnCount}
                       className="px-4 py-10 text-center text-sm text-text-muted"
                     >
                       Drawdown rows will appear after the preview runs.
                     </td>
                   </tr>
                 ) : (
-                  drawdownRows.map((row) => (
+                  drawdownTableRows.map((row) => (
                     <tr key={`${row.calendarYear}-${row.primaryAge}`}>
                       <td className="border-b border-border/20 px-4 py-3 text-left font-medium text-text">
                         {row.primaryAge}
                       </td>
-                      <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
-                        {formatCurrency(row.spendingNeed, { decimals: 0 })}
+                      <td
+                        className={`border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums ${
+                          row.spendTrimmed ? 'text-warning' : 'text-text'
+                        }`}
+                        title={
+                          row.spendTrimmed
+                            ? `Below the ${formatCurrency(row.displayTarget, {
+                                decimals: 0,
+                              })} target — the withdrawal strategy trimmed discretionary spending this year.`
+                            : undefined
+                        }
+                      >
+                        {formatCurrency(row.displaySpend, { decimals: 0 })}
                       </td>
                       <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
-                        {formatCurrency(row.income, { decimals: 0 })}
+                        {formatCurrency(row.displayIncome, { decimals: 0 })}
                       </td>
+                      {drawdownHasBridge ? (
+                        <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
+                          {formatCurrency(row.displayBridge, { decimals: 0 })}
+                        </td>
+                      ) : null}
                       <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
-                        {formatCurrency(row.grossWithdrawal, { decimals: 0 })}
+                        {formatCurrency(row.displayGross, { decimals: 0 })}
                       </td>
                       <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-warning">
-                        {formatCurrency(row.taxEstimate, { decimals: 0 })}
+                        {formatCurrency(row.displayTax, { decimals: 0 })}
                       </td>
                       <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-warning">
-                        {formatCurrency(row.penaltyEstimate, { decimals: 0 })}
+                        {formatCurrency(row.displayPenalty, { decimals: 0 })}
                       </td>
+                      {drawdownHasCollege ? (
+                        <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
+                          {formatCurrency(row.displayCollege, { decimals: 0 })}
+                        </td>
+                      ) : null}
                       <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
-                        {formatCurrency(row.withdrawalsByBucket.cash ?? 0, {
+                        {formatCurrency(row.displayBuckets.cash ?? 0, {
                           decimals: 0,
                         })}
                       </td>
                       <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
-                        {formatCurrency(row.withdrawalsByBucket.taxable ?? 0, {
+                        {formatCurrency(row.displayBuckets.taxable ?? 0, {
                           decimals: 0,
                         })}
                       </td>
                       <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
                         {formatCurrency(
                           bucketMapValue(
-                            row.withdrawalsByBucket,
+                            row.displayBuckets,
                             'governmental_457b',
                           ),
                           { decimals: 0 },
@@ -3144,22 +3269,22 @@ export function MoneyRetirementPanel({
                       </td>
                       <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
                         {formatCurrency(
-                          bucketMapValue(row.withdrawalsByBucket, 'pre_tax'),
+                          bucketMapValue(row.displayBuckets, 'pre_tax'),
                           { decimals: 0 },
                         )}
                       </td>
                       <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
-                        {formatCurrency(row.withdrawalsByBucket.roth ?? 0, {
+                        {formatCurrency(row.displayBuckets.roth ?? 0, {
                           decimals: 0,
                         })}
                       </td>
                       <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
-                        {formatCurrency(row.endingBalance, { decimals: 0 })}
+                        {formatCurrency(row.displayEnding, { decimals: 0 })}
                       </td>
                       <td className="border-b border-border/20 px-4 py-3 text-right">
                         {row.rmdApplied ? (
                           <Badge variant="warning">
-                            {formatCurrency(row.rmdAmount, { decimals: 0 })}
+                            {formatCurrency(row.displayRmd, { decimals: 0 })}
                           </Badge>
                         ) : (
                           <span className="text-text-muted">—</span>
@@ -3172,6 +3297,15 @@ export function MoneyRetirementPanel({
             </table>
           </div>
         </div>
+        {drawdownTableRows.length > 0 ? (
+          <p className="mt-3 text-xs text-text-muted">
+            Each year reconciles: Spend = Income{' '}
+            {drawdownHasBridge ? '+ Bridge ' : ''}+ Withdrawal − Tax est. −
+            Penalty{drawdownHasCollege ? ' − College' : ''}. When a forced RMD
+            withdraws more than the plan needs, the surplus is reinvested in
+            taxable rather than spent.
+          </p>
+        ) : null}
         {gainRatioDetail ? (
           <p className="mt-3 text-xs text-text-muted">
             <span
