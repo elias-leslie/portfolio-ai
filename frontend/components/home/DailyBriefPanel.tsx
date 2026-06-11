@@ -740,8 +740,8 @@ function MarketConditionHero({
 function triggerStatusText(row: MacroConditionTrigger): string {
   if (row.current == null) return 'No data'
   if (row.fired) return 'Triggered'
+  if (row.tone === 'warning') return 'Elevated — watch'
   if (row.progress == null) return 'Watching'
-  if (row.progress >= 0.75) return 'Close — watch'
   return `${Math.round(row.progress * 100)}% of the way`
 }
 

@@ -159,12 +159,13 @@ const conditions = {
       trigger: 30,
       triggerDisplay: '30',
       baseline: 12,
+      watch: 20,
       direction: 'above',
       unit: '',
       progress: 0.567,
       fired: false,
-      tone: 'gain',
-      note: 'Above 30 flips volatility to stressed and the read to Elevated.',
+      tone: 'warning',
+      note: 'Above 20 volatility is elevated; above 30 the read flips to Elevated.',
     },
     {
       key: 'buy_score',
@@ -174,12 +175,13 @@ const conditions = {
       trigger: 40,
       triggerDisplay: '40',
       baseline: 75,
+      watch: 50,
       direction: 'below',
       unit: '',
       progress: 0.543,
       fired: false,
       tone: 'gain',
-      note: 'Below 40 turns the brief defensive.',
+      note: 'Below 50 conditions are thinning; below 40 the brief turns defensive.',
     },
   ],
   trend: {
@@ -353,7 +355,8 @@ describe('DailyBriefPanel', () => {
     expect(screen.getByText('What would change the read')).toBeInTheDocument()
     expect(screen.getByText('Buying conditions')).toBeInTheDocument()
     expect(screen.getByText('≥ 30')).toBeInTheDocument()
-    expect(screen.getByText('57% of the way')).toBeInTheDocument()
+    expect(screen.getByText('Elevated — watch')).toBeInTheDocument()
+    expect(screen.getByText('54% of the way')).toBeInTheDocument()
     expect(screen.getByText('Market shifts')).toBeInTheDocument()
     expect(screen.getByText('Macro stress reversed worse')).toBeInTheDocument()
 

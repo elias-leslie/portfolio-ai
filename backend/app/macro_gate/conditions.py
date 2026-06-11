@@ -1194,6 +1194,7 @@ def _trigger_row(
     current: float | None,
     trigger: float,
     baseline: float,
+    watch: float,
     direction: str,
     unit: str,
     digits: int,
@@ -1203,16 +1204,22 @@ def _trigger_row(
 
     ``baseline`` anchors the calm end of the distance bar; progress is the
     position of ``current`` between baseline and trigger, clamped to 0..1.
+    Tone reflects health, not just trigger distance: gain below ``watch``
+    (the level where the engine starts treating the metric as elevated),
+    warning between watch and trigger, loss at/after the trigger.
     """
     fired = False
     progress: float | None = None
+    watching = False
     if current is not None:
         if direction == "above":
             fired = current >= trigger
+            watching = current >= watch
             span = trigger - baseline
             progress = (current - baseline) / span if span else None
         else:
             fired = current <= trigger
+            watching = current <= watch
             span = baseline - trigger
             progress = (baseline - current) / span if span else None
         if progress is not None:
@@ -1221,7 +1228,7 @@ def _trigger_row(
         tone = "neutral"
     elif fired:
         tone = "loss"
-    elif progress is not None and progress >= 0.75:
+    elif watching:
         tone = "warning"
     else:
         tone = "gain"
@@ -1233,6 +1240,7 @@ def _trigger_row(
         "trigger": trigger,
         "trigger_display": _fmt_number(trigger, digits),
         "baseline": baseline,
+        "watch": watch,
         "direction": direction,
         "unit": unit,
         "progress": round(progress, 3) if progress is not None else None,
@@ -1261,6 +1269,7 @@ def _build_triggers(
             current=sp500_change,
             trigger=-2.0,
             baseline=0.0,
+            watch=-1.0,
             direction="below",
             unit="%",
             digits=1,
@@ -1272,10 +1281,11 @@ def _build_triggers(
             current=vix_close,
             trigger=30.0,
             baseline=12.0,
+            watch=20.0,
             direction="above",
             unit="",
             digits=1,
-            note="Above 30 flips volatility to stressed and the read to Elevated.",
+            note="Above 20 volatility is elevated; above 30 the read flips to Elevated.",
         ),
         _trigger_row(
             key="hy_oas",
@@ -1283,10 +1293,11 @@ def _build_triggers(
             current=hy_spread,
             trigger=5.0,
             baseline=2.5,
+            watch=3.5,
             direction="above",
             unit="%",
             digits=2,
-            note="Above 5 makes credit a severe warning.",
+            note="Above 3.5 credit is worth watching; above 5 it is a severe warning.",
         ),
         _trigger_row(
             key="hy_widening",
@@ -1294,10 +1305,11 @@ def _build_triggers(
             current=hy_change_bps,
             trigger=100.0,
             baseline=0.0,
+            watch=50.0,
             direction="above",
             unit=" bps",
             digits=0,
-            note="Widening 100 bps in the window is a severe credit signal.",
+            note="Widening 50 bps is notable; 100 bps in the window is a severe credit signal.",
         ),
         _trigger_row(
             key="buy_score",
@@ -1305,10 +1317,11 @@ def _build_triggers(
             current=deployment_score,
             trigger=40.0,
             baseline=75.0,
+            watch=50.0,
             direction="below",
             unit="",
             digits=0,
-            note="Below 40 turns the brief defensive.",
+            note="Below 50 conditions are thinning; below 40 the brief turns defensive.",
         ),
         _trigger_row(
             key="tape_pressure",
@@ -1316,10 +1329,11 @@ def _build_triggers(
             current=tape_score,
             trigger=float(SEVERE_STRESS_THRESHOLD),
             baseline=15.0,
+            watch=float(MODERATE_CAUTION_THRESHOLD),
             direction="above",
             unit="",
             digits=0,
-            note="At 65+ the equity tape alone forces an Elevated read.",
+            note="Above 50 the tape is pressured; at 65+ it alone forces an Elevated read.",
         ),
         _trigger_row(
             key="breadth",
@@ -1327,10 +1341,11 @@ def _build_triggers(
             current=breadth_pct,
             trigger=45.0,
             baseline=70.0,
+            watch=55.0,
             direction="below",
             unit="%",
             digits=0,
-            note="Below 45% of stocks participating weakens rally quality.",
+            note="Below 55% participation is thinning; below 45% rally quality is weak.",
         ),
     ]
 

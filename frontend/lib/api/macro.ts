@@ -113,6 +113,7 @@ export interface MacroConditionTrigger {
   trigger: number
   triggerDisplay: string
   baseline: number
+  watch: number
   direction: 'above' | 'below' | string
   unit: string
   progress: number | null

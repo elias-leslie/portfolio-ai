@@ -578,7 +578,14 @@ def test_conditions_payload_triggers_report_live_distance_to_thresholds() -> Non
     assert vix["trigger"] == 30.0
     assert vix["fired"] is False
     assert vix["progress"] == 0.5  # (21 - 12) / (30 - 12)
-    assert vix["tone"] == "gain"
+    # 21 is past the watch level (20): elevated but not triggered.
+    assert vix["tone"] == "warning"
+
+    # Below the watch level the row reads healthy.
+    hy = triggers["hy_oas"]
+    assert hy["current"] == 2.5
+    assert hy["watch"] == 3.5
+    assert hy["tone"] == "gain"
 
     sp = triggers["sp500_day"]
     assert sp["direction"] == "below"
@@ -599,8 +606,13 @@ def test_conditions_payload_trigger_fires_and_clamps_when_threshold_crossed() ->
     assert vix["progress"] == 1.0
     assert vix["tone"] == "loss"
 
-    # Near-trigger values get the warning tone before firing.
+    # Past the watch level but short of the trigger: warning, not fired.
     near = conditions.build_conditions_payload(_snapshot(vix_close=26.0))
     vix_near = {row["key"]: row for row in near["triggers"]}["vix"]
     assert vix_near["fired"] is False
     assert vix_near["tone"] == "warning"
+
+    # Calm values stay green.
+    calm = conditions.build_conditions_payload(_snapshot(vix_close=15.0))
+    vix_calm = {row["key"]: row for row in calm["triggers"]}["vix"]
+    assert vix_calm["tone"] == "gain"

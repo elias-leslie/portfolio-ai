@@ -78,6 +78,13 @@ class JennyConversationService:
         except Exception as exc:
             logger.exception("jenny_chat_completion_failed", error=str(exc))
             completion = SimpleNamespace(content=build_fallback_reply(cleaned, context), session_id=session_id or "")
+        else:
+            if not str(getattr(completion, "content", "") or "").strip():
+                logger.warning("jenny_chat_empty_completion", session_id=session_id)
+                completion = SimpleNamespace(
+                    content=build_fallback_reply(cleaned, context),
+                    session_id=str(getattr(completion, "session_id", None) or session_id or ""),
+                )
 
         try:
             reconciled_answers = self._reconcile_message(

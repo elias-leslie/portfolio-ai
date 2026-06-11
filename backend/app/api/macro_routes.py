@@ -169,6 +169,7 @@ class MacroConditionTriggerResponse(BaseModel):
     trigger: float
     trigger_display: str
     baseline: float
+    watch: float
     direction: str
     unit: str = ""
     progress: float | None = None

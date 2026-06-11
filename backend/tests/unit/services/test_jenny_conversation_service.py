@@ -170,6 +170,30 @@ def test_chat_returns_fallback_reply_when_completion_fails() -> None:
     assert result["session_id"] == ""
 
 
+def test_chat_returns_fallback_reply_when_completion_is_empty() -> None:
+    service = cast(Any, JennyConversationService())
+    service.household_service = Mock()
+    service.household_service.list_questions.return_value = HouseholdQuestionList(items=[])
+    service._build_context = Mock(
+        return_value={
+            "household": {"jenny_needs": [{"title": "Upload financial evidence"}]},
+            "symbols": {"detected": []},
+        }
+    )
+    service._complete_conversation = Mock(
+        return_value=SimpleNamespace(content="", session_id="session-7")
+    )
+    service._reconcile_message = Mock(return_value=[])
+    service._extract_planning_updates = Mock(
+        return_value={"profile_updates": {}, "planning_items": []}
+    )
+
+    result = service.chat("What should I do next?")
+
+    assert "Upload financial evidence" in result["reply"]
+    assert result["session_id"] == "session-7"
+
+
 def test_chat_returns_document_aware_fallback_for_upload_questions() -> None:
     service = cast(Any, JennyConversationService())
     service.household_service = Mock()
