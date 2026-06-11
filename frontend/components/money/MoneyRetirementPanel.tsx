@@ -28,6 +28,7 @@ import type {
   HouseholdFinanceDashboard,
   HouseholdProfileUpdate,
   RetirementAccountRule,
+  RetirementCollegeYear,
   RetirementPreviewRequest,
   RetirementWithdrawalConfig,
 } from '@/lib/api/household'
@@ -433,6 +434,7 @@ type WithdrawalDraft = {
   bridgeManualAmount: string
   bridgeRealReturnPct: string
   healthcare: Array<{ age: string; realAmount: string }>
+  college: Array<{ calendarYear: string; realAmount: string }>
 }
 
 function defaultWithdrawalDraft(
@@ -458,7 +460,29 @@ function defaultWithdrawalDraft(
       age: String(row.age),
       realAmount: String(Math.round(row.realAmount)),
     })),
+    college: (dashboard.planning?.retirementCollegeSchedule ?? []).map(
+      (row) => ({
+        calendarYear: String(row.calendarYear),
+        realAmount: String(Math.round(row.realAmount)),
+      }),
+    ),
   }
+}
+
+function collegeScheduleFromDraft(
+  withdrawal: WithdrawalDraft,
+): RetirementCollegeYear[] {
+  return withdrawal.college
+    .map((row) => ({
+      calendarYear: Math.round(parseNumber(row.calendarYear, 0)),
+      realAmount: parseNumber(row.realAmount, 0),
+    }))
+    .filter(
+      (row) =>
+        row.calendarYear >= 1900 &&
+        row.calendarYear <= 2200 &&
+        row.realAmount >= 0,
+    )
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -558,6 +582,7 @@ function buildRequest(
         defaultSocialSecurityPayableRatio * 100,
       ) / 100,
     withdrawal: withdrawal ? withdrawalConfigFromDraft(withdrawal) : null,
+    collegeSchedule: withdrawal ? collegeScheduleFromDraft(withdrawal) : null,
     trials: 2500,
     seed: 7,
   }
@@ -1063,6 +1088,7 @@ export function MoneyRetirementPanel({
         age: row.age,
         realAmount: row.realAmount,
       })),
+      retirementCollegeSchedule: collegeScheduleFromDraft(withdrawalDraft),
     })
     setRequest(
       buildRequest(
@@ -1113,6 +1139,39 @@ export function MoneyRetirementPanel({
       healthcare: current.healthcare.filter(
         (_, rowIndex) => rowIndex !== index,
       ),
+    }))
+  }
+
+  const updateCollegeRow = (
+    index: number,
+    key: 'calendarYear' | 'realAmount',
+    value: string,
+  ) => {
+    setWithdrawalDraft((current) => ({
+      ...current,
+      college: current.college.map((row, rowIndex) =>
+        rowIndex === index ? { ...row, [key]: value } : row,
+      ),
+    }))
+  }
+
+  const addCollegeRow = () => {
+    setWithdrawalDraft((current) => ({
+      ...current,
+      college: [
+        ...current.college,
+        {
+          calendarYear: String(new Date().getFullYear() + 4),
+          realAmount: '8000',
+        },
+      ],
+    }))
+  }
+
+  const removeCollegeRow = (index: number) => {
+    setWithdrawalDraft((current) => ({
+      ...current,
+      college: current.college.filter((_, rowIndex) => rowIndex !== index),
     }))
   }
 
@@ -1750,6 +1809,87 @@ export function MoneyRetirementPanel({
                         size="sm"
                         variant="outline"
                         onClick={() => removeHealthcareRow(index)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  College schedule (annual, today&apos;s dollars)
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={addCollegeRow}
+                >
+                  Add line
+                </Button>
+              </div>
+              <p className="mt-2 text-xs text-text-muted">
+                529 accounts
+                {preview?.inputs.college529Value
+                  ? ` (${formatCurrencyWhole(preview.inputs.college529Value)})`
+                  : ''}{' '}
+                are earmarked for college and excluded from the retirement
+                portfolio; each year&apos;s college spend drains them first and
+                only the overflow hits retirement money.
+              </p>
+              {withdrawalDraft.college.length === 0 ? (
+                <p className="mt-2 text-xs text-text-muted">
+                  No college lines yet — add a line per spend year, e.g. 2030
+                  while both kids are at SPC, 2032 at USF.
+                </p>
+              ) : (
+                <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  {withdrawalDraft.college.map((row, index) => (
+                    <div
+                      key={index}
+                      className="flex items-end gap-2 rounded-xl border border-border/25 px-3 py-2"
+                    >
+                      <label className="text-xs text-text-muted">
+                        Year
+                        <Input
+                          className="mt-1"
+                          inputMode="numeric"
+                          aria-label={`College line ${index + 1} calendar year`}
+                          value={row.calendarYear}
+                          onChange={(event) =>
+                            updateCollegeRow(
+                              index,
+                              'calendarYear',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="text-xs text-text-muted">
+                        Annual $
+                        <Input
+                          className="mt-1"
+                          inputMode="decimal"
+                          aria-label={`College line ${index + 1} annual amount`}
+                          value={row.realAmount}
+                          onChange={(event) =>
+                            updateCollegeRow(
+                              index,
+                              'realAmount',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => removeCollegeRow(index)}
                       >
                         Remove
                       </Button>

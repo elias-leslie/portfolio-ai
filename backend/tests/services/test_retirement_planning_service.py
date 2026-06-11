@@ -22,6 +22,7 @@ import pytest
 
 from app.portfolio.contracts.retirement import (
     RetirementAccountBucket,
+    RetirementCollegeYear,
     RetirementIncomeSource,
     RetirementInputs,
     ScenarioResults,
@@ -304,6 +305,7 @@ class _StubConn:
                 "fetchall",
                 self._healthcare,
             ),
+            "from household_retirement_college_schedule": ("fetchall", []),
             "from portfolio_positions": ("fetchall", self._positions),
             "from household_housing_costs": ("fetchone", (self._housing,)),
             "from household_debt_obligations": ("fetchone", (self._debt,)),
@@ -1593,3 +1595,122 @@ _ = SimulationOutputs
 _ = RetirementInputs
 _ = datetime
 _ = UTC
+
+
+def test_account_buckets_exclude_education_accounts() -> None:
+    service = _make_service(_StubConn())
+    dashboard = SimpleNamespace(
+        accounts=[
+            SimpleNamespace(
+                label="Taxable Brokerage",
+                asset_group="taxable",
+                account_type="brokerage",
+                current_value=100_000.0,
+                cash_balance=0.0,
+            ),
+            SimpleNamespace(
+                label="529 - Kid",
+                asset_group="education",
+                account_type="529",
+                current_value=35_000.0,
+                cash_balance=0.0,
+            ),
+        ],
+    )
+
+    buckets = service._account_buckets_from_dashboard(dashboard)
+
+    assert sum(bucket.current_value for bucket in buckets) == 100_000.0
+    assert all("529" not in bucket.label for bucket in buckets)
+
+
+def _college_inputs(
+    college_schedule: tuple[RetirementCollegeYear, ...],
+    college_529_value: float,
+    *,
+    primary_age: int = 60,
+    retirement_age: int = 60,
+) -> RetirementInputs:
+    return RetirementInputs(
+        household_id="hh-college",
+        primary_age=primary_age,
+        spouse_age=None,
+        retirement_age=retirement_age,
+        horizon_years=3,
+        annual_expenses=60_000.0,
+        annual_contribution=0.0,
+        portfolio_value=1_000_000.0,
+        asset_allocation={"us_equity": 1.0},
+        income_sources=(),
+        inflation_rate=0.0,
+        college_schedule=college_schedule,
+        college_529_value=college_529_value,
+        college_529_real_return=0.0,
+        as_of_date=date(2026, 6, 11),
+    )
+
+
+_COLLEGE_BUCKETS = (
+    RetirementAccountBucket(
+        bucket_type="taxable",
+        label="Taxable",
+        account_type="brokerage",
+        tax_treatment="taxable_capital_gains_estimate",
+        current_value=1_000_000.0,
+        withdrawal_priority=2,
+    ),
+)
+
+
+def test_drawdown_college_drains_529_sleeve_before_portfolio() -> None:
+    service = _make_service(_StubConn())
+    schedule = (
+        RetirementCollegeYear(calendar_year=2026, real_amount=10_000.0),
+        RetirementCollegeYear(calendar_year=2027, real_amount=10_000.0),
+    )
+
+    baseline = service._drawdown_schedule(
+        _college_inputs((), 0.0),
+        buckets=_COLLEGE_BUCKETS,
+        ordinary_tax_rate=0.22,
+        capital_gains_rate=0.15,
+    )
+    rows = service._drawdown_schedule(
+        _college_inputs(schedule, 12_000.0),
+        buckets=_COLLEGE_BUCKETS,
+        ordinary_tax_rate=0.22,
+        capital_gains_rate=0.15,
+    )
+
+    # Year 0: sleeve covers the full cost, portfolio untouched.
+    assert rows[0].college_cost == 10_000.0
+    assert rows[0].college_529_draw == 10_000.0
+    assert rows[0].college_529_balance == 2_000.0
+    assert rows[0].gross_withdrawal == baseline[0].gross_withdrawal
+    # Year 1: sleeve has 2k left, 8k overflow lands on the portfolio.
+    assert rows[1].college_529_draw == 2_000.0
+    assert rows[1].college_529_balance == 0.0
+    assert rows[1].gross_withdrawal > baseline[1].gross_withdrawal
+
+
+def test_drawdown_college_overflow_before_retirement_skips_portfolio() -> None:
+    service = _make_service(_StubConn())
+    schedule = (RetirementCollegeYear(calendar_year=2026, real_amount=50_000.0),)
+
+    baseline = service._drawdown_schedule(
+        _college_inputs((), 0.0, primary_age=49, retirement_age=65),
+        buckets=_COLLEGE_BUCKETS,
+        ordinary_tax_rate=0.22,
+        capital_gains_rate=0.15,
+    )
+    rows = service._drawdown_schedule(
+        _college_inputs(schedule, 0.0, primary_age=49, retirement_age=65),
+        buckets=_COLLEGE_BUCKETS,
+        ordinary_tax_rate=0.22,
+        capital_gains_rate=0.15,
+    )
+
+    # Working years pay college from salary: the portfolio path is identical.
+    assert rows[0].college_cost == 50_000.0
+    assert rows[0].college_529_draw == 0.0
+    assert [row.ending_balance for row in rows] == [row.ending_balance for row in baseline]

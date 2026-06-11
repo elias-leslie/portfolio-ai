@@ -24,6 +24,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.logging_config import get_logger
 from app.portfolio.contracts.retirement import (
+    RetirementCollegeYear,
     RetirementInputs,
     RetirementPreview,
     ScenarioResults,
@@ -95,6 +96,8 @@ class PreviewRequest(RunScenarioRequest):
     spouse_social_security_annual_earnings: float | None = Field(None, ge=0.0)
     primary_social_security_start_age: int | None = Field(None, ge=62, le=70)
     spouse_social_security_start_age: int | None = Field(None, ge=62, le=70)
+    # Explicit college schedule (even empty) wins over the persisted one.
+    college_schedule: list[RetirementCollegeYear] | None = None
 
 
 @router.post("/scenarios")
@@ -159,6 +162,9 @@ async def preview(payload: PreviewRequest) -> dict[str, Any]:
             primary_social_security_start_age=payload.primary_social_security_start_age,
             spouse_social_security_start_age=payload.spouse_social_security_start_age,
             withdrawal=payload.withdrawal,
+            college_schedule=(
+                tuple(payload.college_schedule) if payload.college_schedule is not None else None
+            ),
             trials=payload.trials,
             seed=payload.seed,
             as_of_date=payload.as_of_date,

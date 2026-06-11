@@ -18,6 +18,7 @@ from app.models.household_planning import (
     HouseholdInsurancePolicyInput,
     HouseholdPlannedExpenseInput,
     HouseholdPlanningMemberInput,
+    HouseholdRetirementCollegeScheduleInput,
     HouseholdRetirementHealthcareScheduleInput,
     HouseholdRetirementIncomeSourceInput,
 )
@@ -29,6 +30,7 @@ from app.services.household_planning_rows import (
     row_to_insurance_policy,
     row_to_member,
     row_to_planned_expense,
+    row_to_retirement_college_schedule,
     row_to_retirement_healthcare_schedule,
     row_to_retirement_income_source,
 )
@@ -196,6 +198,22 @@ _SECTIONS: dict[str, _SectionConfig] = {
         natural_key_fields=("age",),
         row_parser=row_to_retirement_healthcare_schedule,
         input_model=HouseholdRetirementHealthcareScheduleInput,
+    ),
+    "retirement_college_schedule": _SectionConfig(
+        key="retirement_college_schedule",
+        table="household_retirement_college_schedule",
+        columns=(
+            "calendar_year",
+            "real_amount",
+            "notes",
+            "confirmation_status",
+            "provenance",
+            "evidence_note",
+            "source_document_id",
+        ),
+        natural_key_fields=("calendar_year",),
+        row_parser=row_to_retirement_college_schedule,
+        input_model=HouseholdRetirementCollegeScheduleInput,
     ),
     "planned_expenses": _SectionConfig(
         key="planned_expenses",

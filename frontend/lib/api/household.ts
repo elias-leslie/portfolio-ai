@@ -88,6 +88,7 @@ export type {
   PortfolioHouseholdContext,
   RetirementAccountBucket,
   RetirementAccountRule,
+  RetirementCollegeYear,
   RetirementDrawdownYear,
   RetirementInputs,
   RetirementLeverImpact,

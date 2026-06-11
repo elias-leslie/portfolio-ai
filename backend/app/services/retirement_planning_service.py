@@ -28,6 +28,7 @@ from app.portfolio.contracts.retirement import (
     RetirementAccountAllocationCoverage,
     RetirementAccountBucket,
     RetirementAccountRule,
+    RetirementCollegeYear,
     RetirementDrawdownYear,
     RetirementHoldingsCoverage,
     RetirementHoldingsCoverageAccount,
@@ -483,6 +484,7 @@ class RetirementPlanningService:
         spouse_social_security_start_age: int | None = None,
         social_security_payable_ratio: float | None = None,
         withdrawal: WithdrawalConfig | None = None,
+        college_schedule: tuple[RetirementCollegeYear, ...] | None = None,
         trials: int = DEFAULT_PREVIEW_TRIALS,
         seed: int | None = 7,
         as_of_date: date | None = None,
@@ -629,6 +631,31 @@ class RetirementPlanningService:
         inputs = inputs.model_copy(
             update={"withdrawal": _withdrawal_config_from_inputs(inputs, profile, base_config)}
         )
+
+        # College plan: explicit request schedule wins, else the persisted
+        # one; the 529 sleeve is the education-account value excluded from
+        # the retirement buckets above.
+        college_rows = (
+            college_schedule
+            if college_schedule is not None
+            else self._load_retirement_college_schedule()
+        )
+        college_529_value = round(
+            sum(
+                float(getattr(account, "current_value", 0.0) or 0.0)
+                for account in getattr(dashboard, "accounts", []) or []
+                if str(getattr(account, "asset_group", "") or "").lower() == "education"
+                and float(getattr(account, "current_value", 0.0) or 0.0) > 0
+            ),
+            2,
+        )
+        if college_rows or college_529_value > 0:
+            inputs = inputs.model_copy(
+                update={
+                    "college_schedule": tuple(college_rows),
+                    "college_529_value": college_529_value,
+                }
+            )
 
         tax_context = _tax_context_from_profile(profile, inputs)
         sim = self.run_simulation(inputs, trials=trials, seed=seed, tax_context=tax_context, buckets=buckets)
@@ -901,11 +928,25 @@ class RetirementPlanningService:
             if row[0] is not None
         )
 
+    def _load_retirement_college_schedule(self) -> tuple[RetirementCollegeYear, ...]:
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                "SELECT calendar_year, real_amount FROM household_retirement_college_schedule"
+                " ORDER BY calendar_year ASC"
+            ).fetchall()
+        return tuple(
+            RetirementCollegeYear(calendar_year=int(row[0]), real_amount=float(row[1] or 0.0))
+            for row in rows
+            if row[0] is not None
+        )
+
     def _account_buckets_from_dashboard(self, dashboard: Any) -> tuple[RetirementAccountBucket, ...]:
         buckets: list[RetirementAccountBucket] = []
         for account in getattr(dashboard, "accounts", []) or []:
             asset_group = str(getattr(account, "asset_group", "") or "").lower()
-            if asset_group in {"credit", "debt"}:
+            # Education (529) accounts are earmarked for college and modeled
+            # as a separate sleeve, never as spendable retirement money.
+            if asset_group in {"credit", "debt", "education"}:
                 continue
             value = float(getattr(account, "current_value", 0.0) or 0.0)
             if value <= 0:
@@ -946,7 +987,9 @@ class RetirementPlanningService:
         rows: list[RetirementHoldingsCoverageAccount] = []
         for account in getattr(dashboard, "accounts", []) or []:
             asset_group = str(getattr(account, "asset_group", "") or "").lower()
-            if asset_group in {"credit", "debt"}:
+            # Education (529) accounts are earmarked for college and modeled
+            # as a separate sleeve, never as spendable retirement money.
+            if asset_group in {"credit", "debt", "education"}:
                 continue
             value = float(getattr(account, "current_value", 0.0) or 0.0)
             if value <= 0:
@@ -1040,7 +1083,9 @@ class RetirementPlanningService:
         rows: list[RetirementAccountAllocationAccount] = []
         for account in getattr(dashboard, "accounts", []) or []:
             asset_group = str(getattr(account, "asset_group", "") or "").lower()
-            if asset_group in {"credit", "debt"}:
+            # Education (529) accounts are earmarked for college and modeled
+            # as a separate sleeve, never as spendable retirement money.
+            if asset_group in {"credit", "debt", "education"}:
                 continue
             value = float(getattr(account, "current_value", 0.0) or 0.0)
             if value <= 0:
@@ -1231,13 +1276,19 @@ class RetirementPlanningService:
         guardrails_state = (
             GuardrailsState(initial_rate=cfg.initial_rate) if cfg.strategy == "guardrails" else None
         )
+        # 529 sleeve (real dollars): earmarked for the college schedule,
+        # drained before any retirement money; never part of ending_balance.
+        college_balance = inputs.college_529_value
+        college_by_year = {row.calendar_year: row.real_amount for row in inputs.college_schedule}
         rows: list[RetirementDrawdownYear] = []
         for year_index in range(inputs.horizon_years):
             primary_age = inputs.primary_age + year_index
+            calendar_year = inputs.as_of_date.year + year_index
             if year_index > 0:
                 for bucket in list(balances):
                     balances[bucket] = max(0.0, balances[bucket] * (1.0 + annual_return))
                 bridge_balance *= 1.0 + cfg.bridge.real_return
+                college_balance *= 1.0 + inputs.college_529_real_return
                 if primary_age < household_retirement_age and inputs.annual_contribution > 0:
                     balances[contribution_bucket] = balances.get(contribution_bucket, 0.0) + inputs.annual_contribution
 
@@ -1247,7 +1298,7 @@ class RetirementPlanningService:
                 inputs.income_sources,
                 primary_age,
                 inflation_factor=inflation_factor,
-                calendar_year=inputs.as_of_date.year + year_index,
+                calendar_year=calendar_year,
                 social_security_payable_ratio=inputs.social_security_payable_ratio,
                 social_security_depletion_year=inputs.social_security_depletion_year,
             )
@@ -1280,6 +1331,16 @@ class RetirementPlanningService:
                 # full nominal income so the tax estimate still sees income
                 # for SS-taxability/bracket fill, with no double-count.
                 spending = wy.portfolio_draw * inflation_factor + income
+
+            # College spend: 529 sleeve first; overflow lands on the
+            # portfolio in retirement years (working years pay it from
+            # salary, which the model never spends from the portfolio).
+            college_cost = college_by_year.get(calendar_year, 0.0)
+            college_draw = min(college_balance, college_cost)
+            college_balance -= college_draw
+            college_overflow = college_cost - college_draw
+            if college_overflow > 0 and primary_age >= household_retirement_age:
+                spending += college_overflow * inflation_factor
 
             outcome = _apply_tax_aware_withdrawals(
                 balances,
@@ -1314,7 +1375,7 @@ class RetirementPlanningService:
             rows.append(
                 RetirementDrawdownYear(
                     year_index=year_index,
-                    calendar_year=inputs.as_of_date.year + year_index,
+                    calendar_year=calendar_year,
                     primary_age=primary_age,
                     spending_need=round(wy.spending_target * inflation_factor, 2) if wy is not None else 0.0,
                     income=round(income, 2),
@@ -1342,6 +1403,9 @@ class RetirementPlanningService:
                         if wy is not None and portfolio_bal_real > 0
                         else 0.0
                     ),
+                    college_cost=round(college_cost, 2),
+                    college_529_draw=round(college_draw, 2),
+                    college_529_balance=round(college_balance, 2),
                 )
             )
         return rows
@@ -2548,6 +2612,24 @@ def _run_tax_aware_monte_carlo(
         year_contexts.append((inflation_factor, spouse_age, income_components))
     returns_by_trial = portfolio_returns.tolist()
 
+    # College overflow is trial-independent: the 529 sleeve grows at a fixed
+    # real return and drains against the fixed schedule, so the nominal
+    # portfolio hit per year is a precomputed constant (0 in working years —
+    # salary covers any overflow before retirement).
+    college_overflow_nominal = [0.0] * inputs.horizon_years
+    if inputs.college_schedule:
+        college_balance = inputs.college_529_value
+        college_by_year = {row.calendar_year: row.real_amount for row in inputs.college_schedule}
+        for year_index in range(inputs.horizon_years):
+            if year_index > 0:
+                college_balance *= 1.0 + inputs.college_529_real_return
+            cost = college_by_year.get(inputs.as_of_date.year + year_index, 0.0)
+            draw = min(college_balance, cost)
+            college_balance -= draw
+            overflow = cost - draw
+            if overflow > 0 and inputs.primary_age + year_index >= household_retirement_age:
+                college_overflow_nominal[year_index] = overflow * year_contexts[year_index][0]
+
     for trial in range(trials):
         balances = dict(starting_balances)
         bridge_balance = bridge_initial
@@ -2591,7 +2673,7 @@ def _run_tax_aware_monte_carlo(
                     strategy_state=guardrails_state,
                 )
                 bridge_balance = wy.bridge_balance_end
-                spending = wy.portfolio_draw * inflation_factor + income
+                spending = wy.portfolio_draw * inflation_factor + income + college_overflow_nominal[year_index]
                 discretionary_paths[trial, year_index] = wy.discretionary_funded
 
             if wy is None and primary_age < RMD_START_AGE:

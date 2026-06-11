@@ -387,7 +387,14 @@ export interface RetirementPreviewRequest {
   spouseSocialSecurityStartAge?: number | null
   socialSecurityPayableRatio?: number | null
   withdrawal?: RetirementWithdrawalConfig | null
+  /** Explicit schedule (even empty) wins over the persisted one. */
+  collegeSchedule?: RetirementCollegeYear[] | null
   asOfDate?: string | null
+}
+
+export interface RetirementCollegeYear {
+  calendarYear: number
+  realAmount: number
 }
 
 export interface RetirementInputs {
@@ -407,6 +414,8 @@ export interface RetirementInputs {
   inflationRate: number
   socialSecurityPayableRatio: number
   socialSecurityDepletionYear: number | null
+  collegeSchedule?: RetirementCollegeYear[]
+  college529Value?: number
   asOfDate: string
 }
 
@@ -525,6 +534,9 @@ export interface RetirementDrawdownYear {
   portfolioDraw: number
   bridgeBalance: number
   withdrawalRate: number
+  collegeCost: number
+  college529Draw: number
+  college529Balance: number
 }
 
 export interface RetirementLeverImpact {

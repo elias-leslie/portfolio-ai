@@ -19,6 +19,14 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
   useRetirementPreview: vi.fn(),
   useUpdateHouseholdPlanning: vi.fn(),
   useUpdateHouseholdProfile: vi.fn(),
+  useHouseholdAccountHoldings: vi.fn(() => ({
+    data: undefined,
+    isLoading: false,
+  })),
+  useReplaceHouseholdAccountHoldings: vi.fn(() => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  })),
 }))
 
 vi.mock('recharts', () => {
@@ -200,6 +208,7 @@ const dashboard = {
     insurancePolicies: [],
     retirementIncomeSources: [],
     retirementHealthcareSchedule: [],
+    retirementCollegeSchedule: [],
     plannedExpenses: [],
     documentRequirements: [],
   },
@@ -423,6 +432,9 @@ const preview: RetirementPreview = {
       portfolioDraw: 72000,
       bridgeBalance: 0,
       withdrawalRate: 0.045,
+      collegeCost: 0,
+      college529Draw: 0,
+      college529Balance: 0,
       withdrawalsByBucket: {
         taxable: 74000,
         governmental457b: 0,
@@ -457,6 +469,9 @@ const preview: RetirementPreview = {
       portfolioDraw: 72000,
       bridgeBalance: 0,
       withdrawalRate: 0.045,
+      collegeCost: 0,
+      college529Draw: 0,
+      college529Balance: 0,
       withdrawalsByBucket: {
         taxable: 20000,
         governmental457b: 0,

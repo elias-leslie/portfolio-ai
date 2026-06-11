@@ -74,6 +74,15 @@ class WithdrawalConfig(BaseModel):
     base_discretionary: float | None = Field(None, ge=0.0)
 
 
+class RetirementCollegeYear(BaseModel):
+    """One planned college-spend year (real dollars), funded 529-first."""
+
+    model_config = ConfigDict(frozen=True)
+
+    calendar_year: int = Field(..., ge=1900, le=2200)
+    real_amount: float = Field(..., ge=0.0)
+
+
 class RetirementIncomeSource(BaseModel):
     """One household_retirement_income_sources row, normalised for sim."""
 
@@ -117,6 +126,9 @@ class RetirementInputs(BaseModel):
     social_security_payable_ratio: float = Field(1.0, ge=0.0, le=1.0)
     social_security_depletion_year: int | None = Field(None, ge=1900, le=2200)
     withdrawal: WithdrawalConfig = Field(default_factory=WithdrawalConfig)
+    college_schedule: tuple[RetirementCollegeYear, ...] = ()
+    college_529_value: float = Field(0.0, ge=0.0)
+    college_529_real_return: float = Field(0.01, ge=-0.05, le=0.1)
     as_of_date: date
 
 
@@ -283,6 +295,9 @@ class RetirementDrawdownYear(BaseModel):
     portfolio_draw: float = Field(0.0, ge=0.0)
     bridge_balance: float = Field(0.0, ge=0.0)
     withdrawal_rate: float = Field(0.0, ge=0.0)
+    college_cost: float = Field(0.0, ge=0.0)
+    college_529_draw: float = Field(0.0, ge=0.0)
+    college_529_balance: float = Field(0.0, ge=0.0)
 
 
 class RetirementAccountRule(BaseModel):

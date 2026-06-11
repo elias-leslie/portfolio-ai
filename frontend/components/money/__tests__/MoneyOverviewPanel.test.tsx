@@ -302,6 +302,7 @@ const dashboard = {
     insurancePolicies: [],
     retirementIncomeSources: [],
     retirementHealthcareSchedule: [],
+    retirementCollegeSchedule: [],
     plannedExpenses: [],
     documentRequirements: [],
   },
