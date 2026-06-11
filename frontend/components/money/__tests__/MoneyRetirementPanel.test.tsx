@@ -768,7 +768,7 @@ describe('MoneyRetirementPanel', () => {
       screen.getByText(/spouse: rough salary estimate/i),
     ).toBeInTheDocument()
     expect(
-      screen.getByText(/Replace rough salary estimates with exact SSA/i),
+      screen.getByText(/average future annual salary set to \$0/i),
     ).toBeInTheDocument()
     const salaryInput = screen.getByDisplayValue('120000')
     await user.clear(salaryInput)

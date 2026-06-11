@@ -1714,3 +1714,37 @@ def test_drawdown_college_overflow_before_retirement_skips_portfolio() -> None:
     assert rows[0].college_cost == 50_000.0
     assert rows[0].college_529_draw == 0.0
     assert [row.ending_balance for row in rows] == [row.ending_balance for row in baseline]
+
+
+def test_social_security_estimate_scales_down_for_early_retirees() -> None:
+    career_long = _estimate_social_security_monthly(120_000.0, claim_age=62)
+    stop_at_50 = _estimate_social_security_monthly(
+        120_000.0, claim_age=62, stop_work_age=50
+    )
+
+    assert career_long is not None and stop_at_50 is not None
+    # 28 earning years (22->50) out of the 35-year average: AIME drops to
+    # 80%, so the benefit must land strictly below the keep-working number.
+    assert stop_at_50 < career_long
+    aime_full = 120_000.0 / 12.0
+    aime_scaled = aime_full * (28.0 / 35.0)
+    assert stop_at_50 / career_long == pytest.approx(
+        (
+            min(aime_scaled, 1_286.0) * 0.90
+            + max(min(aime_scaled, 7_749.0) - 1_286.0, 0.0) * 0.32
+            + max(aime_scaled - 7_749.0, 0.0) * 0.15
+        )
+        / (
+            min(aime_full, 1_286.0) * 0.90
+            + max(min(aime_full, 7_749.0) - 1_286.0, 0.0) * 0.32
+            + max(aime_full - 7_749.0, 0.0) * 0.15
+        )
+    )
+
+
+def test_social_security_estimate_ignores_stop_work_after_35_years() -> None:
+    # Stopping at 60 still yields 35+ earning years, so the stop-work-aware
+    # number matches the keep-working estimate.
+    assert _estimate_social_security_monthly(
+        100_000.0, claim_age=67, stop_work_age=60
+    ) == _estimate_social_security_monthly(100_000.0, claim_age=67)

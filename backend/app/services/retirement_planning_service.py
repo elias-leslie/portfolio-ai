@@ -180,6 +180,7 @@ SSA_2026_TAXABLE_WAGE_BASE = 184_500.0
 SSA_2026_FIRST_BEND_POINT = 1_286.0
 SSA_2026_SECOND_BEND_POINT = 7_749.0
 SSA_FULL_RETIREMENT_AGE = 67
+SSA_ASSUMED_CAREER_START_AGE = 22
 DEFAULT_SOCIAL_SECURITY_DEPLETION_YEAR = 2033
 DEFAULT_SOCIAL_SECURITY_PAYABLE_RATIO = 0.77
 DEFAULT_SPAXX_CASH_YIELD = 0.0328
@@ -3082,10 +3083,12 @@ def _append_preview_social_security(
     estimated_primary_monthly = primary_monthly or _estimate_social_security_monthly(
         primary_annual_earnings,
         claim_age=primary_claim_age,
+        stop_work_age=inputs.retirement_age,
     )
     estimated_spouse_monthly = spouse_monthly or _estimate_social_security_monthly(
         spouse_annual_earnings,
         claim_age=spouse_claim_age,
+        stop_work_age=inputs.spouse_retirement_age or inputs.retirement_age,
     )
     provided = any(
         value is not None and value > 0
@@ -3133,10 +3136,17 @@ def _estimate_social_security_monthly(
     annual_earnings: float | None,
     *,
     claim_age: int,
+    stop_work_age: int | None = None,
 ) -> float | None:
     if annual_earnings is None or annual_earnings <= 0:
         return None
     aime = min(float(annual_earnings), SSA_2026_TAXABLE_WAGE_BASE) / 12.0
+    if stop_work_age is not None:
+        # AIME averages the best 35 years; an early retiree fills the
+        # missing years with zeros. Career assumed to start at 22, and
+        # earnings after the claim age never enter the average.
+        years_worked = max(0.0, float(min(stop_work_age, claim_age) - SSA_ASSUMED_CAREER_START_AGE))
+        aime *= min(years_worked, 35.0) / 35.0
     pia = (
         min(aime, SSA_2026_FIRST_BEND_POINT) * 0.90
         + max(min(aime, SSA_2026_SECOND_BEND_POINT) - SSA_2026_FIRST_BEND_POINT, 0.0) * 0.32

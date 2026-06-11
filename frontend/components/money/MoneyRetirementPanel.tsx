@@ -80,6 +80,7 @@ const ssa2026TaxableWageBase = 184_500
 const ssa2026FirstBendPoint = 1_286
 const ssa2026SecondBendPoint = 7_749
 const socialSecurityFullRetirementAge = 67
+const ssaAssumedCareerStartAge = 22
 const defaultSocialSecurityPayableRatio = 0.77
 const defaultSpaxxYieldPercent = 3.28
 const defaultSpaxxYieldSource = 'Fidelity SPAXX 7-day yield as of 2026-05-07'
@@ -252,9 +253,19 @@ function returnAssumptionText(
 function estimateSocialSecurityMonthly(
   annualEarnings: number | null,
   claimAge: number,
+  stopWorkAge?: number | null,
 ) {
   if (annualEarnings == null || annualEarnings <= 0) return null
-  const aime = Math.min(annualEarnings, ssa2026TaxableWageBase) / 12
+  let aime = Math.min(annualEarnings, ssa2026TaxableWageBase) / 12
+  if (stopWorkAge != null) {
+    // AIME averages the best 35 years; an early retiree fills the missing
+    // years with zeros (career assumed to start at 22).
+    const yearsWorked = Math.max(
+      0,
+      Math.min(stopWorkAge, claimAge) - ssaAssumedCareerStartAge,
+    )
+    aime *= Math.min(yearsWorked, 35) / 35
+  }
   const pia =
     Math.min(aime, ssa2026FirstBendPoint) * 0.9 +
     Math.max(
@@ -646,7 +657,8 @@ function socialSecuritySourceLabel(
   manualMonthly: number | null,
 ) {
   if (manualMonthly != null) return 'manual monthly estimate'
-  if (scheduled != null) return 'rough salary estimate'
+  if (scheduled != null)
+    return 'rough salary estimate, earnings stop at retirement'
   return 'not included'
 }
 
@@ -919,17 +931,22 @@ export function MoneyRetirementPanel({
         draft.socialSecurityPayableRatio,
         defaultSocialSecurityPayableRatio * 100,
       ) / 100
+    const stopWorkAge = parseOptionalNumber(draft.retirementAge)
+    const spouseStopWorkAge =
+      parseOptionalNumber(draft.spouseRetirementAge) ?? stopWorkAge
     const primaryScheduled =
       primaryManual ??
       estimateSocialSecurityMonthly(
         parseOptionalNumber(draft.primarySocialSecurityAnnualEarnings),
         primaryClaimAge,
+        stopWorkAge,
       )
     const spouseScheduled =
       spouseManual ??
       estimateSocialSecurityMonthly(
         parseOptionalNumber(draft.spouseSocialSecurityAnnualEarnings),
         spouseClaimAge,
+        spouseStopWorkAge,
       )
     return {
       primaryScheduled,
@@ -1514,8 +1531,11 @@ export function MoneyRetirementPanel({
               <span className="font-medium text-text">
                 spouse: {socialSecurityEstimate.spouseSource}
               </span>
-              . Replace rough salary estimates with exact SSA calculator values
-              for planning-grade accuracy.
+              . Salary estimates assume earnings start at 22 and stop at your
+              retirement age (zeros fill the rest of the 35-year average). For
+              planning-grade accuracy, enter the monthly benefit from ssa.gov
+              &ldquo;Plan for Retirement&rdquo; with average future annual
+              salary set to $0.
             </p>
           </>
         ) : null}
