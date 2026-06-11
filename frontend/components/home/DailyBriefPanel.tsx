@@ -231,10 +231,7 @@ function CatalystTimeline({
     ((date.getTime() - start.getTime()) / span) * 100
 
   return (
-    <div
-      className="col-span-2 rounded-xl border border-current/20 bg-bg/15 px-3 py-2"
-      title="Major macro calendar events around today — hover a dot for details."
-    >
+    <div className="col-span-2 rounded-xl border border-current/20 bg-bg/15 px-3 py-2">
       <div className="flex items-center justify-between gap-2">
         <p>Catalyst Timeline</p>
         <p className="text-[9px] font-medium normal-case tracking-normal text-current/60">
@@ -753,6 +750,12 @@ function MarketConditionHero({
   const tapeUnavailable = conditions?.tapeAvailable === false && !tapeHeld
   const nextCatalyst = conditions?.nextCatalyst ?? null
   const fedOdds = conditions?.fedOdds ?? null
+  // Reuse the trigger board's per-metric health tones so the hero tiles read
+  // green/yellow/red on the same thresholds instead of blending into the
+  // card's state color.
+  const triggerTone = (key: string): string =>
+    conditions?.triggers?.find((trigger) => trigger.key === key)?.tone ??
+    'neutral'
   const nextCatalystDate = formatCatalystDate(nextCatalyst?.eventDate)
   const { data: eventsWindow } = useMarketEventsWindow(
     CATALYST_PAST_DAYS,
@@ -765,6 +768,8 @@ function MarketConditionHero({
     : null
   const primaryDriver = conditions?.primaryDriver ?? 'data_limited'
   const coverage = conditions?.coverage ?? macro?.coverage
+  const coverageTone =
+    coverage == null ? 'neutral' : coverage >= 1 ? 'gain' : 'warning'
   const summary = error
     ? error instanceof Error
       ? error.message
@@ -853,7 +858,12 @@ function MarketConditionHero({
           title="How favorable the macro backdrop is for new buys. 80+ means normal adding, the 60s mean selective adding, and below 40 means defensive."
         >
           <p>Buying Conditions</p>
-          <p className="mt-1 text-sm font-semibold tracking-normal text-current">
+          <p
+            className={cn(
+              'mt-1 text-sm font-semibold tracking-normal',
+              trendTextClass(triggerTone('buy_score')),
+            )}
+          >
             {formatScore(deploymentScore)}
           </p>
         </div>
@@ -865,7 +875,12 @@ function MarketConditionHero({
           }
         >
           <p>Tape Pressure</p>
-          <p className="mt-1 text-sm font-semibold tracking-normal text-current">
+          <p
+            className={cn(
+              'mt-1 text-sm font-semibold tracking-normal',
+              trendTextClass(triggerTone('tape_pressure')),
+            )}
+          >
             {formatScore(tapePressureScore)}
           </p>
           {tapeHeld ? (
@@ -889,7 +904,7 @@ function MarketConditionHero({
           }
         >
           <p>Driver</p>
-          <p className="mt-1 text-sm font-semibold tracking-normal text-current">
+          <p className="mt-1 text-sm font-semibold tracking-normal text-text">
             {driverLabel(primaryDriver)}
           </p>
         </div>
@@ -898,7 +913,12 @@ function MarketConditionHero({
           title="Share of macro drivers currently present in the score. This is data coverage, not a real-time guarantee."
         >
           <p>Coverage</p>
-          <p className="mt-1 text-sm font-semibold tracking-normal text-current">
+          <p
+            className={cn(
+              'mt-1 text-sm font-semibold tracking-normal',
+              trendTextClass(coverageTone),
+            )}
+          >
             {formatPercent(coverage)}
           </p>
         </div>
@@ -908,7 +928,7 @@ function MarketConditionHero({
             title={`${nextCatalyst.title} — the next high-impact macro event the market is positioning for.`}
           >
             <p>Next Catalyst</p>
-            <p className="mt-1 text-sm font-semibold normal-case tracking-normal text-current">
+            <p className="mt-1 text-sm font-semibold normal-case tracking-normal text-text">
               {catalystLabel(nextCatalyst.eventType, nextCatalyst.title)}
               {nextCatalystDate ? ` · ${nextCatalystDate}` : ''}
             </p>
