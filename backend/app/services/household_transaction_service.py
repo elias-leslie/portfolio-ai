@@ -20,6 +20,11 @@ from app.models.household_finance import (
     HouseholdSpendingTransaction,
     HouseholdSpendingView,
 )
+from app.services._household_item_splits import (
+    expand_rows_with_item_splits,
+    load_item_splits,
+    split_identity,
+)
 from app.services._household_merchants import (
     _canonical_merchant_name,
     _classification_for_flow,
@@ -45,6 +50,7 @@ from app.services.household_account_identity import (
     account_masks_match,
     derive_account_mask,
 )
+from app.services.household_purchase_item_service import HouseholdPurchaseItemService
 from app.services.household_transaction_dedup_service import (
     HouseholdTransactionDedupService,
 )
@@ -551,12 +557,15 @@ class HouseholdTransactionService:
                 limit=limit,
             )
             conn.commit()
+        purchase_item_summary = HouseholdPurchaseItemService().backfill(limit=limit)
         return {
             "canonicalized": canonicalized,
             "rules_backfilled": rules_backfilled,
             "provenance_backfilled": provenance_backfilled,
             "account_linked": account_linked,
             "application_summaries_repaired": application_summaries_repaired,
+            "purchase_items_promoted": int(purchase_item_summary.get("promoted", 0)),
+            "purchase_groups_linked": int(purchase_item_summary.get("link_linked", 0)),
         }
 
     def build_reports(self) -> HouseholdReports:
@@ -564,7 +573,12 @@ class HouseholdTransactionService:
             report_rows=self._load_report_rows(),
             cadence_for_dates=self._dates_to_cadence,
             merchant_recommendation=self._merchant_recommendation,
+            item_splits=self._load_item_splits(),
         )
+
+    def _load_item_splits(self) -> dict[str, list[dict[str, Any]]]:
+        with self.storage.connection() as conn:
+            return load_item_splits(conn)
 
     def _spend_rows_between(
         self,
@@ -636,6 +650,7 @@ class HouseholdTransactionService:
             start_date=timeframe.start_date,
             end_date=timeframe.end_date,
         )
+        item_splits = self._load_item_splits()
 
         if not spend_rows:
             return HouseholdSpendingView(
@@ -653,9 +668,9 @@ class HouseholdTransactionService:
         category_totals: dict[tuple[str, str], float] = {}
         category_gross: dict[tuple[str, str], float] = {}
         category_refund: dict[tuple[str, str], float] = {}
-        category_counts: dict[tuple[str, str], int] = {}
+        category_transaction_ids: dict[tuple[str, str], set[str]] = {}
         category_monthly_totals: dict[tuple[str, str, str], float] = {}
-        category_monthly_counts: dict[tuple[str, str, str], int] = {}
+        category_monthly_transaction_ids: dict[tuple[str, str, str], set[str]] = {}
         account_labels = {
             str(row["account_label"]).strip()
             for row in spend_rows
@@ -666,24 +681,38 @@ class HouseholdTransactionService:
         for row in spend_rows:
             month_key = row["date"].strftime("%Y-%m")
             signed_amount = float(row.get("signed_amount", row["amount"]))
+            monthly_totals[month_key] = monthly_totals.get(month_key, 0.0) + signed_amount
+            monthly_counts[month_key] = monthly_counts.get(month_key, 0) + 1
+
+        # Itemized transactions split across their item categories here and only
+        # here; monthly/total spend above stays un-expanded so overall figures
+        # are byte-identical whether or not purchase items exist.
+        for row in expand_rows_with_item_splits(spend_rows, item_splits):
+            month_key = row["date"].strftime("%Y-%m")
+            signed_amount = float(row.get("signed_amount", row["amount"]))
             # A refund posts as a negative signed_amount; keep gross spend and refund
             # credits apart so caps key off gross, not net.
             gross = max(signed_amount, 0.0)
             refund = max(-signed_amount, 0.0)
-            monthly_totals[month_key] = monthly_totals.get(month_key, 0.0) + signed_amount
-            monthly_counts[month_key] = monthly_counts.get(month_key, 0) + 1
             category_key = (str(row["category"]), str(row["essentiality"]))
             category_totals[category_key] = category_totals.get(category_key, 0.0) + signed_amount
             category_gross[category_key] = category_gross.get(category_key, 0.0) + gross
             category_refund[category_key] = category_refund.get(category_key, 0.0) + refund
-            category_counts[category_key] = category_counts.get(category_key, 0) + 1
+            category_transaction_ids.setdefault(category_key, set()).add(split_identity(row))
             category_month_key = (month_key, str(row["category"]), str(row["essentiality"]))
             category_monthly_totals[category_month_key] = (
                 category_monthly_totals.get(category_month_key, 0.0) + signed_amount
             )
-            category_monthly_counts[category_month_key] = (
-                category_monthly_counts.get(category_month_key, 0) + 1
+            category_monthly_transaction_ids.setdefault(category_month_key, set()).add(
+                split_identity(row)
             )
+        # Split copies of one transaction count it once per category.
+        category_counts = {
+            key: len(ids) for key, ids in category_transaction_ids.items()
+        }
+        category_monthly_counts = {
+            key: len(ids) for key, ids in category_monthly_transaction_ids.items()
+        }
 
         coverage_months = (
             timeframe.window_months

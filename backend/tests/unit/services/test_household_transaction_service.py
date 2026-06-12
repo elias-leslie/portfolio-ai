@@ -828,6 +828,7 @@ def test_build_spending_view_separates_refund_gross_and_income() -> None:
                 ),
             ],
             [],
+            [],  # item splits (none persisted)
             [(2000.0,)],
         ]
     )
@@ -1389,3 +1390,77 @@ def test_dates_to_cadence_accepts_two_observations_as_provisional_signal() -> No
     assert cadence is not None
     assert cadence["label"] == "likely monthly"
     assert cadence["confidence"] == 0.62
+
+
+def _spending_row(
+    *,
+    row_id: str,
+    row_date: date,
+    merchant: str,
+    amount: float,
+    category: str,
+    essentiality: str,
+) -> dict[str, Any]:
+    return {
+        "id": row_id,
+        "date": row_date,
+        "merchant": merchant,
+        "description": merchant,
+        "amount": amount,
+        "signed_amount": amount,
+        "category": category,
+        "essentiality": essentiality,
+        "account_label": "Joint Checking",
+        "document_id": "doc-1",
+        "source_kind": "transaction",
+    }
+
+
+def test_build_spending_view_item_splits_move_category_mix_not_totals() -> None:
+    today = date.today()
+    rows = [
+        _spending_row(
+            row_id="tx-itemized", row_date=today, merchant="Ulta Beauty",
+            amount=34.96, category="Retail", essentiality="discretionary",
+        ),
+        _spending_row(
+            row_id="tx-plain", row_date=today, merchant="Publix",
+            amount=65.04, category="Groceries", essentiality="essential",
+        ),
+    ]
+    splits = {
+        "tx-itemized": [
+            {"category": "Personal Care", "essentiality": "discretionary", "amount": 29.67, "item_count": 1},
+            {"category": "Household", "essentiality": "mixed", "amount": 5.29, "item_count": 1},
+        ]
+    }
+
+    def _view(item_splits):
+        service = HouseholdTransactionService()
+        service._spend_rows_between = lambda **_kwargs: [dict(row) for row in rows]  # type: ignore[method-assign]
+        service._income_total_between = lambda **_kwargs: 0.0  # type: ignore[method-assign]
+        service._load_item_splits = lambda: item_splits  # type: ignore[method-assign]
+        return service.build_spending_view(window="1m")
+
+    baseline = _view({})
+    split = _view(splits)
+
+    # Summary, monthly trend, and the transaction list are split-invariant.
+    assert split.summary == baseline.summary
+    assert split.summary.total_spend == 100.0
+    assert split.summary.transaction_count == 2
+    assert split.monthly_trend == baseline.monthly_trend
+    assert split.transactions == baseline.transactions
+
+    # Category mix moves to the item categories, penny-exact.
+    split_totals = {entry.category: entry.total_spend for entry in split.categories}
+    assert split_totals == {"Personal Care": 29.67, "Household": 5.29, "Groceries": 65.04}
+    assert round(sum(split_totals.values()), 2) == split.summary.total_spend
+    # One itemized transaction counts once per category, not once per item copy.
+    assert all(entry.transaction_count == 1 for entry in split.categories)
+    monthly_categories = {
+        (point.category, point.essentiality): point.total_spend
+        for point in split.category_monthly_trend
+    }
+    assert monthly_categories[("Personal Care", "discretionary")] == 29.67
+    assert monthly_categories[("Household", "mixed")] == 5.29

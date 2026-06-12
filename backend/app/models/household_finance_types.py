@@ -734,3 +734,9 @@ class PortfolioHouseholdContext(BaseModel):
     cash_reserves_months: float | None = None
     portfolio_to_annual_spend_ratio: float | None = None
     insights: list[str] = Field(default_factory=list)
+
+
+class HouseholdPurchaseItemCategoryUpdate(BaseModel):
+    category: str
+    essentiality: str
+    apply_to_product: bool = False

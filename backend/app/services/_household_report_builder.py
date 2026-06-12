@@ -20,6 +20,7 @@ from app.models.household_finance import (
     HouseholdReports,
 )
 from app.services._household_document_pipeline_utils import parse_decimal_value
+from app.services._household_item_splits import expand_rows_with_item_splits
 
 _EXECUTIVE_WINDOW_MONTHS = 6
 _UNIT_PATTERN = (
@@ -743,6 +744,7 @@ def build_household_reports(
     report_rows: list[dict[str, Any]],
     cadence_for_dates: Callable[[list[date]], dict[str, object] | None],
     merchant_recommendation: Callable[..., str],
+    item_splits: dict[str, list[dict[str, Any]]] | None = None,
 ) -> HouseholdReports:
     today = date.today()
     current_rows = [row for row in report_rows if _is_current_transaction(row, today=today)]
@@ -802,12 +804,6 @@ def build_household_reports(
 
     for row in recent_rows:
         signed_amount = _row_signed_amount(row)
-        category_key = (row["category"], row["essentiality"])
-        category_totals[category_key] = category_totals.get(category_key, 0.0) + signed_amount
-        if row["date"].strftime("%Y-%m") in average_month_set:
-            category_average_totals[category_key] = (
-                category_average_totals.get(category_key, 0.0) + signed_amount
-            )
         merchant_state = merchant_totals.setdefault(
             row["merchant"],
             {"amount": 0.0, "count": 0, "category": row["category"], "dates": []},
@@ -815,6 +811,17 @@ def build_household_reports(
         merchant_state["amount"] += signed_amount
         merchant_state["count"] += 1
         merchant_state["dates"].append(row["date"])
+
+    # Category totals are the one place itemized transactions split across
+    # their item categories; merchant and monthly figures stay un-expanded.
+    for row in expand_rows_with_item_splits(recent_rows, item_splits or {}):
+        signed_amount = _row_signed_amount(row)
+        category_key = (row["category"], row["essentiality"])
+        category_totals[category_key] = category_totals.get(category_key, 0.0) + signed_amount
+        if row["date"].strftime("%Y-%m") in average_month_set:
+            category_average_totals[category_key] = (
+                category_average_totals.get(category_key, 0.0) + signed_amount
+            )
 
     coverage_months = max(len(recent_month_keys), 1)
     total_spend = sum(monthly_totals[month_key] for month_key in recent_month_keys)

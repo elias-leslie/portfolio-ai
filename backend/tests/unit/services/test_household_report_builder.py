@@ -744,3 +744,64 @@ def test_build_household_reports_uses_cached_product_enrichment_measure_when_tit
     assert len(reports.price_insights) == 1
     assert reports.price_insights[0].latest_unit_label == "32 oz"
     assert reports.price_insights[0].unit_price_change_pct == 1.9
+
+
+def test_build_household_reports_item_splits_move_category_mix_not_totals() -> None:
+    today = date.today()
+    previous_month_day = today.replace(day=1) - timedelta(days=1)
+    rows = [
+        {**_report_row(
+            row_date=previous_month_day, merchant="Ulta Beauty", amount=34.96,
+            category="Retail", essentiality="discretionary", document_id="doc-itemized",
+        ), "id": "tx-itemized"},
+        {**_report_row(
+            row_date=previous_month_day, merchant="Publix", amount=65.04,
+            category="Groceries", essentiality="essential", document_id="doc-plain",
+        ), "id": "tx-plain"},
+    ]
+    kwargs = {
+        "cadence_for_dates": lambda _dates: None,
+        "merchant_recommendation": lambda **_kwargs: "",
+    }
+    baseline = build_household_reports(report_rows=[dict(row) for row in rows], **kwargs)
+    split = build_household_reports(
+        report_rows=[dict(row) for row in rows],
+        item_splits={
+            "tx-itemized": [
+                {"category": "Personal Care", "essentiality": "discretionary", "amount": 29.67, "item_count": 1},
+                {"category": "Household", "essentiality": "mixed", "amount": 5.29, "item_count": 1},
+            ]
+        },
+        **kwargs,
+    )
+
+    # Overall spend figures are split-invariant.
+    assert split.executive.average_monthly_spend == baseline.executive.average_monthly_spend
+    assert split.executive.recent_30_day_spend == baseline.executive.recent_30_day_spend
+    assert split.monthly_spend_trend == baseline.monthly_spend_trend
+    assert split.merchant_highlights == baseline.merchant_highlights
+    # Category mix moves: the itemized charge now reports as its items.
+    split_categories = {entry.category: entry.total_spend for entry in split.category_breakdown}
+    assert split_categories["Personal Care"] == 29.67
+    assert split_categories["Household"] == 5.29
+    assert "Retail" not in split_categories
+    assert round(sum(split_categories.values()), 2) == round(
+        sum(entry.total_spend for entry in baseline.category_breakdown), 2
+    )
+
+
+def test_build_household_reports_without_item_splits_matches_default() -> None:
+    today = date.today()
+    rows = [
+        {**_report_row(
+            row_date=today, merchant="Publix", amount=120.0,
+            category="Groceries", essentiality="essential",
+        ), "id": "tx-1"},
+    ]
+    kwargs = {
+        "cadence_for_dates": lambda _dates: None,
+        "merchant_recommendation": lambda **_kwargs: "",
+    }
+    default = build_household_reports(report_rows=[dict(row) for row in rows], **kwargs)
+    empty = build_household_reports(report_rows=[dict(row) for row in rows], item_splits={}, **kwargs)
+    assert default == empty

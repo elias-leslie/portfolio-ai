@@ -574,6 +574,19 @@ class HouseholdDocumentPipeline:
         transaction_summary = _transaction_summary_with_audit(
             transaction_summary, _audit_transactions(service, document_id=document.id)
         )
+        # Purchase items ride the same apply pass (after transactions exist to
+        # link against) but never block document application.
+        try:
+            purchase_item_summary: dict[str, object] = dict(
+                service.purchase_item_service.sync_document(document_id=document.id)
+            )
+        except Exception as exc:
+            logger.warning(
+                "household_document_purchase_item_sync_failed",
+                document_id=document.id,
+                error=str(exc),
+            )
+            purchase_item_summary = {"error": str(exc)}
         evidence_account_count = service.evidence_service.replace_document_accounts(
             service, document=document, reviewed=reviewed,
         )
@@ -611,6 +624,7 @@ class HouseholdDocumentPipeline:
             "impacts": impacts,
             "imports": import_summary,
             "transactions": transaction_summary,
+            "purchase_items": purchase_item_summary,
             "evidence_accounts": evidence_account_count,
             "account_registry": registry_summary,
             "portfolio_positions": portfolio_position_summary,
