@@ -88,6 +88,8 @@ export type {
   ManualHoldingEntryInput,
   ManualHoldingsReplaceInput,
   PortfolioHouseholdContext,
+  RetirementAcaConfig,
+  RetirementAcaPerson,
   RetirementAccountBucket,
   RetirementAccountRule,
   RetirementAllocationScenario,

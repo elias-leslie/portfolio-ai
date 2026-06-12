@@ -27,6 +27,7 @@ import { Textarea } from '@/components/ui/textarea'
 import type {
   HouseholdFinanceDashboard,
   HouseholdProfileUpdate,
+  RetirementAcaConfig,
   RetirementAccountRule,
   RetirementAllocationScenario,
   RetirementAllocationScenarioInput,
@@ -91,6 +92,9 @@ const ssaAssumedCareerStartAge = 22
 const defaultSocialSecurityPayableRatio = 0.77
 const defaultSpaxxYieldPercent = 3.28
 const defaultSpaxxYieldSource = 'Fidelity SPAXX 7-day yield as of 2026-05-07'
+// Mirrors backend MEDICARE_DEFAULT_MONTHLY_PER_PERSON (_aca_estimator.py):
+// 2026 Part B $202.90 + Part D $38.99 (CMS) + Medigap Plan G $164 (KFF).
+const medicareDefaultMonthlyPerPerson = 405.89
 
 function previewStatusVariant(
   successProbability: number,
@@ -498,6 +502,58 @@ function defaultWithdrawalDraft(
   }
 }
 
+type AcaDraft = {
+  tier: 'silver' | 'bronze' | 'none'
+  coveredLives: 'until22' | 'until26' | 'adultsOnly'
+  premiumOverride: string
+  oopMonthly: string
+  medicareMonthly: string
+}
+
+// Cent-preserving input seed ($99.58 must not round to $100 and drift on
+// the next save); blank for unset.
+function amountInput(value: number | null | undefined) {
+  return value == null ? '' : String(Math.round(value * 100) / 100)
+}
+
+// '' = unset (null); '0' is a real choice (Medicare line off), unlike
+// parseOptionalNumber. Negative typing clamps so the API's ge=0
+// validation can never 422.
+function parseOptionalAmount(value: string) {
+  if (value.trim() === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : null
+}
+
+function defaultAcaDraft(dashboard: HouseholdFinanceDashboard): AcaDraft {
+  const profile = dashboard.profile
+  return {
+    tier:
+      profile.acaTier === 'bronze' || profile.acaTier === 'none'
+        ? profile.acaTier
+        : 'silver',
+    coveredLives: 'until22',
+    premiumOverride: amountInput(profile.acaPremiumAge21Override),
+    oopMonthly: amountInput(profile.acaOopMonthly),
+    medicareMonthly: amountInput(profile.medicareMonthlyPerPerson),
+  }
+}
+
+function acaConfigFromDraft(aca: AcaDraft): RetirementAcaConfig {
+  return {
+    tier: aca.tier,
+    premiumAge21MonthlyOverride: parseOptionalAmount(aca.premiumOverride),
+    oopMonthly: parseOptionalAmount(aca.oopMonthly) ?? 0,
+    medicareMonthlyPerPerson: parseOptionalAmount(aca.medicareMonthly),
+    dependentsCoveredUntilAge:
+      aca.coveredLives === 'until26'
+        ? 26
+        : aca.coveredLives === 'adultsOnly'
+          ? 0
+          : null,
+  }
+}
+
 function collegeScheduleFromDraft(
   withdrawal: WithdrawalDraft,
 ): RetirementCollegeYear[] {
@@ -584,6 +640,7 @@ function buildRequest(
   allocationDraft?: Record<(typeof allocationClasses)[number]['key'], string>,
   tickerMix = '',
   withdrawal?: WithdrawalDraft,
+  aca?: AcaDraft,
 ): RetirementPreviewRequest {
   const assetAllocation =
     allocationMode === 'classes' && allocationDraft
@@ -637,6 +694,7 @@ function buildRequest(
       ) / 100,
     withdrawal: withdrawal ? withdrawalConfigFromDraft(withdrawal) : null,
     collegeSchedule: withdrawal ? collegeScheduleFromDraft(withdrawal) : null,
+    aca: aca ? acaConfigFromDraft(aca) : null,
     trials: 2500,
     seed: 7,
   }
@@ -716,6 +774,7 @@ export function MoneyRetirementPanel({
   const [withdrawalDraft, setWithdrawalDraft] = useState(() =>
     defaultWithdrawalDraft(dashboard),
   )
+  const [acaDraft, setAcaDraft] = useState(() => defaultAcaDraft(dashboard))
   const [plannerOpen, setPlannerOpen] = useState(false)
   const [withdrawalOpen, setWithdrawalOpen] = useState(true)
   const [allocationOpen, setAllocationOpen] = useState(false)
@@ -754,14 +813,15 @@ export function MoneyRetirementPanel({
       undefined,
       '',
       defaultWithdrawalDraft(dashboard),
+      defaultAcaDraft(dashboard),
     ),
   )
   const updateProfile = useUpdateHouseholdProfile()
   const updatePlanning = useUpdateHouseholdPlanning()
   const previewQuery = useRetirementPreview(request)
   const preview = previewQuery.data
-  // Withdrawal-plan knobs re-project live (debounced); the other planner
-  // inputs still wait for an explicit "Run preview".
+  // Withdrawal-plan and ACA/Medicare knobs re-project live (debounced);
+  // the other planner inputs still wait for an explicit "Run preview".
   const debouncedWithdrawal = useDebounce(withdrawalDraft, 250)
   useEffect(() => {
     setRequest((current) => ({
@@ -769,6 +829,13 @@ export function MoneyRetirementPanel({
       withdrawal: withdrawalConfigFromDraft(debouncedWithdrawal),
     }))
   }, [debouncedWithdrawal])
+  const debouncedAca = useDebounce(acaDraft, 250)
+  useEffect(() => {
+    setRequest((current) => ({
+      ...current,
+      aca: acaConfigFromDraft(debouncedAca),
+    }))
+  }, [debouncedAca])
   const pendingRequest = useMemo(
     () =>
       buildRequest(
@@ -778,6 +845,7 @@ export function MoneyRetirementPanel({
         allocationDraft,
         tickerMix,
         withdrawalDraft,
+        acaDraft,
       ),
     [
       dashboard.profile.id,
@@ -786,6 +854,7 @@ export function MoneyRetirementPanel({
       allocationDraft,
       tickerMix,
       withdrawalDraft,
+      acaDraft,
     ],
   )
   // Edits update `draft`/allocation state but only "Run preview" pushes them
@@ -805,8 +874,10 @@ export function MoneyRetirementPanel({
   useEffect(() => {
     const nextDraft = defaultDraft(dashboard)
     const nextWithdrawal = defaultWithdrawalDraft(dashboard)
+    const nextAca = defaultAcaDraft(dashboard)
     setDraft(nextDraft)
     setWithdrawalDraft(nextWithdrawal)
+    setAcaDraft(nextAca)
     setAllocationMode('current')
     setAllocationDraft(allocationDraftFromPreview(undefined))
     setAccountDetailsOpen(false)
@@ -818,6 +889,7 @@ export function MoneyRetirementPanel({
         undefined,
         '',
         nextWithdrawal,
+        nextAca,
       ),
     )
   }, [dashboard])
@@ -953,6 +1025,9 @@ export function MoneyRetirementPanel({
           row.income + bridgeNominal + row.netWithdrawal - collegeNominal,
         ),
       )
+      // ACA/Medicare row fields are real dollars; scale like bridgeDraw.
+      const healthcareNominal =
+        ((row.acaNet ?? 0) + (row.medicarePremium ?? 0)) * factor
       return {
         ...row,
         displaySpend: spendNominal * scale,
@@ -966,6 +1041,23 @@ export function MoneyRetirementPanel({
         displayPenalty: row.penaltyEstimate * scale,
         displayEnding: row.endingBalance * scale,
         displayRmd: row.rmdAmount * scale,
+        displayHealthcare: healthcareNominal * scale,
+        displayAcaGross: (row.acaPremiumGross ?? 0) * factor * scale,
+        // The used credit caps at the chosen plan's premium (net floors
+        // at $0 — e.g. Bronze), so gross − subsidy + OOP ties to the cell.
+        displayAcaSubsidy:
+          Math.min(row.acaSubsidy ?? 0, row.acaPremiumGross ?? 0) *
+          factor *
+          scale,
+        displayAcaOop: (row.acaOop ?? 0) * factor * scale,
+        displayMedicare: (row.medicarePremium ?? 0) * factor * scale,
+        displayMagi: (row.magi ?? 0) * factor * scale,
+        // ACA share of any spend trim: the MAGI true-up repriced the
+        // subsidy above what the planning floor budgeted.
+        displayAcaReprice:
+          Math.max(0, (row.acaNet ?? 0) - (row.acaPlanningNet ?? 0)) *
+          factor *
+          scale,
         displayBuckets: Object.fromEntries(
           Object.entries(row.withdrawalsByBucket).map(([key, value]) => [
             key,
@@ -981,8 +1073,18 @@ export function MoneyRetirementPanel({
   const drawdownHasCollege = drawdownTableRows.some(
     (row) => row.displayCollege > 0.5,
   )
+  const drawdownHasHealthcare = drawdownTableRows.some(
+    (row) => row.displayHealthcare > 0.5,
+  )
+  const drawdownHasAca = drawdownTableRows.some(
+    (row) => (row.acaPremiumGross ?? 0) > 0.5,
+  )
   const drawdownColumnCount =
-    13 + (drawdownHasBridge ? 1 : 0) + (drawdownHasCollege ? 1 : 0)
+    13 +
+    (drawdownHasBridge ? 1 : 0) +
+    (drawdownHasCollege ? 1 : 0) +
+    (drawdownHasHealthcare ? 1 : 0) +
+    (drawdownHasAca ? 1 : 0)
 
   // Spending smile in real dollars: stacked funding sources vs floor/target,
   // mirrors withdrawalData's retirement-rows windowing.
@@ -1129,6 +1231,7 @@ export function MoneyRetirementPanel({
         allocationDraft,
         tickerMix,
         withdrawalDraft,
+        acaDraft,
       ),
     )
   }
@@ -1208,6 +1311,12 @@ export function MoneyRetirementPanel({
         0.1,
       ),
       bridgeGrowth: withdrawalDraft.bridgeGrowth,
+      acaTier: acaDraft.tier,
+      acaPremiumAge21Override: parseOptionalAmount(acaDraft.premiumOverride),
+      acaOopMonthly: parseOptionalAmount(acaDraft.oopMonthly),
+      // Blank tracks the published CMS/KFF default; an explicit 0 turns
+      // the Medicare line off — both are real states, so null persists.
+      medicareMonthlyPerPerson: parseOptionalAmount(acaDraft.medicareMonthly),
     }
     await updateProfile.mutateAsync(profileUpdate)
     await updatePlanning.mutateAsync({
@@ -1227,6 +1336,7 @@ export function MoneyRetirementPanel({
         allocationDraft,
         tickerMix,
         withdrawalDraft,
+        acaDraft,
       ),
     )
   }
@@ -1240,6 +1350,13 @@ export function MoneyRetirementPanel({
     value: WithdrawalDraft[K],
   ) => {
     setWithdrawalDraft((current) => ({ ...current, [key]: value }))
+  }
+
+  const updateAcaDraft = <K extends keyof AcaDraft>(
+    key: K,
+    value: AcaDraft[K],
+  ) => {
+    setAcaDraft((current) => ({ ...current, [key]: value }))
   }
 
   const scenarioInputs = (
@@ -1315,6 +1432,7 @@ export function MoneyRetirementPanel({
         undefined,
         '',
         withdrawalDraft,
+        acaDraft,
       )
       const targets = [
         { name: 'Current accounts', request: base },
@@ -2021,6 +2139,141 @@ export function MoneyRetirementPanel({
                   simulated portfolio returns, sequence risk included.
                 </p>
               </div>
+            </div>
+
+            <div className="mt-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                ACA marketplace &amp; Medicare (modeled automatically)
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(
+                  [
+                    ['silver', 'Silver benchmark'],
+                    ['bronze', 'Bronze (lowest premium)'],
+                    ['none', 'Off'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <Button
+                    key={value}
+                    type="button"
+                    size="sm"
+                    variant={acaDraft.tier === value ? 'default' : 'outline'}
+                    onClick={() => updateAcaDraft('tier', value)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+              {acaDraft.tier === 'none' ? (
+                <p className="mt-2 text-xs text-text-muted">
+                  Healthcare stream off — only the manual schedule lines below
+                  hit the essential floor.
+                </p>
+              ) : (
+                <>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(
+                      [
+                        ['until22', 'Kids covered to 22'],
+                        ['until26', 'Kids covered to 26'],
+                        ['adultsOnly', 'Adults only'],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <Button
+                        key={value}
+                        type="button"
+                        size="sm"
+                        variant={
+                          acaDraft.coveredLives === value
+                            ? 'default'
+                            : 'outline'
+                        }
+                        onClick={() => updateAcaDraft('coveredLives', value)}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-text-muted">
+                    {acaDraft.coveredLives === 'adultsOnly'
+                      ? 'Assumes the kids get coverage elsewhere (e.g. FL KidCare). They also leave the subsidy household here, which slightly understates the credit.'
+                      : 'Dependents count toward the subsidy household while covered; adults stay on the marketplace until Medicare at 65.'}
+                  </p>
+                  <div className="mt-3 grid gap-3 md:grid-cols-3">
+                    <label className="text-xs text-text-muted">
+                      Premium override $/mo (age 21)
+                      <Input
+                        className="mt-1"
+                        inputMode="decimal"
+                        aria-label="ACA age-21 monthly premium override"
+                        placeholder={
+                          preview?.inputs.aca?.chosenAge21Monthly != null
+                            ? String(preview.inputs.aca.chosenAge21Monthly)
+                            : 'marketplace anchor'
+                        }
+                        value={acaDraft.premiumOverride}
+                        onChange={(event) =>
+                          updateAcaDraft('premiumOverride', event.target.value)
+                        }
+                      />
+                    </label>
+                    <label className="text-xs text-text-muted">
+                      Out-of-pocket $/mo
+                      <Input
+                        className="mt-1"
+                        inputMode="decimal"
+                        aria-label="ACA out-of-pocket monthly"
+                        value={acaDraft.oopMonthly}
+                        onChange={(event) =>
+                          updateAcaDraft('oopMonthly', event.target.value)
+                        }
+                      />
+                    </label>
+                    <label className="text-xs text-text-muted">
+                      Medicare $/person/mo
+                      <Input
+                        className="mt-1"
+                        inputMode="decimal"
+                        aria-label="Medicare monthly premium per person"
+                        placeholder={String(medicareDefaultMonthlyPerPerson)}
+                        value={acaDraft.medicareMonthly}
+                        onChange={(event) =>
+                          updateAcaDraft('medicareMonthly', event.target.value)
+                        }
+                      />
+                    </label>
+                  </div>
+                  <p className="mt-2 text-xs text-text-muted">
+                    {preview?.inputs.aca?.planYear
+                      ? `PY${preview.inputs.aca.planYear} marketplace anchors: benchmark Silver ${formatCurrency(
+                          preview.inputs.aca.benchmarkAge21Monthly ?? 0,
+                          { decimals: 0 },
+                        )}/mo at age 21; modeling ${formatCurrency(
+                          preview.inputs.aca.chosenAge21Monthly ?? 0,
+                          { decimals: 0 },
+                        )}/mo. Premiums scale by the CMS age curve and grow +2%/yr real. `
+                      : 'Marketplace plan data not ingested yet — the ACA stream is inactive. '}
+                    Out-of-pocket is on top of premiums, every retired year. The
+                    seed comes from your deduped Money run-rate (ex-ortho); the
+                    employer plan absorbs most OOP today, so it likely
+                    understates retirement costs.
+                  </p>
+                  <p className="mt-1 text-xs text-text-muted">
+                    Medicare: blank tracks published rates — 2026 Part B $202.90
+                    + Part D $38.99 (CMS) + Medigap Plan G $164/mo (KFF national
+                    average) ≈ ${medicareDefaultMonthlyPerPerson}
+                    /person. Florida Medigap is issue-age rated and typically
+                    pricier — consider raising. Enter 0 to turn the line off.
+                  </p>
+                  <p className="mt-1 text-xs text-text-muted">
+                    Net premiums + out-of-pocket ride the essential floor until
+                    Medicare takes over at 65. The premium tax credit reprices
+                    off each year&apos;s modeled MAGI, so the 400% FPL subsidy
+                    cliff is live in the simulation — see the MAGI column in the
+                    drawdown table.
+                  </p>
+                </>
+              )}
             </div>
 
             <div className="mt-5">
@@ -3230,6 +3483,24 @@ export function MoneyRetirementPanel({
                           },
                         ]
                       : []),
+                    ...(drawdownHasHealthcare
+                      ? [
+                          {
+                            label: 'Healthcare',
+                            title:
+                              'ACA premium net of the premium tax credit, plus out-of-pocket, plus Medicare from 65. Already part of Spend — it rides the essential floor, so withdrawals are sized to cover it.',
+                          },
+                        ]
+                      : []),
+                    ...(drawdownHasAca
+                      ? [
+                          {
+                            label: 'MAGI',
+                            title:
+                              "Modeled MAGI that priced the ACA subsidy: ordinary income + full Social Security + pre-tax/457(b)/HSA draws + the taxable draw's gain share. The credit ends above 400% of the federal poverty line — amber marks cliff years.",
+                          },
+                        ]
+                      : []),
                     { label: 'Cash' },
                     { label: 'Taxable' },
                     { label: 'Gov 457(b)' },
@@ -3270,9 +3541,16 @@ export function MoneyRetirementPanel({
                         }`}
                         title={
                           row.spendTrimmed
-                            ? `Below the ${formatCurrency(row.displayTarget, {
-                                decimals: 0,
-                              })} target — the withdrawal strategy trimmed discretionary spending this year.`
+                            ? [
+                                `Below the ${formatCurrency(row.displayTarget, {
+                                  decimals: 0,
+                                })} target — the withdrawal strategy trimmed discretionary spending this year.`,
+                                row.displayAcaReprice > 1
+                                  ? `${formatCurrency(row.displayAcaReprice, { decimals: 0 })} of the gap is ACA repricing: the MAGI true-up cut the subsidy below plan.`
+                                  : '',
+                              ]
+                                .filter(Boolean)
+                                .join(' ')
                             : undefined
                         }
                       >
@@ -3298,6 +3576,41 @@ export function MoneyRetirementPanel({
                       {drawdownHasCollege ? (
                         <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
                           {formatCurrency(row.displayCollege, { decimals: 0 })}
+                        </td>
+                      ) : null}
+                      {drawdownHasHealthcare ? (
+                        <td
+                          className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text"
+                          title={[
+                            `ACA gross ${formatCurrency(row.displayAcaGross, { decimals: 0 })} − subsidy ${formatCurrency(row.displayAcaSubsidy, { decimals: 0 })} + out-of-pocket ${formatCurrency(row.displayAcaOop, { decimals: 0 })} + Medicare ${formatCurrency(row.displayMedicare, { decimals: 0 })}.`,
+                            row.displayAcaReprice > 1
+                              ? `Includes ${formatCurrency(row.displayAcaReprice, { decimals: 0 })} above plan — the MAGI true-up repriced the subsidy.`
+                              : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
+                        >
+                          {formatCurrency(row.displayHealthcare, {
+                            decimals: 0,
+                          })}
+                        </td>
+                      ) : null}
+                      {drawdownHasAca ? (
+                        <td
+                          className={`border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums ${
+                            row.acaPremiumGross > 0.5 && row.acaSubsidy < 0.5
+                              ? 'text-warning'
+                              : 'text-text-muted'
+                          }`}
+                          title={
+                            row.acaPremiumGross > 0.5 && row.acaSubsidy < 0.5
+                              ? 'Above the 400% FPL cliff — no premium tax credit this year.'
+                              : undefined
+                          }
+                        >
+                          {row.acaPremiumGross > 0.5
+                            ? formatCurrency(row.displayMagi, { decimals: 0 })
+                            : '—'}
                         </td>
                       ) : null}
                       <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
@@ -3356,6 +3669,9 @@ export function MoneyRetirementPanel({
             Penalty{drawdownHasCollege ? ' − College' : ''}. When a forced RMD
             withdraws more than the plan needs, the surplus is reinvested in
             taxable rather than spent.
+            {drawdownHasHealthcare
+              ? ' Healthcare is not subtracted — it rides the essential floor inside Spend, so withdrawals are sized to cover it. Amber-trimmed years can include ACA repricing: when draws push MAGI across a subsidy band, the true-up adds the lost credit to that year’s need.'
+              : ''}
           </p>
         ) : null}
         {gainRatioDetail ? (

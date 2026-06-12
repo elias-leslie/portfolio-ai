@@ -1873,6 +1873,8 @@ def test_drawdown_aca_low_magi_keeps_planning_subsidy() -> None:
     assert 0.0 < row.magi < 15_650.0
     assert row.aca_subsidy == pytest.approx(_ACA_SOLO_GROSS - _ACA_SOLO_PLANNING_NET, abs=0.01)
     assert row.aca_net == pytest.approx(_ACA_SOLO_PLANNING_NET, abs=0.01)
+    # Repriced == planned: no ACA share in any spend trim this year.
+    assert row.aca_planning_net == pytest.approx(row.aca_net, abs=0.01)
     # The planning net rides the engine floor on top of the spend target.
     assert row.floor_amount == pytest.approx(60_000.0 + _ACA_SOLO_PLANNING_NET, abs=0.01)
 
@@ -1888,6 +1890,12 @@ def test_drawdown_aca_pretax_draws_cross_the_cliff() -> None:
     assert row.magi > 62_600.0
     assert row.aca_subsidy == 0.0
     assert row.aca_net == pytest.approx(_ACA_SOLO_GROSS)
+    # The cliff's repricing above plan is attributable for the UI:
+    # aca_net - aca_planning_net is the ACA share of the year's trim.
+    assert row.aca_planning_net == pytest.approx(_ACA_SOLO_PLANNING_NET, abs=0.01)
+    assert row.aca_net - row.aca_planning_net == pytest.approx(
+        _ACA_SOLO_GROSS - _ACA_SOLO_PLANNING_NET, abs=0.01
+    )
     assert row.gross_withdrawal > baseline[0].gross_withdrawal + _ACA_SOLO_GROSS - 1.0
 
 
@@ -1968,6 +1976,51 @@ def test_resolve_aca_config_seeds_published_medicare_default() -> None:
     resolved_off = service._resolve_aca_config(explicit, _aca_inputs(explicit))
     assert resolved_off is not None
     assert resolved_off.medicare_monthly_per_person == 0.0
+
+
+def test_resolve_aca_config_rederives_covered_lives_from_members() -> None:
+    """UI overrides send levers, never persons — dependents must survive
+    instead of falling back to sim-age adults only."""
+    conn = _StubConn(
+        members=[
+            ("Him", "primary", "self", 1977, False, None),
+            ("Twin A", "dependent", "child", 2012, True, None),
+        ]
+    )
+    service = _make_service(conn)
+    service._load_aca_premium_anchors = lambda: (2026, 500.0, 400.0)  # type: ignore[method-assign]
+
+    default = RetirementACAConfig()
+    resolved = service._resolve_aca_config(default, _aca_inputs(default))
+    assert resolved is not None
+    assert {p.birth_year: p.covered_until_year for p in resolved.persons} == {
+        1977: None,
+        2012: 2034,
+    }
+
+    until_26 = RetirementACAConfig(dependents_covered_until_age=26)
+    resolved_26 = service._resolve_aca_config(until_26, _aca_inputs(until_26))
+    assert resolved_26 is not None
+    assert {p.birth_year: p.covered_until_year for p in resolved_26.persons} == {
+        1977: None,
+        2012: 2038,
+    }
+
+    adults_only = RetirementACAConfig(dependents_covered_until_age=0)
+    resolved_adults = service._resolve_aca_config(adults_only, _aca_inputs(adults_only))
+    assert resolved_adults is not None
+    assert [p.birth_year for p in resolved_adults.persons] == [1977]
+
+
+def test_aca_config_accepts_wire_split_premium_override_key() -> None:
+    """es-toolkit snake-cases ``premiumAge21MonthlyOverride`` with a split
+    at the letter/digit boundary; both spellings must validate."""
+    wire = RetirementACAConfig.model_validate({"premium_age_21_monthly_override": 450.0})
+    assert wire.premium_age21_monthly_override == 450.0
+    canonical = RetirementACAConfig.model_validate(
+        {"premium_age21_monthly_override": 425.0}
+    )
+    assert canonical.premium_age21_monthly_override == 425.0
 
 
 def test_estimate_social_security_monthly_matches_frontend_golden_table() -> None:

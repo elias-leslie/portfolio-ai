@@ -465,6 +465,13 @@ const preview: RetirementPreview = {
       collegeCost: 0,
       college529Draw: 0,
       college529Balance: 0,
+      acaPremiumGross: 0,
+      acaSubsidy: 0,
+      acaOop: 0,
+      acaNet: 0,
+      acaPlanningNet: 0,
+      magi: 0,
+      medicarePremium: 0,
       withdrawalsByBucket: {
         taxable: 50000,
         // es-toolkit camelizes governmental_457b with a capital B.
@@ -503,6 +510,13 @@ const preview: RetirementPreview = {
       collegeCost: 0,
       college529Draw: 0,
       college529Balance: 0,
+      acaPremiumGross: 0,
+      acaSubsidy: 0,
+      acaOop: 0,
+      acaNet: 0,
+      acaPlanningNet: 0,
+      magi: 0,
+      medicarePremium: 0,
       withdrawalsByBucket: {
         taxable: 20000,
         governmental457B: 0,
@@ -1013,5 +1027,123 @@ describe('MoneyRetirementPanel', () => {
     expect(scenarioRequest.withdrawal?.bridge.growth).toBe('portfolio')
     expect(screen.getAllByText('71%').length).toBeGreaterThan(0)
     expect(screen.getAllByText('$512,000')).toHaveLength(2)
+  })
+
+  it('sends ACA/Medicare levers to the preview request and persists them', async () => {
+    const user = userEvent.setup()
+    usePreviewMock.mockReturnValue({
+      data: preview,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    render(
+      <MoneyRetirementPanel
+        dashboard={
+          {
+            ...dashboard,
+            profile: { ...dashboard.profile, acaOopMonthly: 99.58 },
+          } as HouseholdFinanceDashboard
+        }
+      />,
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: /bronze \(lowest premium\)/i }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: /kids covered to 26/i }),
+    )
+    // Blank tracks the published default; an explicit 0 is "line off".
+    const medicareInput = screen.getByRole('textbox', {
+      name: /medicare monthly premium per person/i,
+    })
+    await user.type(medicareInput, '0')
+    await user.click(screen.getByRole('button', { name: /expand planner/i }))
+    await user.click(screen.getByRole('button', { name: /run preview/i }))
+
+    expect(usePreviewMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        aca: {
+          tier: 'bronze',
+          premiumAge21MonthlyOverride: null,
+          oopMonthly: 99.58,
+          medicareMonthlyPerPerson: 0,
+          dependentsCoveredUntilAge: 26,
+        },
+      }),
+    )
+
+    await user.click(screen.getByRole('button', { name: /save assumptions/i }))
+    expect(updateProfileMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        acaTier: 'bronze',
+        acaPremiumAge21Override: null,
+        acaOopMonthly: 99.58,
+        medicareMonthlyPerPerson: 0,
+      }),
+    )
+
+    // Off hides the covered-lives and override knobs entirely.
+    await user.click(screen.getByRole('button', { name: /^off$/i }))
+    expect(
+      screen.queryByRole('textbox', {
+        name: /medicare monthly premium per person/i,
+      }),
+    ).toBeNull()
+    expect(
+      screen.getByText(/healthcare stream off — only the manual schedule/i),
+    ).toBeInTheDocument()
+  })
+
+  it('renders healthcare and MAGI drawdown columns with cliff attribution', async () => {
+    usePreviewMock.mockReturnValue({
+      data: {
+        ...preview,
+        drawdownSchedule: [
+          {
+            ...preview.drawdownSchedule[0],
+            // Real dollars; the default today's-dollars basis displays
+            // them unscaled, so the cells assert exactly.
+            acaPremiumGross: 20000,
+            acaSubsidy: 0,
+            acaOop: 1200,
+            acaNet: 21200,
+            acaPlanningNet: 800,
+            magi: 90000,
+            medicarePremium: 0,
+          },
+          preview.drawdownSchedule[1],
+        ],
+      },
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    expect(
+      screen.getByRole('columnheader', { name: 'Healthcare' }),
+    ).toHaveAttribute('title', expect.stringContaining('essential floor'))
+    expect(screen.getByRole('columnheader', { name: 'MAGI' })).toHaveAttribute(
+      'title',
+      expect.stringContaining('400%'),
+    )
+    const healthcareCell = screen.getByText('$21,200')
+    expect(healthcareCell).toHaveAttribute(
+      'title',
+      expect.stringContaining('the MAGI true-up repriced the subsidy'),
+    )
+    // Cliff year: gross premium with zero subsidy marks MAGI in amber.
+    const magiCell = screen.getByText('$90,000')
+    expect(magiCell).toHaveAttribute(
+      'title',
+      expect.stringContaining('400% FPL cliff'),
+    )
+    expect(
+      screen.getByText(/rides the essential floor inside Spend/i),
+    ).toBeInTheDocument()
   })
 })

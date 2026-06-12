@@ -89,6 +89,10 @@ export interface HouseholdProfile {
   bridgeGrowth?: 'fixed' | 'portfolio' | null
   retirementEssentialFloorOverride?: number | null
   retirementDiscretionaryOverride?: number | null
+  acaTier?: string | null
+  acaPremiumAge21Override?: number | null
+  acaOopMonthly?: number | null
+  medicareMonthlyPerPerson?: number | null
   notes: string | null
   createdAt: string
   updatedAt: string
@@ -434,12 +438,37 @@ export interface RetirementPreviewRequest {
   withdrawal?: RetirementWithdrawalConfig | null
   /** Explicit schedule (even empty) wins over the persisted one. */
   collegeSchedule?: RetirementCollegeYear[] | null
+  /** Explicit ACA/Medicare lever config wins over the profile defaults. */
+  aca?: RetirementAcaConfig | null
   asOfDate?: string | null
 }
 
 export interface RetirementCollegeYear {
   calendarYear: number
   realAmount: number
+}
+
+export interface RetirementAcaPerson {
+  birthYear: number
+  /** Exclusive year coverage ends; null = covered until Medicare at 65. */
+  coveredUntilYear?: number | null
+}
+
+export interface RetirementAcaConfig {
+  tier: 'silver' | 'bronze' | 'none'
+  /** Age-21 monthly premium override; null = marketplace anchor. */
+  premiumAge21MonthlyOverride?: number | null
+  oopMonthly?: number | null
+  /** Part B/D + supplement per member 65+; null = published default, 0 = off. */
+  medicareMonthlyPerPerson?: number | null
+  /** Dependents covered until this age; null = 22 default, 0 = adults only. */
+  dependentsCoveredUntilAge?: number | null
+  healthcareRealInflation?: number | null
+  /** Server-derived from household members; requests omit this. */
+  persons?: RetirementAcaPerson[]
+  planYear?: number | null
+  benchmarkAge21Monthly?: number | null
+  chosenAge21Monthly?: number | null
 }
 
 export interface RetirementInputs {
@@ -461,6 +490,8 @@ export interface RetirementInputs {
   socialSecurityDepletionYear: number | null
   collegeSchedule?: RetirementCollegeYear[]
   college529Value?: number
+  /** Resolved ACA/Medicare stream config; absent when the stream is off. */
+  aca?: RetirementAcaConfig | null
   asOfDate: string
 }
 
@@ -582,6 +613,16 @@ export interface RetirementDrawdownYear {
   collegeCost: number
   college529Draw: number
   college529Balance: number
+  // ACA/Medicare healthcare stream (real dollars); subsidy is priced
+  // off magi, the modeled MAGI that set the credit that year.
+  acaPremiumGross: number
+  acaSubsidy: number
+  acaOop: number
+  acaNet: number
+  /** Planning-floor net before the MAGI true-up repriced the subsidy. */
+  acaPlanningNet: number
+  magi: number
+  medicarePremium: number
 }
 
 export interface RetirementLeverImpact {
@@ -1097,6 +1138,10 @@ export interface HouseholdProfileUpdate {
   bridgeGrowth?: 'fixed' | 'portfolio' | null
   retirementEssentialFloorOverride?: number | null
   retirementDiscretionaryOverride?: number | null
+  acaTier?: 'silver' | 'bronze' | 'none' | null
+  acaPremiumAge21Override?: number | null
+  acaOopMonthly?: number | null
+  medicareMonthlyPerPerson?: number | null
   notes?: string | null
 }
 

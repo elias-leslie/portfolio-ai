@@ -17,7 +17,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class WithdrawalPhaseConfig(BaseModel):
@@ -113,7 +113,16 @@ class RetirementACAConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     tier: Literal["silver", "bronze", "none"] = "silver"
-    premium_age21_monthly_override: float | None = Field(None, ge=0.0)
+    # The frontend wire layer (es-toolkit) snake-cases camelCase keys
+    # with a split at every letter/digit boundary, so the request
+    # arrives as ``premium_age_21_monthly_override``; accept both.
+    premium_age21_monthly_override: float | None = Field(
+        None,
+        ge=0.0,
+        validation_alias=AliasChoices(
+            "premium_age21_monthly_override", "premium_age_21_monthly_override"
+        ),
+    )
     oop_monthly: float = Field(0.0, ge=0.0)
     # Part B/D + supplement per member 65+ (today's $/month). ``None``
     # resolves to the published-rate default (CMS/KFF constants in
@@ -121,6 +130,10 @@ class RetirementACAConfig(BaseModel):
     medicare_monthly_per_person: float | None = Field(None, ge=0.0)
     # CPI + 2%/yr healthcare inflation => +2%/yr real (interview decision 7).
     healthcare_real_inflation: float = Field(0.02, ge=-0.02, le=0.10)
+    # Covered-lives lever for requests that omit ``persons``: dependents
+    # stay covered (and in the FPL household) until this age. ``None``
+    # = the default 22; 0 = adults only (e.g. kids on FL KidCare).
+    dependents_covered_until_age: int | None = Field(None, ge=0, le=40)
     persons: tuple[RetirementACAPerson, ...] = ()
     plan_year: int | None = Field(None, ge=2000, le=2100)
     benchmark_age21_monthly: float | None = Field(None, ge=0.0)
@@ -349,6 +362,10 @@ class RetirementDrawdownYear(BaseModel):
     aca_subsidy: float = Field(0.0, ge=0.0)
     aca_oop: float = Field(0.0, ge=0.0)
     aca_net: float = Field(0.0, ge=0.0)
+    # The planning-floor net the engine budgeted before the MAGI true-up
+    # repriced the subsidy; ``aca_net - aca_planning_net`` is the ACA
+    # share of any spend trim that year.
+    aca_planning_net: float = Field(0.0, ge=0.0)
     magi: float = Field(0.0, ge=0.0)
     # Part B/D + supplement for members 65+ (REAL $); deterministic, no
     # MAGI coupling below IRMAA (item D part e).

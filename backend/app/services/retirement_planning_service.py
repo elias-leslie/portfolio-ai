@@ -965,25 +965,41 @@ class RetirementPlanningService:
             if row[0] is not None
         )
 
-    def _default_aca_config(self, profile: Any) -> RetirementACAConfig:
-        """ACA config from profile levers + household members.
+    def _household_aca_persons(
+        self, dependents_covered_until_age: int | None
+    ) -> tuple[RetirementACAPerson, ...]:
+        """Covered lives from canonical household members.
 
         Dependents default to coverage until the year they turn 22
         (twins finish college — interview decision 4's default option);
-        adults stay until Medicare. The covered-lives lever swaps these
-        per preview request.
+        adults stay until Medicare. 0 drops dependents from coverage
+        and the FPL household entirely (e.g. kids on FL KidCare —
+        mirrors the accepted size-tracks-coverage simplification).
         """
+        until_age = (
+            22 if dependents_covered_until_age is None else dependents_covered_until_age
+        )
         persons: list[RetirementACAPerson] = []
         for member in self._load_members():
             birth_year = member.get("birth_year")
             if birth_year is None:
                 continue
-            covered_until = int(birth_year) + 22 if member.get("is_dependent") else None
+            if member.get("is_dependent"):
+                if until_age == 0:
+                    continue
+                covered_until = int(birth_year) + until_age
+            else:
+                covered_until = None
             persons.append(
                 RetirementACAPerson(
                     birth_year=int(birth_year), covered_until_year=covered_until
                 )
             )
+        return tuple(persons)
+
+    def _default_aca_config(self, profile: Any) -> RetirementACAConfig:
+        """ACA config from profile levers + household members."""
+        persons = self._household_aca_persons(None)
         tier = str(getattr(profile, "aca_tier", None) or "silver").lower()
         if tier not in {"silver", "bronze", "none"}:
             tier = "silver"
@@ -997,7 +1013,7 @@ class RetirementPlanningService:
             medicare_monthly_per_person=(
                 float(medicare_raw) if medicare_raw is not None else None
             ),
-            persons=tuple(persons),
+            persons=persons,
         )
 
     def _resolve_aca_config(
@@ -1011,6 +1027,11 @@ class RetirementPlanningService:
         if config.tier == "none":
             return None
         persons = config.persons
+        if not persons:
+            # Request overrides send levers, never raw persons — covered
+            # lives re-derive from canonical household members so
+            # dependents survive the override.
+            persons = self._household_aca_persons(config.dependents_covered_until_age)
         if not persons:
             # No member rows: model the adults straight off the sim ages.
             birth_year = inputs.as_of_date.year - inputs.primary_age
@@ -1663,6 +1684,9 @@ class RetirementPlanningService:
                     aca_subsidy=round(aca_subsidy, 2),
                     aca_oop=round(aca_plan.oop, 2) if aca_plan is not None else 0.0,
                     aca_net=round(aca_net, 2),
+                    aca_planning_net=(
+                        round(aca_plan.planning_net, 2) if aca_plan is not None else 0.0
+                    ),
                     magi=round(magi_real, 2),
                     medicare_premium=(
                         round(aca_plan.medicare_premium, 2) if aca_plan is not None else 0.0

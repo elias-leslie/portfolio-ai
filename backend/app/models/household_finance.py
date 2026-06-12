@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 from app.models.household_finance_types import (
     BudgetLane,
@@ -221,7 +221,16 @@ class HouseholdProfileUpdate(BaseModel):
     retirement_essential_floor_override: float | None = None
     retirement_discretionary_override: float | None = None
     aca_tier: str | None = None
-    aca_premium_age21_override: float | None = None
+    # The frontend wire layer (es-toolkit) splits camelCase at every
+    # letter/digit boundary, so saves arrive as
+    # ``aca_premium_age_21_override``; the field name still matches the
+    # DB column for the SET clause in update_profile.
+    aca_premium_age21_override: float | None = Field(
+        None,
+        validation_alias=AliasChoices(
+            "aca_premium_age21_override", "aca_premium_age_21_override"
+        ),
+    )
     aca_oop_monthly: float | None = None
     medicare_monthly_per_person: float | None = None
     notes: str | None = None
