@@ -49,7 +49,11 @@ def test_collapse_report_rows_prefers_import_row_over_matching_transaction() -> 
     assert collapsed[0]["document_id"] == "import-doc"
 
 
-def test_collapse_report_rows_dedupes_phone_and_location_variants_for_same_account() -> None:
+def test_collapse_report_rows_keeps_plain_transaction_variants_for_db_dedup() -> None:
+    # Statement-activity vs statement-PDF variants of one charge are owned by
+    # household_transaction_dedup_service at the DB layer (removed=TRUE rows
+    # never reach this builder). Collapsing them again here merged legitimate
+    # same-day same-amount pairs, so the report layer must keep both.
     shared_date = date(2026, 4, 8)
 
     collapsed = collapse_report_rows(
@@ -89,11 +93,12 @@ def test_collapse_report_rows_dedupes_phone_and_location_variants_for_same_accou
         ]
     )
 
-    assert len(collapsed) == 1
-    assert collapsed[0]["document_id"] == "activity-doc"
+    assert len(collapsed) == 2
 
 
-def test_collapse_report_rows_dedupes_statement_and_plaid_rows_on_nearby_dates() -> None:
+def test_collapse_report_rows_keeps_statement_and_plaid_rows_for_db_dedup() -> None:
+    # Cross-source statement/Plaid duplicates are the DB dedup service's
+    # fuzzy-date arm; the report layer no longer second-guesses it.
     collapsed = collapse_report_rows(
         [
             {
@@ -131,8 +136,7 @@ def test_collapse_report_rows_dedupes_statement_and_plaid_rows_on_nearby_dates()
         ]
     )
 
-    assert len(collapsed) == 1
-    assert collapsed[0]["document_id"] in {"statement-doc", "plaid-doc"}
+    assert len(collapsed) == 2
 
 
 def test_collapse_report_rows_keeps_same_source_nearby_repeat_charges() -> None:

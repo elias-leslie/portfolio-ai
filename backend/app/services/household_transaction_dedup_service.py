@@ -47,6 +47,7 @@ DEDUP_SOURCE_SYSTEMS = ("plaid", "statement_csv", "statement_activity")
 SOURCE_PRIORITY = {"plaid": 3, "statement_activity": 2, "statement_csv": 1}
 FUZZY_DATE_TOLERANCE_DAYS = 3
 _MERCHANT_MIN_PREFIX = 6
+_MERCHANT_MIN_SUBSUMED = 3
 _MANUAL_SOURCES = {"manual", "manual_rule", "merchant_rule"}
 
 
@@ -65,6 +66,12 @@ def merchants_compatible(a: str, b: str) -> bool:
     ``_MERCHANT_MIN_PREFIX`` chars covering >= 60% of the shorter
     fingerprint accepts suffix decorations while keeping near-namesakes
     ("amazonmktpl" vs "amazonprime", common prefix 55%) apart.
+
+    Fingerprints shorter than the minimum prefix ("cvs" from a bare Plaid
+    label vs "cvspharmacymiamifl" from the statement) pass instead when the
+    shorter key is wholly a prefix of the longer one — the surrounding
+    cluster already gates on same account, same amount, and dates within
+    tolerance, so a short exact-prefix match is the same merchant.
     """
     if not a or not b:
         return False
@@ -75,6 +82,8 @@ def merchants_compatible(a: str, b: str) -> bool:
         if ch_a != ch_b:
             break
         common += 1
+    if common == min(len(a), len(b)) >= _MERCHANT_MIN_SUBSUMED:
+        return True
     return common >= _MERCHANT_MIN_PREFIX and common >= 0.6 * min(len(a), len(b))
 
 

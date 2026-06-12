@@ -60,8 +60,11 @@ def test_merchants_compatible_prefix_with_min_length() -> None:
     assert not merchants_compatible("walgreenssale", "cvspharmacy")
     # Near-namesakes sharing a brand prefix stay distinct.
     assert not merchants_compatible("amazonmktpl", "amazonprime")
-    # Too-short fingerprints cannot vouch for identity.
-    assert not merchants_compatible("cvs", "cvspharmacy")
+    # A short fingerprint that is wholly a prefix of the longer one is the
+    # same merchant (bare Plaid "CVS" vs statement "CVS/PHARMACY #05786...").
+    assert merchants_compatible("cvs", "cvspharmacymiamifl")
+    # ...but only with at least a few characters to vouch for it.
+    assert not merchants_compatible("bp", "bpgasstation")
     assert not merchants_compatible("", "anything")
 
 

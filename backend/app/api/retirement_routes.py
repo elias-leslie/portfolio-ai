@@ -227,6 +227,19 @@ async def replace_allocation_scenarios(
     return [row.model_dump(mode="json") for row in rows]
 
 
+@lru_cache(maxsize=1)
+def _spending_actuals_service() -> Any:
+    module = import_module("app.services.retirement_spending_actuals_service")
+    return module.RetirementSpendingActualsService()
+
+
+@router.get("/spending-actuals")
+async def spending_actuals() -> dict[str, Any]:
+    """Monthly spend run-rates derived from the deduped Money ledger."""
+    result = await run_in_threadpool(_spending_actuals_service().build)
+    return result.model_dump(mode="json")
+
+
 def _default_scenario_name(inputs: RetirementInputs) -> str:
     return (
         f"Retire at {inputs.retirement_age}, "

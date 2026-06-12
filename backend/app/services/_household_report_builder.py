@@ -379,6 +379,21 @@ def report_rows_overlap(existing_row: dict[str, Any], candidate_row: dict[str, A
     )
     if not same_amount:
         return False
+    source_kinds = {
+        str(existing_row.get("source_kind") or ""),
+        str(candidate_row.get("source_kind") or ""),
+    }
+    document_types = {
+        str(existing_row.get("document_type") or ""),
+        str(candidate_row.get("document_type") or ""),
+    }
+    # household_transaction_dedup_service owns plain transaction-vs-transaction
+    # duplicates at the DB layer, and it deliberately keeps legitimate same-day
+    # same-amount pairs (two kids' identical ortho charges) that the signature
+    # heuristics here would merge. This layer only reconciles evidence the DB
+    # ledger can't see: import rows and receipt documents.
+    if "import" not in source_kinds and "receipt" not in document_types:
+        return False
     near_cross_source_duplicate = (
         _different_evidence_sources(existing_row, candidate_row)
         and (date_distance := _date_distance_days(existing_row, candidate_row)) is not None
@@ -403,14 +418,6 @@ def report_rows_overlap(existing_row: dict[str, Any], candidate_row: dict[str, A
             and bool(shared_aliases)
         )
 
-    source_kinds = {
-        str(existing_row.get("source_kind") or ""),
-        str(candidate_row.get("source_kind") or ""),
-    }
-    document_types = {
-        str(existing_row.get("document_type") or ""),
-        str(candidate_row.get("document_type") or ""),
-    }
     cross_source_duplicate = near_cross_source_duplicate and bool(shared_aliases) and (
         "import" in source_kinds
         or ("receipt" in document_types and len(document_types) > 1)

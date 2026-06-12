@@ -1025,7 +1025,11 @@ def test_build_spending_view_surfaces_unknown_category_for_review_rows() -> None
     assert spending.transactions[0].category_confidence == 0.42
 
 
-def test_build_spending_view_dedupes_same_account_statement_and_activity_rows() -> None:
+def test_build_spending_view_keeps_statement_and_activity_rows_for_db_dedup() -> None:
+    # household_transaction_dedup_service removes true statement/activity
+    # duplicates at the DB layer (removed=TRUE never reaches this view), so the
+    # view must not merge surviving rows — legitimate same-day same-amount
+    # pairs survive the DB dedup on purpose.
     today = date.today()
     household_account_id = "acct-chase"
     service = HouseholdTransactionService()
@@ -1077,12 +1081,12 @@ def test_build_spending_view_dedupes_same_account_statement_and_activity_rows() 
 
     spending = service.build_spending_view(window="1m")
 
-    assert spending.summary.transaction_count == 1
-    assert spending.summary.total_spend == 26.76
-    assert len(spending.transactions) == 1
+    assert spending.summary.transaction_count == 2
+    assert spending.summary.total_spend == 53.52
+    assert len(spending.transactions) == 2
 
 
-def test_build_spending_view_dedupes_phone_and_location_variant_statement_rows() -> None:
+def test_build_spending_view_keeps_phone_and_location_variant_rows_for_db_dedup() -> None:
     today = date.today()
     household_account_id = "acct-chase"
     service = HouseholdTransactionService()
@@ -1134,10 +1138,10 @@ def test_build_spending_view_dedupes_phone_and_location_variant_statement_rows()
 
     spending = service.build_spending_view(window="1m")
 
-    assert spending.summary.transaction_count == 1
-    assert spending.summary.total_spend == 21.58
-    assert len(spending.transactions) == 1
-    assert spending.transactions[0].category == "Subscriptions"
+    assert spending.summary.transaction_count == 2
+    assert spending.summary.total_spend == 43.16
+    assert len(spending.transactions) == 2
+    assert all(txn.category == "Subscriptions" for txn in spending.transactions)
 
 
 def test_build_spending_view_reclassifies_obvious_household_miscategorizations() -> None:
