@@ -19,6 +19,7 @@ from app.portfolio.account_valuation import mark_to_market_account_value
 from app.portfolio.models import PriceData
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.portfolio.watchlist_sync import ensure_symbols_in_watchlist
+from app.services._snaptrade_ledger_bridge import bridge_cash_activities
 from app.services.credential_crypto import (
     CredentialCipher,
     SecretDecryptionError,
@@ -821,6 +822,14 @@ class SnapTradeService:
                 symbols.update(position_symbols)
 
         self._reconcile_account_ownership()
+        # Mirror cash-management activities into the household ledger so
+        # payroll deposits and bill-pay debits reach Money without manual
+        # CSV exports. Bridge failure must not fail the vendor sync.
+        try:
+            totals["ledger_bridge"] = bridge_cash_activities(self.storage)
+        except Exception as exc:  # pragma: no cover - defensive seam
+            logger.warning("snaptrade_ledger_bridge_failed", error=str(exc))
+            totals["ledger_bridge"] = {"status": "error", "error": str(exc)}
         self._record_user_sync(user.user_id, has_errors=bool(totals["errors"]))
         ensure_symbols_in_watchlist(self.storage, sorted(symbols), source="snaptrade")
         return totals
