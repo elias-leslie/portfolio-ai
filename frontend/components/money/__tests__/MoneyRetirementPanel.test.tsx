@@ -6,10 +6,14 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   HouseholdFinanceDashboard,
+  RetirementIncomeActuals,
   RetirementPreview,
+  RetirementSpendingActuals,
 } from '@/lib/api/household'
 import {
+  useRetirementIncomeActuals,
   useRetirementPreview,
+  useRetirementSpendingActuals,
   useUpdateHouseholdPlanning,
   useUpdateHouseholdProfile,
 } from '@/lib/hooks/useHousehold'
@@ -17,6 +21,8 @@ import { MoneyRetirementPanel } from '../MoneyRetirementPanel'
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useRetirementPreview: vi.fn(),
+  useRetirementIncomeActuals: vi.fn(),
+  useRetirementSpendingActuals: vi.fn(),
   useUpdateHouseholdPlanning: vi.fn(),
   useUpdateHouseholdProfile: vi.fn(),
   useHouseholdAccountHoldings: vi.fn(() => ({
@@ -564,7 +570,76 @@ const preview: RetirementPreview = {
   failureAgeDistribution: {},
 }
 
+const incomeActuals: RetirementIncomeActuals = {
+  generatedAt: '2026-06-12T00:00:00Z',
+  firstMonth: '2026-01',
+  lastMonth: '2026-05',
+  coverageMonths: 5,
+  totalMonthlyIncome: 5509.23,
+  activeMonthlyIncome: 0,
+  sourceLabel:
+    'Detected from Money income transactions, 2026-01 to 2026-05 (5 complete months). Amounts are take-home deposits.',
+  aliasRowsCollapsed: 9,
+  streams: [
+    {
+      label: 'PINELLAS COUNTY PAYROLL LESLIE MARIANA',
+      owner: 'Mariana',
+      cadence: 'biweekly',
+      monthlyAverage: 5999.94,
+      total: 23999.75,
+      transactionCount: 8,
+      firstDate: '2026-01-09',
+      lastDate: '2026-04-17',
+      monthsSeen: 4,
+      monthsSpanned: 4,
+      active: false,
+      portfolioYield: false,
+    },
+    {
+      label: 'DIVIDEND RECEIVED FIDELITY GOVERNMENT MONEY MARKET (SPAXX)',
+      owner: null,
+      cadence: 'monthly',
+      monthlyAverage: 84.02,
+      total: 252.05,
+      transactionCount: 3,
+      firstDate: '2026-02-27',
+      lastDate: '2026-04-30',
+      monthsSeen: 3,
+      monthsSpanned: 3,
+      active: true,
+      portfolioYield: true,
+    },
+    {
+      label: 'PROG SELECT INS INS PREM Elias Leslie',
+      owner: 'Elias',
+      cadence: 'one-off',
+      monthlyAverage: 276.99,
+      total: 276.99,
+      transactionCount: 1,
+      firstDate: '2026-02-17',
+      lastDate: '2026-02-17',
+      monthsSeen: 1,
+      monthsSpanned: 1,
+      active: false,
+      portfolioYield: false,
+    },
+  ],
+}
+
+const spendingActuals: RetirementSpendingActuals = {
+  generatedAt: '2026-06-12T00:00:00Z',
+  firstMonth: '2026-01',
+  lastMonth: '2026-05',
+  coverageMonths: 5,
+  totalMonthlySpend: 7484.06,
+  healthcareMonthly: 363.74,
+  sourceLabel:
+    'Derived from deduped Money transactions, 2026-01 to 2026-05 (5 complete months).',
+}
+
 const usePreviewMock = vi.mocked(useRetirementPreview)
+const useIncomeActualsMock = vi.mocked(useRetirementIncomeActuals)
+const useSpendingActualsMock = vi.mocked(useRetirementSpendingActuals)
 const useUpdateProfileMock = vi.mocked(useUpdateHouseholdProfile)
 const useUpdatePlanningMock = vi.mocked(useUpdateHouseholdPlanning)
 const updateProfileMutateAsync = vi.fn()
@@ -573,6 +648,18 @@ const updatePlanningMutateAsync = vi.fn()
 describe('MoneyRetirementPanel', () => {
   beforeEach(() => {
     usePreviewMock.mockReset()
+    useIncomeActualsMock.mockReset()
+    useIncomeActualsMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useRetirementIncomeActuals>)
+    useSpendingActualsMock.mockReset()
+    useSpendingActualsMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useRetirementSpendingActuals>)
     updateProfileMutateAsync.mockReset()
     updateProfileMutateAsync.mockResolvedValue({})
     useUpdateProfileMock.mockReturnValue({
@@ -1145,5 +1232,90 @@ describe('MoneyRetirementPanel', () => {
     expect(
       screen.getByText(/rides the essential floor inside Spend/i),
     ).toBeInTheDocument()
+  })
+
+  it('renders income plan-vs-actual streams with stale warning and alias note', () => {
+    usePreviewMock.mockReturnValue({
+      data: preview,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+    useIncomeActualsMock.mockReturnValue({
+      data: incomeActuals,
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useRetirementIncomeActuals>)
+    useSpendingActualsMock.mockReturnValue({
+      data: spendingActuals,
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useRetirementSpendingActuals>)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    expect(screen.getByText('Income: plan vs actual')).toBeInTheDocument()
+    // Take-home headline counts ONLY active non-yield streams ($0 here).
+    expect(screen.getByText('$0/mo')).toBeInTheDocument()
+    expect(screen.getByText('$7,484/mo')).toBeInTheDocument()
+    // Plan column reads the budget net-income target from the profile.
+    expect(screen.getByText('$10,000/mo')).toBeInTheDocument()
+    // Stale recurring stream warning names the stream and last deposit.
+    expect(
+      screen.getByText(/Some income streams have stopped/),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /PINELLAS COUNTY PAYROLL LESLIE MARIANA \(last deposit Apr 17, 2026\)/,
+      ),
+    ).toBeInTheDocument()
+    // Stream table: cadence, run-rate, owner, status badges.
+    expect(screen.getByText('Every 2 weeks')).toBeInTheDocument()
+    expect(screen.getByText('$6,000')).toBeInTheDocument()
+    expect(screen.getByText('Mariana')).toBeInTheDocument()
+    expect(screen.getByText('Stopped?')).toBeInTheDocument()
+    expect(screen.getByText('Portfolio yield')).toBeInTheDocument()
+    // Cadence cell + status badge for the single-transaction stream.
+    expect(screen.getAllByText('One-off')).toHaveLength(2)
+    // No fabricated net line when no active take-home streams exist.
+    expect(
+      screen.queryByText(/Actual net while working/),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText(/9 duplicate statement rows/)).toBeInTheDocument()
+  })
+
+  it('shows the actual-net line when active take-home income exists', () => {
+    usePreviewMock.mockReturnValue({
+      data: preview,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+    useIncomeActualsMock.mockReturnValue({
+      data: {
+        ...incomeActuals,
+        activeMonthlyIncome: 5999.94,
+        streams: [
+          { ...incomeActuals.streams[0], active: true },
+          ...incomeActuals.streams.slice(1),
+        ],
+      },
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useRetirementIncomeActuals>)
+    useSpendingActualsMock.mockReturnValue({
+      data: spendingActuals,
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useRetirementSpendingActuals>)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    expect(screen.getByText(/Actual net while working/)).toBeInTheDocument()
+    // 5999.94 - 7484.06 = -1484.12 → whole-dollar formatting.
+    expect(screen.getByText(/-\$1,484\/mo/)).toBeInTheDocument()
+    expect(
+      screen.queryByText(/Some income streams have stopped/),
+    ).not.toBeInTheDocument()
   })
 })

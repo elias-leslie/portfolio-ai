@@ -15,6 +15,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { formatBudgetDate } from '@/components/money/budget-helpers'
 import { HouseholdHoldingsDialog } from '@/components/money/HouseholdHoldingsDialog'
 import { freshnessToneClass } from '@/components/money/moneyAccountsUtils'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
@@ -32,6 +33,7 @@ import type {
   RetirementAllocationScenario,
   RetirementAllocationScenarioInput,
   RetirementCollegeYear,
+  RetirementIncomeActualsStream,
   RetirementPreviewRequest,
   RetirementWithdrawalConfig,
 } from '@/lib/api/household'
@@ -46,7 +48,9 @@ import { useDebounce } from '@/lib/hooks/useDebounce'
 import {
   useAllocationScenarios,
   useReplaceAllocationScenarios,
+  useRetirementIncomeActuals,
   useRetirementPreview,
+  useRetirementSpendingActuals,
   useUpdateHouseholdPlanning,
   useUpdateHouseholdProfile,
 } from '@/lib/hooks/useHousehold'
@@ -95,6 +99,33 @@ const defaultSpaxxYieldSource = 'Fidelity SPAXX 7-day yield as of 2026-05-07'
 // Mirrors backend MEDICARE_DEFAULT_MONTHLY_PER_PERSON (_aca_estimator.py):
 // 2026 Part B $202.90 + Part D $38.99 (CMS) + Medigap Plan G $164 (KFF).
 const medicareDefaultMonthlyPerPerson = 405.89
+
+const incomeCadenceLabels: Record<
+  RetirementIncomeActualsStream['cadence'],
+  string
+> = {
+  weekly: 'Weekly',
+  biweekly: 'Every 2 weeks',
+  monthly: 'Monthly',
+  irregular: 'Irregular',
+  'one-off': 'One-off',
+}
+
+function incomeStreamStatus(stream: RetirementIncomeActualsStream): {
+  label: string
+  variant: 'success' | 'warning' | 'secondary' | 'outline'
+} {
+  if (stream.portfolioYield) {
+    return { label: 'Portfolio yield', variant: 'outline' }
+  }
+  if (stream.cadence === 'one-off') {
+    return { label: 'One-off', variant: 'secondary' }
+  }
+  if (stream.active) {
+    return { label: 'Active', variant: 'success' }
+  }
+  return { label: 'Stopped?', variant: 'warning' }
+}
 
 function previewStatusVariant(
   successProbability: number,
@@ -795,6 +826,22 @@ export function MoneyRetirementPanel({
   )
   const scenariosQuery = useAllocationScenarios()
   const replaceScenarios = useReplaceAllocationScenarios()
+  const incomeActualsQuery = useRetirementIncomeActuals()
+  const spendingActualsQuery = useRetirementSpendingActuals()
+  const incomeActuals = incomeActualsQuery.data
+  const spendingActuals = spendingActualsQuery.data
+  // Recurring take-home streams that stopped before the coverage window's
+  // end — either the income ended or newer statements weren't imported.
+  const incomeStaleStreams = useMemo(
+    () =>
+      (incomeActuals?.streams ?? []).filter(
+        (stream) =>
+          !stream.active &&
+          stream.cadence !== 'one-off' &&
+          !stream.portfolioYield,
+      ),
+    [incomeActuals],
+  )
   const [scenarioName, setScenarioName] = useState('')
   const [compareSelection, setCompareSelection] = useState<string[]>([])
   const [compareResults, setCompareResults] = useState<Array<{
@@ -1887,6 +1934,165 @@ export function MoneyRetirementPanel({
             </p>
           </>
         ) : null}
+      </SectionCard>
+
+      <SectionCard
+        variant="surface"
+        title="Income: plan vs actual"
+        description="Recurring take-home deposits auto-detected from Money transactions, next to what the plan assumes. Deposits are net of withholding; the planner salary fields are gross inputs to the Social Security estimate."
+      >
+        {incomeActuals && incomeActuals.coverageMonths > 0 ? (
+          <>
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                  Take-home detected
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-text">
+                  {formatCurrency(incomeActuals.activeMonthlyIncome, {
+                    decimals: 0,
+                  })}
+                  /mo
+                </p>
+                <p className="mt-1 text-xs text-text-muted">
+                  Recurring deposit streams still active at the end of the
+                  coverage window. Dividend/interest streams are listed below
+                  but excluded — portfolio yield is already modeled in returns.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                  Spend run-rate
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-text">
+                  {spendingActuals
+                    ? `${formatCurrency(spendingActuals.totalMonthlySpend, {
+                        decimals: 0,
+                      })}/mo`
+                    : '—'}
+                </p>
+                <p className="mt-1 text-xs text-text-muted">
+                  Deduped Money ledger over the same statements. Planner lever
+                  for retirement: {draft.monthlySpend || '—'}/mo.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                  Plan assumes
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-text">
+                  {dashboard.profile.monthlyNetIncomeTarget != null
+                    ? `${formatCurrency(
+                        dashboard.profile.monthlyNetIncomeTarget,
+                        { decimals: 0 },
+                      )}/mo`
+                    : '—'}
+                </p>
+                <p className="mt-1 text-xs text-text-muted">
+                  Budget net-income target while working. Planner Save / month
+                  lever: {draft.monthlyContribution || '0'}.
+                </p>
+              </div>
+            </div>
+            {incomeActuals.activeMonthlyIncome > 0 && spendingActuals ? (
+              <p className="mt-3 text-sm text-text">
+                Actual net while working:{' '}
+                <span className="font-mono tabular-nums">
+                  {formatCurrency(
+                    incomeActuals.activeMonthlyIncome -
+                      spendingActuals.totalMonthlySpend,
+                    { decimals: 0 },
+                  )}
+                  /mo
+                </span>{' '}
+                (take-home minus spend run-rate).
+              </p>
+            ) : null}
+            {incomeStaleStreams.length > 0 ? (
+              <div className="mt-3 rounded-xl border border-warning/40 bg-warning/10 p-3 text-xs text-text">
+                <span className="font-semibold">
+                  Some income streams have stopped:
+                </span>{' '}
+                {incomeStaleStreams
+                  .map(
+                    (stream) =>
+                      `${stream.label} (last deposit ${formatBudgetDate(
+                        stream.lastDate,
+                      )})`,
+                  )
+                  .join('; ')}
+                . Either the income ended or newer bank statements have not been
+                imported — only active streams count toward the take-home figure
+                above.
+              </div>
+            ) : null}
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[40rem] text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-[0.12em] text-text-muted">
+                    <th className="py-1.5 pr-3">Stream</th>
+                    <th className="py-1.5 pr-3">Owner</th>
+                    <th className="py-1.5 pr-3">Cadence</th>
+                    <th className="py-1.5 pr-3 text-right">$ / mo</th>
+                    <th className="py-1.5 pr-3">Months</th>
+                    <th className="py-1.5 pr-3">Last deposit</th>
+                    <th className="py-1.5">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {incomeActuals.streams.map((stream) => {
+                    const status = incomeStreamStatus(stream)
+                    return (
+                      <tr
+                        key={`${stream.label}-${stream.firstDate}`}
+                        className="border-t border-border/30"
+                      >
+                        <td className="max-w-[18rem] truncate py-1.5 pr-3 font-medium text-text">
+                          {stream.label}
+                        </td>
+                        <td className="py-1.5 pr-3 text-text-muted">
+                          {stream.owner ?? '—'}
+                        </td>
+                        <td className="py-1.5 pr-3 text-text-muted">
+                          {incomeCadenceLabels[stream.cadence]}
+                        </td>
+                        <td className="py-1.5 pr-3 text-right font-mono tabular-nums">
+                          {formatCurrency(stream.monthlyAverage, {
+                            decimals: 0,
+                          })}
+                        </td>
+                        <td className="py-1.5 pr-3 font-mono tabular-nums">
+                          {stream.monthsSeen}
+                        </td>
+                        <td className="py-1.5 pr-3 text-text-muted">
+                          {formatBudgetDate(stream.lastDate)}
+                        </td>
+                        <td className="py-1.5">
+                          <Badge variant={status.variant}>{status.label}</Badge>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-2 text-xs text-text-muted">
+              {incomeActuals.sourceLabel} Stream $/mo averages over each
+              stream&apos;s own active months.
+              {incomeActuals.aliasRowsCollapsed > 0
+                ? ` ${incomeActuals.aliasRowsCollapsed} duplicate statement rows (the same deposit imported under two account labels) were collapsed.`
+                : ''}
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-text-muted">
+            {incomeActualsQuery.isLoading
+              ? 'Scanning Money transactions for income streams…'
+              : incomeActualsQuery.error
+                ? 'Failed to load income actuals.'
+                : 'No complete months of Money transaction coverage yet — import bank statements to compare plan income against actual deposits.'}
+          </p>
+        )}
       </SectionCard>
 
       <SectionCard

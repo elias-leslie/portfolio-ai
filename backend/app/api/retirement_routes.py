@@ -303,6 +303,19 @@ async def spending_actuals() -> dict[str, Any]:
     return result.model_dump(mode="json")
 
 
+@lru_cache(maxsize=1)
+def _income_actuals_service() -> Any:
+    module = import_module("app.services.retirement_income_actuals_service")
+    return module.RetirementIncomeActualsService()
+
+
+@router.get("/income-actuals")
+async def income_actuals() -> dict[str, Any]:
+    """Recurring income streams auto-detected from the Money ledger."""
+    result = await run_in_threadpool(_income_actuals_service().build)
+    return result.model_dump(mode="json")
+
+
 def _default_scenario_name(inputs: RetirementInputs) -> str:
     return (
         f"Retire at {inputs.retirement_age}, "

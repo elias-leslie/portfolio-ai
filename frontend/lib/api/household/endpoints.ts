@@ -23,8 +23,10 @@ import type {
   ManualHoldingsReplaceInput,
   RetirementAllocationScenario,
   RetirementAllocationScenarioInput,
+  RetirementIncomeActuals,
   RetirementPreview,
   RetirementPreviewRequest,
+  RetirementSpendingActuals,
 } from './types'
 
 type Endpoint<P extends unknown[], T> = (...args: P) => Promise<T>
@@ -122,6 +124,21 @@ export async function fetchRetirementPreview(
   options: RequestInit = {},
 ): Promise<RetirementPreview> {
   return post<RetirementPreview>('/api/retirement/preview', payload, options)
+}
+
+export async function fetchRetirementIncomeActuals(
+  options: RequestInit = {},
+): Promise<RetirementIncomeActuals> {
+  return get<RetirementIncomeActuals>('/api/retirement/income-actuals', options)
+}
+
+export async function fetchRetirementSpendingActuals(
+  options: RequestInit = {},
+): Promise<RetirementSpendingActuals> {
+  return get<RetirementSpendingActuals>(
+    '/api/retirement/spending-actuals',
+    options,
+  )
 }
 
 export async function fetchAllocationScenarios(

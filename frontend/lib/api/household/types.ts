@@ -471,6 +471,44 @@ export interface RetirementAcaConfig {
   chosenAge21Monthly?: number | null
 }
 
+export interface RetirementIncomeActualsStream {
+  label: string
+  owner: string | null
+  cadence: 'weekly' | 'biweekly' | 'monthly' | 'irregular' | 'one-off'
+  monthlyAverage: number
+  total: number
+  transactionCount: number
+  firstDate: string
+  lastDate: string
+  monthsSeen: number
+  monthsSpanned: number
+  active: boolean
+  portfolioYield: boolean
+}
+
+export interface RetirementIncomeActuals {
+  generatedAt: string
+  firstMonth: string | null
+  lastMonth: string | null
+  coverageMonths: number
+  totalMonthlyIncome: number
+  /** Active, non-portfolio-yield streams only — the take-home headline. */
+  activeMonthlyIncome: number
+  sourceLabel: string
+  streams: RetirementIncomeActualsStream[]
+  aliasRowsCollapsed: number
+}
+
+export interface RetirementSpendingActuals {
+  generatedAt: string
+  firstMonth: string | null
+  lastMonth: string | null
+  coverageMonths: number
+  totalMonthlySpend: number
+  healthcareMonthly: number
+  sourceLabel: string
+}
+
 export interface RetirementInputs {
   schemaVersion: number
   householdId: string

@@ -16,7 +16,9 @@ import {
   fetchHouseholdLedger,
   fetchHouseholdNetWorthTrend,
   fetchHouseholdSpending,
+  fetchRetirementIncomeActuals,
   fetchRetirementPreview,
+  fetchRetirementSpendingActuals,
   type HouseholdDocument,
   type HouseholdDocumentUpload,
   type HouseholdLedgerParams,
@@ -159,6 +161,24 @@ export function useRetirementPreview(params: RetirementPreviewRequest) {
     // Keep the last projection on screen while debounced withdrawal-knob
     // refetches run instead of blanking the results area.
     placeholderData: (previous) => previous,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useRetirementIncomeActuals() {
+  return useQuery({
+    queryKey: ['retirement', 'income-actuals'],
+    queryFn: ({ signal }) => fetchRetirementIncomeActuals({ signal }),
+    staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useRetirementSpendingActuals() {
+  return useQuery({
+    queryKey: ['retirement', 'spending-actuals'],
+    queryFn: ({ signal }) => fetchRetirementSpendingActuals({ signal }),
+    staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
     refetchOnWindowFocus: false,
   })
 }
