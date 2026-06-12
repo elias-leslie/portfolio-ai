@@ -6,12 +6,19 @@ import { MoneyLedgerPanel } from '../MoneyLedgerPanel'
 const useHouseholdLedgerMock = vi.hoisted(() => vi.fn())
 const categorizeMutateAsync = vi.hoisted(() => vi.fn())
 const categorizeIsPending = vi.hoisted(() => ({ value: false }))
+const useTransactionPurchaseItemsMock = vi.hoisted(() => vi.fn())
+const categorizeItemMutateAsync = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdLedger: useHouseholdLedgerMock,
   useCategorizeHouseholdTransaction: () => ({
     mutateAsync: categorizeMutateAsync,
     isPending: categorizeIsPending.value,
+  }),
+  useTransactionPurchaseItems: useTransactionPurchaseItemsMock,
+  useCategorizePurchaseItem: () => ({
+    mutateAsync: categorizeItemMutateAsync,
+    isPending: false,
   }),
 }))
 
@@ -50,6 +57,30 @@ function buildEntry(index: number, overrides = {}) {
     uploadedAt: '2026-04-20T00:00:00Z',
     includedInSpend: true,
     exclusionReason: null,
+    itemCount: 0,
+    itemCategories: [],
+    ...overrides,
+  }
+}
+
+function buildPurchaseItem(index: number, overrides = {}) {
+  return {
+    id: `item-${index}`,
+    transactionId: 'txn-001',
+    productId: `product-${index}`,
+    productName: `Product ${index}`,
+    productMatchStatus: 'matched',
+    productMatchConfidence: 0.98,
+    purchaseDate: '2026-04-02',
+    merchant: 'Merchant 001',
+    description: `Item ${index}`,
+    quantity: 1,
+    unitPrice: null,
+    amount: 2.5,
+    allocatedAmount: 2.5,
+    category: 'Groceries',
+    essentiality: 'essential',
+    categorizationSource: 'item_rules',
     ...overrides,
   }
 }
@@ -103,6 +134,12 @@ describe('MoneyLedgerPanel', () => {
     useHouseholdLedgerMock.mockReset()
     categorizeMutateAsync.mockReset()
     categorizeIsPending.value = false
+    useTransactionPurchaseItemsMock.mockReset()
+    useTransactionPurchaseItemsMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+    })
+    categorizeItemMutateAsync.mockReset()
   })
 
   it('renders the returned page and server counts and hides audit internals', () => {
@@ -316,5 +353,97 @@ describe('MoneyLedgerPanel', () => {
     expect(screen.getByText('Categorized by')).toBeInTheDocument()
     expect(screen.getByText('Manual rule')).toBeInTheDocument()
     expect(screen.getByText('private-checking-april.pdf')).toBeInTheDocument()
+  })
+
+  it('offers no items button when a row has no purchase items', () => {
+    mockLedgerPage([buildEntry(1)])
+
+    render(<MoneyLedgerPanel />)
+
+    expect(
+      screen.queryByRole('button', { name: /\d+ items?/ }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows the split categories line for multi-category itemized charges', () => {
+    mockLedgerPage([
+      buildEntry(1, {
+        itemCount: 17,
+        itemCategories: ['Groceries', 'Household'],
+      }),
+    ])
+
+    render(<MoneyLedgerPanel />)
+
+    expect(screen.getByText('Split: Groceries · Household')).toBeInTheDocument()
+  })
+
+  it('expands purchase items behind an itemized charge with the allocation line', async () => {
+    const user = userEvent.setup()
+    mockLedgerPage([
+      buildEntry(1, { itemCount: 2, itemCategories: ['Groceries'] }),
+    ])
+    useTransactionPurchaseItemsMock.mockReturnValue({
+      data: [
+        buildPurchaseItem(1),
+        buildPurchaseItem(2, { amount: 8.5, allocatedAmount: 8.5 }),
+      ],
+      isLoading: false,
+    })
+
+    render(<MoneyLedgerPanel />)
+
+    // Items load only for the expanded row.
+    expect(screen.queryByText('Item 1')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '2 items' }))
+
+    expect(useTransactionPurchaseItemsMock).toHaveBeenCalledWith('txn-001')
+    expect(screen.getByText('Item 1')).toBeInTheDocument()
+    expect(screen.getByText('Item 2')).toBeInTheDocument()
+    // buildEntry(1).amount is 11; 2.50 + 8.50 reconciles exactly.
+    expect(screen.getByText(/matches the charge exactly/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Hide items' }))
+
+    expect(screen.queryByText('Item 1')).not.toBeInTheDocument()
+  })
+
+  it('recategorizes a purchase item through the item categorize mutation', async () => {
+    const user = userEvent.setup()
+    categorizeItemMutateAsync.mockResolvedValue(true)
+    mockLedgerPage([
+      buildEntry(1, { itemCount: 2, itemCategories: ['Groceries'] }),
+    ])
+    useTransactionPurchaseItemsMock.mockReturnValue({
+      data: [
+        buildPurchaseItem(1),
+        buildPurchaseItem(2, { amount: 8.5, allocatedAmount: 8.5 }),
+      ],
+      isLoading: false,
+    })
+
+    render(<MoneyLedgerPanel />)
+
+    await user.click(screen.getByRole('button', { name: '2 items' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Edit category for Item 1' }),
+    )
+
+    // The product-rule wording replaces the merchant wording for items.
+    expect(
+      screen.getByText(/Apply to this product going forward/),
+    ).toBeInTheDocument()
+
+    await user.clear(screen.getByLabelText('Category'))
+    await user.type(screen.getByLabelText('Category'), 'Household')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(categorizeItemMutateAsync).toHaveBeenCalledWith({
+      itemId: 'item-1',
+      category: 'Household',
+      essentiality: 'essential',
+      applyToProduct: false,
+    })
   })
 })

@@ -187,6 +187,11 @@ class RetirementInputs(BaseModel):
     college_529_value: float = Field(0.0, ge=0.0)
     college_529_real_return: float = Field(0.01, ge=-0.05, le=0.1)
     aca: RetirementACAConfig | None = None
+    # Partial-retirement window (primary retired, spouse still working).
+    # All three are REAL dollars; feature off when net income is None.
+    spouse_net_monthly_income: float | None = Field(None, ge=0.0)
+    partial_retirement_monthly_spend: float | None = Field(None, ge=0.0)
+    spouse_gross_annual_income: float | None = Field(None, ge=0.0)
     as_of_date: date
 
 
@@ -370,6 +375,10 @@ class RetirementDrawdownYear(BaseModel):
     # Part B/D + supplement for members 65+ (REAL $); deterministic, no
     # MAGI coupling below IRMAA (item D part e).
     medicare_premium: float = Field(0.0, ge=0.0)
+    # Partial-retirement window: primary retired, spouse still working.
+    # ``spouse_net_income`` is her nominal take-home offsetting spending.
+    partial_retirement_year: bool = False
+    spouse_net_income: float = Field(0.0, ge=0.0)
 
 
 class RetirementAccountRule(BaseModel):

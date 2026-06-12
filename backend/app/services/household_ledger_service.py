@@ -175,6 +175,32 @@ def _entry_sort_value(
     return sort_dt
 
 
+def _purchase_items_by_transaction(conn: Any) -> dict[str, tuple[int, list[str]]]:
+    """Item count + distinct categories per linked transaction.
+
+    Counts linked items regardless of allocation reconciliation — the ledger
+    badge is a provenance affordance (row expansion), not spend math.
+    """
+    rows = conn.execute(
+        """
+        SELECT i.transaction_id::text,
+               COUNT(*),
+               ARRAY_AGG(DISTINCT i.category)
+        FROM household_purchase_items i
+        WHERE i.transaction_id IS NOT NULL
+          AND i.removed IS NOT TRUE
+        GROUP BY i.transaction_id
+        """
+    ).fetchall()
+    return {
+        str(row[0]): (
+            int(row[1] or 0),
+            [str(category) for category in (row[2] or []) if category],
+        )
+        for row in rows
+    }
+
+
 def _transaction_sql(window_start: str | None, *, limit: int) -> tuple[str, list[Any]]:
     where_clauses: list[str] = ["TRUE"]
     params: list[Any] = []
@@ -315,11 +341,13 @@ class HouseholdLedgerService:
 
         transaction_rows: list[tuple[Any, ...]] = []
         import_rows: list[tuple[Any, ...]] = []
+        items_by_transaction: dict[str, tuple[int, list[str]]] = {}
 
         with service.storage.connection() as conn:
             if normalized_kind in {"all", "transactions"}:
                 tx_sql, tx_params = _transaction_sql(start_date, limit=LEDGER_SCAN_CAP)
                 transaction_rows = conn.execute(tx_sql, tx_params).fetchall()
+                items_by_transaction = _purchase_items_by_transaction(conn)
             if normalized_kind in {"all", "imports"}:
                 import_sql, import_params = _import_sql(start_date, limit=LEDGER_SCAN_CAP)
                 import_rows = conn.execute(import_sql, import_params).fetchall()
@@ -454,9 +482,12 @@ class HouseholdLedgerService:
             else:
                 exclusion_reason = excluded_row_hashes.get(str(row[12]))
                 included_in_spend = exclusion_reason is None
+            item_count, item_categories = items_by_transaction.get(str(row[0]), (0, []))
             entry = HouseholdLedgerEntry(
                 id=str(row[0]),
                 kind="transaction",
+                item_count=item_count,
+                item_categories=item_categories,
                 flow_type=effective_flow,
                 direction=_entry_direction(effective_flow, amount),
                 household_account_id=str(row[2]) if row[2] is not None else None,

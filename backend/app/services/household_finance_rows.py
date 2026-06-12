@@ -190,6 +190,9 @@ def row_to_profile(
         aca_premium_age21_override=to_float(row[46]) if len(row) > 46 else None,
         aca_oop_monthly=to_float(row[47]) if len(row) > 47 else None,
         medicare_monthly_per_person=to_float(row[48]) if len(row) > 48 else None,
+        spouse_net_monthly_income=to_float(row[49]) if len(row) > 49 else None,
+        partial_retirement_monthly_spend=to_float(row[50]) if len(row) > 50 else None,
+        spouse_gross_annual_income=to_float(row[51]) if len(row) > 51 else None,
     )
 
 

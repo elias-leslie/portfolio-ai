@@ -153,6 +153,8 @@ def test_ledger_returns_category_options_from_transactions_only() -> None:
                         {},
                     ),
                 ],
+                # Purchase-items query runs between transactions and imports.
+                [],
                 [
                     (
                         "import-1",
@@ -336,6 +338,44 @@ def test_ledger_filters_by_account_and_search() -> None:
     )
     assert by_search.filtered_count == 1
     assert by_search.entries[0].id == "b"
+
+
+def test_ledger_attaches_purchase_item_counts_and_categories() -> None:
+    service = HouseholdLedgerService()
+    fake_service = SimpleNamespace(
+        storage=_SequenceStorage(
+            [
+                [
+                    _txn_row(
+                        row_id="itemized",
+                        account_label="Card",
+                        merchant="Walmart",
+                        description="WALMART #5831",
+                        amount="99.00",
+                        day_offset=0,
+                    ),
+                    _txn_row(
+                        row_id="plain",
+                        account_label="Card",
+                        merchant="Shell",
+                        description="SHELL GAS",
+                        amount="30.00",
+                        day_offset=1,
+                    ),
+                ],
+                # Purchase-items aggregate: (transaction_id, count, categories).
+                [("itemized", 17, ["Groceries", "Household"])],
+            ]
+        )
+    )
+
+    ledger = service.get_ledger(fake_service, window="all", kind="transactions")
+
+    by_id = {entry.id: entry for entry in ledger.entries}
+    assert by_id["itemized"].item_count == 17
+    assert by_id["itemized"].item_categories == ["Groceries", "Household"]
+    assert by_id["plain"].item_count == 0
+    assert by_id["plain"].item_categories == []
 
 
 def test_ledger_sorts_by_amount_ascending() -> None:

@@ -13,6 +13,7 @@ import { MoneyBudgetPanel } from '@/components/money/MoneyBudgetPanel'
 import { MoneyLedgerPanel } from '@/components/money/MoneyLedgerPanel'
 import { MoneyLeversPanel } from '@/components/money/MoneyLeversPanel'
 import { MoneyOverviewPanel } from '@/components/money/MoneyOverviewPanel'
+import { MoneyPurchasesPanel } from '@/components/money/MoneyPurchasesPanel'
 import { MoneyRetirementPanel } from '@/components/money/MoneyRetirementPanel'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { PageContainer } from '@/components/shared/PageContainer'
@@ -180,6 +181,15 @@ function MoneyPageContent() {
       value: 'spending',
       label: 'Budget',
       content: <MoneyBudgetPanel />,
+    },
+    {
+      value: 'purchases',
+      label: 'Purchases',
+      content: (
+        <MoneyPurchasesPanel
+          priceInsights={dashboard?.reports.priceInsights ?? []}
+        />
+      ),
     },
     {
       value: 'levers',

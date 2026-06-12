@@ -93,6 +93,9 @@ export interface HouseholdProfile {
   acaPremiumAge21Override?: number | null
   acaOopMonthly?: number | null
   medicareMonthlyPerPerson?: number | null
+  spouseNetMonthlyIncome?: number | null
+  partialRetirementMonthlySpend?: number | null
+  spouseGrossAnnualIncome?: number | null
   notes: string | null
   createdAt: string
   updatedAt: string
@@ -435,6 +438,10 @@ export interface RetirementPreviewRequest {
   primarySocialSecurityStartAge?: number | null
   spouseSocialSecurityStartAge?: number | null
   socialSecurityPayableRatio?: number | null
+  /** Partial-retirement window levers (real $); net income gates the feature. */
+  spouseNetMonthlyIncome?: number | null
+  partialRetirementMonthlySpend?: number | null
+  spouseGrossAnnualIncome?: number | null
   withdrawal?: RetirementWithdrawalConfig | null
   /** Explicit schedule (even empty) wins over the persisted one. */
   collegeSchedule?: RetirementCollegeYear[] | null
@@ -661,6 +668,10 @@ export interface RetirementDrawdownYear {
   acaPlanningNet: number
   magi: number
   medicarePremium: number
+  /** Primary retired, spouse still working: gap funded through the seam. */
+  partialRetirementYear: boolean
+  /** Spouse nominal take-home offsetting that year's spending. */
+  spouseNetIncome: number
 }
 
 export interface RetirementLeverImpact {
@@ -928,6 +939,9 @@ export interface HouseholdQuestionList {
 export interface HouseholdLedgerEntry {
   id: string
   kind: string
+  /** Linked purchase items; >0 enables the ledger row item expansion. */
+  itemCount: number
+  itemCategories: string[]
   flowType?: string | null
   direction: string
   householdAccountId?: string | null
@@ -1016,6 +1030,9 @@ export interface HouseholdSpendingCategory {
 
 export interface HouseholdSpendingTransaction {
   id: string
+  /** Reconciled purchase-item splits behind this charge (Split badge). */
+  itemCount?: number
+  itemCategories?: string[]
   date: string
   merchant: string
   description: string
@@ -1196,6 +1213,9 @@ export interface HouseholdProfileUpdate {
   acaPremiumAge21Override?: number | null
   acaOopMonthly?: number | null
   medicareMonthlyPerPerson?: number | null
+  spouseNetMonthlyIncome?: number | null
+  partialRetirementMonthlySpend?: number | null
+  spouseGrossAnnualIncome?: number | null
   notes?: string | null
 }
 
@@ -1218,4 +1238,99 @@ export interface HouseholdTransactionCategoryUpdate {
   category: string
   essentiality: string
   applyToMerchant?: boolean
+}
+
+// --- Item-level purchase tracking (Purchases tab) ---
+// Wire keys are digit-free end to end; see backend household_finance_types.
+
+export interface HouseholdPurchaseItem {
+  id: string
+  transactionId?: string | null
+  productId?: string | null
+  productName?: string | null
+  productMatchStatus: string
+  productMatchConfidence?: number | null
+  purchaseDate?: string | null
+  merchant?: string | null
+  description: string
+  quantity?: number | null
+  unitPrice?: number | null
+  amount: number
+  allocatedAmount?: number | null
+  category: string
+  essentiality: string
+  categorizationSource: string
+}
+
+export interface HouseholdProductPricePoint {
+  observedDate: string
+  merchant?: string | null
+  totalPrice: number
+  quantity?: number | null
+  unitPrice?: number | null
+  source: string
+}
+
+export interface HouseholdProductSummary {
+  id: string
+  canonicalName: string
+  brand?: string | null
+  packageDisplayLabel?: string | null
+  imageUrl?: string | null
+  purchaseCount: number
+  observationCount: number
+  needsReviewCount: number
+  firstObservedDate?: string | null
+  lastObservedDate?: string | null
+  latestPrice?: number | null
+  latestUnitPrice?: number | null
+  latestMerchant?: string | null
+  pricePoints: HouseholdProductPricePoint[]
+}
+
+export interface HouseholdProductList {
+  generatedAt: string
+  totalCount: number
+  needsReviewTotal: number
+  offset: number
+  limit: number
+  returnedCount: number
+  products: HouseholdProductSummary[]
+}
+
+export interface HouseholdProductIdentifier {
+  kind: string
+  value: string
+}
+
+export interface HouseholdProductDetail {
+  generatedAt: string
+  product: HouseholdProductSummary
+  identifiers: HouseholdProductIdentifier[]
+  observations: HouseholdProductPricePoint[]
+  recentItems: HouseholdPurchaseItem[]
+}
+
+export interface HouseholdPurchaseItemReviewQueue {
+  generatedAt: string
+  totalCount: number
+  items: HouseholdPurchaseItem[]
+}
+
+export interface HouseholdProductListParams {
+  search?: string
+  sort?: 'recent' | 'frequency' | 'name'
+  limit?: number
+  offset?: number
+}
+
+export interface HouseholdPurchaseItemCategoryUpdate {
+  category: string
+  essentiality: string
+  applyToProduct?: boolean
+}
+
+export interface HouseholdPurchaseItemProductAssignment {
+  action: 'confirm' | 'reassign' | 'detach'
+  productId?: string | null
 }

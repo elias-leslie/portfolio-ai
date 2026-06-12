@@ -397,6 +397,9 @@ class RetirementPlanningService:
         social_security_payable_ratio: float | None = None,
         primary_age: int | None = None,
         spouse_age: int | None = None,
+        spouse_net_monthly_income: float | None = None,
+        partial_retirement_monthly_spend: float | None = None,
+        spouse_gross_annual_income: float | None = None,
         as_of_date: date | None = None,
     ) -> RetirementInputs:
         """Pull inputs from household_planning + portfolio totals.
@@ -445,6 +448,9 @@ class RetirementPlanningService:
             ),
             social_security_payable_ratio=_social_security_payable_ratio(social_security_payable_ratio),
             social_security_depletion_year=DEFAULT_SOCIAL_SECURITY_DEPLETION_YEAR,
+            spouse_net_monthly_income=spouse_net_monthly_income,
+            partial_retirement_monthly_spend=partial_retirement_monthly_spend,
+            spouse_gross_annual_income=spouse_gross_annual_income,
             as_of_date=anchor,
         )
 
@@ -501,6 +507,9 @@ class RetirementPlanningService:
         withdrawal: WithdrawalConfig | None = None,
         college_schedule: tuple[RetirementCollegeYear, ...] | None = None,
         aca: RetirementACAConfig | None = None,
+        spouse_net_monthly_income: float | None = None,
+        partial_retirement_monthly_spend: float | None = None,
+        spouse_gross_annual_income: float | None = None,
         trials: int = DEFAULT_PREVIEW_TRIALS,
         seed: int | None = 7,
         as_of_date: date | None = None,
@@ -546,6 +555,14 @@ class RetirementPlanningService:
         if social_security_payable_ratio is None and profile is not None:
             social_security_payable_ratio = getattr(profile, "social_security_payable_ratio", None)
         social_security_payable_ratio = _social_security_payable_ratio(social_security_payable_ratio)
+        if spouse_net_monthly_income is None and profile is not None:
+            spouse_net_monthly_income = getattr(profile, "spouse_net_monthly_income", None)
+        if partial_retirement_monthly_spend is None and profile is not None:
+            partial_retirement_monthly_spend = getattr(
+                profile, "partial_retirement_monthly_spend", None
+            )
+        if spouse_gross_annual_income is None and profile is not None:
+            spouse_gross_annual_income = getattr(profile, "spouse_gross_annual_income", None)
 
         inputs = self.build_inputs(
             household_id,
@@ -561,6 +578,9 @@ class RetirementPlanningService:
             social_security_payable_ratio=social_security_payable_ratio,
             primary_age=primary_age,
             spouse_age=spouse_age,
+            spouse_net_monthly_income=spouse_net_monthly_income,
+            partial_retirement_monthly_spend=partial_retirement_monthly_spend,
+            spouse_gross_annual_income=spouse_gross_annual_income,
             as_of_date=as_of_date,
         )
         inputs = _append_preview_social_security(
@@ -1569,6 +1589,24 @@ class RetirementPlanningService:
                 # for SS-taxability/bracket fill, with no double-count.
                 spending = wy.portfolio_draw * inflation_factor + income
 
+            # Partial-retirement window (primary retired, spouse working):
+            # fund the spend-minus-net gap through the seam; her wages stack
+            # the brackets without their own tax hitting the portfolio. The
+            # engine never runs in these years (predicate ends at household
+            # retirement, so ``wy is None`` here).
+            partial = _partial_year_amounts_real(inputs, primary_age)
+            partial_spend_nominal = 0.0
+            partial_net_nominal = 0.0
+            partial_wages_nominal = 0.0
+            partial_gap_nominal = 0.0
+            if partial is not None:
+                spend_real, net_real, gross_real = partial
+                partial_spend_nominal = spend_real * inflation_factor
+                partial_net_nominal = net_real * inflation_factor
+                partial_wages_nominal = gross_real * inflation_factor
+                partial_gap_nominal = max(0.0, spend_real - net_real) * inflation_factor
+                spending = partial_gap_nominal
+
             # College spend: 529 sleeve first; overflow lands on the
             # portfolio in retirement years (working years pay it from
             # salary, which the model never spends from the portfolio).
@@ -1600,6 +1638,7 @@ class RetirementPlanningService:
                 inflation_factor=inflation_factor,
                 tax_context=tax_context,
                 gain_ratio=gain_ratio,
+                external_taxed_income=partial_wages_nominal,
             )
             aca_subsidy = aca_plan.planning_subsidy if aca_plan is not None else 0.0
             aca_net = aca_plan.planning_net if aca_plan is not None else 0.0
@@ -1630,7 +1669,7 @@ class RetirementPlanningService:
                     )
             withdrawals = outcome.withdrawals
             gross_withdrawal = round(sum(withdrawals.values()), 2)
-            if wy is not None:
+            if wy is not None or partial_gap_nominal > 0.0:
                 # R1: an RMD forced beyond the plan leaves post-tax surplus —
                 # reinvest it in taxable so the household only consumes the
                 # spending target.
@@ -1653,7 +1692,11 @@ class RetirementPlanningService:
                     year_index=year_index,
                     calendar_year=calendar_year,
                     primary_age=primary_age,
-                    spending_need=round(wy.spending_target * inflation_factor, 2) if wy is not None else 0.0,
+                    spending_need=(
+                        round(wy.spending_target * inflation_factor, 2)
+                        if wy is not None
+                        else round(partial_spend_nominal, 2)
+                    ),
                     income=round(income, 2),
                     gross_withdrawal=gross_withdrawal,
                     tax_estimate=round(outcome.tax_estimate, 2),
@@ -1695,6 +1738,8 @@ class RetirementPlanningService:
                     medicare_premium=(
                         round(aca_plan.medicare_premium, 2) if aca_plan is not None else 0.0
                     ),
+                    partial_retirement_year=partial is not None,
+                    spouse_net_income=round(partial_net_nominal, 2),
                 )
             )
         return rows
@@ -2808,6 +2853,7 @@ def _apply_tax_aware_withdrawals(
     inflation_factor: float,
     tax_context: FederalTaxContext,
     gain_ratio: float = TAXABLE_WITHDRAWAL_GAIN_RATIO,
+    external_taxed_income: float = 0.0,
 ) -> WithdrawalOutcome:
     """Greedy bucket-order withdrawals grossed up for federal tax + penalties.
 
@@ -2815,6 +2861,12 @@ def _apply_tax_aware_withdrawals(
     varies a single bucket at a time, so the tax/penalty contribution of all
     settled buckets is folded into scalars and each probe costs exactly one
     ``_federal_tax_estimate`` call plus arithmetic.
+
+    ``external_taxed_income`` (nominal) stacks the brackets — draws are taxed
+    at the marginal rate above it — but its own tax (``external_base_tax``,
+    the tax on those wages alone) is never charged against the portfolio:
+    the partial-retirement window feeds spouse take-home as the offset, so
+    her wage tax already left her paycheck.
     """
     withdrawals = dict.fromkeys(DEFAULT_DRAWDOWN_ORDER, 0.0)
     income_ordinary = income_components["ordinary"]
@@ -2828,9 +2880,21 @@ def _apply_tax_aware_withdrawals(
     def tax_for_amounts(ordinary_withdrawals: float, taxable_gains: float) -> float:
         return _federal_tax_estimate(
             tax_context,
-            ordinary_income=income_ordinary + ordinary_withdrawals,
+            ordinary_income=external_taxed_income + income_ordinary + ordinary_withdrawals,
             social_security_benefits=income_social_security,
             long_term_capital_gains=taxable_gains,
+            primary_age=primary_age,
+            spouse_age=spouse_age,
+            inflation_factor=inflation_factor,
+        )
+
+    external_base_tax = 0.0
+    if external_taxed_income > 0.0:
+        external_base_tax = _federal_tax_estimate(
+            tax_context,
+            ordinary_income=external_taxed_income,
+            social_security_benefits=0.0,
+            long_term_capital_gains=0.0,
             primary_age=primary_age,
             spouse_age=spouse_age,
             inflation_factor=inflation_factor,
@@ -2865,7 +2929,7 @@ def _apply_tax_aware_withdrawals(
         ordinary = ordinary_base + (extra if bucket in _ORDINARY_INCOME_BUCKETS else 0.0)
         gains = gains_base + (extra * gain_ratio if bucket == "taxable" else 0.0)
         penalty = penalty_base + extra * penalty_rates[bucket]
-        tax = tax_for_amounts(ordinary, gains)
+        tax = tax_for_amounts(ordinary, gains) - external_base_tax
         return income_total + gross_base + extra - tax - penalty - spending
 
     # ``extra = 0`` gives the same surplus for every bucket, so the running
@@ -2924,7 +2988,7 @@ def _apply_tax_aware_withdrawals(
         withdrawals[bucket] += gross
         ordinary_base, gains_base, penalty_base, gross_base = settled_bases()
 
-    tax_estimate = tax_for_amounts(ordinary_base, gains_base)
+    tax_estimate = max(0.0, tax_for_amounts(ordinary_base, gains_base) - external_base_tax)
     return WithdrawalOutcome(
         withdrawals=withdrawals,
         tax_estimate=tax_estimate,
@@ -2989,6 +3053,11 @@ def _run_tax_aware_monte_carlo(
     # per-year values once instead of once per trial (this loop is the
     # preview's latency hot path).
     year_contexts: list[tuple[float, int | None, dict[str, float]]] = []
+    # Partial-retirement window (primary retired, spouse working): per-year
+    # nominal gap drawn from the portfolio and nominal wages stacking the
+    # brackets. All zeros when the feature is off.
+    partial_gap_nominal = [0.0] * inputs.horizon_years
+    partial_wages_nominal = [0.0] * inputs.horizon_years
     for year_index in range(inputs.horizon_years):
         inflation_factor = (1.0 + inputs.inflation_rate) ** year_index
         spouse_age = inputs.spouse_age + year_index if inputs.spouse_age is not None else None
@@ -3001,6 +3070,11 @@ def _run_tax_aware_monte_carlo(
             social_security_depletion_year=inputs.social_security_depletion_year,
         )
         year_contexts.append((inflation_factor, spouse_age, income_components))
+        partial = _partial_year_amounts_real(inputs, inputs.primary_age + year_index)
+        if partial is not None:
+            spend_real, net_real, gross_real = partial
+            partial_gap_nominal[year_index] = max(0.0, spend_real - net_real) * inflation_factor
+            partial_wages_nominal[year_index] = gross_real * inflation_factor
     returns_by_trial = portfolio_returns.tolist()
 
     # College overflow is trial-independent: the 529 sleeve grows at a fixed
@@ -3050,7 +3124,9 @@ def _run_tax_aware_monte_carlo(
             income = income_components["total"]
 
             wy = None
-            spending = 0.0
+            # Partial-retirement window years fund the spend-minus-net gap
+            # through the seam; overwritten when the engine runs.
+            spending = partial_gap_nominal[year_index]
             if primary_age >= household_retirement_age:
                 portfolio_bal_real = sum(balances.values()) / inflation_factor
                 if guardrails_state is not None:
@@ -3079,11 +3155,15 @@ def _run_tax_aware_monte_carlo(
                 ):
                     first_warning_year[trial] = year_index
 
-            if wy is None and primary_age < RMD_START_AGE:
-                # Pre-retirement, pre-RMD: no spending need and no forced
-                # distribution — the tax seam is a guaranteed no-op (tax on
-                # income alone never exceeds the income), so skip its
-                # federal-stack probes entirely.
+            if (
+                wy is None
+                and primary_age < RMD_START_AGE
+                and partial_gap_nominal[year_index] <= 0.0
+            ):
+                # Pre-retirement, pre-RMD, no partial-window gap: no spending
+                # need and no forced distribution — the tax seam is a
+                # guaranteed no-op (tax on income alone never exceeds the
+                # income), so skip its federal-stack probes entirely.
                 failed = False
             else:
                 # ACA true-up (premium years): reprice the subsidy off the
@@ -3107,6 +3187,7 @@ def _run_tax_aware_monte_carlo(
                     inflation_factor=inflation_factor,
                     tax_context=tax_context,
                     gain_ratio=gain_ratio,
+                    external_taxed_income=partial_wages_nominal[year_index],
                 )
                 if aca_plan is not None and pre_seam_balances is not None:
                     credit = premium_tax_credit_annual(
@@ -3130,7 +3211,7 @@ def _run_tax_aware_monte_carlo(
                             tax_context=tax_context,
                             gain_ratio=gain_ratio,
                         )
-                if wy is not None:
+                if wy is not None or partial_gap_nominal[year_index] > 0.0:
                     gross_withdrawal = sum(outcome.withdrawals.values())
                     surplus_net = (
                         income + gross_withdrawal - outcome.tax_estimate - outcome.penalty_estimate - spending
@@ -3385,6 +3466,30 @@ def _household_retirement_primary_age(inputs: RetirementInputs) -> int:
     if spouse_primary_age is None:
         return inputs.retirement_age
     return max(inputs.retirement_age, spouse_primary_age)
+
+
+def _partial_year_amounts_real(
+    inputs: RetirementInputs, primary_age: int
+) -> tuple[float, float, float] | None:
+    """(spend, spouse net, spouse gross) annual REAL $ for a partial-retirement year.
+
+    A partial-retirement year is one where the primary has retired but the
+    spouse is still working: ``spouse_net_monthly_income`` gates the feature
+    (None == off == legacy behavior). Spend falls back to ``annual_expenses``
+    when no window-specific override is set.
+    """
+    if inputs.spouse_net_monthly_income is None:
+        return None
+    if not inputs.retirement_age <= primary_age < _household_retirement_primary_age(inputs):
+        return None
+    spend = (
+        inputs.partial_retirement_monthly_spend * 12.0
+        if inputs.partial_retirement_monthly_spend is not None
+        else inputs.annual_expenses
+    )
+    net = inputs.spouse_net_monthly_income * 12.0
+    gross = inputs.spouse_gross_annual_income or 0.0
+    return spend, net, gross
 
 
 def _contribution_bucket(balances: dict[str, float]) -> str:

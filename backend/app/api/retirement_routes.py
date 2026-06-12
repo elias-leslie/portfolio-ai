@@ -82,6 +82,11 @@ class RunScenarioRequest(BaseModel):
     social_security_payable_ratio: float | None = Field(None, ge=0.0, le=1.0)
     primary_age: int | None = Field(None, ge=18, le=120)
     spouse_age: int | None = Field(None, ge=18, le=120)
+    # Partial-retirement window levers (REAL $); net income gates the
+    # feature, None = off (preview falls back to profile columns).
+    spouse_net_monthly_income: float | None = Field(None, ge=0.0)
+    partial_retirement_monthly_spend: float | None = Field(None, ge=0.0)
+    spouse_gross_annual_income: float | None = Field(None, ge=0.0)
     as_of_date: date | None = None
     # Floor-and-upside withdrawal plan; omit for profile-persisted
     # defaults (preview) or spend-the-gap semantics (scenarios).
@@ -127,6 +132,9 @@ async def run_scenario(payload: RunScenarioRequest) -> dict[str, Any]:
             social_security_payable_ratio=payload.social_security_payable_ratio,
             primary_age=payload.primary_age,
             spouse_age=payload.spouse_age,
+            spouse_net_monthly_income=payload.spouse_net_monthly_income,
+            partial_retirement_monthly_spend=payload.partial_retirement_monthly_spend,
+            spouse_gross_annual_income=payload.spouse_gross_annual_income,
             as_of_date=payload.as_of_date,
         )
         if payload.withdrawal is not None:
@@ -173,6 +181,9 @@ async def preview(payload: PreviewRequest) -> dict[str, Any]:
                 tuple(payload.college_schedule) if payload.college_schedule is not None else None
             ),
             aca=payload.aca,
+            spouse_net_monthly_income=payload.spouse_net_monthly_income,
+            partial_retirement_monthly_spend=payload.partial_retirement_monthly_spend,
+            spouse_gross_annual_income=payload.spouse_gross_annual_income,
             trials=payload.trials,
             seed=payload.seed,
             as_of_date=payload.as_of_date,

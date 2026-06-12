@@ -35,7 +35,16 @@ from app.models.household_finance_types import (
     HouseholdOpportunity,
     HouseholdOverview,
     HouseholdPriceInsight,
+    HouseholdProductDetail,
+    HouseholdProductIdentifier,
+    HouseholdProductList,
+    HouseholdProductMergeRequest,
+    HouseholdProductPricePoint,
+    HouseholdProductSummary,
+    HouseholdPurchaseItem,
     HouseholdPurchaseItemCategoryUpdate,
+    HouseholdPurchaseItemProductAssignment,
+    HouseholdPurchaseItemReviewQueue,
     HouseholdQuestion,
     HouseholdQuestionList,
     HouseholdRecentTransaction,
@@ -97,9 +106,18 @@ __all__ = [
     "HouseholdOpportunity",
     "HouseholdOverview",
     "HouseholdPriceInsight",
+    "HouseholdProductDetail",
+    "HouseholdProductIdentifier",
+    "HouseholdProductList",
+    "HouseholdProductMergeRequest",
+    "HouseholdProductPricePoint",
+    "HouseholdProductSummary",
     "HouseholdProfile",
     "HouseholdProfileUpdate",
+    "HouseholdPurchaseItem",
     "HouseholdPurchaseItemCategoryUpdate",
+    "HouseholdPurchaseItemProductAssignment",
+    "HouseholdPurchaseItemReviewQueue",
     "HouseholdQuestion",
     "HouseholdQuestionAnswer",
     "HouseholdQuestionList",
@@ -175,6 +193,9 @@ class HouseholdProfile(BaseModel):
     aca_premium_age21_override: float | None = None
     aca_oop_monthly: float | None = None
     medicare_monthly_per_person: float | None = None
+    spouse_net_monthly_income: float | None = None
+    partial_retirement_monthly_spend: float | None = None
+    spouse_gross_annual_income: float | None = None
     notes: str | None = None
     created_at: str
     updated_at: str
@@ -235,6 +256,9 @@ class HouseholdProfileUpdate(BaseModel):
     )
     aca_oop_monthly: float | None = None
     medicare_monthly_per_person: float | None = None
+    spouse_net_monthly_income: float | None = None
+    partial_retirement_monthly_spend: float | None = None
+    spouse_gross_annual_income: float | None = None
     notes: str | None = None
 
 

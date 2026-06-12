@@ -6,7 +6,6 @@ import { CategoryPressureTable } from '@/components/money/CategoryPressureTable'
 import { buildLevers } from '@/components/money/lever-helpers'
 import { MerchantDragTable } from '@/components/money/MerchantDragTable'
 import { aggregateMerchants } from '@/components/money/merchant-aggregation'
-import { PriceSignalsTable } from '@/components/money/PriceSignalsTable'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
@@ -400,21 +399,6 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
           isLoading={isLoading}
           hasData={Boolean(spending)}
         />
-      </SectionCard>
-
-      <SectionCard
-        variant="surface"
-        title="Price Signals"
-        description="Order-history evidence only. Ticket or unit drift belongs here, not in ledger totals."
-      >
-        {visiblePriceInsights.length > 0 ? (
-          <PriceSignalsTable rows={visiblePriceInsights} />
-        ) : (
-          <UnlockPanel
-            title="No price-drift evidence yet."
-            detail="Add receipt or order-history evidence and this section will flag ticket creep, unit-price jumps, and shrinkflation before they silently harden."
-          />
-        )}
       </SectionCard>
     </div>
   )

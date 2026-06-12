@@ -1445,12 +1445,20 @@ def test_build_spending_view_item_splits_move_category_mix_not_totals() -> None:
     baseline = _view({})
     split = _view(splits)
 
-    # Summary, monthly trend, and the transaction list are split-invariant.
+    # Summary, monthly trend, and the transaction list are split-invariant —
+    # except the Split-badge metadata, which is exactly the reconciled splits.
     assert split.summary == baseline.summary
     assert split.summary.total_spend == 100.0
     assert split.summary.transaction_count == 2
     assert split.monthly_trend == baseline.monthly_trend
-    assert split.transactions == baseline.transactions
+    assert [
+        tx.model_copy(update={"item_count": 0, "item_categories": []})
+        for tx in split.transactions
+    ] == baseline.transactions
+    badges = {tx.id: (tx.item_count, tx.item_categories) for tx in split.transactions}
+    assert badges["tx-itemized"] == (2, ["Personal Care", "Household"])
+    assert badges["tx-plain"] == (0, [])
+    assert all(tx.item_count == 0 and tx.item_categories == [] for tx in baseline.transactions)
 
     # Category mix moves to the item categories, penny-exact.
     split_totals = {entry.category: entry.total_spend for entry in split.categories}

@@ -585,6 +585,35 @@ function acaConfigFromDraft(aca: AcaDraft): RetirementAcaConfig {
   }
 }
 
+// Partial-retirement window (you retired, spouse still working). Spouse net
+// gates the feature: blank = off = legacy behavior.
+type PartialDraft = {
+  spouseNetMonthly: string
+  windowSpendMonthly: string
+  spouseGrossAnnual: string
+}
+
+function defaultPartialDraft(
+  dashboard: HouseholdFinanceDashboard,
+): PartialDraft {
+  const profile = dashboard.profile
+  return {
+    spouseNetMonthly: amountInput(profile.spouseNetMonthlyIncome),
+    windowSpendMonthly: amountInput(profile.partialRetirementMonthlySpend),
+    spouseGrossAnnual: amountInput(profile.spouseGrossAnnualIncome),
+  }
+}
+
+function partialRequestFields(partial: PartialDraft) {
+  return {
+    spouseNetMonthlyIncome: parseOptionalAmount(partial.spouseNetMonthly),
+    partialRetirementMonthlySpend: parseOptionalAmount(
+      partial.windowSpendMonthly,
+    ),
+    spouseGrossAnnualIncome: parseOptionalAmount(partial.spouseGrossAnnual),
+  }
+}
+
 function collegeScheduleFromDraft(
   withdrawal: WithdrawalDraft,
 ): RetirementCollegeYear[] {
@@ -672,6 +701,7 @@ function buildRequest(
   tickerMix = '',
   withdrawal?: WithdrawalDraft,
   aca?: AcaDraft,
+  partial?: PartialDraft,
 ): RetirementPreviewRequest {
   const assetAllocation =
     allocationMode === 'classes' && allocationDraft
@@ -726,6 +756,7 @@ function buildRequest(
     withdrawal: withdrawal ? withdrawalConfigFromDraft(withdrawal) : null,
     collegeSchedule: withdrawal ? collegeScheduleFromDraft(withdrawal) : null,
     aca: aca ? acaConfigFromDraft(aca) : null,
+    ...(partial ? partialRequestFields(partial) : {}),
     trials: 2500,
     seed: 7,
   }
@@ -806,6 +837,9 @@ export function MoneyRetirementPanel({
     defaultWithdrawalDraft(dashboard),
   )
   const [acaDraft, setAcaDraft] = useState(() => defaultAcaDraft(dashboard))
+  const [partialDraft, setPartialDraft] = useState(() =>
+    defaultPartialDraft(dashboard),
+  )
   const [plannerOpen, setPlannerOpen] = useState(false)
   const [withdrawalOpen, setWithdrawalOpen] = useState(true)
   const [allocationOpen, setAllocationOpen] = useState(false)
@@ -861,6 +895,7 @@ export function MoneyRetirementPanel({
       '',
       defaultWithdrawalDraft(dashboard),
       defaultAcaDraft(dashboard),
+      defaultPartialDraft(dashboard),
     ),
   )
   const updateProfile = useUpdateHouseholdProfile()
@@ -883,6 +918,13 @@ export function MoneyRetirementPanel({
       aca: acaConfigFromDraft(debouncedAca),
     }))
   }, [debouncedAca])
+  const debouncedPartial = useDebounce(partialDraft, 250)
+  useEffect(() => {
+    setRequest((current) => ({
+      ...current,
+      ...partialRequestFields(debouncedPartial),
+    }))
+  }, [debouncedPartial])
   const pendingRequest = useMemo(
     () =>
       buildRequest(
@@ -893,6 +935,7 @@ export function MoneyRetirementPanel({
         tickerMix,
         withdrawalDraft,
         acaDraft,
+        partialDraft,
       ),
     [
       dashboard.profile.id,
@@ -902,6 +945,7 @@ export function MoneyRetirementPanel({
       tickerMix,
       withdrawalDraft,
       acaDraft,
+      partialDraft,
     ],
   )
   // Edits update `draft`/allocation state but only "Run preview" pushes them
@@ -912,6 +956,25 @@ export function MoneyRetirementPanel({
     [pendingRequest, request],
   )
   const fullRetirementAge = householdRetirementAge(preview?.inputs)
+  // Partial-retirement window: years where the primary is retired but the
+  // household (spouse) is not. Caption-only derivation.
+  const partialWindowStartAge =
+    preview?.inputs.retirementAge ?? parseNumber(draft.retirementAge, 65)
+  const partialWindowYears = Math.max(
+    0,
+    fullRetirementAge - partialWindowStartAge,
+  )
+  // Largest recurring take-home stream from Money transactions — a
+  // display-only hint for the spouse-net lever, never fed into the sim.
+  const detectedTakeHome = useMemo(() => {
+    const candidates = (incomeActuals?.streams ?? []).filter(
+      (stream) => stream.cadence !== 'one-off' && !stream.portfolioYield,
+    )
+    if (candidates.length === 0) return null
+    return candidates.reduce((best, stream) =>
+      stream.monthlyAverage > best.monthlyAverage ? stream : best,
+    )
+  }, [incomeActuals])
   const taxWarnings = taxAssumptionWarnings(preview?.taxAssumptions)
   const taxEstimateTooltip = taxAssumptionTooltip(
     preview?.taxAssumptions,
@@ -922,9 +985,11 @@ export function MoneyRetirementPanel({
     const nextDraft = defaultDraft(dashboard)
     const nextWithdrawal = defaultWithdrawalDraft(dashboard)
     const nextAca = defaultAcaDraft(dashboard)
+    const nextPartial = defaultPartialDraft(dashboard)
     setDraft(nextDraft)
     setWithdrawalDraft(nextWithdrawal)
     setAcaDraft(nextAca)
+    setPartialDraft(nextPartial)
     setAllocationMode('current')
     setAllocationDraft(allocationDraftFromPreview(undefined))
     setAccountDetailsOpen(false)
@@ -937,6 +1002,7 @@ export function MoneyRetirementPanel({
         '',
         nextWithdrawal,
         nextAca,
+        nextPartial,
       ),
     )
   }, [dashboard])
@@ -993,7 +1059,10 @@ export function MoneyRetirementPanel({
   const withdrawalData = useMemo(
     () =>
       (preview?.drawdownSchedule ?? [])
-        .filter((row) => row.primaryAge >= fullRetirementAge)
+        .filter(
+          (row) =>
+            row.partialRetirementYear || row.primaryAge >= fullRetirementAge,
+        )
         .slice(0, 30)
         .map((row) => ({
           age: row.primaryAge,
@@ -1045,7 +1114,8 @@ export function MoneyRetirementPanel({
   const drawdownRows = useMemo(
     () =>
       (preview?.drawdownSchedule ?? []).filter(
-        (row) => row.primaryAge >= fullRetirementAge,
+        (row) =>
+          row.partialRetirementYear || row.primaryAge >= fullRetirementAge,
       ),
     [preview, fullRetirementAge],
   )
@@ -1064,12 +1134,18 @@ export function MoneyRetirementPanel({
       const bridgeNominal = row.bridgeDraw * factor
       const collegeNominal =
         Math.max(0, row.collegeCost - row.college529Draw) * factor
-      const targetNominal = row.spendingTarget * factor
+      // Partial years: the engine never ran, so spendingNeed (already
+      // nominal) is the window spend target and spouse take-home joins
+      // income in the funding math.
+      const targetNominal = row.partialRetirementYear
+        ? row.spendingNeed
+        : row.spendingTarget * factor
+      const incomeNominal = row.income + (row.spouseNetIncome ?? 0)
       const spendNominal = Math.min(
         targetNominal,
         Math.max(
           0,
-          row.income + bridgeNominal + row.netWithdrawal - collegeNominal,
+          incomeNominal + bridgeNominal + row.netWithdrawal - collegeNominal,
         ),
       )
       // ACA/Medicare row fields are real dollars; scale like bridgeDraw.
@@ -1080,7 +1156,8 @@ export function MoneyRetirementPanel({
         displaySpend: spendNominal * scale,
         displayTarget: targetNominal * scale,
         spendTrimmed: targetNominal - spendNominal > 1,
-        displayIncome: row.income * scale,
+        displayIncome: incomeNominal * scale,
+        displaySpouseNet: (row.spouseNetIncome ?? 0) * scale,
         displayBridge: bridgeNominal * scale,
         displayCollege: collegeNominal * scale,
         displayGross: row.grossWithdrawal * scale,
@@ -1279,6 +1356,7 @@ export function MoneyRetirementPanel({
         tickerMix,
         withdrawalDraft,
         acaDraft,
+        partialDraft,
       ),
     )
   }
@@ -1364,6 +1442,9 @@ export function MoneyRetirementPanel({
       // Blank tracks the published CMS/KFF default; an explicit 0 turns
       // the Medicare line off — both are real states, so null persists.
       medicareMonthlyPerPerson: parseOptionalAmount(acaDraft.medicareMonthly),
+      // Partial-retirement window: blank = feature off, so nulls persist
+      // to clear the columns.
+      ...partialRequestFields(partialDraft),
     }
     await updateProfile.mutateAsync(profileUpdate)
     await updatePlanning.mutateAsync({
@@ -1384,12 +1465,17 @@ export function MoneyRetirementPanel({
         tickerMix,
         withdrawalDraft,
         acaDraft,
+        partialDraft,
       ),
     )
   }
 
   const updateDraft = (key: keyof typeof draft, value: string) => {
     setDraft((current) => ({ ...current, [key]: value }))
+  }
+
+  const updatePartialDraft = (key: keyof PartialDraft, value: string) => {
+    setPartialDraft((current) => ({ ...current, [key]: value }))
   }
 
   const updateWithdrawalDraft = <K extends keyof WithdrawalDraft>(
@@ -1891,9 +1977,87 @@ export function MoneyRetirementPanel({
                 />
               </div>
             </div>
+            <div className="mt-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                Partial retirement (spouse still working)
+              </p>
+              <div className="mt-3 grid gap-3 md:grid-cols-3">
+                <label className="text-xs text-text-muted">
+                  Spouse net take-home $/mo
+                  <Input
+                    className="mt-1"
+                    inputMode="decimal"
+                    aria-label="Spouse net monthly take-home during partial retirement"
+                    placeholder="blank = off"
+                    value={partialDraft.spouseNetMonthly}
+                    onChange={(event) =>
+                      updatePartialDraft('spouseNetMonthly', event.target.value)
+                    }
+                  />
+                </label>
+                <label className="text-xs text-text-muted">
+                  Window spend $/mo
+                  <Input
+                    className="mt-1"
+                    inputMode="decimal"
+                    aria-label="Household spending per month during the partial-retirement window"
+                    placeholder={draft.monthlySpend || 'Spend / month'}
+                    value={partialDraft.windowSpendMonthly}
+                    onChange={(event) =>
+                      updatePartialDraft(
+                        'windowSpendMonthly',
+                        event.target.value,
+                      )
+                    }
+                  />
+                </label>
+                <label className="text-xs text-text-muted">
+                  Spouse gross wages $/yr
+                  <Input
+                    className="mt-1"
+                    inputMode="decimal"
+                    aria-label="Spouse gross annual wages during partial retirement"
+                    placeholder="stacks tax brackets"
+                    value={partialDraft.spouseGrossAnnual}
+                    onChange={(event) =>
+                      updatePartialDraft(
+                        'spouseGrossAnnual',
+                        event.target.value,
+                      )
+                    }
+                  />
+                </label>
+              </div>
+              <p className="mt-2 text-xs text-text-muted">
+                {partialDraft.spouseNetMonthly.trim() === ''
+                  ? 'Off — years before household retirement are modeled as pure accumulation.'
+                  : partialWindowYears > 0
+                    ? `Window: your age ${partialWindowStartAge}–${fullRetirementAge - 1}. Spending above spouse take-home is drawn from the portfolio (penalty-aware; gross wages set the tax brackets, but their own tax never hits the portfolio). Save/month keeps contributing through the window — net take-home is already after payroll deferrals. Surplus take-home is not auto-invested.`
+                    : 'No window — both retirements land in the same year.'}
+              </p>
+              {detectedTakeHome ? (
+                <p className="mt-1 text-xs text-text-muted">
+                  Detected from Money transactions: {detectedTakeHome.label}
+                  {detectedTakeHome.owner ? ` (${detectedTakeHome.owner})` : ''}{' '}
+                  ≈{' '}
+                  {formatCurrency(detectedTakeHome.monthlyAverage, {
+                    decimals: 0,
+                  })}
+                  /mo
+                  {detectedTakeHome.active
+                    ? ''
+                    : `, last deposit ${detectedTakeHome.lastDate}`}{' '}
+                  — reference only, never fed into the plan.
+                </p>
+              ) : null}
+            </div>
             <p className="mt-3 text-xs text-text-muted">
               Drawdown starts when both are retired: your age{' '}
               {fullRetirementAge}.
+              {partialDraft.spouseNetMonthly.trim() !== '' &&
+              partialWindowYears > 0
+                ? ` Partial-retirement years (${partialWindowStartAge}–${fullRetirementAge - 1}) fund the spend gap from the portfolio first.`
+                : ''}
             </p>
             <p className="mt-3 text-xs text-text-muted">
               Social Security included:{' '}
@@ -3835,6 +3999,15 @@ export function MoneyRetirementPanel({
                     <tr key={`${row.calendarYear}-${row.primaryAge}`}>
                       <td className="border-b border-border/20 px-4 py-3 text-left font-medium text-text">
                         {row.primaryAge}
+                        {row.partialRetirementYear ? (
+                          <Badge
+                            variant="secondary"
+                            className="ml-2"
+                            title="Partial retirement: you are retired, spouse still working — the spend gap above their take-home is drawn from the portfolio."
+                          >
+                            Partial
+                          </Badge>
+                        ) : null}
                       </td>
                       <td
                         className={`border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums ${
@@ -3857,7 +4030,14 @@ export function MoneyRetirementPanel({
                       >
                         {formatCurrency(row.displaySpend, { decimals: 0 })}
                       </td>
-                      <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
+                      <td
+                        className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text"
+                        title={
+                          row.partialRetirementYear
+                            ? `Includes spouse take-home ${formatCurrency(row.displaySpouseNet, { decimals: 0 })}.`
+                            : undefined
+                        }
+                      >
                         {formatCurrency(row.displayIncome, { decimals: 0 })}
                       </td>
                       {drawdownHasBridge ? (

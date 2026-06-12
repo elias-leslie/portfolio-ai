@@ -53,6 +53,19 @@ export function TransactionEditor({
           transaction.category === 'Unknown' ? (
             <Badge variant="warning">Needs category</Badge>
           ) : null}
+          {(transaction.itemCount ?? 0) > 0 ? (
+            <Badge
+              variant="outline"
+              title={
+                transaction.itemCategories?.length
+                  ? `Split across ${transaction.itemCategories.join(' · ')}`
+                  : undefined
+              }
+            >
+              Split · {transaction.itemCount} item
+              {transaction.itemCount === 1 ? '' : 's'}
+            </Badge>
+          ) : null}
         </div>
         <p className="mt-1 text-xs text-text-muted">
           {formatBudgetDate(transaction.date)} ·{' '}

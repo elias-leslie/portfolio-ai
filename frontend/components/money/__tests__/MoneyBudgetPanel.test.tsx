@@ -151,6 +151,8 @@ function mockSpending(coverageMonths = 3) {
           sourceKind: 'transaction',
           sourceType: 'bank',
           documentType: 'statement',
+          itemCount: 17,
+          itemCategories: ['Groceries', 'Household'],
         },
       ],
     },
@@ -319,5 +321,26 @@ describe('MoneyBudgetPanel', () => {
       essentiality: 'mixed',
       applyToMerchant: false,
     })
+  })
+
+  it('shows the Split badge on itemized transactions in the drill-down', async () => {
+    const user = userEvent.setup()
+
+    render(<MoneyBudgetPanel />)
+
+    const householdButtons = screen.getAllByRole('button', {
+      name: /household/i,
+    })
+    const expandRow = householdButtons.find(
+      (button) => button.getAttribute('aria-expanded') != null,
+    )
+    await user.click(expandRow ?? householdButtons[0])
+
+    const badge = screen.getByText('Split · 17 items')
+    expect(badge).toBeInTheDocument()
+    expect(badge.closest('[title]')).toHaveAttribute(
+      'title',
+      'Split across Groceries · Household',
+    )
   })
 })

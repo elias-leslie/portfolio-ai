@@ -202,6 +202,10 @@ class HouseholdRecentTransaction(BaseModel):
 class HouseholdLedgerEntry(BaseModel):
     id: str
     kind: str
+    # Linked purchase items (itemized receipts/orders). Count + distinct item
+    # categories drive the ledger "items" badge and row expansion affordance.
+    item_count: int = 0
+    item_categories: list[str] = Field(default_factory=list)
     flow_type: str | None = None
     # Accounting direction ("debit" | "credit" | "neutral") resolved once on the server
     # so the client never re-derives it from flow_type string sets.
@@ -287,6 +291,10 @@ class HouseholdSpendingCategory(BaseModel):
 
 class HouseholdSpendingTransaction(BaseModel):
     id: str
+    # Reconciled purchase-item splits behind this charge (same load_item_splits
+    # source that moves category totals), so drill-downs can badge split rows.
+    item_count: int = 0
+    item_categories: list[str] = Field(default_factory=list)
     date: str
     merchant: str
     description: str
@@ -740,3 +748,93 @@ class HouseholdPurchaseItemCategoryUpdate(BaseModel):
     category: str
     essentiality: str
     apply_to_product: bool = False
+
+
+# Wire keys on every purchase/product model stay digit-free: the frontend
+# camelization layer (es-toolkit) splits camelCase at letter/digit boundaries.
+
+
+class HouseholdPurchaseItem(BaseModel):
+    id: str
+    transaction_id: str | None = None
+    product_id: str | None = None
+    product_name: str | None = None
+    product_match_status: str = "unmatched"
+    product_match_confidence: float | None = None
+    purchase_date: str | None = None
+    merchant: str | None = None
+    description: str
+    quantity: float | None = None
+    unit_price: float | None = None
+    amount: float
+    allocated_amount: float | None = None
+    category: str
+    essentiality: str
+    categorization_source: str = "suggested"
+
+
+class HouseholdProductPricePoint(BaseModel):
+    observed_date: str
+    merchant: str | None = None
+    total_price: float
+    quantity: float | None = None
+    unit_price: float | None = None
+    source: str
+
+
+class HouseholdProductSummary(BaseModel):
+    id: str
+    canonical_name: str
+    brand: str | None = None
+    package_display_label: str | None = None
+    image_url: str | None = None
+    purchase_count: int = 0
+    observation_count: int = 0
+    needs_review_count: int = 0
+    first_observed_date: str | None = None
+    last_observed_date: str | None = None
+    latest_price: float | None = None
+    latest_unit_price: float | None = None
+    latest_merchant: str | None = None
+    # Most recent observations, oldest first, capped server-side — the
+    # sparkline + hover tooltip payload.
+    price_points: list[HouseholdProductPricePoint] = Field(default_factory=list)
+
+
+class HouseholdProductList(BaseModel):
+    generated_at: str
+    total_count: int = 0
+    needs_review_total: int = 0
+    offset: int = 0
+    limit: int = 0
+    returned_count: int = 0
+    products: list[HouseholdProductSummary] = Field(default_factory=list)
+
+
+class HouseholdProductIdentifier(BaseModel):
+    kind: str
+    value: str
+
+
+class HouseholdProductDetail(BaseModel):
+    generated_at: str
+    product: HouseholdProductSummary
+    identifiers: list[HouseholdProductIdentifier] = Field(default_factory=list)
+    observations: list[HouseholdProductPricePoint] = Field(default_factory=list)
+    recent_items: list[HouseholdPurchaseItem] = Field(default_factory=list)
+
+
+class HouseholdPurchaseItemReviewQueue(BaseModel):
+    generated_at: str
+    total_count: int = 0
+    items: list[HouseholdPurchaseItem] = Field(default_factory=list)
+
+
+class HouseholdPurchaseItemProductAssignment(BaseModel):
+    action: str  # confirm | reassign | detach
+    product_id: str | None = None
+
+
+class HouseholdProductMergeRequest(BaseModel):
+    source_product_id: str
+    target_product_id: str

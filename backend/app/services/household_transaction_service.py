@@ -799,6 +799,16 @@ class HouseholdTransactionService:
             transactions=[
                 HouseholdSpendingTransaction(
                     id=str(row["id"]),
+                    # Reconciled splits only (same gate as category math), so a
+                    # Split badge always means category totals actually moved.
+                    item_count=sum(
+                        int(part["item_count"])
+                        for part in item_splits.get(str(row["id"]), [])
+                    ),
+                    item_categories=[
+                        str(part["category"])
+                        for part in item_splits.get(str(row["id"]), [])
+                    ],
                     date=row["date"].isoformat(),
                     merchant=str(row["merchant"]),
                     description=str(row["description"]),

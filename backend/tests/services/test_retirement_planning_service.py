@@ -1177,6 +1177,342 @@ def test_drawdown_starts_when_later_spouse_retirement_age_arrives() -> None:
     assert rows[11].gross_withdrawal > 0
 
 
+# ----------------------------------------------------------------------
+# partial-retirement window (primary retired, spouse still working)
+# ----------------------------------------------------------------------
+
+
+def _partial_inputs(**overrides: Any) -> RetirementInputs:
+    """Window = primary ages 50-54 (spouse 45 retires at 50); inflation 0
+    and gain_ratio 0 keep the deterministic numbers hand-checkable."""
+    base: dict[str, Any] = _args(
+        household_id="hh-partial",
+        primary_age=50,
+        spouse_age=45,
+        retirement_age=50,
+        spouse_retirement_age=50,
+        horizon_years=12,
+        annual_expenses=90_000.0,
+        annual_contribution=0.0,
+        portfolio_value=500_000.0,
+        asset_allocation={"cash": 1.0},
+        income_sources=(),
+        inflation_rate=0.0,
+        taxable_gain_ratio=0.0,
+        spouse_net_monthly_income=5_300.0,
+        partial_retirement_monthly_spend=7_500.0,
+        spouse_gross_annual_income=84_000.0,
+        as_of_date=date(2026, 5, 26),
+    )
+    base.update(overrides)
+    return RetirementInputs(**base)
+
+
+def _partial_bucket(
+    bucket_type: str, value: float = 500_000.0
+) -> tuple[RetirementAccountBucket, ...]:
+    return (
+        RetirementAccountBucket(
+            bucket_type=bucket_type,
+            label=bucket_type,
+            account_type=bucket_type,
+            tax_treatment="ordinary_income",
+            current_value=value,
+            withdrawal_priority=2,
+        ),
+    )
+
+
+def test_partial_window_off_is_identical_to_legacy() -> None:
+    """spouse_net_monthly_income gates the feature: with it None the other
+    two fields are inert and behavior matches all-fields-None exactly."""
+    service = _make_service(_StubConn())
+    legacy = _partial_inputs(
+        spouse_net_monthly_income=None,
+        partial_retirement_monthly_spend=None,
+        spouse_gross_annual_income=None,
+    )
+    gated_off = _partial_inputs(spouse_net_monthly_income=None)
+
+    rows_legacy = service._drawdown_schedule(legacy, buckets=_partial_bucket("taxable"))
+    rows_gated = service._drawdown_schedule(gated_off, buckets=_partial_bucket("taxable"))
+    assert rows_gated == rows_legacy
+    assert all(not row.partial_retirement_year for row in rows_legacy)
+    assert all(row.spending_need == 0.0 for row in rows_legacy[:5])
+
+    sim_legacy = service.run_simulation(legacy, trials=150, seed=7)
+    sim_gated = service.run_simulation(gated_off, trials=150, seed=7)
+    assert sim_gated.success_probability == sim_legacy.success_probability
+    assert sim_gated.percentiles == sim_legacy.percentiles
+
+
+def test_partial_window_funds_spend_minus_net_gap() -> None:
+    service = _make_service(_StubConn())
+    rows = service._drawdown_schedule(
+        _partial_inputs(), buckets=_partial_bucket("taxable")
+    )
+
+    for row in rows[:5]:
+        assert row.partial_retirement_year is True
+        assert row.spending_need == 90_000.0
+        assert row.spouse_net_income == 63_600.0
+        # gap = 90,000 - 63,600; taxable draws with gain_ratio 0 owe no
+        # tax, and her wage tax is never charged to the portfolio.
+        assert row.gross_withdrawal == 26_400.0
+        assert row.tax_estimate == 0.0
+        assert row.penalty_estimate == 0.0
+        # Engine never ran: decision block stays zeroed.
+        assert row.spending_target == 0.0
+        assert row.withdrawal_rate == 0.0
+    # Year 0 conservation: no growth yet, the gap leaves the household.
+    assert rows[0].ending_balance == 500_000.0 - 26_400.0
+    # Age 55: household retirement arrives and the engine takes over.
+    age_55 = rows[5]
+    assert age_55.primary_age == 55
+    assert age_55.partial_retirement_year is False
+    assert age_55.spouse_net_income == 0.0
+    assert age_55.spending_target > 0.0
+    assert age_55.spending_need == round(age_55.spending_target, 2)
+
+
+def test_partial_window_spend_falls_back_to_annual_expenses() -> None:
+    service = _make_service(_StubConn())
+    rows = service._drawdown_schedule(
+        _partial_inputs(partial_retirement_monthly_spend=None, annual_expenses=80_000.0),
+        buckets=_partial_bucket("taxable"),
+    )
+    assert rows[0].partial_retirement_year is True
+    assert rows[0].spending_need == 80_000.0
+    assert rows[0].gross_withdrawal == round(80_000.0 - 63_600.0, 2)
+
+
+def test_partial_window_draws_are_penalty_aware() -> None:
+    service = _make_service(_StubConn())
+    rows = service._drawdown_schedule(
+        _partial_inputs(), buckets=_partial_bucket("pre_tax")
+    )
+    first = rows[0]
+    assert first.partial_retirement_year is True
+    assert first.gross_withdrawal > 26_400.0
+    assert first.penalty_estimate == round(first.gross_withdrawal * 0.10, 2)
+
+
+def test_partial_window_spouse_gross_stacks_tax_brackets() -> None:
+    service = _make_service(_StubConn())
+    with_wages = service._drawdown_schedule(
+        _partial_inputs(), buckets=_partial_bucket("pre_tax")
+    )
+    without_wages = service._drawdown_schedule(
+        _partial_inputs(spouse_gross_annual_income=None),
+        buckets=_partial_bucket("pre_tax"),
+    )
+    # Same gap, but the draw starts at her wages' marginal rate instead of
+    # the bottom brackets, so the gross-up owes strictly more tax.
+    assert with_wages[0].spending_need == without_wages[0].spending_need
+    assert with_wages[0].tax_estimate > without_wages[0].tax_estimate
+    assert with_wages[0].gross_withdrawal > without_wages[0].gross_withdrawal
+
+
+def test_partial_window_net_covering_spend_draws_and_taxes_nothing() -> None:
+    """Her take-home covers the window spend: zero draws, and her own wage
+    tax never appears as a portfolio charge."""
+    service = _make_service(_StubConn())
+    rows = service._drawdown_schedule(
+        _partial_inputs(spouse_net_monthly_income=7_500.0),
+        buckets=_partial_bucket("pre_tax"),
+    )
+    first = rows[0]
+    assert first.partial_retirement_year is True
+    assert first.spending_need == 90_000.0
+    assert first.spouse_net_income == 90_000.0
+    assert first.gross_withdrawal == 0.0
+    assert first.tax_estimate == 0.0
+    assert first.penalty_estimate == 0.0
+
+
+def test_partial_window_started_income_source_reduces_the_draw() -> None:
+    service = _make_service(_StubConn())
+    pension = (
+        RetirementIncomeSource(
+            label="Pension",
+            start_age=50,
+            monthly_amount=1_000.0,
+            inflation_adjusted=True,
+        ),
+    )
+    rows = service._drawdown_schedule(
+        _partial_inputs(income_sources=pension, spouse_gross_annual_income=None),
+        buckets=_partial_bucket("taxable"),
+    )
+    first = rows[0]
+    assert first.income == 12_000.0
+    # 12k pension sits under the MFJ standard deduction: gross is exactly
+    # gap minus the started income.
+    assert first.gross_withdrawal == 26_400.0 - 12_000.0
+
+
+def test_partial_window_monte_carlo_failures_reach_framing() -> None:
+    service = _make_service(_StubConn())
+    sim = service.run_simulation(
+        _partial_inputs(portfolio_value=60_000.0), trials=200, seed=7
+    )
+    assert sim.success_probability < 1.0
+    assert sim.outcome_framing["median_years_short"] is not None
+    # The 60k portfolio cannot fund five 26.4k window years: failures land
+    # inside the window (years 1-5), not only after household retirement.
+    window_failures = [
+        year
+        for year in sim.failure_year_distribution
+        if int(year.removeprefix("year_")) <= 5
+    ]
+    assert window_failures
+
+
+def test_partial_window_rmd_surplus_is_reinvested_and_conserved() -> None:
+    """Synthetic 73-year-old in-window: the forced RMD exceeds the gap, the
+    post-tax surplus lands in taxable, and the household only consumes the
+    gap (ending balance == start - gap when tax rounds to zero)."""
+    service = _make_service(_StubConn())
+    inputs = _partial_inputs(
+        primary_age=73,
+        spouse_age=60,
+        retirement_age=73,
+        spouse_retirement_age=70,
+        horizon_years=2,
+        annual_expenses=65_000.0,
+        partial_retirement_monthly_spend=None,
+        spouse_net_monthly_income=5_000.0,
+        spouse_gross_annual_income=None,
+        portfolio_value=274_000.0,
+    )
+    rows = service._drawdown_schedule(inputs, buckets=_partial_bucket("pre_tax", 274_000.0))
+    first = rows[0]
+    assert first.partial_retirement_year is True
+    assert first.rmd_applied is True
+    # RMD (274k / 26.5 divisor) is forced through the seam and exceeds the
+    # 5k gap + tax (10.3k ordinary sits under the MFJ standard deduction).
+    assert first.gross_withdrawal == round(274_000.0 / 26.5, 2)
+    assert first.tax_estimate == 0.0
+    assert first.penalty_estimate == 0.0
+    surplus = first.gross_withdrawal - 5_000.0
+    assert first.balances_by_bucket["taxable"] == round(surplus, 2)
+    assert first.ending_balance == 274_000.0 - 5_000.0
+
+
+def test_partial_window_zero_gap_keeps_legacy_balances() -> None:
+    """net >= spend: no draws, so every balance matches the feature-off
+    run exactly even though the rows are flagged as window years."""
+    service = _make_service(_StubConn())
+    zero_gap = _partial_inputs(spouse_net_monthly_income=7_500.0)
+    feature_off = _partial_inputs(
+        spouse_net_monthly_income=None,
+        partial_retirement_monthly_spend=None,
+        spouse_gross_annual_income=None,
+    )
+    rows_gap = service._drawdown_schedule(zero_gap, buckets=_partial_bucket("taxable"))
+    rows_off = service._drawdown_schedule(feature_off, buckets=_partial_bucket("taxable"))
+    assert [row.ending_balance for row in rows_gap] == [
+        row.ending_balance for row in rows_off
+    ]
+    assert [row.balances_by_bucket for row in rows_gap] == [
+        row.balances_by_bucket for row in rows_off
+    ]
+
+    sim_gap = service.run_simulation(zero_gap, trials=150, seed=11)
+    sim_off = service.run_simulation(feature_off, trials=150, seed=11)
+    assert sim_gap.success_probability == sim_off.success_probability
+    assert sim_gap.percentiles == sim_off.percentiles
+    assert sim_gap.median_ending_balance == sim_off.median_ending_balance
+
+
+def test_partial_window_success_drops_versus_feature_off() -> None:
+    """A real gap drains the portfolio years before the engine starts, so
+    seeded success strictly drops when the window turns on."""
+    service = _make_service(_StubConn())
+    on = _partial_inputs(
+        portfolio_value=600_000.0,
+        asset_allocation={"us_equity": 0.6, "bonds": 0.4},
+    )
+    off = _partial_inputs(
+        portfolio_value=600_000.0,
+        asset_allocation={"us_equity": 0.6, "bonds": 0.4},
+        spouse_net_monthly_income=None,
+        partial_retirement_monthly_spend=None,
+        spouse_gross_annual_income=None,
+    )
+    sim_on = service.run_simulation(on, trials=300, seed=7)
+    sim_off = service.run_simulation(off, trials=300, seed=7)
+    assert sim_on.success_probability < sim_off.success_probability
+
+
+def test_build_inputs_passes_partial_window_fields_through(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    conn = _StubConn(members=[("Alex", "primary", 1980, False)])
+    _patch_portfolio_snapshot(monkeypatch, total=500_000.0, weights={"us_equity": 1.0})
+    service = _make_service(conn)
+    inputs = service.build_inputs(
+        "hh-partial-wire",
+        spouse_net_monthly_income=5_300.0,
+        partial_retirement_monthly_spend=7_200.0,
+        spouse_gross_annual_income=84_000.0,
+        as_of_date=date(2026, 5, 9),
+    )
+    assert inputs.spouse_net_monthly_income == 5_300.0
+    assert inputs.partial_retirement_monthly_spend == 7_200.0
+    assert inputs.spouse_gross_annual_income == 84_000.0
+
+
+def test_preview_falls_back_to_profile_partial_window_levers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    conn = _StubConn(members=[("Alex", "primary", 1980, False)])
+    _patch_portfolio_snapshot(monkeypatch, total=400_000.0, weights={"us_equity": 1.0})
+    dashboard = SimpleNamespace(
+        profile=SimpleNamespace(
+            id="hh-partial-preview",
+            target_retirement_spend=6_000.0,
+            target_retirement_age=55,
+            monthly_savings_target=0.0,
+            effective_tax_rate=22.0,
+            marginal_federal_tax_rate=None,
+            spouse_net_monthly_income=5_300.0,
+            partial_retirement_monthly_spend=7_200.0,
+            spouse_gross_annual_income=84_000.0,
+        ),
+        account_control=SimpleNamespace(
+            status="clear", summary="", blocking_issue_count=0
+        ),
+        accounts=[],
+    )
+    monkeypatch.setattr(
+        RetirementPlanningService,
+        "_load_money_dashboard",
+        lambda _service: dashboard,
+    )
+    service = _make_service(conn)
+    preview = service.preview(
+        "hh-partial-preview", trials=60, seed=3, as_of_date=date(2026, 5, 9)
+    )
+    assert preview.inputs.spouse_net_monthly_income == 5_300.0
+    assert preview.inputs.partial_retirement_monthly_spend == 7_200.0
+    assert preview.inputs.spouse_gross_annual_income == 84_000.0
+
+    # Explicit request levers win over the persisted profile columns.
+    override = service.preview(
+        "hh-partial-preview",
+        spouse_net_monthly_income=6_000.0,
+        partial_retirement_monthly_spend=7_500.0,
+        spouse_gross_annual_income=90_000.0,
+        trials=60,
+        seed=3,
+        as_of_date=date(2026, 5, 9),
+    )
+    assert override.inputs.spouse_net_monthly_income == 6_000.0
+    assert override.inputs.partial_retirement_monthly_spend == 7_500.0
+    assert override.inputs.spouse_gross_annual_income == 90_000.0
+
+
 def test_drawdown_schedule_applies_pre_tax_rmd_estimate() -> None:
     service = _make_service(_StubConn())
     inputs = RetirementInputs(

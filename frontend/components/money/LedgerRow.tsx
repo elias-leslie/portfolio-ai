@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
+import { ItemCategoryEditor } from './ItemCategoryEditor'
 import {
   entryDate,
   formatLedgerDate,
@@ -16,6 +17,9 @@ interface LedgerRowProps {
   entry: HouseholdLedgerEntry
   auditOpen: boolean
   onToggleAudit: (rowKey: string | null) => void
+  /** Purchase-item expansion; omitted when the row has no linked items. */
+  itemsOpen?: boolean
+  onToggleItems?: (rowKey: string | null) => void
   /** Omitted when the row is not a categorizable transaction (import rows, duplicates). */
   onStartCategorize?: () => void
   /** The shared category editor, non-null while this row is being edited. */
@@ -31,6 +35,8 @@ export function LedgerRow({
   entry,
   auditOpen,
   onToggleAudit,
+  itemsOpen = false,
+  onToggleItems,
   onStartCategorize,
   categoryEditor,
 }: LedgerRowProps) {
@@ -111,6 +117,11 @@ export function LedgerRow({
           <div className="text-xs text-text-muted">
             {entry.essentiality ? formatEnumLabel(entry.essentiality) : '—'}
           </div>
+          {entry.itemCategories.length > 1 ? (
+            <div className="mt-1 text-xs text-text-muted">
+              Split: {entry.itemCategories.join(' · ')}
+            </div>
+          ) : null}
         </td>
         <td className="border-b border-border/20 px-3 py-2.5 text-right align-top">
           <div
@@ -145,6 +156,19 @@ export function LedgerRow({
             <Badge variant={entry.sourceDocumentId ? 'outline' : 'secondary'}>
               {evidenceLabel}
             </Badge>
+            {entry.itemCount > 0 && onToggleItems ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                aria-expanded={itemsOpen}
+                aria-controls={`ledger-items-${rowKey}`}
+                onClick={() => onToggleItems(itemsOpen ? null : rowKey)}
+              >
+                {entry.itemCount} item{entry.itemCount === 1 ? '' : 's'}
+              </Button>
+            ) : null}
             <Button
               type="button"
               size="sm"
@@ -169,6 +193,43 @@ export function LedgerRow({
                 {ledgerAmountLabel(entry)}
               </p>
               {categoryEditor}
+            </div>
+          </td>
+        </tr>
+      ) : null}
+      {itemsOpen ? (
+        <tr
+          id={`ledger-items-${rowKey}`}
+          data-ledger-row="items"
+          className="bg-surface-muted/10"
+        >
+          <td colSpan={7} className="border-b border-border/20 px-3 py-3">
+            <div className="rounded-xl border border-border/35 bg-surface/70 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-text">
+                    Purchase items
+                  </p>
+                  <p className="mt-1 text-xs text-text-muted">
+                    Line items behind this charge. Category edits move budget
+                    and spending splits.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onToggleItems?.(null)}
+                >
+                  Hide items
+                </Button>
+              </div>
+              <div className="mt-4">
+                <ItemCategoryEditor
+                  transactionId={entry.id}
+                  transactionAmount={entry.amount}
+                />
+              </div>
             </div>
           </td>
         </tr>

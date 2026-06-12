@@ -40,7 +40,9 @@ class HouseholdProfileService:
                        retirement_essential_floor_override, retirement_discretionary_override,
                        notes, created_at, updated_at, bridge_growth,
                        aca_tier, aca_premium_age21_override, aca_oop_monthly,
-                       medicare_monthly_per_person
+                       medicare_monthly_per_person,
+                       spouse_net_monthly_income, partial_retirement_monthly_spend,
+                       spouse_gross_annual_income
                 FROM household_profiles ORDER BY created_at ASC LIMIT 1
                 """
             ).fetchone()

@@ -25,6 +25,8 @@ export interface CategoryEditorFormProps {
   categoryOptions: string[]
   /** Matching-purchase count behind the apply-to-merchant note; omit to hide it. */
   similarMerchantCount?: number
+  /** Override the apply-rule checkbox label (e.g. product rules for items). */
+  applyLabel?: string
   pending: boolean
   onSave: () => void
   onCancel: () => void
@@ -43,6 +45,7 @@ export function CategoryEditorForm({
   onPickerOpenChange,
   categoryOptions,
   similarMerchantCount,
+  applyLabel,
   pending,
   onSave,
   onCancel,
@@ -166,7 +169,7 @@ export function CategoryEditorForm({
           }
         />
         <span>
-          Apply to this merchant going forward
+          {applyLabel ?? 'Apply to this merchant going forward'}
           {similarMerchantCount != null && similarMerchantCount > 1
             ? ` and update ${similarMerchantCount} matching purchases`
             : ''}

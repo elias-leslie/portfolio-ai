@@ -478,6 +478,8 @@ const preview: RetirementPreview = {
       acaPlanningNet: 0,
       magi: 0,
       medicarePremium: 0,
+      partialRetirementYear: false,
+      spouseNetIncome: 0,
       withdrawalsByBucket: {
         taxable: 50000,
         // es-toolkit camelizes governmental_457b with a capital B.
@@ -523,6 +525,8 @@ const preview: RetirementPreview = {
       acaPlanningNet: 0,
       magi: 0,
       medicarePremium: 0,
+      partialRetirementYear: false,
+      spouseNetIncome: 0,
       withdrawalsByBucket: {
         taxable: 20000,
         governmental457B: 0,

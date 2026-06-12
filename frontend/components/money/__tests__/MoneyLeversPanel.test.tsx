@@ -135,12 +135,6 @@ describe('MoneyLeversPanel', () => {
     ).toBeInTheDocument()
   })
 
-  it('renders a Unit Price Up badge in the Price Signals table', () => {
-    render(<MoneyLeversPanel priceInsights={[unitPriceUpInsight]} />)
-
-    expect(screen.getByText('Unit price up')).toBeInTheDocument()
-  })
-
   it('ranks the highest-savings category lever above the price-signal lever', () => {
     render(<MoneyLeversPanel priceInsights={[unitPriceUpInsight]} />)
 

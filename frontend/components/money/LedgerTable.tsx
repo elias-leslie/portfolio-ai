@@ -42,6 +42,8 @@ interface LedgerTableProps {
   totalPages: number
   expandedAuditRow: string | null
   onToggleAudit: (rowKey: string | null) => void
+  expandedItemsRow: string | null
+  onToggleItems: (rowKey: string | null) => void
   onPreviousPage: () => void
   onNextPage: () => void
   /** Start editing a categorizable transaction row's category. */
@@ -70,6 +72,8 @@ export function LedgerTable({
   totalPages,
   expandedAuditRow,
   onToggleAudit,
+  expandedItemsRow,
+  onToggleItems,
   onPreviousPage,
   onNextPage,
   onStartCategorize,
@@ -171,6 +175,8 @@ export function LedgerTable({
                     entry={entry}
                     auditOpen={expandedAuditRow === rowKey}
                     onToggleAudit={onToggleAudit}
+                    itemsOpen={expandedItemsRow === rowKey}
+                    onToggleItems={onToggleItems}
                     onStartCategorize={
                       categorizable ? () => onStartCategorize(entry) : undefined
                     }
