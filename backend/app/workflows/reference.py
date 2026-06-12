@@ -179,3 +179,29 @@ async def retrain_ml_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     from ..tasks.ml_training_tasks import retrain_article_quality_model
 
     return await asyncio.to_thread(retrain_article_quality_model)
+
+
+@hatchet.task(
+    name="portfolio-aca-landscape",
+    input_validator=EmptyInput,
+    execution_timeout="1800s",
+    retries=2,
+    backoff_factor=4.0,
+    # Nov 15 yearly: CMS publishes the next plan year's QHP landscape PUF
+    # around open enrollment (Nov 1), so ingest the upcoming plan year.
+    on_crons=["0 6 15 11 *"],
+    concurrency=ConcurrencyExpression(
+        expression="'portfolio-aca-landscape'",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+    ),
+)
+async def aca_landscape_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
+    from datetime import UTC, datetime
+
+    from ..services.aca_marketplace_ingest_service import AcaMarketplaceIngestService
+
+    plan_year = datetime.now(UTC).year + 1
+    return await asyncio.to_thread(
+        lambda: AcaMarketplaceIngestService().ingest(plan_year=plan_year)
+    )

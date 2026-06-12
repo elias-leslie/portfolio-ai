@@ -60,6 +60,7 @@ from app.workflows.maintenance import (
     vacuum_db_wf,
 )
 from app.workflows.reference import (
+    aca_landscape_wf,
     corporate_actions_wf,
     earnings_surprises_wf,
     financial_health_wf,
@@ -127,7 +128,7 @@ def main() -> None:
             ingest_fundamental_data_wf,
             ingest_macro_indicators_wf,
             capture_macro_tape_wf,
-            # Reference (9)
+            # Reference (10)
             yfinance_ref_wf,
             valuation_metrics_wf,
             refresh_analyst_revisions_wf,
@@ -137,6 +138,7 @@ def main() -> None:
             corporate_actions_wf,
             refresh_sec_cik_wf,
             retrain_ml_wf,
+            aca_landscape_wf,
             # Portfolio maintenance (4)
             portfolio_snapshots_wf,
             covariance_wf,

@@ -228,6 +228,43 @@ async def replace_allocation_scenarios(
 
 
 @lru_cache(maxsize=1)
+def _aca_marketplace_service() -> Any:
+    module = import_module("app.services.aca_marketplace_ingest_service")
+    return module.AcaMarketplaceIngestService()
+
+
+class AcaPlansRefreshRequest(BaseModel):
+    plan_year: int = Field(2026, ge=2014, le=2100)
+    xlsx_path: str | None = None
+
+
+@router.get("/aca-plans")
+async def list_aca_plans(
+    plan_year: int | None = Query(None, ge=2014, le=2100),
+    fips_county_code: str | None = Query(None, max_length=5),
+) -> list[dict[str, Any]]:
+    """Ingested CMS landscape plans (age-rated premiums by metal tier)."""
+    return await run_in_threadpool(
+        lambda: _aca_marketplace_service().list_plans(
+            plan_year=plan_year, fips_county_code=fips_county_code
+        )
+    )
+
+
+@router.post("/aca-plans/refresh")
+async def refresh_aca_plans(payload: AcaPlansRefreshRequest) -> dict[str, Any]:
+    """Re-ingest the CMS landscape PUF for the tracked counties."""
+    try:
+        return await run_in_threadpool(
+            lambda: _aca_marketplace_service().ingest(
+                plan_year=payload.plan_year, xlsx_path=payload.xlsx_path
+            )
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"ACA PUF ingest failed: {exc}") from exc
+
+
+@lru_cache(maxsize=1)
 def _spending_actuals_service() -> Any:
     module = import_module("app.services.retirement_spending_actuals_service")
     return module.RetirementSpendingActualsService()

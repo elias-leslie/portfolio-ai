@@ -55,6 +55,7 @@ dependencies = [
     "snaptrade-python-sdk>=11.0.195",
     # MCP server (stdio transport for Claude Code / Codex CLI tie-in)
     "mcp>=1.0.0",
+    "openpyxl>=3.1.5",
 ]
 
 [project.scripts]
