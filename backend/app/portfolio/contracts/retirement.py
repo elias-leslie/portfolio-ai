@@ -402,6 +402,27 @@ class RetirementLeverImpact(BaseModel):
     detail: str
 
 
+class RetirementOutcomeFraming(BaseModel):
+    """Beyond-success-% framing for the Monte Carlo result.
+
+    All dollar fields are real (today's dollars). Failure-depth and warning
+    fields are None when no trial fails. ``penalty_trials_share`` reflects
+    that the engine already taps penalized early access (pre-tax 10% before
+    59 1/2, HSA 20% before 65) before declaring a trial failed.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    median_years_short: float | None = None
+    median_floor_gap_real: float | None = None
+    tail_floor_gap_real: float | None = None
+    median_warning_years: float | None = None
+    penalty_trials_share: float = Field(0.0, ge=0.0, le=1.0)
+    median_penalty_paid_real: float | None = None
+    end_above_start_share: float = Field(0.0, ge=0.0, le=1.0)
+    start_balance_real: float = 0.0
+
+
 class RetirementPreview(BaseModel):
     """Interactive Money retirement planner response.
 
@@ -437,3 +458,4 @@ class RetirementPreview(BaseModel):
     # Monte Carlo failure counts keyed by the primary age at which the trial
     # first fell short (string keys survive JSON round-trips untouched).
     failure_age_distribution: dict[str, int] = Field(default_factory=dict)
+    outcome_framing: RetirementOutcomeFraming | None = None

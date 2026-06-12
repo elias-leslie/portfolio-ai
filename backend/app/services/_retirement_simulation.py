@@ -44,6 +44,9 @@ class SimulationOutputs:
     # Median real discretionary spending funded per year (floor-and-upside
     # engine); empty before retirement-aware runs populate it.
     median_discretionary_path: list[float] = field(default_factory=list)
+    # Beyond-success-% framing (failure depth, warning window, penalty
+    # backstop, upside tail) — keys mirror RetirementOutcomeFraming.
+    outcome_framing: dict[str, Any] = field(default_factory=dict)
 
 
 def _normalize_allocation(

@@ -103,6 +103,7 @@ export type {
   RetirementIncomeActualsStream,
   RetirementInputs,
   RetirementLeverImpact,
+  RetirementOutcomeFraming,
   RetirementPreparedness,
   RetirementPreview,
   RetirementPreviewRequest,

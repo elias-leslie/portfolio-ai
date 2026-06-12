@@ -37,6 +37,7 @@ from app.portfolio.contracts.retirement import (
     RetirementIncomeSource,
     RetirementInputs,
     RetirementLeverImpact,
+    RetirementOutcomeFraming,
     RetirementPreview,
     ScenarioResults,
     ScenarioSummary,
@@ -731,6 +732,9 @@ class RetirementPlanningService:
             first_depletion_age=_first_depletion_age(drawdown, _household_retirement_primary_age(inputs)),
             median_discretionary_path=tuple(sim.median_discretionary_path),
             failure_age_distribution=_failure_age_distribution(sim, inputs),
+            outcome_framing=(
+                RetirementOutcomeFraming(**sim.outcome_framing) if sim.outcome_framing else None
+            ),
         )
 
     def save_scenario(
@@ -2975,6 +2979,11 @@ def _run_tax_aware_monte_carlo(
     failure_year = np.full(trials, -1, dtype=np.int32)
     yearly_balances = np.empty((trials, inputs.horizon_years), dtype=np.float64)
     discretionary_paths = np.zeros((trials, inputs.horizon_years), dtype=np.float64)
+    # Beyond-success-% framing accumulators (all real/today's dollars).
+    years_short = np.zeros(trials, dtype=np.int32)
+    floor_gap_real = np.zeros(trials, dtype=np.float64)
+    penalty_real = np.zeros(trials, dtype=np.float64)
+    first_warning_year = np.full(trials, -1, dtype=np.int32)
 
     # Income/inflation context is identical for every trial — compute the
     # per-year values once instead of once per trial (this loop is the
@@ -3063,6 +3072,12 @@ def _run_tax_aware_monte_carlo(
                 bridge_balance = wy.bridge_balance_end
                 spending = wy.portfolio_draw * inflation_factor + income + college_overflow_nominal[year_index]
                 discretionary_paths[trial, year_index] = wy.discretionary_funded
+                if (
+                    first_warning_year[trial] < 0
+                    and wy.discretionary_target > 0.01
+                    and wy.discretionary_funded <= 0.01
+                ):
+                    first_warning_year[trial] = year_index
 
             if wy is None and primary_age < RMD_START_AGE:
                 # Pre-retirement, pre-RMD: no spending need and no forced
@@ -3123,6 +3138,10 @@ def _run_tax_aware_monte_carlo(
                     if surplus_net > 0.01:
                         balances["taxable"] = balances.get("taxable", 0.0) + surplus_net
                 failed = outcome.shortfall > 1.0 or (wy is not None and wy.failed)
+                penalty_real[trial] += outcome.penalty_estimate / inflation_factor
+                if failed:
+                    years_short[trial] += 1
+                    floor_gap_real[trial] += outcome.shortfall / inflation_factor
             if failed and failure_year[trial] < 0:
                 failure_year[trial] = year_index
             prev_return_negative = portfolio_return < 0
@@ -3155,6 +3174,46 @@ def _run_tax_aware_monte_carlo(
                 failure_distribution[f"year_{idx + 1}"] = int(count)
 
     median_discretionary = np.median(discretionary_paths, axis=0)
+
+    # Beyond-success-% framing. The bridge carve keeps the start total intact
+    # (carved sleeve + remaining buckets == original balances at t=0 real).
+    failed_mask = failure_year >= 0
+    failed_count = int(np.sum(failed_mask))
+    start_balance_real = float(sum(starting_balances.values()) + bridge_initial)
+    final_inflation = (1.0 + inputs.inflation_rate) ** (inputs.horizon_years - 1)
+    end_above_start_share = float(
+        np.mean(yearly_balances[:, -1] / final_inflation >= start_balance_real)
+    )
+    penalty_mask = penalty_real > 1.0
+    framing: dict[str, Any] = {
+        "median_years_short": None,
+        "median_floor_gap_real": None,
+        "tail_floor_gap_real": None,
+        "median_warning_years": None,
+        "penalty_trials_share": round(float(np.mean(penalty_mask)), 6),
+        "median_penalty_paid_real": (
+            round(float(np.median(penalty_real[penalty_mask])), 2)
+            if bool(np.any(penalty_mask))
+            else None
+        ),
+        "end_above_start_share": round(end_above_start_share, 6),
+        "start_balance_real": round(start_balance_real, 2),
+    }
+    if failed_count:
+        framing["median_years_short"] = round(float(np.median(years_short[failed_mask])), 1)
+        framing["median_floor_gap_real"] = round(float(np.median(floor_gap_real[failed_mask])), 2)
+        framing["tail_floor_gap_real"] = round(
+            float(np.percentile(floor_gap_real[failed_mask], 90.0)), 2
+        )
+        # Warning window: years between the first fully-trimmed discretionary
+        # year and the first floor miss. A failing year always trims to zero,
+        # so the window is >= 0; trials with no discretionary configured have
+        # no warning light at all and count as 0.
+        fw = first_warning_year[failed_mask]
+        fy = failure_year[failed_mask]
+        warning = np.where((fw >= 0) & (fw <= fy), fy - fw, 0)
+        framing["median_warning_years"] = round(float(np.median(warning)), 1)
+
     return SimulationOutputs(
         success_probability=round(success_probability, 6),
         median_ending_balance=round(median_ending, 2),
@@ -3163,6 +3222,7 @@ def _run_tax_aware_monte_carlo(
         failure_year_distribution=failure_distribution,
         ending_balance_paths={k: [round(x, 2) for x in v] for k, v in paths.items()},
         median_discretionary_path=[round(float(v), 2) for v in median_discretionary],
+        outcome_framing=framing,
     )
 
 

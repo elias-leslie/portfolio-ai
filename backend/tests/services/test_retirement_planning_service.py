@@ -138,6 +138,7 @@ def test_seeded_run_is_reproducible() -> None:
     assert a.median_ending_balance == b.median_ending_balance
     assert a.percentiles == b.percentiles
     assert a.median_discretionary_path == b.median_discretionary_path
+    assert a.outcome_framing == b.outcome_framing
 
 
 def test_balanced_portfolio_success_is_seed_stable() -> None:
@@ -217,6 +218,91 @@ def test_failure_year_distribution_populates_when_failures_exist() -> None:
     for key in keys:
         year = int(key.removeprefix("year_"))
         assert 1 <= year <= 15
+
+
+def test_outcome_framing_failure_depth_and_warning() -> None:
+    service = _make_service(_StubConn())
+    out = service.run_simulation(
+        _engine_inputs(
+            portfolio_value=200_000.0,
+            annual_expenses=60_000.0,
+            horizon_years=20,
+            income_sources=(),
+        ),
+        trials=400,
+        seed=3,
+    )
+    framing = out.outcome_framing
+    assert out.success_probability < 1.0
+    assert framing["median_years_short"] >= 1
+    assert framing["median_floor_gap_real"] > 0
+    assert framing["tail_floor_gap_real"] >= framing["median_floor_gap_real"]
+    # A failing year always trims discretionary to zero first, so the
+    # warning window is well-defined and non-negative.
+    assert framing["median_warning_years"] >= 0
+    assert framing["start_balance_real"] == 200_000.0
+    assert 0.0 <= framing["end_above_start_share"] <= 1.0
+
+
+def test_outcome_framing_penalty_backstop_counts_early_pre_tax_draws() -> None:
+    # Age-55 retiree with only pre-tax money: every draw before 59 1/2 pays
+    # the 10% penalty, so the framing reports the backstop on every trial.
+    service = _make_service(_StubConn())
+    inputs = RetirementInputs(
+        household_id="hh-penalty-framing",
+        primary_age=55,
+        spouse_age=None,
+        retirement_age=55,
+        horizon_years=10,
+        annual_expenses=40_000.0,
+        annual_contribution=0.0,
+        portfolio_value=600_000.0,
+        asset_allocation={"cash": 1.0},
+        income_sources=(),
+        inflation_rate=0.025,
+        as_of_date=date(2026, 5, 9),
+    )
+    pre_tax = (
+        RetirementAccountBucket(
+            bucket_type="pre_tax",
+            label="Traditional IRA",
+            account_type="ira",
+            tax_treatment="ordinary_income",
+            current_value=600_000.0,
+            withdrawal_priority=4,
+        ),
+    )
+    out = service.run_simulation(inputs, buckets=pre_tax, trials=50, seed=1)
+    framing = out.outcome_framing
+    assert out.success_probability == 1.0
+    assert framing["penalty_trials_share"] == 1.0
+    assert framing["median_penalty_paid_real"] > 0
+    assert framing["median_years_short"] is None
+    assert framing["median_warning_years"] is None
+
+
+def test_outcome_framing_overfunded_plan_reports_upside() -> None:
+    service = _make_service(_StubConn())
+    out = service.run_simulation(
+        _engine_inputs(
+            portfolio_value=3_000_000.0,
+            annual_expenses=40_000.0,
+            horizon_years=20,
+        ),
+        trials=400,
+        seed=5,
+    )
+    framing = out.outcome_framing
+    assert out.success_probability == 1.0
+    assert framing["median_years_short"] is None
+    assert framing["median_floor_gap_real"] is None
+    assert framing["tail_floor_gap_real"] is None
+    assert framing["median_warning_years"] is None
+    # Retirement at 65 — no early-access years, so no penalties anywhere.
+    assert framing["penalty_trials_share"] == 0.0
+    assert framing["median_penalty_paid_real"] is None
+    assert framing["end_above_start_share"] > 0.5
+    assert framing["start_balance_real"] == 3_000_000.0
 
 
 def test_median_discretionary_path_covers_horizon_and_declines() -> None:
@@ -703,6 +789,8 @@ def test_preview_builds_account_buckets_and_levers(
         as_of_date=date(2026, 5, 9),
     )
     assert preview.trusted_totals is True
+    assert preview.outcome_framing is not None
+    assert preview.outcome_framing.start_balance_real > 0
     assert preview.inputs.portfolio_value == 995_000.0
     assert preview.inputs.asset_allocation["cash"] == pytest.approx(50_000 / 995_000, abs=1e-6)
     assert preview.inputs.cash_yield == pytest.approx(0.0328)

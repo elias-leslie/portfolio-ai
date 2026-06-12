@@ -3527,7 +3527,7 @@ export function MoneyRetirementPanel({
           <SectionCard
             variant="surface"
             title="When plans fall short"
-            description="Share of Monte Carlo trials that first run short at each age. Early bars signal sequence-of-returns risk; late bars signal longevity risk."
+            description="Share of Monte Carlo trials that first miss the essential floor at each age. Early bars signal sequence-of-returns risk; late bars signal longevity risk."
           >
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
@@ -3550,6 +3550,101 @@ export function MoneyRetirementPanel({
                   <Bar dataKey="share" fill="var(--color-warning)" />
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+          </SectionCard>
+        ) : null}
+
+        {preview?.outcomeFraming ? (
+          <SectionCard
+            variant="surface"
+            title="Beyond the success number"
+            description="What failure actually means in this model, how much warning it gives, and what the success odds already assume."
+            contentClassName="grid gap-3 md:grid-cols-2"
+          >
+            {preview.outcomeFraming.medianYearsShort != null ? (
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                  How plans fail
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-text">
+                  {formatCurrencyWhole(
+                    preview.outcomeFraming.medianFloorGapReal,
+                  )}
+                </p>
+                <p className="mt-1 text-xs text-text-muted">
+                  A trial counts as failed after a single year missing the
+                  essential floor — discretionary is already cut to zero by
+                  then. The median failing trial misses the floor in{' '}
+                  {preview.outcomeFraming.medianYearsShort} year
+                  {preview.outcomeFraming.medianYearsShort === 1 ? '' : 's'} for
+                  this total (today's dollars); the worst decile of failures
+                  misses{' '}
+                  {formatCurrencyWhole(preview.outcomeFraming.tailFloorGapReal)}
+                  .
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                  How plans fail
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-text">
+                  No floor misses
+                </p>
+                <p className="mt-1 text-xs text-text-muted">
+                  No simulated trial misses the essential floor at this knob
+                  set.
+                </p>
+              </div>
+            )}
+            {preview.outcomeFraming.medianWarningYears != null ? (
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                  Warning time
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-text">
+                  {preview.outcomeFraming.medianWarningYears} year
+                  {preview.outcomeFraming.medianWarningYears === 1 ? '' : 's'}
+                </p>
+                <p className="mt-1 text-xs text-text-muted">
+                  Median gap between discretionary spending first trimming to
+                  zero and the first floor miss. The model never adjusts — a
+                  real household has this long to cut spending, downsize, or
+                  return to work before the floor breaks.
+                </p>
+              </div>
+            ) : null}
+            <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                Penalty backstop
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-text">
+                {percentPoints(preview.outcomeFraming.penaltyTrialsShare)} of
+                trials
+              </p>
+              <p className="mt-1 text-xs text-text-muted">
+                The success odds already assume tapping pre-tax accounts before
+                59½ (10% penalty; HSA 20% before 65) when the bridge runs dry.
+                {preview.outcomeFraming.medianPenaltyPaidReal != null
+                  ? ` Median lifetime penalty cost among those trials: ${formatCurrencyWhole(preview.outcomeFraming.medianPenaltyPaidReal)} (today's dollars).`
+                  : ' No trial pays an early-access penalty at this knob set.'}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                The other side
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-text">
+                {percentPoints(preview.outcomeFraming.endAboveStartShare)} of
+                trials
+              </p>
+              <p className="mt-1 text-xs text-text-muted">
+                End the horizon with at least today's{' '}
+                {formatCurrencyWhole(preview.outcomeFraming.startBalanceReal)}{' '}
+                still in the accounts (real dollars). Padding the plan further
+                trades certain working years for percentage points — weigh it
+                against the Sensitivity checks above.
+              </p>
             </div>
           </SectionCard>
         ) : null}

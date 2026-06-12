@@ -568,6 +568,16 @@ const preview: RetirementPreview = {
   firstDepletionAge: null,
   medianDiscretionaryPath: [],
   failureAgeDistribution: {},
+  outcomeFraming: {
+    medianYearsShort: 3,
+    medianFloorGapReal: 41250,
+    tailFloorGapReal: 180400,
+    medianWarningYears: 4,
+    penaltyTrialsShare: 0.12,
+    medianPenaltyPaidReal: 8150,
+    endAboveStartShare: 0.41,
+    startBalanceReal: 900000,
+  },
 }
 
 const incomeActuals: RetirementIncomeActuals = {
@@ -1317,5 +1327,62 @@ describe('MoneyRetirementPanel', () => {
     expect(
       screen.queryByText(/Some income streams have stopped/),
     ).not.toBeInTheDocument()
+  })
+
+  it('renders the beyond-the-success-number framing card', () => {
+    usePreviewMock.mockReturnValue({
+      data: preview,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    expect(screen.getByText('Beyond the success number')).toBeInTheDocument()
+    expect(screen.getByText('How plans fail')).toBeInTheDocument()
+    expect(screen.getByText('$41,250')).toBeInTheDocument()
+    expect(screen.getByText(/misses the floor in 3 years/)).toBeInTheDocument()
+    expect(screen.getByText(/\$180,400/)).toBeInTheDocument()
+    expect(screen.getByText('Warning time')).toBeInTheDocument()
+    expect(screen.getByText('4 years')).toBeInTheDocument()
+    expect(screen.getByText('Penalty backstop')).toBeInTheDocument()
+    expect(screen.getByText('12% of trials')).toBeInTheDocument()
+    expect(screen.getByText(/\$8,150/)).toBeInTheDocument()
+    expect(screen.getByText('The other side')).toBeInTheDocument()
+    expect(screen.getByText('41% of trials')).toBeInTheDocument()
+    expect(screen.getByText(/today's \$900,000/)).toBeInTheDocument()
+  })
+
+  it('shows the no-floor-miss framing when no trial fails', () => {
+    usePreviewMock.mockReturnValue({
+      data: {
+        ...preview,
+        successProbability: 1,
+        outcomeFraming: {
+          medianYearsShort: null,
+          medianFloorGapReal: null,
+          tailFloorGapReal: null,
+          medianWarningYears: null,
+          penaltyTrialsShare: 0,
+          medianPenaltyPaidReal: null,
+          endAboveStartShare: 0.97,
+          startBalanceReal: 900000,
+        },
+      },
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    expect(screen.getByText('No floor misses')).toBeInTheDocument()
+    expect(screen.queryByText('Warning time')).not.toBeInTheDocument()
+    expect(screen.getByText('0% of trials')).toBeInTheDocument()
+    expect(
+      screen.getByText(/No trial pays an early-access penalty/),
+    ).toBeInTheDocument()
+    expect(screen.getByText('97% of trials')).toBeInTheDocument()
   })
 })

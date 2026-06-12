@@ -691,6 +691,21 @@ export interface RetirementHoldingIncomeYield {
   freshnessLabel: string
 }
 
+/**
+ * Beyond-success-% framing. Dollar fields are real (today's dollars);
+ * failure-depth and warning fields are null when no trial fails.
+ */
+export interface RetirementOutcomeFraming {
+  medianYearsShort: number | null
+  medianFloorGapReal: number | null
+  tailFloorGapReal: number | null
+  medianWarningYears: number | null
+  penaltyTrialsShare: number
+  medianPenaltyPaidReal: number | null
+  endAboveStartShare: number
+  startBalanceReal: number
+}
+
 export interface RetirementPreview {
   schemaVersion: number
   trustedTotals: boolean
@@ -714,6 +729,7 @@ export interface RetirementPreview {
   medianDiscretionaryPath: number[]
   /** Monte Carlo failure counts keyed by primary age at first shortfall. */
   failureAgeDistribution: Record<string, number>
+  outcomeFraming: RetirementOutcomeFraming | null
 }
 
 export interface ImportFormat {
