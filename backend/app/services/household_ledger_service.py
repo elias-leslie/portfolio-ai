@@ -355,6 +355,9 @@ class HouseholdLedgerService:
                 stored_category=str(row[10] or ""),
                 stored_essentiality=str(row[11] or ""),
                 merchant_metadata=row[19] if isinstance(row[19], dict) else None,
+                categorization_source=(
+                    str(_row_value(row, 21)) if _row_value(row, 21) is not None else None
+                ),
             )
             if amount is not None and amount > 0:
                 report_candidates.append(
@@ -432,6 +435,9 @@ class HouseholdLedgerService:
                 stored_category=str(row[10] or ""),
                 stored_essentiality=str(row[11] or ""),
                 merchant_metadata=row[19] if isinstance(row[19], dict) else None,
+                categorization_source=(
+                    str(_row_value(row, 21)) if _row_value(row, 21) is not None else None
+                ),
             )
             exclusion_reason: str | None = None
             included_in_spend = False
@@ -542,6 +548,15 @@ class HouseholdLedgerService:
             key=str.lower,
         )
 
+        category_options = sorted(
+            {
+                (entry.category or "").strip()
+                for _, entry in entries
+                if entry.kind == "transaction" and (entry.category or "").strip()
+            },
+            key=str.lower,
+        )
+
         filtered = [
             (sort_dt, entry)
             for sort_dt, entry in entries
@@ -596,6 +611,7 @@ class HouseholdLedgerService:
             limit=page_limit,
             returned_count=len(page),
             account_options=account_options,
+            category_options=category_options,
             debit_total=round(debit_total, 2),
             credit_total=round(credit_total, 2),
             entries=[entry for _, entry in page],

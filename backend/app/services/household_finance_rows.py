@@ -189,6 +189,7 @@ def row_to_profile(
         aca_tier=str(row[45]) if len(row) > 45 and row[45] is not None else None,
         aca_premium_age21_override=to_float(row[46]) if len(row) > 46 else None,
         aca_oop_monthly=to_float(row[47]) if len(row) > 47 else None,
+        medicare_monthly_per_person=to_float(row[48]) if len(row) > 48 else None,
     )
 
 

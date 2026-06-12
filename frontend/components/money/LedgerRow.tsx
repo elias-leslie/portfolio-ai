@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
@@ -16,6 +16,10 @@ interface LedgerRowProps {
   entry: HouseholdLedgerEntry
   auditOpen: boolean
   onToggleAudit: (rowKey: string | null) => void
+  /** Omitted when the row is not a categorizable transaction (import rows, duplicates). */
+  onStartCategorize?: () => void
+  /** The shared category editor, non-null while this row is being edited. */
+  categoryEditor?: ReactNode
 }
 
 /** Enum label with the "api" word kept as the acronym ("api_sync" → "API sync"). */
@@ -23,7 +27,13 @@ function formatSourceEnumLabel(value: string) {
   return formatEnumLabel(value).replace(/\bApi\b/g, 'API')
 }
 
-export function LedgerRow({ entry, auditOpen, onToggleAudit }: LedgerRowProps) {
+export function LedgerRow({
+  entry,
+  auditOpen,
+  onToggleAudit,
+  onStartCategorize,
+  categoryEditor,
+}: LedgerRowProps) {
   const effectiveDate = entryDate(entry)
   const effectiveDateKey = utcDateKey(effectiveDate)
   const isFuture =
@@ -81,8 +91,22 @@ export function LedgerRow({ entry, auditOpen, onToggleAudit }: LedgerRowProps) {
           ) : null}
         </td>
         <td className="border-b border-border/20 px-3 py-2.5 align-top">
-          <div className="font-medium text-text">
-            {entry.category ? formatEnumLabel(entry.category) : '—'}
+          <div className="flex items-center gap-1">
+            <span className="font-medium text-text">
+              {entry.category ? formatEnumLabel(entry.category) : '—'}
+            </span>
+            {onStartCategorize ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                aria-label={`Edit category for ${entry.merchant || entry.description}`}
+                onClick={onStartCategorize}
+              >
+                Edit
+              </Button>
+            ) : null}
           </div>
           <div className="text-xs text-text-muted">
             {entry.essentiality ? formatEnumLabel(entry.essentiality) : '—'}
@@ -136,6 +160,19 @@ export function LedgerRow({ entry, auditOpen, onToggleAudit }: LedgerRowProps) {
           <div className="mt-1 text-xs text-text-muted">{evidenceDetail}</div>
         </td>
       </tr>
+      {categoryEditor ? (
+        <tr data-ledger-row="category-editor" className="bg-surface-muted/10">
+          <td colSpan={7} className="border-b border-border/20 px-3 py-3">
+            <div className="space-y-2">
+              <p className="text-xs text-text-muted">
+                Recategorize {entry.merchant || entry.description} ·{' '}
+                {ledgerAmountLabel(entry)}
+              </p>
+              {categoryEditor}
+            </div>
+          </td>
+        </tr>
+      ) : null}
       {auditOpen ? (
         <tr
           id={`ledger-audit-${rowKey}`}

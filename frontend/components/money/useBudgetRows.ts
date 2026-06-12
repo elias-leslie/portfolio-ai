@@ -10,7 +10,8 @@ import type {
   HouseholdSpendingTransaction,
   HouseholdSpendingView,
 } from '@/lib/api/household'
-import { CATEGORY_OPTIONS, trendColors, trendKey } from './budget-helpers'
+import { trendColors, trendKey } from './budget-helpers'
+import { buildCategoryOptions } from './category-options'
 
 // Plot at most the top spenders so the chart stays legible; clicking a legend chip
 // isolates that one series and overlays its cap.
@@ -77,22 +78,14 @@ export function useBudgetRows({
       )
   }, [budgetMeta, coverageMonths, spending?.categories])
 
-  const categoryOptions = useMemo(() => {
-    const categories = new Set(CATEGORY_OPTIONS)
-    for (const row of spending?.categories ?? []) {
-      categories.add(row.category)
-    }
-    for (const row of spending?.transactions ?? []) {
-      categories.add(row.category)
-    }
-    return Array.from(categories).sort((left, right) =>
-      left === 'Unknown'
-        ? -1
-        : right === 'Unknown'
-          ? 1
-          : left.localeCompare(right),
-    )
-  }, [spending?.categories, spending?.transactions])
+  const categoryOptions = useMemo(
+    () =>
+      buildCategoryOptions([
+        ...(spending?.categories ?? []).map((row) => row.category),
+        ...(spending?.transactions ?? []).map((row) => row.category),
+      ]),
+    [spending?.categories, spending?.transactions],
+  )
 
   const transactionsByCategory = useMemo(() => {
     const map = new Map<string, HouseholdSpendingTransaction[]>()

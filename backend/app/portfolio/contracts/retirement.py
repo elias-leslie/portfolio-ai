@@ -115,6 +115,10 @@ class RetirementACAConfig(BaseModel):
     tier: Literal["silver", "bronze", "none"] = "silver"
     premium_age21_monthly_override: float | None = Field(None, ge=0.0)
     oop_monthly: float = Field(0.0, ge=0.0)
+    # Part B/D + supplement per member 65+ (today's $/month). ``None``
+    # resolves to the published-rate default (CMS/KFF constants in
+    # ``_aca_estimator``); an explicit 0 turns the line off.
+    medicare_monthly_per_person: float | None = Field(None, ge=0.0)
     # CPI + 2%/yr healthcare inflation => +2%/yr real (interview decision 7).
     healthcare_real_inflation: float = Field(0.02, ge=-0.02, le=0.10)
     persons: tuple[RetirementACAPerson, ...] = ()
@@ -346,6 +350,9 @@ class RetirementDrawdownYear(BaseModel):
     aca_oop: float = Field(0.0, ge=0.0)
     aca_net: float = Field(0.0, ge=0.0)
     magi: float = Field(0.0, ge=0.0)
+    # Part B/D + supplement for members 65+ (REAL $); deterministic, no
+    # MAGI coupling below IRMAA (item D part e).
+    medicare_premium: float = Field(0.0, ge=0.0)
 
 
 class RetirementAccountRule(BaseModel):

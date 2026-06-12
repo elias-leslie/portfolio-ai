@@ -4,9 +4,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MoneyLedgerPanel } from '../MoneyLedgerPanel'
 
 const useHouseholdLedgerMock = vi.hoisted(() => vi.fn())
+const categorizeMutateAsync = vi.hoisted(() => vi.fn())
+const categorizeIsPending = vi.hoisted(() => ({ value: false }))
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdLedger: useHouseholdLedgerMock,
+  useCategorizeHouseholdTransaction: () => ({
+    mutateAsync: categorizeMutateAsync,
+    isPending: categorizeIsPending.value,
+  }),
 }))
 
 const PAGE_SIZE = 50
@@ -71,6 +77,7 @@ function mockLedgerPage(
       limit: PAGE_SIZE,
       returnedCount: pageEntries.length,
       accountOptions: ['Checking 0', 'Checking 1', 'Checking 2'],
+      categoryOptions: ['groceries', 'Healthcare'],
       debitTotal: 0,
       creditTotal: 0,
       entries: pageEntries,
@@ -94,6 +101,8 @@ function lastLedgerParams() {
 describe('MoneyLedgerPanel', () => {
   beforeEach(() => {
     useHouseholdLedgerMock.mockReset()
+    categorizeMutateAsync.mockReset()
+    categorizeIsPending.value = false
   })
 
   it('renders the returned page and server counts and hides audit internals', () => {
@@ -232,6 +241,55 @@ describe('MoneyLedgerPanel', () => {
       screen.queryByRole('button', { name: 'Clear all' }),
     ).not.toBeInTheDocument()
     expect(screen.getByLabelText('Search ledger rows')).toHaveValue('')
+  })
+
+  it('recategorizes a transaction row through the canonical categorize mutation', async () => {
+    const user = userEvent.setup()
+    categorizeMutateAsync.mockResolvedValue(true)
+    mockLedgerPage([
+      buildEntry(1, { category: 'Retail', essentiality: 'discretionary' }),
+    ])
+
+    render(<MoneyLedgerPanel />)
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Edit category for Merchant 001',
+      }),
+    )
+
+    const categoryInput = screen.getByLabelText('Category')
+    expect(categoryInput).toHaveValue('Retail')
+
+    await user.click(screen.getByRole('option', { name: /Personal Care/ }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(categorizeMutateAsync).toHaveBeenCalledWith({
+      transactionId: 'txn-001',
+      category: 'Personal Care',
+      essentiality: 'discretionary',
+      applyToMerchant: false,
+    })
+    // The editor closes after a successful save.
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Category')).not.toBeInTheDocument()
+    })
+  })
+
+  it('offers no category editing on import rows', () => {
+    mockLedgerPage([
+      buildEntry(1, {
+        kind: 'import_row',
+        datasetType: 'statement_csv',
+        flowType: null,
+      }),
+    ])
+
+    render(<MoneyLedgerPanel />)
+
+    expect(
+      screen.queryByRole('button', { name: /Edit category/ }),
+    ).not.toBeInTheDocument()
   })
 
   it('shows pending and provenance only through row audit detail', async () => {

@@ -669,6 +669,33 @@ def test_build_spending_view_keeps_venmo_payments_visible_as_peer_payments_spend
     }
 
 
+def test_effective_classification_honors_manual_categorization() -> None:
+    # A user-set category must survive display-time heuristics that would
+    # otherwise re-resolve the merchant (Anthropic -> Subscriptions here).
+    assert _effective_transaction_classification(
+        flow_type="expense",
+        raw_merchant="Anthropic",
+        description="ANTHROPIC* CLAUDE SUB",
+        amount=200.0,
+        stored_category="Bills",
+        stored_essentiality="discretionary",
+        merchant_metadata=None,
+        categorization_source="manual",
+    ) == ("Bills", "discretionary")
+    # Non-curated sources still go through the resolver.
+    category, _essentiality = _effective_transaction_classification(
+        flow_type="expense",
+        raw_merchant="Anthropic",
+        description="ANTHROPIC* CLAUDE SUB",
+        amount=200.0,
+        stored_category="Bills",
+        stored_essentiality="discretionary",
+        merchant_metadata=None,
+        categorization_source="plaid",
+    )
+    assert category != "Bills"
+
+
 def test_effective_classification_normalizes_raw_loan_payment_enum() -> None:
     category, essentiality = _effective_transaction_classification(
         flow_type="expense",

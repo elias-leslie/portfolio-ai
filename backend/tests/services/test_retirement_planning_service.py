@@ -1938,6 +1938,38 @@ def test_monte_carlo_aca_costs_lower_success_and_stay_seeded() -> None:
     assert sim.ending_balance_paths["p50"] == again.ending_balance_paths["p50"]
 
 
+def test_drawdown_medicare_line_starts_at_65() -> None:
+    service = _make_service(_StubConn())
+    config = _ACA_SOLO.model_copy(update={"medicare_monthly_per_person": 400.0})
+    rows = service._drawdown_schedule(
+        _aca_inputs(config, horizon_years=8), buckets=_aca_bucket("taxable")
+    )
+    by_year = {row.calendar_year: row for row in rows}
+    # 2030: age 64 — still on ACA, no Medicare line.
+    assert by_year[2030].medicare_premium == 0.0
+    assert by_year[2030].aca_premium_gross > 0.0
+    # 2031: age 65 — ACA premium ends, Medicare replaces it on the floor
+    # (zero healthcare inflation in _ACA_SOLO keeps the row exact).
+    row = by_year[2031]
+    assert row.aca_premium_gross == 0.0
+    assert row.medicare_premium == pytest.approx(400.0 * 12.0)
+    assert row.floor_amount == pytest.approx(60_000.0 + 400.0 * 12.0, abs=0.01)
+
+
+def test_resolve_aca_config_seeds_published_medicare_default() -> None:
+    service = _make_service(_StubConn())
+    service._load_aca_premium_anchors = lambda: (2026, 500.0, 400.0)  # type: ignore[method-assign]
+    resolved = service._resolve_aca_config(_ACA_SOLO, _aca_inputs(_ACA_SOLO))
+    assert resolved is not None
+    # CMS Part B 202.90 + Part D BBP 38.99 + KFF Plan G average 164.
+    assert resolved.medicare_monthly_per_person == pytest.approx(405.89)
+    # An explicit 0 is a real choice (line off), never re-seeded.
+    explicit = _ACA_SOLO.model_copy(update={"medicare_monthly_per_person": 0.0})
+    resolved_off = service._resolve_aca_config(explicit, _aca_inputs(explicit))
+    assert resolved_off is not None
+    assert resolved_off.medicare_monthly_per_person == 0.0
+
+
 def test_estimate_social_security_monthly_matches_frontend_golden_table() -> None:
     """Twin: frontend/components/money/__tests__/retirement-ss-parity.test.ts.
 

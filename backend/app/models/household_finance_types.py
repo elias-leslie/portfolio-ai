@@ -258,6 +258,9 @@ class HouseholdLedger(BaseModel):
     # Distinct account labels across the whole window so the filter dropdown is complete
     # even though only a page of rows is returned.
     account_options: list[str] = Field(default_factory=list)
+    # Distinct effective categories across the whole window so the inline category
+    # editor offers every in-use category, not just those on the current page.
+    category_options: list[str] = Field(default_factory=list)
     debit_total: float = 0.0
     credit_total: float = 0.0
     entries: list[HouseholdLedgerEntry] = Field(default_factory=list)

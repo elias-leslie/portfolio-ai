@@ -912,6 +912,9 @@ class HouseholdTransactionService:
                 stored_category=str(row[6] or ""),
                 stored_essentiality=str(row[7] or ""),
                 merchant_metadata=merchant_metadata if isinstance(merchant_metadata, dict) else None,
+                categorization_source=(
+                    str(_row_value(row, 20)) if _row_value(row, 20) is not None else None
+                ),
             )
             needs_category_review = _needs_category_review(
                 stored_category=str(row[6] or ""),
@@ -1120,6 +1123,7 @@ class HouseholdTransactionService:
                 stored_category=str(row[5] or ""),
                 stored_essentiality=str(row[6] or ""),
                 merchant_metadata=merchant_metadata,
+                categorization_source=str(row[9]) if row[9] is not None else None,
             )
             if (str(row[5] or ""), str(row[6] or "")) == (category, essentiality):
                 continue

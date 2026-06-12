@@ -69,6 +69,34 @@ _AGE_CURVE_15_TO_63 = {
 
 MEDICARE_AGE = 65
 
+# Medicare premiums post-65 (today's $/month, per person) — published
+# rates, verified at source (retirement item D part e):
+#
+# * Part B standard premium $202.90 (CY 2026) — CMS MLN Matters MM14279,
+#   "2026 Part B — Supplementary Medical Insurance" (Dec 5, 2025).
+#   https://www.cms.gov/files/document/mm14279-medicare-deductible-coinsurance-premium-rates-cy-2026-update.pdf
+# * Part D base beneficiary premium $38.99 (CY 2026) — CMS Office of the
+#   Actuary annual release (July 28, 2025): $36.78 x 1.06, the statutory
+#   cap. Actual plan premiums vary around the BBP.
+#   https://www.cms.gov/files/document/july-28-2025-parts-c-d-announcement.pdf
+# * Medigap supplement $164 — KFF national average monthly premium for
+#   Plan G policyholders (2023, latest published). Florida only allows
+#   issue-age rating and runs among the most expensive states, so the
+#   seeded line likely understates — user-editable for exactly this
+#   reason.
+#   https://www.kff.org/medicare/key-facts-about-medigap-enrollment-and-premiums-for-medicare-beneficiaries/
+#
+# IRMAA is NOT modeled: the 2026 surcharge starts at MAGI > $218,000
+# (married filing jointly; $109,000 single) — far above any MAGI this
+# household model produces (~$80k peak).
+MEDICARE_PART_B_MONTHLY_2026 = 202.90
+MEDICARE_PART_D_BASE_MONTHLY_2026 = 38.99
+MEDIGAP_PLAN_G_AVG_MONTHLY = 164.00
+MEDICARE_DEFAULT_MONTHLY_PER_PERSON = round(
+    MEDICARE_PART_B_MONTHLY_2026 + MEDICARE_PART_D_BASE_MONTHLY_2026 + MEDIGAP_PLAN_G_AVG_MONTHLY,
+    2,
+)
+
 
 def age_curve_factor(age: int) -> float:
     """Federal default age-rating factor relative to the age-21 premium."""
@@ -187,6 +215,11 @@ class ACAYearPlan:
     only (guaranteed income sources; portfolio draws unknown here) —
     they seed the engine floor and bridge sizing. Per-trial truth comes
     from the tax-seam true-up against the trial's actual MAGI.
+
+    ``medicare_premium`` (Part B/D + supplement for members 65+) is
+    fully deterministic — no MAGI coupling below IRMAA — so it stays
+    outside ``planning_net`` and the true-up; the engine floor merge
+    sums it alongside.
     """
 
     year_index: int
@@ -196,6 +229,7 @@ class ACAYearPlan:
     gross_premium: float
     benchmark_premium: float
     oop: float
+    medicare_premium: float
     planning_magi: float
     planning_subsidy: float
     planning_net: float
@@ -210,6 +244,7 @@ def build_aca_year_plans(
     chosen_age21_monthly: float,
     benchmark_age21_monthly: float,
     oop_monthly: float,
+    medicare_monthly_per_person: float,
     real_inflation: float,
     plan_anchor_year: int,
     planning_magi_fn: Callable[[int], float],
@@ -217,9 +252,12 @@ def build_aca_year_plans(
     """Dense per-year healthcare plan from retirement through the horizon.
 
     Working years are all-zero (employer coverage; pre-retirement
-    spending never touches the portfolio). Premiums apply to covered
-    members under 65; OOP runs through every retired year (Medicare
-    premiums post-65 are a separate stream — retirement item E).
+    spending never touches the portfolio). ACA premiums apply to covered
+    members under 65; from each person's 65th calendar year a Medicare
+    premium (``medicare_monthly_per_person``, today's $) replaces their
+    ACA slot — only members covered until Medicare (``covered_until_year
+    is None``) transition, dependents just leave. OOP runs through every
+    retired year either way.
     """
     plans: list[ACAYearPlan] = []
     for year_index in range(horizon_years):
@@ -234,6 +272,7 @@ def build_aca_year_plans(
                     gross_premium=0.0,
                     benchmark_premium=0.0,
                     oop=0.0,
+                    medicare_premium=0.0,
                     planning_magi=0.0,
                     planning_subsidy=0.0,
                     planning_net=0.0,
@@ -253,10 +292,17 @@ def build_aca_year_plans(
                 if 0 <= calendar_year - person.birth_year < MEDICARE_AGE
             )
         )
-        # Premiums grow +2%/yr real from the PUF plan year; OOP (derived
-        # from current spending) grows from the simulation start.
+        # Premiums grow +2%/yr real from the PUF plan year; OOP and the
+        # Medicare line (both seeded in today's $) grow from the
+        # simulation start.
         premium_growth = (1.0 + real_inflation) ** (calendar_year - plan_anchor_year)
         oop_growth = (1.0 + real_inflation) ** year_index
+        on_medicare = sum(
+            1
+            for person in persons
+            if person.covered_until_year is None
+            and calendar_year - person.birth_year >= MEDICARE_AGE
+        )
         gross = (
             household_premium_monthly(chosen_age21_monthly * premium_growth, covered_ages) * 12.0
             if covered_ages
@@ -286,6 +332,9 @@ def build_aca_year_plans(
                 gross_premium=gross,
                 benchmark_premium=benchmark,
                 oop=oop,
+                medicare_premium=(
+                    max(0.0, medicare_monthly_per_person) * 12.0 * on_medicare * oop_growth
+                ),
                 planning_magi=planning_magi,
                 planning_subsidy=planning_subsidy,
                 planning_net=max(0.0, gross - planning_subsidy) + oop,

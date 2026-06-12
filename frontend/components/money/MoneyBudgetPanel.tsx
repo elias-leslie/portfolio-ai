@@ -20,12 +20,12 @@ import {
 import { BudgetDialog } from './BudgetDialog'
 import { BudgetStatRow } from './BudgetStatRow'
 import { BudgetTable } from './BudgetTable'
-import {
-  type BudgetWindow,
-  budgetWindows,
-  type RecategorizeDraft,
-} from './budget-helpers'
+import { type BudgetWindow, budgetWindows } from './budget-helpers'
 import { CategoryTrendChart } from './CategoryTrendChart'
+import {
+  type RecategorizeDraft,
+  startRecategorizeDraft,
+} from './category-options'
 import {
   type BudgetRowEntry,
   TREND_TOP_N,
@@ -100,12 +100,7 @@ export function MoneyBudgetPanel() {
   }
 
   function startRecategorize(transaction: HouseholdSpendingTransaction) {
-    setRecategorizeDraft({
-      transactionId: transaction.id,
-      category: transaction.category || 'Unknown',
-      essentiality: transaction.essentiality || 'mixed',
-      applyToMerchant: transaction.category === 'Unknown',
-    })
+    setRecategorizeDraft(startRecategorizeDraft(transaction))
     setCategoryPickerOpenFor(transaction.id)
   }
 

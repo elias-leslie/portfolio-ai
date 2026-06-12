@@ -46,6 +46,7 @@ from app.portfolio.contracts.retirement import (
     WithdrawalPhaseConfig,
 )
 from app.services._aca_estimator import (
+    MEDICARE_DEFAULT_MONTHLY_PER_PERSON,
     ACAPerson,
     ACAYearPlan,
     build_aca_year_plans,
@@ -988,10 +989,14 @@ class RetirementPlanningService:
             tier = "silver"
         override_raw = getattr(profile, "aca_premium_age21_override", None)
         oop_raw = getattr(profile, "aca_oop_monthly", None)
+        medicare_raw = getattr(profile, "medicare_monthly_per_person", None)
         return RetirementACAConfig(
             tier=tier,
             premium_age21_monthly_override=float(override_raw) if override_raw else None,
             oop_monthly=float(oop_raw) if oop_raw else 0.0,
+            medicare_monthly_per_person=(
+                float(medicare_raw) if medicare_raw is not None else None
+            ),
             persons=tuple(persons),
         )
 
@@ -1029,6 +1034,13 @@ class RetirementPlanningService:
                 "plan_year": plan_year,
                 "benchmark_age21_monthly": benchmark_age21,
                 "chosen_age21_monthly": chosen,
+                # None -> published-rate seed (CMS Part B/D + KFF Plan G),
+                # persisted so saved scenario inputs replay reproducibly.
+                "medicare_monthly_per_person": (
+                    config.medicare_monthly_per_person
+                    if config.medicare_monthly_per_person is not None
+                    else MEDICARE_DEFAULT_MONTHLY_PER_PERSON
+                ),
             }
         )
 
@@ -1652,6 +1664,9 @@ class RetirementPlanningService:
                     aca_oop=round(aca_plan.oop, 2) if aca_plan is not None else 0.0,
                     aca_net=round(aca_net, 2),
                     magi=round(magi_real, 2),
+                    medicare_premium=(
+                        round(aca_plan.medicare_premium, 2) if aca_plan is not None else 0.0
+                    ),
                 )
             )
         return rows
@@ -2577,11 +2592,12 @@ def _engine_withdrawal_config(
 
     With ``aca_plans`` the healthcare schedule becomes one point per
     retirement age summing the manual (LTC) schedule's carried-forward
-    value with the year's ACA planning net — summed, not appended,
-    because ``healthcare_ltc`` is last-point-wins, not additive. The
-    essential floor was already resolved against the manual schedule
-    alone, so the ACA stream lands *on top* of the spending target and
-    the auto bridge sizes to cover it pre-Social-Security.
+    value with the year's ACA planning net and Medicare premiums (members
+    65+) — summed, not appended, because ``healthcare_ltc`` is
+    last-point-wins, not additive. The essential floor was already
+    resolved against the manual schedule alone, so the healthcare stream
+    lands *on top* of the spending target and the auto bridge sizes to
+    cover it pre-Social-Security.
     """
     wc = inputs.withdrawal
     retirement_age = _household_retirement_primary_age(inputs)
@@ -2609,7 +2625,8 @@ def _engine_withdrawal_config(
             EngineHealthcarePoint(
                 age=inputs.primary_age + plan.year_index,
                 real_amount=healthcare_ltc(manual_only, inputs.primary_age + plan.year_index)
-                + plan.planning_net,
+                + plan.planning_net
+                + plan.medicare_premium,
             )
             for plan in aca_plans
             if inputs.primary_age + plan.year_index >= retirement_age
@@ -2676,6 +2693,7 @@ def _aca_year_plans(inputs: RetirementInputs) -> tuple[ACAYearPlan, ...] | None:
         chosen_age21_monthly=cfg.chosen_age21_monthly,
         benchmark_age21_monthly=cfg.benchmark_age21_monthly,
         oop_monthly=cfg.oop_monthly,
+        medicare_monthly_per_person=cfg.medicare_monthly_per_person or 0.0,
         real_inflation=cfg.healthcare_real_inflation,
         plan_anchor_year=cfg.plan_year or inputs.as_of_date.year,
         planning_magi_fn=planning_magi,

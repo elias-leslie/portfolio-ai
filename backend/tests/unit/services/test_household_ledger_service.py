@@ -101,6 +101,88 @@ def test_ledger_uses_flow_direction_for_debits_and_credits() -> None:
     assert by_id["txn-expense"].included_in_spend is True
 
 
+def test_ledger_returns_category_options_from_transactions_only() -> None:
+    today = date.today()
+    service = HouseholdLedgerService()
+    fake_service = SimpleNamespace(
+        storage=_SequenceStorage(
+            [
+                [
+                    (
+                        "txn-income",
+                        "income",
+                        "acct-checking",
+                        "Checking",
+                        datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                        None,
+                        "Payroll",
+                        "Payroll deposit",
+                        Decimal("2840.59"),
+                        "USD",
+                        "Income",
+                        "essential",
+                        "hash-income",
+                        {},
+                        "doc-income",
+                        "statement.pdf",
+                        "bank",
+                        "statement",
+                        datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                        {},
+                    ),
+                    (
+                        "txn-expense",
+                        "expense",
+                        "acct-card",
+                        "Amazon Chase (CC)",
+                        datetime.combine(today - timedelta(days=1), datetime.min.time(), tzinfo=UTC),
+                        None,
+                        "Publix",
+                        "PUBLIX #1309 | Sale",
+                        Decimal("45.88"),
+                        "USD",
+                        "Groceries",
+                        "essential",
+                        "hash-expense",
+                        {},
+                        "doc-expense",
+                        "card.csv",
+                        "credit_card",
+                        "statement",
+                        datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                        {},
+                    ),
+                ],
+                [
+                    (
+                        "import-1",
+                        "statement_csv",
+                        "row-1",
+                        datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                        "Walmart",
+                        "WALMART STORE",
+                        Decimal("12.34"),
+                        "USD",
+                        "hash-import",
+                        {},
+                        "doc-import",
+                        "import.csv",
+                        "bank",
+                        "import",
+                        datetime.combine(today, datetime.min.time(), tzinfo=UTC),
+                    ),
+                ],
+            ]
+        )
+    )
+
+    ledger = service.get_ledger(fake_service, window="1m", kind="all")
+
+    # Import rows carry a synthetic display category; only real transaction
+    # categories feed the inline category editor's options.
+    assert ledger.category_options == ["Groceries", "Income"]
+
+
 def test_ledger_treats_return_rows_as_refunds_not_payments() -> None:
     today = date.today()
     service = HouseholdLedgerService()

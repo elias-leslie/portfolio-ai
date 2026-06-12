@@ -218,7 +218,8 @@ class HouseholdTransactionAuditService:
                     d.document_type,
                     d.filename,
                     COALESCE(ap.display_label, a.canonical_label, t.account_label) AS account_label,
-                    COALESCE(similar_txns.similar_count, 0) AS similar_count
+                    COALESCE(similar_txns.similar_count, 0) AS similar_count,
+                    t.categorization_source
                 FROM household_transactions t
                 LEFT JOIN household_merchants m
                   ON m.id = t.merchant_id
@@ -271,6 +272,7 @@ class HouseholdTransactionAuditService:
                 stored_category=stored_category,
                 stored_essentiality=stored_essentiality,
                 merchant_metadata=merchant_metadata,
+                categorization_source=_normalize_text(row[21]) or None,
             )
             candidates.append(
                 {

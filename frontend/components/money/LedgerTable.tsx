@@ -1,4 +1,5 @@
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
@@ -43,6 +44,10 @@ interface LedgerTableProps {
   onToggleAudit: (rowKey: string | null) => void
   onPreviousPage: () => void
   onNextPage: () => void
+  /** Start editing a categorizable transaction row's category. */
+  onStartCategorize: (entry: HouseholdLedgerEntry) => void
+  /** Returns the shared category editor while the entry is being edited, else null. */
+  categoryEditorFor: (entry: HouseholdLedgerEntry) => ReactNode | null
 }
 
 export function LedgerTable({
@@ -67,6 +72,8 @@ export function LedgerTable({
   onToggleAudit,
   onPreviousPage,
   onNextPage,
+  onStartCategorize,
+  categoryEditorFor,
 }: LedgerTableProps) {
   function headerButton(
     label: string,
@@ -156,12 +163,20 @@ export function LedgerTable({
             ) : (
               pageEntries.map((entry) => {
                 const rowKey = `${entry.kind}-${entry.id}`
+                const categorizable =
+                  entry.kind === 'transaction' && !entry.removed
                 return (
                   <LedgerRow
                     key={rowKey}
                     entry={entry}
                     auditOpen={expandedAuditRow === rowKey}
                     onToggleAudit={onToggleAudit}
+                    onStartCategorize={
+                      categorizable ? () => onStartCategorize(entry) : undefined
+                    }
+                    categoryEditor={
+                      categorizable ? categoryEditorFor(entry) : null
+                    }
                   />
                 )
               })

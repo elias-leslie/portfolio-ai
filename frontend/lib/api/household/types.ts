@@ -884,6 +884,7 @@ export interface HouseholdLedger {
   limit: number
   returnedCount: number
   accountOptions: string[]
+  categoryOptions: string[]
   debitTotal: number
   creditTotal: number
   entries: HouseholdLedgerEntry[]

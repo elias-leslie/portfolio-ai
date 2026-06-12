@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from app.services._aca_estimator import (
+    MEDICARE_DEFAULT_MONTHLY_PER_PERSON,
     ACAPerson,
     age_curve_factor,
     applicable_percentage,
@@ -143,6 +144,7 @@ def _plans(**overrides: object) -> tuple:
         "chosen_age21_monthly": 500.0,
         "benchmark_age21_monthly": 500.0,
         "oop_monthly": 100.0,
+        "medicare_monthly_per_person": 0.0,
         "real_inflation": 0.02,
         "plan_anchor_year": 2026,
         "planning_magi_fn": lambda _yi: 0.0,
@@ -196,3 +198,46 @@ def test_year_plans_cliff_planning_magi_pays_gross() -> None:
     plan = _plans(planning_magi_fn=lambda _yi: 250_000.0)[1]
     assert plan.planning_subsidy == 0.0
     assert plan.planning_net == pytest.approx(plan.gross_premium + plan.oop)
+
+
+def test_year_plans_medicare_premium_per_person_from_65() -> None:
+    plans = _plans(medicare_monthly_per_person=400.0)
+    by_year = {plan.calendar_year: plan for plan in plans}
+    # 2041: primary still 64 — no Medicare line yet.
+    assert by_year[2041].medicare_premium == 0.0
+    # 2042: primary (b. 1977) turns 65 — one person, +2% real growth
+    # from the simulation start (today's-$ published rates).
+    assert by_year[2042].medicare_premium == pytest.approx(400.0 * 12.0 * 1.02**16)
+    # 2047: spouse (b. 1982) joins — two persons.
+    assert by_year[2047].medicare_premium == pytest.approx(2 * 400.0 * 12.0 * 1.02**21)
+    # Medicare stays out of planning_net (deterministic, no true-up).
+    assert by_year[2047].planning_net == pytest.approx(by_year[2047].oop)
+
+
+def test_year_plans_medicare_skips_dependents_and_working_years() -> None:
+    # A dependent with an explicit coverage window leaves the household;
+    # they never transition onto the modeled Medicare line.
+    persons = (
+        ACAPerson(birth_year=1977),
+        ACAPerson(birth_year=1990, covered_until_year=2056),
+    )
+    plans = _plans(
+        persons=persons, medicare_monthly_per_person=400.0, horizon_years=35
+    )
+    by_year = {plan.calendar_year: plan for plan in plans}
+    # 2055: second person is 65 but window-bound — only the primary counts.
+    assert by_year[2055].medicare_premium == pytest.approx(400.0 * 12.0 * 1.02**29)
+    # Working years stay all-zero even at 65+.
+    late_retiree = _plans(
+        persons=(ACAPerson(birth_year=1977),),
+        medicare_monthly_per_person=400.0,
+        retirement_year_index=17,
+        horizon_years=20,
+    )
+    assert late_retiree[16].medicare_premium == 0.0
+    assert late_retiree[17].medicare_premium > 0.0
+
+
+def test_medicare_default_sums_published_rates() -> None:
+    # CMS Part B $202.90 + Part D BBP $38.99 + KFF Plan G average $164.
+    assert pytest.approx(405.89) == MEDICARE_DEFAULT_MONTHLY_PER_PERSON

@@ -172,6 +172,7 @@ class HouseholdProfile(BaseModel):
     aca_tier: str | None = None
     aca_premium_age21_override: float | None = None
     aca_oop_monthly: float | None = None
+    medicare_monthly_per_person: float | None = None
     notes: str | None = None
     created_at: str
     updated_at: str
@@ -222,6 +223,7 @@ class HouseholdProfileUpdate(BaseModel):
     aca_tier: str | None = None
     aca_premium_age21_override: float | None = None
     aca_oop_monthly: float | None = None
+    medicare_monthly_per_person: float | None = None
     notes: str | None = None
 
 

@@ -9,27 +9,6 @@ export const budgetWindows: Array<{ value: BudgetWindow; label: string }> = [
   { value: '6m', label: '6M' },
 ]
 
-export const CATEGORY_OPTIONS = [
-  'Unknown',
-  'Bills',
-  'Dining',
-  'Donations',
-  'Education',
-  'Entertainment',
-  'Fitness',
-  'Gas',
-  'Groceries',
-  'Healthcare',
-  'Home',
-  'Household',
-  'Insurance',
-  'Personal Care',
-  'Retail',
-  'Subscriptions',
-  'Transportation',
-  'Travel',
-]
-
 export const trendColors = [
   'var(--color-chart-1)',
   'var(--color-chart-2)',
@@ -40,13 +19,6 @@ export const trendColors = [
   'var(--color-chart-cyan)',
   'var(--color-chart-orange)',
 ]
-
-export type RecategorizeDraft = {
-  transactionId: string
-  category: string
-  essentiality: string
-  applyToMerchant: boolean
-}
 
 /**
  * Classify a category's cap status from its confirmed and suggested caps versus

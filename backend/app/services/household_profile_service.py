@@ -39,7 +39,8 @@ class HouseholdProfileService:
                        bridge_mode, bridge_manual_amount, bridge_real_return,
                        retirement_essential_floor_override, retirement_discretionary_override,
                        notes, created_at, updated_at, bridge_growth,
-                       aca_tier, aca_premium_age21_override, aca_oop_monthly
+                       aca_tier, aca_premium_age21_override, aca_oop_monthly,
+                       medicare_monthly_per_person
                 FROM household_profiles ORDER BY created_at ASC LIMIT 1
                 """
             ).fetchone()

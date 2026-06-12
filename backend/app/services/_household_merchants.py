@@ -434,6 +434,18 @@ def _effective_transaction_flow(
     return "expense"
 
 
+# Stored categorizations from these sources are authoritative: a user (or curation
+# agent) decided them, so display-time heuristics must never override. Mirrors the
+# protected set in HouseholdTransactionService._canonicalize_stored_categories.
+_AUTHORITATIVE_CATEGORY_SOURCES = {
+    "manual",
+    "manual_rule",
+    "merchant_rule",
+    "transaction_audit",
+    "transaction_audit_agent",
+}
+
+
 def _effective_transaction_classification(
     *,
     flow_type: str,
@@ -443,7 +455,16 @@ def _effective_transaction_classification(
     stored_category: str | None,
     stored_essentiality: str | None,
     merchant_metadata: dict[str, Any] | None,
+    categorization_source: str | None = None,
 ) -> tuple[str, str]:
+    if (
+        (categorization_source or "").strip().lower() in _AUTHORITATIVE_CATEGORY_SOURCES
+        and (stored_category or "").strip()
+    ):
+        return (
+            (stored_category or "").strip(),
+            (stored_essentiality or "mixed").strip() or "mixed",
+        )
     if isinstance(merchant_metadata, dict) and isinstance(merchant_metadata.get("manual_rule"), dict):
         return (
             (stored_category or "Uncategorized").strip() or "Uncategorized",
