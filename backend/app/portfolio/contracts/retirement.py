@@ -88,6 +88,41 @@ class RetirementCollegeYear(BaseModel):
     real_amount: float = Field(..., ge=0.0)
 
 
+class RetirementACAPerson(BaseModel):
+    """One member for ACA coverage and FPL household-size purposes.
+
+    ``covered_until_year`` is exclusive; ``None`` keeps the person
+    covered until Medicare at 65 and in the tax household throughout.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    birth_year: int = Field(..., ge=1900, le=2100)
+    covered_until_year: int | None = Field(None, ge=1900, le=2200)
+
+
+class RetirementACAConfig(BaseModel):
+    """ACA healthcare-stream configuration (real dollars).
+
+    ``benchmark_age21_monthly`` / ``chosen_age21_monthly`` are the
+    *resolved* premium anchors (CMS landscape PUF or manual override),
+    persisted here so saved scenario inputs replay reproducibly. The
+    stream is inert until both anchors resolve.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    tier: Literal["silver", "bronze", "none"] = "silver"
+    premium_age21_monthly_override: float | None = Field(None, ge=0.0)
+    oop_monthly: float = Field(0.0, ge=0.0)
+    # CPI + 2%/yr healthcare inflation => +2%/yr real (interview decision 7).
+    healthcare_real_inflation: float = Field(0.02, ge=-0.02, le=0.10)
+    persons: tuple[RetirementACAPerson, ...] = ()
+    plan_year: int | None = Field(None, ge=2000, le=2100)
+    benchmark_age21_monthly: float | None = Field(None, ge=0.0)
+    chosen_age21_monthly: float | None = Field(None, ge=0.0)
+
+
 class RetirementIncomeSource(BaseModel):
     """One household_retirement_income_sources row, normalised for sim."""
 
@@ -134,6 +169,7 @@ class RetirementInputs(BaseModel):
     college_schedule: tuple[RetirementCollegeYear, ...] = ()
     college_529_value: float = Field(0.0, ge=0.0)
     college_529_real_return: float = Field(0.01, ge=-0.05, le=0.1)
+    aca: RetirementACAConfig | None = None
     as_of_date: date
 
 
@@ -303,6 +339,13 @@ class RetirementDrawdownYear(BaseModel):
     college_cost: float = Field(0.0, ge=0.0)
     college_529_draw: float = Field(0.0, ge=0.0)
     college_529_balance: float = Field(0.0, ge=0.0)
+    # ACA healthcare stream (REAL dollars). ``aca_subsidy``/``aca_net``
+    # are priced off ``magi`` — the modeled MAGI that set the credit.
+    aca_premium_gross: float = Field(0.0, ge=0.0)
+    aca_subsidy: float = Field(0.0, ge=0.0)
+    aca_oop: float = Field(0.0, ge=0.0)
+    aca_net: float = Field(0.0, ge=0.0)
+    magi: float = Field(0.0, ge=0.0)
 
 
 class RetirementAccountRule(BaseModel):

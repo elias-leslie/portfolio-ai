@@ -21,6 +21,8 @@ import numpy as np
 import pytest
 
 from app.portfolio.contracts.retirement import (
+    RetirementACAConfig,
+    RetirementACAPerson,
     RetirementAccountBucket,
     RetirementCollegeYear,
     RetirementIncomeSource,
@@ -28,6 +30,7 @@ from app.portfolio.contracts.retirement import (
     ScenarioResults,
     WithdrawalBridgeConfig,
     WithdrawalConfig,
+    WithdrawalHealthcarePoint,
 )
 from app.services._retirement_simulation import (
     SimulationOutputs,
@@ -307,6 +310,8 @@ class _StubConn:
                 self._healthcare,
             ),
             "from household_retirement_college_schedule": ("fetchall", []),
+            # Premium anchors resolve to "not ingested" -> ACA stream off.
+            "from aca_marketplace_plans": ("fetchone", (None,)),
             "from portfolio_positions": ("fetchall", self._positions),
             "from household_housing_costs": ("fetchone", (self._housing,)),
             "from household_debt_obligations": ("fetchone", (self._debt,)),
@@ -1796,3 +1801,138 @@ def test_monte_carlo_bridge_portfolio_growth_changes_outcomes_and_stays_seeded()
     # …deterministically for a fixed seed.
     assert riding.success_probability == riding_again.success_probability
     assert riding.ending_balance_paths["p50"] == riding_again.ending_balance_paths["p50"]
+
+
+# ----------------------------------------------------------------------
+# ACA healthcare stream (item D part d)
+# ----------------------------------------------------------------------
+
+# Solo adult, age 60 at retirement: gross premium = 500 x 2.714 x 12 =
+# 16,284/yr; household of 1 -> FPL 15,650, cliff at 62,600. Zero
+# inflation keeps real == nominal so the rows assert exactly.
+_ACA_SOLO = RetirementACAConfig(
+    persons=(RetirementACAPerson(birth_year=1966),),
+    plan_year=2026,
+    benchmark_age21_monthly=500.0,
+    chosen_age21_monthly=500.0,
+    healthcare_real_inflation=0.0,
+    oop_monthly=0.0,
+)
+_ACA_SOLO_GROSS = 500.0 * 2.714 * 12.0
+_ACA_SOLO_PLANNING_NET = 0.021 * 15_650.0
+
+
+def _aca_inputs(
+    aca: RetirementACAConfig | None,
+    *,
+    income_sources: tuple[RetirementIncomeSource, ...] = (),
+    withdrawal: WithdrawalConfig | None = None,
+    horizon_years: int = 3,
+) -> RetirementInputs:
+    base: dict[str, Any] = _args(
+        household_id="hh-aca",
+        primary_age=60,
+        spouse_age=None,
+        retirement_age=60,
+        horizon_years=horizon_years,
+        annual_expenses=60_000.0,
+        annual_contribution=0.0,
+        portfolio_value=1_000_000.0,
+        asset_allocation={"us_equity": 1.0},
+        income_sources=income_sources,
+        inflation_rate=0.0,
+        aca=aca,
+        as_of_date=date(2026, 6, 11),
+    )
+    if withdrawal is not None:
+        base["withdrawal"] = withdrawal
+    return RetirementInputs(**base)
+
+
+def _aca_bucket(bucket_type: str) -> tuple[RetirementAccountBucket, ...]:
+    return (
+        RetirementAccountBucket(
+            bucket_type=bucket_type,
+            label=bucket_type,
+            account_type="brokerage",
+            tax_treatment="taxable_capital_gains_estimate",
+            current_value=1_000_000.0,
+            withdrawal_priority=1,
+        ),
+    )
+
+
+def test_drawdown_aca_low_magi_keeps_planning_subsidy() -> None:
+    service = _make_service(_StubConn())
+    rows = service._drawdown_schedule(_aca_inputs(_ACA_SOLO), buckets=_aca_bucket("taxable"))
+
+    row = rows[0]
+    assert row.aca_premium_gross == pytest.approx(_ACA_SOLO_GROSS)
+    # Taxable draws only put the 15% gain slice into MAGI — far below
+    # the poverty line, so the managed-income floor prices the credit.
+    assert 0.0 < row.magi < 15_650.0
+    assert row.aca_subsidy == pytest.approx(_ACA_SOLO_GROSS - _ACA_SOLO_PLANNING_NET, abs=0.01)
+    assert row.aca_net == pytest.approx(_ACA_SOLO_PLANNING_NET, abs=0.01)
+    # The planning net rides the engine floor on top of the spend target.
+    assert row.floor_amount == pytest.approx(60_000.0 + _ACA_SOLO_PLANNING_NET, abs=0.01)
+
+
+def test_drawdown_aca_pretax_draws_cross_the_cliff() -> None:
+    service = _make_service(_StubConn())
+    baseline = service._drawdown_schedule(_aca_inputs(None), buckets=_aca_bucket("pre_tax"))
+    rows = service._drawdown_schedule(_aca_inputs(_ACA_SOLO), buckets=_aca_bucket("pre_tax"))
+
+    row = rows[0]
+    # Ordinary-income draws for the spend target alone exceed 400% FPL
+    # for a household of one: the true-up strips the subsidy entirely.
+    assert row.magi > 62_600.0
+    assert row.aca_subsidy == 0.0
+    assert row.aca_net == pytest.approx(_ACA_SOLO_GROSS)
+    assert row.gross_withdrawal > baseline[0].gross_withdrawal + _ACA_SOLO_GROSS - 1.0
+
+
+def test_drawdown_aca_adds_on_top_of_manual_healthcare_schedule() -> None:
+    service = _make_service(_StubConn())
+    manual = WithdrawalConfig(
+        healthcare_schedule=(WithdrawalHealthcarePoint(age=60, real_amount=5_000.0),)
+    )
+    rows = service._drawdown_schedule(
+        _aca_inputs(_ACA_SOLO, withdrawal=manual), buckets=_aca_bucket("taxable")
+    )
+    # Manual LTC point and the ACA planning net SUM (no last-point-wins
+    # collision between the two schedules).
+    assert rows[0].floor_amount == pytest.approx(
+        60_000.0 + 5_000.0 + _ACA_SOLO_PLANNING_NET, abs=0.01
+    )
+
+
+def test_drawdown_aca_inert_without_premium_anchors() -> None:
+    service = _make_service(_StubConn())
+    unresolved = _ACA_SOLO.model_copy(
+        update={"benchmark_age21_monthly": None, "chosen_age21_monthly": None}
+    )
+    baseline = service._drawdown_schedule(_aca_inputs(None), buckets=_aca_bucket("taxable"))
+    rows = service._drawdown_schedule(
+        _aca_inputs(unresolved), buckets=_aca_bucket("taxable")
+    )
+    assert rows[0].aca_premium_gross == 0.0
+    assert rows[0].aca_net == 0.0
+    assert rows[0].gross_withdrawal == baseline[0].gross_withdrawal
+
+
+def test_monte_carlo_aca_costs_lower_success_and_stay_seeded() -> None:
+    service = _make_service(_StubConn())
+    # OOP is the unsubsidizable part of the stream — with taxable-funded
+    # draws the PTC soaks nearly the whole premium (by design), so the
+    # success drag must come from a cost MAGI management cannot remove.
+    config = _ACA_SOLO.model_copy(update={"oop_monthly": 500.0})
+    with_aca = _aca_inputs(config, horizon_years=30)
+    without = _aca_inputs(None, horizon_years=30)
+    base = service.run_simulation(without, trials=400, seed=42)
+    sim = service.run_simulation(with_aca, trials=400, seed=42)
+    again = service.run_simulation(with_aca, trials=400, seed=42)
+    # A ~6k/yr unavoidable OOP floor must cost success probability…
+    assert sim.success_probability < base.success_probability
+    # …and the true-up must stay deterministic for a fixed seed.
+    assert sim.success_probability == again.success_probability
+    assert sim.ending_balance_paths["p50"] == again.ending_balance_paths["p50"]

@@ -186,6 +186,9 @@ def row_to_profile(
         created_at=iso(row[42]),
         updated_at=iso(row[43]),
         bridge_growth=str(row[44]) if len(row) > 44 and row[44] is not None else None,
+        aca_tier=str(row[45]) if len(row) > 45 and row[45] is not None else None,
+        aca_premium_age21_override=to_float(row[46]) if len(row) > 46 else None,
+        aca_oop_monthly=to_float(row[47]) if len(row) > 47 else None,
     )
 
 

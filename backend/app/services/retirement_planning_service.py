@@ -24,6 +24,8 @@ import yaml
 
 from app.logging_config import get_logger
 from app.portfolio.contracts.retirement import (
+    RetirementACAConfig,
+    RetirementACAPerson,
     RetirementAccountAllocationAccount,
     RetirementAccountAllocationCoverage,
     RetirementAccountBucket,
@@ -42,6 +44,13 @@ from app.portfolio.contracts.retirement import (
     WithdrawalConfig,
     WithdrawalHealthcarePoint,
     WithdrawalPhaseConfig,
+)
+from app.services._aca_estimator import (
+    ACAPerson,
+    ACAYearPlan,
+    build_aca_year_plans,
+    household_premium_monthly,
+    premium_tax_credit_annual,
 )
 from app.services._retirement_simulation import (
     PERCENTILE_KEYS,
@@ -68,6 +77,9 @@ from app.services._withdrawal_engine import (
 )
 from app.services._withdrawal_engine import (
     WithdrawalConfig as EngineWithdrawalConfig,
+)
+from app.services.aca_marketplace_ingest_service import (
+    DEFAULT_COUNTIES as DEFAULT_ACA_COUNTIES,
 )
 
 logger = get_logger(__name__)
@@ -486,6 +498,7 @@ class RetirementPlanningService:
         social_security_payable_ratio: float | None = None,
         withdrawal: WithdrawalConfig | None = None,
         college_schedule: tuple[RetirementCollegeYear, ...] | None = None,
+        aca: RetirementACAConfig | None = None,
         trials: int = DEFAULT_PREVIEW_TRIALS,
         seed: int | None = 7,
         as_of_date: date | None = None,
@@ -657,6 +670,16 @@ class RetirementPlanningService:
                     "college_529_value": college_529_value,
                 }
             )
+
+        # ACA healthcare stream: explicit request config wins, else the
+        # profile levers + household members; premium anchors resolve from
+        # the CMS landscape table (manual override wins) and persist on the
+        # inputs so saved scenarios replay reproducibly.
+        aca_config = self._resolve_aca_config(
+            aca if aca is not None else self._default_aca_config(profile), inputs
+        )
+        if aca_config is not None:
+            inputs = inputs.model_copy(update={"aca": aca_config})
 
         tax_context = _tax_context_from_profile(profile, inputs)
         sim = self.run_simulation(inputs, trials=trials, seed=seed, tax_context=tax_context, buckets=buckets)
@@ -940,6 +963,179 @@ class RetirementPlanningService:
             for row in rows
             if row[0] is not None
         )
+
+    def _default_aca_config(self, profile: Any) -> RetirementACAConfig:
+        """ACA config from profile levers + household members.
+
+        Dependents default to coverage until the year they turn 22
+        (twins finish college — interview decision 4's default option);
+        adults stay until Medicare. The covered-lives lever swaps these
+        per preview request.
+        """
+        persons: list[RetirementACAPerson] = []
+        for member in self._load_members():
+            birth_year = member.get("birth_year")
+            if birth_year is None:
+                continue
+            covered_until = int(birth_year) + 22 if member.get("is_dependent") else None
+            persons.append(
+                RetirementACAPerson(
+                    birth_year=int(birth_year), covered_until_year=covered_until
+                )
+            )
+        tier = str(getattr(profile, "aca_tier", None) or "silver").lower()
+        if tier not in {"silver", "bronze", "none"}:
+            tier = "silver"
+        override_raw = getattr(profile, "aca_premium_age21_override", None)
+        oop_raw = getattr(profile, "aca_oop_monthly", None)
+        return RetirementACAConfig(
+            tier=tier,
+            premium_age21_monthly_override=float(override_raw) if override_raw else None,
+            oop_monthly=float(oop_raw) if oop_raw else 0.0,
+            persons=tuple(persons),
+        )
+
+    def _resolve_aca_config(
+        self, config: RetirementACAConfig, inputs: RetirementInputs
+    ) -> RetirementACAConfig | None:
+        """Fill premium anchors and fall-back persons; ``None`` disables.
+
+        A manual override prices the chosen plan but the subsidy is
+        always computed against the Silver benchmark anchor.
+        """
+        if config.tier == "none":
+            return None
+        persons = config.persons
+        if not persons:
+            # No member rows: model the adults straight off the sim ages.
+            birth_year = inputs.as_of_date.year - inputs.primary_age
+            persons = (RetirementACAPerson(birth_year=birth_year),)
+            if inputs.spouse_age is not None:
+                persons += (
+                    RetirementACAPerson(birth_year=inputs.as_of_date.year - inputs.spouse_age),
+                )
+        anchors = self._load_aca_premium_anchors()
+        if anchors is None:
+            return None
+        plan_year, benchmark_age21, bronze_age21 = anchors
+        chosen = config.premium_age21_monthly_override
+        if chosen is None:
+            chosen = bronze_age21 if config.tier == "bronze" else benchmark_age21
+        if chosen is None or benchmark_age21 is None:
+            return None
+        return config.model_copy(
+            update={
+                "persons": persons,
+                "plan_year": plan_year,
+                "benchmark_age21_monthly": benchmark_age21,
+                "chosen_age21_monthly": chosen,
+            }
+        )
+
+    def _load_aca_premium_anchors(self) -> tuple[int, float | None, float | None] | None:
+        """(plan_year, benchmark Silver, lowest Bronze-tier) age-21 premiums.
+
+        Benchmark = second-lowest-cost Silver plan (SLCSP) in the
+        configured county for the latest ingested plan year; the Bronze
+        anchor spans Bronze + Expanded Bronze.
+        """
+        fips = DEFAULT_ACA_COUNTIES[0][1]
+        with self.storage.connection() as conn:
+            year_row = conn.execute(
+                "SELECT MAX(plan_year) FROM aca_marketplace_plans WHERE fips_county_code = %s",
+                [fips],
+            ).fetchone()
+            if year_row is None or year_row[0] is None:
+                return None
+            plan_year = int(year_row[0])
+            silver_rows = conn.execute(
+                "SELECT premium_age_21 FROM aca_marketplace_plans"
+                " WHERE plan_year = %s AND fips_county_code = %s AND metal_level = 'Silver'"
+                "   AND premium_age_21 IS NOT NULL"
+                " ORDER BY premium_age_21 ASC LIMIT 2",
+                [plan_year, fips],
+            ).fetchall()
+            bronze_row = conn.execute(
+                "SELECT MIN(premium_age_21) FROM aca_marketplace_plans"
+                " WHERE plan_year = %s AND fips_county_code = %s"
+                "   AND metal_level IN ('Bronze', 'Expanded Bronze')",
+                [plan_year, fips],
+            ).fetchone()
+        benchmark = float(silver_rows[-1][0]) if silver_rows else None
+        bronze = float(bronze_row[0]) if bronze_row and bronze_row[0] is not None else None
+        return plan_year, benchmark, bronze
+
+    def aca_estimate(
+        self,
+        *,
+        magi_annual: float,
+        ages: tuple[int, ...] | None = None,
+        household_size: int | None = None,
+        tier: str = "silver",
+    ) -> dict[str, Any] | None:
+        """One-shot ACA premium/subsidy estimate at an explicit MAGI.
+
+        Ages and household size default to the household members
+        currently in their coverage window. ``None`` when no landscape
+        plans are ingested.
+        """
+        anchors = self._load_aca_premium_anchors()
+        if anchors is None or anchors[1] is None:
+            return None
+        plan_year, benchmark_age21, bronze_age21 = anchors
+        if ages is None or household_size is None:
+            current_year = date.today().year
+            in_window: list[int] = []
+            for member in self._load_members():
+                birth_year = member.get("birth_year")
+                if birth_year is None:
+                    continue
+                if member.get("is_dependent") and current_year >= int(birth_year) + 22:
+                    continue
+                in_window.append(int(birth_year))
+            if ages is None:
+                ages = tuple(
+                    sorted(
+                        current_year - birth_year
+                        for birth_year in in_window
+                        if 0 <= current_year - birth_year < 65
+                    )
+                )
+            if household_size is None:
+                household_size = len(in_window)
+        chosen_age21 = bronze_age21 if tier == "bronze" else benchmark_age21
+        if chosen_age21 is None:
+            return None
+        gross_monthly = household_premium_monthly(chosen_age21, ages)
+        benchmark_monthly = household_premium_monthly(benchmark_age21, ages)
+        credit = premium_tax_credit_annual(
+            magi_annual=magi_annual,
+            household_size=household_size,
+            benchmark_annual=benchmark_monthly * 12.0,
+        )
+        return {
+            "plan_year": plan_year,
+            "tier": tier,
+            "ages": list(ages),
+            "household_size": household_size,
+            "magi_annual": round(magi_annual, 2),
+            "magi_used": round(credit.magi_used, 2),
+            "fpl_annual": round(credit.fpl, 2),
+            "fpl_ratio": round(credit.fpl_ratio, 4),
+            "applicable_pct": (
+                round(credit.applicable_pct, 6) if credit.applicable_pct is not None else None
+            ),
+            "over_cliff": credit.over_cliff,
+            "expected_contribution_annual": round(credit.expected_contribution, 2),
+            "benchmark_age21_monthly": round(benchmark_age21, 2),
+            "chosen_age21_monthly": round(chosen_age21, 2),
+            "benchmark_premium_monthly": round(benchmark_monthly, 2),
+            "gross_premium_monthly": round(gross_monthly, 2),
+            "subsidy_monthly": round(credit.credit / 12.0, 2),
+            "net_premium_monthly": round(
+                max(0.0, gross_monthly * 12.0 - credit.credit) / 12.0, 2
+            ),
+        }
 
     def _account_buckets_from_dashboard(self, dashboard: Any) -> tuple[RetirementAccountBucket, ...]:
         buckets: list[RetirementAccountBucket] = []
@@ -1270,7 +1466,8 @@ class RetirementPlanningService:
         household_retirement_age = _household_retirement_primary_age(inputs)
         balances = _bucket_balances(inputs, buckets)
         contribution_bucket = _contribution_bucket(balances)
-        cfg = _engine_withdrawal_config(inputs, r_real=r_real)
+        aca_plans = _aca_year_plans(inputs)
+        cfg = _engine_withdrawal_config(inputs, r_real=r_real, aca_plans=aca_plans)
         bridge_balance = _carve_bridge_from_balances(
             balances, bridge_initial_size(cfg, _real_guaranteed_income_fn(inputs))
         )
@@ -1345,6 +1542,18 @@ class RetirementPlanningService:
             if college_overflow > 0 and primary_age >= household_retirement_age:
                 spending += college_overflow * inflation_factor
 
+            # ACA true-up: the engine floor carries the *planning* net
+            # healthcare cost; premium years reprice the subsidy off the
+            # year's realized MAGI (draws included) and re-run the seam
+            # with the difference. Snapshot first — the seam mutates.
+            aca_plan = (
+                aca_plans[year_index]
+                if aca_plans is not None and primary_age >= household_retirement_age
+                else None
+            )
+            pre_seam_balances = (
+                dict(balances) if aca_plan is not None and aca_plan.gross_premium > 0 else None
+            )
             outcome = _apply_tax_aware_withdrawals(
                 balances,
                 spending=spending,
@@ -1355,6 +1564,33 @@ class RetirementPlanningService:
                 tax_context=tax_context,
                 gain_ratio=gain_ratio,
             )
+            aca_subsidy = aca_plan.planning_subsidy if aca_plan is not None else 0.0
+            aca_net = aca_plan.planning_net if aca_plan is not None else 0.0
+            magi_real = 0.0
+            if aca_plan is not None and pre_seam_balances is not None:
+                magi_real = (
+                    _aca_magi_nominal(outcome, income_components, gain_ratio) / inflation_factor
+                )
+                aca_subsidy = premium_tax_credit_annual(
+                    magi_annual=magi_real,
+                    household_size=aca_plan.household_size,
+                    benchmark_annual=aca_plan.benchmark_premium,
+                ).credit
+                aca_net = max(0.0, aca_plan.gross_premium - aca_subsidy) + aca_plan.oop
+                delta = aca_net - aca_plan.planning_net
+                if abs(delta) > 0.005:
+                    balances = pre_seam_balances
+                    spending += delta * inflation_factor
+                    outcome = _apply_tax_aware_withdrawals(
+                        balances,
+                        spending=spending,
+                        income_components=income_components,
+                        primary_age=primary_age,
+                        spouse_age=spouse_age,
+                        inflation_factor=inflation_factor,
+                        tax_context=tax_context,
+                        gain_ratio=gain_ratio,
+                    )
             withdrawals = outcome.withdrawals
             gross_withdrawal = round(sum(withdrawals.values()), 2)
             if wy is not None:
@@ -1409,6 +1645,13 @@ class RetirementPlanningService:
                     college_cost=round(college_cost, 2),
                     college_529_draw=round(college_draw, 2),
                     college_529_balance=round(college_balance, 2),
+                    aca_premium_gross=(
+                        round(aca_plan.gross_premium, 2) if aca_plan is not None else 0.0
+                    ),
+                    aca_subsidy=round(aca_subsidy, 2),
+                    aca_oop=round(aca_plan.oop, 2) if aca_plan is not None else 0.0,
+                    aca_net=round(aca_net, 2),
+                    magi=round(magi_real, 2),
                 )
             )
         return rows
@@ -2321,13 +2564,24 @@ def _ss_claim_ages(inputs: RetirementInputs) -> tuple[int, int | None]:
 
 
 def _engine_withdrawal_config(
-    inputs: RetirementInputs, *, r_real: float
+    inputs: RetirementInputs,
+    *,
+    r_real: float,
+    aca_plans: tuple[ACAYearPlan, ...] | None = None,
 ) -> EngineWithdrawalConfig:
     """Convert the contract ``WithdrawalConfig`` to the pure-engine config.
 
     Unresolved floors (``essential_floor is None``, e.g. the persisted
     ``/scenarios`` route) fall back to spend-the-gap semantics: whole
     ``annual_expenses`` as floor, no discretionary layer, no bridge.
+
+    With ``aca_plans`` the healthcare schedule becomes one point per
+    retirement age summing the manual (LTC) schedule's carried-forward
+    value with the year's ACA planning net — summed, not appended,
+    because ``healthcare_ltc`` is last-point-wins, not additive. The
+    essential floor was already resolved against the manual schedule
+    alone, so the ACA stream lands *on top* of the spending target and
+    the auto bridge sizes to cover it pre-Social-Security.
     """
     wc = inputs.withdrawal
     retirement_age = _household_retirement_primary_age(inputs)
@@ -2345,6 +2599,21 @@ def _engine_withdrawal_config(
             real_return=wc.bridge.real_return,
             growth=wc.bridge.growth,
         )
+    healthcare_points = tuple(
+        EngineHealthcarePoint(age=point.age, real_amount=point.real_amount)
+        for point in wc.healthcare_schedule
+    )
+    if aca_plans is not None:
+        manual_only = EngineWithdrawalConfig(healthcare_schedule=healthcare_points)
+        healthcare_points = tuple(
+            EngineHealthcarePoint(
+                age=inputs.primary_age + plan.year_index,
+                real_amount=healthcare_ltc(manual_only, inputs.primary_age + plan.year_index)
+                + plan.planning_net,
+            )
+            for plan in aca_plans
+            if inputs.primary_age + plan.year_index >= retirement_age
+        )
     return EngineWithdrawalConfig(
         strategy=wc.strategy,
         initial_rate=wc.initial_rate,
@@ -2358,10 +2627,7 @@ def _engine_withdrawal_config(
             no_go_pct=wc.phase.no_go_pct,
         ),
         bridge=bridge,
-        healthcare_schedule=tuple(
-            EngineHealthcarePoint(age=point.age, real_amount=point.real_amount)
-            for point in wc.healthcare_schedule
-        ),
+        healthcare_schedule=healthcare_points,
         essential_floor=essential_floor,
         base_discretionary=base_discretionary,
         retirement_age=retirement_age,
@@ -2370,6 +2636,71 @@ def _engine_withdrawal_config(
         primary_ss_claim_age=primary_claim,
         spouse_ss_claim_age=spouse_claim,
         r=r_real,
+    )
+
+
+def _aca_year_plans(inputs: RetirementInputs) -> tuple[ACAYearPlan, ...] | None:
+    """Deterministic per-year ACA facts, or ``None`` when the stream is off.
+
+    Planning MAGI uses guaranteed income only — ACA MAGI counts the FULL
+    Social Security benefit (taxable or not) plus ordinary sources;
+    portfolio draws are unknown here and reconcile at the tax seam.
+    """
+    cfg = inputs.aca
+    if cfg is None or cfg.tier == "none" or not cfg.persons:
+        return None
+    if cfg.chosen_age21_monthly is None or cfg.benchmark_age21_monthly is None:
+        return None
+    retirement_age = _household_retirement_primary_age(inputs)
+
+    def planning_magi(year_index: int) -> float:
+        inflation_factor = (1.0 + inputs.inflation_rate) ** year_index
+        components = _income_components_for_age(
+            inputs.income_sources,
+            inputs.primary_age + year_index,
+            inflation_factor=inflation_factor,
+            calendar_year=inputs.as_of_date.year + year_index,
+            social_security_payable_ratio=inputs.social_security_payable_ratio,
+            social_security_depletion_year=inputs.social_security_depletion_year,
+        )
+        return components["total"] / inflation_factor
+
+    return build_aca_year_plans(
+        persons=tuple(
+            ACAPerson(birth_year=person.birth_year, covered_until_year=person.covered_until_year)
+            for person in cfg.persons
+        ),
+        start_year=inputs.as_of_date.year,
+        horizon_years=inputs.horizon_years,
+        retirement_year_index=max(0, retirement_age - inputs.primary_age),
+        chosen_age21_monthly=cfg.chosen_age21_monthly,
+        benchmark_age21_monthly=cfg.benchmark_age21_monthly,
+        oop_monthly=cfg.oop_monthly,
+        real_inflation=cfg.healthcare_real_inflation,
+        plan_anchor_year=cfg.plan_year or inputs.as_of_date.year,
+        planning_magi_fn=planning_magi,
+    )
+
+
+def _aca_magi_nominal(
+    outcome: WithdrawalOutcome,
+    income_components: dict[str, float],
+    gain_ratio: float,
+) -> float:
+    """Modeled ACA MAGI (nominal) for the year's realized draws.
+
+    Ordinary income + full Social Security + ordinary-income bucket
+    draws + the taxable draw's gain slice; Roth/cash/basis draws and
+    bridge-sleeve draws stay out (interview decision 2).
+    """
+    draws = outcome.withdrawals
+    ordinary_draws = sum(draws.get(bucket, 0.0) for bucket in _ORDINARY_INCOME_BUCKETS)
+    gains = draws.get("taxable", 0.0) * gain_ratio
+    return (
+        income_components["ordinary"]
+        + income_components["social_security"]
+        + ordinary_draws
+        + gains
     )
 
 
@@ -2587,8 +2918,11 @@ def _run_tax_aware_monte_carlo(
     # R5: VPW capacity uses the fixed expected real return, never the
     # sampled one.
     expected_nominal = float(mus @ weights)
+    aca_plans = _aca_year_plans(inputs)
     cfg = _engine_withdrawal_config(
-        inputs, r_real=(1.0 + expected_nominal) / (1.0 + inputs.inflation_rate) - 1.0
+        inputs,
+        r_real=(1.0 + expected_nominal) / (1.0 + inputs.inflation_rate) - 1.0,
+        aca_plans=aca_plans,
     )
     # R2: the bridge is a scalar sleeve carved from cash+taxable once at
     # setup — invisible to RMD/greedy/volatility logic, untaxed on draw.
@@ -2695,6 +3029,18 @@ def _run_tax_aware_monte_carlo(
                 # federal-stack probes entirely.
                 failed = False
             else:
+                # ACA true-up (premium years): reprice the subsidy off the
+                # trial's realized MAGI and re-run the seam with the delta
+                # vs the planning net already in the engine floor. Cliff
+                # trials pay the full gross premium here.
+                aca_plan = (
+                    aca_plans[year_index]
+                    if aca_plans is not None
+                    and wy is not None
+                    and aca_plans[year_index].gross_premium > 0
+                    else None
+                )
+                pre_seam_balances = dict(balances) if aca_plan is not None else None
                 outcome = _apply_tax_aware_withdrawals(
                     balances,
                     spending=spending,
@@ -2705,6 +3051,28 @@ def _run_tax_aware_monte_carlo(
                     tax_context=tax_context,
                     gain_ratio=gain_ratio,
                 )
+                if aca_plan is not None and pre_seam_balances is not None:
+                    credit = premium_tax_credit_annual(
+                        magi_annual=_aca_magi_nominal(outcome, income_components, gain_ratio)
+                        / inflation_factor,
+                        household_size=aca_plan.household_size,
+                        benchmark_annual=aca_plan.benchmark_premium,
+                    ).credit
+                    actual_net = max(0.0, aca_plan.gross_premium - credit) + aca_plan.oop
+                    delta = actual_net - aca_plan.planning_net
+                    if abs(delta) > 0.005:
+                        balances = pre_seam_balances
+                        spending += delta * inflation_factor
+                        outcome = _apply_tax_aware_withdrawals(
+                            balances,
+                            spending=spending,
+                            income_components=income_components,
+                            primary_age=primary_age,
+                            spouse_age=spouse_age,
+                            inflation_factor=inflation_factor,
+                            tax_context=tax_context,
+                            gain_ratio=gain_ratio,
+                        )
                 if wy is not None:
                     gross_withdrawal = sum(outcome.withdrawals.values())
                     surplus_net = (

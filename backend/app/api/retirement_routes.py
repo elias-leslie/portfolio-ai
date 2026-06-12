@@ -24,6 +24,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.logging_config import get_logger
 from app.portfolio.contracts.retirement import (
+    RetirementACAConfig,
     RetirementCollegeYear,
     RetirementInputs,
     RetirementPreview,
@@ -101,6 +102,9 @@ class PreviewRequest(RunScenarioRequest):
     spouse_social_security_start_age: int | None = Field(None, ge=62, le=70)
     # Explicit college schedule (even empty) wins over the persisted one.
     college_schedule: list[RetirementCollegeYear] | None = None
+    # Explicit ACA config (tier/OOP/covered-lives lever) wins over the
+    # profile defaults; premium anchors still resolve server-side.
+    aca: RetirementACAConfig | None = None
 
 
 @router.post("/scenarios")
@@ -168,6 +172,7 @@ async def preview(payload: PreviewRequest) -> dict[str, Any]:
             college_schedule=(
                 tuple(payload.college_schedule) if payload.college_schedule is not None else None
             ),
+            aca=payload.aca,
             trials=payload.trials,
             seed=payload.seed,
             as_of_date=payload.as_of_date,
@@ -236,6 +241,27 @@ def _aca_marketplace_service() -> Any:
 class AcaPlansRefreshRequest(BaseModel):
     plan_year: int = Field(2026, ge=2014, le=2100)
     xlsx_path: str | None = None
+
+
+@router.get("/aca-estimate")
+async def aca_estimate(
+    magi: float = Query(..., ge=0.0),
+    ages: str | None = Query(None, max_length=64, description="CSV ages of covered lives"),
+    household_size: int | None = Query(None, ge=1, le=12),
+    tier: str = Query("silver", pattern="^(silver|bronze)$"),
+) -> dict[str, Any]:
+    """Premium/subsidy estimate at an explicit MAGI (inspectable PTC math)."""
+    parsed_ages = (
+        tuple(int(part) for part in ages.split(",") if part.strip()) if ages else None
+    )
+    result = await run_in_threadpool(
+        lambda: _service().aca_estimate(
+            magi_annual=magi, ages=parsed_ages, household_size=household_size, tier=tier
+        )
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="aca_plans_not_ingested")
+    return result
 
 
 @router.get("/aca-plans")

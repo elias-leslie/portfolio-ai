@@ -165,6 +165,9 @@ class HouseholdProfile(BaseModel):
     bridge_growth: str | None = None
     retirement_essential_floor_override: float | None = None
     retirement_discretionary_override: float | None = None
+    aca_tier: str | None = None
+    aca_premium_age21_override: float | None = None
+    aca_oop_monthly: float | None = None
     notes: str | None = None
     created_at: str
     updated_at: str
@@ -212,6 +215,9 @@ class HouseholdProfileUpdate(BaseModel):
     bridge_growth: str | None = None
     retirement_essential_floor_override: float | None = None
     retirement_discretionary_override: float | None = None
+    aca_tier: str | None = None
+    aca_premium_age21_override: float | None = None
+    aca_oop_monthly: float | None = None
     notes: str | None = None
 
 
