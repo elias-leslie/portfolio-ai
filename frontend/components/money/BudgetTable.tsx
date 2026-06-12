@@ -15,6 +15,8 @@ export interface BudgetTableProps {
   activeRowCount: number
   sortedActiveRows: BudgetRowEntry[]
   foundBudgetRowCount: number
+  /** Disabled categories live in the "Hidden categories" card below the table. */
+  hiddenCount: number
   confirmPending: boolean
   expandedCategory: string | null
   categoryTransactionsFor: (
@@ -36,6 +38,7 @@ export function BudgetTable({
   activeRowCount,
   sortedActiveRows,
   foundBudgetRowCount,
+  hiddenCount,
   confirmPending,
   expandedCategory,
   categoryTransactionsFor,
@@ -53,17 +56,29 @@ export function BudgetTable({
       padding="none"
       className="overflow-hidden"
       actions={
-        foundBudgetRowCount > 0 ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={onAcceptAll}
-            disabled={confirmPending}
-          >
-            Accept all {foundBudgetRowCount} suggested cap
-            {foundBudgetRowCount === 1 ? '' : 's'}
-          </Button>
+        hiddenCount > 0 || foundBudgetRowCount > 0 ? (
+          <>
+            {hiddenCount > 0 ? (
+              <a
+                href="#hidden-categories"
+                className="self-center text-xs text-text-muted transition-colors hover:text-text"
+              >
+                {hiddenCount} hidden
+              </a>
+            ) : null}
+            {foundBudgetRowCount > 0 ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={onAcceptAll}
+                disabled={confirmPending}
+              >
+                Accept all {foundBudgetRowCount} suggested cap
+                {foundBudgetRowCount === 1 ? '' : 's'}
+              </Button>
+            ) : null}
+          </>
         ) : null
       }
     >

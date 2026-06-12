@@ -8,6 +8,7 @@ from typing import Any, cast
 from app.models.household_finance import (
     BudgetLane,
     BudgetReadiness,
+    HouseholdAssetAllocationSlice,
     HouseholdEvidenceAccount,
     HouseholdFinanceDashboard,
     HouseholdOverview,
@@ -410,6 +411,18 @@ def build_overview(
     )
     latest_txn = max((txn.date for txn in reports.recent_transactions), default=None)
     last_transaction_date = latest_txn or (str(statement_freshness.get("most_recent_date")) if statement_freshness.get("most_recent_date") else None)
+    allocation_totals: dict[str, float] = {}
+    for account in account_summaries:
+        if account.asset_group in {"credit", "debt"}:
+            continue
+        value = float(account.current_value or 0.0)
+        if value <= 0:
+            continue
+        allocation_totals[account.asset_group] = allocation_totals.get(account.asset_group, 0.0) + value
+    asset_allocation = [
+        HouseholdAssetAllocationSlice(asset_group=group, total_value=round(group_value, 2))
+        for group, group_value in sorted(allocation_totals.items(), key=lambda item: item[1], reverse=True)
+    ]
     net_worth_status, net_worth_detail = _net_worth_trust(account_summaries)
     if account_control is not None and account_control.blocking_issue_count > 0:
         net_worth_status, net_worth_detail = "blocked", account_control.summary
@@ -417,7 +430,7 @@ def build_overview(
     overview = HouseholdOverview(
         invested_assets=invested, retirement_assets=retirement, taxable_assets=taxable,
         cash_reserve=cash, total_tracked_assets=total, liabilities_total=liabilities,
-        net_worth=total - liabilities,
+        net_worth=total - liabilities, asset_allocation=asset_allocation,
         net_worth_status=net_worth_status, net_worth_detail=net_worth_detail,
         tracked_account_count=len(account_summaries),
         needs_refresh_count=sum(1 for a in account_summaries if a.freshness_status in _DEGRADED_ACCOUNT_FRESHNESS_STATUSES),
@@ -619,7 +632,11 @@ def assemble_finance_dashboard(
         profile=profile,
         resolved_values=resolved_values,
         budget_readiness=build_budget_readiness(resolved_values=resolved_values, documents=documents, service=service),
-        budget_snapshot=build_budget_snapshot(profile=profile, reports=reports, month_to_date_spend=fetch_current_month_spend(storage)),
+        budget_snapshot=build_budget_snapshot(
+            profile=profile, reports=reports,
+            month_to_date_spend=fetch_current_month_spend(storage),
+            cash_reserve=cash_reserve, recurring_commitments=recurring_commitments,
+        ),
         retirement_preparedness=build_retirement_preparedness(
             resolved_values=resolved_values, documents=documents,
             retirement_assets=retirement_assets, taxable_assets=taxable_assets,

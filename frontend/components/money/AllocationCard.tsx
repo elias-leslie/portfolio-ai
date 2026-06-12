@@ -151,6 +151,11 @@ export function AllocationCard({
                     </div>
                   ))}
                 </div>
+                {selectedAccounts.length > 4 ? (
+                  <p className="mt-2 text-xs text-text-muted">
+                    Showing 4 of {selectedAccounts.length} accounts
+                  </p>
+                ) : null}
                 <div className="mt-4">
                   <Button asChild size="sm" variant="outline">
                     <Link href="/money?tab=accounts">Open accounts</Link>

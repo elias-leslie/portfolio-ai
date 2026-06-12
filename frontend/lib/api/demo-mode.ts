@@ -225,6 +225,11 @@ const DEMO_HOUSEHOLD_DASHBOARD: HouseholdFinanceDashboard = {
     monthlySpendStatus: 'on_track',
     monthlySpendDetail: 'Spending is tracking close to plan this month.',
     nextBestAction: 'Review the watchlist for new ideas.',
+    assetAllocation: [
+      { assetGroup: 'retirement', totalValue: DEMO_RETIREMENT_INVESTED },
+      { assetGroup: 'taxable', totalValue: DEMO_TAXABLE_INVESTED },
+      { assetGroup: 'cash', totalValue: DEMO_CASH_TOTAL },
+    ],
   },
   accountControl: {
     status: 'clear',
@@ -276,6 +281,10 @@ const DEMO_HOUSEHOLD_DASHBOARD: HouseholdFinanceDashboard = {
     missingPlanComponents: [],
     remainingCashAfterPlan: 2800,
     discretionaryHeadroom: 50,
+    safeToSpend: 50,
+    safeToSpendConstraint: 'discretionary_cap',
+    dueSoonBillsTotal: 980,
+    operatingCushion: 4200,
   },
   retirementPreparedness: {
     status: 'on_track',
@@ -320,6 +329,7 @@ const DEMO_HOUSEHOLD_DASHBOARD: HouseholdFinanceDashboard = {
     categoryBreakdown: [],
     merchantHighlights: [],
     monthlySpendTrend: [],
+    monthComparison: null,
     recentTransactions: [],
   },
   categorizationQueue: [],

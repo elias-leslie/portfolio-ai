@@ -14,6 +14,7 @@ import { formatCurrencyWhole } from '@/lib/formatters'
 import {
   currencyTooltipFormatter,
   formatThousandsAxis,
+  trendIncludesCurrentPartialMonth,
   trustBadgeVariant,
   trustStatusLabel,
 } from './overview-helpers'
@@ -42,11 +43,16 @@ export function WhereMoneyWentCard({
   | 'spendTrustDetail'
   | 'spendTrustDegraded'
 >) {
+  const hasPartialMonth = trendIncludesCurrentPartialMonth(
+    dashboard.reports.monthlySpendTrend,
+  )
   return (
     <SectionCard
       variant="surface"
       title="Where Money Went"
-      description="High-level category split with drilldown into the transactions behind it."
+      description={`Top categories over the past ${dashboard.reports.executive.coverageMonths} month${
+        dashboard.reports.executive.coverageMonths === 1 ? '' : 's'
+      }${hasPartialMonth ? ' (current month partial)' : ''} — bars are window totals.`}
       actions={
         spendTrustDegraded ? (
           <InfoBadge

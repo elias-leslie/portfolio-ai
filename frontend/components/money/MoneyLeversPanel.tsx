@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import Link from 'next/link'
+import { type ReactNode, useMemo, useState } from 'react'
 import { CategoryPressureTable } from '@/components/money/CategoryPressureTable'
 import { buildLevers } from '@/components/money/lever-helpers'
 import { MerchantDragTable } from '@/components/money/MerchantDragTable'
@@ -25,11 +26,20 @@ const leverWindows: Array<{ value: LeverWindow; label: string }> = [
   { value: 'all', label: 'All' },
 ]
 
-function UnlockPanel({ title, detail }: { title: string; detail: string }) {
+function UnlockPanel({
+  title,
+  detail,
+  action,
+}: {
+  title: string
+  detail: string
+  action?: ReactNode
+}) {
   return (
     <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/10 p-6">
       <p className="text-sm font-semibold text-text">{title}</p>
       <p className="mt-2 text-sm text-text-muted">{detail}</p>
+      {action ? <div className="mt-4">{action}</div> : null}
     </div>
   )
 }
@@ -246,7 +256,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
               Window spend
             </p>
             <p className="mt-2 text-base font-semibold tabular-nums text-text">
-              {formatCurrency(totalSpend, { decimals: 2 })}
+              {formatCurrency(totalSpend, { decimals: 0 })}
             </p>
             <p className="mt-1 text-xs text-text-muted">
               {spending?.summary.timeframeLabel ?? 'Selected timeframe'}
@@ -257,7 +267,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
               Avg monthly
             </p>
             <p className="mt-2 text-base font-semibold tabular-nums text-text">
-              {formatCurrency(averageMonthlySpend, { decimals: 2 })}
+              {formatCurrency(averageMonthlySpend, { decimals: 0 })}
             </p>
             <p className="mt-1 text-xs text-text-muted">
               Canonical monthly run-rate
@@ -304,7 +314,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
       <SectionCard
         variant="surface"
         title="Best Levers Right Now"
-        description="Trim, pause, or watch signals ranked for this window."
+        description="Trim, pause, or watch signals ranked for this window. Savings use fixed rule-of-thumb trim rates (shown on each lever), not measured elasticities."
       >
         {levers.length > 0 ? (
           <div className="grid gap-3 xl:grid-cols-2">
@@ -337,7 +347,9 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
                   {formatCurrency(lever.annualSavings, { decimals: 0 })}
                 </p>
                 <p className="mt-1 text-xs text-text-muted">
-                  Rule-of-thumb trim rate, not a guaranteed saving.
+                  {lever.id === 'price-signal' || lever.id === 'concentration'
+                    ? `Modeled at ${formatPercent(lever.trimRate * 100, { decimals: 0 })} of monthly spend — rule of thumb, not a guaranteed saving.`
+                    : `Modeled at ${formatPercent(lever.trimRate * 100, { decimals: 0 })} trim — rule of thumb, not a guaranteed saving.`}
                 </p>
                 {lever.note ? (
                   <p className="mt-2 rounded-lg border border-border/40 bg-surface-muted/20 px-3 py-2 text-xs text-text-muted">
@@ -347,10 +359,20 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
               </article>
             ))}
           </div>
+        ) : search.trim() ? (
+          <UnlockPanel
+            title="No levers match this search."
+            detail="Clear the search or widen the window to see ranked trim levers."
+          />
         ) : (
           <UnlockPanel
-            title="Need more spend density before ranking trims."
-            detail="Once canonical transactions cover enough categories and merchants in this window, Portfolio AI can rank the best trim candidates instead of just listing rows."
+            title="Not enough spend history in this window to rank trims."
+            detail="Upload statements or connect an account in Intake, or widen the window above — ranked levers appear once categories and merchants have coverage."
+            action={
+              <Button asChild size="sm" variant="outline">
+                <Link href="/money?tab=intake">Go to Intake</Link>
+              </Button>
+            }
           />
         )}
       </SectionCard>

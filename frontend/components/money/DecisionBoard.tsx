@@ -35,7 +35,7 @@ export function DecisionBoard({
   monthGap,
   safeSpendStatus,
   safeSpendSummary,
-  safeSpendBindingConstraint,
+  safeSpendBindingLabel,
   safeSpendRepairItems,
   weekendSpendAllowance,
   operatingCushion,
@@ -65,7 +65,7 @@ export function DecisionBoard({
   | 'monthGap'
   | 'safeSpendStatus'
   | 'safeSpendSummary'
-  | 'safeSpendBindingConstraint'
+  | 'safeSpendBindingLabel'
   | 'safeSpendRepairItems'
   | 'weekendSpendAllowance'
   | 'operatingCushion'
@@ -134,14 +134,14 @@ export function DecisionBoard({
           <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-border/30 pt-3 text-xs">
             {planIsPartial ? (
               <Link
-                href="/money?tab=budget"
+                href="/money?tab=spending"
                 className="font-medium text-primary transition-colors hover:text-primary/80"
               >
                 Complete your plan →
               </Link>
             ) : null}
             <Link
-              href="/money?tab=budget"
+              href="/money?tab=spending"
               className="text-text-muted transition-colors hover:text-text"
             >
               Open Budget
@@ -194,9 +194,11 @@ export function DecisionBoard({
               Monthly plan source:{' '}
               {dashboard.budgetSnapshot.monthlyPlanSourceLabel}
             </p>
-            <p className="text-text-muted/80">
-              Limited by {safeSpendBindingConstraint.label}.
-            </p>
+            {safeSpendBindingLabel ? (
+              <p className="text-text-muted/80">
+                Limited by {safeSpendBindingLabel}.
+              </p>
+            ) : null}
           </div>
           {spendTrustDegraded && safeSpendRepairItems.length > 0 ? (
             <div className="mt-3 space-y-2 border-t border-border/30 pt-3">

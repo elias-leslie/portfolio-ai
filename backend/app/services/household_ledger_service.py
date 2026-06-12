@@ -378,6 +378,13 @@ class HouseholdLedgerService:
                         "source_type": str(row[16] or ""),
                         "source_document_filename": str(row[15] or ""),
                         "source_kind": "transaction",
+                        # _effective_document_type needs this to class
+                        # receipt-sourced rows as receipts, matching Reports.
+                        "source_system": (
+                            str(_row_value(row, 25))
+                            if _row_value(row, 25) is not None
+                            else None
+                        ),
                     }
                 )
 

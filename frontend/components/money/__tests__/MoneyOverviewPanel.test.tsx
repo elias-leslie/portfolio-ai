@@ -51,6 +51,11 @@ const dashboard = {
     monthlySpendDetail:
       'Monthly spend reflects 1 covered spending account through 2026-04-09.',
     nextBestAction: 'Review the budget pulse.',
+    assetAllocation: [
+      { assetGroup: 'retirement', totalValue: 250000 },
+      { assetGroup: 'taxable', totalValue: 50000 },
+      { assetGroup: 'cash', totalValue: 12000 },
+    ],
   },
   accountControl: {
     status: 'clear',
@@ -102,6 +107,12 @@ const dashboard = {
     missingPlanComponents: [],
     remainingCashAfterPlan: 1000,
     discretionaryHeadroom: -400,
+    // Deliberately NOT derivable from the raw fixture inputs above — the
+    // backend owns these numbers and the UI must render them verbatim.
+    safeToSpend: 240,
+    safeToSpendConstraint: 'cash_after_cushion' as const,
+    dueSoonBillsTotal: 245,
+    operatingCushion: 5200,
   },
   retirementPreparedness: {
     status: 'baseline_visible',
@@ -188,6 +199,14 @@ const dashboard = {
         transactionCount: 14,
       },
     ],
+    monthComparison: {
+      latestMonth: '2025-02',
+      previousMonth: '2025-01',
+      latestTotal: 5100,
+      previousTotal: 4200,
+      change: 900,
+      changePct: 21.4,
+    },
     recentTransactions: [
       {
         date: '2026-04-09',
@@ -318,12 +337,20 @@ describe('MoneyOverviewPanel', () => {
     expect(screen.getByText('Want vs need')).toBeInTheDocument()
     expect(screen.getAllByText('Savings Levers').length).toBeGreaterThan(0)
     expect(screen.getByText('+$500')).toBeInTheDocument()
-    expect(screen.getByText('$0')).toBeInTheDocument()
+    // Backend-owned numbers render verbatim: none of these are derivable from
+    // the raw accounts/commitments/profile values in the fixture.
+    expect(screen.getByText('$240')).toBeInTheDocument()
+    expect(screen.getByText(/due in 14 days: \$245/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Limited by visible cash after cushion and bills due in 14 days.',
+      ),
+    ).toBeInTheDocument()
     expect(screen.getByText('$4,700 / $1,800')).toBeInTheDocument()
     expect(
       screen.getByText('Wants are $400 above the current cap.'),
     ).toBeInTheDocument()
-    expect(screen.getByText(/operating cushion: \$5,000/i)).toBeInTheDocument()
+    expect(screen.getByText(/operating cushion: \$5,200/i)).toBeInTheDocument()
     expect(
       screen.getByText(/merchant to attack first: amazon/i),
     ).toBeInTheDocument()
@@ -419,12 +446,44 @@ describe('MoneyOverviewPanel', () => {
     ).not.toHaveLength(0)
     expect(screen.queryByText('Safe')).not.toBeInTheDocument()
     expect(screen.getByText('Review')).toBeInTheDocument()
-    expect(screen.getByText('$0')).toBeInTheDocument()
+    expect(screen.getByText('$240')).toBeInTheDocument()
     expect(screen.getByText('$4,700 / $1,800')).toBeInTheDocument()
     expect(
       screen.queryByText(/estimate from current coverage/i),
     ).not.toBeInTheDocument()
     expect(screen.getByText('+$900')).toBeInTheDocument()
+  })
+
+  it('reads the relative generation time lowercase mid-sentence', () => {
+    render(
+      <MoneyOverviewPanel
+        dashboard={{
+          ...dashboard,
+          generatedAt: new Date().toISOString(),
+        }}
+        sections={['decision']}
+      />,
+    )
+
+    expect(document.body.textContent).toContain('Generated just now.')
+    expect(document.body.textContent).not.toContain('Just now')
+  })
+
+  it('drops the two-column grid when only one of allocation/trend is visible', () => {
+    const { container, rerender } = render(
+      <MoneyOverviewPanel dashboard={dashboard} sections={['allocation']} />,
+    )
+
+    expect(container.querySelector('.xl\\:grid-cols-2')).toBeNull()
+    expect(screen.getByText('Account Allocation')).toBeInTheDocument()
+
+    rerender(
+      <MoneyOverviewPanel
+        dashboard={dashboard}
+        sections={['allocation', 'trend']}
+      />,
+    )
+    expect(container.querySelector('.xl\\:grid-cols-2')).not.toBeNull()
   })
 
   it('shows exact refresh blockers when stale accounts block safe-to-spend trust', () => {

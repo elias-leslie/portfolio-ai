@@ -42,10 +42,19 @@ vi.mock('@/components/money/MoneyAccountsPanel', () => ({
   ),
 }))
 vi.mock('@/components/money/HouseholdDocumentCenter', () => ({
-  HouseholdDocumentCenter: ({ focusedReview }: { focusedReview?: boolean }) => (
+  HouseholdDocumentCenter: ({
+    focusedReview,
+    dateQualityIssues = [],
+  }: {
+    focusedReview?: boolean
+    dateQualityIssues?: unknown[]
+  }) => (
     <div>
       Document Center
       {focusedReview ? <span>Date quality focused</span> : null}
+      {dateQualityIssues.length > 0 ? (
+        <span>Date quality issues: {dateQualityIssues.length}</span>
+      ) : null}
     </div>
   ),
 }))
@@ -163,9 +172,10 @@ describe('MoneyPage', () => {
     expect(
       screen.getByRole('button', { name: /Retirement/i }),
     ).toBeInTheDocument()
+    // Allocation folded into the Dashboard tab — no standalone tab anymore.
     expect(
-      screen.getByRole('button', { name: /Allocation/i }),
-    ).toBeInTheDocument()
+      screen.queryByRole('button', { name: /Allocation/i }),
+    ).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /Accounts/i }),
     ).toBeInTheDocument()
@@ -302,6 +312,44 @@ describe('MoneyPage', () => {
     render(<MoneyPage />)
 
     expect(screen.getByText('Document Center')).toBeInTheDocument()
+  })
+
+  it('passes date-quality issues to intake without requiring the focus param', async () => {
+    useHouseholdDashboardMock.mockReturnValue({
+      data: {
+        ...buildHouseholdDashboard(),
+        transactionDateIssues: [
+          {
+            id: 'future-date-1',
+            transactionId: 'txn-1',
+            documentId: 'doc-1',
+            filename: 'walmart-order.pdf',
+            sourceType: 'receipt',
+            documentType: 'receipt',
+            transactionDate: '2026-09-03',
+            uploadedAt: '2026-03-09',
+            merchant: 'Walmart',
+            description: 'Walmart receipt',
+            amount: 164.14,
+            accountLabel: 'Visa Credit ****4635',
+            confidence: 0.9,
+            reason: 'Extracted transaction date is after today.',
+            sourceExcerpt: '09/03/2026 Order details - Walmart.com',
+          },
+        ],
+      },
+      isLoading: false,
+      isFetching: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+    window.history.replaceState({}, '', '/money?tab=intake')
+    const { default: MoneyPage } = await import('../money/page')
+
+    render(<MoneyPage />)
+
+    expect(screen.getByText('Date quality issues: 1')).toBeInTheDocument()
+    expect(screen.queryByText('Date quality focused')).not.toBeInTheDocument()
   })
 
   it('focuses the date-quality evidence review from the focus query param', async () => {

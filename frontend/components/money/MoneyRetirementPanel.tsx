@@ -81,6 +81,8 @@ const allocationClasses = [
   { key: 'alts', label: 'Alts' },
 ] as const
 type AllocationMode = 'current' | 'classes' | 'tickers'
+// SSA 2026 constants — mirror backend retirement_planning_service.py
+// SSA_2026_* (deliberate duplicate for live draft estimates)
 const ssa2026TaxableWageBase = 184_500
 const ssa2026FirstBendPoint = 1_286
 const ssa2026SecondBendPoint = 7_749
@@ -167,7 +169,10 @@ function numberInput(value: number | null | undefined, fallback = '') {
   return value == null ? fallback : String(Math.round(value))
 }
 
-function percentInput(value: number | null | undefined, fallback = '2.5') {
+export function percentInput(
+  value: number | null | undefined,
+  fallback = '2.5',
+) {
   if (value == null) return fallback
   return String(Math.round(value * 1000) / 10)
 }
@@ -261,7 +266,7 @@ function returnAssumptionText(
   return typeof value === 'string' ? value : null
 }
 
-function estimateSocialSecurityMonthly(
+export function estimateSocialSecurityMonthly(
   annualEarnings: number | null,
   claimAge: number,
   stopWorkAge?: number | null,
@@ -301,7 +306,7 @@ function estimateSocialSecurityMonthly(
   return pia * (1 + monthsLate * (2 / 300))
 }
 
-function memberAge(
+export function memberAge(
   member: NonNullable<HouseholdFinanceDashboard['planning']>['members'][number],
   asOf: Date,
 ) {
@@ -325,7 +330,7 @@ function memberAge(
   return Math.max(age, 0)
 }
 
-function householdAges(dashboard: HouseholdFinanceDashboard) {
+export function householdAges(dashboard: HouseholdFinanceDashboard) {
   const asOf = new Date(dashboard.generatedAt)
   const adults =
     dashboard.planning?.members.filter((member) => {
@@ -513,6 +518,17 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
 }
 
+// The backend API validates Social Security claim ages as int 62..70 (422
+// otherwise); clamp draft values so the preview request and the live caption
+// never leave that window.
+function clampClaimAge(value: number) {
+  return clamp(Math.round(value), 62, 70)
+}
+
+function clampOptionalClaimAge(value: number | null) {
+  return value == null ? null : clampClaimAge(value)
+}
+
 function withdrawalConfigFromDraft(
   withdrawal: WithdrawalDraft,
 ): RetirementWithdrawalConfig {
@@ -551,6 +567,11 @@ function withdrawalConfigFromDraft(
         realAmount: parseNumber(row.realAmount, 0),
       }))
       .filter((row) => row.age >= 18 && row.age <= 120 && row.realAmount >= 0),
+    // null = let the server resolve the floor/discretionary split from the
+    // saved budget ratio (R7 carve-out,
+    // retirement_planning_service._withdrawal_config_from_inputs); sending
+    // numbers here would override that derivation. Note: profile *_override
+    // columns only apply when no withdrawal config is sent.
     essentialFloor: null,
     baseDiscretionary: null,
   }
@@ -570,6 +591,18 @@ function buildRequest(
       : null
   const allocationHoldings =
     allocationMode === 'tickers' ? parseTickerMix(tickerMix) : null
+  // Empty stays null (server resolves the saved start age); typed values are
+  // clamped to the API's 62..70 window so out-of-range typing cannot 422.
+  const rawPrimaryStartAge = parseOptionalNumber(
+    draft.primarySocialSecurityStartAge,
+  )
+  const primaryStartAge =
+    rawPrimaryStartAge == null ? null : clampClaimAge(rawPrimaryStartAge)
+  const rawSpouseStartAge = parseOptionalNumber(
+    draft.spouseSocialSecurityStartAge,
+  )
+  const spouseStartAge =
+    rawSpouseStartAge == null ? null : clampClaimAge(rawSpouseStartAge)
   return {
     householdId,
     assetAllocation,
@@ -589,18 +622,14 @@ function buildRequest(
     primarySocialSecurityAnnualEarnings: parseOptionalNumber(
       draft.primarySocialSecurityAnnualEarnings,
     ),
-    primarySocialSecurityStartAge: parseOptionalNumber(
-      draft.primarySocialSecurityStartAge,
-    ),
+    primarySocialSecurityStartAge: primaryStartAge,
     spouseSocialSecurityMonthly: parseOptionalNumber(
       draft.spouseSocialSecurityMonthly,
     ),
     spouseSocialSecurityAnnualEarnings: parseOptionalNumber(
       draft.spouseSocialSecurityAnnualEarnings,
     ),
-    spouseSocialSecurityStartAge: parseOptionalNumber(
-      draft.spouseSocialSecurityStartAge,
-    ),
+    spouseSocialSecurityStartAge: spouseStartAge,
     socialSecurityPayableRatio:
       parseNumber(
         draft.socialSecurityPayableRatio,
@@ -998,13 +1027,15 @@ export function MoneyRetirementPanel({
       draft.primarySocialSecurityMonthly,
     )
     const spouseManual = parseOptionalNumber(draft.spouseSocialSecurityMonthly)
-    const primaryClaimAge = parseNumber(
-      draft.primarySocialSecurityStartAge,
-      socialSecurityFullRetirementAge,
+    // Clamp to the API's 62..70 claim-age window so the caption never shows
+    // an estimate the preview endpoint would reject.
+    const primaryClaimAge = clampClaimAge(
+      parseOptionalNumber(draft.primarySocialSecurityStartAge) ??
+        socialSecurityFullRetirementAge,
     )
-    const spouseClaimAge = parseNumber(
-      draft.spouseSocialSecurityStartAge,
-      socialSecurityFullRetirementAge,
+    const spouseClaimAge = clampClaimAge(
+      parseOptionalNumber(draft.spouseSocialSecurityStartAge) ??
+        socialSecurityFullRetirementAge,
     )
     const payableRatio =
       parseNumber(
@@ -1116,8 +1147,8 @@ export function MoneyRetirementPanel({
       primarySocialSecurityAnnualEarnings: parseOptionalNumber(
         draft.primarySocialSecurityAnnualEarnings,
       ),
-      primarySocialSecurityStartAge: parseOptionalNumber(
-        draft.primarySocialSecurityStartAge,
+      primarySocialSecurityStartAge: clampOptionalClaimAge(
+        parseOptionalNumber(draft.primarySocialSecurityStartAge),
       ),
       spouseSocialSecurityMonthly: parseOptionalNumber(
         draft.spouseSocialSecurityMonthly,
@@ -1125,8 +1156,8 @@ export function MoneyRetirementPanel({
       spouseSocialSecurityAnnualEarnings: parseOptionalNumber(
         draft.spouseSocialSecurityAnnualEarnings,
       ),
-      spouseSocialSecurityStartAge: parseOptionalNumber(
-        draft.spouseSocialSecurityStartAge,
+      spouseSocialSecurityStartAge: clampOptionalClaimAge(
+        parseOptionalNumber(draft.spouseSocialSecurityStartAge),
       ),
       socialSecurityPayableRatio:
         parseNumber(
@@ -2008,9 +2039,11 @@ export function MoneyRetirementPanel({
               </div>
               {withdrawalDraft.healthcare.length === 0 ? (
                 <p className="mt-2 text-xs text-text-muted">
-                  No healthcare lines yet — the floor then has no healthcare
-                  carve-out. Add lines like pre-Medicare premiums at 62 or LTC
-                  reserves at 85.
+                  No manual healthcare lines yet — when ACA modeling is on,
+                  marketplace premiums + out-of-pocket costs are added to the
+                  floor automatically until Medicare at 65. Add lines only for
+                  extras the ACA stream doesn&apos;t cover, like LTC reserves at
+                  85.
                 </p>
               ) : (
                 <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
@@ -2711,6 +2744,15 @@ export function MoneyRetirementPanel({
         </div>
       ) : null}
 
+      {previewQuery.isFetching && preview ? (
+        <div
+          role="status"
+          className="rounded-2xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-text-muted"
+        >
+          Updating projection…
+        </div>
+      ) : null}
+
       <div className="grid items-start gap-6 xl:grid-cols-2">
         <SectionCard
           variant="surface"
@@ -2738,8 +2780,18 @@ export function MoneyRetirementPanel({
                 {preview ? percentPoints(preview.successProbability) : '—'}
               </p>
               <p className="mt-1 text-xs text-text-muted">
-                Monte Carlo probability for this knob set.
+                Monte Carlo probability for this knob set — 2,500 simulated
+                trials, fixed seed so scenario runs compare like-for-like.
               </p>
+              {preview && previewQuery.dataUpdatedAt ? (
+                <p className="mt-1 text-xs text-text-muted/80">
+                  Last ran{' '}
+                  {new Date(previewQuery.dataUpdatedAt).toLocaleTimeString([], {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}
+                </p>
+              ) : null}
             </div>
             <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">

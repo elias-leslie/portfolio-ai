@@ -160,6 +160,80 @@ describe('MoneyLedgerPanel', () => {
     expect(lastLedgerParams().sort).toBe('detail')
   })
 
+  it('renders API-sync provenance with acronym casing', () => {
+    mockLedgerPage([
+      buildEntry(1, { sourceType: 'plaid', documentType: 'api_sync' }),
+    ])
+
+    render(<MoneyLedgerPanel />)
+
+    expect(screen.getByText('Plaid · API sync')).toBeInTheDocument()
+    expect(screen.queryByText('Plaid · Api sync')).not.toBeInTheDocument()
+  })
+
+  it('shows no filter chips while every filter is at its default', () => {
+    mockLedgerPage([buildEntry(1)])
+
+    render(<MoneyLedgerPanel />)
+
+    expect(
+      screen.queryByRole('button', { name: 'Clear all' }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/clear \w+ filter/i)).not.toBeInTheDocument()
+  })
+
+  it('shows chips for active filters and resets a single filter from its chip', async () => {
+    const user = userEvent.setup()
+    mockLedgerPage([buildEntry(1)])
+
+    render(<MoneyLedgerPanel />)
+
+    await user.click(screen.getByRole('button', { name: '3M' }))
+    await user.type(screen.getByLabelText('Search ledger rows'), 'walmart')
+
+    expect(screen.getByLabelText('Clear window filter')).toBeInTheDocument()
+    expect(screen.getByText('"walmart"')).toBeInTheDocument()
+    expect(lastLedgerParams().window).toBe('3m')
+
+    await user.click(screen.getByLabelText('Clear window filter'))
+
+    expect(lastLedgerParams().window).toBe('all')
+    expect(
+      screen.queryByLabelText('Clear window filter'),
+    ).not.toBeInTheDocument()
+    // The untouched search chip stays active.
+    expect(screen.getByText('"walmart"')).toBeInTheDocument()
+  })
+
+  it('restores all filter defaults from Clear all', async () => {
+    const user = userEvent.setup()
+    mockLedgerPage([buildEntry(1)])
+
+    render(<MoneyLedgerPanel />)
+
+    await user.click(screen.getByRole('button', { name: '1M' }))
+    await user.type(screen.getByLabelText('Search ledger rows'), 'target')
+    await waitFor(() => {
+      expect(lastLedgerParams().search).toBe('target')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Clear all' }))
+
+    await waitFor(() => {
+      expect(lastLedgerParams()).toMatchObject({
+        window: 'all',
+        kind: 'transactions',
+        status: 'canonical',
+        account: 'all',
+        search: '',
+      })
+    })
+    expect(
+      screen.queryByRole('button', { name: 'Clear all' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Search ledger rows')).toHaveValue('')
+  })
+
   it('shows pending and provenance only through row audit detail', async () => {
     const user = userEvent.setup()
     mockLedgerPage([

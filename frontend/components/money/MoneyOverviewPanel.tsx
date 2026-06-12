@@ -1,7 +1,8 @@
 'use client'
 
-import { RelativeTime } from '@/components/shared/RelativeTime'
+import { useEffect, useState } from 'react'
 import type { HouseholdFinanceDashboard } from '@/lib/api/household'
+import { formatRelativeTime } from '@/lib/utils'
 import { AllocationCard } from './AllocationCard'
 import { BudgetPulseCard } from './BudgetPulseCard'
 import { DecisionBoard } from './DecisionBoard'
@@ -13,6 +14,31 @@ import { useDecisionBoard } from './useDecisionBoard'
 import { WhereMoneyWentCard } from './WhereMoneyWentCard'
 
 export type { MoneyOverviewSection } from './overview-helpers'
+
+/**
+ * Hydration-safe relative time for mid-sentence use ('Generated just now.').
+ * The shared `RelativeTime` keeps `formatRelativeTime`'s capitalized labels
+ * ('Just now', 'Yesterday') because its other consumers render them
+ * sentence-initial or standalone; here only those two variants are lowercased —
+ * absolute dates ('Apr 11, 10:30 AM') keep their casing.
+ */
+function MidSentenceRelativeTime({ value }: { value: string }) {
+  const [label, setLabel] = useState<string | null>(null)
+
+  useEffect(() => {
+    const update = () => {
+      const raw = formatRelativeTime(value)
+      setLabel(
+        raw === 'Just now' || raw === 'Yesterday' ? raw.toLowerCase() : raw,
+      )
+    }
+    update()
+    const timer = setInterval(update, 60_000)
+    return () => clearInterval(timer)
+  }, [value])
+
+  return <>{label ?? '—'}</>
+}
 
 export function MoneyOverviewPanel({
   dashboard,
@@ -44,7 +70,7 @@ export function MoneyOverviewPanel({
 
   const decisionBoardDescription = (
     <>
-      Generated <RelativeTime value={dashboard.generatedAt} />.
+      Generated <MidSentenceRelativeTime value={dashboard.generatedAt} />.
     </>
   )
 
@@ -65,7 +91,7 @@ export function MoneyOverviewPanel({
           monthGap={board.monthGap}
           safeSpendStatus={board.safeSpendStatus}
           safeSpendSummary={board.safeSpendSummary}
-          safeSpendBindingConstraint={board.safeSpendBindingConstraint}
+          safeSpendBindingLabel={board.safeSpendBindingLabel}
           safeSpendRepairItems={board.safeSpendRepairItems}
           weekendSpendAllowance={board.weekendSpendAllowance}
           operatingCushion={board.operatingCushion}
@@ -83,7 +109,13 @@ export function MoneyOverviewPanel({
       ) : null}
 
       {showAllocation || showTrend ? (
-        <div className="grid gap-6 xl:grid-cols-2">
+        <div
+          className={
+            showAllocation && showTrend
+              ? 'grid gap-6 xl:grid-cols-2'
+              : 'grid gap-6'
+          }
+        >
           {showAllocation ? (
             <AllocationCard
               dashboard={dashboard}

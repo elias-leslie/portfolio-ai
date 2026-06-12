@@ -18,7 +18,7 @@ import {
   accountEvidenceDate,
   accountMetaLine,
   accountSubline,
-  freshnessToneClass,
+  freshnessBadgeVariant,
   moneyRoleLabel,
 } from './moneyAccountsUtils'
 import type { MoneyAccountsIntent } from './types'
@@ -71,25 +71,23 @@ export function AccountAccordionItem({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <span
-              className={`rounded-full border px-2.5 py-1 text-xs ${freshnessToneClass(
-                account.balanceFreshnessStatus,
-              )}`}
-            >
-              Balance {account.balanceFreshnessLabel}
-            </span>
+            <InfoBadge
+              label={`Balance ${account.balanceFreshnessLabel.toLowerCase()}`}
+              variant={freshnessBadgeVariant(account.balanceFreshnessStatus)}
+              interactive={false}
+            />
             {account.moneyRole === 'spend_driver' ? (
-              <span
-                className={`rounded-full border px-2.5 py-1 text-xs ${freshnessToneClass(
+              <InfoBadge
+                label={`Activity ${account.transactionFreshnessLabel.toLowerCase()}`}
+                variant={freshnessBadgeVariant(
                   account.transactionFreshnessStatus,
-                )}`}
-              >
-                Activity {account.transactionFreshnessLabel}
-              </span>
+                )}
+                interactive={false}
+              />
             ) : null}
             {pricedPositionCount > 0 ? (
               <InfoBadge
-                label={`Quotes ${account.quoteFreshnessLabel ?? 'Live'}`}
+                label={`Quotes ${(account.quoteFreshnessLabel ?? 'live').toLowerCase()}`}
                 detail={[
                   `${pricedPositionCount} priced position${pricedPositionCount === 1 ? '' : 's'}`,
                   account.quoteUpdatedAt

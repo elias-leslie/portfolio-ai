@@ -3,8 +3,6 @@
 import { SectionCard } from '@/components/shared/SectionCard'
 import type {
   HouseholdDocument,
-  HouseholdDocumentRequirement,
-  HouseholdInboxItem,
   HouseholdTransactionDateIssue,
   ImportCenter,
 } from '@/lib/api/household'
@@ -14,16 +12,12 @@ import { ImportCenterSidebar } from './ImportCenterSidebar'
 export function HouseholdDocumentCenter({
   documents,
   importCenter,
-  documentRequirements = [],
   dateQualityIssues = [],
-  moneyInbox = [],
   focusedReview = false,
 }: {
   documents: HouseholdDocument[]
   importCenter?: ImportCenter
-  documentRequirements?: HouseholdDocumentRequirement[]
   dateQualityIssues?: HouseholdTransactionDateIssue[]
-  moneyInbox?: HouseholdInboxItem[]
   focusedReview?: boolean
 }) {
   return (
@@ -43,9 +37,7 @@ export function HouseholdDocumentCenter({
         <ImportCenterSidebar
           documents={documents}
           importCenter={importCenter}
-          documentRequirements={documentRequirements}
           dateQualityIssues={dateQualityIssues}
-          moneyInbox={moneyInbox}
           focusedReview={focusedReview}
         />
       </div>

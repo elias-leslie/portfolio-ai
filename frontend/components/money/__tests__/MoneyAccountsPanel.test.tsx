@@ -173,8 +173,8 @@ describe('MoneyAccountsPanel', () => {
       />,
     )
 
-    expect(screen.getByText('Balance Fresh')).toBeInTheDocument()
-    expect(screen.getByText('Activity Fresh')).toBeInTheDocument()
+    expect(screen.getByText('Balance fresh')).toBeInTheDocument()
+    expect(screen.getByText('Activity fresh')).toBeInTheDocument()
     expect(screen.queryByText(/linked to/i)).not.toBeInTheDocument()
     expect(
       screen.queryByText('Main Checking Portfolio'),
@@ -290,6 +290,57 @@ describe('MoneyAccountsPanel', () => {
     expect(
       screen.queryByText('Duplicate source aliases collapsed'),
     ).not.toBeInTheDocument()
+  })
+
+  it('flags totals-blocking account control issues with a Blocked badge', () => {
+    render(
+      <MoneyAccountsPanel
+        accounts={accounts}
+        documents={documents}
+        accountControl={{
+          status: 'blocked',
+          summary: 'Totals are blocked by 1 reconciliation issue.',
+          issueCount: 1,
+          blockingIssueCount: 1,
+          checkedAt: '2026-04-11T00:00:00Z',
+          issues: [
+            {
+              id: 'overlapping_sources:cash',
+              code: 'overlapping_sources',
+              severity: 'high',
+              title: 'Overlapping balance sources',
+              detail: 'Two sources currently report the same checking account.',
+              householdAccountId: 'cash',
+              accountLabel: 'Main Checking',
+              source: 'plaid',
+              sourceAccountIds: ['source-1'],
+              affectsTotals: true,
+            },
+          ],
+        }}
+      />,
+    )
+
+    expect(screen.getByText('Totals Need Reconciliation')).toBeInTheDocument()
+    expect(screen.getByText('Blocked')).toBeInTheDocument()
+    expect(screen.getByText('Overlapping balance sources')).toBeInTheDocument()
+  })
+
+  it('renders tracked accounts above the discovered-account suggestions', () => {
+    render(
+      <MoneyAccountsPanel
+        accounts={accounts}
+        documents={documents}
+        discoveredAccounts={discoveredAccounts}
+      />,
+    )
+
+    const tracked = screen.getByText('Main Checking')
+    const discovered = screen.getByText(/possible accounts jenny found/i)
+    expect(
+      tracked.compareDocumentPosition(discovered) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
   })
 
   it('creates an account from the add account dialog', async () => {

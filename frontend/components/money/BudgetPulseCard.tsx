@@ -147,8 +147,8 @@ export function BudgetPulseCard({
               </p>
               <p className="mt-1 text-sm text-text-muted">
                 {monthComparison
-                  ? `${formatMonthLabel(monthComparison.latest.month)} versus ${formatMonthLabel(
-                      monthComparison.previous.month,
+                  ? `${formatMonthLabel(monthComparison.latestMonth)} versus ${formatMonthLabel(
+                      monthComparison.previousMonth,
                     )}.`
                   : 'No full-month comparison visible yet.'}
               </p>
@@ -159,8 +159,8 @@ export function BudgetPulseCard({
                 {signedCurrency(monthComparison.change)}
               </p>
               <p className="mt-1 text-sm text-text-muted">
-                {formatMonthLabel(monthComparison.latest.month)} versus{' '}
-                {formatMonthLabel(monthComparison.previous.month)}
+                {formatMonthLabel(monthComparison.latestMonth)} versus{' '}
+                {formatMonthLabel(monthComparison.previousMonth)}
               </p>
             </>
           ) : (

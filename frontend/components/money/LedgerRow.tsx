@@ -18,6 +18,11 @@ interface LedgerRowProps {
   onToggleAudit: (rowKey: string | null) => void
 }
 
+/** Enum label with the "api" word kept as the acronym ("api_sync" → "API sync"). */
+function formatSourceEnumLabel(value: string) {
+  return formatEnumLabel(value).replace(/\bApi\b/g, 'API')
+}
+
 export function LedgerRow({ entry, auditOpen, onToggleAudit }: LedgerRowProps) {
   const effectiveDate = entryDate(entry)
   const effectiveDateKey = utcDateKey(effectiveDate)
@@ -30,8 +35,8 @@ export function LedgerRow({ entry, auditOpen, onToggleAudit }: LedgerRowProps) {
     : 'No evidence'
   const evidenceDetail =
     [
-      entry.sourceType ? formatEnumLabel(entry.sourceType) : null,
-      entry.documentType ? formatEnumLabel(entry.documentType) : null,
+      entry.sourceType ? formatSourceEnumLabel(entry.sourceType) : null,
+      entry.documentType ? formatSourceEnumLabel(entry.documentType) : null,
     ]
       .filter(Boolean)
       .join(' · ') || 'Stored row'

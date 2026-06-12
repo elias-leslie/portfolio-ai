@@ -8,6 +8,8 @@ export interface HouseholdOverview {
   netWorth: number
   netWorthStatus: string
   netWorthDetail: string
+  /** Credit/debt and non-positive groups excluded, sorted desc by value. */
+  assetAllocation: Array<{ assetGroup: string; totalValue: number }>
   trackedAccountCount: number
   needsRefreshCount: number
   candidateAccountCount: number
@@ -225,12 +227,23 @@ export interface HouseholdRecentTransaction {
   sourceDocumentId?: string | null
 }
 
+/** Latest vs previous COMPLETED month, computed on the server clock. */
+export interface HouseholdMonthComparison {
+  latestMonth: string
+  previousMonth: string
+  latestTotal: number
+  previousTotal: number
+  change: number
+  changePct: number | null
+}
+
 export interface HouseholdReports {
   executive: HouseholdExecutiveReport
   categoryBreakdown: HouseholdCategoryBreakdown[]
   merchantHighlights: HouseholdMerchantInsight[]
   priceInsights?: HouseholdPriceInsight[]
   monthlySpendTrend: HouseholdMonthlyTrendPoint[]
+  monthComparison: HouseholdMonthComparison | null
   recentTransactions: HouseholdRecentTransaction[]
 }
 
@@ -255,6 +268,14 @@ export interface HouseholdBudgetSnapshot {
   missingPlanComponents: string[]
   remainingCashAfterPlan: number | null
   discretionaryHeadroom: number | null
+  safeToSpend: number | null
+  safeToSpendConstraint:
+    | 'cash_after_cushion'
+    | 'plan_residual'
+    | 'discretionary_cap'
+    | null
+  dueSoonBillsTotal: number | null
+  operatingCushion: number
 }
 
 export interface HouseholdCategorizationCandidate {
@@ -944,14 +965,15 @@ export interface HouseholdSpendingSummary {
   netCashFlow?: number
   savingsRate?: number | null
   monthToDateSpend?: number
-  foundBudgetTotal?: number
-  confirmedBudgetTotal?: number
-  budgetedCategoryCount?: number
-  foundBudgetCategoryCount?: number
-  confirmedBudgetCategoryCount?: number
-  overBudgetCount?: number
-  foundOverBudgetCount?: number
-  confirmedOverBudgetCount?: number
+  // The backend always serializes the budget rollup; the client never recomputes it.
+  foundBudgetTotal: number
+  confirmedBudgetTotal: number
+  budgetedCategoryCount: number
+  foundBudgetCategoryCount: number
+  confirmedBudgetCategoryCount: number
+  overBudgetCount: number
+  foundOverBudgetCount: number
+  confirmedOverBudgetCount: number
 }
 
 export interface HouseholdSpendingView {

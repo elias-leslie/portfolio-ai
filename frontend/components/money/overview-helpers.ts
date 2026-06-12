@@ -2,12 +2,14 @@ import type { TooltipProps, TooltipValueType } from 'recharts'
 import type { HouseholdFinanceDashboard } from '@/lib/api/household'
 import { formatCurrency, formatCurrencyWhole } from '@/lib/formatters'
 
+// Non-adjacent ramp steps: consecutive slices on a small donut must stay
+// distinguishable, so skip through the ramp instead of walking it in order.
 export const allocationColors = [
   'var(--color-chart-1)',
-  'var(--color-chart-2)',
   'var(--color-chart-3)',
-  'var(--color-chart-4)',
   'var(--color-chart-5)',
+  'var(--color-chart-2)',
+  'var(--color-chart-4)',
 ]
 
 export type MoneyOverviewSection =
@@ -24,10 +26,34 @@ export function formatMonthLabel(value: string) {
   if (Number.isNaN(date.getTime())) {
     return value
   }
+  // Month keys like '2026-05' parse as UTC midnight; format in UTC too, or
+  // every label west of Greenwich renders one month early.
   return date.toLocaleString('en-US', {
     month: 'short',
     year: '2-digit',
+    timeZone: 'UTC',
   })
+}
+
+// True when the latest trend month is the in-progress calendar month, so cards
+// can flag a short tail honestly instead of claiming "partial" unconditionally.
+// Browser-local month, not toISOString(): the backend keys months by its local
+// calendar, and UTC runs a month ahead for the last hours of each US-timezone
+// month.
+export function trendIncludesCurrentPartialMonth(
+  trend: { month: string }[],
+): boolean {
+  const latest = trend.reduce<string | null>(
+    (latestMonth, point) =>
+      latestMonth == null || point.month > latestMonth
+        ? point.month
+        : latestMonth,
+    null,
+  )
+  if (latest == null) {
+    return false
+  }
+  return latest === new Date().toLocaleDateString('en-CA').slice(0, 7)
 }
 
 export function formatAssetGroup(value: string) {
@@ -136,35 +162,6 @@ export function priceInsightBadgeLabel(signalType: string) {
   }
 }
 
-export function latestCompletedMonthComparison(
-  trend: HouseholdFinanceDashboard['reports']['monthlySpendTrend'],
-) {
-  if (trend.length < 2) {
-    return null
-  }
-
-  const sorted = trend
-    .slice()
-    .sort((left, right) => left.month.localeCompare(right.month))
-  const currentMonthKey = new Date().toISOString().slice(0, 7)
-  const completed =
-    sorted[sorted.length - 1]?.month === currentMonthKey
-      ? sorted.slice(0, -1)
-      : sorted
-
-  if (completed.length < 2) {
-    return null
-  }
-
-  const latest = completed[completed.length - 1]
-  const previous = completed[completed.length - 2]
-  const change = latest.totalSpend - previous.totalSpend
-  const changePct =
-    previous.totalSpend > 0 ? (change / previous.totalSpend) * 100 : null
-
-  return { latest, previous, change, changePct }
-}
-
 export function decisionBadgeVariant(status: string) {
   switch (status) {
     case 'safe':
@@ -229,6 +226,10 @@ export function trustStatusLabel(status: string) {
   if (status === 'review') {
     return 'Review'
   }
+  // A blocking state must read as blocking, not down-toned to 'Unavailable'.
+  if (status === 'blocked') {
+    return 'Blocked'
+  }
   switch (normalizeTrustStatus(status)) {
     case 'current':
       return 'Current'
@@ -246,6 +247,9 @@ export function trustStatusLabel(status: string) {
 export function trustBadgeVariant(status: string) {
   if (status === 'review') {
     return 'warning' as const
+  }
+  if (status === 'blocked') {
+    return 'error' as const
   }
   switch (normalizeTrustStatus(status)) {
     case 'current':

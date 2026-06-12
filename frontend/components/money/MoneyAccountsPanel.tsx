@@ -3,6 +3,7 @@
 import { PlusCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Accordion } from '@/components/ui/accordion'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type {
   HouseholdAccountControl,
@@ -104,12 +105,6 @@ export function MoneyAccountsPanel({
 
   return (
     <div className="space-y-4">
-      <DiscoveredAccountsSection
-        accounts={discoveredAccounts}
-        focus={focus}
-        onSeed={openSeedDialog}
-      />
-
       {blockingAccountControlIssues.length > 0 ? (
         <div
           id="account-coverage"
@@ -124,9 +119,9 @@ export function MoneyAccountsPanel({
                 {accountControl?.summary}
               </p>
             </div>
-            <span className="w-fit rounded-full border border-loss/25 bg-loss/8 px-2.5 py-1 text-xs font-medium text-loss">
+            <Badge variant="error" className="w-fit">
               Blocked
-            </span>
+            </Badge>
           </div>
           <div className="mt-4 divide-y divide-loss/20 rounded-2xl border border-loss/25 bg-background/35">
             {blockingAccountControlIssues.map((issue) => (
@@ -141,13 +136,10 @@ export function MoneyAccountsPanel({
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 rounded-3xl border border-border/40 bg-surface-muted/15 p-5 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-text">Accounts</p>
-          <p className="mt-1 text-sm text-text-muted">
-            Expand a row for uploads, documents, and account details.
-          </p>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-text-muted">
+          Expand a row for uploads, documents, and account details.
+        </p>
         <Button type="button" onClick={openAddDialog}>
           <PlusCircle className="mr-2 h-4 w-4" />
           Add account
@@ -184,6 +176,12 @@ export function MoneyAccountsPanel({
           </Accordion>
         </div>
       )}
+
+      <DiscoveredAccountsSection
+        accounts={discoveredAccounts}
+        focus={focus}
+        onSeed={openSeedDialog}
+      />
 
       <TrackedAccountDialog
         open={dialogOpen}

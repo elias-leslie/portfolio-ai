@@ -281,6 +281,8 @@ def build_budget_snapshot(
     profile: HouseholdProfile,
     reports: HouseholdReports,
     month_to_date_spend: float,
+    cash_reserve: float | None = None,
+    recurring_commitments: list[HouseholdRecurringCommitment] | None = None,
 ) -> HouseholdBudgetSnapshot:
     plan_components = (
         ("essentials", profile.monthly_essential_target),
@@ -310,6 +312,34 @@ def build_budget_snapshot(
         profile=profile,
         reports=reports,
     )
+    operating_cushion = (
+        profile.monthly_essential_target
+        if profile.monthly_essential_target is not None
+        else reports.executive.average_monthly_essentials
+    )
+    due_soon_bills_total: float | None = None
+    safe_to_spend: float | None = None
+    safe_to_spend_constraint: str | None = None
+    if cash_reserve is not None and recurring_commitments is not None:
+        due_soon_bills_total = round(
+            sum(
+                commitment.average_amount
+                for commitment in recurring_commitments
+                if commitment.days_until_due is not None and commitment.days_until_due <= 14
+            ),
+            2,
+        )
+        # min() keeps the first candidate on ties, so the cash path wins
+        # ambiguous ties — the most conservative reading for the user.
+        candidates: list[tuple[float, str]] = [
+            (cash_reserve - operating_cushion - due_soon_bills_total, "cash_after_cushion"),
+        ]
+        if remaining_cash_after_plan is not None:
+            candidates.append((remaining_cash_after_plan, "plan_residual"))
+        if discretionary_headroom is not None:
+            candidates.append((discretionary_headroom, "discretionary_cap"))
+        binding_value, safe_to_spend_constraint = min(candidates, key=lambda item: item[0])
+        safe_to_spend = round(max(binding_value, 0.0), 2)
     return HouseholdBudgetSnapshot(
         status=status,
         summary=summary,
@@ -333,4 +363,8 @@ def build_budget_snapshot(
         missing_plan_components=missing_plan_components,
         remaining_cash_after_plan=remaining_cash_after_plan,
         discretionary_headroom=discretionary_headroom,
+        safe_to_spend=safe_to_spend,
+        safe_to_spend_constraint=safe_to_spend_constraint,
+        due_soon_bills_total=due_soon_bills_total,
+        operating_cushion=round(operating_cushion, 2),
     )

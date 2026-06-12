@@ -285,6 +285,10 @@ export function MoneyBudgetPanel() {
           netCashFlow={spending?.summary.netCashFlow}
           savingsRate={spending?.summary.savingsRate}
           monthToDateSpend={spending?.summary.monthToDateSpend}
+          windowLabel={
+            budgetWindows.find((option) => option.value === window)?.label ??
+            window
+          }
         />
       </SectionCard>
 
@@ -305,6 +309,7 @@ export function MoneyBudgetPanel() {
         activeRowCount={activeRows.length}
         sortedActiveRows={sortedActiveRows}
         foundBudgetRowCount={foundBudgetRows.length}
+        hiddenCount={hiddenRows.length}
         confirmPending={confirmFact.isPending}
         expandedCategory={expandedCategory}
         categoryTransactionsFor={(category) =>
@@ -318,25 +323,28 @@ export function MoneyBudgetPanel() {
       />
 
       {hiddenRows.length > 0 ? (
-        <SectionCard
-          variant="surface"
-          title="Hidden categories"
-          description="Disabled categories stay out of the main budget table until you re-enable them."
-        >
-          <div className="flex flex-wrap gap-2">
-            {hiddenRows.map(({ row, note }) => (
-              <button
-                key={row.category}
-                type="button"
-                onClick={() => setSelectedCategory(row)}
-                className="rounded-full border border-border/35 bg-surface-muted/20 px-3 py-2 text-sm text-text transition-colors hover:border-border/60"
-              >
-                {row.category}
-                {note ? ` · ${note}` : ''}
-              </button>
-            ))}
-          </div>
-        </SectionCard>
+        // SectionCard does not forward an id, so the anchor target wraps it.
+        <div id="hidden-categories" className="scroll-mt-6">
+          <SectionCard
+            variant="surface"
+            title="Hidden categories"
+            description="Disabled categories stay out of the main budget table until you re-enable them."
+          >
+            <div className="flex flex-wrap gap-2">
+              {hiddenRows.map(({ row, note }) => (
+                <button
+                  key={row.category}
+                  type="button"
+                  onClick={() => setSelectedCategory(row)}
+                  className="rounded-full border border-border/35 bg-surface-muted/20 px-3 py-2 text-sm text-text transition-colors hover:border-border/60"
+                >
+                  {row.category}
+                  {note ? ` · ${note}` : ''}
+                </button>
+              ))}
+            </div>
+          </SectionCard>
+        </div>
       ) : null}
 
       <BudgetDialog

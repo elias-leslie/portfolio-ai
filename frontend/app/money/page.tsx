@@ -156,11 +156,7 @@ function MoneyPageContent() {
     <HouseholdDocumentCenter
       documents={documentItems}
       importCenter={dashboard.importCenter}
-      documentRequirements={[]}
-      dateQualityIssues={
-        focusedReview === 'date-quality' ? dashboard.transactionDateIssues : []
-      }
-      moneyInbox={[]}
+      dateQualityIssues={dashboard.transactionDateIssues}
       focusedReview={focusedReview === 'date-quality'}
     />
   )
@@ -171,7 +167,10 @@ function MoneyPageContent() {
       label: 'Dashboard',
       content: dashboard ? (
         <div className="space-y-6">
-          <MoneyOverviewPanel dashboard={dashboard} sections={['decision']} />
+          <MoneyOverviewPanel
+            dashboard={dashboard}
+            sections={['decision', 'allocation', 'trend']}
+          />
         </div>
       ) : (
         dashboardFallback
@@ -211,17 +210,6 @@ function MoneyPageContent() {
             syncUtilityToLocation('planning', 'retirement')
           }}
         />
-      ) : (
-        dashboardFallback
-      ),
-    },
-    {
-      value: 'allocation',
-      label: 'Allocation',
-      content: dashboard ? (
-        <div className="space-y-6">
-          <MoneyOverviewPanel dashboard={dashboard} sections={['allocation']} />
-        </div>
       ) : (
         dashboardFallback
       ),

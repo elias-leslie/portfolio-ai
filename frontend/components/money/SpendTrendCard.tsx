@@ -14,6 +14,7 @@ import {
   formatMonthLabel,
   formatThousandsAxis,
   monthTooltipLabelFormatter,
+  trendIncludesCurrentPartialMonth,
   trustBadgeVariant,
   trustStatusLabel,
 } from './overview-helpers'
@@ -32,10 +33,16 @@ export function SpendTrendCard({
   DecisionBoardData,
   'spendTrustStatus' | 'spendTrustDetail' | 'spendTrustDegraded'
 >) {
+  // The latest point is the in-progress month; flag it so a low tail does not
+  // read as a spending crash. Client-side, purely presentational.
+  const hasPartialMonth = trendIncludesCurrentPartialMonth(
+    dashboard.reports.monthlySpendTrend,
+  )
   return (
     <SectionCard
       variant="surface"
       title="Monthly Spend Trend"
+      description={hasPartialMonth ? 'Current month is partial.' : undefined}
       actions={
         spendTrustDegraded ? (
           <InfoBadge

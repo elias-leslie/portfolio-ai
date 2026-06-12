@@ -4,11 +4,22 @@ import { formatCurrencyWhole } from '@/lib/formatters'
 import {
   formatAssetGroup,
   formatMonthLabel,
-  latestCompletedMonthComparison,
   normalizeTrustStatus,
   priceInsightBadgeLabel,
   signedCurrency,
 } from './overview-helpers'
+
+// The backend names which input limits Safe-to-Spend; the frontend only words it.
+const safeSpendConstraintLabels: Record<
+  NonNullable<
+    HouseholdFinanceDashboard['budgetSnapshot']['safeToSpendConstraint']
+  >,
+  string
+> = {
+  cash_after_cushion: 'visible cash after cushion and bills due in 14 days',
+  plan_residual: 'income minus your monthly plan (a target, not cash on hand)',
+  discretionary_cap: 'remaining discretionary cap for the month',
+}
 
 /**
  * Derive every Decision Board / Budget Pulse / Allocation value the Money overview
@@ -18,35 +29,15 @@ import {
  * about (and the panel kept small) without touching markup.
  */
 export function useDecisionBoard(dashboard: HouseholdFinanceDashboard) {
-  const allocationData = Object.entries(
-    dashboard.accounts.reduce<Record<string, number>>((totals, account) => {
-      if (
-        ['credit', 'debt'].includes(account.assetGroup) ||
-        (account.currentValue ?? 0) <= 0
-      ) {
-        return totals
-      }
-      totals[account.assetGroup] =
-        (totals[account.assetGroup] ?? 0) + (account.currentValue ?? 0)
-      return totals
-    }, {}),
-  )
-    .map(([assetGroup, value]) => ({
-      assetGroup,
-      label: formatAssetGroup(assetGroup),
-      value,
-    }))
-    .sort((left, right) => right.value - left.value)
+  // Backend owns the allocation math (credit/debt excluded, sorted desc);
+  // the map here is purely a label transform.
+  const allocationData = dashboard.overview.assetAllocation.map((slice) => ({
+    assetGroup: slice.assetGroup,
+    label: formatAssetGroup(slice.assetGroup),
+    value: slice.totalValue,
+  }))
+  // Backend already returns the top categories sorted desc by total spend.
   const categoryData = dashboard.reports.categoryBreakdown
-    .slice()
-    .sort((left, right) => right.totalSpend - left.totalSpend)
-    .slice(0, 6)
-    .map((category) => ({
-      category: category.category,
-      totalSpend: category.totalSpend,
-      monthlyAverage: category.monthlyAverage,
-      shareOfSpend: category.shareOfSpend,
-    }))
 
   const [selectedAssetGroup, setSelectedAssetGroup] = useState<string | null>(
     allocationData[0]?.assetGroup ?? null,
@@ -75,9 +66,7 @@ export function useDecisionBoard(dashboard: HouseholdFinanceDashboard) {
   const selectedTransactions = dashboard.reports.recentTransactions.filter(
     (transaction) => transaction.category === selectedCategory,
   )
-  const monthComparison = latestCompletedMonthComparison(
-    dashboard.reports.monthlySpendTrend,
-  )
+  const monthComparison = dashboard.reports.monthComparison
   const dueSoonCommitments = dashboard.recurringCommitments
     .filter((commitment) => commitment.daysUntilDue != null)
     .sort((left, right) => {
@@ -88,15 +77,8 @@ export function useDecisionBoard(dashboard: HouseholdFinanceDashboard) {
     .slice(0, 4)
   const merchantHighlights = dashboard.reports.merchantHighlights.slice(0, 4)
   const priceInsights = (dashboard.reports.priceInsights ?? []).slice(0, 4)
-  const dueSoonTotal = dashboard.recurringCommitments
-    .filter(
-      (commitment) =>
-        commitment.daysUntilDue != null && commitment.daysUntilDue <= 14,
-    )
-    .reduce((total, commitment) => total + commitment.averageAmount, 0)
-  const operatingCushion =
-    dashboard.profile.monthlyEssentialTarget ??
-    dashboard.reports.executive.averageMonthlyEssentials
+  const dueSoonTotal = dashboard.budgetSnapshot.dueSoonBillsTotal
+  const operatingCushion = dashboard.budgetSnapshot.operatingCushion
   const spendTrustStatus = normalizeTrustStatus(
     dashboard.overview.monthlySpendStatus,
   )
@@ -106,14 +88,7 @@ export function useDecisionBoard(dashboard: HouseholdFinanceDashboard) {
   const spendTrustDetail = dashboard.overview.monthlySpendDetail
   const spendTrustUnavailable = spendTrustStatus === 'unavailable'
   const spendTrustDegraded = spendTrustStatus !== 'current'
-  const weekendSpendRaw = Math.min(
-    dashboard.overview.cashReserve - operatingCushion - dueSoonTotal,
-    dashboard.budgetSnapshot.remainingCashAfterPlan ?? Number.POSITIVE_INFINITY,
-    dashboard.budgetSnapshot.discretionaryHeadroom ?? Number.POSITIVE_INFINITY,
-  )
-  const weekendSpendAllowance = Number.isFinite(weekendSpendRaw)
-    ? Math.max(weekendSpendRaw, 0)
-    : null
+  const weekendSpendAllowance = dashboard.budgetSnapshot.safeToSpend
   const safeSpendStatus = spendTrustDegraded
     ? 'review'
     : weekendSpendAllowance == null
@@ -130,36 +105,15 @@ export function useDecisionBoard(dashboard: HouseholdFinanceDashboard) {
   const missingPlanComponents = dashboard.budgetSnapshot.missingPlanComponents
   // Surface which of the three inputs actually limits the Safe-to-Spend figure so the
   // dollar value is interpretable — it is often the income−target residual, not raw cash.
-  const safeSpendBindingConstraint = (() => {
-    const cashPath =
-      dashboard.overview.cashReserve - operatingCushion - dueSoonTotal
-    const planPath = dashboard.budgetSnapshot.remainingCashAfterPlan
-    const discretionaryPath = dashboard.budgetSnapshot.discretionaryHeadroom
-    const candidates: Array<{ value: number; label: string }> = [
-      {
-        value: cashPath,
-        label: 'visible cash after cushion and due-soon bills',
-      },
-    ]
-    if (planPath != null) {
-      candidates.push({
-        value: planPath,
-        label: 'income minus your monthly plan (a target, not cash on hand)',
-      })
-    }
-    if (discretionaryPath != null) {
-      candidates.push({
-        value: discretionaryPath,
-        label: 'remaining discretionary cap for the month',
-      })
-    }
-    return candidates.reduce((min, current) =>
-      current.value < min.value ? current : min,
-    )
-  })()
+  const safeSpendBindingLabel =
+    dashboard.budgetSnapshot.safeToSpendConstraint != null
+      ? safeSpendConstraintLabels[
+          dashboard.budgetSnapshot.safeToSpendConstraint
+        ]
+      : null
   const safeSpendSummary = spendTrustDegraded
     ? 'Stale account data; refresh before relying on this.'
-    : 'Discretionary spend room against visible cash, due-soon bills, and the current plan.'
+    : 'Discretionary spend room against visible cash, bills due in 14 days, and the current plan.'
   const needsAmount = dashboard.reports.executive.averageMonthlyEssentials
   const wantsAmount = dashboard.reports.executive.averageMonthlyDiscretionary
   const trackedMonthlySpend = dashboard.reports.executive.averageMonthlySpend
@@ -205,9 +159,9 @@ export function useDecisionBoard(dashboard: HouseholdFinanceDashboard) {
       ? `Needs are ${formatCurrencyWhole(essentialGap)} above target.`
       : null,
     monthComparison && monthComparison.change > 100
-      ? `${formatMonthLabel(monthComparison.latest.month)} ran ${signedCurrency(monthComparison.change)} versus ${formatMonthLabel(monthComparison.previous.month)}.`
+      ? `${formatMonthLabel(monthComparison.latestMonth)} ran ${signedCurrency(monthComparison.change)} versus ${formatMonthLabel(monthComparison.previousMonth)}.`
       : null,
-    dueSoonTotal > 0
+    dueSoonTotal != null && dueSoonTotal > 0
       ? `${formatCurrencyWhole(dueSoonTotal)} of recurring bills are due inside 14 days.`
       : null,
     latestPricePressure
@@ -249,7 +203,7 @@ export function useDecisionBoard(dashboard: HouseholdFinanceDashboard) {
       ? `Discretionary spending is ${formatCurrencyWhole(Math.abs(dashboard.budgetSnapshot.discretionaryHeadroom))} over the current monthly cap.`
       : null,
     !spendTrustDegraded && monthComparison && monthComparison.change > 0
-      ? `${formatMonthLabel(monthComparison.latest.month)} is ${signedCurrency(monthComparison.change)} versus ${formatMonthLabel(monthComparison.previous.month)}.`
+      ? `${formatMonthLabel(monthComparison.latestMonth)} is ${signedCurrency(monthComparison.change)} versus ${formatMonthLabel(monthComparison.previousMonth)}.`
       : null,
     dueSoonCommitments[0]
       ? `${dueSoonCommitments[0].merchant} is due ${
@@ -284,7 +238,7 @@ export function useDecisionBoard(dashboard: HouseholdFinanceDashboard) {
     safeSpendStatus,
     safeSpendRepairItems,
     planIsPartial,
-    safeSpendBindingConstraint,
+    safeSpendBindingLabel,
     safeSpendSummary,
     needsAmount,
     wantsAmount,

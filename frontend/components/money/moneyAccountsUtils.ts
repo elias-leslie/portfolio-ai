@@ -16,8 +16,28 @@ export function freshnessToneClass(status: string | null | undefined) {
   )
 }
 
+/** Map freshnessToneClass tones onto the shared Badge variants. */
+export function freshnessBadgeVariant(status: string | null | undefined) {
+  switch (status) {
+    case 'fresh':
+      return 'success' as const
+    case 'aging':
+      return 'warning' as const
+    case 'stale':
+      return 'error' as const
+    case 'not_applicable':
+      return 'outline' as const
+    default:
+      return 'default' as const
+  }
+}
+
 export function accountMetaLine(account: HouseholdAccountSummary) {
-  const parts = [account.assetGroup, account.accountType]
+  const parts = [account.assetGroup]
+  // Skip the type when it just repeats the asset group ("retirement · retirement").
+  if (account.accountType !== account.assetGroup) {
+    parts.push(account.accountType.replaceAll('_', ' '))
+  }
   if (account.institutionName) parts.push(account.institutionName)
   if (account.ownerName) parts.push(account.ownerName)
   return parts.join(' · ')

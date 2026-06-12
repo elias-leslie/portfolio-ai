@@ -88,6 +88,7 @@ const dashboard = {
     netWorth: 900000,
     netWorthStatus: 'current',
     netWorthDetail: 'Current.',
+    assetAllocation: [],
     trackedAccountCount: 4,
     needsRefreshCount: 0,
     candidateAccountCount: 0,
@@ -151,6 +152,10 @@ const dashboard = {
     missingPlanComponents: [],
     remainingCashAfterPlan: 1500,
     discretionaryHeadroom: 0,
+    safeToSpend: null,
+    safeToSpendConstraint: null,
+    dueSoonBillsTotal: null,
+    operatingCushion: 0,
   },
   retirementPreparedness: {
     status: 'scenario_ready',
@@ -177,6 +182,7 @@ const dashboard = {
     merchantHighlights: [],
     priceInsights: [],
     monthlySpendTrend: [],
+    monthComparison: null,
     recentTransactions: [],
   },
   categorizationQueue: [],
@@ -574,11 +580,15 @@ describe('MoneyRetirementPanel', () => {
       error: null,
       isFetching: false,
       refetch: vi.fn(),
+      dataUpdatedAt: new Date('2026-05-25T10:30:00').getTime(),
     } as unknown as ReturnType<typeof useRetirementPreview>)
 
     render(<MoneyRetirementPanel dashboard={dashboard} />)
 
     expect(screen.getByText('Retirement planner')).toBeInTheDocument()
+    expect(screen.getByText(/2,500 simulated\s+trials/)).toBeInTheDocument()
+    expect(screen.getByText(/Last ran/)).toBeInTheDocument()
+    expect(screen.getByText(/when ACA modeling is on/)).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /expand planner/i }),
     ).toBeInTheDocument()
@@ -877,6 +887,89 @@ describe('MoneyRetirementPanel', () => {
     await user.click(screen.getByRole('button', { name: /run preview/i }))
 
     expect(screen.queryByText(/Inputs changed since this plan ran/i)).toBeNull()
+    // Not fetching in this mock, so the live-refetch banner stays hidden.
+    expect(screen.queryByText('Updating projection…')).toBeNull()
+  })
+
+  it('shows an updating banner while a refetch is in flight over previous results', () => {
+    usePreviewMock.mockReturnValue({
+      data: preview,
+      error: null,
+      isFetching: true,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    expect(screen.getByText('Updating projection…')).toBeInTheDocument()
+  })
+
+  it('clamps Social Security claim ages to the API 62..70 window', async () => {
+    const user = userEvent.setup()
+    usePreviewMock.mockReturnValue({
+      data: preview,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    await user.click(screen.getByRole('button', { name: /expand planner/i }))
+    const primaryClaimInput = screen.getByRole('textbox', {
+      name: /your social security claim age/i,
+    })
+    await user.clear(primaryClaimInput)
+    await user.type(primaryClaimInput, '75')
+    const spouseClaimInput = screen.getByRole('textbox', {
+      name: /spouse social security claim age/i,
+    })
+    await user.clear(spouseClaimInput)
+    await user.type(spouseClaimInput, '50')
+
+    // The caption never shows a claim age the API would reject.
+    expect(screen.getAllByText(/\/mo at 70/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/\/mo at 62/).length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('button', { name: /run preview/i }))
+    expect(usePreviewMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        primarySocialSecurityStartAge: 70,
+        spouseSocialSecurityStartAge: 62,
+      }),
+    )
+
+    // Empty stays null so the server resolves the saved start age.
+    await user.clear(primaryClaimInput)
+    await user.click(screen.getByRole('button', { name: /run preview/i }))
+    expect(usePreviewMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ primarySocialSecurityStartAge: null }),
+    )
+  })
+
+  it('renders the preview error state with retry while the planner stays reachable', async () => {
+    const user = userEvent.setup()
+    const refetch = vi.fn()
+    usePreviewMock.mockReturnValue({
+      data: undefined,
+      error: new Error('422: claim age out of range'),
+      isFetching: false,
+      refetch,
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    expect(
+      screen.getByText('Failed to run retirement preview.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('422: claim age out of range')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /retry/i }))
+    expect(refetch).toHaveBeenCalledTimes(1)
+
+    expect(
+      screen.getByRole('button', { name: /expand planner/i }),
+    ).toBeInTheDocument()
   })
 
   it('lists saved allocation scenarios and compares them against the current allocation', async () => {

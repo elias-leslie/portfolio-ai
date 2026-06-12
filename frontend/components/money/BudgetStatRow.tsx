@@ -19,6 +19,8 @@ export interface BudgetStatRowProps {
   netCashFlow: number | null | undefined
   savingsRate: number | null | undefined
   monthToDateSpend: number | null | undefined
+  /** Selected budget window label (1M/3M/6M) so net cash flow names its window. */
+  windowLabel: string
 }
 
 export function BudgetStatRow({
@@ -37,6 +39,7 @@ export function BudgetStatRow({
   netCashFlow,
   savingsRate,
   monthToDateSpend,
+  windowLabel,
 }: BudgetStatRowProps) {
   return (
     <>
@@ -134,7 +137,7 @@ export function BudgetStatRow({
             {formatCurrencyWhole(netCashFlow)}
           </p>
           <p className="mt-1 text-xs text-text-muted">
-            Income minus tracked spend, this window.
+            Income minus tracked spend over this {windowLabel} window.
           </p>
         </div>
         <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">

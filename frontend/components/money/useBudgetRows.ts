@@ -136,44 +136,18 @@ export function useBudgetRows({
     (entry) => entry.currentBudget == null && entry.foundBudget != null,
   )
 
-  const computedConfirmedBudgetTotal = confirmedBudgetRows.reduce(
-    (sum, entry) => sum + (entry.currentBudget ?? 0),
-    0,
-  )
-  const computedFoundBudgetTotal = foundBudgetRows.reduce(
-    (sum, entry) => sum + (entry.foundBudget ?? 0),
-    0,
-  )
-  const computedConfirmedOverBudgetCount = confirmedBudgetRows.filter(
-    (entry) =>
-      entry.currentBudget != null &&
-      entry.row.averageMonthlySpend > entry.currentBudget,
-  ).length
-  const computedFoundOverBudgetCount = foundBudgetRows.filter(
-    (entry) =>
-      entry.foundBudget != null &&
-      entry.row.averageMonthlySpend > entry.foundBudget,
-  ).length
-  const computedBudgetedCategoryCount =
-    confirmedBudgetRows.length + foundBudgetRows.length
-  const foundBudgetTotal =
-    spending?.summary.foundBudgetTotal ?? computedFoundBudgetTotal
-  const confirmedBudgetTotal =
-    spending?.summary.confirmedBudgetTotal ?? computedConfirmedBudgetTotal
-  const foundBudgetCategoryCount =
-    spending?.summary.foundBudgetCategoryCount ?? foundBudgetRows.length
+  // The backend owns every summary number the user reads; `?? 0` only covers
+  // the loading state (no payload yet) and must never become a row-math fallback.
+  const summary = spending?.summary
+  const foundBudgetTotal = summary?.foundBudgetTotal ?? 0
+  const confirmedBudgetTotal = summary?.confirmedBudgetTotal ?? 0
+  const foundBudgetCategoryCount = summary?.foundBudgetCategoryCount ?? 0
   const confirmedBudgetCategoryCount =
-    spending?.summary.confirmedBudgetCategoryCount ?? confirmedBudgetRows.length
-  const budgetedCategoryCount =
-    spending?.summary.budgetedCategoryCount ?? computedBudgetedCategoryCount
-  const foundOverBudgetCount =
-    spending?.summary.foundOverBudgetCount ?? computedFoundOverBudgetCount
-  const confirmedOverBudgetCount =
-    spending?.summary.confirmedOverBudgetCount ??
-    computedConfirmedOverBudgetCount
-  const overBudgetCount =
-    spending?.summary.overBudgetCount ??
-    foundOverBudgetCount + confirmedOverBudgetCount
+    summary?.confirmedBudgetCategoryCount ?? 0
+  const budgetedCategoryCount = summary?.budgetedCategoryCount ?? 0
+  const foundOverBudgetCount = summary?.foundOverBudgetCount ?? 0
+  const confirmedOverBudgetCount = summary?.confirmedOverBudgetCount ?? 0
+  const overBudgetCount = summary?.overBudgetCount ?? 0
   const unknownTransactions = transactionsByCategory.get('Unknown') ?? []
   const unknownSpend = unknownTransactions.reduce(
     (sum, transaction) => sum + transaction.amount,

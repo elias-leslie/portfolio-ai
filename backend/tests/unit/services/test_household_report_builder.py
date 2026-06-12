@@ -7,6 +7,8 @@ from datetime import date, timedelta
 from app.services._household_report_builder import (
     build_household_reports,
     collapse_report_rows,
+    report_row_exclusion_reason,
+    report_rows_overlap,
 )
 
 
@@ -178,54 +180,232 @@ def test_collapse_report_rows_keeps_same_source_nearby_repeat_charges() -> None:
     assert len(collapsed) == 2
 
 
+def _report_row(
+    *,
+    row_date: date,
+    merchant: str,
+    amount: float,
+    category: str,
+    essentiality: str,
+    signed_amount: float | None = None,
+    document_id: str = "doc",
+) -> dict[str, object]:
+    return {
+        "date": row_date,
+        "merchant": merchant,
+        "description": merchant,
+        "amount": amount,
+        "signed_amount": amount if signed_amount is None else signed_amount,
+        "category": category,
+        "essentiality": essentiality,
+        "account_label": "Joint Checking",
+        "document_id": document_id,
+        "document_type": "statement",
+        "source_type": "bank",
+        "source_kind": "transaction",
+    }
+
+
 def test_build_household_reports_uses_today_for_recent_spend_window() -> None:
     today = date.today()
+    previous_month_day = today.replace(day=1) - timedelta(days=1)
+    earlier_month_day = previous_month_day.replace(day=1) - timedelta(days=1)
 
     reports = build_household_reports(
         report_rows=[
-            {
-                "date": today - timedelta(days=5),
-                "merchant": "Publix",
-                "description": "Groceries",
-                "amount": 120.0,
-                "category": "Groceries",
-                "essentiality": "essential",
-                "account_label": "Joint Checking",
-                "document_id": "doc-recent",
-                "document_type": "statement",
-                "source_type": "bank",
-                "source_kind": "transaction",
-            },
-            {
-                "date": today - timedelta(days=45),
-                "merchant": "Target",
-                "description": "Household goods",
-                "amount": 80.0,
-                "category": "Retail",
-                "essentiality": "discretionary",
-                "account_label": "Joint Checking",
-                "document_id": "doc-old",
-                "document_type": "statement",
-                "source_type": "bank",
-                "source_kind": "transaction",
-            },
+            _report_row(
+                row_date=today, merchant="Publix", amount=120.0,
+                category="Groceries", essentiality="essential", document_id="doc-recent",
+            ),
+            _report_row(
+                row_date=previous_month_day, merchant="Target", amount=80.0,
+                category="Retail", essentiality="discretionary", document_id="doc-prev",
+            ),
+            _report_row(
+                row_date=earlier_month_day, merchant="Target", amount=100.0,
+                category="Retail", essentiality="discretionary", document_id="doc-earlier",
+            ),
         ],
         cadence_for_dates=lambda dates: {"label": "monthly"} if len(dates) > 1 else None,
         merchant_recommendation=lambda *, merchant, category, cadence: f"{merchant}:{category}:{cadence}",
     )
 
-    assert reports.executive.recent_30_day_spend == 120.0
-    assert reports.executive.average_monthly_spend == 100.0
-    assert reports.executive.coverage_months == 2
-    assert reports.category_breakdown[0].total_spend == 120.0
-    assert reports.category_breakdown[0].monthly_average == 60.0
-    assert reports.merchant_highlights[0].merchant == "Publix"
-    assert reports.merchant_highlights[0].average_ticket == 120.0
-    assert reports.recent_transactions[0].date == (today - timedelta(days=5)).isoformat()
+    expected_recent = 120.0 + (
+        80.0 if (today - previous_month_day).days <= 29 else 0.0
+    )
+    assert reports.executive.recent_30_day_spend == expected_recent
+    # Averages divide by complete months only; the current partial month stays
+    # a trend point but never a denominator.
+    assert reports.executive.average_monthly_spend == 90.0
+    assert reports.executive.average_monthly_discretionary == 90.0
+    assert reports.executive.average_monthly_essentials == 0.0
+    assert reports.executive.coverage_months == 3
+    assert "(current partial month excluded)" in reports.executive.summary
+    assert reports.category_breakdown[0].category == "Retail"
+    assert reports.category_breakdown[0].total_spend == 180.0
+    assert reports.category_breakdown[0].monthly_average == 90.0
+    assert reports.category_breakdown[1].category == "Groceries"
+    assert reports.category_breakdown[1].monthly_average == 0.0
+    assert reports.merchant_highlights[0].merchant == "Target"
+    assert reports.merchant_highlights[0].average_ticket == 90.0
+    assert reports.recent_transactions[0].date == today.isoformat()
     assert reports.recent_transactions[0].essentiality == "essential"
     assert [point.month for point in reports.monthly_spend_trend] == sorted(
         point.month for point in reports.monthly_spend_trend
     )
+    # Completed-month comparison is server-owned (was frontend client-clock math).
+    assert reports.month_comparison is not None
+    assert reports.month_comparison.latest_month == previous_month_day.strftime("%Y-%m")
+    assert reports.month_comparison.previous_month == earlier_month_day.strftime("%Y-%m")
+    assert reports.month_comparison.change == -20.0
+    assert reports.month_comparison.change_pct == -20.0
+
+
+def test_build_household_reports_nets_refunds_out_of_spend_math() -> None:
+    previous_month_day = date.today().replace(day=1) - timedelta(days=1)
+    refund_day = previous_month_day.replace(day=1)
+
+    reports = build_household_reports(
+        report_rows=[
+            _report_row(
+                row_date=refund_day, merchant="Target", amount=200.0,
+                category="Retail", essentiality="discretionary", document_id="doc-buy",
+            ),
+            _report_row(
+                row_date=previous_month_day, merchant="Target", amount=50.0,
+                signed_amount=-50.0,
+                category="Retail", essentiality="discretionary", document_id="doc-refund",
+            ),
+        ],
+        cadence_for_dates=lambda _dates: None,
+        merchant_recommendation=lambda **_kwargs: "",
+    )
+
+    month_key = previous_month_day.strftime("%Y-%m")
+    trend = {point.month: point.total_spend for point in reports.monthly_spend_trend}
+    assert trend[month_key] == 150.0
+    assert reports.executive.average_monthly_spend == 150.0
+    assert reports.executive.average_monthly_discretionary == 150.0
+    assert reports.category_breakdown[0].total_spend == 150.0
+    assert reports.merchant_highlights[0].total_spend == 150.0
+
+
+def test_report_rows_overlap_treats_receipt_sourced_statement_rows_as_receipts() -> None:
+    # Receipt-parsed rows sometimes persist with document_type='statement';
+    # the source_system still marks them as receipt evidence, which this
+    # layer owns reconciling against their Plaid twins.
+    receipt_row = {
+        "date": date(2026, 5, 4),
+        "merchant": "Ulta Beauty",
+        "description": "Ulta Beauty purchase",
+        "amount": 34.96,
+        "category": "Personal Care",
+        "essentiality": "discretionary",
+        "household_account_id": "acct-1",
+        "account_label": "Chase Prime Visa",
+        "document_id": "receipt-doc",
+        "document_type": "statement",
+        "source_type": "receipt",
+        "source_kind": "transaction",
+        "source_system": "receipt_transaction",
+        "row_hash": "hash-receipt",
+    }
+    plaid_row = {
+        "date": date(2026, 5, 6),
+        "merchant": "Ulta Beauty",
+        "description": "ULTA #123",
+        "amount": 34.96,
+        "category": "Personal Care",
+        "essentiality": "discretionary",
+        "household_account_id": "acct-1",
+        "account_label": "Chase Prime Visa",
+        "document_id": "plaid-doc",
+        "document_type": "api_sync",
+        "source_type": "plaid",
+        "source_kind": "transaction",
+        "source_system": "plaid",
+        "row_hash": "hash-plaid",
+    }
+
+    assert report_rows_overlap(receipt_row, plaid_row)
+    assert report_row_exclusion_reason(receipt_row, plaid_row) == "duplicate_of_receipt"
+    collapsed = collapse_report_rows([receipt_row, plaid_row])
+    assert len(collapsed) == 1
+    # The plaid row survives: it carries the categorization pipeline's
+    # category and a clean merchant label; the receipt is absorbed evidence.
+    assert collapsed[0]["document_id"] == "plaid-doc"
+
+
+def test_collapse_blocks_cross_account_twins_and_caps_absorption() -> None:
+    def _charge(account: str, row_hash: str, day: int) -> dict:
+        return {
+            "date": date(2026, 5, day),
+            "merchant": "Ulta Beauty",
+            "description": f"ULTA #{row_hash}",
+            "amount": 34.96,
+            "category": "Personal Care",
+            "essentiality": "discretionary",
+            "household_account_id": account,
+            "account_label": f"Card {account}",
+            "document_id": f"doc-{row_hash}",
+            "document_type": "api_sync",
+            "source_type": "plaid",
+            "source_kind": "transaction",
+            "source_system": "plaid",
+            "row_hash": row_hash,
+        }
+
+    receipt_row = {
+        "date": date(2026, 5, 4),
+        "merchant": "Ulta Beauty",
+        "description": "Ulta Beauty purchase",
+        "amount": 34.96,
+        "category": "Household",
+        "essentiality": "mixed",
+        "household_account_id": "acct-1",
+        "account_label": "Card acct-1",
+        "document_id": "receipt-doc",
+        "document_type": "receipt",
+        "source_type": "receipt",
+        "source_kind": "transaction",
+        "source_system": "receipt_transaction",
+        "row_hash": "hash-receipt",
+    }
+    same_account_charge = _charge("acct-1", "hash-a", 5)
+    other_account_charge = _charge("acct-2", "hash-b", 5)
+
+    # A charge on a different known account is a different purchase — the
+    # receipt must not absorb it, and one receipt absorbs at most one charge.
+    assert not report_rows_overlap(receipt_row, other_account_charge)
+    collapsed = collapse_report_rows(
+        [receipt_row, same_account_charge, other_account_charge]
+    )
+    assert sorted(row["row_hash"] for row in collapsed) == ["hash-a", "hash-b"]
+
+    # One import row documents one order: it absorbs at most one plain
+    # charge, so a second real same-amount charge nearby still counts.
+    import_row = {
+        "date": date(2026, 5, 4),
+        "merchant": "Ulta Beauty",
+        "description": "Ulta Beauty order",
+        "amount": 34.96,
+        "category": "Household shopping",
+        "essentiality": "mixed",
+        "household_account_id": None,
+        "document_id": "import-doc",
+        "document_type": "import",
+        "source_type": "import",
+        "source_kind": "import",
+        "row_hash": "hash-import",
+    }
+    twin_charge = _charge("acct-1", "hash-twin", 5)
+    second_charge = _charge("acct-1", "hash-second", 5)
+    collapsed_with_import = collapse_report_rows(
+        [import_row, twin_charge, second_charge]
+    )
+    surviving_hashes = {row["row_hash"] for row in collapsed_with_import}
+    assert "hash-import" in surviving_hashes
+    assert len(surviving_hashes & {"hash-twin", "hash-second"}) == 1
 
 
 def test_build_household_reports_excludes_future_dated_rows_from_current_facts() -> None:

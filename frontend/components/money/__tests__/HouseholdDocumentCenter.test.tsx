@@ -370,6 +370,71 @@ describe('HouseholdDocumentCenter', () => {
     ).toHaveAttribute('href', '#add-evidence-upload')
   })
 
+  it('surfaces future-date evidence issues even when the review is not focused', () => {
+    render(
+      <HouseholdDocumentCenter
+        documents={[]}
+        dateQualityIssues={[
+          {
+            id: 'future-date-2',
+            transactionId: 'txn-2',
+            documentId: 'doc-2',
+            filename: 'target-order.pdf',
+            sourceType: 'receipt',
+            documentType: 'receipt',
+            transactionDate: '2026-10-12',
+            uploadedAt: '2026-03-09',
+            merchant: 'Target',
+            description: 'Target receipt',
+            amount: 58.2,
+            accountLabel: 'Visa Credit ****4635',
+            confidence: 0.9,
+            reason:
+              'Extracted transaction date is after today, so Jenny is holding it out of current money calculations.',
+            sourceExcerpt: '10/12/2026 Order details - Target.com',
+          },
+        ]}
+      />,
+    )
+
+    expect(
+      screen.getByText(/1 transaction has a future date/i),
+    ).toBeInTheDocument()
+    expect(screen.getByText('target-order.pdf')).toBeInTheDocument()
+  })
+
+  it('suppresses the size and mimetype line for synthetic zero-byte documents', () => {
+    render(
+      <HouseholdDocumentCenter
+        documents={[
+          {
+            id: 'doc-soft-charges',
+            filename: 'Phone-entered charges',
+            sourceType: 'manual',
+            documentType: 'other',
+            status: 'parsed',
+            accountLabel: null,
+            fileSizeBytes: 0,
+            contentType: 'application/json',
+            classificationConfidence: null,
+            reviewStatus: 'complete',
+            reviewSummary: null,
+            reviewConfidence: 0.95,
+            statementStart: null,
+            statementEnd: null,
+            uploadedAt: '2026-05-10T00:00:00Z',
+            parsedAt: '2026-05-10T00:01:00Z',
+            metadata: {},
+          },
+        ]}
+      />,
+    )
+
+    expect(screen.queryByText('0 B')).not.toBeInTheDocument()
+    expect(screen.queryByText('application/json')).not.toBeInTheDocument()
+    expect(screen.getByText(/jenny: complete/i)).toBeInTheDocument()
+  })
+
   it('marks upload controls busy while household documents are uploading', () => {
     useUploadHouseholdDocumentMock.mockReturnValue({
       mutate,

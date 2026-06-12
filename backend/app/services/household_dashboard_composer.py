@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from app.models.household_finance import (
-    HouseholdBudgetSnapshot,
     HouseholdCategorizationCandidate,
     HouseholdDiscoveredAccount,
     HouseholdFinanceDashboard,
@@ -27,7 +26,6 @@ from app.services._household_dashboard_assembly import (
     update_overview_action,
 )
 from app.services._household_dashboard_builders import (
-    build_budget_snapshot,
     build_retirement_contribution_tracker,
     build_retirement_scenarios,
     build_sinking_funds,
@@ -142,9 +140,6 @@ class HouseholdDashboardComposer:
             transaction_date_issues=transaction_date_issues,
             account_summaries=account_summaries, discovered_accounts=discovered_accounts, inbox=inbox,
         )
-
-    def build_budget_snapshot(self, service: Any, *, profile: Any, reports: Any) -> HouseholdBudgetSnapshot:
-        return build_budget_snapshot(profile=profile, reports=reports, month_to_date_spend=fetch_current_month_spend(service.storage))
 
     def build_categorization_queue(self, service: Any, limit: int = 6) -> list[HouseholdCategorizationCandidate]:
         return fetch_categorization_queue(service.storage, limit)

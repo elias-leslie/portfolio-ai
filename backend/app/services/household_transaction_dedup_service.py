@@ -34,6 +34,7 @@ collapse to one. Statement windows make that combination implausible.
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -51,10 +52,39 @@ _MERCHANT_MIN_SUBSUMED = 3
 _MANUAL_SOURCES = {"manual", "manual_rule", "merchant_rule"}
 
 
+# Card processors prefix the real merchant on statement labels ("SQ *NU AGE",
+# "TST* 37 MAIN", "SP PQ SWIM", "GOOGLE *Claude by Anth") while Plaid strips
+# them, zeroing the common prefix between true twins. Strip a leading
+# processor token before fingerprinting.
+_PROCESSOR_PREFIX_RE = re.compile(
+    r"^(?:sq|tst|sp|py|goog(?:le)?|paypal)(?:\s*\*\s*|\s+)",
+    re.IGNORECASE,
+)
+# Franchise parent suffix Plaid appends but statements omit
+# ("Home2 Suites by Hilton" vs "HOME2 SUITES-NAPLES NAPLES FL").
+_FRANCHISE_BY_SUFFIX_RE = re.compile(r"\s+by\s+[a-z]+\s*$", re.IGNORECASE)
+# Brand families whose storefront labels diverge before the 60%-prefix rule
+# can catch them ("WM SUPERCENTER #5831 LARGO FL" vs "Walmart (Store #5831)"
+# vs "WALMART.COM"). Mirrors the alias seam in _household_report_builder.
+_BRAND_FAMILIES: dict[str, tuple[str, ...]] = {
+    "walmart": ("walmart", "wmsupercenter"),
+}
+
+
 def merchant_key(row: dict[str, Any]) -> str:
     """Alpha-only lowercase merchant fingerprint for cross-source matching."""
     raw = str(row.get("raw_merchant") or row.get("description") or "")
-    return "".join(ch for ch in raw.lower() if ch.isalpha())
+    stripped = _PROCESSOR_PREFIX_RE.sub("", raw)
+    if stripped.strip():
+        raw = stripped
+    stripped = _FRANCHISE_BY_SUFFIX_RE.sub("", raw)
+    if stripped.strip():
+        raw = stripped
+    key = "".join(ch for ch in raw.lower() if ch.isalpha())
+    for brand, prefixes in _BRAND_FAMILIES.items():
+        if key.startswith(prefixes):
+            return brand
+    return key
 
 
 def merchants_compatible(a: str, b: str) -> bool:

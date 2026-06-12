@@ -113,8 +113,12 @@ export function DocumentCard({ document }: { document: HouseholdDocument }) {
                 : ''}
             </p>
           ) : null}
-          <p>{formatFileSize(document.fileSizeBytes)}</p>
-          {document.contentType ? <p>{document.contentType}</p> : null}
+          {document.fileSizeBytes > 0 ? (
+            <>
+              <p>{formatFileSize(document.fileSizeBytes)}</p>
+              {document.contentType ? <p>{document.contentType}</p> : null}
+            </>
+          ) : null}
         </div>
       </div>
       <Dialog

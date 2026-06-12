@@ -78,6 +78,7 @@ const categories = [
 ]
 
 function mockSpending(coverageMonths = 3) {
+  const hasBudgetRollup = coverageMonths >= 2
   useHouseholdSpendingMock.mockReturnValue({
     data: {
       generatedAt: '2026-04-24T00:00:00Z',
@@ -93,6 +94,18 @@ function mockSpending(coverageMonths = 3) {
         netCashFlow: 8901,
         savingsRate: 0.37,
         monthToDateSpend: 1200,
+        // PARITY PIN: deliberately different from what row math would produce
+        // (rows would say found $2,750 across 3 rows with 2 over cap). The
+        // stats must render these server numbers verbatim — if a client-side
+        // fallback recomputation ever comes back, the assertions below fail.
+        foundBudgetTotal: hasBudgetRollup ? 2880 : 0,
+        confirmedBudgetTotal: hasBudgetRollup ? 410 : 0,
+        budgetedCategoryCount: hasBudgetRollup ? 6 : 0,
+        foundBudgetCategoryCount: hasBudgetRollup ? 4 : 0,
+        confirmedBudgetCategoryCount: hasBudgetRollup ? 2 : 0,
+        overBudgetCount: hasBudgetRollup ? 4 : 0,
+        foundOverBudgetCount: hasBudgetRollup ? 3 : 0,
+        confirmedOverBudgetCount: hasBudgetRollup ? 1 : 0,
       },
       // Thin coverage: the server returns no suggested cap, so neither does the mock.
       categories:
@@ -158,20 +171,24 @@ describe('MoneyBudgetPanel', () => {
     mockSpending()
   })
 
-  it('reconciles top stats when rows only have found budgets', () => {
+  it('renders the backend summary stats verbatim, never row math', () => {
     render(<MoneyBudgetPanel />)
 
     expect(screen.getByText('Suggested cap total')).toBeInTheDocument()
-    expect(screen.getByText('$2,750')).toBeInTheDocument()
+    // Row math would say $2,750 (1400 + 1100 + 250); the summary says $2,880.
+    expect(screen.getByText('$2,880')).toBeInTheDocument()
+    expect(screen.queryByText('$2,750')).not.toBeInTheDocument()
     expect(
-      screen.getByText('3 suggested rows not accepted yet.'),
+      screen.getByText('4 suggested rows not accepted yet.'),
     ).toBeInTheDocument()
     expect(screen.getByText('Confirmed cap total')).toBeInTheDocument()
+    expect(screen.getByText('$410')).toBeInTheDocument()
     expect(
       screen.getByText('Manual or accepted category caps.'),
     ).toBeInTheDocument()
-    expect(screen.getByText('3 suggested · 0 confirmed.')).toBeInTheDocument()
-    expect(screen.getByText('2 suggested · 0 confirmed.')).toBeInTheDocument()
+    expect(screen.getByText('4 suggested · 2 confirmed.')).toBeInTheDocument()
+    expect(screen.getByText('3 suggested · 1 confirmed.')).toBeInTheDocument()
+    // Row-level breach badges still come from the rows themselves.
     expect(screen.getAllByText('Over suggested cap')).toHaveLength(2)
     expect(screen.getByText('Suggested cap')).toBeInTheDocument()
     expect(screen.getByText('Category trendlines')).toBeInTheDocument()
@@ -196,13 +213,14 @@ describe('MoneyBudgetPanel', () => {
 
     render(<MoneyBudgetPanel />)
 
-    expect(screen.getByText('$1,650')).toBeInTheDocument()
+    // Confirming a fact changes the rows, but the summary stats stay
+    // backend-owned: still $2,880 / 4 rows, never re-derived to $1,650 / 2.
+    expect(screen.getByText('$2,880')).toBeInTheDocument()
+    expect(screen.queryByText('$1,650')).not.toBeInTheDocument()
     expect(
-      screen.getByText('2 suggested rows not accepted yet.'),
+      screen.getByText('4 suggested rows not accepted yet.'),
     ).toBeInTheDocument()
     expect(screen.getAllByText('$1,200')).not.toHaveLength(0)
-    expect(screen.getByText('2 suggested · 1 confirmed.')).toBeInTheDocument()
-    expect(screen.getByText('1 suggested · 1 confirmed.')).toBeInTheDocument()
     expect(screen.getByText('Accepted cap')).toBeInTheDocument()
     expect(screen.getAllByText('Over budget')).not.toHaveLength(0)
   })
@@ -225,11 +243,47 @@ describe('MoneyBudgetPanel', () => {
     expect(screen.getByText('Savings rate')).toBeInTheDocument()
     expect(screen.getByText('37%')).toBeInTheDocument()
     expect(screen.getByText('Net cash flow')).toBeInTheDocument()
+    // The subtitle names the selected window (default 3M) so the number
+    // cannot be misread as a monthly figure.
+    expect(
+      screen.getByText('Income minus tracked spend over this 3M window.'),
+    ).toBeInTheDocument()
     expect(screen.getByText('Month-to-date spend')).toBeInTheDocument()
     // Default fixture has discretionary categories with suggested (unconfirmed) caps.
     expect(
       screen.getByRole('button', { name: /Accept all .* suggested cap/i }),
     ).toBeInTheDocument()
+  })
+
+  it('links from the budget table actions to the hidden-categories card', () => {
+    useHouseholdFactsMock.mockReturnValue({
+      data: [
+        {
+          factKey: `${CATEGORY_BUDGET_PREFIX}Retail`,
+          factValue: serializeCategoryBudgetMeta({
+            category: 'Retail',
+            monthlyTarget: null,
+            source: 'manual',
+            note: 'Paused while traveling',
+            disabled: true,
+          }),
+          confirmedAt: '2026-04-24T00:00:00Z',
+        },
+      ],
+    })
+
+    render(<MoneyBudgetPanel />)
+
+    const anchor = screen.getByRole('link', { name: '1 hidden' })
+    expect(anchor).toHaveAttribute('href', '#hidden-categories')
+    expect(document.getElementById('hidden-categories')).not.toBeNull()
+    expect(screen.getByText('Hidden categories')).toBeInTheDocument()
+  })
+
+  it('keeps the hidden-categories anchor out of the actions when nothing is hidden', () => {
+    render(<MoneyBudgetPanel />)
+
+    expect(screen.queryByRole('link', { name: /hidden/i })).toBeNull()
   })
 
   it('expands category purchases and sends merchant rule recategorization', async () => {

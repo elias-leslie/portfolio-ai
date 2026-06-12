@@ -11,6 +11,8 @@ export type LeverOpportunity = {
   playbook: string
   monthlySavings: number
   annualSavings: number
+  // Fixed rule-of-thumb rate the savings were modeled at, so the UI can show it.
+  trimRate: number
   detail: string
   tone: 'success' | 'warning' | 'outline'
   additive: boolean
@@ -139,6 +141,7 @@ export function buildLevers({
       playbook: 'Cancel, downgrade, or annualize',
       monthlySavings,
       annualSavings: monthlySavings * 12,
+      trimRate: 0.2,
       detail: `${subscriptionCategory.transactionCount} subscription charges are running about ${formatCurrency(subscriptionCategory.averageMonthlySpend, { decimals: 0 })}/mo. A 20% trim frees real room fast.`,
       tone: 'warning',
       additive: true,
@@ -161,6 +164,7 @@ export function buildLevers({
       ),
       monthlySavings,
       annualSavings: monthlySavings * 12,
+      trimRate,
       detail: `${topDiscretionaryCategory.category} is ${formatCurrency(topDiscretionaryCategory.averageMonthlySpend, { decimals: 0 })}/mo and ${formatPercent(topDiscretionaryCategory.shareOfSpend * 100, { decimals: 0 })} of this window.`,
       tone: 'warning',
       additive: topDiscretionaryCategory.category !== 'Subscriptions',
@@ -188,6 +192,7 @@ export function buildLevers({
         : undefined,
       monthlySavings,
       annualSavings: monthlySavings * 12,
+      trimRate: 0.15,
       detail: `${topDiscretionaryMerchant.transactionCount} charges in this window. Merchant alone ran ${formatCurrency(topDiscretionaryMerchant.totalSpend, { decimals: 0 })}.`,
       tone: 'outline',
       additive: false,
@@ -202,6 +207,7 @@ export function buildLevers({
       playbook: 'Set merchant caps and pre-approve outliers',
       monthlySavings,
       annualSavings: monthlySavings * 12,
+      trimRate: 0.05,
       detail: `Top 3 merchants drive ${formatPercent(topThreeShare * 100, { decimals: 0 })} of spend here. A 5% reset on those names saves more than scattered cuts.`,
       tone: 'outline',
       additive: false,
@@ -214,14 +220,20 @@ export function buildLevers({
       Math.abs(bestPriceSignal.priceChangePct ?? 0),
     )
     const monthlySavings = averageMonthlySpend * 0.02
+    // Marketplace listings can run 100+ chars; keep the headline readable.
+    const itemName =
+      bestPriceSignal.itemName.length > 48
+        ? `${bestPriceSignal.itemName.slice(0, 48).trimEnd()}…`
+        : bestPriceSignal.itemName
     push({
       id: 'price-signal',
-      title: `${bestPriceSignal.itemName} price drift needs a check`,
+      title: `${itemName} price drift needs a check`,
       playbook: bestPriceSignal.shrinkflationFlag
         ? 'Swap or size-check before rebuy'
         : 'Price-compare before next order',
       monthlySavings,
       annualSavings: monthlySavings * 12,
+      trimRate: 0.02,
       detail: `${bestPriceSignal.merchant} shows ${formatPercent(signalChange, { decimals: 0, sign: true })} drift by ticket or unit math. Use it as a trigger to compare, not autopilot.`,
       tone: 'warning',
       additive: false,

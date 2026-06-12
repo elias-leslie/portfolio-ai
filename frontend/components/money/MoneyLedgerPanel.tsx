@@ -1,8 +1,10 @@
 'use client'
 
+import { X } from 'lucide-react'
 import { useDeferredValue, useEffect, useState } from 'react'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -94,6 +96,57 @@ export function MoneyLedgerPanel() {
       setExpandedAuditRow(null)
     }
   }, [currentPage, totalPages])
+
+  // Chips for every non-default filter so the active slice stays visible even
+  // when the filter controls themselves are off-screen or collapsed.
+  const activeFilters: Array<{
+    key: string
+    label: string
+    onClear: () => void
+  }> = []
+  if (window !== 'all') {
+    activeFilters.push({
+      key: 'window',
+      label: ledgerWindows.find((o) => o.value === window)?.label ?? window,
+      onClear: () => setWindow('all'),
+    })
+  }
+  if (kind !== 'transactions') {
+    activeFilters.push({
+      key: 'type',
+      label: ledgerKinds.find((o) => o.value === kind)?.label ?? kind,
+      onClear: () => setKind('transactions'),
+    })
+  }
+  if (status !== 'canonical') {
+    activeFilters.push({
+      key: 'status',
+      label: ledgerStatuses.find((o) => o.value === status)?.label ?? status,
+      onClear: () => setStatus('canonical'),
+    })
+  }
+  if (account !== 'all') {
+    activeFilters.push({
+      key: 'account',
+      label: account === '__unassigned__' ? 'Unassigned' : account,
+      onClear: () => setAccount('all'),
+    })
+  }
+  if (query.trim() !== '') {
+    activeFilters.push({
+      key: 'search',
+      label: `"${query.trim()}"`,
+      onClear: () => setQuery(''),
+    })
+  }
+
+  function clearAllFilters() {
+    setWindow('all')
+    setKind('transactions')
+    setStatus('canonical')
+    setAccount('all')
+    setQuery('')
+  }
 
   function toggleSort(nextKey: LedgerSortKey) {
     if (sortKey === nextKey) {
@@ -211,6 +264,36 @@ export function MoneyLedgerPanel() {
         </div>
       }
     >
+      {activeFilters.length > 0 ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {activeFilters.map((filter) => (
+            <Badge
+              key={filter.key}
+              variant="secondary"
+              className="gap-1 pr-1.5"
+            >
+              {filter.label}
+              <button
+                type="button"
+                aria-label={`Clear ${filter.key} filter`}
+                className="rounded-sm p-0.5 text-text-muted transition-colors hover:text-text"
+                onClick={filter.onClear}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={clearAllFilters}
+          >
+            Clear all
+          </Button>
+        </div>
+      ) : null}
+
       <LedgerSummaryCards
         timeframeLabel={ledger?.timeframeLabel}
         startDate={ledger?.startDate}

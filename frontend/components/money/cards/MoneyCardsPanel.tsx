@@ -2,6 +2,7 @@
 
 import { PlusCircle } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { Button } from '@/components/ui/button'
 import type { HouseholdFinanceDashboard } from '@/lib/api/household'
 import {
@@ -20,6 +21,7 @@ import { PLAYER_PRESETS, RotationTimeline } from './RotationTimeline'
 import { RotationValueChart } from './RotationValueChart'
 import { WelcomeProgressChart } from './WelcomeProgressChart'
 
+// Mirrors CARD_ADVICE_DISCLAIMER in backend/app/models/credit_cards.py — keep in sync.
 const FALLBACK_DISCLAIMER =
   'Informational estimates, not financial advice. Values model publicly known ' +
   'reward structures under the stated assumptions and may differ from your ' +
@@ -37,10 +39,12 @@ export function MoneyCardsPanel({
   const [horizonQuarters, setHorizonQuarters] = useState(8)
   const [playerPreset, setPlayerPreset] = useState('both')
 
-  const { data: ownedCards = [] } = useOwnedCards()
+  const ownedCardsQuery = useOwnedCards()
+  const ownedCards = ownedCardsQuery.data ?? []
   const { data: catalog = [] } = useCardCatalog()
   const { data: softCharges = [] } = useSoftCharges()
-  const { data: facts = [] } = useHouseholdFacts()
+  const factsQuery = useHouseholdFacts()
+  const facts = factsQuery.data ?? []
 
   const players = useMemo(
     () =>
@@ -71,23 +75,33 @@ export function MoneyCardsPanel({
         {disclaimer}
       </p>
 
-      <ActiveCardPanel
-        cards={ownedCards}
-        softCharges={softCharges}
-        facts={facts}
-        monthToDateSpend={dashboard?.budgetSnapshot.monthToDateSpend}
-        actions={
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => setAddCardOpen(true)}
-          >
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Add card
-          </Button>
-        }
-      />
+      {ownedCardsQuery.isError ? (
+        <LoadErrorState
+          title="Failed to load the household wallet."
+          onRetry={() => {
+            void ownedCardsQuery.refetch()
+          }}
+          isRetrying={ownedCardsQuery.isFetching}
+        />
+      ) : (
+        <ActiveCardPanel
+          cards={ownedCards}
+          softCharges={softCharges}
+          facts={facts}
+          monthToDateSpend={dashboard?.budgetSnapshot.monthToDateSpend}
+          actions={
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setAddCardOpen(true)}
+            >
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Add card
+            </Button>
+          }
+        />
+      )}
 
       <WelcomeProgressChart cards={ownedCards} />
 
@@ -115,7 +129,18 @@ export function MoneyCardsPanel({
 
       <RotationValueChart plan={rotationQuery.data} />
 
-      <CardAlertSettings facts={facts} primaryCardId={primaryCard?.id} />
+      {factsQuery.isError ? (
+        <LoadErrorState
+          title="Failed to load alert settings."
+          detail="The saved monthly cap could not be loaded."
+          onRetry={() => {
+            void factsQuery.refetch()
+          }}
+          isRetrying={factsQuery.isFetching}
+        />
+      ) : (
+        <CardAlertSettings facts={facts} primaryCardId={primaryCard?.id} />
+      )}
 
       <AddCardDialog
         open={addCardOpen}

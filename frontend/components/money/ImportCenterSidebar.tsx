@@ -3,7 +3,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type {
   HouseholdDocument,
-  HouseholdDocumentRequirement,
   HouseholdTransactionDateIssue,
   ImportCenter,
 } from '@/lib/api/household'
@@ -13,16 +12,12 @@ import { DocumentCard } from './DocumentCard'
 export function ImportCenterSidebar({
   documents,
   importCenter,
-  documentRequirements: _documentRequirements,
   dateQualityIssues = [],
-  moneyInbox: _moneyInbox = [],
   focusedReview = false,
 }: {
   documents: HouseholdDocument[]
   importCenter?: ImportCenter
-  documentRequirements: HouseholdDocumentRequirement[]
   dateQualityIssues?: HouseholdTransactionDateIssue[]
-  moneyInbox?: unknown[]
   focusedReview?: boolean
 }) {
   const [showAllDocuments, setShowAllDocuments] = useState(false)
@@ -51,7 +46,7 @@ export function ImportCenterSidebar({
   return (
     <div className="space-y-3">
       {importCenter ? <IntakeSummaryCard importCenter={importCenter} /> : null}
-      {focusedReview && dateQualityIssues.length > 0 ? (
+      {dateQualityIssues.length > 0 ? (
         <DateQualityIssuesCard
           issues={dateQualityIssues}
           focusedReview={focusedReview}

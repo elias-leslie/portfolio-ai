@@ -156,6 +156,9 @@ export function useRetirementPreview(params: RetirementPreviewRequest) {
     queryKey: ['retirement', 'preview', params],
     queryFn: ({ signal }) => fetchRetirementPreview(params, { signal }),
     staleTime: HOUSEHOLD_MARKET_VALUE_REFRESH_MS,
+    // Keep the last projection on screen while debounced withdrawal-knob
+    // refetches run instead of blanking the results area.
+    placeholderData: (previous) => previous,
     refetchOnWindowFocus: false,
   })
 }

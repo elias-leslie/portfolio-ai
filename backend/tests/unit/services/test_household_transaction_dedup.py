@@ -50,6 +50,40 @@ def test_merchant_key_strips_everything_but_letters() -> None:
     assert merchant_key({"raw_merchant": None, "description": "All Smiles Ortho"}) == "allsmilesortho"
 
 
+def test_merchant_key_strips_processor_prefixes() -> None:
+    # Statement labels carry the card processor; Plaid strips it. Both sides
+    # must fingerprint to the same merchant.
+    assert merchant_key({"raw_merchant": "SQ *NU AGE ADVANCED AESTH"}) == merchant_key(
+        {"raw_merchant": "Nu Age Advanced Aesth"}
+    )
+    assert merchant_key({"raw_merchant": "GOOGLE *Claude by Anth"}) == merchant_key(
+        {"raw_merchant": "Claude By Anth"}
+    )
+    assert merchant_key({"raw_merchant": "SP PQ SWIM | Sale"}) == "pqswimsale"
+    assert merchant_key({"raw_merchant": "TST* 37 MAIN"}) == "main"
+    # Words merely starting with a processor token are untouched.
+    assert merchant_key({"raw_merchant": "Spotify"}) == "spotify"
+    assert merchant_key({"raw_merchant": "Square Deal Diner"}) == "squaredealdiner"
+    # A label that is nothing but the processor token keeps its raw key.
+    assert merchant_key({"raw_merchant": "SQ *"}) == "sq"
+    # Franchise parent suffix ("... by Hilton") folds into the franchise name
+    # so city-decorated statement labels subsume it.
+    assert merchant_key({"raw_merchant": "Home2 Suites by Hilton"}) == "homesuites"
+    assert merchants_compatible(
+        merchant_key({"raw_merchant": "HOME2 SUITES-NAPLES NAPLES FL"}),
+        merchant_key({"raw_merchant": "Home2 Suites by Hilton"}),
+    )
+
+
+def test_merchant_key_collapses_walmart_brand_family() -> None:
+    assert merchant_key({"raw_merchant": "WM SUPERCENTER #5831 LARGO FL"}) == "walmart"
+    assert merchant_key({"raw_merchant": "WALMART.COM AR"}) == "walmart"
+    assert merchant_key({"raw_merchant": "Walmart (Store #5831)"}) == "walmart"
+    assert merchant_key({"raw_merchant": "WAL-MART #5831 | Sale"}) == "walmart"
+    # Non-Walmart brands are untouched.
+    assert merchant_key({"raw_merchant": "Walgreens #6803"}) == "walgreens"
+
+
 def test_merchants_compatible_prefix_with_min_length() -> None:
     # Plaid truncation vs statement spelling.
     assert merchants_compatible("allsmilesortho", "allsmilesortholargosale")

@@ -5,6 +5,18 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
+class HouseholdAssetAllocationSlice(BaseModel):
+    """Per-asset-group rollup for the allocation chart.
+
+    Same rules the chart uses: credit/debt groups and non-positive values are
+    excluded, sorted by value descending. Note this keeps education separate,
+    unlike overview.taxable_assets which folds education in.
+    """
+
+    asset_group: str
+    total_value: float
+
+
 class HouseholdOverview(BaseModel):
     invested_assets: float
     retirement_assets: float
@@ -13,6 +25,7 @@ class HouseholdOverview(BaseModel):
     total_tracked_assets: float
     liabilities_total: float = 0.0
     net_worth: float = 0.0
+    asset_allocation: list[HouseholdAssetAllocationSlice] = Field(default_factory=list)
     tracked_account_count: int = 0
     needs_refresh_count: int = 0
     candidate_account_count: int = 0
@@ -337,12 +350,25 @@ class HouseholdSpendingView(BaseModel):
     transactions: list[HouseholdSpendingTransaction] = Field(default_factory=list)
 
 
+class HouseholdMonthComparison(BaseModel):
+    """Latest vs previous *completed* month of spend (server clock decides
+    the current month, so client timezones cannot shift the boundary)."""
+
+    latest_month: str
+    previous_month: str
+    latest_total: float
+    previous_total: float
+    change: float
+    change_pct: float | None = None
+
+
 class HouseholdReports(BaseModel):
     executive: HouseholdExecutiveReport
     category_breakdown: list[HouseholdCategoryBreakdown] = Field(default_factory=list)
     merchant_highlights: list[HouseholdMerchantInsight] = Field(default_factory=list)
     price_insights: list[HouseholdPriceInsight] = Field(default_factory=list)
     monthly_spend_trend: list[HouseholdMonthlyTrendPoint] = Field(default_factory=list)
+    month_comparison: HouseholdMonthComparison | None = None
     recent_transactions: list[HouseholdRecentTransaction] = Field(default_factory=list)
 
 
@@ -369,6 +395,16 @@ class HouseholdBudgetSnapshot(BaseModel):
     missing_plan_components: list[str] = Field(default_factory=list)
     remaining_cash_after_plan: float | None = None
     discretionary_headroom: float | None = None
+    # Headline discretionary figure = min(cash after cushion and 14-day bills,
+    # remaining_cash_after_plan, discretionary_headroom), floored at 0. Null when
+    # the snapshot is built without cash/commitment context.
+    safe_to_spend: float | None = None
+    # Which input bounded it: cash_after_cushion | plan_residual | discretionary_cap.
+    safe_to_spend_constraint: str | None = None
+    # Commitments due within the next 14 days (digit-free name: es-toolkit
+    # camelizes trailing digits unpredictably, e.g. _14d -> 14D).
+    due_soon_bills_total: float | None = None
+    operating_cushion: float | None = None
 
 
 class HouseholdCategorizationCandidate(BaseModel):

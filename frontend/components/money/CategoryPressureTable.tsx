@@ -45,7 +45,7 @@ export function CategoryPressureTable({
                 Tx
               </th>
               <th className="border-b border-border/40 px-3 py-2 text-right text-xs font-semibold uppercase tracking-[0.16em] text-text-muted/80">
-                Trim rule
+                Modeled trim
               </th>
               <th className="border-b border-border/40 px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.16em] text-text-muted/80">
                 Move
@@ -113,9 +113,12 @@ export function CategoryPressureTable({
                     </td>
                     <td className="border-b border-border/20 px-3 py-2.5 text-right font-mono tabular-nums text-text">
                       {trimRate > 0
-                        ? formatCurrency(row.averageMonthlySpend * trimRate, {
-                            decimals: 0,
-                          })
+                        ? `${formatCurrency(
+                            row.averageMonthlySpend * trimRate,
+                            {
+                              decimals: 0,
+                            },
+                          )} · ${formatPercent(trimRate * 100, { decimals: 0 })}`
                         : '—'}
                     </td>
                     <td className="border-b border-border/20 px-3 py-2.5 text-xs text-text-muted">

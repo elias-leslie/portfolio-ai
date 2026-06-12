@@ -13,6 +13,7 @@ from app.models.household_finance import (
     HouseholdCategoryBreakdown,
     HouseholdExecutiveReport,
     HouseholdMerchantInsight,
+    HouseholdMonthComparison,
     HouseholdMonthlyTrendPoint,
     HouseholdPriceInsight,
     HouseholdRecentTransaction,
@@ -355,14 +356,29 @@ def _same_spending_account(existing_row: dict[str, Any], candidate_row: dict[str
     return bool(existing_label and existing_label == candidate_label)
 
 
+def _effective_document_type(row: dict[str, Any]) -> str:
+    """Document type with receipt-sourced rows always classed as receipts.
+
+    Receipt-parsed transactions sometimes land with document_type='statement'
+    (parser stores the receipt under a statement document), which hid their
+    Plaid twins from this layer; the source_system still says receipt_*.
+    """
+    document_type = str(row.get("document_type") or "")
+    if document_type == "receipt":
+        return "receipt"
+    if str(row.get("source_system") or "").startswith("receipt"):
+        return "receipt"
+    return document_type
+
+
 def _different_evidence_sources(existing_row: dict[str, Any], candidate_row: dict[str, Any]) -> bool:
     source_types = {
         str(existing_row.get("source_type") or ""),
         str(candidate_row.get("source_type") or ""),
     }
     document_types = {
-        str(existing_row.get("document_type") or ""),
-        str(candidate_row.get("document_type") or ""),
+        _effective_document_type(existing_row),
+        _effective_document_type(candidate_row),
     }
     source_kinds = {
         str(existing_row.get("source_kind") or ""),
@@ -384,8 +400,8 @@ def report_rows_overlap(existing_row: dict[str, Any], candidate_row: dict[str, A
         str(candidate_row.get("source_kind") or ""),
     }
     document_types = {
-        str(existing_row.get("document_type") or ""),
-        str(candidate_row.get("document_type") or ""),
+        _effective_document_type(existing_row),
+        _effective_document_type(candidate_row),
     }
     # household_transaction_dedup_service owns plain transaction-vs-transaction
     # duplicates at the DB layer, and it deliberately keeps legitimate same-day
@@ -418,9 +434,23 @@ def report_rows_overlap(existing_row: dict[str, Any], candidate_row: dict[str, A
             and bool(shared_aliases)
         )
 
-    cross_source_duplicate = near_cross_source_duplicate and bool(shared_aliases) and (
-        "import" in source_kinds
-        or ("receipt" in document_types and len(document_types) > 1)
+    # Two rows on different known accounts are different purchases by
+    # definition (one charge lands on one card) — never cross-source twins.
+    existing_account_id = str(existing_row.get("household_account_id") or "").strip()
+    candidate_account_id = str(candidate_row.get("household_account_id") or "").strip()
+    accounts_conflict = bool(
+        existing_account_id
+        and candidate_account_id
+        and existing_account_id != candidate_account_id
+    )
+    cross_source_duplicate = (
+        near_cross_source_duplicate
+        and bool(shared_aliases)
+        and not accounts_conflict
+        and (
+            "import" in source_kinds
+            or ("receipt" in document_types and len(document_types) > 1)
+        )
     )
     return (
         (same_date or near_cross_source_duplicate)
@@ -441,8 +471,8 @@ def report_row_exclusion_reason(
     if "import" in source_kinds:
         return "duplicate_of_import"
     document_types = {
-        str(existing_row.get("document_type") or ""),
-        str(candidate_row.get("document_type") or ""),
+        _effective_document_type(existing_row),
+        _effective_document_type(candidate_row),
     }
     if "receipt" in document_types and len(document_types) > 1:
         return "duplicate_of_receipt"
@@ -453,11 +483,14 @@ def report_row_priority(row: dict[str, Any]) -> tuple[int, str]:
     if row.get("source_kind") == "import":
         return (0, str(row.get("document_id") or ""))
 
-    document_type = str(row.get("document_type") or "")
-    if document_type == "receipt":
-        return (1, str(row.get("document_id") or ""))
+    # Plain ledger rows outrank receipt-classed rows: they carry the
+    # categorization pipeline's category and a clean merchant label, while
+    # receipt rows hold raw parser text and a default category. The receipt
+    # is the evidence twin that gets absorbed, never the surviving spend row.
+    if _effective_document_type(row) == "receipt":
+        return (2, str(row.get("document_id") or ""))
 
-    return (2, str(row.get("document_id") or ""))
+    return (1, str(row.get("document_id") or ""))
 
 
 def collapse_report_rows(report_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -465,20 +498,34 @@ def collapse_report_rows(report_rows: list[dict[str, Any]]) -> list[dict[str, An
     return collapsed_rows
 
 
+def _is_plain_charge_row(row: dict[str, Any]) -> bool:
+    return (
+        row.get("source_kind") != "import"
+        and _effective_document_type(row) != "receipt"
+    )
+
+
 def collapse_report_rows_with_exclusions(
     report_rows: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], dict[str, str]]:
     collapsed_rows: list[dict[str, Any]] = []
     excluded_rows: dict[str, str] = {}
+    # One evidence row documents one purchase, so a survivor may absorb at
+    # most one plain charge row — a second same-amount charge nearby is a
+    # second real purchase, not more evidence of the first.
+    absorbed_plain_charge_ids: set[int] = set()
     for row in sorted(report_rows, key=report_row_priority):
-        exclusion_reason = next(
-            (
-                report_row_exclusion_reason(existing_row, row)
-                for existing_row in collapsed_rows
-                if report_row_exclusion_reason(existing_row, row) is not None
-            ),
-            None,
-        )
+        candidate_is_plain_charge = _is_plain_charge_row(row)
+        exclusion_reason: str | None = None
+        for existing_row in collapsed_rows:
+            if candidate_is_plain_charge and id(existing_row) in absorbed_plain_charge_ids:
+                continue
+            reason = report_row_exclusion_reason(existing_row, row)
+            if reason is not None:
+                exclusion_reason = reason
+                if candidate_is_plain_charge:
+                    absorbed_plain_charge_ids.add(id(existing_row))
+                break
         if exclusion_reason is not None:
             row_key = str(row.get("row_hash") or row.get("id") or "")
             if row_key:
@@ -681,6 +728,16 @@ def _build_price_insights(
     return sorted(insights, key=_signal_priority)[:6]
 
 
+def _row_signed_amount(row: dict[str, Any]) -> float:
+    """Refund rows carry a positive display ``amount`` and a negative
+    ``signed_amount``; spend math must use the signed value so refunds net
+    out instead of counting as extra spend (matching _spend_rows_between)."""
+    signed = row.get("signed_amount")
+    if signed is None:
+        signed = row.get("amount", 0.0)
+    return float(signed)
+
+
 def build_household_reports(
     *,
     report_rows: list[dict[str, Any]],
@@ -696,7 +753,7 @@ def build_household_reports(
     analytics_rows = [
         row
         for row in collapse_report_rows(analytics_source_rows)
-        if row["amount"] > 0
+        if abs(_row_signed_amount(row)) > 0
     ]
     if not analytics_rows:
         return HouseholdReports(
@@ -716,44 +773,60 @@ def build_household_reports(
 
     monthly_totals: dict[str, float] = {}
     monthly_counts: dict[str, int] = {}
-    recent_cutoff = today.toordinal() - 30
+    # Inclusive 30-day window (today - 29 .. today), matching _household_time_windows.
+    recent_cutoff = today.toordinal() - 29
 
     for row in analytics_rows:
         month_key = row["date"].strftime("%Y-%m")
-        monthly_totals[month_key] = monthly_totals.get(month_key, 0.0) + row["amount"]
+        monthly_totals[month_key] = monthly_totals.get(month_key, 0.0) + _row_signed_amount(row)
         monthly_counts[month_key] = monthly_counts.get(month_key, 0) + 1
 
     recent_month_keys = sorted(monthly_totals.keys())[-_EXECUTIVE_WINDOW_MONTHS:]
     recent_month_set = set(recent_month_keys)
+    # Run-rate averages must not divide by a month that has only partial data:
+    # the current month stays a trend point but is excluded from every
+    # "average monthly" figure (unless it is the only month we have).
+    current_month_key = today.strftime("%Y-%m")
+    complete_month_keys = [key for key in recent_month_keys if key < current_month_key]
+    average_month_keys = complete_month_keys or recent_month_keys
+    average_month_set = set(average_month_keys)
+    average_months = max(len(average_month_keys), 1)
     recent_rows = [
         row
         for row in analytics_rows
         if row["date"].strftime("%Y-%m") in recent_month_set
     ]
     category_totals: dict[tuple[str, str], float] = {}
+    category_average_totals: dict[tuple[str, str], float] = {}
     merchant_totals: dict[str, dict[str, Any]] = {}
 
     for row in recent_rows:
+        signed_amount = _row_signed_amount(row)
         category_key = (row["category"], row["essentiality"])
-        category_totals[category_key] = category_totals.get(category_key, 0.0) + row["amount"]
+        category_totals[category_key] = category_totals.get(category_key, 0.0) + signed_amount
+        if row["date"].strftime("%Y-%m") in average_month_set:
+            category_average_totals[category_key] = (
+                category_average_totals.get(category_key, 0.0) + signed_amount
+            )
         merchant_state = merchant_totals.setdefault(
             row["merchant"],
             {"amount": 0.0, "count": 0, "category": row["category"], "dates": []},
         )
-        merchant_state["amount"] += row["amount"]
+        merchant_state["amount"] += signed_amount
         merchant_state["count"] += 1
         merchant_state["dates"].append(row["date"])
 
     coverage_months = max(len(recent_month_keys), 1)
     total_spend = sum(monthly_totals[month_key] for month_key in recent_month_keys)
+    average_basis_spend = sum(monthly_totals[month_key] for month_key in average_month_keys)
     essential_spend = sum(
-        amount for (_, essentiality), amount in category_totals.items() if essentiality == "essential"
+        amount for (_, essentiality), amount in category_average_totals.items() if essentiality == "essential"
     )
     discretionary_spend = sum(
-        amount for (_, essentiality), amount in category_totals.items() if essentiality == "discretionary"
+        amount for (_, essentiality), amount in category_average_totals.items() if essentiality == "discretionary"
     )
     recent_30_day_spend = sum(
-        row["amount"] for row in recent_rows if row["date"].toordinal() >= recent_cutoff
+        _row_signed_amount(row) for row in recent_rows if row["date"].toordinal() >= recent_cutoff
     )
     recurring_merchant_count = sum(
         1
@@ -761,16 +834,19 @@ def build_household_reports(
         if (cadence_for_dates(state["dates"]) or {}).get("label", "one-off") != "one-off"
     )
 
+    average_monthly_spend = average_basis_spend / average_months
+    partial_month_excluded = bool(complete_month_keys) and current_month_key in recent_month_set
     executive = HouseholdExecutiveReport(
         headline="Jenny now has a real household spending ledger to work from.",
         summary=(
-            f"Average monthly spend is ${total_spend / coverage_months:,.0f} across "
-            f"{coverage_months} recent tracked month{'s' if coverage_months != 1 else ''}, "
+            f"Average monthly spend is ${average_monthly_spend:,.0f} across "
+            f"{average_months} complete tracked month{'s' if average_months != 1 else ''}"
+            f"{' (current partial month excluded)' if partial_month_excluded else ''}, "
             f"with {recurring_merchant_count} recurring merchant patterns already visible."
         ),
-        average_monthly_spend=round(total_spend / coverage_months, 2),
-        average_monthly_essentials=round(essential_spend / coverage_months, 2),
-        average_monthly_discretionary=round(discretionary_spend / coverage_months, 2),
+        average_monthly_spend=round(average_monthly_spend, 2),
+        average_monthly_essentials=round(essential_spend / average_months, 2),
+        average_monthly_discretionary=round(discretionary_spend / average_months, 2),
         recent_30_day_spend=round(recent_30_day_spend, 2),
         recurring_merchant_count=recurring_merchant_count,
         tracked_expense_count=len(recent_rows),
@@ -781,7 +857,7 @@ def build_household_reports(
         HouseholdCategoryBreakdown(
             category=category,
             essentiality=essentiality,
-            monthly_average=round(amount / coverage_months, 2),
+            monthly_average=round(category_average_totals.get((category, essentiality), 0.0) / average_months, 2),
             share_of_spend=round(amount / total_spend if total_spend > 0 else 0.0, 4),
             total_spend=round(amount, 2),
         )
@@ -819,6 +895,21 @@ def build_household_reports(
         for month in recent_month_keys
     ]
 
+    month_comparison = None
+    if len(complete_month_keys) >= 2:
+        latest_month, previous_month = complete_month_keys[-1], complete_month_keys[-2]
+        latest_total = round(monthly_totals[latest_month], 2)
+        previous_total = round(monthly_totals[previous_month], 2)
+        change = round(latest_total - previous_total, 2)
+        month_comparison = HouseholdMonthComparison(
+            latest_month=latest_month,
+            previous_month=previous_month,
+            latest_total=latest_total,
+            previous_total=previous_total,
+            change=change,
+            change_pct=round(change / previous_total * 100, 1) if previous_total > 0 else None,
+        )
+
     recent_transactions = [
         HouseholdRecentTransaction(
             date=row["date"].isoformat(),
@@ -839,5 +930,6 @@ def build_household_reports(
         merchant_highlights=merchant_highlights,
         price_insights=_build_price_insights(expense_rows=collapsed_rows),
         monthly_spend_trend=monthly_spend_trend,
+        month_comparison=month_comparison,
         recent_transactions=recent_transactions,
     )
