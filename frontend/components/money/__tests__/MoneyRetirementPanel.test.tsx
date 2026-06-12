@@ -1,6 +1,6 @@
 'use client'
 
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1388,5 +1388,137 @@ describe('MoneyRetirementPanel', () => {
       screen.getByText(/No trial pays an early-access penalty/),
     ).toBeInTheDocument()
     expect(screen.getByText('97% of trials')).toBeInTheDocument()
+  })
+
+  it('sends partial-retirement levers to the preview request and persists them', async () => {
+    const user = userEvent.setup()
+    usePreviewMock.mockReturnValue({
+      data: {
+        ...preview,
+        inputs: {
+          ...preview.inputs,
+          // Spouse retires 5 years after the primary: window 50-54.
+          retirementAge: 50,
+          spouseAge: 45,
+          spouseRetirementAge: 50,
+        },
+      },
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+    useIncomeActualsMock.mockReturnValue({
+      data: incomeActuals,
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useRetirementIncomeActuals>)
+
+    render(
+      <MoneyRetirementPanel
+        dashboard={
+          {
+            ...dashboard,
+            profile: {
+              ...dashboard.profile,
+              spouseNetMonthlyIncome: 5300,
+              partialRetirementMonthlySpend: 7200,
+              spouseGrossAnnualIncome: 84000,
+            },
+          } as HouseholdFinanceDashboard
+        }
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /expand planner/i }))
+    const netInput = screen.getByRole('textbox', {
+      name: /spouse net monthly take-home during partial retirement/i,
+    })
+    expect(netInput).toHaveValue('5300')
+    expect(screen.getByText(/window: your age 50–54/i)).toBeInTheDocument()
+    // Largest recurring non-yield stream renders as a display-only hint.
+    expect(
+      screen.getByText(/detected from money transactions:/i),
+    ).toHaveTextContent('Mariana')
+
+    // Levers re-project live through the debounce — no Run preview click.
+    await user.clear(netInput)
+    await user.type(netInput, '5400')
+    await waitFor(() =>
+      expect(usePreviewMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          spouseNetMonthlyIncome: 5400,
+          partialRetirementMonthlySpend: 7200,
+          spouseGrossAnnualIncome: 84000,
+        }),
+      ),
+    )
+
+    await user.click(screen.getByRole('button', { name: /save assumptions/i }))
+    expect(updateProfileMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        spouseNetMonthlyIncome: 5400,
+        partialRetirementMonthlySpend: 7200,
+        spouseGrossAnnualIncome: 84000,
+      }),
+    )
+
+    // Blank turns the feature off and persists explicit nulls.
+    await user.clear(netInput)
+    expect(
+      await screen.findByText(/off — years before household retirement/i),
+    ).toBeInTheDocument()
+  })
+
+  it('renders partial window rows with badge and spouse take-home income', () => {
+    usePreviewMock.mockReturnValue({
+      data: {
+        ...preview,
+        inputs: {
+          ...preview.inputs,
+          retirementAge: 50,
+          spouseAge: 45,
+          spouseRetirementAge: 50,
+        },
+        drawdownSchedule: [
+          {
+            ...preview.drawdownSchedule[0],
+            yearIndex: 0,
+            calendarYear: 2027,
+            primaryAge: 50,
+            partialRetirementYear: true,
+            spendingNeed: 90000,
+            spouseNetIncome: 63600,
+            income: 0,
+            grossWithdrawal: 26400,
+            taxEstimate: 0,
+            penaltyEstimate: 0,
+            netWithdrawal: 26400,
+            spendingTarget: 0,
+            rmdAmount: 0,
+            rmdApplied: false,
+          },
+          ...preview.drawdownSchedule,
+        ],
+      },
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    const badge = screen.getByText('Partial')
+    expect(badge).toHaveAttribute(
+      'title',
+      expect.stringContaining('spouse still working'),
+    )
+    // Income cell folds her take-home into the window row.
+    const incomeCell = screen.getByText('$63,600')
+    expect(incomeCell).toHaveAttribute(
+      'title',
+      'Includes spouse take-home $63,600.',
+    )
+    // Spend shows the window target (engine target stays zero).
+    expect(screen.getByText('$90,000')).toBeInTheDocument()
   })
 })
