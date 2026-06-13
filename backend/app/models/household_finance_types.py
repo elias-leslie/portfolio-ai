@@ -849,7 +849,7 @@ class HouseholdPriceCheckVendorStatus(BaseModel):
 
 class HouseholdPriceCheckRun(BaseModel):
     id: str
-    status: str  # queued | running | completed | failed
+    status: str  # queued | running | completed | completed_with_errors | failed
     triggered_by: str = "manual"
     product_count: int = 0
     quote_count: int = 0

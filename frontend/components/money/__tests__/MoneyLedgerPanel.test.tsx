@@ -15,6 +15,9 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
     mutateAsync: categorizeMutateAsync,
     isPending: categorizeIsPending.value,
   }),
+}))
+
+vi.mock('@/lib/hooks/useHouseholdPurchases', () => ({
   useTransactionPurchaseItems: useTransactionPurchaseItemsMock,
   useCategorizePurchaseItem: () => ({
     mutateAsync: categorizeItemMutateAsync,

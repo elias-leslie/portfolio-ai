@@ -11,7 +11,7 @@ import {
   usePriceCheckStatus,
   usePurchaseItemReviewQueue,
   useTriggerPriceCheck,
-} from '@/lib/hooks/useHousehold'
+} from '@/lib/hooks/useHouseholdPurchases'
 import { PriceCheckStatusCard } from './PriceCheckStatusCard'
 import { PriceSignalsTable } from './PriceSignalsTable'
 import { ProductCatalogTable } from './ProductCatalogTable'

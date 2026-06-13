@@ -14,7 +14,7 @@ const assignMutateAsync = vi.hoisted(() => vi.fn())
 const mergeMutateAsync = vi.hoisted(() => vi.fn())
 const triggerPriceCheckMutate = vi.hoisted(() => vi.fn())
 
-vi.mock('@/lib/hooks/useHousehold', () => ({
+vi.mock('@/lib/hooks/useHouseholdPurchases', () => ({
   useHouseholdProducts: useHouseholdProductsMock,
   usePurchaseItemReviewQueue: usePurchaseItemReviewQueueMock,
   useHouseholdProductDetail: useHouseholdProductDetailMock,

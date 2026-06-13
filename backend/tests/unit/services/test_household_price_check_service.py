@@ -8,6 +8,7 @@ from app.services._price_vendor_adapters import (
     VendorResult,
 )
 from app.services.household_price_check_service import (
+    _completion_status,
     _finding_candidates,
     _run_vendor_checks,
 )
@@ -36,6 +37,16 @@ def test_vendor_failure_is_isolated_per_vendor() -> None:
     assert results["amazon"].status == "ok"
     assert results["walmart"].status == "error"
     assert "agent hub down" in (results["walmart"].error or "")
+
+
+def test_completion_status_surfaces_degraded_vendor_results() -> None:
+    clean = {"amazon": VendorResult("amazon", "ok", [_quote("p-1", 2.0)])}
+    blocked = {"amazon": VendorResult("amazon", "blocked")}
+    partial = {"amazon": VendorResult("amazon", "partial", [_quote("p-1", 2.0)])}
+
+    assert _completion_status(clean) == "completed"
+    assert _completion_status(blocked) == "completed_with_errors"
+    assert _completion_status(partial) == "completed_with_errors"
 
 
 def test_finding_candidates_pick_cheapest_quote_across_vendors() -> None:

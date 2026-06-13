@@ -23,7 +23,7 @@ def test_build_prompt_carries_products_and_vendor_guidance() -> None:
     assert "amazon.com" in prompt
     assert '"product_id": "p-1"' in prompt
     assert "GV Edamame" in prompt
-    assert '"status": "ok" | "blocked"' in prompt
+    assert '"status": "ok" | "partial" | "blocked"' in prompt
 
 
 def test_parse_ok_response_keeps_valid_quotes_and_drops_garbage() -> None:
@@ -33,7 +33,9 @@ def test_parse_ok_response_keeps_valid_quotes_and_drops_garbage() -> None:
             "quotes": [
                 {"product_id": "p-1", "title": "Edamame 12oz", "price": 2.12,
                  "url": "https://a.co/x", "package_label": "12 oz",
-                 "unit_price": 0.18, "confidence": 0.9},
+                 "unit_price": 0.18, "promo_text": "Rollback",
+                 "membership_required": True, "confidence": 0.9,
+                 "quote_kind": "weekly_ad_promo"},
                 {"product_id": "p-2", "title": "No price here"},
                 {"product_id": "", "title": "Missing id", "price": 4.0},
                 {"product_id": "p-2", "title": "Absurd", "price": 99999.0},
@@ -46,6 +48,9 @@ def test_parse_ok_response_keeps_valid_quotes_and_drops_garbage() -> None:
     assert len(result.quotes) == 1
     quote = result.quotes[0]
     assert (quote.product_id, quote.price, quote.unit_price) == ("p-1", 2.12, 0.18)
+    assert quote.promo_text == "Rollback"
+    assert quote.membership_required is True
+    assert quote.quote_kind == "weekly_ad_promo"
 
 
 def test_parse_tolerates_code_fences_and_leading_prose() -> None:
@@ -64,6 +69,14 @@ def test_explicit_blocked_status_reports_blocked() -> None:
     assert result.status == "blocked"
     assert result.quotes == []
     assert "robot wall" in (result.error or "")
+
+
+def test_partial_status_is_preserved_with_quotes() -> None:
+    result = _AMAZON.parse_response(
+        '{"status": "partial", "quotes": [{"product_id": "p-1", "title": "X", "price": 3.5}]}'
+    )
+    assert result.status == "partial"
+    assert result.quotes[0].price == 3.5
 
 
 def test_captcha_prose_without_json_reports_blocked_not_error() -> None:

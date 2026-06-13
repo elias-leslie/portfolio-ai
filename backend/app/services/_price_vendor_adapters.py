@@ -31,13 +31,17 @@ class VendorQuote:
     url: str | None = None
     package_label: str | None = None
     unit_price: float | None = None
+    availability: str | None = None
+    promo_text: str | None = None
+    membership_required: bool = False
     confidence: float | None = None
+    quote_kind: str = "online_price"
 
 
 @dataclass(frozen=True)
 class VendorResult:
     vendor_key: str
-    status: str  # ok | blocked | error
+    status: str  # ok | partial | blocked | error
     quotes: list[VendorQuote] = field(default_factory=list)
     error: str | None = None
 
@@ -73,7 +77,7 @@ class VendorAdapter:
             'check, empty bot-walled pages), stop and report status "blocked".\n\n'
             "Respond with ONLY this JSON object:\n"
             "{\n"
-            '  "status": "ok" | "blocked",\n'
+            '  "status": "ok" | "partial" | "blocked",\n'
             '  "quotes": [\n'
             "    {\n"
             '      "product_id": "<id from the input list>",\n'
@@ -82,7 +86,11 @@ class VendorAdapter:
             '      "url": "<product page url>",\n'
             '      "package_label": "<package size text or null>",\n'
             '      "unit_price": <price per unit or null>,\n'
-            '      "confidence": <0.0-1.0 match confidence>\n'
+            '      "availability": "<in stock | pickup | delivery | unknown>",\n'
+            '      "promo_text": "<promo text or null>",\n'
+            '      "membership_required": <true if price requires paid membership>,\n'
+            '      "confidence": <0.0-1.0 match confidence>,\n'
+            '      "quote_kind": "online_price" | "weekly_ad_promo"\n'
             "    }\n"
             "  ],\n"
             '  "notes": "<short notes, e.g. which products had no match>"\n'
@@ -108,12 +116,18 @@ class VendorAdapter:
                 status="blocked",
                 error=str(payload.get("notes") or "Vendor blocked automated access."),
             )
+        if status not in {"ok", "partial"}:
+            return VendorResult(
+                vendor_key=self.vendor_key,
+                status="error",
+                error=f"Unexpected vendor status: {status}",
+            )
         quotes = []
         for raw in payload.get("quotes") or []:
             quote = _parse_quote(raw)
             if quote is not None:
                 quotes.append(quote)
-        return VendorResult(vendor_key=self.vendor_key, status="ok", quotes=quotes)
+        return VendorResult(vendor_key=self.vendor_key, status=status, quotes=quotes)
 
 
 def _parse_quote(raw: Any) -> VendorQuote | None:
@@ -129,17 +143,28 @@ def _parse_quote(raw: Any) -> VendorQuote | None:
         return None
     if not (_PRICE_RANGE_OK[0] <= price <= _PRICE_RANGE_OK[1]):
         return None
-    unit_price = raw.get("unit_price")
-    confidence = raw.get("confidence")
     return VendorQuote(
         product_id=product_id,
         title=title,
         price=round(price, 2),
         url=str(raw["url"]) if raw.get("url") else None,
         package_label=str(raw["package_label"]) if raw.get("package_label") else None,
-        unit_price=float(unit_price) if unit_price is not None else None,
-        confidence=float(confidence) if confidence is not None else None,
+        unit_price=_optional_float(raw.get("unit_price")),
+        availability=str(raw["availability"]) if raw.get("availability") else None,
+        promo_text=str(raw["promo_text"]) if raw.get("promo_text") else None,
+        membership_required=bool(raw.get("membership_required") or False),
+        confidence=_optional_float(raw.get("confidence")),
+        quote_kind=str(raw.get("quote_kind") or "online_price"),
     )
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 _BLOCKED_MARKERS = (
@@ -201,8 +226,10 @@ VENDOR_ADAPTERS: tuple[VendorAdapter, ...] = (
         guidance=(
             "Check the Publix weekly ad and product pages "
             "(https://www.publix.com/savings/weekly-ad and publix.com search). "
-            "Weekly-ad promo prices count; note BOGO as half the regular price "
-            "in unit terms only when the regular price is shown."
+            "Weekly-ad promo prices count; use quote_kind='weekly_ad_promo' for "
+            "ad-only deals. Note BOGO as half the regular price in unit terms "
+            "only when the regular price is shown; never claim regular shelf "
+            "price unless a current product page clearly shows it."
         ),
     ),
 )

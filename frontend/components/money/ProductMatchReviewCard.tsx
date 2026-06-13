@@ -9,7 +9,7 @@ import { formatCurrency, formatPercent } from '@/lib/formatters'
 import {
   useAssignPurchaseItemProduct,
   useHouseholdProducts,
-} from '@/lib/hooks/useHousehold'
+} from '@/lib/hooks/useHouseholdPurchases'
 import { formatLedgerDate } from './ledger-helpers'
 
 interface ProductMatchReviewCardProps {

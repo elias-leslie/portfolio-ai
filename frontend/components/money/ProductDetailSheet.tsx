@@ -16,7 +16,7 @@ import {
   useHouseholdProductDetail,
   useHouseholdProducts,
   useMergeHouseholdProducts,
-} from '@/lib/hooks/useHousehold'
+} from '@/lib/hooks/useHouseholdPurchases'
 import { formatLedgerDate } from './ledger-helpers'
 import { PriceHistorySparkline } from './PriceHistorySparkline'
 

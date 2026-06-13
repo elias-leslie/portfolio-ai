@@ -22,6 +22,13 @@ def run_weekly_learning_task() -> dict[str, Any]:
     return result.model_dump()
 
 
+def run_weekly_price_check_task(run_id: str) -> dict[str, Any]:
+    """Run a queued household price-check pass."""
+    from app.services.household_price_check_service import HouseholdPriceCheckService
+
+    return HouseholdPriceCheckService().execute_run(run_id)
+
+
 def run_daily_household_maintenance_task() -> dict[str, Any]:
     """Run Jenny's daily household-money maintenance pass."""
     result = JennyOperatorService().run_daily_household_maintenance(triggered_by="scheduled")

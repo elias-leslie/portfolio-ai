@@ -58,10 +58,21 @@ class HouseholdPriceCheckService:
     # -- trigger/status ------------------------------------------------------
 
     def start_run(
-        self, *, triggered_by: str, product_limit: int | None = None
+        self,
+        *,
+        triggered_by: str,
+        product_limit: int | None = None,
+        product_ids: list[str] | None = None,
+        shopping_list_id: str | None = None,
     ) -> tuple[str, bool]:
         """Create a queued run; returns (run_id, already_running)."""
         limit = max(1, min(int(product_limit or PRODUCT_CAP_PER_RUN), PRODUCT_CAP_PER_RUN))
+        metadata = {
+            "product_limit": limit,
+            "product_ids": product_ids or [],
+            "shopping_list_id": shopping_list_id,
+            "triggered_by": triggered_by,
+        }
         with self.storage.connection() as conn:
             active = conn.execute(
                 """
@@ -82,7 +93,7 @@ class HouseholdPriceCheckService:
                     id, status, triggered_by, metadata
                 ) VALUES (%s, 'queued', %s, %s::jsonb)
                 """,
-                [run_id, triggered_by, json.dumps({"product_limit": limit})],
+                [run_id, triggered_by, json.dumps(metadata)],
             )
             conn.commit()
         return run_id, False
@@ -143,6 +154,7 @@ class HouseholdPriceCheckService:
             return self._execute(run_id, metadata)
         except Exception as exc:
             logger.warning("price_check_run_failed", run_id=run_id, error=str(exc))
+            self._finish_agent_workflow(run_id, status="failed", result={"error": str(exc)})
             self.mark_run_failed(run_id, str(exc))
             return {"status": "failed", "error": str(exc)}
 
@@ -151,8 +163,14 @@ class HouseholdPriceCheckService:
             1, min(int(metadata.get("product_limit") or PRODUCT_CAP_PER_RUN), PRODUCT_CAP_PER_RUN)
         )
         with self.storage.connection() as conn:
-            products = self._select_products(conn, limit=limit)
+            products = self._select_products(
+                conn,
+                limit=limit,
+                product_ids=list(metadata.get("product_ids") or []),
+                shopping_list_id=metadata.get("shopping_list_id"),
+            )
             vendors = self._enabled_vendors(conn)
+            self._ensure_agent_workflow(conn, run_id, metadata=metadata)
             conn.commit()  # vendor profile seeding
 
         results = _run_vendor_checks(
@@ -181,6 +199,7 @@ class HouseholdPriceCheckService:
                 run_id=run_id,
                 candidates=_finding_candidates(products, vendors, results),
             )
+            run_status = _completion_status(results)
             vendor_status = {
                 key: {
                     "status": result.status,
@@ -192,24 +211,56 @@ class HouseholdPriceCheckService:
             conn.execute(
                 """
                 UPDATE household_price_check_runs
-                SET status = 'completed', product_count = %s, quote_count = %s,
+                SET status = %s, product_count = %s, quote_count = %s,
                     finding_count = %s, vendor_status = %s::jsonb,
                     finished_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
                 WHERE id = %s
                 """,
-                [len(products), quote_count, finding_count, json.dumps(vendor_status), run_id],
+                [
+                    run_status,
+                    len(products),
+                    quote_count,
+                    finding_count,
+                    json.dumps(vendor_status),
+                    run_id,
+                ],
+            )
+            conn.execute(
+                """
+                UPDATE agent_workflows
+                SET status = 'complete',
+                    current_step = %s,
+                    result = %s::jsonb,
+                    completed_at = CURRENT_TIMESTAMP,
+                    last_updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                """,
+                [
+                    run_status,
+                    json.dumps(
+                        {
+                            "status": run_status,
+                            "product_count": len(products),
+                            "quote_count": quote_count,
+                            "finding_count": finding_count,
+                            "vendor_status": vendor_status,
+                        }
+                    ),
+                    run_id,
+                ],
             )
             conn.commit()
 
         logger.info(
             "price_check_run_completed",
             run_id=run_id,
+            status=run_status,
             products=len(products),
             quotes=quote_count,
             findings=finding_count,
         )
         return {
-            "status": "completed",
+            "status": run_status,
             "run_id": run_id,
             "products": len(products),
             "quotes": quote_count,
@@ -219,34 +270,115 @@ class HouseholdPriceCheckService:
     # -- internals -----------------------------------------------------------
 
     @staticmethod
-    def _select_products(conn: Any, *, limit: int) -> list[dict[str, Any]]:
-        """Watched products first, then the most-purchased repeat buys."""
+    def _ensure_agent_workflow(
+        conn: Any,
+        run_id: str,
+        *,
+        metadata: dict[str, Any],
+    ) -> None:
+        """Agent-run audit rows FK to agent_workflows, so create the parent row."""
+        conn.execute(
+            """
+            INSERT INTO agent_workflows (
+                id, workflow_type, status, current_step, agents_involved,
+                shared_context, started_at, triggered_by, priority,
+                max_duration_seconds
+            ) VALUES (
+                %s, 'household_price_check', 'running', 'checking vendor prices',
+                %s::text[], %s::jsonb, CURRENT_TIMESTAMP, %s, 5, 3600
+            )
+            ON CONFLICT (id) DO NOTHING
+            """,
+            [
+                run_id,
+                [PRICE_SCOUT_AGENT_SLUG],
+                json.dumps({"metadata": metadata, "run_id": run_id}),
+                metadata.get("triggered_by") or "manual",
+            ],
+        )
+
+    def _finish_agent_workflow(
+        self,
+        run_id: str,
+        *,
+        status: str,
+        result: dict[str, Any],
+    ) -> None:
+        with self.storage.connection() as conn:
+            conn.execute(
+                """
+                UPDATE agent_workflows
+                SET status = %s,
+                    current_step = %s,
+                    result = %s::jsonb,
+                    completed_at = CURRENT_TIMESTAMP,
+                    last_updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                """,
+                [status, status, json.dumps(result), run_id],
+            )
+            conn.commit()
+
+    @staticmethod
+    def _select_products(
+        conn: Any,
+        *,
+        limit: int,
+        product_ids: list[str] | None = None,
+        shopping_list_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Explicit/list products first, then watched and repeat 90-day buys."""
         rows = conn.execute(
             """
-            WITH items AS (
+            WITH explicit_products AS (
+                SELECT unnest(%s::uuid[]) AS product_id
+            ),
+            list_products AS (
+                SELECT DISTINCT product_id
+                FROM household_shopping_list_items
+                WHERE status = 'open'
+                  AND product_id IS NOT NULL
+                  AND (%s::uuid IS NULL OR shopping_list_id = %s::uuid)
+            ),
+            items AS (
                 SELECT product_id, COUNT(*) AS purchase_count
                 FROM household_purchase_items
                 WHERE removed IS NOT TRUE AND product_id IS NOT NULL
+                  AND purchase_date >= CURRENT_DATE - INTERVAL '90 days'
                 GROUP BY product_id
+            ),
+            eligible_products AS (
+                SELECT product_id FROM explicit_products
+                UNION
+                SELECT product_id FROM list_products
+                UNION
+                SELECT product_id FROM items WHERE purchase_count >= 2
+                UNION
+                SELECT id AS product_id FROM household_products WHERE watched IS TRUE
             ),
             last_paid AS (
                 SELECT DISTINCT ON (product_id)
-                       product_id, total_price, observed_date
+                       product_id, COALESCE(unit_price, total_price) AS comparison_price,
+                       observed_date
                 FROM household_product_price_observations
                 WHERE source <> 'vendor_quote'
                 ORDER BY product_id, observed_date DESC, created_at DESC
             )
             SELECT p.id::text, p.canonical_name, p.brand, p.package_display_label,
-                   i.purchase_count, lp.total_price
-            FROM household_products p
-            JOIN items i ON i.product_id = p.id
+                   COALESCE(i.purchase_count, 0), lp.comparison_price
+            FROM eligible_products ep
+            JOIN household_products p ON p.id = ep.product_id
+            LEFT JOIN items i ON i.product_id = p.id
             LEFT JOIN last_paid lp ON lp.product_id = p.id
-            WHERE p.watched IS TRUE OR i.purchase_count >= 2
-            ORDER BY p.watched DESC, i.purchase_count DESC,
+            LEFT JOIN explicit_products e ON e.product_id = p.id
+            LEFT JOIN list_products l ON l.product_id = p.id
+            ORDER BY (e.product_id IS NOT NULL) DESC,
+                     (l.product_id IS NOT NULL) DESC,
+                     p.watched DESC, i.purchase_count DESC NULLS LAST,
                      lp.observed_date DESC NULLS LAST, p.id
             LIMIT %s
             """,
-            [limit],
+            [product_ids or [], shopping_list_id, shopping_list_id, limit],
         ).fetchall()
         return [
             {
@@ -311,6 +443,7 @@ class HouseholdPriceCheckService:
                     MessageInput(role="user", content=[TextContent(text=prompt)])
                 ],
                 execute_tools=True,
+                max_turns=10,
                 purpose=f"household_price_check:{adapter.vendor_key}",
             )
         except Exception as exc:
@@ -360,7 +493,11 @@ class HouseholdPriceCheckService:
                 "run_id": run_id,
                 "title": quote.title,
                 "url": quote.url,
+                "promo_text": quote.promo_text,
+                "membership_required": quote.membership_required,
+                "availability": quote.availability,
                 "confidence": quote.confidence,
+                "quote_kind": quote.quote_kind,
             }
         )
         existing = conn.execute(
@@ -422,6 +559,13 @@ def _run_vendor_checks(
     return results
 
 
+def _completion_status(results: dict[str, VendorResult]) -> str:
+    """A usable run with any blocked/error/partial vendor is visibly degraded."""
+    if any(result.status in {"blocked", "error", "partial"} for result in results.values()):
+        return "completed_with_errors"
+    return "completed"
+
+
 def _finding_candidates(
     products: list[dict[str, Any]],
     vendors: list[VendorAdapter],
@@ -432,7 +576,7 @@ def _finding_candidates(
     for adapter in vendors:
         for quote in results[adapter.vendor_key].quotes:
             current = by_product.get(quote.product_id)
-            if current is None or quote.price < current[1].price:
+            if current is None or _quote_comparison_price(quote) < _quote_comparison_price(current[1]):
                 by_product[quote.product_id] = (adapter.vendor_key, quote)
     candidates: list[FindingCandidate] = []
     for product in products:
@@ -440,6 +584,7 @@ def _finding_candidates(
         if best is None or product.get("last_paid") is None:
             continue
         vendor_key, quote = best
+        vendor_price = quote.unit_price if quote.unit_price is not None else quote.price
         candidates.append(
             FindingCandidate(
                 product_id=product["id"],
@@ -447,11 +592,15 @@ def _finding_candidates(
                 purchase_count=int(product.get("purchase_count") or 0),
                 household_price=float(product["last_paid"]),
                 vendor_key=vendor_key,
-                vendor_price=quote.price,
+                vendor_price=vendor_price,
                 vendor_url=quote.url,
             )
         )
     return candidates
+
+
+def _quote_comparison_price(quote: VendorQuote) -> float:
+    return quote.unit_price if quote.unit_price is not None else quote.price
 
 
 def _run_model(row: Any) -> HouseholdPriceCheckRun:

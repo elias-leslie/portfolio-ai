@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 from importlib import import_module
 from typing import TYPE_CHECKING
@@ -138,11 +139,18 @@ async def categorize_purchase_item(
 @router.post("/price-checks/run", response_model=HouseholdPriceCheckTriggerResponse)
 async def trigger_price_check(
     product_limit: int | None = Query(None, ge=1, le=12),
+    product_id: list[str] | None = Query(None),
+    shopping_list_id: str | None = None,
 ) -> HouseholdPriceCheckTriggerResponse:
     """Queue a cross-vendor price check and hand it to the Hatchet worker."""
     service = _price_checks()
     run_id, already_running = await run_in_threadpool(
-        lambda: service.start_run(triggered_by="manual", product_limit=product_limit)
+        lambda: service.start_run(
+            triggered_by="manual",
+            product_limit=product_limit,
+            product_ids=product_id,
+            shopping_list_id=shopping_list_id,
+        )
     )
     if already_running:
         return HouseholdPriceCheckTriggerResponse(run_id=run_id, already_running=True)
@@ -152,7 +160,7 @@ async def trigger_price_check(
         await run_in_threadpool(
             lambda: get_admin_client().run_workflow(
                 "portfolio-jenny-weekly-price-check",
-                {"run_id": run_id, "triggered_by": "manual"},
+                json.dumps({"run_id": run_id, "triggered_by": "manual"}),
             )
         )
     except Exception as exc:

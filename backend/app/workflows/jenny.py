@@ -82,9 +82,9 @@ async def jenny_daily_household_maintenance_wf(input: EmptyInput, ctx: Context) 
 @hatchet.task(
     name="portfolio-jenny-weekly-price-check",
     input_validator=PriceCheckInput,
-    execution_timeout="1800s",
+    execution_timeout="3600s",
     retries=0,
-    on_crons=["0 13 * * 6"],
+    on_crons=["30 13 * * 6"],
     concurrency=ConcurrencyExpression(
         expression="'portfolio-jenny-weekly-price-check'",
         max_runs=1,
@@ -105,10 +105,15 @@ async def jenny_weekly_price_check_wf(input: PriceCheckInput, ctx: Context) -> d
             return {"status": "skipped", "reason": "scheduled_price_check_disabled"}
         run_id, already_running = await asyncio.to_thread(
             lambda: service.start_run(
-                triggered_by=input.triggered_by, product_limit=input.product_limit
+                triggered_by=input.triggered_by,
+                product_limit=input.product_limit,
+                product_ids=input.product_ids,
+                shopping_list_id=input.shopping_list_id,
             )
         )
         if already_running:
             logger.info("price_check_skipped_already_running", run_id=run_id)
             return {"status": "skipped", "reason": "already_running", "run_id": run_id}
-    return await asyncio.to_thread(service.execute_run, run_id)
+    from ..tasks.jenny_operator_tasks import run_weekly_price_check_task
+
+    return await asyncio.to_thread(run_weekly_price_check_task, run_id)

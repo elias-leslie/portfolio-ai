@@ -1344,7 +1344,12 @@ export interface HouseholdPriceCheckVendorStatus {
 
 export interface HouseholdPriceCheckRun {
   id: string
-  status: 'queued' | 'running' | 'completed' | 'failed'
+  status:
+    | 'queued'
+    | 'running'
+    | 'completed'
+    | 'completed_with_errors'
+    | 'failed'
   triggeredBy: string
   productCount: number
   quoteCount: number

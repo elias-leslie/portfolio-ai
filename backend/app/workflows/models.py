@@ -68,3 +68,5 @@ class PriceCheckInput(BaseModel):
     run_id: str | None = None
     triggered_by: str = "cron"
     product_limit: int | None = None
+    product_ids: list[str] | None = None
+    shopping_list_id: str | None = None

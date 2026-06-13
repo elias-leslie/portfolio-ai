@@ -8,7 +8,7 @@ import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
 import {
   useCategorizePurchaseItem,
   useTransactionPurchaseItems,
-} from '@/lib/hooks/useHousehold'
+} from '@/lib/hooks/useHouseholdPurchases'
 import { CategoryEditorForm } from './CategoryEditorForm'
 import {
   buildCategoryOptions,
