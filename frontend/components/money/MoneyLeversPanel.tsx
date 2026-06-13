@@ -378,6 +378,23 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
 
       <SectionCard
         variant="surface"
+        title="Price Signals moved to Purchases"
+        description="Levers summarizes material price pressure; the item catalog, vendor quotes, findings, and shopping-list optimizer now live in Purchases."
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-text-muted">
+            {visiblePriceInsights.length} price signal
+            {visiblePriceInsights.length === 1 ? '' : 's'} match this lever
+            window.
+          </p>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/money?tab=purchases">Open Purchases</Link>
+          </Button>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        variant="surface"
         title="Category Pressure"
         description={`Where monthly spend is actually hardening inside ${spending?.summary.timeframeLabel ?? 'this window'}.`}
       >
