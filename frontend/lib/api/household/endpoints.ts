@@ -222,6 +222,14 @@ export async function deleteHouseholdDocument(
   await del<void>(`/api/intake/evidence/${documentId}`)
 }
 
+export async function reReviewHouseholdDocument(
+  documentId: string,
+): Promise<{ status: string; document_id: string }> {
+  return post<{ status: string; document_id: string }>(
+    `/api/intake/evidence/${documentId}/review`,
+  )
+}
+
 export async function answerHouseholdQuestion(
   questionId: string,
   payload: HouseholdQuestionAnswer,

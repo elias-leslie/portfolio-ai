@@ -30,6 +30,7 @@ import {
   type RetirementPreviewRequest,
   replaceAllocationScenarios,
   replaceHouseholdAccountHoldings,
+  reReviewHouseholdDocument,
   updateHouseholdPlanning,
   updateHouseholdProfile,
   updateHouseholdTrackedAccount,
@@ -433,6 +434,27 @@ export function useDeleteHouseholdDocument() {
         error instanceof Error
           ? error.message
           : 'Failed to remove evidence document',
+      )
+    },
+  })
+}
+
+export function useReReviewHouseholdDocument() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (documentId: string) => reReviewHouseholdDocument(documentId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['household', 'documents'],
+      })
+      toast.success('Re-running Jenny review on this document.')
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to queue document for re-review',
       )
     },
   })

@@ -38,6 +38,7 @@ export {
   optimizeShoppingList,
   replaceAllocationScenarios,
   replaceHouseholdAccountHoldings,
+  reReviewHouseholdDocument,
   triggerPriceCheck,
   updateHouseholdPlanning,
   updateHouseholdProfile,

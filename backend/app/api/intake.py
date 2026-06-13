@@ -41,6 +41,20 @@ async def delete_evidence(document_id: str) -> None:
         raise HTTPException(status_code=404, detail="Evidence document not found.")
 
 
+@router.post("/evidence/{document_id}/review", status_code=202)
+async def re_review_evidence(
+    background_tasks: BackgroundTasks,
+    document_id: str,
+) -> dict[str, str]:
+    """Re-run the Jenny review pipeline on a stuck or failed evidence document."""
+    service = _service()
+    document = await run_in_threadpool(service.get_document, document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Evidence document not found.")
+    background_tasks.add_task(service.review_document, document_id)
+    return {"status": "queued", "document_id": document_id}
+
+
 @router.post("/evidence", response_model=HouseholdDocument)
 async def upload_evidence(
     background_tasks: BackgroundTasks,

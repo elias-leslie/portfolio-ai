@@ -1,4 +1,4 @@
-import { Trash2 } from 'lucide-react'
+import { RotateCw, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { RelativeTime } from '@/components/shared/RelativeTime'
 import { Badge } from '@/components/ui/badge'
@@ -13,12 +13,16 @@ import {
 } from '@/components/ui/dialog'
 import type { HouseholdDocument } from '@/lib/api/household'
 import { formatEnumLabel, formatFileSize } from '@/lib/formatters'
-import { useDeleteHouseholdDocument } from '@/lib/hooks/useHousehold'
+import {
+  useDeleteHouseholdDocument,
+  useReReviewHouseholdDocument,
+} from '@/lib/hooks/useHousehold'
 import { formatDate } from '@/lib/utils'
 
 export function DocumentCard({ document }: { document: HouseholdDocument }) {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const deleteDocument = useDeleteHouseholdDocument()
+  const reReviewDocument = useReReviewHouseholdDocument()
   const metadata =
     document.metadata && typeof document.metadata === 'object'
       ? document.metadata
@@ -37,6 +41,10 @@ export function DocumentCard({ document }: { document: HouseholdDocument }) {
     !fileAvailable &&
     document.reviewStatus !== 'complete' &&
     document.status !== 'parsed'
+  const showReReviewButton =
+    document.status === 'staged' &&
+    fileAvailable &&
+    (document.reviewStatus == null || document.reviewStatus === 'failed')
   const classifierPct =
     document.classificationConfidence != null
       ? Math.round(document.classificationConfidence * 100)
@@ -94,17 +102,34 @@ export function DocumentCard({ document }: { document: HouseholdDocument }) {
           <StatementDates document={document} />
         </div>
         <div className="flex flex-col items-end gap-1 text-right text-xs text-text-muted">
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7 text-text-muted hover:text-destructive"
-            aria-label={`Discard ${document.filename}`}
-            onClick={() => setConfirmOpen(true)}
-            disabled={deleteDocument.isPending}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            {showReReviewButton ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-xs"
+                aria-label={`Re-run Jenny review on ${document.filename}`}
+                onClick={() => reReviewDocument.mutate(document.id)}
+                disabled={reReviewDocument.isPending}
+                aria-busy={reReviewDocument.isPending}
+              >
+                <RotateCw className="mr-1 h-3 w-3" />
+                {reReviewDocument.isPending ? 'Re-running…' : 'Re-run review'}
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 text-text-muted hover:text-destructive"
+              aria-label={`Discard ${document.filename}`}
+              onClick={() => setConfirmOpen(true)}
+              disabled={deleteDocument.isPending}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
           {document.reviewStatus ? (
             <p>
               Jenny: {formatEnumLabel(document.reviewStatus)}
