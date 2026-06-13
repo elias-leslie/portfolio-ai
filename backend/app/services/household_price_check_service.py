@@ -594,6 +594,9 @@ def _finding_candidates(
                 vendor_key=vendor_key,
                 vendor_price=vendor_price,
                 vendor_url=quote.url,
+                vendor_title=quote.title,
+                vendor_package_label=quote.package_label,
+                vendor_promo_text=quote.promo_text,
             )
         )
     return candidates

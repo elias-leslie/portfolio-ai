@@ -38,9 +38,13 @@ export function PurchaseFindingsList({ findings }: PurchaseFindingsListProps) {
             </p>
             {finding.kind === 'cheaper_elsewhere' && (
               <p className="mt-0.5 text-xs text-text-muted">
-                {formatEnumLabel(finding.vendorKey ?? '')} has it for{' '}
-                {formatCurrency(finding.vendorPrice ?? 0, { decimals: 2 })} vs
-                your{' '}
+                {formatEnumLabel(finding.vendorKey ?? '')} quoted{' '}
+                {finding.vendorTitle ?? 'a comparable item'}
+                {finding.vendorPackageLabel
+                  ? ` (${finding.vendorPackageLabel})`
+                  : ''}{' '}
+                for {formatCurrency(finding.vendorPrice ?? 0, { decimals: 2 })}{' '}
+                vs your{' '}
                 {formatCurrency(finding.householdPrice ?? 0, { decimals: 2 })}
                 {finding.vendorUrl && (
                   <>

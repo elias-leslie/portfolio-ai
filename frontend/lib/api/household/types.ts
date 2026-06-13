@@ -1371,6 +1371,9 @@ export interface HouseholdPriceFinding {
   householdPrice?: number | null
   vendorPrice?: number | null
   vendorUrl?: string | null
+  vendorTitle?: string | null
+  vendorPackageLabel?: string | null
+  vendorPromoText?: string | null
   detail?: string | null
   createdAt?: string | null
 }

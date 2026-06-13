@@ -8,6 +8,8 @@ import { MoneyLeversPanel } from '../MoneyLeversPanel'
 
 const useHouseholdSpendingMock = vi.fn()
 const usePriceCheckStatusMock = vi.fn()
+const useHouseholdProductsMock = vi.fn()
+const triggerPriceCheckMock = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdSpending: (params?: { window?: string }) =>
@@ -15,7 +17,12 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
 }))
 
 vi.mock('@/lib/hooks/useHouseholdPurchases', () => ({
+  useHouseholdProducts: () => useHouseholdProductsMock(),
   usePriceCheckStatus: () => usePriceCheckStatusMock(),
+  useTriggerPriceCheck: () => ({
+    mutate: triggerPriceCheckMock,
+    isPending: false,
+  }),
 }))
 
 const categories = [
@@ -128,20 +135,25 @@ describe('MoneyLeversPanel', () => {
   beforeEach(() => {
     useHouseholdSpendingMock.mockReset()
     usePriceCheckStatusMock.mockReset()
+    useHouseholdProductsMock.mockReset()
+    triggerPriceCheckMock.mockReset()
     usePriceCheckStatusMock.mockReturnValue({
-      data: { openFindings: [] },
+      data: { openFindings: [], latestRun: null },
+    })
+    useHouseholdProductsMock.mockReturnValue({
+      data: { products: [] },
     })
     mockSpending()
   })
 
-  it('fires the price-signal lever for unit_price_up data', () => {
+  it('routes price-drift signals to outside-the-norm actions', () => {
     render(<MoneyLeversPanel priceInsights={[unitPriceUpInsight]} />)
 
-    // The lever (not just the table row) only appears when the signal passes the
-    // bestPriceSignal filter — the regression was that unit_price_up was excluded.
+    expect(screen.getByText('Outside the norm')).toBeInTheDocument()
     expect(
-      screen.getByText('Olive Oil price drift needs a check'),
+      screen.getByText('Olive Oil price is outside normal'),
     ).toBeInTheDocument()
+    expect(screen.getByText('Run price check before rebuy')).toBeInTheDocument()
   })
 
   it('shows cheaper-elsewhere price-check findings as concrete levers', () => {
@@ -157,6 +169,8 @@ describe('MoneyLeversPanel', () => {
             savingsEstimate: 4.25,
             householdPrice: 14,
             vendorPrice: 9.75,
+            vendorTitle: 'Great Value Olive Oil',
+            vendorPackageLabel: '16.9 oz',
           },
         ],
       },
@@ -164,25 +178,26 @@ describe('MoneyLeversPanel', () => {
 
     render(<MoneyLeversPanel priceInsights={[]} />)
 
+    expect(screen.getByText('Verified item savings')).toBeInTheDocument()
     expect(
-      screen.getByText('Olive Oil is cheaper at Walmart'),
+      screen.getByText('Buy Great Value Olive Oil at Walmart'),
     ).toBeInTheDocument()
     expect(screen.getByText('Save $4.25/rebuy')).toBeInTheDocument()
-    expect(screen.getByText('Price check')).toBeInTheDocument()
+    expect(screen.getByText('Verified')).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Concrete cheaper-elsewhere finding from stored vendor quotes — not modeled monthly savings.',
+        'Stored vendor quote; this is a concrete per-rebuy saving.',
       ),
     ).toBeInTheDocument()
   })
 
-  it('ranks the highest-savings category lever above the price-signal lever', () => {
+  it('keeps modeled spend pressure separate from price-drift deviations', () => {
     render(<MoneyLeversPanel priceInsights={[unitPriceUpInsight]} />)
 
+    const deviation = screen.getByText('Olive Oil price is outside normal')
     const categoryLever = screen.getByText('Retail is biggest trim lever')
-    const priceLever = screen.getByText('Olive Oil price drift needs a check')
     expect(
-      categoryLever.compareDocumentPosition(priceLever) &
+      deviation.compareDocumentPosition(categoryLever) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
   })
@@ -219,12 +234,7 @@ describe('MoneyLeversPanel', () => {
         'Modeled at 20% trim — rule of thumb, not a guaranteed saving.',
       ),
     ).toBeInTheDocument()
-    // Price-signal savings are a share of total monthly spend, not a trim.
-    expect(
-      screen.getByText(
-        'Modeled at 2% of monthly spend — rule of thumb, not a guaranteed saving.',
-      ),
-    ).toBeInTheDocument()
+    expect(screen.queryByText('$40/mo')).not.toBeInTheDocument()
   })
 
   it('narrows category surfaces when searching a merchant name', async () => {
@@ -262,10 +272,12 @@ describe('MoneyLeversPanel', () => {
 
     await user.type(screen.getByLabelText('Search savings levers'), 'zzz')
 
-    expect(screen.getByText('No levers match this search.')).toBeInTheDocument()
+    expect(
+      screen.getByText('No savings actions match this search.'),
+    ).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Clear the search or widen the window to see ranked trim levers.',
+        'Clear the search or widen the window to see prioritized savings work.',
       ),
     ).toBeInTheDocument()
     expect(screen.queryByText('Go to Intake')).not.toBeInTheDocument()
@@ -297,9 +309,7 @@ describe('MoneyLeversPanel', () => {
     render(<MoneyLeversPanel priceInsights={[]} />)
 
     expect(
-      screen.getByText(
-        'Not enough spend history in this window to rank trims.',
-      ),
+      screen.getByText('Not enough spend history to prioritize savings.'),
     ).toBeInTheDocument()
     const intakeLink = screen.getByRole('link', { name: 'Go to Intake' })
     expect(intakeLink).toHaveAttribute('href', '/money?tab=intake')

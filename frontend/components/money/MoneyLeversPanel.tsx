@@ -3,7 +3,14 @@
 import Link from 'next/link'
 import { type ReactNode, useMemo, useState } from 'react'
 import { CategoryPressureTable } from '@/components/money/CategoryPressureTable'
+import { LeversTrendline } from '@/components/money/LeversTrendline'
 import { buildLevers } from '@/components/money/lever-helpers'
+import {
+  buildSavingsActions,
+  type SavingsAction,
+  type SavingsActionKind,
+  topTrendSeries,
+} from '@/components/money/levers-action-model'
 import { MerchantDragTable } from '@/components/money/MerchantDragTable'
 import { aggregateMerchants } from '@/components/money/merchant-aggregation'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
@@ -14,7 +21,11 @@ import { Input } from '@/components/ui/input'
 import type { HouseholdPriceInsight } from '@/lib/api/household'
 import { formatCurrency, formatPercent } from '@/lib/formatters'
 import { useHouseholdSpending } from '@/lib/hooks/useHousehold'
-import { usePriceCheckStatus } from '@/lib/hooks/useHouseholdPurchases'
+import {
+  useHouseholdProducts,
+  usePriceCheckStatus,
+  useTriggerPriceCheck,
+} from '@/lib/hooks/useHouseholdPurchases'
 
 type LeverWindow = '1m' | '3m' | '6m' | '12m' | 'all'
 
@@ -24,6 +35,38 @@ const leverWindows: Array<{ value: LeverWindow; label: string }> = [
   { value: '6m', label: '6M' },
   { value: '12m', label: '12M' },
   { value: 'all', label: 'All' },
+]
+
+const actionLanes: Array<{
+  key: SavingsActionKind
+  title: string
+  empty: string
+}> = [
+  {
+    key: 'verified',
+    title: 'Verified item savings',
+    empty: 'No verified cheaper vendor options yet.',
+  },
+  {
+    key: 'recurring_item',
+    title: 'Recurring item price checks',
+    empty: 'No recurring item drift above threshold in this window.',
+  },
+  {
+    key: 'cut_candidate',
+    title: 'Cut first',
+    empty: 'No frequent non-essential merchant stands out.',
+  },
+  {
+    key: 'deviation',
+    title: 'Outside the norm',
+    empty: 'No category or price deviations above threshold.',
+  },
+  {
+    key: 'modeled',
+    title: 'Modeled pressure',
+    empty: 'No modeled category or merchant pressure yet.',
+  },
 ]
 
 function UnlockPanel({
@@ -44,6 +87,43 @@ function UnlockPanel({
   )
 }
 
+function SavingsActionCard({ action }: { action: SavingsAction }) {
+  return (
+    <article className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-text">{action.title}</p>
+          <p className="mt-1 text-xs uppercase tracking-[0.18em] text-text-muted">
+            {action.playbook}
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <Badge variant={action.tone}>{action.amountLabel}</Badge>
+          <Badge variant="outline" className="text-[10px]">
+            {action.evidenceLabel}
+          </Badge>
+        </div>
+      </div>
+      <p className="mt-3 text-sm text-text-muted">{action.detail}</p>
+      {action.footnote ? (
+        <p className="mt-2 rounded-lg border border-border/40 bg-surface-muted/20 px-3 py-2 text-xs text-text-muted">
+          {action.footnote}
+        </p>
+      ) : null}
+      {action.trend && action.trend.length > 0 ? (
+        <div className="mt-3">
+          <LeversTrendline
+            series={action.trend}
+            width={360}
+            height={90}
+            className="rounded-xl bg-surface/30 p-2"
+          />
+        </div>
+      ) : null}
+    </article>
+  )
+}
+
 interface MoneyLeversPanelProps {
   priceInsights: HouseholdPriceInsight[]
 }
@@ -59,6 +139,11 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
     isFetching,
   } = useHouseholdSpending({ window })
   const { data: priceCheck } = usePriceCheckStatus()
+  const { data: productsData } = useHouseholdProducts({
+    sort: 'frequency',
+    limit: 100,
+  })
+  const triggerPriceCheck = useTriggerPriceCheck()
 
   const totalSpend = spending?.summary.totalSpend ?? 0
   const averageMonthlySpend = spending?.summary.averageMonthlySpend ?? 0
@@ -190,7 +275,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
         averageMonthlySpend,
         coverageMonths: spending?.summary.coverageMonths,
         bestPriceSignal,
-        priceFindings: visiblePriceFindings,
+        priceFindings: [],
       }),
     [
       averageMonthlySpend,
@@ -200,8 +285,37 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
       topDiscretionaryCategory,
       topDiscretionaryMerchant,
       topThreeShare,
-      visiblePriceFindings,
     ],
+  )
+
+  const savingsActions = useMemo(
+    () =>
+      buildSavingsActions({
+        priceFindings: visiblePriceFindings,
+        products: productsData?.products ?? [],
+        transactions: spending?.transactions ?? [],
+        merchantRows,
+        categoryMonthlyTrend: spending?.categoryMonthlyTrend ?? [],
+        modeledLevers: levers,
+        priceInsights: visiblePriceInsights,
+        coverageMonths: spending?.summary.coverageMonths ?? 0,
+      }),
+    [
+      levers,
+      merchantRows,
+      productsData?.products,
+      spending?.categoryMonthlyTrend,
+      spending?.summary.coverageMonths,
+      spending?.transactions,
+      visibleCategoryRows,
+      visiblePriceFindings,
+      visiblePriceInsights,
+    ],
+  )
+
+  const actionTrendSeries = useMemo(
+    () => topTrendSeries(savingsActions),
+    [savingsActions],
   )
 
   const modeledTrimTotal = useMemo(
@@ -328,65 +442,84 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
 
       <SectionCard
         variant="surface"
-        title="Best Levers Right Now"
-        description="Concrete cheaper-elsewhere findings appear first; modeled trim levers use fixed rule-of-thumb rates (shown on each lever), not measured elasticities."
+        title="Savings Action Board"
+        description="Priority order: verified cheaper options, recurring-item price checks, non-essential cuts, deviations from normal, then modeled pressure."
+        actions={
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => triggerPriceCheck.mutate()}
+            disabled={triggerPriceCheck.isPending}
+          >
+            Run price check
+          </Button>
+        }
       >
-        {levers.length > 0 ? (
-          <div className="grid gap-3 xl:grid-cols-2">
-            {levers.map((lever) => (
-              <article
-                key={lever.id}
-                className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
+        <div className="mb-4 grid gap-3 lg:grid-cols-3">
+          <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
+            <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
+              Last price check
+            </p>
+            <p className="mt-2 text-sm font-semibold text-text">
+              {priceCheck?.latestRun?.finishedAt
+                ? new Date(priceCheck.latestRun.finishedAt).toLocaleDateString()
+                : 'Not run yet'}
+            </p>
+            <p className="mt-1 text-xs text-text-muted">
+              {priceCheck?.latestRun
+                ? `${priceCheck.latestRun.status} · ${priceCheck.latestRun.quoteCount} quote${priceCheck.latestRun.quoteCount === 1 ? '' : 's'} · ${priceCheck.latestRun.findingCount} finding${priceCheck.latestRun.findingCount === 1 ? '' : 's'}`
+                : 'Run a price check to find verified cheaper vendors.'}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4 lg:col-span-2">
+            <p className="text-xs uppercase tracking-[0.18em] text-text-muted">
+              Trendlines to inspect
+            </p>
+            <div className="mt-2">
+              <LeversTrendline series={actionTrendSeries} />
+            </div>
+          </div>
+        </div>
+
+        {savingsActions.length > 0 ? (
+          <div className="space-y-5">
+            {actionLanes.map((lane) => {
+              const laneActions = savingsActions
+                .filter((action) => action.kind === lane.key)
+                .slice(0, 4)
+              return (
+                <div key={lane.key} className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold text-text">
-                      {lever.title}
+                      {lane.title}
                     </p>
-                    <p className="mt-1 text-xs uppercase tracking-[0.18em] text-text-muted">
-                      {lever.playbook}
+                    <Badge variant="outline">{laneActions.length}</Badge>
+                  </div>
+                  {laneActions.length > 0 ? (
+                    <div className="grid gap-3 xl:grid-cols-2">
+                      {laneActions.map((action) => (
+                        <SavingsActionCard key={action.id} action={action} />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/10 p-4 text-sm text-text-muted">
+                      {lane.empty}
                     </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <Badge variant={lever.tone}>
-                      {lever.savingsLabel ??
-                        `${formatCurrency(lever.monthlySavings, { decimals: 0 })}/mo`}
-                    </Badge>
-                    <Badge variant="outline" className="text-[10px]">
-                      {lever.evidenceLabel ?? 'Modeled'}
-                    </Badge>
-                  </div>
+                  )}
                 </div>
-                <p className="mt-3 text-sm text-text-muted">{lever.detail}</p>
-                {lever.annualSavings > 0 ? (
-                  <p className="mt-3 text-sm font-medium text-text">
-                    Annual room:{' '}
-                    {formatCurrency(lever.annualSavings, { decimals: 0 })}
-                  </p>
-                ) : null}
-                <p className="mt-1 text-xs text-text-muted">
-                  {lever.footnote ??
-                    (lever.id === 'price-signal' || lever.id === 'concentration'
-                      ? `Modeled at ${formatPercent(lever.trimRate * 100, { decimals: 0 })} of monthly spend — rule of thumb, not a guaranteed saving.`
-                      : `Modeled at ${formatPercent(lever.trimRate * 100, { decimals: 0 })} trim — rule of thumb, not a guaranteed saving.`)}
-                </p>
-                {lever.note ? (
-                  <p className="mt-2 rounded-lg border border-border/40 bg-surface-muted/20 px-3 py-2 text-xs text-text-muted">
-                    {lever.note}
-                  </p>
-                ) : null}
-              </article>
-            ))}
+              )
+            })}
           </div>
         ) : search.trim() ? (
           <UnlockPanel
-            title="No levers match this search."
-            detail="Clear the search or widen the window to see ranked trim levers."
+            title="No savings actions match this search."
+            detail="Clear the search or widen the window to see prioritized savings work."
           />
         ) : (
           <UnlockPanel
-            title="Not enough spend history in this window to rank trims."
-            detail="Upload statements or connect an account in Intake, or widen the window above — ranked levers appear once categories and merchants have coverage."
+            title="Not enough spend history to prioritize savings."
+            detail="Upload statements or connect an account in Intake, or widen the window above."
             action={
               <Button asChild size="sm" variant="outline">
                 <Link href="/money?tab=intake">Go to Intake</Link>

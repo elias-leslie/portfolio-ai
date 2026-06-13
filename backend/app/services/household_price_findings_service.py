@@ -37,6 +37,9 @@ class FindingCandidate:
     vendor_key: str
     vendor_price: float
     vendor_url: str | None = None
+    vendor_title: str | None = None
+    vendor_package_label: str | None = None
+    vendor_promo_text: str | None = None
 
 
 @dataclass(frozen=True)
@@ -71,6 +74,9 @@ def evaluate_candidates(candidates: list[FindingCandidate]) -> list[FindingDraft
                     "household_price": candidate.household_price,
                     "vendor_price": candidate.vendor_price,
                     "vendor_url": candidate.vendor_url,
+                    "vendor_title": candidate.vendor_title,
+                    "vendor_package_label": candidate.vendor_package_label,
+                    "vendor_promo_text": candidate.vendor_promo_text,
                 },
             )
         )
@@ -175,6 +181,9 @@ def _finding(row: Any) -> HouseholdPriceFinding:
         household_price=to_float(payload.get("household_price")),
         vendor_price=to_float(payload.get("vendor_price")),
         vendor_url=payload.get("vendor_url"),
+        vendor_title=payload.get("vendor_title"),
+        vendor_package_label=payload.get("vendor_package_label"),
+        vendor_promo_text=payload.get("vendor_promo_text"),
         detail=(
             f"{payload.get('finding_count')} products are cheaper elsewhere"
             if str(row[1]) == "savings_rollup"

@@ -459,7 +459,9 @@ describe('MoneyPurchasesPanel', () => {
 
     expect(screen.getByText('Product 001')).toBeInTheDocument()
     expect(
-      screen.getByText(/Walmart has it for \$6\.99 vs your \$12\.49/),
+      screen.getByText(
+        /Walmart quoted a comparable item for \$6\.99 vs your \$12\.49/,
+      ),
     ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'view item' })).toHaveAttribute(
       'href',

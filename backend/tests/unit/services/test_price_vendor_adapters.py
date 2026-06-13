@@ -23,6 +23,7 @@ def test_build_prompt_carries_products_and_vendor_guidance() -> None:
     assert "amazon.com" in prompt
     assert '"product_id": "p-1"' in prompt
     assert "GV Edamame" in prompt
+    assert "lower unit-price comparable substitute" in prompt
     assert '"status": "ok" | "partial" | "blocked"' in prompt
 
 

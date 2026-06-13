@@ -873,6 +873,9 @@ class HouseholdPriceFinding(BaseModel):
     household_price: float | None = None
     vendor_price: float | None = None
     vendor_url: str | None = None
+    vendor_title: str | None = None
+    vendor_package_label: str | None = None
+    vendor_promo_text: str | None = None
     detail: str | None = None
     created_at: str | None = None
 

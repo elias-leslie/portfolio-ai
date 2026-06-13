@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from app.services.household_price_findings_service import (
     FindingCandidate,
     evaluate_candidates,
@@ -9,7 +11,7 @@ from app.services.household_price_findings_service import (
 
 
 def _candidate(**overrides: object) -> FindingCandidate:
-    base = {
+    base: dict[str, Any] = {
         "product_id": "p-1",
         "product_name": "GV Edamame",
         "purchase_count": 5,
@@ -19,7 +21,7 @@ def _candidate(**overrides: object) -> FindingCandidate:
         "vendor_url": "https://w.mt/x",
     }
     base.update(overrides)
-    return FindingCandidate(**base)  # type: ignore[arg-type]
+    return FindingCandidate(**base)
 
 
 def test_material_saving_yields_finding_with_payload() -> None:
@@ -33,6 +35,9 @@ def test_material_saving_yields_finding_with_payload() -> None:
         "household_price": 10.0,
         "vendor_price": 5.0,
         "vendor_url": "https://w.mt/x",
+        "vendor_title": None,
+        "vendor_package_label": None,
+        "vendor_promo_text": None,
     }
 
 

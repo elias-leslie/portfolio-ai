@@ -72,8 +72,10 @@ class VendorAdapter:
             f"Vendor: {self.display_name}\n{self.guidance}\n\n"
             f"Products to price:\n{product_lines}\n\n"
             "For each product, find the current price for the closest matching "
-            "item (same brand and package size when possible). Use search_web "
-            "and fetch_web_page. If the vendor blocks you (captcha, robot "
+            "item. Prefer the same brand and package size, but include a lower "
+            "unit-price comparable substitute when it is the same size, same "
+            "count, or same ounces/unit basis even if the brand differs. Use "
+            "search_web and fetch_web_page. If the vendor blocks you (captcha, robot "
             'check, empty bot-walled pages), stop and report status "blocked".\n\n'
             "Respond with ONLY this JSON object:\n"
             "{\n"
