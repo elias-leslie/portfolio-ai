@@ -7,10 +7,15 @@ import type { HouseholdPriceInsight } from '@/lib/api/household'
 import { MoneyLeversPanel } from '../MoneyLeversPanel'
 
 const useHouseholdSpendingMock = vi.fn()
+const usePriceCheckStatusMock = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdSpending: (params?: { window?: string }) =>
     useHouseholdSpendingMock(params),
+}))
+
+vi.mock('@/lib/hooks/useHouseholdPurchases', () => ({
+  usePriceCheckStatus: () => usePriceCheckStatusMock(),
 }))
 
 const categories = [
@@ -122,6 +127,10 @@ const unitPriceUpInsight: HouseholdPriceInsight = {
 describe('MoneyLeversPanel', () => {
   beforeEach(() => {
     useHouseholdSpendingMock.mockReset()
+    usePriceCheckStatusMock.mockReset()
+    usePriceCheckStatusMock.mockReturnValue({
+      data: { openFindings: [] },
+    })
     mockSpending()
   })
 
@@ -132,6 +141,38 @@ describe('MoneyLeversPanel', () => {
     // bestPriceSignal filter — the regression was that unit_price_up was excluded.
     expect(
       screen.getByText('Olive Oil price drift needs a check'),
+    ).toBeInTheDocument()
+  })
+
+  it('shows cheaper-elsewhere price-check findings as concrete levers', () => {
+    usePriceCheckStatusMock.mockReturnValue({
+      data: {
+        openFindings: [
+          {
+            id: 'finding-1',
+            kind: 'cheaper_elsewhere',
+            status: 'open',
+            productName: 'Olive Oil',
+            vendorKey: 'walmart',
+            savingsEstimate: 4.25,
+            householdPrice: 14,
+            vendorPrice: 9.75,
+          },
+        ],
+      },
+    })
+
+    render(<MoneyLeversPanel priceInsights={[]} />)
+
+    expect(
+      screen.getByText('Olive Oil is cheaper at Walmart'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Save $4.25/rebuy')).toBeInTheDocument()
+    expect(screen.getByText('Price check')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Concrete cheaper-elsewhere finding from stored vendor quotes — not modeled monthly savings.',
+      ),
     ).toBeInTheDocument()
   })
 

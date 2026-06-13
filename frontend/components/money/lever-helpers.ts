@@ -1,8 +1,13 @@
 import type {
+  HouseholdPriceFinding,
   HouseholdPriceInsight,
   HouseholdSpendingCategory,
 } from '@/lib/api/household'
-import { formatCurrency, formatPercent } from '@/lib/formatters'
+import {
+  formatCurrency,
+  formatEnumLabel,
+  formatPercent,
+} from '@/lib/formatters'
 import type { MerchantAggregate } from './merchant-aggregation'
 
 export type LeverOpportunity = {
@@ -16,6 +21,10 @@ export type LeverOpportunity = {
   detail: string
   tone: 'success' | 'warning' | 'outline'
   additive: boolean
+  savingsLabel?: string
+  evidenceLabel?: string
+  footnote?: string
+  concrete?: boolean
   // Set when this lever's dollars overlap another lever (e.g. a merchant inside a
   // category) so the card can flag that trimming both is not additive.
   note?: string
@@ -109,6 +118,7 @@ export interface BuildLeversInput {
   averageMonthlySpend: number
   coverageMonths: number | undefined
   bestPriceSignal: HouseholdPriceInsight | null
+  priceFindings?: HouseholdPriceFinding[]
 }
 
 /**
@@ -123,6 +133,7 @@ export function buildLevers({
   averageMonthlySpend,
   coverageMonths,
   bestPriceSignal,
+  priceFindings = [],
 }: BuildLeversInput): LeverOpportunity[] {
   const opportunities: LeverOpportunity[] = []
 
@@ -131,6 +142,43 @@ export function buildLevers({
       return
     }
     opportunities.push(value)
+  }
+
+  for (const finding of priceFindings
+    .filter((row) => row.kind === 'cheaper_elsewhere')
+    .sort(
+      (left, right) =>
+        (right.savingsEstimate ?? 0) - (left.savingsEstimate ?? 0),
+    )
+    .slice(0, 2)) {
+    const savings = finding.savingsEstimate ?? 0
+    const vendor = finding.vendorKey
+      ? formatEnumLabel(finding.vendorKey)
+      : 'Another vendor'
+    const productName = finding.productName ?? 'Product'
+    const itemName =
+      productName.length > 48
+        ? `${productName.slice(0, 48).trimEnd()}…`
+        : productName
+    push({
+      id: `cheaper-elsewhere-${finding.id}`,
+      title: `${itemName} is cheaper at ${vendor}`,
+      playbook: 'Buy at the cheaper vendor',
+      monthlySavings: savings,
+      annualSavings: 0,
+      trimRate: 0,
+      detail:
+        finding.vendorPrice != null && finding.householdPrice != null
+          ? `${vendor} has it for ${formatCurrency(finding.vendorPrice, { decimals: 2 })} vs your ${formatCurrency(finding.householdPrice, { decimals: 2 })}.`
+          : `Open price-check finding shows ${vendor} is cheaper before the next rebuy.`,
+      tone: 'success',
+      additive: false,
+      savingsLabel: `Save ${formatCurrency(savings, { decimals: 2 })}/rebuy`,
+      evidenceLabel: 'Price check',
+      footnote:
+        'Concrete cheaper-elsewhere finding from stored vendor quotes — not modeled monthly savings.',
+      concrete: true,
+    })
   }
 
   if (subscriptionCategory) {
@@ -240,7 +288,10 @@ export function buildLevers({
     })
   }
 
-  return opportunities
-    .sort((left, right) => right.monthlySavings - left.monthlySavings)
-    .slice(0, 4)
+  const ranked = opportunities.sort(
+    (left, right) => right.monthlySavings - left.monthlySavings,
+  )
+  const concrete = ranked.filter((row) => row.concrete)
+  const modeled = ranked.filter((row) => !row.concrete)
+  return [...concrete, ...modeled].slice(0, 4)
 }

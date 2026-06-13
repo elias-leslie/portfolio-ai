@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import type { HouseholdPriceInsight } from '@/lib/api/household'
 import { formatCurrency, formatPercent } from '@/lib/formatters'
 import { useHouseholdSpending } from '@/lib/hooks/useHousehold'
+import { usePriceCheckStatus } from '@/lib/hooks/useHouseholdPurchases'
 
 type LeverWindow = '1m' | '3m' | '6m' | '12m' | 'all'
 
@@ -57,6 +58,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
     refetch,
     isFetching,
   } = useHouseholdSpending({ window })
+  const { data: priceCheck } = usePriceCheckStatus()
 
   const totalSpend = spending?.summary.totalSpend ?? 0
   const averageMonthlySpend = spending?.summary.averageMonthlySpend ?? 0
@@ -107,6 +109,18 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
           : true,
       ),
     [priceInsights, search],
+  )
+
+  const visiblePriceFindings = useMemo(
+    () =>
+      (priceCheck?.openFindings ?? []).filter((row) =>
+        search.trim()
+          ? `${row.productName ?? ''} ${row.vendorKey ?? ''} ${row.kind}`
+              .toLowerCase()
+              .includes(search.trim().toLowerCase())
+          : true,
+      ),
+    [priceCheck?.openFindings, search],
   )
 
   const topThreeShare = useMemo(() => {
@@ -176,6 +190,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
         averageMonthlySpend,
         coverageMonths: spending?.summary.coverageMonths,
         bestPriceSignal,
+        priceFindings: visiblePriceFindings,
       }),
     [
       averageMonthlySpend,
@@ -185,6 +200,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
       topDiscretionaryCategory,
       topDiscretionaryMerchant,
       topThreeShare,
+      visiblePriceFindings,
     ],
   )
 
@@ -313,7 +329,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
       <SectionCard
         variant="surface"
         title="Best Levers Right Now"
-        description="Trim, pause, or watch signals ranked for this window. Savings use fixed rule-of-thumb trim rates (shown on each lever), not measured elasticities."
+        description="Concrete cheaper-elsewhere findings appear first; modeled trim levers use fixed rule-of-thumb rates (shown on each lever), not measured elasticities."
       >
         {levers.length > 0 ? (
           <div className="grid gap-3 xl:grid-cols-2">
@@ -333,22 +349,26 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <Badge variant={lever.tone}>
-                      {formatCurrency(lever.monthlySavings, { decimals: 0 })}/mo
+                      {lever.savingsLabel ??
+                        `${formatCurrency(lever.monthlySavings, { decimals: 0 })}/mo`}
                     </Badge>
                     <Badge variant="outline" className="text-[10px]">
-                      Modeled
+                      {lever.evidenceLabel ?? 'Modeled'}
                     </Badge>
                   </div>
                 </div>
                 <p className="mt-3 text-sm text-text-muted">{lever.detail}</p>
-                <p className="mt-3 text-sm font-medium text-text">
-                  Annual room:{' '}
-                  {formatCurrency(lever.annualSavings, { decimals: 0 })}
-                </p>
+                {lever.annualSavings > 0 ? (
+                  <p className="mt-3 text-sm font-medium text-text">
+                    Annual room:{' '}
+                    {formatCurrency(lever.annualSavings, { decimals: 0 })}
+                  </p>
+                ) : null}
                 <p className="mt-1 text-xs text-text-muted">
-                  {lever.id === 'price-signal' || lever.id === 'concentration'
-                    ? `Modeled at ${formatPercent(lever.trimRate * 100, { decimals: 0 })} of monthly spend — rule of thumb, not a guaranteed saving.`
-                    : `Modeled at ${formatPercent(lever.trimRate * 100, { decimals: 0 })} trim — rule of thumb, not a guaranteed saving.`}
+                  {lever.footnote ??
+                    (lever.id === 'price-signal' || lever.id === 'concentration'
+                      ? `Modeled at ${formatPercent(lever.trimRate * 100, { decimals: 0 })} of monthly spend — rule of thumb, not a guaranteed saving.`
+                      : `Modeled at ${formatPercent(lever.trimRate * 100, { decimals: 0 })} trim — rule of thumb, not a guaranteed saving.`)}
                 </p>
                 {lever.note ? (
                   <p className="mt-2 rounded-lg border border-border/40 bg-surface-muted/20 px-3 py-2 text-xs text-text-muted">
