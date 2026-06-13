@@ -9,19 +9,26 @@ import { MoneyPurchasesPanel } from '../MoneyPurchasesPanel'
 const useHouseholdProductsMock = vi.hoisted(() => vi.fn())
 const usePurchaseItemReviewQueueMock = vi.hoisted(() => vi.fn())
 const useHouseholdProductDetailMock = vi.hoisted(() => vi.fn())
+const usePriceCheckStatusMock = vi.hoisted(() => vi.fn())
 const assignMutateAsync = vi.hoisted(() => vi.fn())
 const mergeMutateAsync = vi.hoisted(() => vi.fn())
+const triggerPriceCheckMutate = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdProducts: useHouseholdProductsMock,
   usePurchaseItemReviewQueue: usePurchaseItemReviewQueueMock,
   useHouseholdProductDetail: useHouseholdProductDetailMock,
+  usePriceCheckStatus: usePriceCheckStatusMock,
   useAssignPurchaseItemProduct: () => ({
     mutateAsync: assignMutateAsync,
     isPending: false,
   }),
   useMergeHouseholdProducts: () => ({
     mutateAsync: mergeMutateAsync,
+    isPending: false,
+  }),
+  useTriggerPriceCheck: () => ({
+    mutate: triggerPriceCheckMutate,
     isPending: false,
   }),
 }))
@@ -141,11 +148,14 @@ describe('MoneyPurchasesPanel', () => {
     useHouseholdProductsMock.mockReset()
     usePurchaseItemReviewQueueMock.mockReset()
     useHouseholdProductDetailMock.mockReset()
+    usePriceCheckStatusMock.mockReset()
     assignMutateAsync.mockReset()
     mergeMutateAsync.mockReset()
+    triggerPriceCheckMutate.mockReset()
     usePurchaseItemReviewQueueMock.mockReturnValue({
       data: { generatedAt: '2026-06-01T00:00:00Z', totalCount: 0, items: [] },
     })
+    usePriceCheckStatusMock.mockReturnValue({ data: undefined })
     useHouseholdProductDetailMock.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -307,5 +317,121 @@ describe('MoneyPurchasesPanel', () => {
     render(<MoneyPurchasesPanel priceInsights={[]} />)
 
     expect(screen.getByText('No price-drift evidence yet.')).toBeInTheDocument()
+  })
+
+  it('shows the price-check empty state and triggers a run', async () => {
+    const user = userEvent.setup()
+    mockCatalog([])
+
+    render(<MoneyPurchasesPanel priceInsights={[]} />)
+
+    expect(screen.getByText('No price check has run yet.')).toBeInTheDocument()
+    expect(screen.getByText('No savings findings yet.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Run price check' }))
+    expect(triggerPriceCheckMutate).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables the run button and shows progress while a check is active', () => {
+    mockCatalog([])
+    usePriceCheckStatusMock.mockReturnValue({
+      data: {
+        generatedAt: '2026-06-12T00:00:00Z',
+        latestRun: {
+          id: 'run-1',
+          status: 'running',
+          triggeredBy: 'manual',
+          productCount: 0,
+          quoteCount: 0,
+          findingCount: 0,
+          startedAt: '2026-06-12T00:00:00Z',
+          finishedAt: null,
+          error: null,
+          vendors: [],
+        },
+        openFindings: [],
+      },
+    })
+
+    render(<MoneyPurchasesPanel priceInsights={[]} />)
+
+    expect(
+      screen.getByText('Jenny is checking vendor prices…'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Running…' })).toBeDisabled()
+  })
+
+  it('renders a completed run with vendor outcomes and findings', () => {
+    mockCatalog([])
+    usePriceCheckStatusMock.mockReturnValue({
+      data: {
+        generatedAt: '2026-06-12T00:00:00Z',
+        latestRun: {
+          id: 'run-2',
+          status: 'completed',
+          triggeredBy: 'manual',
+          productCount: 12,
+          quoteCount: 18,
+          findingCount: 2,
+          startedAt: '2026-06-12T00:00:00Z',
+          finishedAt: '2026-06-12T00:06:00Z',
+          error: null,
+          vendors: [
+            { vendorKey: 'amazon', status: 'ok', quoteCount: 10, error: null },
+            {
+              vendorKey: 'walmart',
+              status: 'blocked',
+              quoteCount: 0,
+              error: 'robot wall',
+            },
+          ],
+        },
+        openFindings: [
+          {
+            id: 'finding-1',
+            kind: 'cheaper_elsewhere',
+            status: 'open',
+            productId: 'product-001',
+            productName: 'Product 001',
+            vendorKey: 'walmart',
+            savingsEstimate: 5.5,
+            householdPrice: 12.49,
+            vendorPrice: 6.99,
+            vendorUrl: 'https://walmart.com/ip/x',
+            detail: null,
+            createdAt: '2026-06-12T00:06:00Z',
+          },
+          {
+            id: 'finding-2',
+            kind: 'savings_rollup',
+            status: 'open',
+            savingsEstimate: 31.0,
+            detail: '3 products are cheaper elsewhere',
+          },
+        ],
+      },
+    })
+
+    render(<MoneyPurchasesPanel priceInsights={[]} />)
+
+    expect(
+      screen.getByText(/12 products · 18 quotes · 2 findings/),
+    ).toBeInTheDocument()
+    expect(screen.getByText('10 quotes')).toBeInTheDocument()
+    expect(screen.getAllByText('Blocked').length).toBeGreaterThan(0)
+
+    expect(screen.getByText('Product 001')).toBeInTheDocument()
+    expect(
+      screen.getByText(/Walmart has it for \$6\.99 vs your \$12\.49/),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'view item' })).toHaveAttribute(
+      'href',
+      'https://walmart.com/ip/x',
+    )
+    expect(screen.getByText('Save $5.50')).toBeInTheDocument()
+    expect(
+      screen.getByText('3 products are cheaper elsewhere'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Save $31.00')).toBeInTheDocument()
   })
 })

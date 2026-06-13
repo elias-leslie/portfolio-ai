@@ -10,6 +10,8 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 
 from app.models.household_finance import (
+    HouseholdPriceCheckStatus,
+    HouseholdPriceCheckTriggerResponse,
     HouseholdProductDetail,
     HouseholdProductList,
     HouseholdProductMergeRequest,
@@ -21,6 +23,7 @@ from app.models.household_finance import (
 
 if TYPE_CHECKING:
     from app.services.household_finance_service import HouseholdFinanceService
+    from app.services.household_price_check_service import HouseholdPriceCheckService
     from app.services.household_product_catalog_service import (
         HouseholdProductCatalogService,
     )
@@ -40,6 +43,13 @@ def _catalog() -> HouseholdProductCatalogService:
     return import_module(
         "app.services.household_product_catalog_service"
     ).HouseholdProductCatalogService()
+
+
+@lru_cache(maxsize=1)
+def _price_checks() -> HouseholdPriceCheckService:
+    return import_module(
+        "app.services.household_price_check_service"
+    ).HouseholdPriceCheckService()
 
 
 @router.post("/purchase-items/backfill")
@@ -123,6 +133,40 @@ async def categorize_purchase_item(
     if not updated:
         raise HTTPException(status_code=404, detail=f"Purchase item not found: {item_id}")
     return {"ok": True}
+
+
+@router.post("/price-checks/run", response_model=HouseholdPriceCheckTriggerResponse)
+async def trigger_price_check(
+    product_limit: int | None = Query(None, ge=1, le=12),
+) -> HouseholdPriceCheckTriggerResponse:
+    """Queue a cross-vendor price check and hand it to the Hatchet worker."""
+    service = _price_checks()
+    run_id, already_running = await run_in_threadpool(
+        lambda: service.start_run(triggered_by="manual", product_limit=product_limit)
+    )
+    if already_running:
+        return HouseholdPriceCheckTriggerResponse(run_id=run_id, already_running=True)
+    try:
+        from app.hatchet_app import get_admin_client  # noqa: PLC0415
+
+        await run_in_threadpool(
+            lambda: get_admin_client().run_workflow(
+                "portfolio-jenny-weekly-price-check",
+                {"run_id": run_id, "triggered_by": "manual"},
+            )
+        )
+    except Exception as exc:
+        await run_in_threadpool(service.mark_run_failed, run_id, f"trigger failed: {exc}")
+        raise HTTPException(
+            status_code=502, detail=f"Could not start price check: {exc}"
+        ) from exc
+    return HouseholdPriceCheckTriggerResponse(run_id=run_id, already_running=False)
+
+
+@router.get("/price-checks/status", response_model=HouseholdPriceCheckStatus)
+async def get_price_check_status() -> HouseholdPriceCheckStatus:
+    """Latest run (with per-vendor outcomes) plus the open savings findings."""
+    return await run_in_threadpool(_price_checks().get_status)
 
 
 @router.post("/purchase-items/{item_id}/product")

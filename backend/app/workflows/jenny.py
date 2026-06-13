@@ -16,7 +16,7 @@ from app.services.preferences_service import get_automation_preferences
 
 from ..hatchet_app import hatchet
 from ..utils.market_hours import is_trading_day
-from .models import EmptyInput
+from .models import EmptyInput, PriceCheckInput
 
 logger = get_logger(__name__)
 
@@ -77,3 +77,38 @@ async def jenny_daily_household_maintenance_wf(input: EmptyInput, ctx: Context) 
     from ..tasks.jenny_operator_tasks import run_daily_household_maintenance_task
 
     return await asyncio.to_thread(run_daily_household_maintenance_task)
+
+
+@hatchet.task(
+    name="portfolio-jenny-weekly-price-check",
+    input_validator=PriceCheckInput,
+    execution_timeout="1800s",
+    retries=0,
+    on_crons=["0 13 * * 6"],
+    concurrency=ConcurrencyExpression(
+        expression="'portfolio-jenny-weekly-price-check'",
+        max_runs=1,
+        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+    ),
+)
+async def jenny_weekly_price_check_wf(input: PriceCheckInput, ctx: Context) -> dict[str, Any]:
+    """Cross-vendor price check. Cron is gated OFF until the preference flips;
+    manual runs arrive with a pre-queued run_id and bypass the gate."""
+    from app.services.household_price_check_service import HouseholdPriceCheckService
+
+    service = HouseholdPriceCheckService()
+    run_id = input.run_id
+    if run_id is None:
+        automation = get_automation_preferences()
+        if not bool(automation["scheduled_price_check_enabled"]["enabled"]):
+            logger.info("price_check_skipped_disabled")
+            return {"status": "skipped", "reason": "scheduled_price_check_disabled"}
+        run_id, already_running = await asyncio.to_thread(
+            lambda: service.start_run(
+                triggered_by=input.triggered_by, product_limit=input.product_limit
+            )
+        )
+        if already_running:
+            logger.info("price_check_skipped_already_running", run_id=run_id)
+            return {"status": "skipped", "reason": "already_running", "run_id": run_id}
+    return await asyncio.to_thread(service.execute_run, run_id)

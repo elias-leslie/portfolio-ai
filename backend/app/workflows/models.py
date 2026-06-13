@@ -60,3 +60,11 @@ class AgentInput(BaseModel):
 class WatchlistInput(BaseModel):
     symbol: str | None = None
     user_id: str = "default"
+
+
+class PriceCheckInput(BaseModel):
+    """Cron fires with defaults; the manual trigger passes its queued run_id."""
+
+    run_id: str | None = None
+    triggered_by: str = "cron"
+    product_limit: int | None = None

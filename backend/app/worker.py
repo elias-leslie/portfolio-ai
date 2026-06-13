@@ -35,6 +35,7 @@ from app.workflows.jenny import (
     jenny_daily_household_maintenance_wf,
     jenny_daily_operator_wf,
     jenny_weekly_learning_wf,
+    jenny_weekly_price_check_wf,
 )
 from app.workflows.macro_calendar import market_macro_calendar_ingestion_wf
 from app.workflows.macro_gate import macro_gate_wf
@@ -152,10 +153,11 @@ def main() -> None:
             trim_underperforming_wf,
             # Agents (1)
             schedule_new_symbol_wf,
-            # Jenny (3)
+            # Jenny (4)
             jenny_daily_operator_wf,
             jenny_weekly_learning_wf,
             jenny_daily_household_maintenance_wf,
+            jenny_weekly_price_check_wf,
             # Macro calendar ingestion
             market_macro_calendar_ingestion_wf,
             # Macro deployment gate and its research universe feed.

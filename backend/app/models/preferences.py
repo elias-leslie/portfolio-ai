@@ -42,6 +42,7 @@ DEFAULT_PREFERENCES = {
     "scheduled_ml_labeling_enabled": None,
     "scheduled_strategy_research_enabled": None,
     "scheduled_account_sync_enabled": None,
+    "scheduled_price_check_enabled": None,
 }
 
 
@@ -116,6 +117,9 @@ class PreferencesResponse(BaseModel):
     )
     scheduled_account_sync_enabled: bool = Field(
         ..., description="Run the recurring data-services account sync (SnapTrade, Plaid) on a schedule"
+    )
+    scheduled_price_check_enabled: bool = Field(
+        ..., description="Run the weekly cross-vendor price check on a schedule"
     )
 
 
@@ -208,6 +212,9 @@ class PreferencesUpdate(BaseModel):
     )
     scheduled_account_sync_enabled: bool | None = Field(
         None, description="Run the recurring data-services account sync (SnapTrade, Plaid) on a schedule"
+    )
+    scheduled_price_check_enabled: bool | None = Field(
+        None, description="Run the weekly cross-vendor price check on a schedule"
     )
 
     @field_validator("display_timezone")

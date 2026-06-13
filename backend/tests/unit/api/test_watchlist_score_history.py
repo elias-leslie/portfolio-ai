@@ -53,7 +53,9 @@ class TestGetScoreHistoryEndpoint:
             },
             {
                 "item_id": "item-123",
-                "fetched_at": now - timedelta(days=1),
+                # 26h keeps this a full calendar day behind the 2h snapshot in
+                # every timezone/hour; a 22h gap shares a UTC day before 02:00.
+                "fetched_at": now - timedelta(hours=26),
                 "price": 175.0,
                 "technical_score": 75.0,
                 "overall_score": 70.0,

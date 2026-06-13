@@ -20,6 +20,7 @@ import {
   fetchHouseholdProductDetail,
   fetchHouseholdProducts,
   fetchHouseholdSpending,
+  fetchPriceCheckStatus,
   fetchPurchaseItemReviewQueue,
   fetchRetirementIncomeActuals,
   fetchRetirementPreview,
@@ -40,6 +41,7 @@ import {
   type RetirementPreviewRequest,
   replaceAllocationScenarios,
   replaceHouseholdAccountHoldings,
+  triggerPriceCheck,
   updateHouseholdPlanning,
   updateHouseholdProfile,
   updateHouseholdTrackedAccount,
@@ -614,6 +616,47 @@ export function useAssignPurchaseItemProduct() {
         error instanceof Error
           ? error.message
           : 'Failed to update product link',
+      )
+    },
+  })
+}
+
+const PRICE_CHECK_POLL_MS = 5000
+
+export function usePriceCheckStatus() {
+  return useQuery({
+    queryKey: ['household', 'price-check-status'],
+    queryFn: ({ signal }) => fetchPriceCheckStatus({ signal }),
+    staleTime: 0,
+    // Poll every 5s only while a run is queued/running; otherwise rest.
+    refetchInterval: (query) => {
+      const status = query.state.data?.latestRun?.status
+      return status === 'queued' || status === 'running'
+        ? PRICE_CHECK_POLL_MS
+        : false
+    },
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useTriggerPriceCheck() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () => triggerPriceCheck(),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({
+        queryKey: ['household', 'price-check-status'],
+      })
+      toast.success(
+        result.alreadyRunning
+          ? 'A price check is already running.'
+          : 'Price check started.',
+      )
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to start price check',
       )
     },
   })

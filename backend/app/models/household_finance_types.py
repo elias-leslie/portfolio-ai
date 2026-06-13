@@ -838,3 +838,49 @@ class HouseholdPurchaseItemProductAssignment(BaseModel):
 class HouseholdProductMergeRequest(BaseModel):
     source_product_id: str
     target_product_id: str
+
+
+class HouseholdPriceCheckVendorStatus(BaseModel):
+    vendor_key: str
+    status: str  # ok | blocked | error | skipped
+    quote_count: int = 0
+    error: str | None = None
+
+
+class HouseholdPriceCheckRun(BaseModel):
+    id: str
+    status: str  # queued | running | completed | failed
+    triggered_by: str = "manual"
+    product_count: int = 0
+    quote_count: int = 0
+    finding_count: int = 0
+    error: str | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
+    vendors: list[HouseholdPriceCheckVendorStatus] = Field(default_factory=list)
+
+
+class HouseholdPriceFinding(BaseModel):
+    id: str
+    kind: str  # cheaper_elsewhere | savings_rollup
+    status: str = "open"
+    product_id: str | None = None
+    product_name: str | None = None
+    vendor_key: str | None = None
+    savings_estimate: float | None = None
+    household_price: float | None = None
+    vendor_price: float | None = None
+    vendor_url: str | None = None
+    detail: str | None = None
+    created_at: str | None = None
+
+
+class HouseholdPriceCheckStatus(BaseModel):
+    generated_at: str
+    latest_run: HouseholdPriceCheckRun | None = None
+    open_findings: list[HouseholdPriceFinding] = Field(default_factory=list)
+
+
+class HouseholdPriceCheckTriggerResponse(BaseModel):
+    run_id: str
+    already_running: bool = False

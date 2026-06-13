@@ -29,6 +29,7 @@ AUTOMATION_PREFERENCE_KEYS = (
     "scheduled_ml_labeling_enabled",
     "scheduled_strategy_research_enabled",
     "scheduled_account_sync_enabled",
+    "scheduled_price_check_enabled",
 )
 
 def _normalize_watchlist_refresh_preferences(prefs: dict[str, Any]) -> dict[str, Any]:
@@ -58,6 +59,9 @@ def get_automation_defaults() -> dict[str, bool]:
         # Recurring account sync is on by default — keeping holdings current is
         # the expected baseline; users can pause it from the Data Feed panel.
         "scheduled_account_sync_enabled": True,
+        # Weekly cross-vendor price checks stay OFF until live-verified; manual
+        # runs from the Purchases tab bypass this gate.
+        "scheduled_price_check_enabled": False,
     }
 
 
@@ -109,11 +113,12 @@ def get_or_create_automation_preferences() -> dict[str, Any]:
                 scheduled_ml_labeling_enabled,
                 scheduled_strategy_research_enabled,
                 scheduled_account_sync_enabled,
+                scheduled_price_check_enabled,
                 created_at,
                 updated_at
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            [USER_ID, None, None, None, None, None, None, None, now, now],
+            [USER_ID, None, None, None, None, None, None, None, None, now, now],
         )
         conn.commit()
 
@@ -126,6 +131,7 @@ def get_or_create_automation_preferences() -> dict[str, Any]:
         "scheduled_ml_labeling_enabled": None,
         "scheduled_strategy_research_enabled": None,
         "scheduled_account_sync_enabled": None,
+        "scheduled_price_check_enabled": None,
         "created_at": now,
         "updated_at": now,
     }
@@ -172,6 +178,7 @@ def dict_to_preferences_response(prefs: dict[str, Any]) -> PreferencesResponse:
         scheduled_ml_labeling_enabled=bool(automation["scheduled_ml_labeling_enabled"]["enabled"]),
         scheduled_strategy_research_enabled=bool(automation["scheduled_strategy_research_enabled"]["enabled"]),
         scheduled_account_sync_enabled=bool(automation["scheduled_account_sync_enabled"]["enabled"]),
+        scheduled_price_check_enabled=bool(automation["scheduled_price_check_enabled"]["enabled"]),
     )
 
 
@@ -385,6 +392,7 @@ def _update_automation_preferences(updates: dict[str, bool | None]) -> None:
                 scheduled_ml_labeling_enabled = %s,
                 scheduled_strategy_research_enabled = %s,
                 scheduled_account_sync_enabled = %s,
+                scheduled_price_check_enabled = %s,
                 updated_at = %s
             WHERE id = %s
             """,
@@ -396,6 +404,7 @@ def _update_automation_preferences(updates: dict[str, bool | None]) -> None:
                 current.get("scheduled_ml_labeling_enabled"),
                 current.get("scheduled_strategy_research_enabled"),
                 current.get("scheduled_account_sync_enabled"),
+                current.get("scheduled_price_check_enabled"),
                 datetime.now(UTC),
                 current["id"],
             ],

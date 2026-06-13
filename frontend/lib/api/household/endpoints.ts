@@ -11,6 +11,8 @@ import type {
   HouseholdLedger,
   HouseholdLedgerParams,
   HouseholdNetWorthTrend,
+  HouseholdPriceCheckStatus,
+  HouseholdPriceCheckTriggerResponse,
   HouseholdProductDetail,
   HouseholdProductList,
   HouseholdProductListParams,
@@ -303,6 +305,22 @@ export async function assignPurchaseItemProduct(
   return post<{ ok: boolean }>(
     `/api/household/purchase-items/${itemId}/product`,
     payload,
+  )
+}
+
+export async function fetchPriceCheckStatus(
+  options: RequestInit = {},
+): Promise<HouseholdPriceCheckStatus> {
+  return get<HouseholdPriceCheckStatus>(
+    '/api/household/price-checks/status',
+    options,
+  )
+}
+
+export async function triggerPriceCheck(): Promise<HouseholdPriceCheckTriggerResponse> {
+  return post<HouseholdPriceCheckTriggerResponse>(
+    '/api/household/price-checks/run',
+    {},
   )
 }
 

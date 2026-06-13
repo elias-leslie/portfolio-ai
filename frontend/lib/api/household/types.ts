@@ -1334,3 +1334,49 @@ export interface HouseholdPurchaseItemProductAssignment {
   action: 'confirm' | 'reassign' | 'detach'
   productId?: string | null
 }
+
+export interface HouseholdPriceCheckVendorStatus {
+  vendorKey: string
+  status: 'ok' | 'blocked' | 'error' | 'skipped'
+  quoteCount: number
+  error?: string | null
+}
+
+export interface HouseholdPriceCheckRun {
+  id: string
+  status: 'queued' | 'running' | 'completed' | 'failed'
+  triggeredBy: string
+  productCount: number
+  quoteCount: number
+  findingCount: number
+  error?: string | null
+  startedAt?: string | null
+  finishedAt?: string | null
+  vendors: HouseholdPriceCheckVendorStatus[]
+}
+
+export interface HouseholdPriceFinding {
+  id: string
+  kind: 'cheaper_elsewhere' | 'savings_rollup'
+  status: string
+  productId?: string | null
+  productName?: string | null
+  vendorKey?: string | null
+  savingsEstimate?: number | null
+  householdPrice?: number | null
+  vendorPrice?: number | null
+  vendorUrl?: string | null
+  detail?: string | null
+  createdAt?: string | null
+}
+
+export interface HouseholdPriceCheckStatus {
+  generatedAt: string
+  latestRun?: HouseholdPriceCheckRun | null
+  openFindings: HouseholdPriceFinding[]
+}
+
+export interface HouseholdPriceCheckTriggerResponse {
+  runId: string
+  alreadyRunning: boolean
+}

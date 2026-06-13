@@ -8,12 +8,16 @@ import { Input } from '@/components/ui/input'
 import type { HouseholdPriceInsight } from '@/lib/api/household'
 import {
   useHouseholdProducts,
+  usePriceCheckStatus,
   usePurchaseItemReviewQueue,
+  useTriggerPriceCheck,
 } from '@/lib/hooks/useHousehold'
+import { PriceCheckStatusCard } from './PriceCheckStatusCard'
 import { PriceSignalsTable } from './PriceSignalsTable'
 import { ProductCatalogTable } from './ProductCatalogTable'
 import { ProductDetailSheet } from './ProductDetailSheet'
 import { ProductMatchReviewCard } from './ProductMatchReviewCard'
+import { PurchaseFindingsList } from './PurchaseFindingsList'
 
 const PRODUCT_PAGE_SIZE = 50
 
@@ -52,6 +56,8 @@ export function MoneyPurchasesPanel({
     offset,
   })
   const { data: reviewQueue } = usePurchaseItemReviewQueue()
+  const { data: priceCheck } = usePriceCheckStatus()
+  const triggerPriceCheck = useTriggerPriceCheck()
 
   useEffect(() => {
     setCurrentPage(1)
@@ -164,6 +170,21 @@ export function MoneyPurchasesPanel({
           items={reviewQueue?.items ?? []}
           totalCount={reviewQueue?.totalCount ?? 0}
         />
+      </SectionCard>
+
+      <SectionCard
+        variant="surface"
+        title="Cross-Vendor Price Checks"
+        description="Jenny checks Amazon, Walmart, and Publix for your most-bought products. Findings stay in this tab — they never page you."
+      >
+        <div className="space-y-4">
+          <PriceCheckStatusCard
+            latestRun={priceCheck?.latestRun}
+            onRun={() => triggerPriceCheck.mutate()}
+            isTriggering={triggerPriceCheck.isPending}
+          />
+          <PurchaseFindingsList findings={priceCheck?.openFindings ?? []} />
+        </div>
       </SectionCard>
 
       <SectionCard
