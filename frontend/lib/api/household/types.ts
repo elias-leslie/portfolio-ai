@@ -1385,3 +1385,69 @@ export interface HouseholdPriceCheckTriggerResponse {
   runId: string
   alreadyRunning: boolean
 }
+
+export interface HouseholdShoppingListItem {
+  id?: string | null
+  productId?: string | null
+  productName?: string | null
+  freeText?: string | null
+  quantity?: number | null
+  unit?: string | null
+  status: string
+  position: number
+  matchConfidence?: number | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
+export interface HouseholdShoppingList {
+  id: string
+  name: string
+  status: string
+  items: HouseholdShoppingListItem[]
+  latestOptimization?: Record<string, unknown> | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
+export interface HouseholdShoppingListsResponse {
+  generatedAt: string
+  lists: HouseholdShoppingList[]
+}
+
+export interface HouseholdShoppingListRequest {
+  name: string
+  status?: string
+  items?: HouseholdShoppingListItem[] | null
+}
+
+export interface HouseholdShoppingListImportRequest {
+  text: string
+  replace?: boolean
+}
+
+export interface HouseholdShoppingListImportResponse {
+  shoppingList: HouseholdShoppingList
+  parsedCount: number
+  matchedCount: number
+}
+
+export interface HouseholdVendorProfile {
+  vendorKey: string
+  displayName: string
+  enabled: boolean
+  deliveryFee?: number | null
+  pickupFee?: number | null
+  freeDeliveryThreshold?: number | null
+  membershipMonthlyFee?: number | null
+  membershipActive: boolean
+}
+
+export interface HouseholdVendorProfileList {
+  generatedAt: string
+  vendors: HouseholdVendorProfile[]
+}
+
+export interface HouseholdVendorProfileUpdate {
+  vendors: HouseholdVendorProfile[]
+}

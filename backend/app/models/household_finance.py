@@ -58,6 +58,12 @@ from app.models.household_finance_types import (
     HouseholdResolvedValue,
     HouseholdRetirementContributionTracker,
     HouseholdRetirementScenario,
+    HouseholdShoppingList,
+    HouseholdShoppingListImportRequest,
+    HouseholdShoppingListImportResponse,
+    HouseholdShoppingListItem,
+    HouseholdShoppingListRequest,
+    HouseholdShoppingListsResponse,
     HouseholdSinkingFund,
     HouseholdSpendingCategory,
     HouseholdSpendingSummary,
@@ -66,6 +72,9 @@ from app.models.household_finance_types import (
     HouseholdTrackedAccount,
     HouseholdTrackedAccountInput,
     HouseholdTransactionDateIssue,
+    HouseholdVendorProfile,
+    HouseholdVendorProfileList,
+    HouseholdVendorProfileUpdate,
     ImportCenter,
     ImportFormat,
     JennyMoneyBrief,
@@ -77,6 +86,18 @@ from app.models.household_finance_types import (
 from app.models.household_planning import (
     HouseholdPlanningSnapshot,
     empty_household_planning_snapshot,
+)
+
+_HOUSEHOLD_PURCHASE_MODEL_REEXPORTS = (
+    HouseholdShoppingList,
+    HouseholdShoppingListImportRequest,
+    HouseholdShoppingListImportResponse,
+    HouseholdShoppingListItem,
+    HouseholdShoppingListRequest,
+    HouseholdShoppingListsResponse,
+    HouseholdVendorProfile,
+    HouseholdVendorProfileList,
+    HouseholdVendorProfileUpdate,
 )
 
 __all__ = [

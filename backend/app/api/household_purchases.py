@@ -20,6 +20,13 @@ from app.models.household_finance import (
     HouseholdPurchaseItemCategoryUpdate,
     HouseholdPurchaseItemProductAssignment,
     HouseholdPurchaseItemReviewQueue,
+    HouseholdShoppingList,
+    HouseholdShoppingListImportRequest,
+    HouseholdShoppingListImportResponse,
+    HouseholdShoppingListRequest,
+    HouseholdShoppingListsResponse,
+    HouseholdVendorProfileList,
+    HouseholdVendorProfileUpdate,
 )
 
 if TYPE_CHECKING:
@@ -27,6 +34,9 @@ if TYPE_CHECKING:
     from app.services.household_price_check_service import HouseholdPriceCheckService
     from app.services.household_product_catalog_service import (
         HouseholdProductCatalogService,
+    )
+    from app.services.household_shopping_list_service import (
+        HouseholdShoppingListService,
     )
 
 router = APIRouter(prefix="/api/household", tags=["household-purchases"])
@@ -51,6 +61,13 @@ def _price_checks() -> HouseholdPriceCheckService:
     return import_module(
         "app.services.household_price_check_service"
     ).HouseholdPriceCheckService()
+
+
+@lru_cache(maxsize=1)
+def _shopping_lists() -> HouseholdShoppingListService:
+    return import_module(
+        "app.services.household_shopping_list_service"
+    ).HouseholdShoppingListService()
 
 
 @router.post("/purchase-items/backfill")
@@ -175,6 +192,83 @@ async def trigger_price_check(
 async def get_price_check_status() -> HouseholdPriceCheckStatus:
     """Latest run (with per-vendor outcomes) plus the open savings findings."""
     return await run_in_threadpool(_price_checks().get_status)
+
+
+@router.get("/shopping-lists", response_model=HouseholdShoppingListsResponse)
+async def list_shopping_lists() -> HouseholdShoppingListsResponse:
+    """Return shopping lists with current items and latest optimization."""
+    return await run_in_threadpool(_shopping_lists().list_shopping_lists)
+
+
+@router.post("/shopping-lists", response_model=HouseholdShoppingList)
+async def create_shopping_list(
+    payload: HouseholdShoppingListRequest,
+) -> HouseholdShoppingList:
+    """Create a shopping list."""
+    return await run_in_threadpool(_shopping_lists().create_shopping_list, payload)
+
+
+@router.put("/shopping-lists/{list_id}", response_model=HouseholdShoppingList)
+async def update_shopping_list(
+    list_id: str,
+    payload: HouseholdShoppingListRequest,
+) -> HouseholdShoppingList:
+    """Replace a shopping list's editable fields and items."""
+    updated = await run_in_threadpool(
+        _shopping_lists().update_shopping_list,
+        list_id,
+        payload,
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail=f"Shopping list not found: {list_id}")
+    return updated
+
+
+@router.delete("/shopping-lists/{list_id}")
+async def delete_shopping_list(list_id: str) -> dict[str, bool]:
+    """Archive a shopping list."""
+    deleted = await run_in_threadpool(_shopping_lists().archive_shopping_list, list_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Shopping list not found: {list_id}")
+    return {"ok": True}
+
+
+@router.post(
+    "/shopping-lists/{list_id}/import",
+    response_model=HouseholdShoppingListImportResponse,
+)
+async def import_shopping_list_items(
+    list_id: str,
+    payload: HouseholdShoppingListImportRequest,
+) -> HouseholdShoppingListImportResponse:
+    """Parse pasted list text with Agent Hub and append/replace list items."""
+    imported = await run_in_threadpool(_shopping_lists().import_items, list_id, payload)
+    if imported is None:
+        raise HTTPException(status_code=404, detail=f"Shopping list not found: {list_id}")
+    return imported
+
+
+@router.post("/shopping-lists/{list_id}/optimize", response_model=HouseholdShoppingList)
+async def optimize_shopping_list(list_id: str) -> HouseholdShoppingList:
+    """Optimize a shopping list from fresh stored vendor quotes."""
+    optimized = await run_in_threadpool(_shopping_lists().optimize, list_id)
+    if optimized is None:
+        raise HTTPException(status_code=404, detail=f"Shopping list not found: {list_id}")
+    return optimized
+
+
+@router.get("/vendor-profiles", response_model=HouseholdVendorProfileList)
+async def list_vendor_profiles() -> HouseholdVendorProfileList:
+    """Return user-configured vendor fee/membership profiles."""
+    return await run_in_threadpool(_shopping_lists().list_vendor_profiles)
+
+
+@router.put("/vendor-profiles", response_model=HouseholdVendorProfileList)
+async def update_vendor_profiles(
+    payload: HouseholdVendorProfileUpdate,
+) -> HouseholdVendorProfileList:
+    """Update user-configured vendor fee/membership profiles."""
+    return await run_in_threadpool(_shopping_lists().update_vendor_profiles, payload)
 
 
 @router.post("/purchase-items/{item_id}/product")

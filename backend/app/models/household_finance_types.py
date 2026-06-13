@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -884,3 +886,69 @@ class HouseholdPriceCheckStatus(BaseModel):
 class HouseholdPriceCheckTriggerResponse(BaseModel):
     run_id: str
     already_running: bool = False
+
+
+class HouseholdShoppingListItem(BaseModel):
+    id: str | None = None
+    product_id: str | None = None
+    product_name: str | None = None
+    free_text: str | None = None
+    quantity: float | None = None
+    unit: str | None = None
+    status: str = "open"
+    position: int = 0
+    match_confidence: float | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class HouseholdShoppingList(BaseModel):
+    id: str
+    name: str
+    status: str = "active"
+    items: list[HouseholdShoppingListItem] = Field(default_factory=list)
+    latest_optimization: dict[str, Any] | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class HouseholdShoppingListsResponse(BaseModel):
+    generated_at: str
+    lists: list[HouseholdShoppingList] = Field(default_factory=list)
+
+
+class HouseholdShoppingListRequest(BaseModel):
+    name: str = "Shopping list"
+    status: str = "active"
+    items: list[HouseholdShoppingListItem] | None = None
+
+
+class HouseholdShoppingListImportRequest(BaseModel):
+    text: str
+    replace: bool = False
+
+
+class HouseholdShoppingListImportResponse(BaseModel):
+    shopping_list: HouseholdShoppingList
+    parsed_count: int
+    matched_count: int
+
+
+class HouseholdVendorProfile(BaseModel):
+    vendor_key: str
+    display_name: str
+    enabled: bool = True
+    delivery_fee: float | None = None
+    pickup_fee: float | None = None
+    free_delivery_threshold: float | None = None
+    membership_monthly_fee: float | None = None
+    membership_active: bool = False
+
+
+class HouseholdVendorProfileList(BaseModel):
+    generated_at: str
+    vendors: list[HouseholdVendorProfile] = Field(default_factory=list)
+
+
+class HouseholdVendorProfileUpdate(BaseModel):
+    vendors: list[HouseholdVendorProfile] = Field(default_factory=list)

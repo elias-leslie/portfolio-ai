@@ -1,4 +1,4 @@
-import { get, post } from '../client'
+import { get, post, put } from '../client'
 import type {
   HouseholdPriceCheckStatus,
   HouseholdPriceCheckTriggerResponse,
@@ -9,6 +9,13 @@ import type {
   HouseholdPurchaseItemCategoryUpdate,
   HouseholdPurchaseItemProductAssignment,
   HouseholdPurchaseItemReviewQueue,
+  HouseholdShoppingList,
+  HouseholdShoppingListImportRequest,
+  HouseholdShoppingListImportResponse,
+  HouseholdShoppingListRequest,
+  HouseholdShoppingListsResponse,
+  HouseholdVendorProfileList,
+  HouseholdVendorProfileUpdate,
 } from './types'
 
 export async function fetchHouseholdProducts(
@@ -96,5 +103,67 @@ export async function triggerPriceCheck(): Promise<HouseholdPriceCheckTriggerRes
   return post<HouseholdPriceCheckTriggerResponse>(
     '/api/household/price-checks/run',
     {},
+  )
+}
+
+export async function fetchShoppingLists(
+  options: RequestInit = {},
+): Promise<HouseholdShoppingListsResponse> {
+  return get<HouseholdShoppingListsResponse>(
+    '/api/household/shopping-lists',
+    options,
+  )
+}
+
+export async function createShoppingList(
+  payload: HouseholdShoppingListRequest,
+): Promise<HouseholdShoppingList> {
+  return post<HouseholdShoppingList>('/api/household/shopping-lists', payload)
+}
+
+export async function updateShoppingList(
+  listId: string,
+  payload: HouseholdShoppingListRequest,
+): Promise<HouseholdShoppingList> {
+  return put<HouseholdShoppingList>(
+    `/api/household/shopping-lists/${listId}`,
+    payload,
+  )
+}
+
+export async function importShoppingListItems(
+  listId: string,
+  payload: HouseholdShoppingListImportRequest,
+): Promise<HouseholdShoppingListImportResponse> {
+  return post<HouseholdShoppingListImportResponse>(
+    `/api/household/shopping-lists/${listId}/import`,
+    payload,
+  )
+}
+
+export async function optimizeShoppingList(
+  listId: string,
+): Promise<HouseholdShoppingList> {
+  return post<HouseholdShoppingList>(
+    `/api/household/shopping-lists/${listId}/optimize`,
+    {},
+  )
+}
+
+export async function fetchVendorProfiles(
+  options: RequestInit = {},
+): Promise<HouseholdVendorProfileList> {
+  return get<HouseholdVendorProfileList>(
+    '/api/household/vendor-profiles',
+    options,
+  )
+}
+
+export async function updateVendorProfiles(
+  payload: HouseholdVendorProfileUpdate,
+): Promise<HouseholdVendorProfileList> {
+  return put<HouseholdVendorProfileList>(
+    '/api/household/vendor-profiles',
+    payload,
   )
 }

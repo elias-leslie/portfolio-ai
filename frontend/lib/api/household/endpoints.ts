@@ -32,13 +32,20 @@ import type {
 export {
   assignPurchaseItemProduct,
   categorizePurchaseItem,
+  createShoppingList,
   fetchHouseholdProductDetail,
   fetchHouseholdProducts,
   fetchPriceCheckStatus,
   fetchPurchaseItemReviewQueue,
+  fetchShoppingLists,
   fetchTransactionPurchaseItems,
+  fetchVendorProfiles,
+  importShoppingListItems,
   mergeHouseholdProducts,
+  optimizeShoppingList,
   triggerPriceCheck,
+  updateShoppingList,
+  updateVendorProfiles,
 } from './purchases'
 
 type Endpoint<P extends unknown[], T> = (...args: P) => Promise<T>

@@ -18,6 +18,7 @@ import { ProductCatalogTable } from './ProductCatalogTable'
 import { ProductDetailSheet } from './ProductDetailSheet'
 import { ProductMatchReviewCard } from './ProductMatchReviewCard'
 import { PurchaseFindingsList } from './PurchaseFindingsList'
+import { ShoppingListsCard } from './ShoppingListsCard'
 
 const PRODUCT_PAGE_SIZE = 50
 
@@ -185,6 +186,14 @@ export function MoneyPurchasesPanel({
           />
           <PurchaseFindingsList findings={priceCheck?.openFindings ?? []} />
         </div>
+      </SectionCard>
+
+      <SectionCard
+        variant="surface"
+        title="Shopping Lists"
+        description="Paste a list, match it to your product catalog, and optimize against fresh vendor quotes with your fee settings."
+      >
+        <ShoppingListsCard />
       </SectionCard>
 
       <SectionCard

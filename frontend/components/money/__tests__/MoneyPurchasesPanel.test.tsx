@@ -10,15 +10,23 @@ const useHouseholdProductsMock = vi.hoisted(() => vi.fn())
 const usePurchaseItemReviewQueueMock = vi.hoisted(() => vi.fn())
 const useHouseholdProductDetailMock = vi.hoisted(() => vi.fn())
 const usePriceCheckStatusMock = vi.hoisted(() => vi.fn())
+const useShoppingListsMock = vi.hoisted(() => vi.fn())
+const useVendorProfilesMock = vi.hoisted(() => vi.fn())
 const assignMutateAsync = vi.hoisted(() => vi.fn())
 const mergeMutateAsync = vi.hoisted(() => vi.fn())
 const triggerPriceCheckMutate = vi.hoisted(() => vi.fn())
+const createShoppingListMutate = vi.hoisted(() => vi.fn())
+const importShoppingListMutateAsync = vi.hoisted(() => vi.fn())
+const optimizeShoppingListMutate = vi.hoisted(() => vi.fn())
+const updateVendorProfilesMutate = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/hooks/useHouseholdPurchases', () => ({
   useHouseholdProducts: useHouseholdProductsMock,
   usePurchaseItemReviewQueue: usePurchaseItemReviewQueueMock,
   useHouseholdProductDetail: useHouseholdProductDetailMock,
   usePriceCheckStatus: usePriceCheckStatusMock,
+  useShoppingLists: useShoppingListsMock,
+  useVendorProfiles: useVendorProfilesMock,
   useAssignPurchaseItemProduct: () => ({
     mutateAsync: assignMutateAsync,
     isPending: false,
@@ -29,6 +37,22 @@ vi.mock('@/lib/hooks/useHouseholdPurchases', () => ({
   }),
   useTriggerPriceCheck: () => ({
     mutate: triggerPriceCheckMutate,
+    isPending: false,
+  }),
+  useCreateShoppingList: () => ({
+    mutate: createShoppingListMutate,
+    isPending: false,
+  }),
+  useImportShoppingListItems: () => ({
+    mutateAsync: importShoppingListMutateAsync,
+    isPending: false,
+  }),
+  useOptimizeShoppingList: () => ({
+    mutate: optimizeShoppingListMutate,
+    isPending: false,
+  }),
+  useUpdateVendorProfiles: () => ({
+    mutate: updateVendorProfilesMutate,
     isPending: false,
   }),
 }))
@@ -149,13 +173,26 @@ describe('MoneyPurchasesPanel', () => {
     usePurchaseItemReviewQueueMock.mockReset()
     useHouseholdProductDetailMock.mockReset()
     usePriceCheckStatusMock.mockReset()
+    useShoppingListsMock.mockReset()
+    useVendorProfilesMock.mockReset()
     assignMutateAsync.mockReset()
     mergeMutateAsync.mockReset()
     triggerPriceCheckMutate.mockReset()
+    createShoppingListMutate.mockReset()
+    importShoppingListMutateAsync.mockReset()
+    optimizeShoppingListMutate.mockReset()
+    updateVendorProfilesMutate.mockReset()
     usePurchaseItemReviewQueueMock.mockReturnValue({
       data: { generatedAt: '2026-06-01T00:00:00Z', totalCount: 0, items: [] },
     })
     usePriceCheckStatusMock.mockReturnValue({ data: undefined })
+    useShoppingListsMock.mockReturnValue({
+      data: { generatedAt: '2026-06-01T00:00:00Z', lists: [] },
+      isLoading: false,
+    })
+    useVendorProfilesMock.mockReturnValue({
+      data: { generatedAt: '2026-06-01T00:00:00Z', vendors: [] },
+    })
     useHouseholdProductDetailMock.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -433,5 +470,89 @@ describe('MoneyPurchasesPanel', () => {
       screen.getByText('3 products are cheaper elsewhere'),
     ).toBeInTheDocument()
     expect(screen.getByText('Save $31.00')).toBeInTheDocument()
+  })
+
+  it('renders shopping-list optimization and triggers optimize', async () => {
+    const user = userEvent.setup()
+    mockCatalog([])
+    useShoppingListsMock.mockReturnValue({
+      data: {
+        generatedAt: '2026-06-01T00:00:00Z',
+        lists: [
+          {
+            id: 'list-1',
+            name: 'Groceries',
+            status: 'active',
+            items: [
+              {
+                id: 'item-1',
+                productId: 'product-001',
+                productName: 'GV Edamame',
+                freeText: null,
+                quantity: 2,
+                unit: 'bags',
+                status: 'open',
+                position: 0,
+                matchConfidence: 0.85,
+              },
+            ],
+            latestOptimization: {
+              itemCount: 1,
+              matchedItemCount: 1,
+              vendorBaskets: [
+                {
+                  vendorKey: 'walmart',
+                  displayName: 'Walmart',
+                  itemCount: 1,
+                  uncoveredCount: 0,
+                  total: 4,
+                },
+              ],
+              bestSingleVendor: {
+                vendorKey: 'walmart',
+                displayName: 'Walmart',
+                itemCount: 1,
+                total: 4,
+              },
+              splitRecommendation: {
+                recommended: false,
+                savings: 0,
+                threshold: 8,
+                total: 4,
+                assignments: [],
+              },
+            },
+          },
+        ],
+      },
+      isLoading: false,
+    })
+    useVendorProfilesMock.mockReturnValue({
+      data: {
+        generatedAt: '2026-06-01T00:00:00Z',
+        vendors: [
+          {
+            vendorKey: 'walmart',
+            displayName: 'Walmart',
+            enabled: true,
+            deliveryFee: 0,
+            pickupFee: null,
+            freeDeliveryThreshold: null,
+            membershipMonthlyFee: null,
+            membershipActive: false,
+          },
+        ],
+      },
+    })
+
+    render(<MoneyPurchasesPanel priceInsights={[]} />)
+
+    expect(screen.getByText('Groceries')).toBeInTheDocument()
+    expect(screen.getByText('1 open item')).toBeInTheDocument()
+    expect(screen.getByText(/Best single vendor/)).toBeInTheDocument()
+    expect(screen.getAllByText('Walmart').length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('button', { name: 'Optimize' }))
+    expect(optimizeShoppingListMutate).toHaveBeenCalledWith('list-1')
   })
 })
