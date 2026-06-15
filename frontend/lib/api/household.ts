@@ -44,6 +44,7 @@ export {
   updateHouseholdPlanning,
   updateHouseholdProfile,
   updateHouseholdTrackedAccount,
+  updateRetirementIncomeStreamOverride,
   updateShoppingList,
   updateVendorProfiles,
 } from './household/endpoints'
@@ -145,6 +146,7 @@ export type {
   RetirementDrawdownYear,
   RetirementIncomeActuals,
   RetirementIncomeActualsStream,
+  RetirementIncomeStreamOverrideUpdate,
   RetirementInputs,
   RetirementLeverImpact,
   RetirementOutcomeFraming,

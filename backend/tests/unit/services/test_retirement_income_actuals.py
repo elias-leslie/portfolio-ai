@@ -66,8 +66,10 @@ def test_sparse_income_rows_ride_overall_ledger_coverage() -> None:
     stream = actuals.streams[0]
     assert stream.cadence == "biweekly"
     assert stream.monthly_average == 5800.0
+    assert stream.run_rate_monthly == 6283.33
     assert stream.active is True
-    assert actuals.active_monthly_income == 5800.0
+    assert stream.status == "active"
+    assert actuals.active_monthly_income == 6283.33
 
 
 def test_alias_twins_collapse_but_same_account_pairs_survive() -> None:
@@ -150,6 +152,7 @@ def test_ended_stream_goes_inactive_and_averages_over_its_own_span() -> None:
     stream = actuals.streams[0]
     assert stream.cadence == "biweekly"
     assert stream.active is False  # last seen Mar 20, window ends May 31
+    assert stream.status == "stopped"
     assert stream.months_spanned == 2
     # 4 paychecks (2/6, 2/20, 3/6, 3/20) over its own 2-month span.
     assert stream.monthly_average == 4000.0
@@ -186,8 +189,10 @@ def test_owner_attribution_and_one_off_and_portfolio_yield() -> None:
     assert one_off.owner == "Elias"
     assert one_off.cadence == "one-off"
     assert one_off.active is False
+    assert one_off.status == "one_off"
     dividend = next(s for s in actuals.streams if "DIVIDEND" in s.label)
     assert dividend.portfolio_yield is True
+    assert dividend.status == "portfolio_yield"
     assert dividend.owner is None
     # Take-home headline: nothing qualifies (payroll is one-off here too).
     assert actuals.active_monthly_income == 0.0
@@ -210,8 +215,57 @@ def test_monthly_stream_at_window_end_is_active() -> None:
     assert stream.cadence == "monthly"
     assert stream.active is True
     assert stream.portfolio_yield is True
+    assert stream.status == "portfolio_yield"
     # Portfolio yield never counts toward take-home even when active.
     assert actuals.active_monthly_income == 0.0
+
+
+def test_manual_overrides_owner_status_and_merge_target() -> None:
+    rows = [
+        _row(
+            date(2026, m, 5),
+            2900.0,
+            merchant="PINELLAS COUNTY PAYROLL 260506 LESLIE MARIANA",
+        )
+        for m in (2, 3, 4, 5)
+    ]
+    auto = derive_income_actuals(
+        rows,
+        coverage_dates=FOUR_MONTHS,
+        today=TODAY,
+        owner_names=["Mariana", "Elias"],
+    )
+    stream_key = auto.streams[0].stream_key
+
+    stopped = derive_income_actuals(
+        rows,
+        coverage_dates=FOUR_MONTHS,
+        today=TODAY,
+        owner_names=["Mariana", "Elias"],
+        overrides={stream_key: {"owner_name": "Elias", "status": "stopped"}},
+    )
+
+    stream = stopped.streams[0]
+    assert stream.owner == "Elias"
+    assert stream.owner_override is True
+    assert stream.status == "stopped"
+    assert stream.status_override == "stopped"
+    assert stream.active is False
+    assert stopped.active_monthly_income == 0.0
+
+    merged = derive_income_actuals(
+        rows,
+        coverage_dates=FOUR_MONTHS,
+        today=TODAY,
+        overrides={
+            stream_key: {
+                "status": "merged",
+                "merged_into_stream_key": "replacement-stream",
+            }
+        },
+    )
+    assert merged.streams[0].status == "merged"
+    assert merged.streams[0].merged_into_stream_key == "replacement-stream"
 
 
 def test_no_coverage_returns_empty() -> None:

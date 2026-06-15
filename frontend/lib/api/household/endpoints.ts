@@ -24,6 +24,7 @@ import type {
   RetirementAllocationScenario,
   RetirementAllocationScenarioInput,
   RetirementIncomeActuals,
+  RetirementIncomeStreamOverrideUpdate,
   RetirementPreview,
   RetirementPreviewRequest,
   RetirementSpendingActuals,
@@ -150,6 +151,18 @@ export async function fetchRetirementIncomeActuals(
   options: RequestInit = {},
 ): Promise<RetirementIncomeActuals> {
   return get<RetirementIncomeActuals>('/api/retirement/income-actuals', options)
+}
+
+export async function updateRetirementIncomeStreamOverride(
+  streamKey: string,
+  payload: RetirementIncomeStreamOverrideUpdate,
+): Promise<RetirementIncomeActuals> {
+  return post<RetirementIncomeActuals>(
+    `/api/retirement/income-actuals/streams/${encodeURIComponent(
+      streamKey,
+    )}/override`,
+    payload,
+  )
 }
 
 export async function fetchRetirementSpendingActuals(

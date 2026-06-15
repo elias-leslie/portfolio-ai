@@ -16,6 +16,7 @@ import {
   useRetirementSpendingActuals,
   useUpdateHouseholdPlanning,
   useUpdateHouseholdProfile,
+  useUpdateRetirementIncomeStreamOverride,
 } from '@/lib/hooks/useHousehold'
 import { MoneyRetirementPanel } from '../MoneyRetirementPanel'
 
@@ -25,6 +26,7 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
   useRetirementSpendingActuals: vi.fn(),
   useUpdateHouseholdPlanning: vi.fn(),
   useUpdateHouseholdProfile: vi.fn(),
+  useUpdateRetirementIncomeStreamOverride: vi.fn(),
   useHouseholdAccountHoldings: vi.fn(() => ({
     data: undefined,
     isLoading: false,
@@ -596,10 +598,13 @@ const incomeActuals: RetirementIncomeActuals = {
   aliasRowsCollapsed: 9,
   streams: [
     {
+      streamKey: 'payroll-stream',
       label: 'PINELLAS COUNTY PAYROLL LESLIE MARIANA',
       owner: 'Mariana',
+      ownerOverride: false,
       cadence: 'biweekly',
       monthlyAverage: 5999.94,
+      runRateMonthly: 6499.93,
       total: 23999.75,
       transactionCount: 8,
       firstDate: '2026-01-09',
@@ -608,12 +613,18 @@ const incomeActuals: RetirementIncomeActuals = {
       monthsSpanned: 4,
       active: false,
       portfolioYield: false,
+      status: 'stopped',
+      statusOverride: null,
+      mergedIntoStreamKey: null,
     },
     {
+      streamKey: 'dividend-stream',
       label: 'DIVIDEND RECEIVED FIDELITY GOVERNMENT MONEY MARKET (SPAXX)',
       owner: null,
+      ownerOverride: false,
       cadence: 'monthly',
       monthlyAverage: 84.02,
+      runRateMonthly: 84.02,
       total: 252.05,
       transactionCount: 3,
       firstDate: '2026-02-27',
@@ -622,12 +633,18 @@ const incomeActuals: RetirementIncomeActuals = {
       monthsSpanned: 3,
       active: true,
       portfolioYield: true,
+      status: 'portfolio_yield',
+      statusOverride: null,
+      mergedIntoStreamKey: null,
     },
     {
+      streamKey: 'prog-stream',
       label: 'PROG SELECT INS INS PREM Elias Leslie',
       owner: 'Elias',
+      ownerOverride: false,
       cadence: 'one-off',
       monthlyAverage: 276.99,
+      runRateMonthly: 276.99,
       total: 276.99,
       transactionCount: 1,
       firstDate: '2026-02-17',
@@ -636,6 +653,9 @@ const incomeActuals: RetirementIncomeActuals = {
       monthsSpanned: 1,
       active: false,
       portfolioYield: false,
+      status: 'one_off',
+      statusOverride: null,
+      mergedIntoStreamKey: null,
     },
   ],
 }
@@ -656,8 +676,12 @@ const useIncomeActualsMock = vi.mocked(useRetirementIncomeActuals)
 const useSpendingActualsMock = vi.mocked(useRetirementSpendingActuals)
 const useUpdateProfileMock = vi.mocked(useUpdateHouseholdProfile)
 const useUpdatePlanningMock = vi.mocked(useUpdateHouseholdPlanning)
+const useUpdateIncomeStreamMock = vi.mocked(
+  useUpdateRetirementIncomeStreamOverride,
+)
 const updateProfileMutateAsync = vi.fn()
 const updatePlanningMutateAsync = vi.fn()
+const updateIncomeStreamMutateAsync = vi.fn()
 
 describe('MoneyRetirementPanel', () => {
   beforeEach(() => {
@@ -686,6 +710,13 @@ describe('MoneyRetirementPanel', () => {
       mutateAsync: updatePlanningMutateAsync,
       isPending: false,
     } as unknown as ReturnType<typeof useUpdateHouseholdPlanning>)
+    useUpdateIncomeStreamMock.mockReset()
+    updateIncomeStreamMutateAsync.mockReset()
+    updateIncomeStreamMutateAsync.mockResolvedValue(incomeActuals)
+    useUpdateIncomeStreamMock.mockReturnValue({
+      mutateAsync: updateIncomeStreamMutateAsync,
+      isPending: false,
+    } as unknown as ReturnType<typeof useUpdateRetirementIncomeStreamOverride>)
   })
 
   it('renders visual retirement readiness, buckets, levers, and collapsed account details', async () => {
@@ -1285,8 +1316,9 @@ describe('MoneyRetirementPanel', () => {
     ).toBeInTheDocument()
     // Stream table: cadence, run-rate, owner, status badges.
     expect(screen.getByText('Every 2 weeks')).toBeInTheDocument()
-    expect(screen.getByText('$6,000')).toBeInTheDocument()
-    expect(screen.getByText('Mariana')).toBeInTheDocument()
+    expect(screen.getByText('$6,500')).toBeInTheDocument()
+    expect(screen.getByText('$6,000 observed')).toBeInTheDocument()
+    expect(screen.getByText(/Auto · Mariana/)).toBeInTheDocument()
     expect(screen.getByText('Stopped?')).toBeInTheDocument()
     expect(screen.getByText('Portfolio yield')).toBeInTheDocument()
     // Cadence cell + status badge for the single-transaction stream.
@@ -1310,7 +1342,7 @@ describe('MoneyRetirementPanel', () => {
         ...incomeActuals,
         activeMonthlyIncome: 5999.94,
         streams: [
-          { ...incomeActuals.streams[0], active: true },
+          { ...incomeActuals.streams[0], active: true, status: 'active' },
           ...incomeActuals.streams.slice(1),
         ],
       },
@@ -1408,7 +1440,13 @@ describe('MoneyRetirementPanel', () => {
       refetch: vi.fn(),
     } as unknown as ReturnType<typeof useRetirementPreview>)
     useIncomeActualsMock.mockReturnValue({
-      data: incomeActuals,
+      data: {
+        ...incomeActuals,
+        streams: [
+          { ...incomeActuals.streams[0], active: true, status: 'active' },
+          ...incomeActuals.streams.slice(1),
+        ],
+      },
       isLoading: false,
       error: null,
     } as unknown as ReturnType<typeof useRetirementIncomeActuals>)

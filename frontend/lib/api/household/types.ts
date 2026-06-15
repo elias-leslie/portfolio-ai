@@ -479,10 +479,13 @@ export interface RetirementAcaConfig {
 }
 
 export interface RetirementIncomeActualsStream {
+  streamKey: string
   label: string
   owner: string | null
+  ownerOverride: boolean
   cadence: 'weekly' | 'biweekly' | 'monthly' | 'irregular' | 'one-off'
   monthlyAverage: number
+  runRateMonthly: number
   total: number
   transactionCount: number
   firstDate: string
@@ -491,6 +494,36 @@ export interface RetirementIncomeActualsStream {
   monthsSpanned: number
   active: boolean
   portfolioYield: boolean
+  status:
+    | 'active'
+    | 'stopped'
+    | 'one_off'
+    | 'portfolio_yield'
+    | 'ignored'
+    | 'merged'
+  statusOverride:
+    | 'active'
+    | 'stopped'
+    | 'one_off'
+    | 'portfolio_yield'
+    | 'ignored'
+    | 'merged'
+    | null
+  mergedIntoStreamKey: string | null
+}
+
+export interface RetirementIncomeStreamOverrideUpdate {
+  ownerName?: string | null
+  status?:
+    | 'active'
+    | 'stopped'
+    | 'one_off'
+    | 'portfolio_yield'
+    | 'ignored'
+    | 'merged'
+    | null
+  mergedIntoStreamKey?: string | null
+  label?: string | null
 }
 
 export interface RetirementIncomeActuals {

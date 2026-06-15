@@ -23,6 +23,13 @@ import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
 import { Textarea } from '@/components/ui/textarea'
 import type {
@@ -53,7 +60,9 @@ import {
   useRetirementSpendingActuals,
   useUpdateHouseholdPlanning,
   useUpdateHouseholdProfile,
+  useUpdateRetirementIncomeStreamOverride,
 } from '@/lib/hooks/useHousehold'
+import { buildOwnerOptions } from './owner-options'
 
 const bucketColors: Record<string, string> = {
   cash: 'var(--color-chart-5)',
@@ -111,20 +120,51 @@ const incomeCadenceLabels: Record<
   'one-off': 'One-off',
 }
 
+const incomeOwnerAutoValue = '__auto_owner__'
+const incomeStatusAutoValue = '__auto_status__'
+const incomeMergeTargetNoneValue = '__no_merge_target__'
+
+const incomeStatusOptions: Array<{
+  value: NonNullable<RetirementIncomeActualsStream['statusOverride']>
+  label: string
+}> = [
+  { value: 'active', label: 'Active' },
+  { value: 'stopped', label: 'Stopped' },
+  { value: 'one_off', label: 'One-off' },
+  { value: 'portfolio_yield', label: 'Portfolio yield' },
+  { value: 'ignored', label: 'Ignore' },
+  { value: 'merged', label: 'Merged into…' },
+]
+
+const incomeStatusLabels: Record<
+  RetirementIncomeActualsStream['status'],
+  string
+> = {
+  active: 'Active',
+  stopped: 'Stopped',
+  one_off: 'One-off',
+  portfolio_yield: 'Portfolio yield',
+  ignored: 'Ignored',
+  merged: 'Merged',
+}
+
 function incomeStreamStatus(stream: RetirementIncomeActualsStream): {
   label: string
   variant: 'success' | 'warning' | 'secondary' | 'outline'
 } {
-  if (stream.portfolioYield) {
-    return { label: 'Portfolio yield', variant: 'outline' }
+  if (stream.status === 'active') {
+    return { label: incomeStatusLabels.active, variant: 'success' }
   }
-  if (stream.cadence === 'one-off') {
-    return { label: 'One-off', variant: 'secondary' }
+  if (stream.status === 'stopped') {
+    return {
+      label: stream.statusOverride ? 'Stopped' : 'Stopped?',
+      variant: 'warning',
+    }
   }
-  if (stream.active) {
-    return { label: 'Active', variant: 'success' }
+  if (stream.status === 'portfolio_yield') {
+    return { label: incomeStatusLabels.portfolio_yield, variant: 'outline' }
   }
-  return { label: 'Stopped?', variant: 'warning' }
+  return { label: incomeStatusLabels[stream.status], variant: 'secondary' }
 }
 
 function previewStatusVariant(
@@ -862,17 +902,31 @@ export function MoneyRetirementPanel({
   const replaceScenarios = useReplaceAllocationScenarios()
   const incomeActualsQuery = useRetirementIncomeActuals()
   const spendingActualsQuery = useRetirementSpendingActuals()
+  const updateIncomeStreamOverride = useUpdateRetirementIncomeStreamOverride()
   const incomeActuals = incomeActualsQuery.data
   const spendingActuals = spendingActualsQuery.data
+  const incomeOwnerOptions = useMemo(
+    () =>
+      buildOwnerOptions(
+        (incomeActuals?.streams ?? []).flatMap((stream) =>
+          stream.owner ? [stream.owner] : [],
+        ),
+      ),
+    [incomeActuals],
+  )
+  const activeIncomeMergeTargets = useMemo(
+    () =>
+      (incomeActuals?.streams ?? []).filter(
+        (stream) => stream.status === 'active',
+      ),
+    [incomeActuals],
+  )
   // Recurring take-home streams that stopped before the coverage window's
   // end — either the income ended or newer statements weren't imported.
   const incomeStaleStreams = useMemo(
     () =>
       (incomeActuals?.streams ?? []).filter(
-        (stream) =>
-          !stream.active &&
-          stream.cadence !== 'one-off' &&
-          !stream.portfolioYield,
+        (stream) => stream.status === 'stopped',
       ),
     [incomeActuals],
   )
@@ -968,13 +1022,40 @@ export function MoneyRetirementPanel({
   // display-only hint for the spouse-net lever, never fed into the sim.
   const detectedTakeHome = useMemo(() => {
     const candidates = (incomeActuals?.streams ?? []).filter(
-      (stream) => stream.cadence !== 'one-off' && !stream.portfolioYield,
+      (stream) => stream.status === 'active',
     )
     if (candidates.length === 0) return null
     return candidates.reduce((best, stream) =>
-      stream.monthlyAverage > best.monthlyAverage ? stream : best,
+      stream.runRateMonthly > best.runRateMonthly ? stream : best,
     )
   }, [incomeActuals])
+  function saveIncomeStreamOverride(
+    stream: RetirementIncomeActualsStream,
+    patch: {
+      ownerName?: string | null
+      status?: RetirementIncomeActualsStream['statusOverride']
+      mergedIntoStreamKey?: string | null
+    },
+  ) {
+    const nextStatus =
+      patch.status !== undefined ? patch.status : stream.statusOverride
+    const nextMergedInto =
+      nextStatus === 'merged'
+        ? (patch.mergedIntoStreamKey ?? stream.mergedIntoStreamKey)
+        : null
+    void updateIncomeStreamOverride.mutateAsync({
+      streamKey: stream.streamKey,
+      label: stream.label,
+      ownerName:
+        patch.ownerName !== undefined
+          ? patch.ownerName
+          : stream.ownerOverride
+            ? stream.owner
+            : null,
+      status: nextStatus,
+      mergedIntoStreamKey: nextMergedInto,
+    })
+  }
   const taxWarnings = taxAssumptionWarnings(preview?.taxAssumptions)
   const taxEstimateTooltip = taxAssumptionTooltip(
     preview?.taxAssumptions,
@@ -2040,7 +2121,7 @@ export function MoneyRetirementPanel({
                   Detected from Money transactions: {detectedTakeHome.label}
                   {detectedTakeHome.owner ? ` (${detectedTakeHome.owner})` : ''}{' '}
                   ≈{' '}
-                  {formatCurrency(detectedTakeHome.monthlyAverage, {
+                  {formatCurrency(detectedTakeHome.runRateMonthly, {
                     decimals: 0,
                   })}
                   /mo
@@ -2110,7 +2191,7 @@ export function MoneyRetirementPanel({
             <div className="grid gap-3 md:grid-cols-3">
               <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                  Take-home detected
+                  Take-home run-rate
                 </p>
                 <p className="mt-2 text-2xl font-semibold text-text">
                   {formatCurrency(incomeActuals.activeMonthlyIncome, {
@@ -2119,8 +2200,8 @@ export function MoneyRetirementPanel({
                   /mo
                 </p>
                 <p className="mt-1 text-xs text-text-muted">
-                  Recurring deposit streams still active at the end of the
-                  coverage window. Dividend/interest streams are listed below
+                  Active take-home streams, cadence-normalized for weekly and
+                  biweekly deposits. Dividend/interest streams stay listed below
                   but excluded — portfolio yield is already modeled in returns.
                 </p>
               </div>
@@ -2159,18 +2240,42 @@ export function MoneyRetirementPanel({
               </div>
             </div>
             {incomeActuals.activeMonthlyIncome > 0 && spendingActuals ? (
-              <p className="mt-3 text-sm text-text">
-                Actual net while working:{' '}
-                <span className="font-mono tabular-nums">
-                  {formatCurrency(
-                    incomeActuals.activeMonthlyIncome -
-                      spendingActuals.totalMonthlySpend,
-                    { decimals: 0 },
-                  )}
-                  /mo
-                </span>{' '}
-                (take-home minus spend run-rate).
-              </p>
+              <div className="mt-3 grid gap-2 text-sm text-text md:grid-cols-3">
+                <p>
+                  Income gap to plan:{' '}
+                  <span className="font-mono tabular-nums">
+                    {dashboard.profile.monthlyNetIncomeTarget != null
+                      ? `${formatCurrency(
+                          incomeActuals.activeMonthlyIncome -
+                            dashboard.profile.monthlyNetIncomeTarget,
+                          { decimals: 0 },
+                        )}/mo`
+                      : '—'}
+                  </span>
+                </p>
+                <p>
+                  Actual net while working:{' '}
+                  <span className="font-mono tabular-nums">
+                    {formatCurrency(
+                      incomeActuals.activeMonthlyIncome -
+                        spendingActuals.totalMonthlySpend,
+                      { decimals: 0 },
+                    )}
+                    /mo
+                  </span>
+                </p>
+                <p className="text-text-muted">
+                  Spend gap vs take-home:{' '}
+                  <span className="font-mono tabular-nums text-text">
+                    {formatCurrency(
+                      spendingActuals.totalMonthlySpend -
+                        incomeActuals.activeMonthlyIncome,
+                      { decimals: 0 },
+                    )}
+                    /mo
+                  </span>
+                </p>
+              </div>
             ) : null}
             {incomeStaleStreams.length > 0 ? (
               <div className="mt-3 rounded-xl border border-warning/40 bg-warning/10 p-3 text-xs text-text">
@@ -2191,13 +2296,13 @@ export function MoneyRetirementPanel({
               </div>
             ) : null}
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[40rem] text-sm">
+              <table className="w-full min-w-[58rem] text-sm">
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-[0.12em] text-text-muted">
                     <th className="py-1.5 pr-3">Stream</th>
                     <th className="py-1.5 pr-3">Owner</th>
                     <th className="py-1.5 pr-3">Cadence</th>
-                    <th className="py-1.5 pr-3 text-right">$ / mo</th>
+                    <th className="py-1.5 pr-3 text-right">Run-rate / mo</th>
                     <th className="py-1.5 pr-3">Months</th>
                     <th className="py-1.5 pr-3">Last deposit</th>
                     <th className="py-1.5">Status</th>
@@ -2206,24 +2311,79 @@ export function MoneyRetirementPanel({
                 <tbody>
                   {incomeActuals.streams.map((stream) => {
                     const status = incomeStreamStatus(stream)
+                    const mergeTargets = activeIncomeMergeTargets.filter(
+                      (target) => target.streamKey !== stream.streamKey,
+                    )
+                    const selectedMergeTarget = incomeActuals.streams.find(
+                      (candidate) =>
+                        candidate.streamKey === stream.mergedIntoStreamKey,
+                    )
                     return (
                       <tr
-                        key={`${stream.label}-${stream.firstDate}`}
-                        className="border-t border-border/30"
+                        key={stream.streamKey}
+                        className="border-t border-border/30 align-top"
                       >
                         <td className="max-w-[18rem] truncate py-1.5 pr-3 font-medium text-text">
                           {stream.label}
                         </td>
-                        <td className="py-1.5 pr-3 text-text-muted">
-                          {stream.owner ?? '—'}
+                        <td className="py-1.5 pr-3">
+                          <Select
+                            value={
+                              stream.ownerOverride && stream.owner
+                                ? stream.owner
+                                : incomeOwnerAutoValue
+                            }
+                            disabled={updateIncomeStreamOverride.isPending}
+                            onValueChange={(value) =>
+                              saveIncomeStreamOverride(stream, {
+                                ownerName:
+                                  value === incomeOwnerAutoValue ? null : value,
+                              })
+                            }
+                          >
+                            <SelectTrigger
+                              size="sm"
+                              aria-label={`Owner for ${stream.label}`}
+                              className="min-w-[8.5rem] text-xs"
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent align="start">
+                              <SelectItem value={incomeOwnerAutoValue}>
+                                Auto
+                                {stream.owner ? ` · ${stream.owner}` : ''}
+                              </SelectItem>
+                              {incomeOwnerOptions.map((owner) => (
+                                <SelectItem key={owner} value={owner}>
+                                  {owner}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="mt-1 text-[10px] leading-none text-text-muted">
+                            {stream.ownerOverride
+                              ? 'Manual owner'
+                              : stream.owner
+                                ? 'Auto-detected'
+                                : 'Auto · unassigned'}
+                          </p>
                         </td>
                         <td className="py-1.5 pr-3 text-text-muted">
                           {incomeCadenceLabels[stream.cadence]}
                         </td>
                         <td className="py-1.5 pr-3 text-right font-mono tabular-nums">
-                          {formatCurrency(stream.monthlyAverage, {
+                          {formatCurrency(stream.runRateMonthly, {
                             decimals: 0,
                           })}
+                          {Math.round(stream.runRateMonthly) !==
+                          Math.round(stream.monthlyAverage) ? (
+                            <p className="text-[10px] font-normal text-text-muted">
+                              {formatCurrency(stream.monthlyAverage, {
+                                decimals: 0,
+                              })}{' '}
+                              observed
+                            </p>
+                          ) : null}
                         </td>
                         <td className="py-1.5 pr-3 font-mono tabular-nums">
                           {stream.monthsSeen}
@@ -2232,7 +2392,113 @@ export function MoneyRetirementPanel({
                           {formatBudgetDate(stream.lastDate)}
                         </td>
                         <td className="py-1.5">
-                          <Badge variant={status.variant}>{status.label}</Badge>
+                          <div className="flex min-w-[11rem] flex-col gap-1.5">
+                            <Select
+                              value={
+                                stream.statusOverride ?? incomeStatusAutoValue
+                              }
+                              disabled={updateIncomeStreamOverride.isPending}
+                              onValueChange={(value) => {
+                                if (value === incomeStatusAutoValue) {
+                                  saveIncomeStreamOverride(stream, {
+                                    status: null,
+                                    mergedIntoStreamKey: null,
+                                  })
+                                  return
+                                }
+                                const nextStatus =
+                                  value as RetirementIncomeActualsStream['statusOverride']
+                                saveIncomeStreamOverride(stream, {
+                                  status: nextStatus,
+                                  mergedIntoStreamKey:
+                                    nextStatus === 'merged'
+                                      ? (stream.mergedIntoStreamKey ??
+                                        mergeTargets[0]?.streamKey ??
+                                        null)
+                                      : null,
+                                })
+                              }}
+                            >
+                              <SelectTrigger
+                                size="sm"
+                                aria-label={`Status for ${stream.label}`}
+                                className="min-w-[11rem] text-xs"
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent align="start">
+                                <SelectItem value={incomeStatusAutoValue}>
+                                  Auto
+                                </SelectItem>
+                                {incomeStatusOptions.map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                    disabled={
+                                      option.value === 'merged' &&
+                                      mergeTargets.length === 0
+                                    }
+                                  >
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <div className="flex flex-wrap items-center gap-1">
+                              <Badge variant={status.variant}>
+                                {status.label}
+                              </Badge>
+                              {stream.statusOverride ? (
+                                <Badge variant="outline">Manual</Badge>
+                              ) : null}
+                            </div>
+                            {stream.status === 'merged' ? (
+                              <Select
+                                value={
+                                  stream.mergedIntoStreamKey ??
+                                  incomeMergeTargetNoneValue
+                                }
+                                disabled={updateIncomeStreamOverride.isPending}
+                                onValueChange={(value) => {
+                                  if (value === incomeMergeTargetNoneValue) {
+                                    return
+                                  }
+                                  saveIncomeStreamOverride(stream, {
+                                    status: 'merged',
+                                    mergedIntoStreamKey: value,
+                                  })
+                                }}
+                              >
+                                <SelectTrigger
+                                  size="sm"
+                                  aria-label={`Merged target for ${stream.label}`}
+                                  className="min-w-[11rem] text-xs"
+                                >
+                                  <SelectValue placeholder="Merged into" />
+                                </SelectTrigger>
+                                <SelectContent align="start">
+                                  <SelectItem
+                                    value={incomeMergeTargetNoneValue}
+                                  >
+                                    Choose stream
+                                  </SelectItem>
+                                  {mergeTargets.map((target) => (
+                                    <SelectItem
+                                      key={target.streamKey}
+                                      value={target.streamKey}
+                                    >
+                                      {target.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : null}
+                            {selectedMergeTarget ? (
+                              <p className="max-w-[12rem] truncate text-[10px] text-text-muted">
+                                same as {selectedMergeTarget.label}
+                              </p>
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
                     )
@@ -2241,7 +2507,8 @@ export function MoneyRetirementPanel({
               </table>
             </div>
             <p className="mt-2 text-xs text-text-muted">
-              {incomeActuals.sourceLabel} Stream $/mo averages over each
+              {incomeActuals.sourceLabel} Stream run-rates normalize weekly and
+              biweekly deposits; observed $/mo still averages over each
               stream&apos;s own active months.
               {incomeActuals.aliasRowsCollapsed > 0
                 ? ` ${incomeActuals.aliasRowsCollapsed} duplicate statement rows (the same deposit imported under two account labels) were collapsed.`

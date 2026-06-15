@@ -112,6 +112,13 @@ class PreviewRequest(RunScenarioRequest):
     aca: RetirementACAConfig | None = None
 
 
+class IncomeStreamOverrideRequest(BaseModel):
+    owner_name: str | None = Field(None, max_length=255)
+    status: str | None = Field(None, max_length=32)
+    merged_into_stream_key: str | None = Field(None, max_length=64)
+    label: str | None = Field(None, max_length=255)
+
+
 @router.post("/scenarios")
 async def run_scenario(payload: RunScenarioRequest) -> dict[str, Any]:
     """Build inputs from household + portfolio, run the simulation, persist."""
@@ -324,6 +331,20 @@ def _income_actuals_service() -> Any:
 async def income_actuals() -> dict[str, Any]:
     """Recurring income streams auto-detected from the Money ledger."""
     result = await run_in_threadpool(_income_actuals_service().build)
+    return result.model_dump(mode="json")
+
+
+@router.post("/income-actuals/streams/{stream_key}/override")
+async def update_income_stream_override(
+    stream_key: str, payload: IncomeStreamOverrideRequest
+) -> dict[str, Any]:
+    """Persist owner/status overrides for an auto-detected income stream."""
+    try:
+        result = await run_in_threadpool(
+            _income_actuals_service().update_override, stream_key, payload
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return result.model_dump(mode="json")
 
 

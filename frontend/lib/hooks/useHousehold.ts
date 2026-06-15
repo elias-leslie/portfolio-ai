@@ -27,6 +27,7 @@ import {
   type HouseholdTrackedAccountInput,
   type ManualHoldingsReplaceInput,
   type RetirementAllocationScenarioInput,
+  type RetirementIncomeStreamOverrideUpdate,
   type RetirementPreviewRequest,
   replaceAllocationScenarios,
   replaceHouseholdAccountHoldings,
@@ -34,6 +35,7 @@ import {
   updateHouseholdPlanning,
   updateHouseholdProfile,
   updateHouseholdTrackedAccount,
+  updateRetirementIncomeStreamOverride,
   uploadHouseholdDocument,
   uploadHouseholdDocuments,
 } from '@/lib/api/household'
@@ -172,6 +174,32 @@ export function useRetirementIncomeActuals() {
     queryFn: ({ signal }) => fetchRetirementIncomeActuals({ signal }),
     staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
     refetchOnWindowFocus: false,
+  })
+}
+
+export function useUpdateRetirementIncomeStreamOverride() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      streamKey,
+      ...payload
+    }: RetirementIncomeStreamOverrideUpdate & { streamKey: string }) =>
+      updateRetirementIncomeStreamOverride(streamKey, payload),
+    onSuccess: async (actuals) => {
+      queryClient.setQueryData(['retirement', 'income-actuals'], actuals)
+      await queryClient.invalidateQueries({
+        queryKey: ['retirement', 'income-actuals'],
+      })
+      toast.success('Income stream override saved.')
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to save income stream override',
+      )
+    },
   })
 }
 
