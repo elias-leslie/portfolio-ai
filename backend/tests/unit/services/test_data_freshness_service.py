@@ -277,6 +277,7 @@ def test_table_freshness_config_uses_live_options_and_reference_columns() -> Non
     assert config_by_table["day_bars"]["required_symbols_query"]
     assert config_by_table["fear_greed_inputs"]["availability_delay_hours"] == 6.5
     assert "vix_close IS NOT NULL" in config_by_table["fear_greed_inputs"]["where_clause"]
+    assert "hy_spread IS NOT NULL" not in config_by_table["fear_greed_inputs"]["where_clause"]
     assert config_by_table["fear_greed_daily"]["availability_delay_hours"] == 6.5
     assert config_by_table["fear_greed_components"]["availability_delay_hours"] == 6.5
     assert config_by_table["technical_indicators"]["date_column"] == "date"

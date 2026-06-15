@@ -82,9 +82,13 @@ TABLE_FRESHNESS_CONFIG: list[TableFreshnessConfig] = [
         "critical_hours": 48,
         "market_data": True,
         "availability_delay_hours": 6.5,
+        # HY OAS is a T+1 FRED series. The macro gate validates its own carried
+        # credit as-of separately, so this table-level check should not mark the
+        # whole feed overdue just because the newest price/put-call row is waiting
+        # on the next HY print.
         "where_clause": (
             "vix_close IS NOT NULL AND spy_close IS NOT NULL AND spy_sma_200 IS NOT NULL "
-            "AND rsi_14 IS NOT NULL AND hy_spread IS NOT NULL"
+            "AND rsi_14 IS NOT NULL"
         ),
     },
     {

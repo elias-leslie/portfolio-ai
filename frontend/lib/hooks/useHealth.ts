@@ -23,6 +23,19 @@ function staleTimeForPoll(interval: number | false) {
   return interval === false ? Number.POSITIVE_INFINITY : interval
 }
 
+const FRESHNESS_RECOVERY_POLL_MS = 30 * 1000
+const NON_CURRENT_FRESHNESS_STATUSES = new Set(['warning', 'critical', 'error'])
+
+function liveFreshnessRefetchInterval(
+  interval: number | false,
+  status?: string,
+) {
+  if (interval === false) return false
+  return status && NON_CURRENT_FRESHNESS_STATUSES.has(status)
+    ? Math.min(interval, FRESHNESS_RECOVERY_POLL_MS)
+    : interval
+}
+
 export function useDetailedHealth(): UseQueryResult<DetailedHealthCheckResponse> {
   return useQuery({
     queryKey: ['health', 'detailed'],
@@ -45,7 +58,8 @@ export function useLiveFreshness(): UseQueryResult<LiveFreshnessResponse> {
     queryKey: ['health', 'freshness'],
     queryFn: fetchLiveFreshness,
     staleTime: staleTimeForPoll(interval),
-    refetchInterval: interval,
+    refetchInterval: (query) =>
+      liveFreshnessRefetchInterval(interval, query.state.data?.status),
     refetchOnWindowFocus: interval !== false,
   })
 }
