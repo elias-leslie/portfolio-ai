@@ -15,7 +15,7 @@ export const getAccountPositions = (
 }
 
 export const getPositionCostBasisTotal = (position: PositionWithValue) =>
-  position.sourceCostBasis ?? position.shares * position.costBasis
+  position.shares * position.costBasis
 
 export const getPositionPnlDollars = (position: PositionWithValue) =>
   position.currentValue != null

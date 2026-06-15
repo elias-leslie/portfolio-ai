@@ -1887,8 +1887,18 @@ class SnapTradeService:
     def _position_cost_basis_per_share(position: SnapTradeNormalizedPosition) -> Decimal:
         if position.average_purchase_price is not None:
             return position.average_purchase_price
-        if position.cost_basis is not None and position.units:
-            return abs(position.cost_basis / position.units)
+        if position.cost_basis is not None:
+            raw_basis = abs(position.cost_basis)
+            reference_price = position.price
+            if reference_price is None and position.market_value is not None and position.units:
+                reference_price = abs(position.market_value / position.units)
+            if (
+                reference_price is not None
+                and position.units
+                and raw_basis > reference_price * Decimal("10")
+            ):
+                return abs(raw_basis / position.units)
+            return raw_basis
         if position.price is not None:
             return position.price
         return Decimal("0")

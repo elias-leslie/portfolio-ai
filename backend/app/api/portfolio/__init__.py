@@ -130,6 +130,27 @@ def _snaptrade_source_price(source: dict[str, Any] | None, shares: Any) -> float
     return None
 
 
+def _snaptrade_cost_basis_per_share(source: dict[str, Any] | None, shares: Any) -> float | None:
+    if source is None:
+        return None
+    average_purchase_price = _safe_float(source.get("average_purchase_price"))
+    if average_purchase_price is not None and average_purchase_price > 0:
+        return average_purchase_price
+    raw_basis = _safe_float(source.get("cost_basis"))
+    if raw_basis is None or raw_basis <= 0:
+        return None
+    share_count = _safe_float(shares)
+    reference_price = _snaptrade_source_price(source, shares)
+    if (
+        reference_price is not None
+        and share_count is not None
+        and share_count > 0
+        and raw_basis > reference_price * 10
+    ):
+        return raw_basis / share_count
+    return raw_basis
+
+
 def _fetch_snaptrade_position_sources(position_ids: list[str]) -> dict[str, dict[str, Any]]:
     """Return broker snapshot data keyed by portfolio position ID."""
     unique_ids = list(dict.fromkeys(position_ids))
@@ -206,6 +227,28 @@ def _price_data_with_snaptrade_fallbacks(
     return enriched
 
 
+def _positions_with_snaptrade_basis(
+    positions: list[Any],
+    snaptrade_sources: dict[str, dict[str, Any]],
+) -> list[Any]:
+    """Use broker per-share basis when SnapTrade supplies it."""
+    adjusted_positions = []
+    for position in positions:
+        basis = _snaptrade_cost_basis_per_share(
+            snaptrade_sources.get(str(position.id)),
+            getattr(position, "shares", None),
+        )
+        if basis is None:
+            adjusted_positions.append(position)
+            continue
+        if hasattr(position, "model_copy"):
+            adjusted_positions.append(position.model_copy(update={"cost_basis": basis}))
+            continue
+        adjusted_positions.append(position)
+        adjusted_positions[-1].cost_basis = basis
+    return adjusted_positions
+
+
 def _build_position_responses(
     positions: list[Any],
     price_data: dict[str, Any],
@@ -217,6 +260,7 @@ def _build_position_responses(
     for pos in positions:
         price_info = price_data.get(pos.symbol)
         source = snaptrade_sources.get(str(pos.id))
+        cost_basis = _snaptrade_cost_basis_per_share(source, pos.shares) or pos.cost_basis
         quote_price = (
             _safe_float(getattr(price_info, "price", None))
             if price_info is not None and not getattr(price_info, "error", None)
@@ -230,7 +274,7 @@ def _build_position_responses(
         current_fact = calculate_current_position_fact(
             symbol=pos.symbol,
             shares=pos.shares,
-            cost_basis=pos.cost_basis,
+            cost_basis=cost_basis,
             position_type=pos.position_type,
             current_price=current_price,
         )
@@ -241,7 +285,7 @@ def _build_position_responses(
                 account_id=pos.account_id,
                 symbol=pos.symbol,
                 shares=pos.shares,
-                cost_basis=pos.cost_basis,
+                cost_basis=cost_basis,
                 position_type=pos.position_type,
                 created_at=pos.created_at.isoformat(),
                 updated_at=pos.updated_at.isoformat(),
@@ -347,28 +391,29 @@ def _get_portfolio_payload(include_paper: bool) -> PortfolioResponse:
 
     symbols = list({p.symbol for p in positions})
     snaptrade_sources = _fetch_snaptrade_position_sources([str(p.id) for p in positions])
+    positions_for_calculation = _positions_with_snaptrade_basis(positions, snaptrade_sources)
     price_data = _fetch_prices(symbols)
     price_data = _price_data_with_snaptrade_fallbacks(
         price_data,
-        positions,
+        positions_for_calculation,
         snaptrade_sources,
     )
     account_valuations = calculate_account_valuations(
         accounts,
-        positions,
+        positions_for_calculation,
         price_data,
         cash_overrides=cash_overrides,
     )
 
     analytics = _analytics_calculator().calculate_full_analytics(
-        positions,
+        positions_for_calculation,
         price_data,
         storage=_storage(),
         account_ids=list(account_ids),
     )
 
     position_responses = _build_position_responses(
-        positions,
+        positions_for_calculation,
         price_data,
         snaptrade_sources,
     )

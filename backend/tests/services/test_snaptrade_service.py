@@ -198,6 +198,47 @@ def test_source_cash_balance_prefers_direct_broker_cash() -> None:
     assert SnapTradeService._source_cash_balance(account, [position]) == Decimal("72.95")
 
 
+def test_position_cost_basis_keeps_snaptrade_per_share_basis() -> None:
+    position = SnapTradeNormalizedPosition(
+        position_key="vti",
+        symbol="VTI",
+        raw_symbol=None,
+        security_id="vti",
+        security_kind="etf",
+        units=Decimal("994.409"),
+        price=Decimal("366.36"),
+        average_purchase_price=None,
+        market_value=Decimal("364311.6812"),
+        cost_basis=Decimal("255.8121"),
+        currency="USD",
+        metadata={},
+    )
+
+    assert SnapTradeService._position_cost_basis_per_share(position) == Decimal("255.8121")
+
+
+def test_position_cost_basis_divides_implausible_total_basis() -> None:
+    position = SnapTradeNormalizedPosition(
+        position_key="vti",
+        symbol="VTI",
+        raw_symbol=None,
+        security_id="vti",
+        security_kind="etf",
+        units=Decimal("10"),
+        price=Decimal("100"),
+        average_purchase_price=None,
+        market_value=Decimal("1000"),
+        cost_basis=Decimal("800"),
+        currency="USD",
+        metadata={},
+    )
+
+    assert SnapTradeService._position_cost_basis_per_share(position) == Decimal("800")
+
+    position.cost_basis = Decimal("8000")
+    assert SnapTradeService._position_cost_basis_per_share(position) == Decimal("800")
+
+
 def test_source_cash_balance_reconciles_incompatible_direct_broker_cash() -> None:
     account = SnapTradeNormalizedAccount(
         account_id="acct-1",

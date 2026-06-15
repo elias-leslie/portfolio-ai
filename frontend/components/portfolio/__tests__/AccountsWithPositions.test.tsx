@@ -318,14 +318,14 @@ describe('AccountsWithPositions', () => {
             accountId: 'acct-1',
             symbol: 'VTI',
             shares: 994.409,
-            costBasis: 0.26,
+            costBasis: 255.81,
             positionType: 'long',
             createdAt: '2026-06-15T17:12:00Z',
             updatedAt: '2026-06-15T17:12:00Z',
             currentPrice: 372.34,
             currentValue: 370258.25,
-            gain: 370000,
-            gainPct: 144638,
+            gain: 115878.48,
+            gainPct: 45.55,
             priceSource: 'snaptrade',
             priceUpdatedAt: '2026-06-15T17:12:00Z',
             source: 'snaptrade',
@@ -333,8 +333,8 @@ describe('AccountsWithPositions', () => {
             sourcePositionKey: 'VTI',
             rawSymbol: 'VTI',
             securityKind: 'etf',
-            averagePurchasePrice: 0.26,
-            sourceCostBasis: 258.55,
+            averagePurchasePrice: null,
+            sourceCostBasis: 255.81,
             sourceMarketValue: 370258.25,
             sourcePrice: 372.34,
             sourceCurrency: 'USD',
@@ -343,9 +343,9 @@ describe('AccountsWithPositions', () => {
         ],
         cashBalanceTotal: 0,
         totalValue: 370258.25,
-        totalCostBasis: 258.55,
-        totalGain: 370000,
-        totalGainPct: 144638,
+        totalCostBasis: 254379.77,
+        totalGain: 115878.48,
+        totalGainPct: 45.55,
       },
       isLoading: false,
     })
@@ -362,8 +362,8 @@ describe('AccountsWithPositions', () => {
     expect(screen.getAllByText(/SnapTrade lot/).length).toBeGreaterThan(0)
     expect(screen.getByText('ETF')).toBeInTheDocument()
     expect(screen.getByText('broker snapshot')).toBeInTheDocument()
-    expect(screen.getByText('avg paid $0.26')).toBeInTheDocument()
-    expect(screen.getByText('Basis review')).toBeInTheDocument()
+    expect(screen.getAllByText(/\+45\.55%/).length).toBeGreaterThan(0)
+    expect(screen.queryByText('Basis review')).not.toBeInTheDocument()
   })
 
   it('shows a retryable error state when account data fails', async () => {
