@@ -35,7 +35,7 @@ export function ItemCategoryEditor({
   const categorizeItem = useCategorizePurchaseItem()
   const categoryOwnerMap = useCategoryOwnerMap()
   const [productRuleItems, setProductRuleItems] = useState<
-    Record<string, boolean>
+    Record<string, boolean | undefined>
   >({})
 
   if (isLoading) {
@@ -91,6 +91,9 @@ export function ItemCategoryEditor({
       </p>
       {items.map((item) => {
         const inheritedOwnerName = categoryOwnerMap.get(item.category) ?? null
+        const productRuleChecked =
+          productRuleItems[item.id] ??
+          item.categorizationSource === 'product_rule'
         return (
           <div
             key={item.id}
@@ -134,7 +137,7 @@ export function ItemCategoryEditor({
                   options={categoryOptions}
                   disabled={categorizeItem.isPending}
                   ruleLabel="Product rule"
-                  ruleChecked={productRuleItems[item.id] === true}
+                  ruleChecked={productRuleChecked}
                   onRuleCheckedChange={(checked) =>
                     setProductRuleItems((current) => ({
                       ...current,

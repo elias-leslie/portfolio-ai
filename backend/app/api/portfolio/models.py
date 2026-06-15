@@ -70,6 +70,17 @@ class PositionResponse(BaseModel):
     gain_pct: float | None = None
     price_updated_at: str | None = None
     price_source: str | None = None
+    source: str = "manual"
+    source_account_id: str | None = None
+    source_position_key: str | None = None
+    raw_symbol: str | None = None
+    security_kind: str | None = None
+    average_purchase_price: float | None = None
+    source_cost_basis: float | None = None
+    source_market_value: float | None = None
+    source_price: float | None = None
+    source_currency: str | None = None
+    source_updated_at: str | None = None
 
 
 class PortfolioResponse(BaseModel):

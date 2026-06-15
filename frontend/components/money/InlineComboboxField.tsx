@@ -48,6 +48,7 @@ export function InlineComboboxField({
   const [open, setOpen] = useState(false)
   const lastCommittedRef = useRef(currentValue)
   const listId = `${id}-options`
+  const ruleId = `${id}-rule`
   const choices = useMemo(() => {
     const unique = new Set<string>()
     for (const option of [draft, currentValue, ...options]) {
@@ -163,10 +164,12 @@ export function InlineComboboxField({
         </div>
       ) : null}
       {ruleLabel ? (
-        <label className="mt-1 flex items-center gap-1 text-[10px] leading-none text-text-muted">
+        <div className="mt-1 flex items-center gap-1 text-[10px] leading-none text-text-muted">
           <Checkbox
+            id={ruleId}
             checked={ruleChecked}
             disabled={disabled}
+            aria-label={`${ruleLabel} for ${label}`}
             className="h-3 w-3"
             onCheckedChange={(checked) => {
               const nextChecked = checked === true
@@ -176,8 +179,13 @@ export function InlineComboboxField({
               }
             }}
           />
-          <span>{ruleLabel}</span>
-        </label>
+          <Label
+            htmlFor={ruleId}
+            className="cursor-pointer text-[10px] font-normal leading-none text-text-muted"
+          >
+            {ruleLabel}
+          </Label>
+        </div>
       ) : null}
     </div>
   )

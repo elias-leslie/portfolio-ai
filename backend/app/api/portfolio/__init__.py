@@ -4,6 +4,8 @@ from __future__ import annotations
 
 __all__ = ["router"]
 
+import math
+from datetime import UTC, datetime
 from functools import lru_cache
 from importlib import import_module
 from typing import Any
@@ -23,6 +25,7 @@ from app.portfolio.account_valuation import (
     summarize_quote_freshness,
 )
 from app.portfolio.current_facts import calculate_current_position_fact
+from app.portfolio.models import PriceData
 from app.services.household_portfolio_totals import get_effective_portfolio_totals
 
 from .analytics_routes import router as analytics_router
@@ -86,15 +89,144 @@ def _fetch_prices(symbols: list[str]) -> dict[str, Any]:
     return _price_fetcher().fetch_cached_price_data(symbols)
 
 
+def _safe_float(value: Any) -> float | None:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    return numeric if math.isfinite(numeric) else None
+
+
+def _coerce_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    return None
+
+
+def _format_datetime(value: Any) -> str | None:
+    parsed = _coerce_datetime(value)
+    return parsed.isoformat() if parsed is not None else None
+
+
+def _safe_str(value: Any) -> str | None:
+    return str(value) if value is not None else None
+
+
+def _snaptrade_source_price(source: dict[str, Any] | None, shares: Any) -> float | None:
+    if source is None:
+        return None
+    price = _safe_float(source.get("price"))
+    if price is not None and price > 0:
+        return price
+    market_value = _safe_float(source.get("market_value"))
+    share_count = _safe_float(shares)
+    if (
+        market_value is not None
+        and market_value > 0
+        and share_count is not None
+        and share_count > 0
+    ):
+        return market_value / share_count
+    return None
+
+
+def _fetch_snaptrade_position_sources(position_ids: list[str]) -> dict[str, dict[str, Any]]:
+    """Return broker snapshot data keyed by portfolio position ID."""
+    unique_ids = list(dict.fromkeys(position_ids))
+    if not unique_ids:
+        return {}
+    with _storage().connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                portfolio_position_id,
+                account_id,
+                position_key,
+                raw_symbol,
+                security_kind,
+                average_purchase_price,
+                cost_basis,
+                market_value,
+                price,
+                currency,
+                last_synced_at
+            FROM snaptrade_positions
+            WHERE portfolio_position_id = ANY(%s)
+            """,
+            [unique_ids],
+        ).fetchall()
+    return {
+        str(row[0]): {
+            "account_id": row[1],
+            "position_key": row[2],
+            "raw_symbol": row[3],
+            "security_kind": row[4],
+            "average_purchase_price": row[5],
+            "cost_basis": row[6],
+            "market_value": row[7],
+            "price": row[8],
+            "currency": row[9],
+            "last_synced_at": row[10],
+        }
+        for row in rows
+        if row[0] is not None
+    }
+
+
+def _price_data_with_snaptrade_fallbacks(
+    price_data: dict[str, Any],
+    positions: list[Any],
+    snaptrade_sources: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Use broker snapshot prices only where the quote cache has no valid price."""
+    enriched = dict(price_data)
+    for position in positions:
+        symbol = str(position.symbol)
+        existing = enriched.get(symbol)
+        existing_price = (
+            _safe_float(getattr(existing, "price", None))
+            if existing is not None and not getattr(existing, "error", None)
+            else None
+        )
+        if existing_price is not None and existing_price > 0:
+            continue
+        source = snaptrade_sources.get(str(position.id))
+        fallback_price = _snaptrade_source_price(source, getattr(position, "shares", None))
+        if fallback_price is None:
+            continue
+        synced_at = _coerce_datetime(source.get("last_synced_at") if source else None)
+        enriched[symbol] = PriceData(
+            symbol=symbol,
+            price=fallback_price,
+            cached_at=synced_at or datetime.now(UTC),
+            quote_time=synced_at,
+            price_session="broker_snapshot",
+            source="snaptrade",
+        )
+    return enriched
+
+
 def _build_position_responses(
     positions: list[Any],
     price_data: dict[str, Any],
+    snaptrade_sources: dict[str, dict[str, Any]] | None = None,
 ) -> list[PositionResponse]:
     """Build PositionResponse objects enriched with current price and gain data."""
+    snaptrade_sources = snaptrade_sources or {}
     position_responses = []
     for pos in positions:
         price_info = price_data.get(pos.symbol)
-        current_price = price_info.price if price_info else None
+        source = snaptrade_sources.get(str(pos.id))
+        quote_price = (
+            _safe_float(getattr(price_info, "price", None))
+            if price_info is not None and not getattr(price_info, "error", None)
+            else None
+        )
+        current_price = (
+            quote_price
+            if quote_price is not None and quote_price > 0
+            else _snaptrade_source_price(source, pos.shares)
+        )
         current_fact = calculate_current_position_fact(
             symbol=pos.symbol,
             shares=pos.shares,
@@ -120,13 +252,28 @@ def _build_position_responses(
                 price_updated_at=(
                     price_info.cached_at.isoformat()
                     if price_info is not None and getattr(price_info, "cached_at", None) is not None
-                    else None
+                    else _format_datetime(source.get("last_synced_at") if source else None)
                 ),
                 price_source=(
                     str(getattr(price_info, "source", None))
                     if price_info is not None and getattr(price_info, "source", None)
+                    else "snaptrade"
+                    if current_price is not None and source is not None
                     else None
                 ),
+                source="snaptrade" if source is not None else "manual",
+                source_account_id=_safe_str(source.get("account_id") if source else None),
+                source_position_key=_safe_str(source.get("position_key") if source else None),
+                raw_symbol=_safe_str(source.get("raw_symbol") if source else None),
+                security_kind=_safe_str(source.get("security_kind") if source else None),
+                average_purchase_price=_safe_float(
+                    source.get("average_purchase_price") if source else None
+                ),
+                source_cost_basis=_safe_float(source.get("cost_basis") if source else None),
+                source_market_value=_safe_float(source.get("market_value") if source else None),
+                source_price=_safe_float(source.get("price") if source else None),
+                source_currency=_safe_str(source.get("currency") if source else None),
+                source_updated_at=_format_datetime(source.get("last_synced_at") if source else None),
             )
         )
     return position_responses
@@ -199,7 +346,13 @@ def _get_portfolio_payload(include_paper: bool) -> PortfolioResponse:
         )
 
     symbols = list({p.symbol for p in positions})
+    snaptrade_sources = _fetch_snaptrade_position_sources([str(p.id) for p in positions])
     price_data = _fetch_prices(symbols)
+    price_data = _price_data_with_snaptrade_fallbacks(
+        price_data,
+        positions,
+        snaptrade_sources,
+    )
     account_valuations = calculate_account_valuations(
         accounts,
         positions,
@@ -214,7 +367,11 @@ def _get_portfolio_payload(include_paper: bool) -> PortfolioResponse:
         account_ids=list(account_ids),
     )
 
-    position_responses = _build_position_responses(positions, price_data)
+    position_responses = _build_position_responses(
+        positions,
+        price_data,
+        snaptrade_sources,
+    )
     quotes_updated_at, quote_freshness_status, quote_freshness_label = (
         summarize_quote_freshness(account_valuations)
     )

@@ -13,17 +13,59 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import {
+  formatCurrency,
+  formatPercent,
+  formatPnlDollars,
+} from '@/lib/formatters'
 import { useHouseholdDashboard } from '@/lib/hooks/useHousehold'
 import { useAccounts, usePortfolio } from '@/lib/hooks/usePortfolio'
+import { formatRelativeTime } from '@/lib/utils'
 import { AccountAccordionItem } from './AccountAccordionItem'
 import { AccountsWithPositionsSkeleton } from './AccountsWithPositionsSkeleton'
 import { EditPositionDialog } from './EditPositionDialog'
+import {
+  getPositionCostBasisTotal,
+  needsPositionBasisReview,
+} from './portfolio-utils'
 import { useDeleteConfirmation } from './useDeleteConfirmation'
 import { useEditPositionForm } from './useEditPositionForm'
 
 interface AccountsWithPositionsProps {
   onAddAccount?: () => void
   onAddPosition?: (accountId?: string) => void
+}
+
+function HoldingSummaryTile({
+  label,
+  value,
+  detail,
+  tone = 'neutral',
+}: {
+  label: string
+  value: string
+  detail: string
+  tone?: 'neutral' | 'gain' | 'loss'
+}) {
+  return (
+    <div className="rounded-xl border border-border/40 bg-surface-muted/20 px-4 py-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-muted">
+        {label}
+      </div>
+      <div
+        className={
+          tone === 'gain'
+            ? 'mt-1 text-xl font-semibold tabular-nums text-gain'
+            : tone === 'loss'
+              ? 'mt-1 text-xl font-semibold tabular-nums text-loss'
+              : 'mt-1 text-xl font-semibold tabular-nums text-text'
+        }
+      >
+        {value}
+      </div>
+      <div className="mt-1 text-xs text-text-muted">{detail}</div>
+    </div>
+  )
 }
 
 export interface AccountsWithPositionsContentProps
@@ -57,6 +99,32 @@ export function AccountsWithPositionsContent({
   const del = useDeleteConfirmation(portfolio?.positions)
   const edit = useEditPositionForm()
   const confirmDialog = <ConfirmActionDialog {...del.dialogProps} />
+  const positions = portfolio?.positions ?? []
+  const positionValueTotal = positions.reduce(
+    (sum, position) =>
+      sum + (position.currentValue ?? position.sourceMarketValue ?? 0),
+    0,
+  )
+  const costBasisTotal = positions.reduce(
+    (sum, position) => sum + getPositionCostBasisTotal(position),
+    0,
+  )
+  const cashBalanceTotal = portfolio?.cashBalanceTotal ?? 0
+  const holdingsTotal = positionValueTotal + cashBalanceTotal
+  const totalPnl = positionValueTotal - costBasisTotal
+  const totalPnlPct =
+    costBasisTotal > 0 ? (totalPnl / costBasisTotal) * 100 : null
+  const snapTradePositionCount = positions.filter(
+    (position) => position.source === 'snaptrade',
+  ).length
+  const basisReviewCount = positions.filter(needsPositionBasisReview).length
+  const snapTradeSyncs = positions
+    .map((position) => position.sourceUpdatedAt)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+  const latestSnapTradeSync =
+    snapTradeSyncs.length > 0 ? snapTradeSyncs[snapTradeSyncs.length - 1] : null
+  const showHoldingsSummary = positions.length > 0 || cashBalanceTotal > 0
   const linkedHouseholdAccountsByPortfolioAccountId = Object.fromEntries(
     (household?.accounts ?? [])
       .filter((account) => account.linkedPortfolioAccountId)
@@ -190,6 +258,13 @@ export function AccountsWithPositionsContent({
                   variant="outline"
                 />
               ) : null}
+              {snapTradePositionCount > 0 ? (
+                <InfoBadge
+                  label={`${snapTradePositionCount} SnapTrade lot${snapTradePositionCount === 1 ? '' : 's'}`}
+                  detail={`Broker lots are wired into holdings rows${latestSnapTradeSync ? `; latest sync ${formatRelativeTime(latestSnapTradeSync)}` : ''}.`}
+                  variant="success"
+                />
+              ) : null}
               {unmappedDetail ? (
                 <InfoBadge
                   label={`${linkageCounts.unmapped} unmapped`}
@@ -221,7 +296,37 @@ export function AccountsWithPositionsContent({
           </div>
         </CardHeader>
         <CardContent>
-          {portfolio?.positions.length === 0 ? (
+          {showHoldingsSummary ? (
+            <div className="mb-4 grid gap-3 md:grid-cols-4">
+              <HoldingSummaryTile
+                label="Total holdings"
+                value={formatCurrency(holdingsTotal)}
+                detail={`${positions.length} lot${positions.length === 1 ? '' : 's'} plus ${formatCurrency(cashBalanceTotal)} cash`}
+              />
+              <HoldingSummaryTile
+                label="Invested"
+                value={formatCurrency(positionValueTotal)}
+                detail={`${snapTradePositionCount} SnapTrade-fed lot${snapTradePositionCount === 1 ? '' : 's'}`}
+              />
+              <HoldingSummaryTile
+                label="Open P&L"
+                value={`${formatPnlDollars(totalPnl)} (${formatPercent(totalPnlPct, { decimals: 2, sign: true })})`}
+                detail="Using per-lot cost basis"
+                tone={totalPnl >= 0 ? 'gain' : 'loss'}
+              />
+              <HoldingSummaryTile
+                label="Basis checks"
+                value={String(basisReviewCount)}
+                detail={
+                  basisReviewCount > 0
+                    ? 'Review extreme basis/quote gaps'
+                    : 'No extreme basis gaps'
+                }
+                tone={basisReviewCount > 0 ? 'loss' : 'neutral'}
+              />
+            </div>
+          ) : null}
+          {positions.length === 0 ? (
             <div className="mb-4 rounded-xl border border-border/50 bg-surface-muted/20 p-4 text-sm text-text-muted">
               Accounts exist, but no live positions are tracked yet.
             </div>

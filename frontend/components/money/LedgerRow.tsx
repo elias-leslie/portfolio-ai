@@ -42,7 +42,11 @@ export function LedgerRow({
   categorizePending,
   onCommitCategory,
 }: LedgerRowProps) {
-  const [applyToMerchant, setApplyToMerchant] = useState(false)
+  const [applyToMerchant, setApplyToMerchant] = useState<boolean | null>(null)
+  const hasMerchantRule =
+    entry.transactionRuleId != null ||
+    entry.categorizationSource === 'merchant_rule'
+  const merchantRuleChecked = applyToMerchant ?? hasMerchantRule
   const effectiveDate = entryDate(entry)
   const effectiveDateKey = utcDateKey(effectiveDate)
   const isFuture =
@@ -109,7 +113,7 @@ export function LedgerRow({
               options={categoryOptions}
               disabled={categorizePending}
               ruleLabel="Merchant rule"
-              ruleChecked={applyToMerchant}
+              ruleChecked={merchantRuleChecked}
               onRuleCheckedChange={setApplyToMerchant}
               className="w-[170px]"
               onCommit={onCommitCategory}

@@ -5,6 +5,11 @@ import {
   categoryPlaybook,
   trimRateForCategory,
 } from '@/components/money/lever-helpers'
+import {
+  nextSortDirection,
+  SortableTableHeader,
+  type SortDirection,
+} from '@/components/shared/SortableTableHeader'
 import { Badge } from '@/components/ui/badge'
 import type { HouseholdSpendingCategory } from '@/lib/api/household'
 import {
@@ -12,11 +17,6 @@ import {
   formatEnumLabel,
   formatPercent,
 } from '@/lib/formatters'
-import {
-  nextSortDirection,
-  SortableTableHeader,
-  type SortDirection,
-} from './SortableTableHeader'
 
 type CategoryPressureSortKey =
   | 'category'

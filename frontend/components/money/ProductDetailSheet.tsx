@@ -13,10 +13,16 @@ import {
 import { Input } from '@/components/ui/input'
 import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
 import {
+  useCategorizePurchaseItem,
   useHouseholdProductDetail,
   useHouseholdProducts,
   useMergeHouseholdProducts,
 } from '@/lib/hooks/useHouseholdPurchases'
+import { buildCategoryOptions } from './category-options'
+import {
+  type InlineComboboxCommitOptions,
+  InlineComboboxField,
+} from './InlineComboboxField'
 import { formatLedgerDate } from './ledger-helpers'
 import { PriceHistorySparkline } from './PriceHistorySparkline'
 import { PurchaseItemOwnerSelect } from './PurchaseItemOwnerSelect'
@@ -34,11 +40,18 @@ export function ProductDetailSheet({
 }: ProductDetailSheetProps) {
   const { data: detail, isLoading } = useHouseholdProductDetail(productId)
   const [mergeSearch, setMergeSearch] = useState('')
+  const [productRuleItems, setProductRuleItems] = useState<
+    Record<string, boolean | undefined>
+  >({})
   const mergeProducts = useMergeHouseholdProducts()
+  const categorizeItem = useCategorizePurchaseItem()
   const categoryOwnerMap = useCategoryOwnerMap()
   const mergeQuery = mergeSearch.trim()
   const { data: mergeCandidates } = useHouseholdProducts(
     mergeQuery ? { search: mergeQuery, scope: 'all', limit: 5 } : undefined,
+  )
+  const categoryOptions = buildCategoryOptions(
+    detail?.recentItems.map((item) => item.category) ?? [],
   )
 
   function close() {
@@ -55,6 +68,24 @@ export function ProductDetailSheet({
       targetProductId,
     })
     close()
+  }
+
+  async function saveItemCategory(
+    itemId: string,
+    category: string,
+    essentiality: string,
+    options?: InlineComboboxCommitOptions,
+  ) {
+    const trimmed = category.trim()
+    if (!trimmed) {
+      return
+    }
+    await categorizeItem.mutateAsync({
+      itemId,
+      category: trimmed,
+      essentiality: essentiality || 'mixed',
+      applyToProduct: options?.applyRule === true,
+    })
   }
 
   return (
@@ -192,28 +223,59 @@ export function ProductDetailSheet({
                   {detail.recentItems.slice(0, 8).map((item) => {
                     const inheritedOwnerName =
                       categoryOwnerMap.get(item.category) ?? null
+                    const productRuleChecked =
+                      productRuleItems[item.id] ??
+                      item.categorizationSource === 'product_rule'
                     return (
                       <div
                         key={item.id}
-                        className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/30 bg-surface-muted/10 px-3 py-2 text-xs"
+                        className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border/30 bg-surface-muted/10 px-3 py-2 text-xs"
                       >
-                        <span className="min-w-0 truncate text-text">
-                          {item.description}
-                        </span>
-                        <span className="shrink-0 text-text-muted">
-                          {formatLedgerDate(item.purchaseDate)} ·{' '}
-                          {item.category} ·{' '}
-                          <span className="font-mono tabular-nums text-text">
-                            {formatCurrency(item.amount, { decimals: 2 })}
-                          </span>
-                        </span>
-                        <PurchaseItemOwnerSelect
-                          itemId={item.id}
-                          itemLabel={item.description}
-                          ownerName={item.ownerName}
-                          ownerSource={item.ownerSource}
-                          inheritedOwnerName={inheritedOwnerName}
-                        />
+                        <div className="min-w-[12rem] flex-1">
+                          <p className="truncate text-text">
+                            {item.description}
+                          </p>
+                          <p className="mt-1 text-text-muted">
+                            {formatLedgerDate(item.purchaseDate)} ·{' '}
+                            {formatEnumLabel(item.essentiality)} ·{' '}
+                            <span className="font-mono tabular-nums text-text">
+                              {formatCurrency(item.amount, { decimals: 2 })}
+                            </span>
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-start justify-end gap-2">
+                          <InlineComboboxField
+                            id={`product-detail-category-${item.id}`}
+                            label={`Category for ${item.description}`}
+                            value={item.category}
+                            options={categoryOptions}
+                            disabled={categorizeItem.isPending}
+                            ruleLabel="Product rule"
+                            ruleChecked={productRuleChecked}
+                            onRuleCheckedChange={(checked) =>
+                              setProductRuleItems((current) => ({
+                                ...current,
+                                [item.id]: checked,
+                              }))
+                            }
+                            className="w-[180px]"
+                            onCommit={(category, options) =>
+                              void saveItemCategory(
+                                item.id,
+                                category,
+                                item.essentiality,
+                                options,
+                              )
+                            }
+                          />
+                          <PurchaseItemOwnerSelect
+                            itemId={item.id}
+                            itemLabel={item.description}
+                            ownerName={item.ownerName}
+                            ownerSource={item.ownerSource}
+                            inheritedOwnerName={inheritedOwnerName}
+                          />
+                        </div>
                       </div>
                     )
                   })}

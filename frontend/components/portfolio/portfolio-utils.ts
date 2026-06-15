@@ -14,6 +14,29 @@ export const getAccountPositions = (
   return positions?.filter((p) => p.accountId === accountId) || []
 }
 
+export const getPositionCostBasisTotal = (position: PositionWithValue) =>
+  position.sourceCostBasis ?? position.shares * position.costBasis
+
+export const getPositionPnlDollars = (position: PositionWithValue) =>
+  position.currentValue != null
+    ? position.currentValue - getPositionCostBasisTotal(position)
+    : 0
+
+export const getPositionPnlPercent = (position: PositionWithValue) => {
+  const costBasisTotal = getPositionCostBasisTotal(position)
+  return costBasisTotal > 0
+    ? (getPositionPnlDollars(position) / costBasisTotal) * 100
+    : 0
+}
+
+export const needsPositionBasisReview = (position: PositionWithValue) =>
+  position.shares > 0 &&
+  position.currentPrice > 0 &&
+  getPositionCostBasisTotal(position) > 0 &&
+  position.currentPrice /
+    (getPositionCostBasisTotal(position) / position.shares) >
+    20
+
 export const getAccountTotalValue = (
   account: Account,
   positions: PositionWithValue[] | undefined,

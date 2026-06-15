@@ -4,13 +4,13 @@ import type * as React from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { useMemo, useState } from 'react'
 import { SectionCard } from '@/components/shared/SectionCard'
-import { Button } from '@/components/ui/button'
-import { BudgetRow } from './BudgetRow'
 import {
   nextSortDirection,
   SortableTableHeader,
   type SortDirection,
-} from './SortableTableHeader'
+} from '@/components/shared/SortableTableHeader'
+import { Button } from '@/components/ui/button'
+import { BudgetRow } from './BudgetRow'
 import type { TransactionEditor } from './TransactionEditor'
 import { type BudgetRowEntry, entryBreach } from './useBudgetRows'
 

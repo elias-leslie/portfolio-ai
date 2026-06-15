@@ -15,6 +15,7 @@ const useVendorProfilesMock = vi.hoisted(() => vi.fn())
 const useHouseholdFactsMock = vi.hoisted(() => vi.fn())
 const assignMutateAsync = vi.hoisted(() => vi.fn())
 const setOwnerMutateAsync = vi.hoisted(() => vi.fn())
+const categorizeItemMutateAsync = vi.hoisted(() => vi.fn())
 const mergeMutateAsync = vi.hoisted(() => vi.fn())
 const triggerPriceCheckMutate = vi.hoisted(() => vi.fn())
 const createShoppingListMutate = vi.hoisted(() => vi.fn())
@@ -35,6 +36,10 @@ vi.mock('@/lib/hooks/useHouseholdPurchases', () => ({
   }),
   useSetPurchaseItemOwner: () => ({
     mutateAsync: setOwnerMutateAsync,
+    isPending: false,
+  }),
+  useCategorizePurchaseItem: () => ({
+    mutateAsync: categorizeItemMutateAsync,
     isPending: false,
   }),
   useMergeHouseholdProducts: () => ({
@@ -194,6 +199,7 @@ describe('MoneyPurchasesPanel', () => {
     useHouseholdFactsMock.mockReset()
     assignMutateAsync.mockReset()
     setOwnerMutateAsync.mockReset()
+    categorizeItemMutateAsync.mockReset()
     mergeMutateAsync.mockReset()
     triggerPriceCheckMutate.mockReset()
     createShoppingListMutate.mockReset()
@@ -385,6 +391,47 @@ describe('MoneyPurchasesPanel', () => {
     expect(screen.getByText('upc')).toBeInTheDocument()
     expect(screen.getByText('Price history')).toBeInTheDocument()
     expect(screen.getByText('Merge duplicate')).toBeInTheDocument()
+  })
+
+  it('lets product detail category changes become product rules', async () => {
+    const user = userEvent.setup()
+    categorizeItemMutateAsync.mockResolvedValue(true)
+    const product = buildProduct(1)
+    mockCatalog([product])
+    useHouseholdProductDetailMock.mockReturnValue({
+      data: {
+        generatedAt: '2026-06-01T00:00:00Z',
+        product,
+        identifiers: [],
+        observations: product.pricePoints,
+        recentItems: [buildReviewItem({ id: 'item-product-rule-1' })],
+      },
+      isLoading: false,
+    })
+
+    render(<MoneyPurchasesPanel priceInsights={[]} />)
+
+    await user.click(screen.getByRole('button', { name: 'Details' }))
+    await user.click(
+      screen.getByRole('checkbox', {
+        name: 'Product rule for Category for GV OLIVE OIL 17OZ',
+      }),
+    )
+    await user.click(screen.getByLabelText('Category for GV OLIVE OIL 17OZ'))
+    await user.click(screen.getByRole('option', { name: 'Household' }))
+
+    expect(categorizeItemMutateAsync).toHaveBeenCalledWith({
+      itemId: 'item-product-rule-1',
+      category: 'Groceries',
+      essentiality: 'essential',
+      applyToProduct: true,
+    })
+    expect(categorizeItemMutateAsync).toHaveBeenCalledWith({
+      itemId: 'item-product-rule-1',
+      category: 'Household',
+      essentiality: 'essential',
+      applyToProduct: true,
+    })
   })
 
   it('renders the relocated Price Signals table with signal badges', () => {

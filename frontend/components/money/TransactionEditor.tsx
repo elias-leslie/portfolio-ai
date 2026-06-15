@@ -28,7 +28,11 @@ export function TransactionEditor({
   onCommitCategory,
 }: TransactionEditorProps) {
   const isItemizedSlice = Boolean(transaction.splitParentId)
-  const [applyToMerchant, setApplyToMerchant] = useState(false)
+  const [applyToMerchant, setApplyToMerchant] = useState<boolean | null>(null)
+  const hasMerchantRule =
+    transaction.transactionRuleId != null ||
+    transaction.categorizationSource === 'merchant_rule'
+  const merchantRuleChecked = applyToMerchant ?? hasMerchantRule
 
   return (
     <div
@@ -89,7 +93,7 @@ export function TransactionEditor({
             options={categoryOptions}
             disabled={categorizePending}
             ruleLabel="Merchant rule"
-            ruleChecked={applyToMerchant}
+            ruleChecked={merchantRuleChecked}
             onRuleCheckedChange={setApplyToMerchant}
             className="w-[220px]"
             onCommit={(category, options) =>

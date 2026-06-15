@@ -1,6 +1,12 @@
 import { ArrowRight, PlusCircle, Trash2 } from 'lucide-react'
 import Link from 'next/link'
+import { useMemo, useState } from 'react'
 import { InfoBadge } from '@/components/shared/InfoBadge'
+import {
+  nextSortDirection,
+  SortableTableHeader,
+  type SortDirection,
+} from '@/components/shared/SortableTableHeader'
 import {
   AccordionContent,
   AccordionItem,
@@ -20,7 +26,22 @@ import type { Account, PositionWithValue } from '@/lib/api/portfolio'
 import { formatCurrency, formatPercent } from '@/lib/formatters'
 import { formatRelativeTime } from '@/lib/utils'
 import { PositionTableRow } from './PositionTableRow'
-import { getAccountPositions } from './portfolio-utils'
+import {
+  getAccountPositions,
+  getPositionCostBasisTotal,
+  getPositionPnlDollars,
+  getPositionPnlPercent,
+  needsPositionBasisReview,
+} from './portfolio-utils'
+
+type PositionSortKey =
+  | 'symbol'
+  | 'shares'
+  | 'costBasis'
+  | 'currentPrice'
+  | 'value'
+  | 'pnlDollars'
+  | 'pnlPercent'
 
 interface AccountAccordionItemProps {
   account: Account
@@ -97,14 +118,53 @@ export function AccountAccordionItem({
   isDeleting,
   isDeletingPosition,
 }: AccountAccordionItemProps) {
+  const [sortKey, setSortKey] = useState<PositionSortKey>('value')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const positions = getAccountPositions(account.id, allPositions)
+  const sortedPositions = useMemo(() => {
+    const direction = sortDirection === 'asc' ? 1 : -1
+    return [...positions].sort((left, right) => {
+      let result = 0
+      switch (sortKey) {
+        case 'symbol':
+          result = left.symbol.localeCompare(right.symbol, undefined, {
+            sensitivity: 'base',
+          })
+          break
+        case 'shares':
+          result = left.shares - right.shares
+          break
+        case 'costBasis':
+          result = left.costBasis - right.costBasis
+          break
+        case 'currentPrice':
+          result = (left.currentPrice || 0) - (right.currentPrice || 0)
+          break
+        case 'value':
+          result = (left.currentValue || 0) - (right.currentValue || 0)
+          break
+        case 'pnlDollars':
+          result = getPositionPnlDollars(left) - getPositionPnlDollars(right)
+          break
+        case 'pnlPercent':
+          result = getPositionPnlPercent(left) - getPositionPnlPercent(right)
+          break
+      }
+      return (
+        result * direction ||
+        left.symbol.localeCompare(right.symbol, undefined, {
+          sensitivity: 'base',
+        })
+      )
+    })
+  }, [positions, sortDirection, sortKey])
   const cashBalance = linkedHouseholdAccount?.cashBalance ?? account.cashBalance
   const positionsValue = positions.reduce(
     (sum, position) => sum + (position.currentValue || 0),
     0,
   )
   const positionsCostBasis = positions.reduce(
-    (sum, position) => sum + position.shares * position.costBasis,
+    (sum, position) => sum + getPositionCostBasisTotal(position),
     0,
   )
   const totalValue =
@@ -187,6 +247,38 @@ export function AccountAccordionItem({
     householdLinkageState === 'stale_evidence'
       ? 'Refresh evidence'
       : 'Review in Money'
+  const basisReviewCount = positions.filter(needsPositionBasisReview).length
+  const snapTradePositionCount = positions.filter(
+    (position) => position.source === 'snaptrade',
+  ).length
+  const snapTradeSyncs = positions
+    .map((position) => position.sourceUpdatedAt)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+  const snapTradeLastSyncedAt =
+    snapTradeSyncs.length > 0 ? snapTradeSyncs[snapTradeSyncs.length - 1] : null
+  const snapTradeDetail =
+    snapTradePositionCount > 0
+      ? [
+          'Broker-supplied lots include snapshot price, market value, basis, and security type when available.',
+          snapTradeLastSyncedAt
+            ? `Last sync ${formatRelativeTime(snapTradeLastSyncedAt)}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(' ')
+      : null
+
+  function defaultSortDirection(field: PositionSortKey): SortDirection {
+    return field === 'symbol' ? 'asc' : 'desc'
+  }
+
+  function handleSort(field: PositionSortKey) {
+    setSortDirection((current) =>
+      nextSortDirection(sortKey, field, current, defaultSortDirection(field)),
+    )
+    setSortKey(field)
+  }
 
   return (
     <AccordionItem
@@ -236,6 +328,13 @@ export function AccountAccordionItem({
                         Cash {formatCurrency(cashBalance)}
                       </span>
                     )}
+                    {basisReviewCount > 0 ? (
+                      <InfoBadge
+                        label={`${basisReviewCount} basis review${basisReviewCount === 1 ? '' : 's'}`}
+                        detail="Review lots where basis per share is far below the current quote. This can be valid for very old lots, but it is often a stale or partial broker basis."
+                        variant="warning"
+                      />
+                    ) : null}
                   </>
                 )}
               </div>
@@ -260,6 +359,13 @@ export function AccountAccordionItem({
                     variant={linkedFreshnessVariant(
                       linkedHouseholdAccount?.balanceFreshnessStatus,
                     )}
+                  />
+                ) : null}
+                {snapTradePositionCount > 0 ? (
+                  <InfoBadge
+                    label={`${snapTradePositionCount} SnapTrade lot${snapTradePositionCount === 1 ? '' : 's'}`}
+                    detail={snapTradeDetail ?? undefined}
+                    variant="success"
                   />
                 ) : null}
                 {linkedHouseholdAccount?.institutionName ? (
@@ -317,18 +423,80 @@ export function AccountAccordionItem({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Symbol</TableHead>
-                  <TableHead className="text-right">Shares</TableHead>
-                  <TableHead className="text-right">Cost Basis</TableHead>
-                  <TableHead className="text-right">Current Price</TableHead>
-                  <TableHead className="text-right">Value</TableHead>
-                  <TableHead className="text-right">P&L $</TableHead>
-                  <TableHead className="text-right">P&L %</TableHead>
+                  <TableHead>
+                    <SortableTableHeader
+                      field="symbol"
+                      label="Symbol"
+                      activeField={sortKey}
+                      direction={sortDirection}
+                      onSort={handleSort}
+                    />
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <SortableTableHeader
+                      field="shares"
+                      label="Shares"
+                      activeField={sortKey}
+                      direction={sortDirection}
+                      onSort={handleSort}
+                      align="right"
+                    />
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <SortableTableHeader
+                      field="costBasis"
+                      label="Cost / sh"
+                      activeField={sortKey}
+                      direction={sortDirection}
+                      onSort={handleSort}
+                      align="right"
+                    />
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <SortableTableHeader
+                      field="currentPrice"
+                      label="Price"
+                      activeField={sortKey}
+                      direction={sortDirection}
+                      onSort={handleSort}
+                      align="right"
+                    />
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <SortableTableHeader
+                      field="value"
+                      label="Value"
+                      activeField={sortKey}
+                      direction={sortDirection}
+                      onSort={handleSort}
+                      align="right"
+                    />
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <SortableTableHeader
+                      field="pnlDollars"
+                      label="P&L $"
+                      activeField={sortKey}
+                      direction={sortDirection}
+                      onSort={handleSort}
+                      align="right"
+                    />
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <SortableTableHeader
+                      field="pnlPercent"
+                      label="P&L %"
+                      activeField={sortKey}
+                      direction={sortDirection}
+                      onSort={handleSort}
+                      align="right"
+                    />
+                  </TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {positions.map((position) => (
+                {sortedPositions.map((position) => (
                   <PositionTableRow
                     key={position.id}
                     position={position}

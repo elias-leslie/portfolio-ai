@@ -3,6 +3,10 @@
 import { useDeferredValue, useEffect, useState } from 'react'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
+import {
+  nextSortDirection,
+  type SortDirection,
+} from '@/components/shared/SortableTableHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { HouseholdPriceInsight } from '@/lib/api/household'
@@ -23,7 +27,6 @@ import { ProductDetailSheet } from './ProductDetailSheet'
 import { ProductMatchReviewCard } from './ProductMatchReviewCard'
 import { PurchaseFindingsList } from './PurchaseFindingsList'
 import { ShoppingListsCard } from './ShoppingListsCard'
-import { nextSortDirection, type SortDirection } from './SortableTableHeader'
 
 const PRODUCT_PAGE_SIZE = 50
 

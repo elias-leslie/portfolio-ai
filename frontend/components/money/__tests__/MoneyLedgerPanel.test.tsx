@@ -216,7 +216,7 @@ describe('MoneyLedgerPanel', () => {
 
     render(<MoneyLedgerPanel />)
 
-    await user.click(screen.getByRole('button', { name: 'Merchant' }))
+    await user.click(screen.getByRole('button', { name: 'Sort by Merchant' }))
 
     expect(lastLedgerParams().sort).toBe('detail')
   })
@@ -327,7 +327,9 @@ describe('MoneyLedgerPanel', () => {
 
     render(<MoneyLedgerPanel />)
 
-    await user.click(screen.getByRole('checkbox', { name: 'Merchant rule' }))
+    await user.click(
+      screen.getByRole('checkbox', { name: /Merchant rule for Category for/ }),
+    )
     await user.click(screen.getByLabelText('Category for Merchant 001'))
     await user.click(screen.getByRole('option', { name: /Personal Care/ }))
 
@@ -467,7 +469,9 @@ describe('MoneyLedgerPanel', () => {
     render(<MoneyLedgerPanel />)
 
     await user.click(
-      screen.getAllByRole('checkbox', { name: 'Product rule' })[0],
+      screen.getByRole('checkbox', {
+        name: 'Product rule for Category for Item 1',
+      }),
     )
     await user.click(screen.getByLabelText('Category for Item 1'))
     await user.click(screen.getByRole('option', { name: 'Household' }))

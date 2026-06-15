@@ -1,5 +1,9 @@
 'use client'
 
+import {
+  SortableTableHeader,
+  type SortDirection,
+} from '@/components/shared/SortableTableHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type { HouseholdProductSummary } from '@/lib/api/household'
@@ -7,7 +11,6 @@ import { formatCurrency } from '@/lib/formatters'
 import { formatLedgerDate } from './ledger-helpers'
 import { PriceHistorySparkline } from './PriceHistorySparkline'
 import { PurchaseItemOwnerSelect } from './PurchaseItemOwnerSelect'
-import { SortableTableHeader, type SortDirection } from './SortableTableHeader'
 
 export type ProductCatalogScope = 'active' | 'archived' | 'all'
 export type ProductCatalogSort =

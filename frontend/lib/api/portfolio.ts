@@ -46,6 +46,17 @@ export interface PositionWithValue extends Position {
   gainPct: number
   priceUpdatedAt?: string | null
   priceSource?: string | null
+  source?: 'manual' | 'snaptrade' | string
+  sourceAccountId?: string | null
+  sourcePositionKey?: string | null
+  rawSymbol?: string | null
+  securityKind?: string | null
+  averagePurchasePrice?: number | null
+  sourceCostBasis?: number | null
+  sourceMarketValue?: number | null
+  sourcePrice?: number | null
+  sourceCurrency?: string | null
+  sourceUpdatedAt?: string | null
 }
 
 export interface PortfolioResponse {

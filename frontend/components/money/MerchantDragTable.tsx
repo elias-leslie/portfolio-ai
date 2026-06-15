@@ -3,17 +3,17 @@
 import { useMemo, useState } from 'react'
 import { merchantPlaybook } from '@/components/money/lever-helpers'
 import type { MerchantAggregate } from '@/components/money/merchant-aggregation'
+import {
+  nextSortDirection,
+  SortableTableHeader,
+  type SortDirection,
+} from '@/components/shared/SortableTableHeader'
 import { Badge } from '@/components/ui/badge'
 import {
   formatCurrency,
   formatEnumLabel,
   formatPercent,
 } from '@/lib/formatters'
-import {
-  nextSortDirection,
-  SortableTableHeader,
-  type SortDirection,
-} from './SortableTableHeader'
 
 type MerchantDragSortKey =
   | 'merchant'

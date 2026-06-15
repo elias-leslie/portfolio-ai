@@ -292,6 +292,80 @@ describe('AccountsWithPositions', () => {
     expect(handleAddPosition).toHaveBeenCalledWith('acct-1')
   })
 
+  it('surfaces SnapTrade lot metadata and sortable holdings columns', async () => {
+    const user = userEvent.setup()
+    mockUseAccounts.mockReturnValue({
+      data: [
+        {
+          id: 'acct-1',
+          name: 'Brokerage',
+          accountType: 'Taxable',
+          householdAccountId: null,
+          householdLinkageState: 'unmapped',
+          householdLinkageLabel: 'Unmapped investment account',
+          cashBalance: 0,
+          createdAt: '2026-06-15T17:12:00Z',
+          updatedAt: '2026-06-15T17:12:00Z',
+        },
+      ],
+      isLoading: false,
+    })
+    mockUsePortfolio.mockReturnValue({
+      data: {
+        positions: [
+          {
+            id: 'snaptrade-source-vti',
+            accountId: 'acct-1',
+            symbol: 'VTI',
+            shares: 994.409,
+            costBasis: 0.26,
+            positionType: 'long',
+            createdAt: '2026-06-15T17:12:00Z',
+            updatedAt: '2026-06-15T17:12:00Z',
+            currentPrice: 372.34,
+            currentValue: 370258.25,
+            gain: 370000,
+            gainPct: 144638,
+            priceSource: 'snaptrade',
+            priceUpdatedAt: '2026-06-15T17:12:00Z',
+            source: 'snaptrade',
+            sourceAccountId: 'source-account',
+            sourcePositionKey: 'VTI',
+            rawSymbol: 'VTI',
+            securityKind: 'etf',
+            averagePurchasePrice: 0.26,
+            sourceCostBasis: 258.55,
+            sourceMarketValue: 370258.25,
+            sourcePrice: 372.34,
+            sourceCurrency: 'USD',
+            sourceUpdatedAt: '2026-06-15T17:12:00Z',
+          },
+        ],
+        cashBalanceTotal: 0,
+        totalValue: 370258.25,
+        totalCostBasis: 258.55,
+        totalGain: 370000,
+        totalGainPct: 144638,
+      },
+      isLoading: false,
+    })
+
+    render(<AccountsWithPositions />)
+
+    expect(screen.getAllByText('1 SnapTrade lot').length).toBeGreaterThan(0)
+    expect(screen.getByText('Total holdings')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: /BrokerageTaxable/ }))
+    expect(screen.getByRole('button', { name: 'Sort by Symbol' })).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Sort by Cost / sh' }),
+    ).toBeVisible()
+    expect(screen.getAllByText(/SnapTrade lot/).length).toBeGreaterThan(0)
+    expect(screen.getByText('ETF')).toBeInTheDocument()
+    expect(screen.getByText('broker snapshot')).toBeInTheDocument()
+    expect(screen.getByText('avg paid $0.26')).toBeInTheDocument()
+    expect(screen.getByText('Basis review')).toBeInTheDocument()
+  })
+
   it('shows a retryable error state when account data fails', async () => {
     const user = userEvent.setup()
     const retryAccounts = vi.fn()

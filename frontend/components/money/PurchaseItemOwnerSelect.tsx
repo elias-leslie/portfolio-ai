@@ -40,6 +40,7 @@ export function PurchaseItemOwnerSelect({
   const setOwner = useSetPurchaseItemOwner()
   const listId = `owner-options-${itemId}`
   const inputId = `owner-${itemId}`
+  const ruleId = `owner-product-rule-${itemId}`
   const sourceLabel = explicitOwner
     ? ownerSource && ownerSource !== 'none'
       ? ownerSource.replace(/_/g, ' ')
@@ -137,10 +138,12 @@ export function PurchaseItemOwnerSelect({
         {sourceLabel}
       </p>
       {!forceProductRule ? (
-        <label className="mt-1 flex items-center gap-1 text-[10px] leading-none text-text-muted">
+        <div className="mt-1 flex items-center gap-1 text-[10px] leading-none text-text-muted">
           <Checkbox
+            id={ruleId}
             checked={applyToProduct}
             disabled={setOwner.isPending}
+            aria-label={`Product rule for owner of ${itemLabel}`}
             className="h-3 w-3"
             onCheckedChange={(checked) => {
               const nextApply = checked === true
@@ -150,9 +153,24 @@ export function PurchaseItemOwnerSelect({
               }
             }}
           />
+          <Label
+            htmlFor={ruleId}
+            className="cursor-pointer text-[10px] font-normal leading-none text-text-muted"
+          >
+            Product rule
+          </Label>
+        </div>
+      ) : (
+        <div className="mt-1 flex items-center gap-1 text-[10px] leading-none text-text-muted">
+          <Checkbox
+            checked
+            disabled
+            aria-label={`Product rule for owner of ${itemLabel}`}
+            className="h-3 w-3"
+          />
           <span>Product rule</span>
-        </label>
-      ) : null}
+        </div>
+      )}
       {open ? (
         <div
           id={listId}

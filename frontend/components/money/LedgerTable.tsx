@@ -1,3 +1,4 @@
+import { SortableTableHeader } from '@/components/shared/SortableTableHeader'
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/formatters'
 import type { InlineComboboxCommitOptions } from './InlineComboboxField'
@@ -8,7 +9,6 @@ import {
   type LedgerSortKey,
   type LedgerStatus,
 } from './ledger-helpers'
-import { SortableTableHeader } from './SortableTableHeader'
 
 interface LedgerTableProps {
   timeframeLabel?: string | null

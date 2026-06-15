@@ -2,6 +2,11 @@
 
 import { useMemo, useState } from 'react'
 import { formatLeverDate } from '@/components/money/lever-helpers'
+import {
+  nextSortDirection,
+  SortableTableHeader,
+  type SortDirection,
+} from '@/components/shared/SortableTableHeader'
 import { Badge } from '@/components/ui/badge'
 import type { HouseholdPriceInsight } from '@/lib/api/household'
 import {
@@ -9,11 +14,6 @@ import {
   formatEnumLabel,
   formatPercent,
 } from '@/lib/formatters'
-import {
-  nextSortDirection,
-  SortableTableHeader,
-  type SortDirection,
-} from './SortableTableHeader'
 
 type PriceSignalSortKey =
   | 'item'

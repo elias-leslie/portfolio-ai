@@ -397,7 +397,9 @@ describe('MoneyBudgetPanel', () => {
     render(<MoneyBudgetPanel />)
 
     await user.click(budgetCategoryButton('Household'))
-    await user.click(screen.getByRole('checkbox', { name: 'Merchant rule' }))
+    await user.click(
+      screen.getByRole('checkbox', { name: /Merchant rule for Category for/ }),
+    )
     await user.click(screen.getByLabelText('Category for Walmart'))
     await user.click(screen.getByRole('option', { name: 'Groceries' }))
 
