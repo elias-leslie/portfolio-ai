@@ -133,9 +133,9 @@ def test_conditions_payload_applies_current_tape_stress_overlay() -> None:
     assert payload["deployment_score"] == 65.0
     assert payload["flags"] == []
     assert payload["summary"] == "Selective — tape pressure is elevated, but macro stress is not severe."
-    assert "Do not chase the selloff" in payload["action_text"]
+    assert "Do not chase short-term tape moves" in payload["action_text"]
     assert "Tape pressure is the main caution" in payload["what_matters"][0]
-    assert "Do not chase the selloff" in payload["what_to_do"][0]
+    assert "Do not chase weak tape" in payload["what_to_do"][0]
 
     evidence_by_key = {item["key"]: item for item in payload["evidence"]}
     assert evidence_by_key["overall_caution"]["value"] == "42"
@@ -197,6 +197,32 @@ def test_conditions_payload_keeps_sixty_tape_stress_as_caution() -> None:
 
     evidence_by_key = {item["key"]: item for item in payload["evidence"]}
     assert evidence_by_key["overall_caution"]["tone"] == "warning"
+
+
+def test_conditions_payload_does_not_call_green_market_a_selloff() -> None:
+    payload = conditions.build_conditions_payload(
+        _snapshot(deployment_score=60.0),
+        tape_stress=conditions.TapeStressEvidence(
+            stress_score=55,
+            as_of="2026-06-15T13:32:00+00:00",
+            sp500_change_pct=1.5,
+            weakest_sector_symbol="XLE",
+            weakest_sector_name="Energy",
+            weakest_sector_change_pct=-4.1,
+            negative_sector_count=4,
+            sector_count=11,
+        ),
+    )
+
+    headline = payload["driving"]["headline"]
+    assert "market higher, but weak pockets remain" in headline
+    assert "S&P +1.5%" in headline
+    assert "Energy -4.1%" in headline
+    assert "4/11 sectors down" in headline
+    assert "broadly lower" not in headline
+    assert "selloff" not in payload["action_text"]
+    assert "not broad index selling" in payload["what_matters"][0]
+    assert "green index" in payload["what_to_do"][0]
 
 
 def test_conditions_payload_escalates_on_severe_current_tape_stress() -> None:

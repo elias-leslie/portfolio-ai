@@ -476,6 +476,29 @@ def _tape_detail(tape_stress: TapeStressEvidence | None) -> str:
     return "Current tape pressure unavailable"
 
 
+def _broad_sector_selling(tape_stress: TapeStressEvidence | None) -> bool:
+    if tape_stress is None or tape_stress.sector_count <= 0:
+        return False
+    return tape_stress.negative_sector_count > tape_stress.sector_count / 2
+
+
+def _tape_market_cue(tape_stress: TapeStressEvidence) -> str:
+    detail = _tape_detail(tape_stress)
+    sp500_change = tape_stress.sp500_change_pct
+    broad_sector_selling = _broad_sector_selling(tape_stress)
+    if sp500_change is not None and sp500_change < 0:
+        if broad_sector_selling:
+            return f"stocks broadly lower ({detail})"
+        return f"index lower, with weak pockets ({detail})"
+    if broad_sector_selling:
+        return f"sector selling broad despite the index holding up ({detail})"
+    if tape_stress.negative_sector_count > 0:
+        if sp500_change is not None and sp500_change > 0:
+            return f"market higher, but weak pockets remain ({detail})"
+        return f"weak pockets remain ({detail})"
+    return f"tape pressure elevated ({detail})"
+
+
 def _as_date(value: object) -> date | None:
     if isinstance(value, datetime):
         return value.date()
@@ -1014,7 +1037,7 @@ def _state_copy(*, overall_read: str, primary_driver: str) -> tuple[str, str]:
         ),
         "tape": (
             "Selective — tape pressure is elevated, but macro stress is not severe.",
-            "Stay invested, but be selective. Do not chase the selloff; scale only into highest-conviction buys while the tape stabilizes.",
+            "Stay invested, but be selective. Do not chase short-term tape moves; scale only into highest-conviction buys while the tape stabilizes.",
         ),
         "both": (
             "Selective — buying conditions are weaker and tape pressure is elevated.",
@@ -1071,7 +1094,7 @@ def _driving_read(
         tape_stress is not None and tape_stress.negative_sector_count > 0
     )
     if tape_active and tape_stress is not None:
-        cues.append(f"stocks broadly lower ({_tape_detail(tape_stress)})")
+        cues.append(_tape_market_cue(tape_stress))
     elif primary_driver in {"macro", "data_limited"}:
         cues.append("buying conditions softening beneath the surface")
     if vix_close is not None and vix_close >= 20:
@@ -1112,13 +1135,23 @@ def _what_matters(
 
     if primary_driver == "tape":
         first = (
-            f"Tape pressure is the main caution ({_tape_detail(tape_stress)}), even though macro stress is not severe."
+            f"Tape pressure is from weak pockets ({_tape_detail(tape_stress)}), not broad index selling."
+            if tape_stress is not None
+            and tape_stress.sp500_change_pct is not None
+            and tape_stress.sp500_change_pct >= 0
+            and not _broad_sector_selling(tape_stress)
+            else f"Tape pressure is the main caution ({_tape_detail(tape_stress)}), even though macro stress is not severe."
         )
     elif primary_driver == "macro":
         first = "Buying conditions are weaker, so new risk deserves more scrutiny."
     elif primary_driver == "both":
         first = (
-            f"Buying conditions and current tape pressure are both elevated ({_tape_detail(tape_stress)})."
+            f"Buying conditions are weaker and tape pressure is from weak pockets ({_tape_detail(tape_stress)})."
+            if tape_stress is not None
+            and tape_stress.sp500_change_pct is not None
+            and tape_stress.sp500_change_pct >= 0
+            and not _broad_sector_selling(tape_stress)
+            else f"Buying conditions and current tape pressure are both elevated ({_tape_detail(tape_stress)})."
         )
     elif primary_driver == "data_limited":
         first = (
@@ -1172,8 +1205,16 @@ def _what_to_do(
     if primary_driver == "tape" or (
         tape_stress is not None and tape_stress.stress_score >= SELECTIVE_CAUTION_THRESHOLD
     ):
+        tape_guardrail = (
+            "Do not treat a green index as an all-clear while weak sectors are under pressure."
+            if tape_stress is not None
+            and tape_stress.sp500_change_pct is not None
+            and tape_stress.sp500_change_pct >= 0
+            and tape_stress.negative_sector_count > 0
+            else "Do not chase weak tape while pressure is elevated."
+        )
         return [
-            "Do not chase the selloff while the tape is still under pressure.",
+            tape_guardrail,
             "If adding money, scale only into highest-conviction setups.",
             "Review concentration in the weakest sector before adding more.",
         ]

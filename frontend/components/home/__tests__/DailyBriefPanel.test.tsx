@@ -145,7 +145,7 @@ const conditions = {
   summary:
     'Selective — tape pressure is elevated, but macro stress is not severe.',
   actionText:
-    'Stay invested, but be selective. Do not chase the selloff; scale only into highest-conviction buys while the tape stabilizes.',
+    'Stay invested, but be selective. Do not chase short-term tape moves; scale only into highest-conviction buys while the tape stabilizes.',
   driving: {
     headline:
       'Cautious — stocks broadly lower (Technology -4.1%, 6/11 sectors down).',
