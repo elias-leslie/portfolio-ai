@@ -38,7 +38,7 @@ export function ProductDetailSheet({
   const categoryOwnerMap = useCategoryOwnerMap()
   const mergeQuery = mergeSearch.trim()
   const { data: mergeCandidates } = useHouseholdProducts(
-    mergeQuery ? { search: mergeQuery, limit: 5 } : undefined,
+    mergeQuery ? { search: mergeQuery, scope: 'all', limit: 5 } : undefined,
   )
 
   function close() {

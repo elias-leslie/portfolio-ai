@@ -87,13 +87,20 @@ async def link_purchase_groups() -> dict[str, int]:
 async def list_household_products(
     search: str = "",
     sort: str = "recent",
+    sort_dir: str = "desc",
+    scope: str = "active",
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> HouseholdProductList:
     """Return the paginated product catalog with sparkline price points."""
     return await run_in_threadpool(
         lambda: _catalog().list_products(
-            search=search, sort=sort, limit=limit, offset=offset
+            search=search,
+            sort=sort,
+            sort_dir=sort_dir,
+            scope=scope,
+            limit=limit,
+            offset=offset,
         )
     )
 

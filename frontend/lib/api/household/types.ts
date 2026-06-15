@@ -1333,6 +1333,7 @@ export interface HouseholdProductSummary {
   latestPrice?: number | null
   latestUnitPrice?: number | null
   latestMerchant?: string | null
+  catalogStatus: 'active' | 'archived'
   ownerItemId?: string | null
   ownerName?: string | null
   ownerSource: string
@@ -1370,7 +1371,16 @@ export interface HouseholdPurchaseItemReviewQueue {
 
 export interface HouseholdProductListParams {
   search?: string
-  sort?: 'recent' | 'frequency' | 'name'
+  sort?:
+    | 'recent'
+    | 'frequency'
+    | 'name'
+    | 'price'
+    | 'unit_price'
+    | 'owner'
+    | 'review'
+  sortDir?: 'asc' | 'desc'
+  scope?: 'active' | 'archived' | 'all'
   limit?: number
   offset?: number
 }

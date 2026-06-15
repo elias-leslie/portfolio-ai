@@ -132,7 +132,14 @@ def test_list_products_builds_summaries_with_latest_price_from_points() -> None:
         price_point_rows=_POINT_ROWS,
     )
 
-    catalog = _service(conn).list_products(search="edamame", limit=10, offset=0)
+    catalog = _service(conn).list_products(
+        search="edamame",
+        sort="name",
+        sort_dir="asc",
+        scope="archived",
+        limit=10,
+        offset=0,
+    )
 
     assert catalog.total_count == 1
     assert catalog.needs_review_total == 3
@@ -149,6 +156,9 @@ def test_list_products_builds_summaries_with_latest_price_from_points() -> None:
     # Search reaches the SQL as an ILIKE pattern.
     products_sql, products_params = conn.queries[0]
     assert "ILIKE" in products_sql
+    assert "NOT (" in products_sql
+    assert "COALESCE(CASE" in products_sql
+    assert "LOWER(p.canonical_name) ASC" in products_sql
     assert products_params[0] == "%edamame%"
 
 
@@ -212,7 +222,7 @@ def test_assign_product_delegates_and_commits() -> None:
             calls.append({"source": source_product_id, "target": target_product_id})
             return True
 
-    service.normalization_service = _Normalization()  # type: ignore[assignment]
+    service.normalization_service = _Normalization()
 
     assert service.assign_product(item_id="item-1", action="confirm") is True
     assert service.merge_products(source_product_id="a", target_product_id="b") is True

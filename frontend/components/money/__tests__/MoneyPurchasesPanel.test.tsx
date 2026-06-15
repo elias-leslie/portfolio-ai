@@ -83,6 +83,7 @@ function buildProduct(index: number, overrides = {}) {
     latestPrice: 4.5,
     latestUnitPrice: 0.38,
     latestMerchant: 'Walmart',
+    catalogStatus: 'active',
     ownerItemId: `item-product-${padded}`,
     ownerName: null,
     ownerSource: 'none',
@@ -250,7 +251,7 @@ describe('MoneyPurchasesPanel', () => {
     })
   })
 
-  it('requests the next page by offset and switches sort', async () => {
+  it('requests the next page by offset, switches row set, and sorts by headers', async () => {
     const user = userEvent.setup()
     mockCatalog(
       Array.from({ length: 50 }, (_, i) => buildProduct(i + 1)),
@@ -264,9 +265,21 @@ describe('MoneyPurchasesPanel', () => {
     await user.click(screen.getAllByRole('button', { name: 'Next' }).at(-1)!)
     expect(lastCatalogParams().offset).toBe(50)
 
-    await user.click(screen.getByRole('button', { name: 'A-Z' }))
+    await user.click(screen.getByRole('button', { name: 'Archived' }))
     await waitFor(() => {
-      expect(lastCatalogParams()).toMatchObject({ sort: 'name', offset: 0 })
+      expect(lastCatalogParams()).toMatchObject({
+        scope: 'archived',
+        offset: 0,
+      })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Sort by Product' }))
+    await waitFor(() => {
+      expect(lastCatalogParams()).toMatchObject({
+        sort: 'name',
+        sortDir: 'asc',
+        offset: 0,
+      })
     })
   })
 

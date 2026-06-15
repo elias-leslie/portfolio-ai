@@ -814,6 +814,7 @@ class HouseholdProductSummary(BaseModel):
     latest_price: float | None = None
     latest_unit_price: float | None = None
     latest_merchant: str | None = None
+    catalog_status: str = "active"
     owner_item_id: str | None = None
     owner_name: str | None = None
     owner_source: str = "none"

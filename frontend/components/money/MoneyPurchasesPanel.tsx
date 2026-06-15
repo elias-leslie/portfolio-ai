@@ -14,20 +14,23 @@ import {
 } from '@/lib/hooks/useHouseholdPurchases'
 import { PriceCheckStatusCard } from './PriceCheckStatusCard'
 import { PriceSignalsTable } from './PriceSignalsTable'
-import { ProductCatalogTable } from './ProductCatalogTable'
+import {
+  type ProductCatalogScope,
+  type ProductCatalogSort,
+  ProductCatalogTable,
+} from './ProductCatalogTable'
 import { ProductDetailSheet } from './ProductDetailSheet'
 import { ProductMatchReviewCard } from './ProductMatchReviewCard'
 import { PurchaseFindingsList } from './PurchaseFindingsList'
 import { ShoppingListsCard } from './ShoppingListsCard'
+import { nextSortDirection, type SortDirection } from './SortableTableHeader'
 
 const PRODUCT_PAGE_SIZE = 50
 
-type ProductSort = 'recent' | 'frequency' | 'name'
-
-const productSorts: Array<{ value: ProductSort; label: string }> = [
-  { value: 'recent', label: 'Recent' },
-  { value: 'frequency', label: 'Most bought' },
-  { value: 'name', label: 'A-Z' },
+const productScopes: Array<{ value: ProductCatalogScope; label: string }> = [
+  { value: 'active', label: 'Active' },
+  { value: 'archived', label: 'Archived' },
+  { value: 'all', label: 'All' },
 ]
 
 interface MoneyPurchasesPanelProps {
@@ -38,7 +41,9 @@ export function MoneyPurchasesPanel({
   priceInsights,
 }: MoneyPurchasesPanelProps) {
   const [search, setSearch] = useState('')
-  const [sort, setSort] = useState<ProductSort>('recent')
+  const [sort, setSort] = useState<ProductCatalogSort>('recent')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const [scope, setScope] = useState<ProductCatalogScope>('active')
   const [currentPage, setCurrentPage] = useState(1)
   const [openProductId, setOpenProductId] = useState<string | null>(null)
   const deferredSearch = useDeferredValue(search.trim())
@@ -53,6 +58,8 @@ export function MoneyPurchasesPanel({
   } = useHouseholdProducts({
     search: deferredSearch || undefined,
     sort,
+    sortDir: sortDirection,
+    scope,
     limit: PRODUCT_PAGE_SIZE,
     offset,
   })
@@ -62,7 +69,7 @@ export function MoneyPurchasesPanel({
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [deferredSearch, sort])
+  }, [deferredSearch, scope, sort, sortDirection])
 
   const totalCount = catalog?.totalCount ?? 0
   const totalPages = Math.max(1, Math.ceil(totalCount / PRODUCT_PAGE_SIZE))
@@ -83,21 +90,32 @@ export function MoneyPurchasesPanel({
     )
   }
 
+  function defaultSortDirection(field: ProductCatalogSort): SortDirection {
+    return field === 'name' || field === 'owner' ? 'asc' : 'desc'
+  }
+
+  function handleSort(field: ProductCatalogSort) {
+    setSortDirection((current) =>
+      nextSortDirection(sort, field, current, defaultSortDirection(field)),
+    )
+    setSort(field)
+  }
+
   return (
     <div className="space-y-6">
       <SectionCard
         variant="surface"
         title="Product Catalog"
-        description="Every product seen on receipts and order history, with owner changes directly in the row."
+        description="Active shows products seen in the last 18 months; Archived keeps older receipt/order-history evidence without crowding routine planning."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            {productSorts.map((option) => (
+            {productScopes.map((option) => (
               <Button
                 key={option.value}
                 type="button"
                 size="sm"
-                variant={sort === option.value ? 'default' : 'outline'}
-                onClick={() => setSort(option.value)}
+                variant={scope === option.value ? 'default' : 'outline'}
+                onClick={() => setScope(option.value)}
               >
                 {option.label}
               </Button>
@@ -127,6 +145,10 @@ export function MoneyPurchasesPanel({
           products={catalog?.products ?? []}
           isLoading={isLoading}
           hasData={Boolean(catalog)}
+          scope={scope}
+          sortKey={sort}
+          sortDirection={sortDirection}
+          onSort={handleSort}
           onOpenProduct={setOpenProductId}
         />
         <div className="mt-3 flex flex-col gap-3 text-xs text-text-muted md:flex-row md:items-center md:justify-between">

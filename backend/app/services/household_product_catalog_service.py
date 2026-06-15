@@ -25,11 +25,26 @@ _PRICE_POINT_CAP = 24
 _DETAIL_OBSERVATION_CAP = 200
 _DETAIL_ITEM_CAP = 50
 _REVIEW_QUEUE_CAP = 100
+_ACTIVE_PRODUCT_WINDOW_MONTHS = 18
 
-_PRODUCT_SORTS = {
-    "recent": "last_observed_date DESC NULLS LAST, purchase_count DESC",
-    "frequency": "purchase_count DESC, last_observed_date DESC NULLS LAST",
-    "name": "LOWER(p.canonical_name) ASC",
+_PRODUCT_LATEST_SEEN_SQL = (
+    "CASE "
+    "WHEN obs.last_observed_date IS NULL THEN items.last_purchase_date "
+    "WHEN items.last_purchase_date IS NULL THEN obs.last_observed_date "
+    "WHEN obs.last_observed_date >= items.last_purchase_date "
+    "THEN obs.last_observed_date "
+    "ELSE items.last_purchase_date "
+    "END"
+)
+
+_PRODUCT_SORT_COLUMNS = {
+    "recent": _PRODUCT_LATEST_SEEN_SQL,
+    "frequency": "COALESCE(items.purchase_count, 0)",
+    "name": "LOWER(p.canonical_name)",
+    "price": "latest_obs.total_price",
+    "unit_price": "latest_obs.unit_price",
+    "owner": "LOWER(COALESCE(owner_rule.owner_name, latest_item.owner_name, ''))",
+    "review": "COALESCE(items.needs_review_count, 0)",
 }
 
 
@@ -99,18 +114,41 @@ class HouseholdProductCatalogService:
         *,
         search: str = "",
         sort: str = "recent",
+        sort_dir: str = "desc",
+        scope: str = "active",
         limit: int = 50,
         offset: int = 0,
     ) -> HouseholdProductList:
         normalized_search = (search or "").strip()
-        order_by = _PRODUCT_SORTS.get((sort or "recent").strip().lower(), _PRODUCT_SORTS["recent"])
+        sort_key = (sort or "recent").strip().lower()
+        sort_column = _PRODUCT_SORT_COLUMNS.get(
+            sort_key, _PRODUCT_SORT_COLUMNS["recent"]
+        )
+        direction = "ASC" if (sort_dir or "desc").strip().lower() == "asc" else "DESC"
+        nulls = "NULLS FIRST" if direction == "ASC" else "NULLS LAST"
+        order_by = f"{sort_column} {direction} {nulls}"
+        if sort_key != "recent":
+            order_by = f"{order_by}, {_PRODUCT_LATEST_SEEN_SQL} DESC NULLS LAST"
         page_limit = max(1, min(int(limit), 200))
         page_offset = max(0, int(offset))
 
-        where = "TRUE"
+        active_sql = (
+            f"COALESCE({_PRODUCT_LATEST_SEEN_SQL} >= "
+            f"CURRENT_DATE - INTERVAL '{_ACTIVE_PRODUCT_WINDOW_MONTHS} months', FALSE) "
+            "OR COALESCE(items.needs_review_count, 0) > 0 "
+            "OR owner_rule.owner_name IS NOT NULL"
+        )
+        scope_key = (scope or "active").strip().lower()
+        scope_clause = {
+            "active": f"({active_sql})",
+            "archived": f"NOT ({active_sql})",
+            "all": "TRUE",
+        }.get(scope_key, f"({active_sql})")
+
+        where = scope_clause
         params: list[Any] = []
         if normalized_search:
-            where = "(p.canonical_name ILIKE %s OR p.brand ILIKE %s)"
+            where = f"({where}) AND (p.canonical_name ILIKE %s OR p.brand ILIKE %s)"
             like = f"%{normalized_search}%"
             params = [like, like]
 
@@ -126,6 +164,7 @@ class HouseholdProductCatalogService:
             items AS (
                 SELECT product_id,
                        COUNT(*) AS purchase_count,
+                       MAX(purchase_date) AS last_purchase_date,
                        COUNT(*) FILTER (
                            WHERE product_match_status = 'needs_review'
                        ) AS needs_review_count
@@ -152,6 +191,14 @@ class HouseholdProductCatalogService:
                   AND enabled IS TRUE
                   AND NULLIF(TRIM(metadata ->> 'owner_name'), '') IS NOT NULL
                 ORDER BY product_id, updated_at DESC
+            ),
+            latest_obs AS (
+                SELECT DISTINCT ON (product_id)
+                       product_id,
+                       total_price,
+                       unit_price
+                FROM household_product_price_observations
+                ORDER BY product_id, observed_date DESC NULLS LAST, created_at DESC
             )
             SELECT p.id, p.canonical_name, p.brand, p.package_display_label, p.image_url,
                    COALESCE(items.purchase_count, 0) AS purchase_count,
@@ -165,12 +212,14 @@ class HouseholdProductCatalogService:
                    CASE
                      WHEN owner_rule.owner_name IS NOT NULL THEN 'product_rule'
                      ELSE COALESCE(latest_item.owner_source, 'none')
-                   END AS owner_source
+                   END AS owner_source,
+                   CASE WHEN {active_sql} THEN 'active' ELSE 'archived' END AS catalog_status
             FROM household_products p
             LEFT JOIN obs ON obs.product_id = p.id
             LEFT JOIN items ON items.product_id = p.id
             LEFT JOIN latest_item ON latest_item.product_id = p.id
             LEFT JOIN owner_rule ON owner_rule.product_id = p.id
+            LEFT JOIN latest_obs ON latest_obs.product_id = p.id
             WHERE {where}
             ORDER BY {order_by}, p.id ASC
             LIMIT %s OFFSET %s
@@ -223,6 +272,7 @@ class HouseholdProductCatalogService:
             latest_price=latest.total_price if latest else None,
             latest_unit_price=latest.unit_price if latest else None,
             latest_merchant=latest.merchant if latest else None,
+            catalog_status=str(_row_value(row, 14, "active") or "active"),
             owner_item_id=str(row[11]) if _row_value(row, 11) else None,
             owner_name=str(row[12]) if _row_value(row, 12) else None,
             owner_source=str(_row_value(row, 13, "none") or "none"),

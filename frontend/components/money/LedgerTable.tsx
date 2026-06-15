@@ -1,7 +1,5 @@
-import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/formatters'
-import { cn } from '@/lib/utils'
 import type { InlineComboboxCommitOptions } from './InlineComboboxField'
 import { LedgerRow } from './LedgerRow'
 import {
@@ -10,17 +8,7 @@ import {
   type LedgerSortKey,
   type LedgerStatus,
 } from './ledger-helpers'
-
-function sortIcon(active: boolean, direction: 'asc' | 'desc') {
-  if (!active) {
-    return <ArrowUpDown className="h-3.5 w-3.5 text-text-muted" />
-  }
-  return direction === 'asc' ? (
-    <ArrowUp className="h-3.5 w-3.5 text-text" />
-  ) : (
-    <ArrowDown className="h-3.5 w-3.5 text-text" />
-  )
-}
+import { SortableTableHeader } from './SortableTableHeader'
 
 interface LedgerTableProps {
   timeframeLabel?: string | null
@@ -79,27 +67,6 @@ export function LedgerTable({
   categorizePending,
   onCommitCategory,
 }: LedgerTableProps) {
-  function headerButton(
-    label: string,
-    key: LedgerSortKey,
-    align: 'left' | 'right' = 'left',
-  ) {
-    const active = sortKey === key
-    return (
-      <button
-        type="button"
-        onClick={() => onToggleSort(key)}
-        className={cn(
-          'flex w-full items-center gap-1 font-semibold uppercase tracking-[0.16em] text-text-muted/80 transition-colors hover:text-text',
-          align === 'right' ? 'justify-end' : 'justify-start',
-        )}
-      >
-        <span>{label}</span>
-        {sortIcon(active, sortDirection)}
-      </button>
-    )
-  }
-
   return (
     <div className="mt-5 overflow-hidden rounded-2xl border border-border/40 bg-surface/45">
       <div className="flex flex-col gap-2 border-b border-border/40 px-4 py-3 text-xs text-text-muted md:flex-row md:items-center md:justify-between">
@@ -121,22 +88,59 @@ export function LedgerTable({
           <thead className="sticky top-0 z-20 bg-bg/95 backdrop-blur">
             <tr className="border-b border-border/40">
               <th className="border-b border-border/40 px-3 py-2 text-left align-middle">
-                {headerButton('Date', 'date')}
+                <SortableTableHeader
+                  field="date"
+                  label="Date"
+                  activeField={sortKey}
+                  direction={sortDirection}
+                  onSort={onToggleSort}
+                />
               </th>
               <th className="border-b border-border/40 px-3 py-2 text-left align-middle">
-                {headerButton('Account', 'account')}
+                <SortableTableHeader
+                  field="account"
+                  label="Account"
+                  activeField={sortKey}
+                  direction={sortDirection}
+                  onSort={onToggleSort}
+                />
               </th>
               <th className="border-b border-border/40 px-3 py-2 text-left align-middle">
-                {headerButton('Merchant', 'detail')}
+                <SortableTableHeader
+                  field="detail"
+                  label="Merchant"
+                  activeField={sortKey}
+                  direction={sortDirection}
+                  onSort={onToggleSort}
+                />
               </th>
               <th className="border-b border-border/40 px-3 py-2 text-left align-middle">
-                {headerButton('Category', 'category')}
+                <SortableTableHeader
+                  field="category"
+                  label="Category"
+                  activeField={sortKey}
+                  direction={sortDirection}
+                  onSort={onToggleSort}
+                />
               </th>
               <th className="border-b border-border/40 px-3 py-2 text-right align-middle">
-                {headerButton('Amount', 'amount', 'right')}
+                <SortableTableHeader
+                  field="amount"
+                  label="Amount"
+                  activeField={sortKey}
+                  direction={sortDirection}
+                  onSort={onToggleSort}
+                  align="right"
+                />
               </th>
               <th className="border-b border-border/40 px-3 py-2 text-left align-middle">
-                {headerButton('Status', 'status')}
+                <SortableTableHeader
+                  field="status"
+                  label="Status"
+                  activeField={sortKey}
+                  direction={sortDirection}
+                  onSort={onToggleSort}
+                />
               </th>
               <th className="border-b border-border/40 px-3 py-2 text-left align-middle">
                 <span className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted/80">

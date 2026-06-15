@@ -26,6 +26,8 @@ export async function fetchHouseholdProducts(
   const search = new URLSearchParams()
   if (params?.search) search.set('search', params.search)
   if (params?.sort) search.set('sort', params.sort)
+  if (params?.sortDir) search.set('sort_dir', params.sortDir)
+  if (params?.scope) search.set('scope', params.scope)
   if (params?.limit != null) search.set('limit', String(params.limit))
   if (params?.offset != null) search.set('offset', String(params.offset))
   const query = search.toString()
