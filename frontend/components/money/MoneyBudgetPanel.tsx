@@ -22,6 +22,7 @@ import { BudgetStatRow } from './BudgetStatRow'
 import { BudgetTable } from './BudgetTable'
 import { type BudgetWindow, budgetWindows } from './budget-helpers'
 import { CategoryTrendChart } from './CategoryTrendChart'
+import type { InlineComboboxCommitOptions } from './InlineComboboxField'
 import { OwnerSpendInsightsCard } from './OwnerSpendInsightsCard'
 import {
   type BudgetRowEntry,
@@ -96,6 +97,7 @@ export function MoneyBudgetPanel() {
   async function saveTransactionCategory(
     transaction: HouseholdSpendingTransaction,
     category: string,
+    options?: InlineComboboxCommitOptions,
   ) {
     const trimmed = category.trim()
     if (!trimmed) {
@@ -105,7 +107,7 @@ export function MoneyBudgetPanel() {
       transactionId: transaction.id,
       category: trimmed,
       essentiality: transaction.essentiality || 'mixed',
-      applyToMerchant: false,
+      applyToMerchant: options?.applyRule === true,
     })
   }
 
@@ -115,7 +117,8 @@ export function MoneyBudgetPanel() {
     onCommitCategory: (
       transaction: HouseholdSpendingTransaction,
       category: string,
-    ) => void saveTransactionCategory(transaction, category),
+      options?: InlineComboboxCommitOptions,
+    ) => void saveTransactionCategory(transaction, category, options),
   }
 
   function confirmFoundCap(

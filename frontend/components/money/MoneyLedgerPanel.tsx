@@ -19,6 +19,7 @@ import {
   useHouseholdLedger,
 } from '@/lib/hooks/useHousehold'
 import { buildCategoryOptions } from './category-options'
+import type { InlineComboboxCommitOptions } from './InlineComboboxField'
 import { LedgerSummaryCards } from './LedgerSummaryCards'
 import { LedgerTable } from './LedgerTable'
 import {
@@ -158,7 +159,11 @@ export function MoneyLedgerPanel() {
   // rows is fetched); the standard taxonomy fills in categories not yet in use.
   const categoryOptions = buildCategoryOptions(ledger?.categoryOptions ?? [])
 
-  async function saveCategory(entry: HouseholdLedgerEntry, category: string) {
+  async function saveCategory(
+    entry: HouseholdLedgerEntry,
+    category: string,
+    options?: InlineComboboxCommitOptions,
+  ) {
     const trimmed = category.trim()
     if (!trimmed) {
       return
@@ -167,7 +172,7 @@ export function MoneyLedgerPanel() {
       transactionId: entry.id,
       category: trimmed,
       essentiality: entry.essentiality || 'mixed',
-      applyToMerchant: false,
+      applyToMerchant: options?.applyRule === true,
     })
   }
 
@@ -351,8 +356,8 @@ export function MoneyLedgerPanel() {
         onToggleAudit={setExpandedAuditRow}
         categoryOptions={categoryOptions}
         categorizePending={categorizeTransaction.isPending}
-        onCommitCategory={(entry, category) =>
-          void saveCategory(entry, category)
+        onCommitCategory={(entry, category, options) =>
+          void saveCategory(entry, category, options)
         }
         onPreviousPage={() => setCurrentPage((page) => Math.max(1, page - 1))}
         onNextPage={() =>

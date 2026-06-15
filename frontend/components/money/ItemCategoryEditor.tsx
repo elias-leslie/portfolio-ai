@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import type { HouseholdPurchaseItem } from '@/lib/api/household'
 import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
@@ -8,7 +9,10 @@ import {
   useTransactionPurchaseItems,
 } from '@/lib/hooks/useHouseholdPurchases'
 import { buildCategoryOptions } from './category-options'
-import { InlineComboboxField } from './InlineComboboxField'
+import {
+  type InlineComboboxCommitOptions,
+  InlineComboboxField,
+} from './InlineComboboxField'
 import { PurchaseItemOwnerSelect } from './PurchaseItemOwnerSelect'
 import { useCategoryOwnerMap } from './useCategoryOwnerMap'
 
@@ -30,6 +34,9 @@ export function ItemCategoryEditor({
   const { data: items, isLoading } = useTransactionPurchaseItems(transactionId)
   const categorizeItem = useCategorizePurchaseItem()
   const categoryOwnerMap = useCategoryOwnerMap()
+  const [productRuleItems, setProductRuleItems] = useState<
+    Record<string, boolean>
+  >({})
 
   if (isLoading) {
     return <p className="text-sm text-text-muted">Loading items...</p>
@@ -52,7 +59,11 @@ export function ItemCategoryEditor({
   const categoryOptions = buildCategoryOptions(
     items.map((item) => item.category),
   )
-  async function saveCategory(item: HouseholdPurchaseItem, category: string) {
+  async function saveCategory(
+    item: HouseholdPurchaseItem,
+    category: string,
+    options?: InlineComboboxCommitOptions,
+  ) {
     const trimmed = category.trim()
     if (!trimmed) {
       return
@@ -61,7 +72,7 @@ export function ItemCategoryEditor({
       itemId: item.id,
       category: trimmed,
       essentiality: item.essentiality || 'mixed',
-      applyToProduct: false,
+      applyToProduct: options?.applyRule === true,
     })
   }
 
@@ -122,8 +133,18 @@ export function ItemCategoryEditor({
                   value={item.category}
                   options={categoryOptions}
                   disabled={categorizeItem.isPending}
+                  ruleLabel="Product rule"
+                  ruleChecked={productRuleItems[item.id] === true}
+                  onRuleCheckedChange={(checked) =>
+                    setProductRuleItems((current) => ({
+                      ...current,
+                      [item.id]: checked,
+                    }))
+                  }
                   className="w-[180px]"
-                  onCommit={(category) => void saveCategory(item, category)}
+                  onCommit={(category, options) =>
+                    void saveCategory(item, category, options)
+                  }
                 />
                 <span className="font-mono text-sm tabular-nums text-text">
                   {formatCurrency(item.allocatedAmount ?? item.amount, {

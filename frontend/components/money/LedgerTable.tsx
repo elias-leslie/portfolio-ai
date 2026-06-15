@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
+import type { InlineComboboxCommitOptions } from './InlineComboboxField'
 import { LedgerRow } from './LedgerRow'
 import {
   type HouseholdLedgerEntry,
@@ -45,7 +46,11 @@ interface LedgerTableProps {
   onNextPage: () => void
   categoryOptions: string[]
   categorizePending: boolean
-  onCommitCategory: (entry: HouseholdLedgerEntry, category: string) => void
+  onCommitCategory: (
+    entry: HouseholdLedgerEntry,
+    category: string,
+    options?: InlineComboboxCommitOptions,
+  ) => void
 }
 
 export function LedgerTable({
@@ -174,7 +179,8 @@ export function LedgerTable({
                     categorizePending={categorizePending}
                     onCommitCategory={
                       categorizable
-                        ? (category) => onCommitCategory(entry, category)
+                        ? (category, options) =>
+                            onCommitCategory(entry, category, options)
                         : undefined
                     }
                   />

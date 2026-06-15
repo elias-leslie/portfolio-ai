@@ -1,9 +1,12 @@
-import { Fragment } from 'react'
+import { Fragment, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
-import { InlineComboboxField } from './InlineComboboxField'
+import {
+  type InlineComboboxCommitOptions,
+  InlineComboboxField,
+} from './InlineComboboxField'
 import { ItemCategoryEditor } from './ItemCategoryEditor'
 import {
   entryDate,
@@ -20,7 +23,10 @@ interface LedgerRowProps {
   onToggleAudit: (rowKey: string | null) => void
   categoryOptions: string[]
   categorizePending: boolean
-  onCommitCategory?: (category: string) => void
+  onCommitCategory?: (
+    category: string,
+    options?: InlineComboboxCommitOptions,
+  ) => void
 }
 
 /** Enum label with the "api" word kept as the acronym ("api_sync" → "API sync"). */
@@ -36,6 +42,7 @@ export function LedgerRow({
   categorizePending,
   onCommitCategory,
 }: LedgerRowProps) {
+  const [applyToMerchant, setApplyToMerchant] = useState(false)
   const effectiveDate = entryDate(entry)
   const effectiveDateKey = utcDateKey(effectiveDate)
   const isFuture =
@@ -101,6 +108,9 @@ export function LedgerRow({
               value={entry.category || ''}
               options={categoryOptions}
               disabled={categorizePending}
+              ruleLabel="Merchant rule"
+              ruleChecked={applyToMerchant}
+              onRuleCheckedChange={setApplyToMerchant}
               className="w-[170px]"
               onCommit={onCommitCategory}
             />

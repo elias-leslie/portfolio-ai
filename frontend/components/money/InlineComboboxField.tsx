@@ -2,18 +2,29 @@
 
 import { ChevronDown } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+
+export interface InlineComboboxCommitOptions {
+  applyRule?: boolean
+}
 
 interface InlineComboboxFieldProps {
   id: string
   label: string
   value?: string | null
   options: string[]
-  onCommit: (value: string) => void | Promise<void>
+  onCommit: (
+    value: string,
+    options?: InlineComboboxCommitOptions,
+  ) => void | Promise<void>
   placeholder?: string
   disabled?: boolean
+  ruleLabel?: string
+  ruleChecked?: boolean
+  onRuleCheckedChange?: (checked: boolean) => void
   className?: string
   inputClassName?: string
 }
@@ -26,6 +37,9 @@ export function InlineComboboxField({
   onCommit,
   placeholder,
   disabled = false,
+  ruleLabel,
+  ruleChecked = false,
+  onRuleCheckedChange,
   className,
   inputClassName,
 }: InlineComboboxFieldProps) {
@@ -50,13 +64,16 @@ export function InlineComboboxField({
     lastCommittedRef.current = currentValue
   }, [currentValue])
 
-  function commit(nextValue = draft) {
+  function commit(
+    nextValue = draft,
+    options: InlineComboboxCommitOptions & { force?: boolean } = {},
+  ) {
     const trimmed = nextValue.trim()
-    if (trimmed === lastCommittedRef.current) {
+    if (!options.force && trimmed === lastCommittedRef.current) {
       return
     }
     lastCommittedRef.current = trimmed
-    void onCommit(trimmed)
+    void onCommit(trimmed, { applyRule: options.applyRule ?? ruleChecked })
   }
 
   return (
@@ -144,6 +161,23 @@ export function InlineComboboxField({
             </button>
           ))}
         </div>
+      ) : null}
+      {ruleLabel ? (
+        <label className="mt-1 flex items-center gap-1 text-[10px] leading-none text-text-muted">
+          <Checkbox
+            checked={ruleChecked}
+            disabled={disabled}
+            className="h-3 w-3"
+            onCheckedChange={(checked) => {
+              const nextChecked = checked === true
+              onRuleCheckedChange?.(nextChecked)
+              if (nextChecked && draft.trim()) {
+                commit(draft, { applyRule: true, force: true })
+              }
+            }}
+          />
+          <span>{ruleLabel}</span>
+        </label>
       ) : null}
     </div>
   )

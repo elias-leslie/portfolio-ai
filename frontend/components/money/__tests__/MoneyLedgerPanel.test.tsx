@@ -318,6 +318,27 @@ describe('MoneyLedgerPanel', () => {
     })
   })
 
+  it('can recategorize a ledger transaction as a merchant rule', async () => {
+    const user = userEvent.setup()
+    categorizeMutateAsync.mockResolvedValue(true)
+    mockLedgerPage([
+      buildEntry(1, { category: 'Retail', essentiality: 'discretionary' }),
+    ])
+
+    render(<MoneyLedgerPanel />)
+
+    await user.click(screen.getByRole('checkbox', { name: 'Merchant rule' }))
+    await user.click(screen.getByLabelText('Category for Merchant 001'))
+    await user.click(screen.getByRole('option', { name: /Personal Care/ }))
+
+    expect(categorizeMutateAsync).toHaveBeenLastCalledWith({
+      transactionId: 'txn-001',
+      category: 'Personal Care',
+      essentiality: 'discretionary',
+      applyToMerchant: true,
+    })
+  })
+
   it('offers no category editing on import rows', () => {
     mockLedgerPage([
       buildEntry(1, {
@@ -426,6 +447,36 @@ describe('MoneyLedgerPanel', () => {
       category: 'Household',
       essentiality: 'essential',
       applyToProduct: false,
+    })
+  })
+
+  it('can recategorize a purchase item as a product rule', async () => {
+    const user = userEvent.setup()
+    categorizeItemMutateAsync.mockResolvedValue(true)
+    mockLedgerPage([
+      buildEntry(1, { itemCount: 2, itemCategories: ['Groceries'] }),
+    ])
+    useTransactionPurchaseItemsMock.mockReturnValue({
+      data: [
+        buildPurchaseItem(1),
+        buildPurchaseItem(2, { amount: 8.5, allocatedAmount: 8.5 }),
+      ],
+      isLoading: false,
+    })
+
+    render(<MoneyLedgerPanel />)
+
+    await user.click(
+      screen.getAllByRole('checkbox', { name: 'Product rule' })[0],
+    )
+    await user.click(screen.getByLabelText('Category for Item 1'))
+    await user.click(screen.getByRole('option', { name: 'Household' }))
+
+    expect(categorizeItemMutateAsync).toHaveBeenLastCalledWith({
+      itemId: 'item-1',
+      category: 'Household',
+      essentiality: 'essential',
+      applyToProduct: true,
     })
   })
 

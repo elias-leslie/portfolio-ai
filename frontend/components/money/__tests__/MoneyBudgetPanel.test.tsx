@@ -390,6 +390,25 @@ describe('MoneyBudgetPanel', () => {
     })
   })
 
+  it('can recategorize a budget transaction as a merchant rule', async () => {
+    const user = userEvent.setup()
+    categorizeMutateAsync.mockResolvedValue({ ok: true })
+
+    render(<MoneyBudgetPanel />)
+
+    await user.click(budgetCategoryButton('Household'))
+    await user.click(screen.getByRole('checkbox', { name: 'Merchant rule' }))
+    await user.click(screen.getByLabelText('Category for Walmart'))
+    await user.click(screen.getByRole('option', { name: 'Groceries' }))
+
+    expect(categorizeMutateAsync).toHaveBeenLastCalledWith({
+      transactionId: 'txn-household',
+      category: 'Groceries',
+      essentiality: 'mixed',
+      applyToMerchant: true,
+    })
+  })
+
   it('shows the Split badge on itemized transactions in the drill-down', async () => {
     const user = userEvent.setup()
 

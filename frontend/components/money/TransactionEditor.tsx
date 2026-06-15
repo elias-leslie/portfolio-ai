@@ -1,10 +1,14 @@
 'use client'
 
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import type { HouseholdSpendingTransaction } from '@/lib/api/household'
 import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
 import { formatBudgetDate } from './budget-helpers'
-import { InlineComboboxField } from './InlineComboboxField'
+import {
+  type InlineComboboxCommitOptions,
+  InlineComboboxField,
+} from './InlineComboboxField'
 
 export interface TransactionEditorProps {
   transaction: HouseholdSpendingTransaction
@@ -13,6 +17,7 @@ export interface TransactionEditorProps {
   onCommitCategory: (
     transaction: HouseholdSpendingTransaction,
     category: string,
+    options?: InlineComboboxCommitOptions,
   ) => void
 }
 
@@ -23,6 +28,7 @@ export function TransactionEditor({
   onCommitCategory,
 }: TransactionEditorProps) {
   const isItemizedSlice = Boolean(transaction.splitParentId)
+  const [applyToMerchant, setApplyToMerchant] = useState(false)
 
   return (
     <div
@@ -82,8 +88,13 @@ export function TransactionEditor({
             value={transaction.category}
             options={categoryOptions}
             disabled={categorizePending}
+            ruleLabel="Merchant rule"
+            ruleChecked={applyToMerchant}
+            onRuleCheckedChange={setApplyToMerchant}
             className="w-[220px]"
-            onCommit={(category) => onCommitCategory(transaction, category)}
+            onCommit={(category, options) =>
+              onCommitCategory(transaction, category, options)
+            }
           />
         )}
       </div>
