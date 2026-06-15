@@ -48,7 +48,6 @@ export function MoneyLedgerPanel() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [currentPage, setCurrentPage] = useState(1)
   const [expandedAuditRow, setExpandedAuditRow] = useState<string | null>(null)
-  const [expandedItemsRow, setExpandedItemsRow] = useState<string | null>(null)
   const [recategorizeDraft, setRecategorizeDraft] =
     useState<RecategorizeDraft | null>(null)
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
@@ -103,7 +102,6 @@ export function MoneyLedgerPanel() {
   useEffect(() => {
     setCurrentPage(1)
     setExpandedAuditRow(null)
-    setExpandedItemsRow(null)
     setRecategorizeDraft(null)
     setCategoryPickerOpen(false)
   }, [account, deferredQuery, kind, sortDirection, sortKey, status, window])
@@ -112,7 +110,6 @@ export function MoneyLedgerPanel() {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages)
       setExpandedAuditRow(null)
-      setExpandedItemsRow(null)
     }
   }, [currentPage, totalPages])
 
@@ -391,8 +388,6 @@ export function MoneyLedgerPanel() {
         totalPages={totalPages}
         expandedAuditRow={expandedAuditRow}
         onToggleAudit={setExpandedAuditRow}
-        expandedItemsRow={expandedItemsRow}
-        onToggleItems={setExpandedItemsRow}
         onStartCategorize={startRecategorize}
         categoryEditorFor={categoryEditorFor}
         onPreviousPage={() => setCurrentPage((page) => Math.max(1, page - 1))}

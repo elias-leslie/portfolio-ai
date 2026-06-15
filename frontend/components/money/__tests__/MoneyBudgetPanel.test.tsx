@@ -1,6 +1,6 @@
 'use client'
 
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -169,6 +169,16 @@ function mockSpending(
   })
 }
 
+function budgetCategoryButton(category: string): HTMLButtonElement {
+  const button = screen
+    .getAllByRole('button', { name: new RegExp(category, 'i') })
+    .find((element) => element.getAttribute('aria-expanded') != null)
+  if (!button) {
+    throw new Error(`Missing expandable budget row for ${category}`)
+  }
+  return button as HTMLButtonElement
+}
+
 describe('MoneyBudgetPanel', () => {
   beforeEach(() => {
     useHouseholdSpendingMock.mockReset()
@@ -239,8 +249,20 @@ describe('MoneyBudgetPanel', () => {
 
     render(<MoneyBudgetPanel />)
 
-    await user.click(screen.getAllByRole('button', { name: 'Budget' })[0])
-    await user.type(screen.getByLabelText('Default owner'), 'Alex Demo')
+    const householdRow = budgetCategoryButton('Household').closest('tr')
+    if (!householdRow) {
+      throw new Error('Missing Household budget row')
+    }
+    await user.click(
+      within(householdRow).getByRole('button', { name: 'Budget' }),
+    )
+    const ownerInput = screen.getByLabelText('Default owner')
+    await user.click(ownerInput)
+    expect(screen.getByRole('option', { name: 'Mariana' })).toBeInTheDocument()
+    await user.click(screen.getByRole('option', { name: 'Mariana/Elias' }))
+    expect(ownerInput).toHaveValue('Mariana/Elias')
+    await user.clear(ownerInput)
+    await user.type(ownerInput, 'Alex Demo')
     await user.click(screen.getByRole('button', { name: 'Save budget' }))
 
     expect(confirmFactMutateAsync).toHaveBeenCalledWith({
@@ -289,8 +311,8 @@ describe('MoneyBudgetPanel', () => {
     render(<MoneyBudgetPanel />)
 
     expect(screen.getByText('Owner spend')).toBeInTheDocument()
-    expect(screen.getByText('Alex Demo')).toBeInTheDocument()
-    expect(screen.getByText('1 transaction')).toBeInTheDocument()
+    expect(screen.getAllByText('Alex Demo')).not.toHaveLength(0)
+    expect(screen.getByText(/1 transaction/)).toBeInTheDocument()
   })
 
   it('surfaces cash-flow KPIs and an accept-all suggested caps action', () => {
@@ -438,16 +460,10 @@ describe('MoneyBudgetPanel', () => {
 
     render(<MoneyBudgetPanel />)
 
-    const groceryButtons = screen.getAllByRole('button', {
-      name: /groceries/i,
-    })
-    const expandRow = groceryButtons.find(
-      (button) => button.getAttribute('aria-expanded') != null,
-    )
-    await user.click(expandRow ?? groceryButtons[0])
+    await user.click(budgetCategoryButton('Groceries'))
 
-    expect(screen.getByText('Amazon mixed order')).toBeInTheDocument()
-    expect(screen.getByText('$45.00')).toBeInTheDocument()
+    expect(screen.getByText(/Amazon mixed order/)).toBeInTheDocument()
+    expect(screen.getAllByText('$45.00')).not.toHaveLength(0)
     expect(screen.getByText('Itemized portion')).toBeInTheDocument()
     expect(screen.getByText(/Owner: Alex Demo/)).toBeInTheDocument()
   })

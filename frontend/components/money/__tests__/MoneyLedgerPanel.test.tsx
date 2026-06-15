@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MoneyLedgerPanel } from '../MoneyLedgerPanel'
 
 const useHouseholdLedgerMock = vi.hoisted(() => vi.fn())
+const useHouseholdFactsMock = vi.hoisted(() => vi.fn())
 const categorizeMutateAsync = vi.hoisted(() => vi.fn())
 const categorizeIsPending = vi.hoisted(() => ({ value: false }))
 const useTransactionPurchaseItemsMock = vi.hoisted(() => vi.fn())
@@ -12,6 +13,7 @@ const setItemOwnerMutateAsync = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdLedger: useHouseholdLedgerMock,
+  useHouseholdFacts: useHouseholdFactsMock,
   useCategorizeHouseholdTransaction: () => ({
     mutateAsync: categorizeMutateAsync,
     isPending: categorizeIsPending.value,
@@ -142,6 +144,7 @@ function lastLedgerParams() {
 describe('MoneyLedgerPanel', () => {
   beforeEach(() => {
     useHouseholdLedgerMock.mockReset()
+    useHouseholdFactsMock.mockReset()
     categorizeMutateAsync.mockReset()
     categorizeIsPending.value = false
     useTransactionPurchaseItemsMock.mockReset()
@@ -151,6 +154,7 @@ describe('MoneyLedgerPanel', () => {
     })
     categorizeItemMutateAsync.mockReset()
     setItemOwnerMutateAsync.mockReset()
+    useHouseholdFactsMock.mockReturnValue({ data: [] })
   })
 
   it('renders the returned page and server counts and hides audit internals', () => {
@@ -389,8 +393,7 @@ describe('MoneyLedgerPanel', () => {
     expect(screen.getByText('Split: Groceries · Household')).toBeInTheDocument()
   })
 
-  it('expands purchase items behind an itemized charge with the allocation line', async () => {
-    const user = userEvent.setup()
+  it('shows purchase items inline behind an itemized charge with the allocation line', () => {
     mockLedgerPage([
       buildEntry(1, { itemCount: 2, itemCategories: ['Groceries'] }),
     ])
@@ -404,20 +407,11 @@ describe('MoneyLedgerPanel', () => {
 
     render(<MoneyLedgerPanel />)
 
-    // Items load only for the expanded row.
-    expect(screen.queryByText('Item 1')).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: '2 items' }))
-
     expect(useTransactionPurchaseItemsMock).toHaveBeenCalledWith('txn-001')
     expect(screen.getByText('Item 1')).toBeInTheDocument()
     expect(screen.getByText('Item 2')).toBeInTheDocument()
     // buildEntry(1).amount is 11; 2.50 + 8.50 reconciles exactly.
     expect(screen.getByText(/matches the charge exactly/)).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Hide items' }))
-
-    expect(screen.queryByText('Item 1')).not.toBeInTheDocument()
   })
 
   it('recategorizes a purchase item through the item categorize mutation', async () => {
@@ -436,7 +430,6 @@ describe('MoneyLedgerPanel', () => {
 
     render(<MoneyLedgerPanel />)
 
-    await user.click(screen.getByRole('button', { name: '2 items' }))
     await user.click(
       screen.getByRole('button', { name: 'Edit category for Item 1' }),
     )
@@ -454,6 +447,34 @@ describe('MoneyLedgerPanel', () => {
       itemId: 'item-1',
       category: 'Household',
       essentiality: 'essential',
+      applyToProduct: false,
+    })
+  })
+
+  it('sets a purchase item owner from the named owner dropdown', async () => {
+    const user = userEvent.setup()
+    setItemOwnerMutateAsync.mockResolvedValue(true)
+    mockLedgerPage([
+      buildEntry(1, { itemCount: 2, itemCategories: ['Groceries'] }),
+    ])
+    useTransactionPurchaseItemsMock.mockReturnValue({
+      data: [
+        buildPurchaseItem(1),
+        buildPurchaseItem(2, { amount: 8.5, allocatedAmount: 8.5 }),
+      ],
+      isLoading: false,
+    })
+
+    render(<MoneyLedgerPanel />)
+
+    const ownerInput = screen.getByLabelText('Owner for Item 1')
+    await user.click(ownerInput)
+    await user.click(screen.getByRole('option', { name: 'Cats' }))
+    expect(ownerInput).toHaveValue('Cats')
+
+    expect(setItemOwnerMutateAsync).toHaveBeenCalledWith({
+      itemId: 'item-1',
+      ownerName: 'Cats',
       applyToProduct: false,
     })
   })

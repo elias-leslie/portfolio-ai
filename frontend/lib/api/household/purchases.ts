@@ -7,6 +7,8 @@ import type {
   HouseholdProductListParams,
   HouseholdPurchaseItem,
   HouseholdPurchaseItemCategoryUpdate,
+  HouseholdPurchaseItemList,
+  HouseholdPurchaseItemListParams,
   HouseholdPurchaseItemOwnerUpdate,
   HouseholdPurchaseItemProductAssignment,
   HouseholdPurchaseItemReviewQueue,
@@ -58,6 +60,23 @@ export async function fetchTransactionPurchaseItems(
 ): Promise<HouseholdPurchaseItem[]> {
   return get<HouseholdPurchaseItem[]>(
     `/api/household/transactions/${transactionId}/purchase-items`,
+    options,
+  )
+}
+
+export async function fetchPurchaseItems(
+  params?: HouseholdPurchaseItemListParams,
+  options: RequestInit = {},
+): Promise<HouseholdPurchaseItemList> {
+  const search = new URLSearchParams()
+  if (params?.search) search.set('search', params.search)
+  if (params?.limit != null) search.set('limit', String(params.limit))
+  if (params?.offset != null) search.set('offset', String(params.offset))
+  const query = search.toString()
+  return get<HouseholdPurchaseItemList>(
+    query
+      ? `/api/household/purchase-items?${query}`
+      : '/api/household/purchase-items',
     options,
   )
 }

@@ -18,6 +18,7 @@ from app.models.household_finance import (
     HouseholdProductMergeRequest,
     HouseholdPurchaseItem,
     HouseholdPurchaseItemCategoryUpdate,
+    HouseholdPurchaseItemList,
     HouseholdPurchaseItemOwnerUpdate,
     HouseholdPurchaseItemProductAssignment,
     HouseholdPurchaseItemReviewQueue,
@@ -132,6 +133,18 @@ async def list_transaction_purchase_items(
 ) -> list[HouseholdPurchaseItem]:
     """Return the purchase items linked to a ledger transaction."""
     return await run_in_threadpool(_catalog().list_transaction_items, transaction_id)
+
+
+@router.get("/purchase-items", response_model=HouseholdPurchaseItemList)
+async def list_purchase_items(
+    search: str = "",
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> HouseholdPurchaseItemList:
+    """Return recent receipt/invoice items for inline ownership edits."""
+    return await run_in_threadpool(
+        lambda: _catalog().list_items(search=search, limit=limit, offset=offset)
+    )
 
 
 @router.get("/purchase-items/review", response_model=HouseholdPurchaseItemReviewQueue)

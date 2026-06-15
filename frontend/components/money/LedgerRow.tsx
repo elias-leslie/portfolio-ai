@@ -17,9 +17,6 @@ interface LedgerRowProps {
   entry: HouseholdLedgerEntry
   auditOpen: boolean
   onToggleAudit: (rowKey: string | null) => void
-  /** Purchase-item expansion; omitted when the row has no linked items. */
-  itemsOpen?: boolean
-  onToggleItems?: (rowKey: string | null) => void
   /** Omitted when the row is not a categorizable transaction (import rows, duplicates). */
   onStartCategorize?: () => void
   /** The shared category editor, non-null while this row is being edited. */
@@ -35,8 +32,6 @@ export function LedgerRow({
   entry,
   auditOpen,
   onToggleAudit,
-  itemsOpen = false,
-  onToggleItems,
   onStartCategorize,
   categoryEditor,
 }: LedgerRowProps) {
@@ -57,6 +52,7 @@ export function LedgerRow({
       .filter(Boolean)
       .join(' · ') || 'Stored row'
   const isCredit = entry.direction === 'credit'
+  const showInlineItems = entry.itemCount > 0
   return (
     <Fragment key={rowKey}>
       <tr
@@ -156,18 +152,10 @@ export function LedgerRow({
             <Badge variant={entry.sourceDocumentId ? 'outline' : 'secondary'}>
               {evidenceLabel}
             </Badge>
-            {entry.itemCount > 0 && onToggleItems ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-7 px-2 text-xs"
-                aria-expanded={itemsOpen}
-                aria-controls={`ledger-items-${rowKey}`}
-                onClick={() => onToggleItems(itemsOpen ? null : rowKey)}
-              >
-                {entry.itemCount} item{entry.itemCount === 1 ? '' : 's'}
-              </Button>
+            {entry.itemCount > 0 ? (
+              <Badge variant="secondary">
+                {entry.itemCount} item{entry.itemCount === 1 ? '' : 's'} below
+              </Badge>
             ) : null}
             <Button
               type="button"
@@ -197,7 +185,7 @@ export function LedgerRow({
           </td>
         </tr>
       ) : null}
-      {itemsOpen ? (
+      {showInlineItems ? (
         <tr
           id={`ledger-items-${rowKey}`}
           data-ledger-row="items"
@@ -212,17 +200,10 @@ export function LedgerRow({
                   </p>
                   <p className="mt-1 text-xs text-text-muted">
                     Line items behind this charge. Category edits move budget
-                    and spending splits.
+                    and spending splits; owner dropdowns save item-level
+                    overrides.
                   </p>
                 </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onToggleItems?.(null)}
-                >
-                  Hide items
-                </Button>
               </div>
               <div className="mt-4">
                 <ItemCategoryEditor

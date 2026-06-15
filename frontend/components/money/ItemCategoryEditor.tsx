@@ -3,14 +3,10 @@
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import type { HouseholdPurchaseItem } from '@/lib/api/household'
 import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
 import {
   useCategorizePurchaseItem,
-  useSetPurchaseItemOwner,
   useTransactionPurchaseItems,
 } from '@/lib/hooks/useHouseholdPurchases'
 import { CategoryEditorForm } from './CategoryEditorForm'
@@ -19,6 +15,8 @@ import {
   type RecategorizeDraft,
   startRecategorizeDraft,
 } from './category-options'
+import { PurchaseItemOwnerSelect } from './PurchaseItemOwnerSelect'
+import { useCategoryOwnerMap } from './useCategoryOwnerMap'
 
 interface ItemCategoryEditorProps {
   transactionId: string
@@ -37,13 +35,8 @@ export function ItemCategoryEditor({
 }: ItemCategoryEditorProps) {
   const { data: items, isLoading } = useTransactionPurchaseItems(transactionId)
   const categorizeItem = useCategorizePurchaseItem()
-  const setItemOwner = useSetPurchaseItemOwner()
+  const categoryOwnerMap = useCategoryOwnerMap()
   const [draft, setDraft] = useState<RecategorizeDraft | null>(null)
-  const [ownerDraft, setOwnerDraft] = useState<{
-    itemId: string
-    ownerName: string
-    applyToProduct: boolean
-  } | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
 
   if (isLoading) {
@@ -67,7 +60,6 @@ export function ItemCategoryEditor({
   const categoryOptions = buildCategoryOptions(
     items.map((item) => item.category),
   )
-
   function startEdit(item: HouseholdPurchaseItem) {
     setDraft(startRecategorizeDraft(item))
     setPickerOpen(false)
@@ -87,26 +79,6 @@ export function ItemCategoryEditor({
     setPickerOpen(false)
   }
 
-  function startOwnerEdit(item: HouseholdPurchaseItem) {
-    setOwnerDraft({
-      itemId: item.id,
-      ownerName: item.ownerName ?? '',
-      applyToProduct: false,
-    })
-  }
-
-  async function saveOwnerEdit() {
-    if (!ownerDraft) {
-      return
-    }
-    await setItemOwner.mutateAsync({
-      itemId: ownerDraft.itemId,
-      ownerName: ownerDraft.ownerName.trim() || null,
-      applyToProduct: ownerDraft.applyToProduct,
-    })
-    setOwnerDraft(null)
-  }
-
   return (
     <div className="space-y-2">
       <p className="text-xs text-text-muted">
@@ -122,7 +94,7 @@ export function ItemCategoryEditor({
       </p>
       {items.map((item) => {
         const isEditing = draft?.transactionId === item.id
-        const isOwnerEditing = ownerDraft?.itemId === item.id
+        const inheritedOwnerName = categoryOwnerMap.get(item.category) ?? null
         return (
           <div
             key={item.id}
@@ -144,8 +116,13 @@ export function ItemCategoryEditor({
                   {' · '}
                   Owner:{' '}
                   <span className="text-text">
-                    {item.ownerName ?? 'Unassigned'}
+                    {item.ownerName ?? inheritedOwnerName ?? 'Unassigned'}
                   </span>
+                  {!item.ownerName && inheritedOwnerName ? (
+                    <Badge variant="secondary" className="ml-2 text-[10px]">
+                      Inherited
+                    </Badge>
+                  ) : null}
                   {item.categorizationSource === 'manual' ? (
                     <Badge variant="outline" className="ml-2 text-[10px]">
                       Manual
@@ -171,70 +148,15 @@ export function ItemCategoryEditor({
                     Edit
                   </Button>
                 ) : null}
-                {!isOwnerEditing ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-xs"
-                    aria-label={`Edit owner for ${item.description}`}
-                    onClick={() => startOwnerEdit(item)}
-                  >
-                    Owner
-                  </Button>
-                ) : null}
+                <PurchaseItemOwnerSelect
+                  itemId={item.id}
+                  itemLabel={item.description}
+                  ownerName={item.ownerName}
+                  ownerSource={item.ownerSource}
+                  inheritedOwnerName={inheritedOwnerName}
+                />
               </div>
             </div>
-            {isOwnerEditing && ownerDraft ? (
-              <div className="mt-2 w-full space-y-3 rounded-xl border border-border/35 bg-surface-muted/15 p-3 lg:w-[420px]">
-                <div className="space-y-1.5">
-                  <Label htmlFor={`owner-${item.id}`}>Owner</Label>
-                  <Input
-                    id={`owner-${item.id}`}
-                    value={ownerDraft.ownerName}
-                    onChange={(event) =>
-                      setOwnerDraft((current) =>
-                        current
-                          ? { ...current, ownerName: event.target.value }
-                          : current,
-                      )
-                    }
-                    placeholder="Household, Alex, Jordan..."
-                  />
-                </div>
-                <label className="flex items-start gap-2 text-sm text-text-muted">
-                  <Checkbox
-                    checked={ownerDraft.applyToProduct}
-                    onCheckedChange={(checked) =>
-                      setOwnerDraft((current) =>
-                        current
-                          ? { ...current, applyToProduct: checked === true }
-                          : current,
-                      )
-                    }
-                  />
-                  <span>Apply to this product going forward.</span>
-                </label>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setOwnerDraft(null)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={setItemOwner.isPending}
-                    onClick={() => void saveOwnerEdit()}
-                  >
-                    {setItemOwner.isPending ? 'Saving...' : 'Save owner'}
-                  </Button>
-                </div>
-              </div>
-            ) : null}
             {isEditing && draft ? (
               <div className="mt-2">
                 <CategoryEditorForm

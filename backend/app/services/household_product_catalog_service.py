@@ -12,6 +12,7 @@ from app.models.household_finance import (
     HouseholdProductPricePoint,
     HouseholdProductSummary,
     HouseholdPurchaseItem,
+    HouseholdPurchaseItemList,
     HouseholdPurchaseItemReviewQueue,
 )
 from app.services._household_finance_utils import iso_or_none, to_float
@@ -325,6 +326,59 @@ class HouseholdProductCatalogService:
                 [transaction_id],
             ).fetchall()
         return [_purchase_item(row) for row in rows]
+
+    def list_items(
+        self,
+        *,
+        search: str = "",
+        limit: int = 50,
+        offset: int = 0,
+    ) -> HouseholdPurchaseItemList:
+        normalized_search = (search or "").strip()
+        page_limit = max(1, min(int(limit), 200))
+        page_offset = max(0, int(offset))
+        where = "i.removed IS NOT TRUE"
+        params: list[Any] = []
+        if normalized_search:
+            like = f"%{normalized_search}%"
+            where += """
+              AND (
+                i.description ILIKE %s
+                OR p.canonical_name ILIKE %s
+                OR m.canonical_name ILIKE %s
+              )
+            """
+            params.extend([like, like, like])
+
+        with self.storage.connection() as conn:
+            total_row = conn.execute(
+                f"""
+                SELECT COUNT(*)
+                FROM household_purchase_items i
+                LEFT JOIN household_products p ON p.id = i.product_id
+                LEFT JOIN household_merchants m ON m.id = i.merchant_id
+                WHERE {where}
+                """,
+                params,
+            ).fetchone()
+            rows = conn.execute(
+                f"""
+                {_ITEM_SELECT}
+                WHERE {where}
+                ORDER BY i.purchase_date DESC NULLS LAST, i.created_at DESC
+                LIMIT %s OFFSET %s
+                """,
+                [*params, page_limit, page_offset],
+            ).fetchall()
+
+        return HouseholdPurchaseItemList(
+            generated_at=datetime.now(UTC).isoformat(),
+            total_count=int(total_row[0]) if total_row else 0,
+            offset=page_offset,
+            limit=page_limit,
+            returned_count=len(rows),
+            items=[_purchase_item(row) for row in rows],
+        )
 
     def list_review_queue(self) -> HouseholdPurchaseItemReviewQueue:
         with self.storage.connection() as conn:

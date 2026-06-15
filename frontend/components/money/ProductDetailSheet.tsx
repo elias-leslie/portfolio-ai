@@ -19,6 +19,8 @@ import {
 } from '@/lib/hooks/useHouseholdPurchases'
 import { formatLedgerDate } from './ledger-helpers'
 import { PriceHistorySparkline } from './PriceHistorySparkline'
+import { PurchaseItemOwnerSelect } from './PurchaseItemOwnerSelect'
+import { useCategoryOwnerMap } from './useCategoryOwnerMap'
 
 interface ProductDetailSheetProps {
   productId: string | null
@@ -33,6 +35,7 @@ export function ProductDetailSheet({
   const { data: detail, isLoading } = useHouseholdProductDetail(productId)
   const [mergeSearch, setMergeSearch] = useState('')
   const mergeProducts = useMergeHouseholdProducts()
+  const categoryOwnerMap = useCategoryOwnerMap()
   const mergeQuery = mergeSearch.trim()
   const { data: mergeCandidates } = useHouseholdProducts(
     mergeQuery ? { search: mergeQuery, limit: 5 } : undefined,
@@ -186,23 +189,34 @@ export function ProductDetailSheet({
                   Recent purchases
                 </p>
                 <div className="mt-2 space-y-1">
-                  {detail.recentItems.slice(0, 8).map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-border/30 bg-surface-muted/10 px-3 py-2 text-xs"
-                    >
-                      <span className="min-w-0 truncate text-text">
-                        {item.description}
-                      </span>
-                      <span className="shrink-0 text-text-muted">
-                        {formatLedgerDate(item.purchaseDate)} · {item.category}{' '}
-                        ·{' '}
-                        <span className="font-mono tabular-nums text-text">
-                          {formatCurrency(item.amount, { decimals: 2 })}
+                  {detail.recentItems.slice(0, 8).map((item) => {
+                    const inheritedOwnerName =
+                      categoryOwnerMap.get(item.category) ?? null
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/30 bg-surface-muted/10 px-3 py-2 text-xs"
+                      >
+                        <span className="min-w-0 truncate text-text">
+                          {item.description}
                         </span>
-                      </span>
-                    </div>
-                  ))}
+                        <span className="shrink-0 text-text-muted">
+                          {formatLedgerDate(item.purchaseDate)} ·{' '}
+                          {item.category} ·{' '}
+                          <span className="font-mono tabular-nums text-text">
+                            {formatCurrency(item.amount, { decimals: 2 })}
+                          </span>
+                        </span>
+                        <PurchaseItemOwnerSelect
+                          itemId={item.id}
+                          itemLabel={item.description}
+                          ownerName={item.ownerName}
+                          ownerSource={item.ownerSource}
+                          inheritedOwnerName={inheritedOwnerName}
+                        />
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             ) : null}

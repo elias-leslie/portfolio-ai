@@ -7,12 +7,15 @@ import type { HouseholdPriceInsight } from '@/lib/api/household'
 import { MoneyPurchasesPanel } from '../MoneyPurchasesPanel'
 
 const useHouseholdProductsMock = vi.hoisted(() => vi.fn())
+const usePurchaseItemsMock = vi.hoisted(() => vi.fn())
 const usePurchaseItemReviewQueueMock = vi.hoisted(() => vi.fn())
 const useHouseholdProductDetailMock = vi.hoisted(() => vi.fn())
 const usePriceCheckStatusMock = vi.hoisted(() => vi.fn())
 const useShoppingListsMock = vi.hoisted(() => vi.fn())
 const useVendorProfilesMock = vi.hoisted(() => vi.fn())
+const useHouseholdFactsMock = vi.hoisted(() => vi.fn())
 const assignMutateAsync = vi.hoisted(() => vi.fn())
+const setOwnerMutateAsync = vi.hoisted(() => vi.fn())
 const mergeMutateAsync = vi.hoisted(() => vi.fn())
 const triggerPriceCheckMutate = vi.hoisted(() => vi.fn())
 const createShoppingListMutate = vi.hoisted(() => vi.fn())
@@ -22,6 +25,7 @@ const updateVendorProfilesMutate = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/hooks/useHouseholdPurchases', () => ({
   useHouseholdProducts: useHouseholdProductsMock,
+  usePurchaseItems: usePurchaseItemsMock,
   usePurchaseItemReviewQueue: usePurchaseItemReviewQueueMock,
   useHouseholdProductDetail: useHouseholdProductDetailMock,
   usePriceCheckStatus: usePriceCheckStatusMock,
@@ -29,6 +33,10 @@ vi.mock('@/lib/hooks/useHouseholdPurchases', () => ({
   useVendorProfiles: useVendorProfilesMock,
   useAssignPurchaseItemProduct: () => ({
     mutateAsync: assignMutateAsync,
+    isPending: false,
+  }),
+  useSetPurchaseItemOwner: () => ({
+    mutateAsync: setOwnerMutateAsync,
     isPending: false,
   }),
   useMergeHouseholdProducts: () => ({
@@ -55,6 +63,10 @@ vi.mock('@/lib/hooks/useHouseholdPurchases', () => ({
     mutate: updateVendorProfilesMutate,
     isPending: false,
   }),
+}))
+
+vi.mock('@/lib/hooks/useHousehold', () => ({
+  useHouseholdFacts: useHouseholdFactsMock,
 }))
 
 function buildProduct(index: number, overrides = {}) {
@@ -141,6 +153,27 @@ function buildReviewItem(overrides = {}) {
   }
 }
 
+function mockPurchaseItems(
+  items: ReturnType<typeof buildReviewItem>[],
+  overrides: Record<string, unknown> = {},
+) {
+  usePurchaseItemsMock.mockReturnValue({
+    data: {
+      generatedAt: '2026-06-01T00:00:00Z',
+      totalCount: items.length,
+      offset: 0,
+      limit: 50,
+      returnedCount: items.length,
+      items,
+      ...overrides,
+    },
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+    isFetching: false,
+  })
+}
+
 const unitPriceUpInsight: HouseholdPriceInsight = {
   merchant: 'Walmart',
   itemName: 'Olive Oil',
@@ -169,15 +202,22 @@ function lastCatalogParams() {
   )
 }
 
+function lastPurchaseItemParams() {
+  return usePurchaseItemsMock.mock.calls.at(-1)?.[0] ?? {}
+}
+
 describe('MoneyPurchasesPanel', () => {
   beforeEach(() => {
     useHouseholdProductsMock.mockReset()
+    usePurchaseItemsMock.mockReset()
     usePurchaseItemReviewQueueMock.mockReset()
     useHouseholdProductDetailMock.mockReset()
     usePriceCheckStatusMock.mockReset()
     useShoppingListsMock.mockReset()
     useVendorProfilesMock.mockReset()
+    useHouseholdFactsMock.mockReset()
     assignMutateAsync.mockReset()
+    setOwnerMutateAsync.mockReset()
     mergeMutateAsync.mockReset()
     triggerPriceCheckMutate.mockReset()
     createShoppingListMutate.mockReset()
@@ -187,6 +227,16 @@ describe('MoneyPurchasesPanel', () => {
     usePurchaseItemReviewQueueMock.mockReturnValue({
       data: { generatedAt: '2026-06-01T00:00:00Z', totalCount: 0, items: [] },
     })
+    mockPurchaseItems([
+      buildReviewItem({
+        id: 'item-list-1',
+        description: 'MILK 1GAL',
+        productName: 'Milk',
+        productMatchStatus: 'matched',
+        productMatchConfidence: 0.99,
+      }),
+    ])
+    useHouseholdFactsMock.mockReturnValue({ data: [] })
     usePriceCheckStatusMock.mockReturnValue({ data: undefined })
     useShoppingListsMock.mockReturnValue({
       data: { generatedAt: '2026-06-01T00:00:00Z', lists: [] },
@@ -245,12 +295,44 @@ describe('MoneyPurchasesPanel', () => {
 
     expect(lastCatalogParams().offset).toBe(0)
 
-    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getAllByRole('button', { name: 'Next' }).at(-1)!)
     expect(lastCatalogParams().offset).toBe(50)
 
     await user.click(screen.getByRole('button', { name: 'A-Z' }))
     await waitFor(() => {
       expect(lastCatalogParams()).toMatchObject({ sort: 'name', offset: 0 })
+    })
+  })
+
+  it('shows item owner dropdowns in purchase rows and saves overrides', async () => {
+    const user = userEvent.setup()
+    setOwnerMutateAsync.mockResolvedValue(true)
+    mockCatalog([])
+    mockPurchaseItems([buildReviewItem({ id: 'item-owner-1' })])
+
+    render(<MoneyPurchasesPanel priceInsights={[]} />)
+
+    const ownerInput = screen.getByLabelText('Owner for GV OLIVE OIL 17OZ')
+    await user.click(ownerInput)
+    await user.click(screen.getByRole('option', { name: 'Sophia' }))
+
+    expect(setOwnerMutateAsync).toHaveBeenCalledWith({
+      itemId: 'item-owner-1',
+      ownerName: 'Sophia',
+      applyToProduct: false,
+    })
+  })
+
+  it('sends the item search term to the purchase items query', async () => {
+    const user = userEvent.setup()
+    mockCatalog([])
+
+    render(<MoneyPurchasesPanel priceInsights={[]} />)
+
+    await user.type(screen.getByLabelText('Search purchase items'), 'catfood')
+
+    await waitFor(() => {
+      expect(lastPurchaseItemParams().search).toBe('catfood')
     })
   })
 
@@ -551,7 +633,7 @@ describe('MoneyPurchasesPanel', () => {
 
     render(<MoneyPurchasesPanel priceInsights={[]} />)
 
-    expect(screen.getByText('Groceries')).toBeInTheDocument()
+    expect(screen.getAllByText('Groceries')).not.toHaveLength(0)
     expect(screen.getByText('1 open item')).toBeInTheDocument()
     expect(screen.getByText(/Best single vendor/)).toBeInTheDocument()
     expect(screen.getAllByText('Walmart').length).toBeGreaterThan(0)

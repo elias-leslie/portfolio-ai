@@ -39,7 +39,7 @@ class _ScriptedConn:
 
     def execute(self, sql: str, params: list[Any] | None = None) -> _ScriptedConn:
         self.queries.append((sql, params or []))
-        if "COUNT(*) FROM household_purchase_items" in sql:
+        if "SELECT COUNT(*)" in sql and "FROM household_purchase_items" in sql:
             self._result = ("one", (self.review_count,))
         elif "recency_rank" in sql:
             self._result = ("all", self.price_point_rows)
@@ -120,6 +120,8 @@ _ITEM_ROW = (
     "Groceries",
     "essential",
     "suggested",
+    "Family",
+    "manual",
 )
 
 
@@ -169,6 +171,7 @@ def test_product_detail_returns_observations_identifiers_and_items() -> None:
     assert item.product_match_status == "needs_review"
     assert item.allocated_amount == 2.05
     assert item.category == "Groceries"
+    assert item.owner_name == "Family"
 
 
 def test_product_detail_missing_product_returns_none() -> None:
@@ -185,11 +188,29 @@ def test_transaction_items_and_review_queue_map_rows() -> None:
     assert items[0].transaction_id == "txn-1"
     assert items[0].quantity == 2.0
     assert items[0].unit_price == 0.96
+    assert items[0].owner_source == "manual"
 
     queue = service.list_review_queue()
     assert queue.total_count == 1
     assert queue.items[0].id == "item-1"
     assert queue.items[0].product_name == "GV Edamame"
+
+
+def test_purchase_item_list_searches_and_pages_rows() -> None:
+    conn = _ScriptedConn(item_rows=[_ITEM_ROW], review_count=1)
+    item_list = _service(conn).list_items(search="edamame", limit=25, offset=50)
+
+    assert item_list.total_count == 1
+    assert item_list.limit == 25
+    assert item_list.offset == 50
+    assert item_list.returned_count == 1
+    assert item_list.items[0].description == "GV EDAMAME 12OZ"
+    count_sql, count_params = conn.queries[0]
+    page_sql, page_params = conn.queries[1]
+    assert "ILIKE" in count_sql
+    assert count_params == ["%edamame%", "%edamame%", "%edamame%"]
+    assert "LIMIT %s OFFSET %s" in page_sql
+    assert page_params[-2:] == [25, 50]
 
 
 def test_assign_product_delegates_and_commits() -> None:

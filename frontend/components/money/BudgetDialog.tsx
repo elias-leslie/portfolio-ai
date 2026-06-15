@@ -15,6 +15,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import type { HouseholdSpendingCategory } from '@/lib/api/household'
 import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
+import { OwnerPickerField } from './OwnerPickerField'
+import { buildOwnerOptions } from './owner-options'
 
 export interface BudgetDialogProps {
   selectedCategory: HouseholdSpendingCategory | null
@@ -115,19 +117,16 @@ export function BudgetDialog({
                   onChange={(event) => setBudgetInput(event.target.value)}
                   placeholder="750"
                 />
-                <div className="space-y-2">
-                  <Label htmlFor="category-budget-owner">Default owner</Label>
-                  <Input
-                    id="category-budget-owner"
-                    value={ownerInput}
-                    onChange={(event) => setOwnerInput(event.target.value)}
-                    placeholder="Household, Alex, Jordan..."
-                  />
-                  <p className="text-xs text-text-muted">
-                    Used for owner spend views when item-level ownership is not
-                    set.
-                  </p>
-                </div>
+                <OwnerPickerField
+                  id="category-budget-owner"
+                  label="Default owner"
+                  value={ownerInput}
+                  onChange={setOwnerInput}
+                  options={buildOwnerOptions([ownerInput])}
+                  placeholder="Mariana, Elias, Family..."
+                  description="Used for owner spend views when item-level ownership is not set."
+                  className="space-y-2"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="category-budget-note">
