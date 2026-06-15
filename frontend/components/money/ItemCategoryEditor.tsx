@@ -1,20 +1,14 @@
 'use client'
 
-import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import type { HouseholdPurchaseItem } from '@/lib/api/household'
 import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
 import {
   useCategorizePurchaseItem,
   useTransactionPurchaseItems,
 } from '@/lib/hooks/useHouseholdPurchases'
-import { CategoryEditorForm } from './CategoryEditorForm'
-import {
-  buildCategoryOptions,
-  type RecategorizeDraft,
-  startRecategorizeDraft,
-} from './category-options'
+import { buildCategoryOptions } from './category-options'
+import { InlineComboboxField } from './InlineComboboxField'
 import { PurchaseItemOwnerSelect } from './PurchaseItemOwnerSelect'
 import { useCategoryOwnerMap } from './useCategoryOwnerMap'
 
@@ -36,8 +30,6 @@ export function ItemCategoryEditor({
   const { data: items, isLoading } = useTransactionPurchaseItems(transactionId)
   const categorizeItem = useCategorizePurchaseItem()
   const categoryOwnerMap = useCategoryOwnerMap()
-  const [draft, setDraft] = useState<RecategorizeDraft | null>(null)
-  const [pickerOpen, setPickerOpen] = useState(false)
 
   if (isLoading) {
     return <p className="text-sm text-text-muted">Loading items...</p>
@@ -60,23 +52,17 @@ export function ItemCategoryEditor({
   const categoryOptions = buildCategoryOptions(
     items.map((item) => item.category),
   )
-  function startEdit(item: HouseholdPurchaseItem) {
-    setDraft(startRecategorizeDraft(item))
-    setPickerOpen(false)
-  }
-
-  async function saveEdit(item: HouseholdPurchaseItem) {
-    if (!draft || !draft.category.trim()) {
+  async function saveCategory(item: HouseholdPurchaseItem, category: string) {
+    const trimmed = category.trim()
+    if (!trimmed) {
       return
     }
     await categorizeItem.mutateAsync({
       itemId: item.id,
-      category: draft.category.trim(),
-      essentiality: draft.essentiality,
-      applyToProduct: draft.applyToMerchant,
+      category: trimmed,
+      essentiality: item.essentiality || 'mixed',
+      applyToProduct: false,
     })
-    setDraft(null)
-    setPickerOpen(false)
   }
 
   return (
@@ -93,7 +79,6 @@ export function ItemCategoryEditor({
           : ''}
       </p>
       {items.map((item) => {
-        const isEditing = draft?.transactionId === item.id
         const inheritedOwnerName = categoryOwnerMap.get(item.category) ?? null
         return (
           <div
@@ -112,7 +97,7 @@ export function ItemCategoryEditor({
                   {item.productName && item.productName !== item.description
                     ? `${item.productName} · `
                     : ''}
-                  {item.category} · {formatEnumLabel(item.essentiality)}
+                  {formatEnumLabel(item.essentiality)}
                   {' · '}
                   Owner:{' '}
                   <span className="text-text">
@@ -131,23 +116,20 @@ export function ItemCategoryEditor({
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                <InlineComboboxField
+                  id={`purchase-item-category-${item.id}`}
+                  label={`Category for ${item.description}`}
+                  value={item.category}
+                  options={categoryOptions}
+                  disabled={categorizeItem.isPending}
+                  className="w-[180px]"
+                  onCommit={(category) => void saveCategory(item, category)}
+                />
                 <span className="font-mono text-sm tabular-nums text-text">
                   {formatCurrency(item.allocatedAmount ?? item.amount, {
                     decimals: 2,
                   })}
                 </span>
-                {!isEditing ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-xs"
-                    aria-label={`Edit category for ${item.description}`}
-                    onClick={() => startEdit(item)}
-                  >
-                    Edit
-                  </Button>
-                ) : null}
                 <PurchaseItemOwnerSelect
                   itemId={item.id}
                   itemLabel={item.description}
@@ -157,25 +139,6 @@ export function ItemCategoryEditor({
                 />
               </div>
             </div>
-            {isEditing && draft ? (
-              <div className="mt-2">
-                <CategoryEditorForm
-                  transactionId={item.id}
-                  draft={draft}
-                  setDraft={setDraft}
-                  pickerOpen={pickerOpen}
-                  onPickerOpenChange={setPickerOpen}
-                  categoryOptions={categoryOptions}
-                  applyLabel="Apply to this product going forward"
-                  pending={categorizeItem.isPending}
-                  onSave={() => void saveEdit(item)}
-                  onCancel={() => {
-                    setDraft(null)
-                    setPickerOpen(false)
-                  }}
-                />
-              </div>
-            ) : null}
           </div>
         )
       })}

@@ -37,7 +37,6 @@ export {
   fetchHouseholdProducts,
   fetchPriceCheckStatus,
   fetchPurchaseItemReviewQueue,
-  fetchPurchaseItems,
   fetchShoppingLists,
   fetchTransactionPurchaseItems,
   fetchVendorProfiles,

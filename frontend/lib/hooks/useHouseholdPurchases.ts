@@ -3,7 +3,6 @@ import { toast } from 'sonner'
 import type {
   HouseholdProductListParams,
   HouseholdPurchaseItemCategoryUpdate,
-  HouseholdPurchaseItemListParams,
   HouseholdPurchaseItemOwnerUpdate,
   HouseholdPurchaseItemProductAssignment,
   HouseholdShoppingListImportRequest,
@@ -18,7 +17,6 @@ import {
   fetchHouseholdProducts,
   fetchPriceCheckStatus,
   fetchPurchaseItemReviewQueue,
-  fetchPurchaseItems,
   fetchShoppingLists,
   fetchTransactionPurchaseItems,
   fetchVendorProfiles,
@@ -71,16 +69,6 @@ export function useTransactionPurchaseItems(transactionId: string | null) {
       fetchTransactionPurchaseItems(transactionId as string, { signal }),
     enabled: transactionId !== null,
     staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
-    refetchOnWindowFocus: false,
-  })
-}
-
-export function usePurchaseItems(params?: HouseholdPurchaseItemListParams) {
-  return useQuery({
-    queryKey: ['household', 'purchase-items', params ?? {}],
-    queryFn: ({ signal }) => fetchPurchaseItems(params, { signal }),
-    staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
-    placeholderData: (previous) => previous,
     refetchOnWindowFocus: false,
   })
 }

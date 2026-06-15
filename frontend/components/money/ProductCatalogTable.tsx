@@ -6,6 +6,7 @@ import type { HouseholdProductSummary } from '@/lib/api/household'
 import { formatCurrency } from '@/lib/formatters'
 import { formatLedgerDate } from './ledger-helpers'
 import { PriceHistorySparkline } from './PriceHistorySparkline'
+import { PurchaseItemOwnerSelect } from './PurchaseItemOwnerSelect'
 
 interface ProductCatalogTableProps {
   products: HouseholdProductSummary[]
@@ -23,7 +24,7 @@ export function ProductCatalogTable({
   return (
     <div className="overflow-hidden rounded-2xl border border-border/40 bg-surface/45">
       <div className="max-h-[60vh] overflow-auto [scrollbar-gutter:stable_both-edges]">
-        <table className="w-full min-w-[920px] border-separate border-spacing-0 text-sm">
+        <table className="w-full min-w-[1080px] border-separate border-spacing-0 text-sm">
           <thead className="sticky top-0 z-20 bg-bg/95 backdrop-blur">
             <tr>
               <th className="border-b border-border/40 px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.16em] text-text-muted/80">
@@ -41,6 +42,9 @@ export function ProductCatalogTable({
               <th className="border-b border-border/40 px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.16em] text-text-muted/80">
                 Last seen
               </th>
+              <th className="border-b border-border/40 px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.16em] text-text-muted/80">
+                Owner
+              </th>
               <th className="border-b border-border/40 px-3 py-2 text-right text-xs font-semibold uppercase tracking-[0.16em] text-text-muted/80">
                 <span className="sr-only">Actions</span>
               </th>
@@ -50,7 +54,7 @@ export function ProductCatalogTable({
             {isLoading && !hasData ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   className="px-3 py-10 text-center text-sm text-text-muted"
                 >
                   Loading products...
@@ -59,7 +63,7 @@ export function ProductCatalogTable({
             ) : products.length === 0 ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   className="px-3 py-10 text-center text-sm text-text-muted"
                 >
                   No products match. Receipt and order-history evidence builds
@@ -109,6 +113,19 @@ export function ProductCatalogTable({
                     <div className="text-xs text-text-muted">
                       {product.latestMerchant ?? '—'}
                     </div>
+                  </td>
+                  <td className="border-b border-border/20 px-3 py-2.5">
+                    {product.ownerItemId ? (
+                      <PurchaseItemOwnerSelect
+                        itemId={product.ownerItemId}
+                        itemLabel={product.canonicalName}
+                        ownerName={product.ownerName}
+                        ownerSource={product.ownerSource}
+                        forceProductRule
+                      />
+                    ) : (
+                      <span className="text-xs text-text-muted">—</span>
+                    )}
                   </td>
                   <td className="border-b border-border/20 px-3 py-2.5 text-right">
                     <Button

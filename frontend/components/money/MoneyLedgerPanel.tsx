@@ -18,12 +18,7 @@ import {
   useCategorizeHouseholdTransaction,
   useHouseholdLedger,
 } from '@/lib/hooks/useHousehold'
-import { CategoryEditorForm } from './CategoryEditorForm'
-import {
-  buildCategoryOptions,
-  type RecategorizeDraft,
-  startRecategorizeDraft,
-} from './category-options'
+import { buildCategoryOptions } from './category-options'
 import { LedgerSummaryCards } from './LedgerSummaryCards'
 import { LedgerTable } from './LedgerTable'
 import {
@@ -48,9 +43,6 @@ export function MoneyLedgerPanel() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [currentPage, setCurrentPage] = useState(1)
   const [expandedAuditRow, setExpandedAuditRow] = useState<string | null>(null)
-  const [recategorizeDraft, setRecategorizeDraft] =
-    useState<RecategorizeDraft | null>(null)
-  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
   const categorizeTransaction = useCategorizeHouseholdTransaction()
   const deferredQuery = useDeferredValue(query.trim())
   const offset = (currentPage - 1) * LEDGER_PAGE_SIZE
@@ -102,8 +94,6 @@ export function MoneyLedgerPanel() {
   useEffect(() => {
     setCurrentPage(1)
     setExpandedAuditRow(null)
-    setRecategorizeDraft(null)
-    setCategoryPickerOpen(false)
   }, [account, deferredQuery, kind, sortDirection, sortKey, status, window])
 
   useEffect(() => {
@@ -168,46 +158,17 @@ export function MoneyLedgerPanel() {
   // rows is fetched); the standard taxonomy fills in categories not yet in use.
   const categoryOptions = buildCategoryOptions(ledger?.categoryOptions ?? [])
 
-  function startRecategorize(entry: HouseholdLedgerEntry) {
-    setRecategorizeDraft(startRecategorizeDraft(entry))
-    setCategoryPickerOpen(true)
-  }
-
-  function cancelRecategorize() {
-    setRecategorizeDraft(null)
-    setCategoryPickerOpen(false)
-  }
-
-  async function saveRecategorize() {
-    if (!recategorizeDraft || !recategorizeDraft.category.trim()) {
+  async function saveCategory(entry: HouseholdLedgerEntry, category: string) {
+    const trimmed = category.trim()
+    if (!trimmed) {
       return
     }
     await categorizeTransaction.mutateAsync({
-      transactionId: recategorizeDraft.transactionId,
-      category: recategorizeDraft.category.trim(),
-      essentiality: recategorizeDraft.essentiality,
-      applyToMerchant: recategorizeDraft.applyToMerchant,
+      transactionId: entry.id,
+      category: trimmed,
+      essentiality: entry.essentiality || 'mixed',
+      applyToMerchant: false,
     })
-    cancelRecategorize()
-  }
-
-  function categoryEditorFor(entry: HouseholdLedgerEntry) {
-    if (recategorizeDraft?.transactionId !== entry.id) {
-      return null
-    }
-    return (
-      <CategoryEditorForm
-        transactionId={entry.id}
-        draft={recategorizeDraft}
-        setDraft={setRecategorizeDraft}
-        pickerOpen={categoryPickerOpen}
-        onPickerOpenChange={setCategoryPickerOpen}
-        categoryOptions={categoryOptions}
-        pending={categorizeTransaction.isPending}
-        onSave={() => void saveRecategorize()}
-        onCancel={cancelRecategorize}
-      />
-    )
   }
 
   function toggleSort(nextKey: LedgerSortKey) {
@@ -388,8 +349,11 @@ export function MoneyLedgerPanel() {
         totalPages={totalPages}
         expandedAuditRow={expandedAuditRow}
         onToggleAudit={setExpandedAuditRow}
-        onStartCategorize={startRecategorize}
-        categoryEditorFor={categoryEditorFor}
+        categoryOptions={categoryOptions}
+        categorizePending={categorizeTransaction.isPending}
+        onCommitCategory={(entry, category) =>
+          void saveCategory(entry, category)
+        }
         onPreviousPage={() => setCurrentPage((page) => Math.max(1, page - 1))}
         onNextPage={() =>
           setCurrentPage((page) => Math.min(totalPages, page + 1))

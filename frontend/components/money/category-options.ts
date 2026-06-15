@@ -1,9 +1,3 @@
-/**
- * Canonical category-editing primitives shared by every surface that changes a
- * transaction's category (Budget drill-downs, Ledger rows). The save path is
- * always useCategorizeHouseholdTransaction -> POST /transactions/{id}/categorize.
- */
-
 export const CATEGORY_OPTIONS = [
   'Unknown',
   'Bills',
@@ -25,13 +19,6 @@ export const CATEGORY_OPTIONS = [
   'Travel',
 ]
 
-export type RecategorizeDraft = {
-  transactionId: string
-  category: string
-  essentiality: string
-  applyToMerchant: boolean
-}
-
 /**
  * Union the standard taxonomy with categories observed in live data, sorted
  * alphabetically with Unknown pinned first so uncategorized work surfaces.
@@ -50,19 +37,4 @@ export function buildCategoryOptions(observed: Iterable<string>): string[] {
         ? 1
         : left.localeCompare(right),
   )
-}
-
-/** Seed an edit draft from a transaction-shaped row's current classification. */
-export function startRecategorizeDraft(row: {
-  id: string
-  category?: string | null
-  essentiality?: string | null
-}): RecategorizeDraft {
-  const category = row.category || 'Unknown'
-  return {
-    transactionId: row.id,
-    category,
-    essentiality: row.essentiality || 'mixed',
-    applyToMerchant: category === 'Unknown',
-  }
 }

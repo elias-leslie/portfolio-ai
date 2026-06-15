@@ -1300,6 +1300,9 @@ export interface HouseholdProductSummary {
   latestPrice?: number | null
   latestUnitPrice?: number | null
   latestMerchant?: string | null
+  ownerItemId?: string | null
+  ownerName?: string | null
+  ownerSource: string
   pricePoints: HouseholdProductPricePoint[]
 }
 
@@ -1332,24 +1335,9 @@ export interface HouseholdPurchaseItemReviewQueue {
   items: HouseholdPurchaseItem[]
 }
 
-export interface HouseholdPurchaseItemList {
-  generatedAt: string
-  totalCount: number
-  offset: number
-  limit: number
-  returnedCount: number
-  items: HouseholdPurchaseItem[]
-}
-
 export interface HouseholdProductListParams {
   search?: string
   sort?: 'recent' | 'frequency' | 'name'
-  limit?: number
-  offset?: number
-}
-
-export interface HouseholdPurchaseItemListParams {
-  search?: string
   limit?: number
   offset?: number
 }

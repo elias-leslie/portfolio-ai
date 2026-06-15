@@ -1,7 +1,7 @@
 'use client'
 
 import { ChevronDown } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,6 +15,7 @@ interface PurchaseItemOwnerSelectProps {
   ownerName?: string | null
   ownerSource?: string | null
   inheritedOwnerName?: string | null
+  forceProductRule?: boolean
   className?: string
 }
 
@@ -24,6 +25,7 @@ export function PurchaseItemOwnerSelect({
   ownerName,
   ownerSource,
   inheritedOwnerName,
+  forceProductRule = false,
   className,
 }: PurchaseItemOwnerSelectProps) {
   const explicitOwner = ownerName?.trim() ?? ''
@@ -31,7 +33,10 @@ export function PurchaseItemOwnerSelect({
   const effectiveOwner = explicitOwner || inheritedOwner
   const [draft, setDraft] = useState(effectiveOwner)
   const [open, setOpen] = useState(false)
-  const [applyToProduct, setApplyToProduct] = useState(false)
+  const [applyToProduct, setApplyToProduct] = useState(forceProductRule)
+  const lastCommittedRef = useRef(
+    `${effectiveOwner.trim()}::${forceProductRule ? 'rule' : 'item'}`,
+  )
   const setOwner = useSetPurchaseItemOwner()
   const listId = `owner-options-${itemId}`
   const inputId = `owner-${itemId}`
@@ -46,21 +51,26 @@ export function PurchaseItemOwnerSelect({
 
   useEffect(() => {
     setDraft(effectiveOwner)
-    setApplyToProduct(false)
-  }, [effectiveOwner])
+    setApplyToProduct(forceProductRule)
+    lastCommittedRef.current = `${effectiveOwner.trim()}::${
+      forceProductRule ? 'rule' : 'item'
+    }`
+  }, [effectiveOwner, forceProductRule])
 
   async function commit(
     nextOwner: string,
-    applyRule = applyToProduct,
+    applyRule = forceProductRule ? true : applyToProduct,
     force = false,
   ) {
     const trimmed = nextOwner.trim()
     const unchanged =
       trimmed === explicitOwner ||
       (!explicitOwner && trimmed === inheritedOwner)
-    if (!force && unchanged) {
+    const commitKey = `${trimmed}::${applyRule ? 'rule' : 'item'}`
+    if ((!force && unchanged) || commitKey === lastCommittedRef.current) {
       return
     }
+    lastCommittedRef.current = commitKey
     await setOwner.mutateAsync({
       itemId,
       ownerName: trimmed || null,
@@ -126,21 +136,23 @@ export function PurchaseItemOwnerSelect({
       <p className="mt-1 text-[10px] capitalize leading-none text-text-muted">
         {sourceLabel}
       </p>
-      <label className="mt-1 flex items-center gap-1 text-[10px] leading-none text-text-muted">
-        <Checkbox
-          checked={applyToProduct}
-          disabled={setOwner.isPending}
-          className="h-3 w-3"
-          onCheckedChange={(checked) => {
-            const nextApply = checked === true
-            setApplyToProduct(nextApply)
-            if (nextApply && draft.trim()) {
-              void commit(draft, nextApply, true)
-            }
-          }}
-        />
-        <span>Product rule</span>
-      </label>
+      {!forceProductRule ? (
+        <label className="mt-1 flex items-center gap-1 text-[10px] leading-none text-text-muted">
+          <Checkbox
+            checked={applyToProduct}
+            disabled={setOwner.isPending}
+            className="h-3 w-3"
+            onCheckedChange={(checked) => {
+              const nextApply = checked === true
+              setApplyToProduct(nextApply)
+              if (nextApply && draft.trim()) {
+                void commit(draft, nextApply, true)
+              }
+            }}
+          />
+          <span>Product rule</span>
+        </label>
+      ) : null}
       {open ? (
         <div
           id={listId}

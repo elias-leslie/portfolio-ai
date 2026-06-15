@@ -12,7 +12,6 @@ from app.models.household_finance import (
     HouseholdProductPricePoint,
     HouseholdProductSummary,
     HouseholdPurchaseItem,
-    HouseholdPurchaseItemList,
     HouseholdPurchaseItemReviewQueue,
 )
 from app.services._household_finance_utils import iso_or_none, to_float
@@ -44,6 +43,13 @@ def _price_point(row: Any) -> HouseholdProductPricePoint:
         unit_price=to_float(row[4]),
         source=str(row[5] or ""),
     )
+
+
+def _row_value(row: Any, index: int, default: Any = None) -> Any:
+    try:
+        return row[index]
+    except IndexError:
+        return default
 
 
 _ITEM_SELECT = """
@@ -126,6 +132,26 @@ class HouseholdProductCatalogService:
                 FROM household_purchase_items
                 WHERE removed IS NOT TRUE AND product_id IS NOT NULL
                 GROUP BY product_id
+            ),
+            latest_item AS (
+                SELECT DISTINCT ON (product_id)
+                       product_id,
+                       id AS owner_item_id,
+                       metadata ->> 'owner_name' AS owner_name,
+                       COALESCE(metadata ->> 'owner_source', 'none') AS owner_source
+                FROM household_purchase_items
+                WHERE removed IS NOT TRUE AND product_id IS NOT NULL
+                ORDER BY product_id, purchase_date DESC NULLS LAST, created_at DESC
+            ),
+            owner_rule AS (
+                SELECT DISTINCT ON (product_id)
+                       product_id,
+                       metadata ->> 'owner_name' AS owner_name
+                FROM household_transaction_rules
+                WHERE rule_type = 'product'
+                  AND enabled IS TRUE
+                  AND NULLIF(TRIM(metadata ->> 'owner_name'), '') IS NOT NULL
+                ORDER BY product_id, updated_at DESC
             )
             SELECT p.id, p.canonical_name, p.brand, p.package_display_label, p.image_url,
                    COALESCE(items.purchase_count, 0) AS purchase_count,
@@ -133,10 +159,18 @@ class HouseholdProductCatalogService:
                    COALESCE(items.needs_review_count, 0) AS needs_review_count,
                    obs.first_observed_date,
                    obs.last_observed_date,
-                   COUNT(*) OVER () AS total_count
+                   COUNT(*) OVER () AS total_count,
+                   latest_item.owner_item_id,
+                   COALESCE(owner_rule.owner_name, latest_item.owner_name) AS owner_name,
+                   CASE
+                     WHEN owner_rule.owner_name IS NOT NULL THEN 'product_rule'
+                     ELSE COALESCE(latest_item.owner_source, 'none')
+                   END AS owner_source
             FROM household_products p
             LEFT JOIN obs ON obs.product_id = p.id
             LEFT JOIN items ON items.product_id = p.id
+            LEFT JOIN latest_item ON latest_item.product_id = p.id
+            LEFT JOIN owner_rule ON owner_rule.product_id = p.id
             WHERE {where}
             ORDER BY {order_by}, p.id ASC
             LIMIT %s OFFSET %s
@@ -189,6 +223,9 @@ class HouseholdProductCatalogService:
             latest_price=latest.total_price if latest else None,
             latest_unit_price=latest.unit_price if latest else None,
             latest_merchant=latest.merchant if latest else None,
+            owner_item_id=str(row[11]) if _row_value(row, 11) else None,
+            owner_name=str(row[12]) if _row_value(row, 12) else None,
+            owner_source=str(_row_value(row, 13, "none") or "none"),
             price_points=points,
         )
 
@@ -326,59 +363,6 @@ class HouseholdProductCatalogService:
                 [transaction_id],
             ).fetchall()
         return [_purchase_item(row) for row in rows]
-
-    def list_items(
-        self,
-        *,
-        search: str = "",
-        limit: int = 50,
-        offset: int = 0,
-    ) -> HouseholdPurchaseItemList:
-        normalized_search = (search or "").strip()
-        page_limit = max(1, min(int(limit), 200))
-        page_offset = max(0, int(offset))
-        where = "i.removed IS NOT TRUE"
-        params: list[Any] = []
-        if normalized_search:
-            like = f"%{normalized_search}%"
-            where += """
-              AND (
-                i.description ILIKE %s
-                OR p.canonical_name ILIKE %s
-                OR m.canonical_name ILIKE %s
-              )
-            """
-            params.extend([like, like, like])
-
-        with self.storage.connection() as conn:
-            total_row = conn.execute(
-                f"""
-                SELECT COUNT(*)
-                FROM household_purchase_items i
-                LEFT JOIN household_products p ON p.id = i.product_id
-                LEFT JOIN household_merchants m ON m.id = i.merchant_id
-                WHERE {where}
-                """,
-                params,
-            ).fetchone()
-            rows = conn.execute(
-                f"""
-                {_ITEM_SELECT}
-                WHERE {where}
-                ORDER BY i.purchase_date DESC NULLS LAST, i.created_at DESC
-                LIMIT %s OFFSET %s
-                """,
-                [*params, page_limit, page_offset],
-            ).fetchall()
-
-        return HouseholdPurchaseItemList(
-            generated_at=datetime.now(UTC).isoformat(),
-            total_count=int(total_row[0]) if total_row else 0,
-            offset=page_offset,
-            limit=page_limit,
-            returned_count=len(rows),
-            items=[_purchase_item(row) for row in rows],
-        )
 
     def list_review_queue(self) -> HouseholdPurchaseItemReviewQueue:
         with self.storage.connection() as conn:

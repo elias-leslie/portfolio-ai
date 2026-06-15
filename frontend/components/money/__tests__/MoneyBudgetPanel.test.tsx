@@ -1,6 +1,6 @@
 'use client'
 
-import { render, screen, within } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -243,29 +243,22 @@ describe('MoneyBudgetPanel', () => {
     expect(screen.getAllByText('Over budget')).not.toHaveLength(0)
   })
 
-  it('saves a default owner on the category budget fact', async () => {
+  it('saves a default owner inline on the category budget fact', async () => {
     const user = userEvent.setup()
     confirmFactMutateAsync.mockResolvedValue({ ok: true })
 
     render(<MoneyBudgetPanel />)
 
-    const householdRow = budgetCategoryButton('Household').closest('tr')
-    if (!householdRow) {
-      throw new Error('Missing Household budget row')
-    }
-    await user.click(
-      within(householdRow).getByRole('button', { name: 'Budget' }),
-    )
-    const ownerInput = screen.getByLabelText('Default owner')
+    const ownerInput = screen.getByLabelText('Default owner for Household')
     await user.click(ownerInput)
     expect(screen.getByRole('option', { name: 'Mariana' })).toBeInTheDocument()
-    await user.click(screen.getByRole('option', { name: 'Mariana/Elias' }))
-    expect(ownerInput).toHaveValue('Mariana/Elias')
-    await user.clear(ownerInput)
+    expect(
+      screen.getByRole('option', { name: 'Mariana/Elias' }),
+    ).toBeInTheDocument()
     await user.type(ownerInput, 'Alex Demo')
-    await user.click(screen.getByRole('button', { name: 'Save budget' }))
+    await user.keyboard('{Enter}')
 
-    expect(confirmFactMutateAsync).toHaveBeenCalledWith({
+    expect(confirmFactMutateAsync).toHaveBeenLastCalledWith({
       factKey: `${CATEGORY_BUDGET_PREFIX}Household`,
       factValue: serializeCategoryBudgetMeta({
         category: 'Household',
@@ -364,7 +357,7 @@ describe('MoneyBudgetPanel', () => {
     expect(screen.queryByRole('link', { name: /hidden/i })).toBeNull()
   })
 
-  it('expands category purchases and sends merchant rule recategorization', async () => {
+  it('expands category purchases and recategorizes inline', async () => {
     const user = userEvent.setup()
     categorizeMutateAsync.mockResolvedValue({ ok: true })
 
@@ -381,15 +374,13 @@ describe('MoneyBudgetPanel', () => {
     await user.click(expandRow ?? householdButtons[0])
     expect(screen.getByText(/WM SUPERCENTER/)).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Categorize' }))
+    await user.click(screen.getByLabelText('Category for Walmart'))
     expect(screen.getByRole('option', { name: 'Retail' })).toBeInTheDocument()
     expect(
       screen.getByRole('option', { name: 'Groceries' }),
     ).toBeInTheDocument()
 
-    await user.clear(screen.getByLabelText('Category'))
-    await user.type(screen.getByLabelText('Category'), 'Groceries')
-    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await user.click(screen.getByRole('option', { name: 'Groceries' }))
 
     expect(categorizeMutateAsync).toHaveBeenCalledWith({
       transactionId: 'txn-household',

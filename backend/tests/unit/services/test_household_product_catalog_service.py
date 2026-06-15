@@ -196,23 +196,6 @@ def test_transaction_items_and_review_queue_map_rows() -> None:
     assert queue.items[0].product_name == "GV Edamame"
 
 
-def test_purchase_item_list_searches_and_pages_rows() -> None:
-    conn = _ScriptedConn(item_rows=[_ITEM_ROW], review_count=1)
-    item_list = _service(conn).list_items(search="edamame", limit=25, offset=50)
-
-    assert item_list.total_count == 1
-    assert item_list.limit == 25
-    assert item_list.offset == 50
-    assert item_list.returned_count == 1
-    assert item_list.items[0].description == "GV EDAMAME 12OZ"
-    count_sql, count_params = conn.queries[0]
-    page_sql, page_params = conn.queries[1]
-    assert "ILIKE" in count_sql
-    assert count_params == ["%edamame%", "%edamame%", "%edamame%"]
-    assert "LIMIT %s OFFSET %s" in page_sql
-    assert page_params[-2:] == [25, 50]
-
-
 def test_assign_product_delegates_and_commits() -> None:
     conn = _ScriptedConn()
     service = _service(conn)

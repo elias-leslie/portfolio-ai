@@ -2,9 +2,10 @@
 
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type * as React from 'react'
-import { Fragment } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import type {
   HouseholdSpendingCategory,
   HouseholdSpendingTransaction,
@@ -12,6 +13,8 @@ import type {
 import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 import { budgetStatus } from './budget-helpers'
+import { InlineComboboxField } from './InlineComboboxField'
+import { buildOwnerOptions } from './owner-options'
 import { TransactionEditor } from './TransactionEditor'
 import { type BudgetRowEntry, entryBreach } from './useBudgetRows'
 
@@ -27,7 +30,11 @@ export interface BudgetRowProps {
     meta: BudgetRowEntry['meta'],
     foundBudget: number,
   ) => void
-  onOpenBudget: (row: HouseholdSpendingCategory) => void
+  onSaveBudget: (
+    row: HouseholdSpendingCategory,
+    meta: BudgetRowEntry['meta'],
+    changes: { monthlyTarget?: number | null; ownerName?: string | null },
+  ) => void
   transactionEditorProps: Omit<
     React.ComponentProps<typeof TransactionEditor>,
     'transaction'
@@ -42,17 +49,37 @@ export function BudgetRow({
   onToggleExpand,
   onCollapse,
   onConfirmFound,
-  onOpenBudget,
+  onSaveBudget,
   transactionEditorProps,
 }: BudgetRowProps) {
   const { row, meta, currentBudget, foundBudget, note } = entry
   const ownerName = meta?.ownerName?.trim()
+  const rowInputId = row.category.replace(/[^a-zA-Z0-9_-]+/g, '-')
+  const currentBudgetText = currentBudget != null ? String(currentBudget) : ''
+  const [budgetDraft, setBudgetDraft] = useState(currentBudgetText)
   const status = budgetStatus(
     currentBudget,
     foundBudget,
     row.averageMonthlySpend,
   )
   const breach = entryBreach(entry)
+
+  useEffect(() => {
+    setBudgetDraft(currentBudgetText)
+  }, [currentBudgetText])
+
+  function saveBudgetDraft() {
+    const trimmed = budgetDraft.trim()
+    const nextBudget = trimmed ? Number(trimmed) : null
+    if (trimmed && !Number.isFinite(nextBudget)) {
+      setBudgetDraft(currentBudgetText)
+      return
+    }
+    if ((currentBudget ?? null) === nextBudget) {
+      return
+    }
+    onSaveBudget(row, meta, { monthlyTarget: nextBudget })
+  }
 
   return (
     <Fragment key={row.category}>
@@ -88,19 +115,31 @@ export function BudgetRow({
             decimals: 0,
           })}
         </td>
-        <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
-          {currentBudget != null ? (
-            <span>{formatCurrency(currentBudget, { decimals: 0 })}</span>
-          ) : foundBudget != null ? (
-            <span className="text-text-muted">
-              ~{formatCurrency(foundBudget, { decimals: 0 })}
-              <span className="ml-1 text-[10px] uppercase tracking-wide">
-                suggested
-              </span>
-            </span>
-          ) : (
-            '—'
-          )}
+        <td className="border-b border-border/20 px-4 py-3">
+          <Input
+            value={budgetDraft}
+            inputMode="decimal"
+            aria-label={`Monthly budget for ${row.category}`}
+            placeholder={
+              foundBudget != null
+                ? `~${formatCurrency(foundBudget, { decimals: 0 })}`
+                : 'Budget'
+            }
+            disabled={confirmPending}
+            className="ml-auto h-8 w-28 text-right font-mono text-xs tabular-nums"
+            onChange={(event) => setBudgetDraft(event.target.value)}
+            onBlur={saveBudgetDraft}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.currentTarget.blur()
+              }
+            }}
+          />
+          {currentBudget == null && foundBudget != null ? (
+            <div className="mt-1 text-right text-[10px] uppercase tracking-wide text-text-muted">
+              suggested
+            </div>
+          ) : null}
         </td>
         <td className="border-b border-border/20 px-4 py-3">
           <Badge variant={status.variant}>{status.label}</Badge>
@@ -112,12 +151,18 @@ export function BudgetRow({
           ) : null}
         </td>
         <td className="border-b border-border/20 px-4 py-3 text-text-muted">
-          <div>{note ? note : '—'}</div>
-          {ownerName ? (
-            <div className="mt-1 text-xs text-text-muted">
-              Owner: <span className="text-text">{ownerName}</span>
-            </div>
-          ) : null}
+          <InlineComboboxField
+            id={`budget-owner-${rowInputId}`}
+            label={`Default owner for ${row.category}`}
+            value={ownerName ?? ''}
+            options={buildOwnerOptions([ownerName ?? ''])}
+            placeholder="Owner"
+            disabled={confirmPending}
+            onCommit={(owner) =>
+              onSaveBudget(row, meta, { ownerName: owner || null })
+            }
+          />
+          {note ? <div className="mt-1 text-xs">{note}</div> : null}
         </td>
         <td className="border-b border-border/20 px-4 py-3 text-right">
           <div className="flex justify-end gap-2">
@@ -131,14 +176,6 @@ export function BudgetRow({
                 Accept
               </Button>
             ) : null}
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => onOpenBudget(row)}
-            >
-              Budget
-            </Button>
           </div>
         </td>
       </tr>
@@ -154,8 +191,7 @@ export function BudgetRow({
                     {row.category}
                   </p>
                   <p className="mt-1 text-xs text-text-muted">
-                    Recategorize one row, or apply a merchant rule so matching
-                    purchases update automatically going forward.
+                    Change categories directly on the rows below.
                   </p>
                 </div>
                 <Button

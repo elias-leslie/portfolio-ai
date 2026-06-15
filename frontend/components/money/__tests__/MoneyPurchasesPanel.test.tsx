@@ -7,7 +7,6 @@ import type { HouseholdPriceInsight } from '@/lib/api/household'
 import { MoneyPurchasesPanel } from '../MoneyPurchasesPanel'
 
 const useHouseholdProductsMock = vi.hoisted(() => vi.fn())
-const usePurchaseItemsMock = vi.hoisted(() => vi.fn())
 const usePurchaseItemReviewQueueMock = vi.hoisted(() => vi.fn())
 const useHouseholdProductDetailMock = vi.hoisted(() => vi.fn())
 const usePriceCheckStatusMock = vi.hoisted(() => vi.fn())
@@ -25,7 +24,6 @@ const updateVendorProfilesMutate = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/hooks/useHouseholdPurchases', () => ({
   useHouseholdProducts: useHouseholdProductsMock,
-  usePurchaseItems: usePurchaseItemsMock,
   usePurchaseItemReviewQueue: usePurchaseItemReviewQueueMock,
   useHouseholdProductDetail: useHouseholdProductDetailMock,
   usePriceCheckStatus: usePriceCheckStatusMock,
@@ -85,6 +83,9 @@ function buildProduct(index: number, overrides = {}) {
     latestPrice: 4.5,
     latestUnitPrice: 0.38,
     latestMerchant: 'Walmart',
+    ownerItemId: `item-product-${padded}`,
+    ownerName: null,
+    ownerSource: 'none',
     pricePoints: [
       {
         observedDate: '2026-01-05',
@@ -153,27 +154,6 @@ function buildReviewItem(overrides = {}) {
   }
 }
 
-function mockPurchaseItems(
-  items: ReturnType<typeof buildReviewItem>[],
-  overrides: Record<string, unknown> = {},
-) {
-  usePurchaseItemsMock.mockReturnValue({
-    data: {
-      generatedAt: '2026-06-01T00:00:00Z',
-      totalCount: items.length,
-      offset: 0,
-      limit: 50,
-      returnedCount: items.length,
-      items,
-      ...overrides,
-    },
-    isLoading: false,
-    error: null,
-    refetch: vi.fn(),
-    isFetching: false,
-  })
-}
-
 const unitPriceUpInsight: HouseholdPriceInsight = {
   merchant: 'Walmart',
   itemName: 'Olive Oil',
@@ -202,14 +182,9 @@ function lastCatalogParams() {
   )
 }
 
-function lastPurchaseItemParams() {
-  return usePurchaseItemsMock.mock.calls.at(-1)?.[0] ?? {}
-}
-
 describe('MoneyPurchasesPanel', () => {
   beforeEach(() => {
     useHouseholdProductsMock.mockReset()
-    usePurchaseItemsMock.mockReset()
     usePurchaseItemReviewQueueMock.mockReset()
     useHouseholdProductDetailMock.mockReset()
     usePriceCheckStatusMock.mockReset()
@@ -227,15 +202,6 @@ describe('MoneyPurchasesPanel', () => {
     usePurchaseItemReviewQueueMock.mockReturnValue({
       data: { generatedAt: '2026-06-01T00:00:00Z', totalCount: 0, items: [] },
     })
-    mockPurchaseItems([
-      buildReviewItem({
-        id: 'item-list-1',
-        description: 'MILK 1GAL',
-        productName: 'Milk',
-        productMatchStatus: 'matched',
-        productMatchConfidence: 0.99,
-      }),
-    ])
     useHouseholdFactsMock.mockReturnValue({ data: [] })
     usePriceCheckStatusMock.mockReturnValue({ data: undefined })
     useShoppingListsMock.mockReturnValue({
@@ -304,35 +270,21 @@ describe('MoneyPurchasesPanel', () => {
     })
   })
 
-  it('shows item owner dropdowns in purchase rows and saves overrides', async () => {
+  it('shows product owner dropdowns inline and saves product rules', async () => {
     const user = userEvent.setup()
     setOwnerMutateAsync.mockResolvedValue(true)
-    mockCatalog([])
-    mockPurchaseItems([buildReviewItem({ id: 'item-owner-1' })])
+    mockCatalog([buildProduct(1, { ownerItemId: 'item-owner-1' })])
 
     render(<MoneyPurchasesPanel priceInsights={[]} />)
 
-    const ownerInput = screen.getByLabelText('Owner for GV OLIVE OIL 17OZ')
+    const ownerInput = screen.getByLabelText('Owner for Product 001')
     await user.click(ownerInput)
     await user.click(screen.getByRole('option', { name: 'Sophia' }))
 
     expect(setOwnerMutateAsync).toHaveBeenCalledWith({
       itemId: 'item-owner-1',
       ownerName: 'Sophia',
-      applyToProduct: false,
-    })
-  })
-
-  it('sends the item search term to the purchase items query', async () => {
-    const user = userEvent.setup()
-    mockCatalog([])
-
-    render(<MoneyPurchasesPanel priceInsights={[]} />)
-
-    await user.type(screen.getByLabelText('Search purchase items'), 'catfood')
-
-    await waitFor(() => {
-      expect(lastPurchaseItemParams().search).toBe('catfood')
+      applyToProduct: true,
     })
   })
 

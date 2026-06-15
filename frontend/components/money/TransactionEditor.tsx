@@ -1,45 +1,27 @@
 'use client'
 
-import type { Dispatch, SetStateAction } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import type { HouseholdSpendingTransaction } from '@/lib/api/household'
 import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
 import { formatBudgetDate } from './budget-helpers'
-import { CategoryEditorForm } from './CategoryEditorForm'
-import type { RecategorizeDraft } from './category-options'
-import type { MerchantAggregate } from './merchant-aggregation'
+import { InlineComboboxField } from './InlineComboboxField'
 
 export interface TransactionEditorProps {
   transaction: HouseholdSpendingTransaction
-  recategorizeDraft: RecategorizeDraft | null
-  setRecategorizeDraft: Dispatch<SetStateAction<RecategorizeDraft | null>>
-  categoryPickerOpenFor: string | null
-  setCategoryPickerOpenFor: Dispatch<SetStateAction<string | null>>
   categoryOptions: string[]
-  merchantAggregates: Map<string, MerchantAggregate>
   categorizePending: boolean
-  onStartRecategorize: (transaction: HouseholdSpendingTransaction) => void
-  onSaveRecategorize: (transaction: HouseholdSpendingTransaction) => void
+  onCommitCategory: (
+    transaction: HouseholdSpendingTransaction,
+    category: string,
+  ) => void
 }
 
 export function TransactionEditor({
   transaction,
-  recategorizeDraft,
-  setRecategorizeDraft,
-  categoryPickerOpenFor,
-  setCategoryPickerOpenFor,
   categoryOptions,
-  merchantAggregates,
   categorizePending,
-  onStartRecategorize,
-  onSaveRecategorize,
+  onCommitCategory,
 }: TransactionEditorProps) {
-  const isEditing = recategorizeDraft?.transactionId === transaction.id
-  const isCategoryPickerOpen = categoryPickerOpenFor === transaction.id
-  const merchantKey = transaction.merchant.trim().toLowerCase()
-  const similarMerchantCount =
-    merchantAggregates.get(merchantKey)?.transactionCount ?? 1
   const isItemizedSlice = Boolean(transaction.splitParentId)
 
   return (
@@ -75,15 +57,13 @@ export function TransactionEditor({
           {formatBudgetDate(transaction.date)} ·{' '}
           {transaction.accountLabel ?? 'No account'} · {transaction.description}
         </p>
-        {!isEditing ? (
-          <p className="mt-2 text-xs text-text-muted">
-            {transaction.category} · {formatEnumLabel(transaction.essentiality)}
-            {transaction.categoryConfidence != null
-              ? ` · ${(transaction.categoryConfidence * 100).toFixed(0)}% confidence`
-              : ''}
-            {transaction.ownerName ? ` · Owner: ${transaction.ownerName}` : ''}
-          </p>
-        ) : null}
+        <p className="mt-2 text-xs text-text-muted">
+          {formatEnumLabel(transaction.essentiality)}
+          {transaction.categoryConfidence != null
+            ? ` · ${(transaction.categoryConfidence * 100).toFixed(0)}% confidence`
+            : ''}
+          {transaction.ownerName ? ` · Owner: ${transaction.ownerName}` : ''}
+        </p>
       </div>
 
       <div className="flex min-w-[280px] flex-col gap-3 lg:items-end">
@@ -95,39 +75,16 @@ export function TransactionEditor({
             Category and owner come from linked purchase items. Edit them from
             the Ledger item drawer.
           </p>
-        ) : isEditing && recategorizeDraft ? (
-          <CategoryEditorForm
-            transactionId={transaction.id}
-            draft={recategorizeDraft}
-            setDraft={setRecategorizeDraft}
-            pickerOpen={isCategoryPickerOpen}
-            onPickerOpenChange={(open) =>
-              setCategoryPickerOpenFor((current) =>
-                open
-                  ? transaction.id
-                  : current === transaction.id
-                    ? null
-                    : current,
-              )
-            }
-            categoryOptions={categoryOptions}
-            similarMerchantCount={similarMerchantCount}
-            pending={categorizePending}
-            onSave={() => onSaveRecategorize(transaction)}
-            onCancel={() => {
-              setRecategorizeDraft(null)
-              setCategoryPickerOpenFor(null)
-            }}
-          />
         ) : (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => onStartRecategorize(transaction)}
-          >
-            Categorize
-          </Button>
+          <InlineComboboxField
+            id={`budget-transaction-category-${transaction.id}`}
+            label={`Category for ${transaction.merchant}`}
+            value={transaction.category}
+            options={categoryOptions}
+            disabled={categorizePending}
+            className="w-[220px]"
+            onCommit={(category) => onCommitCategory(transaction, category)}
+          />
         )}
       </div>
     </div>

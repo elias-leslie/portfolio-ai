@@ -791,15 +791,6 @@ class HouseholdPurchaseItem(BaseModel):
     owner_source: str = "none"
 
 
-class HouseholdPurchaseItemList(BaseModel):
-    generated_at: str
-    total_count: int = 0
-    offset: int = 0
-    limit: int = 0
-    returned_count: int = 0
-    items: list[HouseholdPurchaseItem] = Field(default_factory=list)
-
-
 class HouseholdProductPricePoint(BaseModel):
     observed_date: str
     merchant: str | None = None
@@ -823,6 +814,9 @@ class HouseholdProductSummary(BaseModel):
     latest_price: float | None = None
     latest_unit_price: float | None = None
     latest_merchant: str | None = None
+    owner_item_id: str | None = None
+    owner_name: str | None = None
+    owner_source: str = "none"
     # Most recent observations, oldest first, capped server-side — the
     # sparkline + hover tooltip payload.
     price_points: list[HouseholdProductPricePoint] = Field(default_factory=list)

@@ -4,7 +4,6 @@ import type * as React from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Button } from '@/components/ui/button'
-import type { HouseholdSpendingCategory } from '@/lib/api/household'
 import { BudgetRow } from './BudgetRow'
 import type { TransactionEditor } from './TransactionEditor'
 import type { BudgetRowEntry } from './useBudgetRows'
@@ -25,7 +24,7 @@ export interface BudgetTableProps {
   onAcceptAll: () => void
   setExpandedCategory: Dispatch<SetStateAction<string | null>>
   onConfirmFound: React.ComponentProps<typeof BudgetRow>['onConfirmFound']
-  onOpenBudget: (row: HouseholdSpendingCategory) => void
+  onSaveBudget: React.ComponentProps<typeof BudgetRow>['onSaveBudget']
   transactionEditorProps: Omit<
     React.ComponentProps<typeof TransactionEditor>,
     'transaction'
@@ -45,14 +44,14 @@ export function BudgetTable({
   onAcceptAll,
   setExpandedCategory,
   onConfirmFound,
-  onOpenBudget,
+  onSaveBudget,
   transactionEditorProps,
 }: BudgetTableProps) {
   return (
     <SectionCard
       variant="surface"
       title="Category budgets"
-      description="Expand a category to inspect the purchases behind it, correct wrong categories, or create merchant rules."
+      description="Adjust category caps, owners, and row categories inline."
       padding="none"
       className="overflow-hidden"
       actions={
@@ -102,10 +101,10 @@ export function BudgetTable({
                 Status
               </th>
               <th className="border-b border-border/35 px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                Note
+                Owner / note
               </th>
               <th className="border-b border-border/35 px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                Action
+                Suggested
               </th>
             </tr>
           </thead>
@@ -145,7 +144,7 @@ export function BudgetTable({
                   }
                   onCollapse={() => setExpandedCategory(null)}
                   onConfirmFound={onConfirmFound}
-                  onOpenBudget={onOpenBudget}
+                  onSaveBudget={onSaveBudget}
                   transactionEditorProps={transactionEditorProps}
                 />
               ))

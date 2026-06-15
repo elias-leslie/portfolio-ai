@@ -22,10 +22,6 @@ import { BudgetStatRow } from './BudgetStatRow'
 import { BudgetTable } from './BudgetTable'
 import { type BudgetWindow, budgetWindows } from './budget-helpers'
 import { CategoryTrendChart } from './CategoryTrendChart'
-import {
-  type RecategorizeDraft,
-  startRecategorizeDraft,
-} from './category-options'
 import { OwnerSpendInsightsCard } from './OwnerSpendInsightsCard'
 import {
   type BudgetRowEntry,
@@ -42,11 +38,6 @@ export function MoneyBudgetPanel() {
   const [ownerInput, setOwnerInput] = useState('')
   const [disabled, setDisabled] = useState(false)
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null)
-  const [recategorizeDraft, setRecategorizeDraft] =
-    useState<RecategorizeDraft | null>(null)
-  const [categoryPickerOpenFor, setCategoryPickerOpenFor] = useState<
-    string | null
-  >(null)
   const [isolatedSeries, setIsolatedSeries] = useState<string | null>(null)
   const {
     data: spending,
@@ -63,7 +54,6 @@ export function MoneyBudgetPanel() {
     budgetMeta,
     categoryOptions,
     transactionsByCategory,
-    merchantAggregates,
     activeRows,
     hiddenRows,
     sortedActiveRows,
@@ -103,36 +93,29 @@ export function MoneyBudgetPanel() {
     }
   }
 
-  function startRecategorize(transaction: HouseholdSpendingTransaction) {
-    setRecategorizeDraft(startRecategorizeDraft(transaction))
-    setCategoryPickerOpenFor(transaction.id)
-  }
-
-  async function saveRecategorize(transaction: HouseholdSpendingTransaction) {
-    if (!recategorizeDraft || !recategorizeDraft.category.trim()) {
+  async function saveTransactionCategory(
+    transaction: HouseholdSpendingTransaction,
+    category: string,
+  ) {
+    const trimmed = category.trim()
+    if (!trimmed) {
       return
     }
     await categorizeTransaction.mutateAsync({
       transactionId: transaction.id,
-      category: recategorizeDraft.category.trim(),
-      essentiality: recategorizeDraft.essentiality,
-      applyToMerchant: recategorizeDraft.applyToMerchant,
+      category: trimmed,
+      essentiality: transaction.essentiality || 'mixed',
+      applyToMerchant: false,
     })
-    setRecategorizeDraft(null)
-    setCategoryPickerOpenFor(null)
   }
 
   const transactionEditorProps = {
-    recategorizeDraft,
-    setRecategorizeDraft,
-    categoryPickerOpenFor,
-    setCategoryPickerOpenFor,
     categoryOptions,
-    merchantAggregates,
     categorizePending: categorizeTransaction.isPending,
-    onStartRecategorize: startRecategorize,
-    onSaveRecategorize: (transaction: HouseholdSpendingTransaction) =>
-      void saveRecategorize(transaction),
+    onCommitCategory: (
+      transaction: HouseholdSpendingTransaction,
+      category: string,
+    ) => void saveTransactionCategory(transaction, category),
   }
 
   function confirmFoundCap(
@@ -177,16 +160,32 @@ export function MoneyBudgetPanel() {
     ) {
       setExpandedCategory(null)
     }
-    if (
-      recategorizeDraft &&
-      !spending?.transactions.some(
-        (transaction) => transaction.id === recategorizeDraft.transactionId,
-      )
-    ) {
-      setRecategorizeDraft(null)
-      setCategoryPickerOpenFor(null)
-    }
-  }, [activeRows, expandedCategory, recategorizeDraft, spending?.transactions])
+  }, [activeRows, expandedCategory])
+
+  function saveCategoryBudget(
+    row: HouseholdSpendingCategory,
+    meta: BudgetRowEntry['meta'],
+    changes: { monthlyTarget?: number | null; ownerName?: string | null },
+  ) {
+    const monthlyTarget =
+      changes.monthlyTarget !== undefined
+        ? changes.monthlyTarget
+        : (row.confirmedMonthlyBudget ?? meta?.monthlyTarget ?? null)
+    void confirmFact.mutateAsync({
+      factKey: `${CATEGORY_BUDGET_PREFIX}${row.category}`,
+      factValue: serializeCategoryBudgetMeta({
+        category: row.category,
+        note: meta?.note ?? row.budgetNote ?? '',
+        disabled: row.budgetDisabled ?? meta?.disabled === true,
+        monthlyTarget,
+        source: 'manual',
+        ownerName:
+          changes.ownerName !== undefined
+            ? changes.ownerName
+            : (meta?.ownerName ?? null),
+      }),
+    })
+  }
 
   async function saveSelectedCategory(
     source: 'manual' | 'accepted',
@@ -326,7 +325,7 @@ export function MoneyBudgetPanel() {
         onAcceptAll={() => void acceptAllSuggestedCaps()}
         setExpandedCategory={setExpandedCategory}
         onConfirmFound={confirmFoundCap}
-        onOpenBudget={setSelectedCategory}
+        onSaveBudget={saveCategoryBudget}
         transactionEditorProps={transactionEditorProps}
       />
 

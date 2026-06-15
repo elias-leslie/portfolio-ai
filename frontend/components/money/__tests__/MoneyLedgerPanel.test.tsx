@@ -304,27 +304,17 @@ describe('MoneyLedgerPanel', () => {
 
     render(<MoneyLedgerPanel />)
 
-    await user.click(
-      screen.getByRole('button', {
-        name: 'Edit category for Merchant 001',
-      }),
-    )
-
-    const categoryInput = screen.getByLabelText('Category')
+    const categoryInput = screen.getByLabelText('Category for Merchant 001')
+    await user.click(categoryInput)
     expect(categoryInput).toHaveValue('Retail')
 
     await user.click(screen.getByRole('option', { name: /Personal Care/ }))
-    await user.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(categorizeMutateAsync).toHaveBeenCalledWith({
       transactionId: 'txn-001',
       category: 'Personal Care',
       essentiality: 'discretionary',
       applyToMerchant: false,
-    })
-    // The editor closes after a successful save.
-    await waitFor(() => {
-      expect(screen.queryByLabelText('Category')).not.toBeInTheDocument()
     })
   })
 
@@ -339,9 +329,7 @@ describe('MoneyLedgerPanel', () => {
 
     render(<MoneyLedgerPanel />)
 
-    expect(
-      screen.queryByRole('button', { name: /Edit category/ }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/Category for/)).not.toBeInTheDocument()
   })
 
   it('shows pending and provenance only through row audit detail', async () => {
@@ -430,18 +418,8 @@ describe('MoneyLedgerPanel', () => {
 
     render(<MoneyLedgerPanel />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Edit category for Item 1' }),
-    )
-
-    // The product-rule wording replaces the merchant wording for items.
-    expect(
-      screen.getByText(/Apply to this product going forward/),
-    ).toBeInTheDocument()
-
-    await user.clear(screen.getByLabelText('Category'))
-    await user.type(screen.getByLabelText('Category'), 'Household')
-    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await user.click(screen.getByLabelText('Category for Item 1'))
+    await user.click(screen.getByRole('option', { name: 'Household' }))
 
     expect(categorizeItemMutateAsync).toHaveBeenCalledWith({
       itemId: 'item-1',

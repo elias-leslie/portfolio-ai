@@ -10,7 +10,6 @@ import {
   useHouseholdProducts,
   usePriceCheckStatus,
   usePurchaseItemReviewQueue,
-  usePurchaseItems,
   useTriggerPriceCheck,
 } from '@/lib/hooks/useHouseholdPurchases'
 import { PriceCheckStatusCard } from './PriceCheckStatusCard'
@@ -19,12 +18,9 @@ import { ProductCatalogTable } from './ProductCatalogTable'
 import { ProductDetailSheet } from './ProductDetailSheet'
 import { ProductMatchReviewCard } from './ProductMatchReviewCard'
 import { PurchaseFindingsList } from './PurchaseFindingsList'
-import { PurchaseItemsOwnerTable } from './PurchaseItemsOwnerTable'
 import { ShoppingListsCard } from './ShoppingListsCard'
-import { useCategoryOwnerMap } from './useCategoryOwnerMap'
 
 const PRODUCT_PAGE_SIZE = 50
-const ITEM_PAGE_SIZE = 50
 
 type ProductSort = 'recent' | 'frequency' | 'name'
 
@@ -42,16 +38,11 @@ export function MoneyPurchasesPanel({
   priceInsights,
 }: MoneyPurchasesPanelProps) {
   const [search, setSearch] = useState('')
-  const [itemSearch, setItemSearch] = useState('')
   const [sort, setSort] = useState<ProductSort>('recent')
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemPage, setItemPage] = useState(1)
   const [openProductId, setOpenProductId] = useState<string | null>(null)
   const deferredSearch = useDeferredValue(search.trim())
-  const deferredItemSearch = useDeferredValue(itemSearch.trim())
   const offset = (currentPage - 1) * PRODUCT_PAGE_SIZE
-  const itemOffset = (itemPage - 1) * ITEM_PAGE_SIZE
-  const categoryOwnerMap = useCategoryOwnerMap()
 
   const {
     data: catalog,
@@ -66,17 +57,6 @@ export function MoneyPurchasesPanel({
     offset,
   })
   const { data: reviewQueue } = usePurchaseItemReviewQueue()
-  const {
-    data: purchaseItems,
-    isLoading: isLoadingItems,
-    error: itemError,
-    refetch: refetchItems,
-    isFetching: isFetchingItems,
-  } = usePurchaseItems({
-    search: deferredItemSearch || undefined,
-    limit: ITEM_PAGE_SIZE,
-    offset: itemOffset,
-  })
   const { data: priceCheck } = usePriceCheckStatus()
   const triggerPriceCheck = useTriggerPriceCheck()
 
@@ -84,20 +64,11 @@ export function MoneyPurchasesPanel({
     setCurrentPage(1)
   }, [deferredSearch, sort])
 
-  useEffect(() => {
-    setItemPage(1)
-  }, [deferredItemSearch])
-
   const totalCount = catalog?.totalCount ?? 0
   const totalPages = Math.max(1, Math.ceil(totalCount / PRODUCT_PAGE_SIZE))
   const boundedPage = Math.min(currentPage, totalPages)
   const pageStart = totalCount === 0 ? 0 : offset + 1
   const pageEnd = offset + (catalog?.returnedCount ?? 0)
-  const itemTotalCount = purchaseItems?.totalCount ?? 0
-  const itemTotalPages = Math.max(1, Math.ceil(itemTotalCount / ITEM_PAGE_SIZE))
-  const boundedItemPage = Math.min(itemPage, itemTotalPages)
-  const itemPageStart = itemTotalCount === 0 ? 0 : itemOffset + 1
-  const itemPageEnd = itemOffset + (purchaseItems?.returnedCount ?? 0)
 
   if (error) {
     return (
@@ -116,87 +87,8 @@ export function MoneyPurchasesPanel({
     <div className="space-y-6">
       <SectionCard
         variant="surface"
-        title="Receipt / invoice items"
-        description="Set the owner directly on each item. Category owners fill the dropdown by default; choosing a name saves an item-level override."
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Input
-              value={itemSearch}
-              onChange={(event) => setItemSearch(event.target.value)}
-              placeholder="Search item, product, or vendor"
-              aria-label="Search purchase items"
-              className="w-[260px]"
-            />
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                void refetchItems()
-              }}
-              disabled={isFetchingItems}
-            >
-              Refresh
-            </Button>
-          </div>
-        }
-      >
-        {itemError ? (
-          <LoadErrorState
-            title="Failed to load purchase items."
-            detail="Retry to refresh receipt and invoice item rows."
-            onRetry={() => {
-              void refetchItems()
-            }}
-            isRetrying={isFetchingItems}
-          />
-        ) : (
-          <>
-            <PurchaseItemsOwnerTable
-              items={purchaseItems?.items ?? []}
-              isLoading={isLoadingItems}
-              hasData={Boolean(purchaseItems)}
-              categoryOwnerMap={categoryOwnerMap}
-            />
-            <div className="mt-3 flex flex-col gap-3 text-xs text-text-muted md:flex-row md:items-center md:justify-between">
-              <span>
-                Showing {itemPageStart}-{itemPageEnd} of {itemTotalCount} item
-                {itemTotalCount === 1 ? '' : 's'}
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={boundedItemPage <= 1}
-                  onClick={() => setItemPage((page) => Math.max(1, page - 1))}
-                >
-                  Previous
-                </Button>
-                <span>
-                  Page {boundedItemPage} of {itemTotalPages}
-                </span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={boundedItemPage >= itemTotalPages}
-                  onClick={() =>
-                    setItemPage((page) => Math.min(itemTotalPages, page + 1))
-                  }
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
-      </SectionCard>
-
-      <SectionCard
-        variant="surface"
         title="Product Catalog"
-        description="Every product seen on receipts and order history, with the price you actually paid over time. Hover a trend line for purchase detail."
+        description="Every product seen on receipts and order history, with owner changes directly in the row."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {productSorts.map((option) => (
