@@ -1452,12 +1452,17 @@ def test_build_spending_view_item_splits_move_category_mix_not_totals() -> None:
     assert split.summary.transaction_count == 2
     assert split.monthly_trend == baseline.monthly_trend
     assert [
-        tx.model_copy(update={"item_count": 0, "item_categories": []})
+        tx.model_copy(update={"item_count": 0, "item_categories": [], "item_splits": []})
         for tx in split.transactions
     ] == baseline.transactions
     badges = {tx.id: (tx.item_count, tx.item_categories) for tx in split.transactions}
     assert badges["tx-itemized"] == (2, ["Personal Care", "Household"])
     assert badges["tx-plain"] == (0, [])
+    split_detail = {tx.id: tx.item_splits for tx in split.transactions}
+    assert [part.category for part in split_detail["tx-itemized"]] == [
+        "Personal Care",
+        "Household",
+    ]
     assert all(tx.item_count == 0 and tx.item_categories == [] for tx in baseline.transactions)
 
     # Category mix moves to the item categories, penny-exact.

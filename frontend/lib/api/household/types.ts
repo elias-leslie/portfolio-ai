@@ -1028,11 +1028,24 @@ export interface HouseholdSpendingCategory {
   budgetDisabled?: boolean
 }
 
+export interface HouseholdSpendingItemSplit {
+  category: string
+  essentiality: string
+  amount: number
+  itemCount: number
+  ownerName?: string | null
+}
+
 export interface HouseholdSpendingTransaction {
   id: string
   /** Reconciled purchase-item splits behind this charge (Split badge). */
   itemCount?: number
   itemCategories?: string[]
+  itemSplits?: HouseholdSpendingItemSplit[]
+  /** Client-created when a budget drill-down shows one itemized category slice. */
+  splitParentId?: string | null
+  ownerName?: string | null
+  ownerSource?: string | null
   date: string
   merchant: string
   description: string
@@ -1260,6 +1273,8 @@ export interface HouseholdPurchaseItem {
   category: string
   essentiality: string
   categorizationSource: string
+  ownerName?: string | null
+  ownerSource: string
 }
 
 export interface HouseholdProductPricePoint {
@@ -1327,6 +1342,11 @@ export interface HouseholdProductListParams {
 export interface HouseholdPurchaseItemCategoryUpdate {
   category: string
   essentiality: string
+  applyToProduct?: boolean
+}
+
+export interface HouseholdPurchaseItemOwnerUpdate {
+  ownerName?: string | null
   applyToProduct?: boolean
 }
 

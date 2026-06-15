@@ -7,7 +7,10 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import Any
 
-from app.models.household_finance import HouseholdPurchaseItemCategoryUpdate
+from app.models.household_finance import (
+    HouseholdPurchaseItemCategoryUpdate,
+    HouseholdPurchaseItemOwnerUpdate,
+)
 from app.services.household_purchase_item_service import HouseholdPurchaseItemService
 
 _MAY_FOURTH = datetime(2026, 5, 4, 12, 0, tzinfo=UTC)
@@ -21,18 +24,22 @@ class _ScriptedConn:
         unlinked_items: list[tuple[Any, ...]] | None = None,
         candidate_transactions: list[tuple[Any, ...]] | None = None,
         category_update_product_id: str | None = None,
+        owner_update_product_id: str | None = None,
         purchase_item_insert_conflicts: bool = False,
     ) -> None:
         self.import_rows = import_rows or []
         self.unlinked_items = unlinked_items or []
         self.candidate_transactions = candidate_transactions or []
         self.category_update_product_id = category_update_product_id
+        self.owner_update_product_id = owner_update_product_id
         self.purchase_item_insert_conflicts = purchase_item_insert_conflicts
         self.purchase_item_inserts: list[list[Any]] = []
         self.observation_inserts: list[list[Any]] = []
         self.merchant_inserts: list[list[Any]] = []
         self.link_updates: list[list[Any]] = []
         self.rule_inserts: list[list[Any]] = []
+        self.rule_updates: list[list[Any]] = []
+        self.owner_updates: list[list[Any]] = []
         self.rule_reapply_updates: list[list[Any]] = []
         self.committed = 0
         self._result: tuple[str, Any] = ("none", None)
@@ -52,11 +59,24 @@ class _ScriptedConn:
             self._result = ("none", None)
         elif "SET category" in sql and "UPDATE household_purchase_items" in sql and "categorization_source = 'manual'" in sql:
             self._result = ("one", (self.category_update_product_id,))
+        elif "UPDATE household_purchase_items" in sql and "metadata =" in sql:
+            self.owner_updates.append(params)
+            self._result = (
+                "one",
+                (
+                    self.owner_update_product_id,
+                    "Groceries",
+                    "essential",
+                ),
+            )
         elif "categorization_source = 'product_rule'" in sql:
             self.rule_reapply_updates.append(params)
             self._result = ("all", [("item-1",)])
         elif "FROM household_transaction_rules" in sql:
             self._result = ("one", None)
+        elif "UPDATE household_transaction_rules" in sql:
+            self.rule_updates.append(params)
+            self._result = ("none", None)
         elif "INSERT INTO household_transaction_rules" in sql:
             self.rule_inserts.append(params)
             self._result = ("none", None)
@@ -300,3 +320,31 @@ def test_update_item_category_without_product_rule() -> None:
     )
     assert updated is True
     assert conn.rule_inserts == []
+
+
+def test_update_item_owner_without_product_rule() -> None:
+    conn = _ScriptedConn(owner_update_product_id="prod-1")
+    updated = _service(conn).update_item_owner(
+        "item-1",
+        HouseholdPurchaseItemOwnerUpdate(owner_name="Alex Demo", apply_to_product=False),
+    )
+    assert updated is True
+    assert conn.owner_updates
+    owner_patch = json.loads(conn.owner_updates[0][0])
+    assert owner_patch["owner_name"] == "Alex Demo"
+    assert owner_patch["owner_source"] == "manual"
+    assert conn.rule_inserts == []
+
+
+def test_update_item_owner_applies_product_rule() -> None:
+    conn = _ScriptedConn(owner_update_product_id="prod-1")
+    updated = _service(conn).update_item_owner(
+        "item-1",
+        HouseholdPurchaseItemOwnerUpdate(owner_name="Jordan Demo", apply_to_product=True),
+    )
+    assert updated is True
+    assert len(conn.rule_inserts) == 1
+    owner_rule = json.loads(conn.rule_inserts[0][4])
+    assert owner_rule["category_rule_enabled"] is False
+    assert owner_rule["owner_name"] == "Jordan Demo"
+    assert len(conn.owner_updates) == 2

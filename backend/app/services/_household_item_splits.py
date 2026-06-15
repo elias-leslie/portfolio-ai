@@ -60,6 +60,7 @@ def load_item_splits(conn: Any) -> dict[str, list[ItemSplit]]:
             i.transaction_id::text,
             i.category,
             i.essentiality,
+            NULLIF(TRIM(i.metadata ->> 'owner_name'), ''),
             SUM(i.allocated_amount),
             COUNT(*),
             MAX(CAST(t.amount AS DOUBLE PRECISION))
@@ -69,7 +70,7 @@ def load_item_splits(conn: Any) -> dict[str, list[ItemSplit]]:
           AND i.allocated_amount IS NOT NULL
           AND i.removed IS NOT TRUE
           AND t.removed IS NOT TRUE
-        GROUP BY i.transaction_id, i.category, i.essentiality
+        GROUP BY i.transaction_id, i.category, i.essentiality, NULLIF(TRIM(i.metadata ->> 'owner_name'), '')
         """
     ).fetchall()
 
@@ -78,16 +79,17 @@ def load_item_splits(conn: Any) -> dict[str, list[ItemSplit]]:
     allocated_cents: dict[str, int] = {}
     for row in rows:
         transaction_id = str(row[0])
-        amount = float(row[3] or 0.0)
+        amount = float(row[4] or 0.0)
         by_transaction.setdefault(transaction_id, []).append(
             {
                 "category": str(row[1] or ""),
                 "essentiality": str(row[2] or ""),
+                "owner_name": str(row[3]) if row[3] else None,
                 "amount": round(amount, 2),
-                "item_count": int(row[4] or 0),
+                "item_count": int(row[5] or 0),
             }
         )
-        transaction_amount_cents[transaction_id] = round(float(row[5] or 0.0) * 100)
+        transaction_amount_cents[transaction_id] = round(float(row[6] or 0.0) * 100)
         allocated_cents[transaction_id] = allocated_cents.get(transaction_id, 0) + round(
             amount * 100
         )

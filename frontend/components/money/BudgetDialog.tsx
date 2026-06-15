@@ -23,6 +23,8 @@ export interface BudgetDialogProps {
   setBudgetInput: Dispatch<SetStateAction<string>>
   noteInput: string
   setNoteInput: Dispatch<SetStateAction<string>>
+  ownerInput: string
+  setOwnerInput: Dispatch<SetStateAction<string>>
   disabled: boolean
   setDisabled: Dispatch<SetStateAction<boolean>>
   confirmPending: boolean
@@ -37,6 +39,8 @@ export function BudgetDialog({
   setBudgetInput,
   noteInput,
   setNoteInput,
+  ownerInput,
+  setOwnerInput,
   disabled,
   setDisabled,
   confirmPending,
@@ -111,6 +115,19 @@ export function BudgetDialog({
                   onChange={(event) => setBudgetInput(event.target.value)}
                   placeholder="750"
                 />
+                <div className="space-y-2">
+                  <Label htmlFor="category-budget-owner">Default owner</Label>
+                  <Input
+                    id="category-budget-owner"
+                    value={ownerInput}
+                    onChange={(event) => setOwnerInput(event.target.value)}
+                    placeholder="Household, Alex, Jordan..."
+                  />
+                  <p className="text-xs text-text-muted">
+                    Used for owner spend views when item-level ownership is not
+                    set.
+                  </p>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="category-budget-note">

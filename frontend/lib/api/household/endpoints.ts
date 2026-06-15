@@ -43,6 +43,7 @@ export {
   importShoppingListItems,
   mergeHouseholdProducts,
   optimizeShoppingList,
+  setPurchaseItemOwner,
   triggerPriceCheck,
   updateShoppingList,
   updateVendorProfiles,

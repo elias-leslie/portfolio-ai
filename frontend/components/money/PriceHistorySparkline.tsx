@@ -30,7 +30,9 @@ export function PriceHistorySparkline({
     return <span className="text-xs text-text-muted">No history</span>
   }
 
-  const prices = points.map((point) => point.totalPrice)
+  const pointPrice = (point: HouseholdProductPricePoint) =>
+    point.unitPrice ?? point.totalPrice
+  const prices = points.map(pointPrice)
   const minPrice = Math.min(...prices)
   const maxPrice = Math.max(...prices)
   const priceRange = maxPrice - minPrice
@@ -45,7 +47,7 @@ export function PriceHistorySparkline({
         ? height / 2
         : height -
           pad -
-          ((point.totalPrice - minPrice) / priceRange) * (height - pad * 2),
+          ((pointPrice(point) - minPrice) / priceRange) * (height - pad * 2),
   }))
   const pathData = coords
     .map((coord, index) => `${index === 0 ? 'M' : 'L'} ${coord.x},${coord.y}`)
@@ -84,7 +86,7 @@ export function PriceHistorySparkline({
         aria-label={`Price history, ${points.length} purchases, latest ${formatCurrency(
           prices[prices.length - 1],
           { decimals: 2 },
-        )}`}
+        )}${points[points.length - 1]?.unitPrice != null ? ' per unit' : ''}`}
         onMouseMove={handleMove}
         onMouseLeave={() => setActiveIndex(null)}
       >

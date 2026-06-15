@@ -291,12 +291,21 @@ class HouseholdSpendingCategory(BaseModel):
     budget_disabled: bool = False
 
 
+class HouseholdSpendingItemSplit(BaseModel):
+    category: str
+    essentiality: str
+    amount: float
+    item_count: int = 0
+    owner_name: str | None = None
+
+
 class HouseholdSpendingTransaction(BaseModel):
     id: str
     # Reconciled purchase-item splits behind this charge (same load_item_splits
     # source that moves category totals), so drill-downs can badge split rows.
     item_count: int = 0
     item_categories: list[str] = Field(default_factory=list)
+    item_splits: list[HouseholdSpendingItemSplit] = Field(default_factory=list)
     date: str
     merchant: str
     description: str
@@ -752,6 +761,11 @@ class HouseholdPurchaseItemCategoryUpdate(BaseModel):
     apply_to_product: bool = False
 
 
+class HouseholdPurchaseItemOwnerUpdate(BaseModel):
+    owner_name: str | None = None
+    apply_to_product: bool = False
+
+
 # Wire keys on every purchase/product model stay digit-free: the frontend
 # camelization layer (es-toolkit) splits camelCase at letter/digit boundaries.
 
@@ -773,6 +787,8 @@ class HouseholdPurchaseItem(BaseModel):
     category: str
     essentiality: str
     categorization_source: str = "suggested"
+    owner_name: str | None = None
+    owner_source: str = "none"
 
 
 class HouseholdProductPricePoint(BaseModel):

@@ -8,6 +8,7 @@ const categorizeMutateAsync = vi.hoisted(() => vi.fn())
 const categorizeIsPending = vi.hoisted(() => ({ value: false }))
 const useTransactionPurchaseItemsMock = vi.hoisted(() => vi.fn())
 const categorizeItemMutateAsync = vi.hoisted(() => vi.fn())
+const setItemOwnerMutateAsync = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdLedger: useHouseholdLedgerMock,
@@ -21,6 +22,10 @@ vi.mock('@/lib/hooks/useHouseholdPurchases', () => ({
   useTransactionPurchaseItems: useTransactionPurchaseItemsMock,
   useCategorizePurchaseItem: () => ({
     mutateAsync: categorizeItemMutateAsync,
+    isPending: false,
+  }),
+  useSetPurchaseItemOwner: () => ({
+    mutateAsync: setItemOwnerMutateAsync,
     isPending: false,
   }),
 }))
@@ -84,6 +89,8 @@ function buildPurchaseItem(index: number, overrides = {}) {
     category: 'Groceries',
     essentiality: 'essential',
     categorizationSource: 'item_rules',
+    ownerName: null,
+    ownerSource: 'none',
     ...overrides,
   }
 }
@@ -143,6 +150,7 @@ describe('MoneyLedgerPanel', () => {
       isLoading: false,
     })
     categorizeItemMutateAsync.mockReset()
+    setItemOwnerMutateAsync.mockReset()
   })
 
   it('renders the returned page and server counts and hides audit internals', () => {

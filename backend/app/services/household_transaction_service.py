@@ -809,6 +809,18 @@ class HouseholdTransactionService:
                         str(part["category"])
                         for part in item_splits.get(str(row["id"]), [])
                     ],
+                    item_splits=[
+                        {
+                            "category": str(part["category"]),
+                            "essentiality": str(part["essentiality"]),
+                            "amount": round(float(part["amount"]), 2),
+                            "item_count": int(part["item_count"]),
+                            "owner_name": (
+                                str(part["owner_name"]) if part.get("owner_name") else None
+                            ),
+                        }
+                        for part in item_splits.get(str(row["id"]), [])
+                    ],
                     date=row["date"].isoformat(),
                     merchant=str(row["merchant"]),
                     description=str(row["description"]),

@@ -7,6 +7,7 @@ import type {
   HouseholdProductListParams,
   HouseholdPurchaseItem,
   HouseholdPurchaseItemCategoryUpdate,
+  HouseholdPurchaseItemOwnerUpdate,
   HouseholdPurchaseItemProductAssignment,
   HouseholdPurchaseItemReviewQueue,
   HouseholdShoppingList,
@@ -76,6 +77,16 @@ export async function categorizePurchaseItem(
 ): Promise<{ ok: boolean }> {
   return post<{ ok: boolean }>(
     `/api/household/purchase-items/${itemId}/categorize`,
+    payload,
+  )
+}
+
+export async function setPurchaseItemOwner(
+  itemId: string,
+  payload: HouseholdPurchaseItemOwnerUpdate,
+): Promise<{ ok: boolean }> {
+  return post<{ ok: boolean }>(
+    `/api/household/purchase-items/${itemId}/owner`,
     payload,
   )
 }

@@ -367,6 +367,7 @@ class HouseholdProductNormalizationService:
             WHERE product_id = %s
               AND rule_type = 'product'
               AND enabled IS TRUE
+              AND COALESCE(metadata ->> 'category_rule_enabled', 'true') != 'false'
             ORDER BY updated_at DESC
             LIMIT 1
             """,

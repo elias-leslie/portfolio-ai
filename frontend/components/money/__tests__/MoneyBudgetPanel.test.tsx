@@ -39,6 +39,9 @@ vi.mock('recharts', () => {
     ResponsiveContainer: MockChart,
     LineChart: MockChart,
     Line: MockPart,
+    PieChart: MockChart,
+    Pie: MockChart,
+    Cell: MockPart,
     Tooltip: MockPart,
     XAxis: MockPart,
     YAxis: MockPart,
@@ -77,7 +80,10 @@ const categories = [
   },
 ]
 
-function mockSpending(coverageMonths = 3) {
+function mockSpending(
+  coverageMonths = 3,
+  transactions: Array<Record<string, unknown>> | null = null,
+) {
   const hasBudgetRollup = coverageMonths >= 2
   useHouseholdSpendingMock.mockReturnValue({
     data: {
@@ -135,7 +141,7 @@ function mockSpending(coverageMonths = 3) {
           transactionCount: 20,
         },
       ],
-      transactions: [
+      transactions: transactions ?? [
         {
           id: 'txn-household',
           date: '2026-03-20',
@@ -227,6 +233,29 @@ describe('MoneyBudgetPanel', () => {
     expect(screen.getAllByText('Over budget')).not.toHaveLength(0)
   })
 
+  it('saves a default owner on the category budget fact', async () => {
+    const user = userEvent.setup()
+    confirmFactMutateAsync.mockResolvedValue({ ok: true })
+
+    render(<MoneyBudgetPanel />)
+
+    await user.click(screen.getAllByRole('button', { name: 'Budget' })[0])
+    await user.type(screen.getByLabelText('Default owner'), 'Alex Demo')
+    await user.click(screen.getByRole('button', { name: 'Save budget' }))
+
+    expect(confirmFactMutateAsync).toHaveBeenCalledWith({
+      factKey: `${CATEGORY_BUDGET_PREFIX}Household`,
+      factValue: serializeCategoryBudgetMeta({
+        category: 'Household',
+        monthlyTarget: null,
+        source: 'manual',
+        note: '',
+        disabled: false,
+        ownerName: 'Alex Demo',
+      }),
+    })
+  })
+
   it('shows no-budget state when coverage is too thin to infer found values', () => {
     mockSpending(1)
 
@@ -237,6 +266,31 @@ describe('MoneyBudgetPanel', () => {
     ).toBeInTheDocument()
     expect(screen.getAllByText(/0 suggested · 0 confirmed/i)).toHaveLength(2)
     expect(screen.getAllByText('No cap yet')).toHaveLength(3)
+  })
+
+  it('renders owner spend from category ownership defaults', () => {
+    useHouseholdFactsMock.mockReturnValue({
+      data: [
+        {
+          factKey: `${CATEGORY_BUDGET_PREFIX}Household`,
+          factValue: serializeCategoryBudgetMeta({
+            category: 'Household',
+            monthlyTarget: 1400,
+            source: 'manual',
+            note: '',
+            disabled: false,
+            ownerName: 'Alex Demo',
+          }),
+          confirmedAt: '2026-04-24T00:00:00Z',
+        },
+      ],
+    })
+
+    render(<MoneyBudgetPanel />)
+
+    expect(screen.getByText('Owner spend')).toBeInTheDocument()
+    expect(screen.getByText('Alex Demo')).toBeInTheDocument()
+    expect(screen.getByText('1 transaction')).toBeInTheDocument()
   })
 
   it('surfaces cash-flow KPIs and an accept-all suggested caps action', () => {
@@ -342,5 +396,59 @@ describe('MoneyBudgetPanel', () => {
       'title',
       'Split across Groceries · Household',
     )
+  })
+
+  it('drills category budgets into itemized purchase portions', async () => {
+    const user = userEvent.setup()
+    mockSpending(3, [
+      {
+        id: 'txn-amazon',
+        date: '2026-03-20',
+        merchant: 'Amazon',
+        description: 'Amazon mixed order',
+        amount: 100,
+        category: 'Retail',
+        essentiality: 'discretionary',
+        categoryConfidence: 0.84,
+        needsCategoryReview: false,
+        accountLabel: 'Checking',
+        sourceDocumentId: 'doc-1',
+        sourceKind: 'transaction',
+        sourceType: 'bank',
+        documentType: 'statement',
+        itemCount: 2,
+        itemCategories: ['Groceries', 'Retail'],
+        itemSplits: [
+          {
+            category: 'Groceries',
+            essentiality: 'essential',
+            amount: 45,
+            itemCount: 1,
+            ownerName: 'Alex Demo',
+          },
+          {
+            category: 'Retail',
+            essentiality: 'discretionary',
+            amount: 55,
+            itemCount: 1,
+          },
+        ],
+      },
+    ])
+
+    render(<MoneyBudgetPanel />)
+
+    const groceryButtons = screen.getAllByRole('button', {
+      name: /groceries/i,
+    })
+    const expandRow = groceryButtons.find(
+      (button) => button.getAttribute('aria-expanded') != null,
+    )
+    await user.click(expandRow ?? groceryButtons[0])
+
+    expect(screen.getByText('Amazon mixed order')).toBeInTheDocument()
+    expect(screen.getByText('$45.00')).toBeInTheDocument()
+    expect(screen.getByText('Itemized portion')).toBeInTheDocument()
+    expect(screen.getByText(/Owner: Alex Demo/)).toBeInTheDocument()
   })
 })

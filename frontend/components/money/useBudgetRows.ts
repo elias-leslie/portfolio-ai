@@ -26,6 +26,21 @@ export type BudgetRowEntry = {
   note: string
 }
 
+export interface OwnerSpendTransaction extends HouseholdSpendingTransaction {
+  ownerName: string
+  ownerSource: 'item' | 'category' | 'unassigned'
+  splitParentId?: string | null
+}
+
+export interface OwnerSpendRow {
+  ownerName: string
+  totalSpend: number
+  shareOfSpend: number
+  transactionCount: number
+  categories: Array<{ category: string; totalSpend: number }>
+  transactions: OwnerSpendTransaction[]
+}
+
 export function entryBreach(entry: BudgetRowEntry) {
   const cap = entry.currentBudget ?? entry.foundBudget
   if (cap == null || cap <= 0) {
@@ -33,6 +48,100 @@ export function entryBreach(entry: BudgetRowEntry) {
   }
   const over = entry.row.averageMonthlySpend - cap
   return { isOver: over > 0, overAmount: Math.max(over, 0) }
+}
+
+function splitTransactionRows(
+  transactions: readonly HouseholdSpendingTransaction[] | undefined,
+): HouseholdSpendingTransaction[] {
+  const rows: HouseholdSpendingTransaction[] = []
+  for (const transaction of transactions ?? []) {
+    const itemSplits = transaction.itemSplits ?? []
+    if (itemSplits.length === 0) {
+      rows.push(transaction)
+      continue
+    }
+    itemSplits.forEach((split, index) => {
+      rows.push({
+        ...transaction,
+        id: `${transaction.id}::item-split::${index}`,
+        splitParentId: transaction.id,
+        category: split.category,
+        essentiality: split.essentiality,
+        amount: split.amount,
+        itemCount: split.itemCount,
+        itemCategories: [split.category],
+        itemSplits: [],
+        ownerName: split.ownerName ?? null,
+      })
+    })
+  }
+  return rows
+}
+
+function ownerSpendRows(
+  transactions: readonly HouseholdSpendingTransaction[] | undefined,
+  budgetMeta: Map<string, CategoryBudgetMeta>,
+  totalSpend: number,
+): OwnerSpendRow[] {
+  const buckets = new Map<
+    string,
+    {
+      totalSpend: number
+      transactionIds: Set<string>
+      categories: Map<string, number>
+      transactions: OwnerSpendTransaction[]
+    }
+  >()
+
+  for (const transaction of splitTransactionRows(transactions)) {
+    const categoryOwner = budgetMeta.get(transaction.category)?.ownerName
+    const explicitOwner = transaction.ownerName?.trim()
+    const ownerName = explicitOwner || categoryOwner?.trim() || 'Unassigned'
+    const ownerSource = explicitOwner
+      ? 'item'
+      : categoryOwner?.trim()
+        ? 'category'
+        : 'unassigned'
+    const bucket = buckets.get(ownerName) ?? {
+      totalSpend: 0,
+      transactionIds: new Set<string>(),
+      categories: new Map<string, number>(),
+      transactions: [],
+    }
+    bucket.totalSpend += transaction.amount
+    bucket.transactionIds.add(transaction.splitParentId ?? transaction.id)
+    bucket.categories.set(
+      transaction.category,
+      (bucket.categories.get(transaction.category) ?? 0) + transaction.amount,
+    )
+    bucket.transactions.push({
+      ...transaction,
+      ownerName,
+      ownerSource,
+    })
+    buckets.set(ownerName, bucket)
+  }
+
+  return Array.from(buckets.entries())
+    .map(([ownerName, bucket]) => ({
+      ownerName,
+      totalSpend: Number(bucket.totalSpend.toFixed(2)),
+      shareOfSpend:
+        totalSpend > 0
+          ? Number((bucket.totalSpend / totalSpend).toFixed(4))
+          : 0,
+      transactionCount: bucket.transactionIds.size,
+      categories: Array.from(bucket.categories.entries())
+        .map(([category, categorySpend]) => ({
+          category,
+          totalSpend: Number(categorySpend.toFixed(2)),
+        }))
+        .sort((left, right) => right.totalSpend - left.totalSpend),
+      transactions: bucket.transactions.sort((left, right) =>
+        right.date.localeCompare(left.date),
+      ),
+    }))
+    .sort((left, right) => right.totalSpend - left.totalSpend)
 }
 
 export interface UseBudgetRowsInput {
@@ -83,13 +192,16 @@ export function useBudgetRows({
       buildCategoryOptions([
         ...(spending?.categories ?? []).map((row) => row.category),
         ...(spending?.transactions ?? []).map((row) => row.category),
+        ...(spending?.transactions ?? []).flatMap((row) =>
+          (row.itemSplits ?? []).map((split) => split.category),
+        ),
       ]),
     [spending?.categories, spending?.transactions],
   )
 
   const transactionsByCategory = useMemo(() => {
     const map = new Map<string, HouseholdSpendingTransaction[]>()
-    for (const transaction of spending?.transactions ?? []) {
+    for (const transaction of splitTransactionRows(spending?.transactions)) {
       const category = transaction.category || 'Unknown'
       const bucket = map.get(category) ?? []
       bucket.push(transaction)
@@ -104,6 +216,16 @@ export function useBudgetRows({
   const merchantAggregates = useMemo(
     () => aggregateMerchants(spending?.transactions),
     [spending?.transactions],
+  )
+
+  const ownerRows = useMemo(
+    () =>
+      ownerSpendRows(
+        spending?.transactions,
+        budgetMeta,
+        spending?.summary.totalSpend ?? 0,
+      ),
+    [budgetMeta, spending?.summary.totalSpend, spending?.transactions],
   )
 
   const activeRows = rows.filter((entry) => entry.disabled !== true)
@@ -211,5 +333,6 @@ export function useBudgetRows({
     trendMeta,
     chartCategories,
     isolatedCap,
+    ownerSpendRows: ownerRows,
   }
 }

@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import type {
   HouseholdProductListParams,
   HouseholdPurchaseItemCategoryUpdate,
+  HouseholdPurchaseItemOwnerUpdate,
   HouseholdPurchaseItemProductAssignment,
   HouseholdShoppingListImportRequest,
   HouseholdShoppingListRequest,
@@ -22,6 +23,7 @@ import {
   importShoppingListItems,
   mergeHouseholdProducts,
   optimizeShoppingList,
+  setPurchaseItemOwner,
   triggerPriceCheck,
   updateShoppingList,
   updateVendorProfiles,
@@ -96,6 +98,27 @@ export function useCategorizePurchaseItem() {
     onError: (error) => {
       toast.error(
         error instanceof Error ? error.message : 'Failed to categorize item',
+      )
+    },
+  })
+}
+
+export function useSetPurchaseItemOwner() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      itemId,
+      ...payload
+    }: HouseholdPurchaseItemOwnerUpdate & { itemId: string }) =>
+      setPurchaseItemOwner(itemId, payload),
+    onSuccess: async () => {
+      await refreshHouseholdQueries(queryClient)
+      toast.success('Item owner saved.')
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to update item owner',
       )
     },
   })

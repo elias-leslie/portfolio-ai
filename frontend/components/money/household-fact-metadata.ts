@@ -15,6 +15,7 @@ export interface CategoryBudgetMeta {
   disabled: boolean
   monthlyTarget?: number | null
   source?: 'found' | 'accepted' | 'manual' | null
+  ownerName?: string | null
 }
 
 export const ASSUMPTION_META_PREFIX = 'assumption_meta:'
@@ -117,6 +118,10 @@ export function categoryBudgetMetaMap(facts: HouseholdConfirmedFact[]) {
         parsed.source === 'manual'
           ? parsed.source
           : null,
+      ownerName:
+        typeof parsed.ownerName === 'string' && parsed.ownerName.trim()
+          ? parsed.ownerName.trim()
+          : null,
     })
   }
   return map
@@ -138,5 +143,6 @@ export function serializeCategoryBudgetMeta(meta: CategoryBudgetMeta): string {
     disabled: meta.disabled,
     monthlyTarget: meta.monthlyTarget ?? null,
     source: meta.source ?? null,
+    ownerName: meta.ownerName?.trim() || null,
   })
 }

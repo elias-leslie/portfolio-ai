@@ -49,7 +49,8 @@ _ITEM_SELECT = """
     SELECT i.id, i.transaction_id, i.product_id, p.canonical_name,
            i.product_match_status, i.product_match_confidence, i.purchase_date,
            m.canonical_name, i.description, i.quantity, i.unit_price, i.amount,
-           i.allocated_amount, i.category, i.essentiality, i.categorization_source
+           i.allocated_amount, i.category, i.essentiality, i.categorization_source,
+           i.metadata ->> 'owner_name', COALESCE(i.metadata ->> 'owner_source', 'none')
     FROM household_purchase_items i
     LEFT JOIN household_products p ON p.id = i.product_id
     LEFT JOIN household_merchants m ON m.id = i.merchant_id
@@ -74,6 +75,8 @@ def _purchase_item(row: Any) -> HouseholdPurchaseItem:
         category=str(row[13] or ""),
         essentiality=str(row[14] or ""),
         categorization_source=str(row[15] or "suggested"),
+        owner_name=str(row[16]) if row[16] else None,
+        owner_source=str(row[17] or "none"),
     )
 
 

@@ -40,6 +40,7 @@ export function TransactionEditor({
   const merchantKey = transaction.merchant.trim().toLowerCase()
   const similarMerchantCount =
     merchantAggregates.get(merchantKey)?.transactionCount ?? 1
+  const isItemizedSlice = Boolean(transaction.splitParentId)
 
   return (
     <div
@@ -66,6 +67,9 @@ export function TransactionEditor({
               {transaction.itemCount === 1 ? '' : 's'}
             </Badge>
           ) : null}
+          {isItemizedSlice ? (
+            <Badge variant="secondary">Itemized portion</Badge>
+          ) : null}
         </div>
         <p className="mt-1 text-xs text-text-muted">
           {formatBudgetDate(transaction.date)} ·{' '}
@@ -77,6 +81,7 @@ export function TransactionEditor({
             {transaction.categoryConfidence != null
               ? ` · ${(transaction.categoryConfidence * 100).toFixed(0)}% confidence`
               : ''}
+            {transaction.ownerName ? ` · Owner: ${transaction.ownerName}` : ''}
           </p>
         ) : null}
       </div>
@@ -85,7 +90,12 @@ export function TransactionEditor({
         <p className="text-right font-mono tabular-nums text-text">
           {formatCurrency(transaction.amount, { decimals: 2 })}
         </p>
-        {isEditing && recategorizeDraft ? (
+        {isItemizedSlice ? (
+          <p className="max-w-[260px] text-right text-xs text-text-muted">
+            Category and owner come from linked purchase items. Edit them from
+            the Ledger item drawer.
+          </p>
+        ) : isEditing && recategorizeDraft ? (
           <CategoryEditorForm
             transactionId={transaction.id}
             draft={recategorizeDraft}

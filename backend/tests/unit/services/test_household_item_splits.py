@@ -145,12 +145,13 @@ class _SplitConn:
 def test_load_item_splits_keeps_exact_sums_and_drops_drifted_transactions() -> None:
     rows = [
         # tx-good: 29.97 + 4.99 == 34.96 transaction amount.
-        ("tx-good", "Personal Care", "discretionary", 29.97, 1, 34.96),
-        ("tx-good", "Household", "mixed", 4.99, 1, 34.96),
+        ("tx-good", "Personal Care", "discretionary", "Alex", 29.97, 1, 34.96),
+        ("tx-good", "Household", "mixed", None, 4.99, 1, 34.96),
         # tx-drift: allocated 20.00 vs amount 25.00 -> dropped.
-        ("tx-drift", "Groceries", "essential", 20.0, 2, 25.0),
+        ("tx-drift", "Groceries", "essential", None, 20.0, 2, 25.0),
     ]
     splits = load_item_splits(_SplitConn(rows))
     assert set(splits) == {"tx-good"}
     assert {part["category"] for part in splits["tx-good"]} == {"Personal Care", "Household"}
+    assert {part["owner_name"] for part in splits["tx-good"]} == {"Alex", None}
     assert round(sum(part["amount"] for part in splits["tx-good"]), 2) == 34.96

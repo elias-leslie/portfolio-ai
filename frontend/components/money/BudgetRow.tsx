@@ -46,6 +46,7 @@ export function BudgetRow({
   transactionEditorProps,
 }: BudgetRowProps) {
   const { row, meta, currentBudget, foundBudget, note } = entry
+  const ownerName = meta?.ownerName?.trim()
   const status = budgetStatus(
     currentBudget,
     foundBudget,
@@ -111,7 +112,12 @@ export function BudgetRow({
           ) : null}
         </td>
         <td className="border-b border-border/20 px-4 py-3 text-text-muted">
-          {note ? note : '—'}
+          <div>{note ? note : '—'}</div>
+          {ownerName ? (
+            <div className="mt-1 text-xs text-text-muted">
+              Owner: <span className="text-text">{ownerName}</span>
+            </div>
+          ) : null}
         </td>
         <td className="border-b border-border/20 px-4 py-3 text-right">
           <div className="flex justify-end gap-2">

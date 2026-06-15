@@ -8,7 +8,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.logging_config import get_logger
-from app.models.household_finance import HouseholdPurchaseItemCategoryUpdate
+from app.models.household_finance import (
+    HouseholdPurchaseItemCategoryUpdate,
+    HouseholdPurchaseItemOwnerUpdate,
+)
 from app.services._household_dashboard_builders import (
     suggest_category,
     suggest_essentiality,
@@ -58,6 +61,13 @@ def _parse_float(value: Any) -> float | None:
         return float(str(value).replace("$", "").replace(",", ""))
     except (TypeError, ValueError):
         return None
+
+
+def _normalize_owner_name(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = " ".join(str(value).strip().split())
+    return cleaned or None
 
 
 class HouseholdPurchaseItemService:
@@ -207,6 +217,11 @@ class HouseholdPurchaseItemService:
         account_label = str(metadata.get("Account Label") or "").strip()
         if account_label:
             item_metadata["account_label"] = account_label
+        owner_rule = self._active_product_owner_rule(conn, product_id=match.product_id)
+        if owner_rule is not None:
+            item_metadata["owner_name"] = str(owner_rule[1])
+            item_metadata["owner_source"] = "product_rule"
+            item_metadata["owner_rule_id"] = str(owner_rule[0])
 
         item_id = str(uuid.uuid4())
         now = datetime.now(UTC).isoformat()
@@ -576,6 +591,55 @@ class HouseholdPurchaseItemService:
             conn.commit()
         return True
 
+    def update_item_owner(
+        self,
+        item_id: str,
+        payload: HouseholdPurchaseItemOwnerUpdate,
+    ) -> bool:
+        owner_name = _normalize_owner_name(payload.owner_name)
+        with self.storage.connection() as conn:
+            now = datetime.now(UTC).isoformat()
+            row = conn.execute(
+                """
+                UPDATE household_purchase_items
+                SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
+                    updated_at = %s
+                WHERE id = %s
+                RETURNING product_id, category, essentiality
+                """,
+                [
+                    json.dumps(
+                        {
+                            "owner_name": owner_name,
+                            "owner_source": "manual",
+                            "owner_updated_at": now,
+                        }
+                    ),
+                    now,
+                    item_id,
+                ],
+            ).fetchone()
+            if row is None:
+                return False
+            product_id = str(row[0]) if row[0] is not None else None
+            if payload.apply_to_product and product_id is not None:
+                rule_id = self._upsert_product_owner_rule(
+                    conn,
+                    product_id=product_id,
+                    category=str(row[1] or "Unknown"),
+                    essentiality=str(row[2] or "mixed"),
+                    owner_name=owner_name,
+                    created_from_item_id=item_id,
+                )
+                self._apply_product_owner_rule_to_items(
+                    conn,
+                    product_id=product_id,
+                    owner_name=owner_name,
+                    rule_id=rule_id,
+                )
+            conn.commit()
+        return True
+
     @staticmethod
     def _upsert_product_rule(
         conn: Any,
@@ -588,6 +652,7 @@ class HouseholdPurchaseItemService:
         now = datetime.now(UTC)
         rule_metadata = json.dumps(
             {
+                "category_rule_enabled": True,
                 "created_from_purchase_item_id": created_from_item_id,
                 "updated_at": now.isoformat(),
             }
@@ -627,6 +692,114 @@ class HouseholdPurchaseItemService:
             [rule_id, product_id, category, essentiality, rule_metadata, now, now],
         )
         return rule_id
+
+    @staticmethod
+    def _active_product_owner_rule(conn: Any, *, product_id: str) -> Any:
+        return conn.execute(
+            """
+            SELECT id, metadata ->> 'owner_name'
+            FROM household_transaction_rules
+            WHERE product_id = %s
+              AND rule_type = 'product'
+              AND enabled IS TRUE
+              AND NULLIF(TRIM(metadata ->> 'owner_name'), '') IS NOT NULL
+            ORDER BY updated_at DESC
+            LIMIT 1
+            """,
+            [product_id],
+        ).fetchone()
+
+    @staticmethod
+    def _upsert_product_owner_rule(
+        conn: Any,
+        *,
+        product_id: str,
+        category: str,
+        essentiality: str,
+        owner_name: str | None,
+        created_from_item_id: str,
+    ) -> str:
+        now = datetime.now(UTC)
+        rule_metadata = json.dumps(
+            {
+                "category_rule_enabled": False,
+                "owner_name": owner_name,
+                "owner_created_from_purchase_item_id": created_from_item_id,
+                "owner_updated_at": now.isoformat(),
+            }
+        )
+        existing = conn.execute(
+            """
+            SELECT id FROM household_transaction_rules
+            WHERE product_id = %s AND rule_type = 'product' AND enabled IS TRUE
+            ORDER BY updated_at DESC
+            LIMIT 1
+            """,
+            [product_id],
+        ).fetchone()
+        if existing is not None:
+            rule_id = str(existing[0])
+            existing_rule_metadata = json.dumps(
+                {
+                    "owner_name": owner_name,
+                    "owner_created_from_purchase_item_id": created_from_item_id,
+                    "owner_updated_at": now.isoformat(),
+                }
+            )
+            conn.execute(
+                """
+                UPDATE household_transaction_rules
+                SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
+                    updated_at = %s
+                WHERE id = %s
+                """,
+                [existing_rule_metadata, now, rule_id],
+            )
+            return rule_id
+        rule_id = str(uuid.uuid4())
+        conn.execute(
+            """
+            INSERT INTO household_transaction_rules (
+                id, rule_type, product_id, category, essentiality, enabled,
+                source, applied_count, metadata, created_at, updated_at
+            ) VALUES (%s, 'product', %s, %s, %s, TRUE, 'manual', 0, %s::jsonb, %s, %s)
+            """,
+            [rule_id, product_id, category, essentiality, rule_metadata, now, now],
+        )
+        return rule_id
+
+    @staticmethod
+    def _apply_product_owner_rule_to_items(
+        conn: Any,
+        *,
+        product_id: str,
+        owner_name: str | None,
+        rule_id: str,
+    ) -> int:
+        now = datetime.now(UTC).isoformat()
+        rows = conn.execute(
+            """
+            UPDATE household_purchase_items
+            SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
+                updated_at = %s
+            WHERE product_id = %s
+              AND COALESCE(metadata ->> 'owner_source', '') != 'manual'
+            RETURNING id
+            """,
+            [
+                json.dumps(
+                    {
+                        "owner_name": owner_name,
+                        "owner_source": "product_rule",
+                        "owner_rule_id": rule_id,
+                        "owner_updated_at": now,
+                    }
+                ),
+                now,
+                product_id,
+            ],
+        ).fetchall()
+        return len(rows)
 
     # ------------------------------------------------------------------
     # Orchestration entry points

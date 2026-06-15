@@ -135,6 +135,8 @@ function buildReviewItem(overrides = {}) {
     category: 'Groceries',
     essentiality: 'essential',
     categorizationSource: 'item_rules',
+    ownerName: null,
+    ownerSource: 'none',
     ...overrides,
   }
 }

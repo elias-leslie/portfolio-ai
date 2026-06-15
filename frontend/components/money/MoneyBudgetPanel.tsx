@@ -26,6 +26,7 @@ import {
   type RecategorizeDraft,
   startRecategorizeDraft,
 } from './category-options'
+import { OwnerSpendInsightsCard } from './OwnerSpendInsightsCard'
 import {
   type BudgetRowEntry,
   TREND_TOP_N,
@@ -38,6 +39,7 @@ export function MoneyBudgetPanel() {
     useState<HouseholdSpendingCategory | null>(null)
   const [budgetInput, setBudgetInput] = useState('')
   const [noteInput, setNoteInput] = useState('')
+  const [ownerInput, setOwnerInput] = useState('')
   const [disabled, setDisabled] = useState(false)
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null)
   const [recategorizeDraft, setRecategorizeDraft] =
@@ -79,6 +81,7 @@ export function MoneyBudgetPanel() {
     trendMeta,
     chartCategories,
     isolatedCap,
+    ownerSpendRows,
   } = useBudgetRows({ spending, facts, isolatedSeries })
 
   async function acceptAllSuggestedCaps() {
@@ -94,6 +97,7 @@ export function MoneyBudgetPanel() {
           disabled: false,
           monthlyTarget: entry.foundBudget,
           source: 'accepted',
+          ownerName: entry.meta?.ownerName ?? null,
         }),
       })
     }
@@ -144,6 +148,7 @@ export function MoneyBudgetPanel() {
         disabled: false,
         monthlyTarget: foundBudget,
         source: 'accepted',
+        ownerName: meta?.ownerName ?? null,
       }),
     })
   }
@@ -152,6 +157,7 @@ export function MoneyBudgetPanel() {
     if (!selectedCategory) {
       setBudgetInput('')
       setNoteInput('')
+      setOwnerInput('')
       setDisabled(false)
       return
     }
@@ -160,6 +166,7 @@ export function MoneyBudgetPanel() {
       meta?.monthlyTarget != null ? String(meta.monthlyTarget) : '',
     )
     setNoteInput(meta?.note ?? '')
+    setOwnerInput(meta?.ownerName ?? '')
     setDisabled(meta?.disabled === true)
   }, [budgetMeta, selectedCategory])
 
@@ -212,6 +219,7 @@ export function MoneyBudgetPanel() {
         disabled,
         monthlyTarget: parsedBudget,
         source,
+        ownerName: ownerInput.trim() || null,
       }),
     })
     setSelectedCategory(null)
@@ -298,6 +306,11 @@ export function MoneyBudgetPanel() {
         trendTopN={TREND_TOP_N}
       />
 
+      <OwnerSpendInsightsCard
+        timeframeLabel={spending?.summary.timeframeLabel}
+        ownerSpendRows={ownerSpendRows}
+      />
+
       <BudgetTable
         isLoading={isLoading}
         hasData={spending != null}
@@ -349,6 +362,8 @@ export function MoneyBudgetPanel() {
         setBudgetInput={setBudgetInput}
         noteInput={noteInput}
         setNoteInput={setNoteInput}
+        ownerInput={ownerInput}
+        setOwnerInput={setOwnerInput}
         disabled={disabled}
         setDisabled={setDisabled}
         confirmPending={confirmFact.isPending}

@@ -18,6 +18,7 @@ from app.models.household_finance import (
     HouseholdProductMergeRequest,
     HouseholdPurchaseItem,
     HouseholdPurchaseItemCategoryUpdate,
+    HouseholdPurchaseItemOwnerUpdate,
     HouseholdPurchaseItemProductAssignment,
     HouseholdPurchaseItemReviewQueue,
     HouseholdShoppingList,
@@ -147,6 +148,20 @@ async def categorize_purchase_item(
     """Set an item's category/essentiality, optionally as a product rule."""
     updated = await run_in_threadpool(
         _service().purchase_item_service.update_item_category, item_id, payload
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Purchase item not found: {item_id}")
+    return {"ok": True}
+
+
+@router.post("/purchase-items/{item_id}/owner")
+async def set_purchase_item_owner(
+    item_id: str,
+    payload: HouseholdPurchaseItemOwnerUpdate,
+) -> dict[str, bool]:
+    """Set an item's owner, optionally as a product-level owner rule."""
+    updated = await run_in_threadpool(
+        _service().purchase_item_service.update_item_owner, item_id, payload
     )
     if not updated:
         raise HTTPException(status_code=404, detail=f"Purchase item not found: {item_id}")
