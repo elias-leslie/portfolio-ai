@@ -12,9 +12,8 @@ subtracting the bridge draw, converting the residual portfolio draw to NOMINAL
 
 Spending is split into a non-discretionary **floor** (essentials + an absolute
 healthcare/LTC schedule) and a **discretionary** layer that declines with age
-and is funded variably by either VPW (default) or Guyton-Klinger guardrails. A
-non-volatile **bridge** sleeve (a scalar, not a bucket) funds the floor gap in
-the pre-Social-Security years.
+and is funded by Guyton-Klinger guardrails. A non-volatile **bridge** sleeve
+(a scalar, not a bucket) funds the floor gap in the pre-Social-Security years.
 
 Funding identity (sources == uses), holds every solvent year:
 
@@ -84,6 +83,14 @@ class HealthcarePoint:
 
 
 @dataclass(frozen=True, slots=True)
+class SpendingReduction:
+    """Real annual household-spend reduction that starts at ``age``."""
+
+    age: int
+    real_amount: float
+
+
+@dataclass(frozen=True, slots=True)
 class WithdrawalConfig:
     """Frozen spending-plan configuration (real dollars unless noted).
 
@@ -92,13 +99,14 @@ class WithdrawalConfig:
     service or the ``RetirementInputs`` snapshot.
     """
 
-    strategy: Literal["vpw", "guardrails"] = "vpw"
+    strategy: Literal["guardrails"] = "guardrails"
     initial_rate: float = 0.05
     decline_mode: Literal["smooth", "phase"] = "smooth"
     discretionary_decline_rate: float = 0.01
     phase: PhaseConfig = field(default_factory=PhaseConfig)
     bridge: BridgeConfig = field(default_factory=BridgeConfig)
     healthcare_schedule: tuple[HealthcarePoint, ...] = ()
+    spending_reductions: tuple[SpendingReduction, ...] = ()
     essential_floor: float = 0.0
     base_discretionary: float = 0.0
     # Self-contained context.
@@ -140,6 +148,7 @@ class WithdrawalYear:
     age: int
     floor: float
     discretionary_target: float
+    spending_reduction: float
     spending_target: float
     guaranteed_income: float
     bridge_draw: float
@@ -148,19 +157,6 @@ class WithdrawalYear:
     portfolio_draw: float
     bridge_balance_end: float
     failed: bool
-
-
-def vpw_rate(n: int, r: float) -> float:
-    """Variable-percentage-withdrawal rate for ``n`` remaining years at real ``r``.
-
-    ``r/(1-(1+r)**-n)``; degenerates to ``1/n`` for ``|r| < 1e-9``. Guards
-    ``n <= 0`` to ``n = 1``.
-    """
-    if n <= 0:
-        n = 1
-    if abs(r) < 1e-9:
-        return 1.0 / n
-    return r / (1.0 - (1.0 + r) ** (-n))
 
 
 def decline_factor(cfg: WithdrawalConfig, t: int, age: int) -> float:
@@ -197,12 +193,46 @@ def healthcare_ltc(cfg: WithdrawalConfig, age: int) -> float:
     return best_amount
 
 
+def spending_reduction(cfg: WithdrawalConfig, age: int) -> float:
+    """Total real annual base-spend reduction in effect at ``age``."""
+
+    return sum(
+        max(0.0, point.real_amount)
+        for point in cfg.spending_reductions
+        if point.age <= age
+    )
+
+
+def _reduced_base_spending(cfg: WithdrawalConfig, age: int) -> tuple[float, float, float]:
+    """Apply child/household reductions to base floor and discretionary spend.
+
+    Reductions lower only the base living-spend split. Healthcare/LTC stays
+    separate and is added by ``floor`` so ACA/Medicare/LTC are not reduced.
+    """
+
+    base_floor = max(0.0, cfg.essential_floor)
+    base_discretionary = max(0.0, cfg.base_discretionary)
+    total = base_floor + base_discretionary
+    reduction = min(spending_reduction(cfg, age), total)
+    if total <= 0:
+        return base_floor, base_discretionary, 0.0
+    floor_reduction = reduction * (base_floor / total)
+    discretionary_reduction = reduction - floor_reduction
+    return (
+        max(0.0, base_floor - floor_reduction),
+        max(0.0, base_discretionary - discretionary_reduction),
+        reduction,
+    )
+
+
 def discretionary_target(cfg: WithdrawalConfig, t: int, age: int) -> float:
-    return cfg.base_discretionary * decline_factor(cfg, t, age)
+    _, base_discretionary, _ = _reduced_base_spending(cfg, age)
+    return base_discretionary * decline_factor(cfg, t, age)
 
 
 def floor(cfg: WithdrawalConfig, age: int) -> float:
-    return cfg.essential_floor + healthcare_ltc(cfg, age)
+    base_floor, _, _ = _reduced_base_spending(cfg, age)
+    return base_floor + healthcare_ltc(cfg, age)
 
 
 def spending_target(cfg: WithdrawalConfig, t: int, age: int) -> float:
@@ -231,12 +261,6 @@ def bridge_initial_size(
         gap = max(0.0, floor(cfg, age) - guaranteed_income_fn(age))
         pv += gap / ((1.0 + rr) ** offset)
     return pv
-
-
-def vpw_capacity(portfolio_bal_real: float, age: int, cfg: WithdrawalConfig) -> float:
-    """Portfolio draw the VPW schedule permits this year (real)."""
-    n = max(1, cfg.horizon_end_age - age)
-    return portfolio_bal_real * vpw_rate(n, cfg.r)
 
 
 def guardrails_capacity_and_update(
@@ -301,6 +325,7 @@ def step_year(
     t = max(0, age - cfg.retirement_age)
     floor_amount = floor(cfg, age)
     disc_target = discretionary_target(cfg, t, age)
+    spend_reduction = spending_reduction(cfg, age)
     spend_target = floor_amount + disc_target
 
     floor_gap = max(0.0, floor_amount - guaranteed_real)
@@ -308,10 +333,11 @@ def step_year(
     bridge_draw = min(floor_gap, max(0.0, bridge_bal_real))
     floor_shortfall = floor_gap - bridge_draw
 
-    if cfg.strategy == "guardrails":
-        capacity = strategy_state.current_withdrawal if strategy_state is not None else 0.0
-    else:
-        capacity = vpw_capacity(portfolio_bal_real, age, cfg)
+    capacity = (
+        strategy_state.current_withdrawal
+        if strategy_state is not None
+        else portfolio_bal_real * cfg.initial_rate
+    )
 
     disc_room = max(0.0, capacity - floor_shortfall)
     discretionary_from_portfolio = _clamp(disc_target - excess_income, 0.0, disc_room)
@@ -324,6 +350,7 @@ def step_year(
         age=age,
         floor=floor_amount,
         discretionary_target=disc_target,
+        spending_reduction=spend_reduction,
         spending_target=spend_target,
         guaranteed_income=guaranteed_real,
         bridge_draw=bridge_draw,

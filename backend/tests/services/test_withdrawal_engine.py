@@ -14,6 +14,7 @@ from app.services._withdrawal_engine import (
     GuardrailsState,
     HealthcarePoint,
     PhaseConfig,
+    SpendingReduction,
     WithdrawalConfig,
     bridge_initial_size,
     decline_factor,
@@ -23,14 +24,13 @@ from app.services._withdrawal_engine import (
     healthcare_ltc,
     spending_target,
     step_year,
-    vpw_capacity,
-    vpw_rate,
 )
 
 
 def _cfg(**overrides) -> WithdrawalConfig:
     base = {
-        "strategy": "vpw",
+        "strategy": "guardrails",
+        "initial_rate": 0.06,
         "essential_floor": 40_000.0,
         "base_discretionary": 20_000.0,
         "retirement_age": 65,
@@ -44,29 +44,7 @@ def _cfg(**overrides) -> WithdrawalConfig:
     return WithdrawalConfig(**base)
 
 
-# 1. vpw_rate -----------------------------------------------------------------
-def test_vpw_rate_known_value() -> None:
-    # r/(1-(1+r)^-n) at (30, 0.04) ≈ 0.05783.
-    assert vpw_rate(30, 0.04) == pytest.approx(0.057830, abs=1e-5)
-
-
-def test_vpw_rate_zero_real_return_is_one_over_n() -> None:
-    assert vpw_rate(25, 0.0) == pytest.approx(1.0 / 25)
-    assert vpw_rate(25, 1e-12) == pytest.approx(1.0 / 25)
-
-
-def test_vpw_rate_n_one_edge() -> None:
-    # vpw_rate(1, r) = r/(1-(1+r)^-1) = 1+r — the final year withdraws principal + growth.
-    assert vpw_rate(1, 0.04) == pytest.approx(1.04)
-    assert vpw_rate(0, 0.04) == pytest.approx(1.04)  # guarded n<=0 -> n=1
-
-
-def test_vpw_rate_negative_real_return_positive() -> None:
-    rate = vpw_rate(30, -0.01)
-    assert rate > 0.0
-
-
-# 2-3. decline_factor ---------------------------------------------------------
+# 1-2. decline_factor ---------------------------------------------------------
 def test_decline_smooth_values() -> None:
     cfg = _cfg(decline_mode="smooth", discretionary_decline_rate=0.01)
     assert decline_factor(cfg, 0, 65) == pytest.approx(1.0)
@@ -89,7 +67,7 @@ def test_decline_phase_boundaries() -> None:
     assert decline_factor(cfg, 20, 85) == pytest.approx(0.75)  # no-go boundary
 
 
-# 4. healthcare ---------------------------------------------------------------
+# 3. healthcare ---------------------------------------------------------------
 def test_healthcare_step_carry_forward() -> None:
     cfg = _cfg(
         healthcare_schedule=(
@@ -121,12 +99,25 @@ def test_healthcare_empty_schedule_zero() -> None:
     assert healthcare_ltc(_cfg(), 90) == 0.0
 
 
-# 5. floor / spending composition --------------------------------------------
+# 4. floor / spending composition --------------------------------------------
 def test_floor_and_spending_composition() -> None:
     cfg = _cfg()
     assert floor(cfg, 65) == pytest.approx(40_000.0)
     assert discretionary_target(cfg, 0, 65) == pytest.approx(20_000.0)
     assert spending_target(cfg, 0, 65) == pytest.approx(60_000.0)
+
+
+def test_spending_reduction_lowers_base_spend_not_healthcare() -> None:
+    cfg = _cfg(
+        healthcare_schedule=(HealthcarePoint(age=65, real_amount=12_000.0),),
+        spending_reductions=(SpendingReduction(age=67, real_amount=6_000.0),),
+    )
+    assert spending_target(cfg, 0, 65) == pytest.approx(72_000.0)
+    # The $6k living-spend reduction preserves the original 2/3 floor and
+    # 1/3 discretionary split, while healthcare remains unchanged.
+    assert floor(cfg, 67) == pytest.approx(48_000.0)
+    assert discretionary_target(cfg, 2, 67) == pytest.approx(18_000.0 * 0.99**2)
+    assert spending_target(cfg, 2, 67) == pytest.approx(48_000.0 + 18_000.0 * 0.99**2)
 
 
 def test_year_zero_total_equals_target_after_carveout() -> None:
@@ -217,8 +208,8 @@ def test_excess_income_path() -> None:
 
 
 def test_capacity_clamp_floor_funded_first() -> None:
-    # Tiny portfolio → VPW capacity below the floor shortfall: discretionary is
-    # squeezed to zero but floor is still funded first.
+    # Tiny portfolio → guardrail capacity below the floor shortfall:
+    # discretionary is squeezed to zero but floor is still funded first.
     cfg = _cfg(essential_floor=40_000.0, base_discretionary=20_000.0)
     wy = step_year(
         cfg,
@@ -248,15 +239,7 @@ def test_failure_when_floor_exceeds_portfolio() -> None:
     assert wy.floor_shortfall_funded == pytest.approx(40_000.0)
 
 
-# 12. vpw_capacity rises as horizon shortens ----------------------------------
-def test_vpw_capacity_rises_as_horizon_shortens() -> None:
-    cfg = _cfg(horizon_end_age=95, r=0.04)
-    early = vpw_capacity(1_000_000.0, 65, cfg)
-    late = vpw_capacity(1_000_000.0, 90, cfg)
-    assert late > early
-
-
-# 13. guardrails --------------------------------------------------------------
+# 12. guardrails --------------------------------------------------------------
 def test_guardrails_init_rate() -> None:
     state = GuardrailsState(initial_rate=0.05)
     cap, state = guardrails_capacity_and_update(1_000_000.0, state, prev_return_negative=False, inflation_rate=0.025)

@@ -26,8 +26,11 @@ from app.logging_config import get_logger
 from app.portfolio.contracts.retirement import (
     RetirementACAConfig,
     RetirementCollegeYear,
+    RetirementIncomeSource,
     RetirementInputs,
+    RetirementLiquidityEvent,
     RetirementPreview,
+    RetirementSpendingReduction,
     ScenarioResults,
     ScenarioSummary,
     WithdrawalConfig,
@@ -107,6 +110,12 @@ class PreviewRequest(RunScenarioRequest):
     spouse_social_security_start_age: int | None = Field(None, ge=62, le=70)
     # Explicit college schedule (even empty) wins over the persisted one.
     college_schedule: list[RetirementCollegeYear] | None = None
+    # Living-spend reductions such as children moving out / becoming self-funded.
+    spending_reductions: list[RetirementSpendingReduction] | None = None
+    # One-time real liquidity events, e.g. planned sale of a property share.
+    liquidity_events: list[RetirementLiquidityEvent] | None = None
+    # Extra recurring real income streams from planner-only assets.
+    extra_income_sources: list[RetirementIncomeSource] | None = None
     # Explicit ACA config (tier/OOP/covered-lives lever) wins over the
     # profile defaults; premium anchors still resolve server-side.
     aca: RetirementACAConfig | None = None
@@ -186,6 +195,19 @@ async def preview(payload: PreviewRequest) -> dict[str, Any]:
             withdrawal=payload.withdrawal,
             college_schedule=(
                 tuple(payload.college_schedule) if payload.college_schedule is not None else None
+            ),
+            spending_reductions=(
+                tuple(payload.spending_reductions)
+                if payload.spending_reductions is not None
+                else None
+            ),
+            liquidity_events=(
+                tuple(payload.liquidity_events) if payload.liquidity_events is not None else None
+            ),
+            extra_income_sources=(
+                tuple(payload.extra_income_sources)
+                if payload.extra_income_sources is not None
+                else None
             ),
             aca=payload.aca,
             spouse_net_monthly_income=payload.spouse_net_monthly_income,

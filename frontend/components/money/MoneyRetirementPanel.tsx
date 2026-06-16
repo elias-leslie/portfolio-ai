@@ -41,7 +41,10 @@ import type {
   RetirementAllocationScenarioInput,
   RetirementCollegeYear,
   RetirementIncomeActualsStream,
+  RetirementIncomeSourceInput,
+  RetirementLiquidityEvent,
   RetirementPreviewRequest,
+  RetirementSpendingReduction,
   RetirementWithdrawalConfig,
 } from '@/lib/api/household'
 import { fetchRetirementPreview } from '@/lib/api/household'
@@ -523,7 +526,7 @@ function defaultDraft(dashboard: HouseholdFinanceDashboard) {
 }
 
 type WithdrawalDraft = {
-  strategy: 'vpw' | 'guardrails'
+  strategy: 'guardrails'
   initialRatePct: string
   declineMode: 'smooth' | 'phase'
   declineRate: number
@@ -546,8 +549,7 @@ function defaultWithdrawalDraft(
   const profile = dashboard.profile
   const schedule = dashboard.planning?.retirementHealthcareSchedule ?? []
   return {
-    strategy:
-      profile.withdrawalStrategy === 'guardrails' ? 'guardrails' : 'vpw',
+    strategy: 'guardrails',
     initialRatePct: percentInput(profile.withdrawalInitialRate, '5'),
     declineMode: profile.withdrawalDeclineMode === 'phase' ? 'phase' : 'smooth',
     declineRate: profile.discretionaryDeclineRate ?? 0.01,
@@ -559,7 +561,7 @@ function defaultWithdrawalDraft(
     bridgeMode: profile.bridgeMode === 'manual' ? 'manual' : 'auto',
     bridgeManualAmount: numberInput(profile.bridgeManualAmount, '0'),
     bridgeRealReturnPct: percentInput(profile.bridgeRealReturn, '1'),
-    bridgeGrowth: profile.bridgeGrowth === 'portfolio' ? 'portfolio' : 'fixed',
+    bridgeGrowth: 'fixed',
     healthcare: schedule.map((row) => ({
       age: String(row.age),
       realAmount: String(Math.round(row.realAmount)),
@@ -633,6 +635,247 @@ type PartialDraft = {
   spouseGrossAnnual: string
 }
 
+type ChildReductionDraft = {
+  id?: string | null
+  label: string
+  startYear: string
+  monthlyAmount: string
+  notes: string
+}
+
+type RealEstateDraft = {
+  id?: string | null
+  label: string
+  housingType: string
+  occupancyRole: string
+  propertyValue: string
+  ownershipPercent: string
+  mortgageBalance: string
+  retirementTreatment: 'track_only' | 'income' | 'planned_sale'
+  annualRetirementIncome: string
+  liquidityYear: string
+  liquidityAmount: string
+  notes: string
+}
+
+const childReductionExpenseKind = 'child_spending_reduction'
+
+function dependentMembers(dashboard: HouseholdFinanceDashboard) {
+  return (
+    dashboard.planning?.members.filter((member) => {
+      const role = member.role.toLowerCase()
+      const relationship = member.relationship?.toLowerCase() ?? ''
+      return (
+        member.isDependent ||
+        ['child', 'dependent'].includes(role) ||
+        ['child', 'daughter', 'son', 'dependent'].includes(relationship)
+      )
+    }) ?? []
+  )
+}
+
+function defaultChildReductionDraft(
+  dashboard: HouseholdFinanceDashboard,
+): ChildReductionDraft[] {
+  const existing =
+    dashboard.planning?.plannedExpenses.filter(
+      (expense) => expense.expenseKind === childReductionExpenseKind,
+    ) ?? []
+  if (existing.length > 0) {
+    return existing.map((expense) => ({
+      id: expense.id,
+      label: expense.label,
+      startYear: expense.targetDate?.slice(0, 4) ?? '',
+      monthlyAmount: amountInput(expense.targetAmount),
+      notes: expense.notes ?? '',
+    }))
+  }
+  const currentYear = new Date(dashboard.generatedAt).getFullYear()
+  return dependentMembers(dashboard).map((member, index) => ({
+    label: member.displayName || `Child ${index + 1}`,
+    startYear: member.birthYear
+      ? String(member.birthYear + 22)
+      : String(currentYear + 5),
+    monthlyAmount: '',
+    notes: 'Expected child costs drop after job / move-out.',
+  }))
+}
+
+function spendingReductionsFromDraft(
+  dashboard: HouseholdFinanceDashboard,
+  draft: ReturnType<typeof defaultDraft>,
+  reductions: ChildReductionDraft[],
+): RetirementSpendingReduction[] {
+  const primaryAge = parseOptionalNumber(draft.primaryAge)
+  if (primaryAge == null) return []
+  const currentYear = new Date(dashboard.generatedAt).getFullYear()
+  return reductions
+    .map((row) => {
+      const startYear = Math.round(parseNumber(row.startYear, 0))
+      const monthlyAmount = parseOptionalAmount(row.monthlyAmount) ?? 0
+      return {
+        label: row.label.trim() || 'Child cost reduction',
+        startAge: primaryAge + (startYear - currentYear),
+        annualAmount: monthlyAmount * 12,
+      }
+    })
+    .filter(
+      (row) =>
+        row.startAge >= 18 && row.startAge <= 120 && row.annualAmount > 0,
+    )
+}
+
+function childReductionPlanningRows(
+  dashboard: HouseholdFinanceDashboard,
+  reductions: ChildReductionDraft[],
+) {
+  const otherRows =
+    dashboard.planning?.plannedExpenses.filter(
+      (expense) => expense.expenseKind !== childReductionExpenseKind,
+    ) ?? []
+  return [
+    ...otherRows.map((expense) => ({
+      id: expense.id,
+      label: expense.label,
+      expenseKind: expense.expenseKind,
+      category: expense.category,
+      targetAmount: expense.targetAmount,
+      targetDate: expense.targetDate,
+      monthlySavingTarget: expense.monthlySavingTarget,
+      priority: expense.priority,
+      notes: expense.notes,
+      confirmationStatus: expense.confirmationStatus,
+      provenance: expense.provenance,
+      evidenceNote: expense.evidenceNote,
+      sourceDocumentId: expense.sourceDocumentId,
+    })),
+    ...reductions
+      .filter((row) => row.label.trim())
+      .map((row) => ({
+        id: row.id ?? null,
+        label: row.label.trim(),
+        expenseKind: childReductionExpenseKind,
+        category: 'retirement_spending',
+        targetAmount: parseOptionalAmount(row.monthlyAmount),
+        targetDate: row.startYear.trim()
+          ? `${row.startYear.trim()}-01-01`
+          : null,
+        monthlySavingTarget: null,
+        priority: 'medium',
+        notes: row.notes || null,
+        confirmationStatus: 'confirmed',
+        provenance: 'manual',
+        evidenceNote: null,
+        sourceDocumentId: null,
+      })),
+  ]
+}
+
+function defaultRealEstateDraft(
+  dashboard: HouseholdFinanceDashboard,
+): RealEstateDraft[] {
+  return (dashboard.planning?.housingCosts ?? []).map((row) => ({
+    id: row.id,
+    label: row.label,
+    housingType: row.housingType || 'property',
+    occupancyRole: row.occupancyRole || 'family_asset',
+    propertyValue: amountInput(row.propertyValue),
+    ownershipPercent: amountInput(row.ownershipPercent ?? 100),
+    mortgageBalance: amountInput(row.mortgageBalance),
+    retirementTreatment:
+      row.retirementTreatment === 'income' ||
+      row.retirementTreatment === 'planned_sale'
+        ? row.retirementTreatment
+        : 'track_only',
+    annualRetirementIncome: amountInput(row.annualRetirementIncome),
+    liquidityYear: row.liquidityYear == null ? '' : String(row.liquidityYear),
+    liquidityAmount: amountInput(row.liquidityAmount),
+    notes: row.notes ?? '',
+  }))
+}
+
+function realEstatePlanningRows(
+  dashboard: HouseholdFinanceDashboard,
+  rows: RealEstateDraft[],
+) {
+  const existing = new Map(
+    (dashboard.planning?.housingCosts ?? []).map((row) => [row.id, row]),
+  )
+  return rows
+    .filter((row) => row.label.trim())
+    .map((row) => {
+      const base = row.id ? existing.get(row.id) : null
+      return {
+        id: row.id ?? null,
+        label: row.label.trim(),
+        housingType: row.housingType || 'property',
+        occupancyRole: row.occupancyRole || 'family_asset',
+        monthlyPayment: base?.monthlyPayment ?? null,
+        propertyTaxMonthly: base?.propertyTaxMonthly ?? null,
+        hoaMonthly: base?.hoaMonthly ?? null,
+        insuranceMonthly: base?.insuranceMonthly ?? null,
+        utilitiesMonthly: base?.utilitiesMonthly ?? null,
+        maintenanceMonthly: base?.maintenanceMonthly ?? null,
+        mortgageBalance: parseOptionalAmount(row.mortgageBalance),
+        interestRate: base?.interestRate ?? null,
+        propertyValue: parseOptionalAmount(row.propertyValue),
+        ownershipPercent: parseOptionalAmount(row.ownershipPercent),
+        valueAsOf: base?.valueAsOf ?? null,
+        retirementTreatment: row.retirementTreatment,
+        annualRetirementIncome: parseOptionalAmount(row.annualRetirementIncome),
+        liquidityYear: parseOptionalAmount(row.liquidityYear),
+        liquidityAmount: parseOptionalAmount(row.liquidityAmount),
+        notes: row.notes || null,
+        confirmationStatus: base?.confirmationStatus ?? 'confirmed',
+        provenance: base?.provenance ?? 'manual',
+        evidenceNote: base?.evidenceNote ?? null,
+        sourceDocumentId: base?.sourceDocumentId ?? null,
+      }
+    })
+}
+
+function liquidityEventsFromRealEstate(
+  rows: RealEstateDraft[],
+): RetirementLiquidityEvent[] {
+  return rows
+    .filter((row) => row.retirementTreatment === 'planned_sale')
+    .map((row) => ({
+      label: `${row.label.trim() || 'Property'} liquidity`,
+      calendarYear: Math.round(parseNumber(row.liquidityYear, 0)),
+      realAmount: parseOptionalAmount(row.liquidityAmount) ?? 0,
+    }))
+    .filter(
+      (row) =>
+        row.calendarYear >= 1900 &&
+        row.calendarYear <= 2200 &&
+        row.realAmount > 0,
+    )
+}
+
+function extraIncomeSourcesFromRealEstate(
+  rows: RealEstateDraft[],
+  draft: ReturnType<typeof defaultDraft>,
+): RetirementIncomeSourceInput[] {
+  const startAge = Math.max(
+    parseNumber(draft.retirementAge, 65),
+    parseOptionalNumber(draft.spouseRetirementAge) ??
+      parseNumber(draft.retirementAge, 65),
+  )
+  return rows
+    .filter((row) => row.retirementTreatment === 'income')
+    .map((row) => ({
+      label: `${row.label.trim() || 'Property'} income`,
+      sourceType: 'real_estate_income',
+      ownerName: null,
+      startAge,
+      monthlyAmount:
+        (parseOptionalAmount(row.annualRetirementIncome) ?? 0) / 12,
+      inflationAdjusted: true,
+      survivorBenefit: null,
+    }))
+    .filter((row) => row.monthlyAmount > 0)
+}
+
 function defaultPartialDraft(
   dashboard: HouseholdFinanceDashboard,
 ): PartialDraft {
@@ -689,7 +932,7 @@ function withdrawalConfigFromDraft(
   withdrawal: WithdrawalDraft,
 ): RetirementWithdrawalConfig {
   return {
-    strategy: withdrawal.strategy,
+    strategy: 'guardrails',
     initialRate: clamp(parseNumber(withdrawal.initialRatePct, 5) / 100, 0, 0.2),
     declineMode: withdrawal.declineMode,
     discretionaryDeclineRate: clamp(withdrawal.declineRate, 0, 0.025),
@@ -715,7 +958,7 @@ function withdrawalConfigFromDraft(
         -0.05,
         0.1,
       ),
-      growth: withdrawal.bridgeGrowth,
+      growth: 'fixed',
     },
     healthcareSchedule: withdrawal.healthcare
       .map((row) => ({
@@ -735,6 +978,7 @@ function withdrawalConfigFromDraft(
 
 function buildRequest(
   householdId: string,
+  dashboard: HouseholdFinanceDashboard,
   draft: ReturnType<typeof defaultDraft>,
   allocationMode: AllocationMode = 'current',
   allocationDraft?: Record<(typeof allocationClasses)[number]['key'], string>,
@@ -742,6 +986,8 @@ function buildRequest(
   withdrawal?: WithdrawalDraft,
   aca?: AcaDraft,
   partial?: PartialDraft,
+  childReductions?: ChildReductionDraft[],
+  realEstate?: RealEstateDraft[],
 ): RetirementPreviewRequest {
   const assetAllocation =
     allocationMode === 'classes' && allocationDraft
@@ -795,6 +1041,15 @@ function buildRequest(
       ) / 100,
     withdrawal: withdrawal ? withdrawalConfigFromDraft(withdrawal) : null,
     collegeSchedule: withdrawal ? collegeScheduleFromDraft(withdrawal) : null,
+    spendingReductions: childReductions
+      ? spendingReductionsFromDraft(dashboard, draft, childReductions)
+      : null,
+    liquidityEvents: realEstate
+      ? liquidityEventsFromRealEstate(realEstate)
+      : null,
+    extraIncomeSources: realEstate
+      ? extraIncomeSourcesFromRealEstate(realEstate, draft)
+      : null,
     aca: aca ? acaConfigFromDraft(aca) : null,
     ...(partial ? partialRequestFields(partial) : {}),
     trials: 2500,
@@ -880,6 +1135,12 @@ export function MoneyRetirementPanel({
   const [partialDraft, setPartialDraft] = useState(() =>
     defaultPartialDraft(dashboard),
   )
+  const [childReductionDraft, setChildReductionDraft] = useState(() =>
+    defaultChildReductionDraft(dashboard),
+  )
+  const [realEstateDraft, setRealEstateDraft] = useState(() =>
+    defaultRealEstateDraft(dashboard),
+  )
   const [plannerOpen, setPlannerOpen] = useState(false)
   const [withdrawalOpen, setWithdrawalOpen] = useState(true)
   const [allocationOpen, setAllocationOpen] = useState(false)
@@ -943,6 +1204,7 @@ export function MoneyRetirementPanel({
   const [request, setRequest] = useState<RetirementPreviewRequest>(() =>
     buildRequest(
       dashboard.profile.id,
+      dashboard,
       defaultDraft(dashboard),
       'current',
       undefined,
@@ -950,12 +1212,28 @@ export function MoneyRetirementPanel({
       defaultWithdrawalDraft(dashboard),
       defaultAcaDraft(dashboard),
       defaultPartialDraft(dashboard),
+      defaultChildReductionDraft(dashboard),
+      defaultRealEstateDraft(dashboard),
     ),
   )
   const updateProfile = useUpdateHouseholdProfile()
   const updatePlanning = useUpdateHouseholdPlanning()
   const previewQuery = useRetirementPreview(request)
   const preview = previewQuery.data
+  const actualSpendMonthly = spendingActuals?.totalMonthlySpend ?? null
+  const actualSpendRequest = useMemo(
+    () =>
+      actualSpendMonthly == null
+        ? request
+        : {
+            ...request,
+            monthlySpend: actualSpendMonthly,
+            annualExpenses: actualSpendMonthly * 12,
+          },
+    [actualSpendMonthly, request],
+  )
+  const actualSpendPreviewQuery = useRetirementPreview(actualSpendRequest)
+  const actualSpendPreview = actualSpendPreviewQuery.data
   // Withdrawal-plan and ACA/Medicare knobs re-project live (debounced);
   // the other planner inputs still wait for an explicit "Run preview".
   const debouncedWithdrawal = useDebounce(withdrawalDraft, 250)
@@ -983,6 +1261,7 @@ export function MoneyRetirementPanel({
     () =>
       buildRequest(
         dashboard.profile.id,
+        dashboard,
         draft,
         allocationMode,
         allocationDraft,
@@ -990,8 +1269,11 @@ export function MoneyRetirementPanel({
         withdrawalDraft,
         acaDraft,
         partialDraft,
+        childReductionDraft,
+        realEstateDraft,
       ),
     [
+      dashboard,
       dashboard.profile.id,
       draft,
       allocationMode,
@@ -1000,6 +1282,8 @@ export function MoneyRetirementPanel({
       withdrawalDraft,
       acaDraft,
       partialDraft,
+      childReductionDraft,
+      realEstateDraft,
     ],
   )
   // Edits update `draft`/allocation state but only "Run preview" pushes them
@@ -1067,16 +1351,21 @@ export function MoneyRetirementPanel({
     const nextWithdrawal = defaultWithdrawalDraft(dashboard)
     const nextAca = defaultAcaDraft(dashboard)
     const nextPartial = defaultPartialDraft(dashboard)
+    const nextChildReductions = defaultChildReductionDraft(dashboard)
+    const nextRealEstate = defaultRealEstateDraft(dashboard)
     setDraft(nextDraft)
     setWithdrawalDraft(nextWithdrawal)
     setAcaDraft(nextAca)
     setPartialDraft(nextPartial)
+    setChildReductionDraft(nextChildReductions)
+    setRealEstateDraft(nextRealEstate)
     setAllocationMode('current')
     setAllocationDraft(allocationDraftFromPreview(undefined))
     setAccountDetailsOpen(false)
     setRequest(
       buildRequest(
         dashboard.profile.id,
+        dashboard,
         nextDraft,
         'current',
         undefined,
@@ -1084,6 +1373,8 @@ export function MoneyRetirementPanel({
         nextWithdrawal,
         nextAca,
         nextPartial,
+        nextChildReductions,
+        nextRealEstate,
       ),
     )
   }, [dashboard])
@@ -1426,11 +1717,30 @@ export function MoneyRetirementPanel({
     'taxableWithdrawalGainRatioDetail',
   )
   const accountRules: RetirementAccountRule[] = preview?.accountRules ?? []
+  const realEstateSummary = useMemo(() => {
+    let trackedEquity = 0
+    let modeledLiquidity = 0
+    let modeledIncome = 0
+    for (const row of realEstateDraft) {
+      const value = parseOptionalAmount(row.propertyValue) ?? 0
+      const ownership = (parseOptionalAmount(row.ownershipPercent) ?? 100) / 100
+      const mortgage = parseOptionalAmount(row.mortgageBalance) ?? 0
+      trackedEquity += Math.max(0, value * ownership - mortgage)
+      if (row.retirementTreatment === 'planned_sale') {
+        modeledLiquidity += parseOptionalAmount(row.liquidityAmount) ?? 0
+      }
+      if (row.retirementTreatment === 'income') {
+        modeledIncome += parseOptionalAmount(row.annualRetirementIncome) ?? 0
+      }
+    }
+    return { trackedEquity, modeledLiquidity, modeledIncome }
+  }, [realEstateDraft])
 
   const applyDraft = () => {
     setRequest(
       buildRequest(
         dashboard.profile.id,
+        dashboard,
         draft,
         allocationMode,
         allocationDraft,
@@ -1438,6 +1748,8 @@ export function MoneyRetirementPanel({
         withdrawalDraft,
         acaDraft,
         partialDraft,
+        childReductionDraft,
+        realEstateDraft,
       ),
     )
   }
@@ -1473,7 +1785,7 @@ export function MoneyRetirementPanel({
           draft.socialSecurityPayableRatio,
           defaultSocialSecurityPayableRatio * 100,
         ) / 100,
-      withdrawalStrategy: withdrawalDraft.strategy,
+      withdrawalStrategy: 'guardrails',
       withdrawalInitialRate: clamp(
         parseNumber(withdrawalDraft.initialRatePct, 5) / 100,
         0,
@@ -1516,7 +1828,7 @@ export function MoneyRetirementPanel({
         -0.05,
         0.1,
       ),
-      bridgeGrowth: withdrawalDraft.bridgeGrowth,
+      bridgeGrowth: 'fixed',
       acaTier: acaDraft.tier,
       acaPremiumAge21Override: parseOptionalAmount(acaDraft.premiumOverride),
       acaOopMonthly: parseOptionalAmount(acaDraft.oopMonthly),
@@ -1536,10 +1848,16 @@ export function MoneyRetirementPanel({
         realAmount: row.realAmount,
       })),
       retirementCollegeSchedule: collegeScheduleFromDraft(withdrawalDraft),
+      plannedExpenses: childReductionPlanningRows(
+        dashboard,
+        childReductionDraft,
+      ),
+      housingCosts: realEstatePlanningRows(dashboard, realEstateDraft),
     })
     setRequest(
       buildRequest(
         dashboard.profile.id,
+        dashboard,
         draft,
         allocationMode,
         allocationDraft,
@@ -1547,6 +1865,8 @@ export function MoneyRetirementPanel({
         withdrawalDraft,
         acaDraft,
         partialDraft,
+        childReductionDraft,
+        realEstateDraft,
       ),
     )
   }
@@ -1557,6 +1877,73 @@ export function MoneyRetirementPanel({
 
   const updatePartialDraft = (key: keyof PartialDraft, value: string) => {
     setPartialDraft((current) => ({ ...current, [key]: value }))
+  }
+
+  const updateChildReductionDraft = (
+    index: number,
+    key: keyof ChildReductionDraft,
+    value: string,
+  ) => {
+    setChildReductionDraft((current) =>
+      current.map((row, rowIndex) =>
+        rowIndex === index ? { ...row, [key]: value } : row,
+      ),
+    )
+  }
+
+  const addChildReduction = () => {
+    setChildReductionDraft((current) => [
+      ...current,
+      {
+        label: `Child ${current.length + 1}`,
+        startYear: String(new Date(dashboard.generatedAt).getFullYear() + 5),
+        monthlyAmount: '',
+        notes: '',
+      },
+    ])
+  }
+
+  const removeChildReduction = (index: number) => {
+    setChildReductionDraft((current) =>
+      current.filter((_, rowIndex) => rowIndex !== index),
+    )
+  }
+
+  const updateRealEstateDraft = (
+    index: number,
+    key: keyof RealEstateDraft,
+    value: string,
+  ) => {
+    setRealEstateDraft((current) =>
+      current.map((row, rowIndex) =>
+        rowIndex === index ? { ...row, [key]: value } : row,
+      ),
+    )
+  }
+
+  const addRealEstateAsset = () => {
+    setRealEstateDraft((current) => [
+      ...current,
+      {
+        label: `Property ${current.length + 1}`,
+        housingType: 'property',
+        occupancyRole: 'family_asset',
+        propertyValue: '',
+        ownershipPercent: '100',
+        mortgageBalance: '',
+        retirementTreatment: 'track_only',
+        annualRetirementIncome: '',
+        liquidityYear: '',
+        liquidityAmount: '',
+        notes: '',
+      },
+    ])
+  }
+
+  const removeRealEstateAsset = (index: number) => {
+    setRealEstateDraft((current) =>
+      current.filter((_, rowIndex) => rowIndex !== index),
+    )
   }
 
   const updateWithdrawalDraft = <K extends keyof WithdrawalDraft>(
@@ -1641,12 +2028,16 @@ export function MoneyRetirementPanel({
     try {
       const base = buildRequest(
         dashboard.profile.id,
+        dashboard,
         draft,
         'current',
         undefined,
         '',
         withdrawalDraft,
         acaDraft,
+        partialDraft,
+        childReductionDraft,
+        realEstateDraft,
       )
       const targets = [
         { name: 'Current accounts', request: base },
@@ -2183,31 +2574,16 @@ export function MoneyRetirementPanel({
 
       <SectionCard
         variant="surface"
-        title="Income: plan vs actual"
-        description="Recurring take-home deposits auto-detected from Money transactions, next to what the plan assumes. Deposits are net of withholding; the planner salary fields are gross inputs to the Social Security estimate."
+        title="Spending used in the plan"
+        description="Two retirement baselines: current actual spending from Money data, and the manual planning spend you entered. Both use the same allocation, guardrails, child drop-offs, healthcare, college, and Social Security assumptions."
       >
-        {incomeActuals && incomeActuals.coverageMonths > 0 ? (
+        {(spendingActuals && spendingActuals.coverageMonths > 0) ||
+        (incomeActuals && incomeActuals.coverageMonths > 0) ? (
           <>
             <div className="grid gap-3 md:grid-cols-3">
               <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                  Take-home run-rate
-                </p>
-                <p className="mt-2 text-2xl font-semibold text-text">
-                  {formatCurrency(incomeActuals.activeMonthlyIncome, {
-                    decimals: 0,
-                  })}
-                  /mo
-                </p>
-                <p className="mt-1 text-xs text-text-muted">
-                  Active take-home streams, cadence-normalized for weekly and
-                  biweekly deposits. Dividend/interest streams stay listed below
-                  but excluded — portfolio yield is already modeled in returns.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                  Spend run-rate
+                  Current spend scenario
                 </p>
                 <p className="mt-2 text-2xl font-semibold text-text">
                   {spendingActuals
@@ -2217,29 +2593,52 @@ export function MoneyRetirementPanel({
                     : '—'}
                 </p>
                 <p className="mt-1 text-xs text-text-muted">
-                  Deduped Money ledger over the same statements. Planner lever
-                  for retirement: {draft.monthlySpend || '—'}/mo.
+                  Monte Carlo:{' '}
+                  <span className="font-mono text-text">
+                    {actualSpendPreview
+                      ? percentPoints(actualSpendPreview.successProbability)
+                      : actualSpendPreviewQuery.isFetching
+                        ? 'running…'
+                        : '—'}
+                  </span>
+                  . Uses deduped ledger spending, not income.
                 </p>
               </div>
               <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                  Plan assumes
+                  Manual planning scenario
                 </p>
                 <p className="mt-2 text-2xl font-semibold text-text">
-                  {dashboard.profile.monthlyNetIncomeTarget != null
-                    ? `${formatCurrency(
-                        dashboard.profile.monthlyNetIncomeTarget,
-                        { decimals: 0 },
-                      )}/mo`
-                    : '—'}
+                  {formatCurrency(parseNumber(draft.monthlySpend, 0), {
+                    decimals: 0,
+                  })}
+                  /mo
                 </p>
                 <p className="mt-1 text-xs text-text-muted">
-                  Budget net-income target while working. Planner Save / month
-                  lever: {draft.monthlyContribution || '0'}.
+                  Monte Carlo:{' '}
+                  <span className="font-mono text-text">
+                    {preview ? percentPoints(preview.successProbability) : '—'}
+                  </span>
+                  . This is the saved retirement spend target.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                  Data confidence
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-text">
+                  {spendingActuals?.coverageMonths ?? 0} mo
+                </p>
+                <p className="mt-1 text-xs text-text-muted">
+                  {spendingActuals
+                    ? `${spendingActuals.sourceLabel} ${spendingActuals.firstMonth ?? ''}–${spendingActuals.lastMonth ?? ''}.`
+                    : 'No complete spending window yet.'}
                 </p>
               </div>
             </div>
-            {incomeActuals.activeMonthlyIncome > 0 && spendingActuals ? (
+            {incomeActuals &&
+            incomeActuals.activeMonthlyIncome > 0 &&
+            spendingActuals ? (
               <div className="mt-3 grid gap-2 text-sm text-text md:grid-cols-3">
                 <p>
                   Income gap to plan:{' '}
@@ -2309,12 +2708,12 @@ export function MoneyRetirementPanel({
                   </tr>
                 </thead>
                 <tbody>
-                  {incomeActuals.streams.map((stream) => {
+                  {(incomeActuals?.streams ?? []).map((stream) => {
                     const status = incomeStreamStatus(stream)
                     const mergeTargets = activeIncomeMergeTargets.filter(
                       (target) => target.streamKey !== stream.streamKey,
                     )
-                    const selectedMergeTarget = incomeActuals.streams.find(
+                    const selectedMergeTarget = incomeActuals?.streams.find(
                       (candidate) =>
                         candidate.streamKey === stream.mergedIntoStreamKey,
                     )
@@ -2507,11 +2906,11 @@ export function MoneyRetirementPanel({
               </table>
             </div>
             <p className="mt-2 text-xs text-text-muted">
-              {incomeActuals.sourceLabel} Stream run-rates normalize weekly and
+              {incomeActuals?.sourceLabel} Stream run-rates normalize weekly and
               biweekly deposits; observed $/mo still averages over each
               stream&apos;s own active months.
-              {incomeActuals.aliasRowsCollapsed > 0
-                ? ` ${incomeActuals.aliasRowsCollapsed} duplicate statement rows (the same deposit imported under two account labels) were collapsed.`
+              {(incomeActuals?.aliasRowsCollapsed ?? 0) > 0
+                ? ` ${incomeActuals?.aliasRowsCollapsed} duplicate statement rows (the same deposit imported under two account labels) were collapsed.`
                 : ''}
             </p>
           </>
@@ -2562,52 +2961,30 @@ export function MoneyRetirementPanel({
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Upside strategy
+                  Baseline strategy
                 </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {(
-                    [
-                      ['vpw', 'VPW'],
-                      ['guardrails', 'Guardrails'],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <Button
-                      key={value}
-                      type="button"
-                      size="sm"
-                      variant={
-                        withdrawalDraft.strategy === value
-                          ? 'default'
-                          : 'outline'
-                      }
-                      onClick={() => updateWithdrawalDraft('strategy', value)}
-                    >
-                      {label}
-                    </Button>
-                  ))}
-                </div>
-                {withdrawalDraft.strategy === 'guardrails' ? (
-                  <label className="mt-3 block text-xs text-text-muted">
-                    Initial withdrawal rate %
-                    <Input
-                      className="mt-1"
-                      inputMode="decimal"
-                      aria-label="Guardrails initial withdrawal rate percent"
-                      value={withdrawalDraft.initialRatePct}
-                      onChange={(event) =>
-                        updateWithdrawalDraft(
-                          'initialRatePct',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </label>
-                ) : (
-                  <p className="mt-3 text-xs text-text-muted">
-                    VPW sizes each year&apos;s draw from remaining capital and
-                    horizon, so spending can never deplete early.
+                <div className="mt-2 rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                  <Badge variant="success">Guardrails</Badge>
+                  <p className="mt-2 text-sm text-text">
+                    One retirement paycheck, adjusted annually when the
+                    portfolio crosses raise/cut guardrails.
                   </p>
-                )}
+                </div>
+                <label className="mt-3 block text-xs text-text-muted">
+                  Initial withdrawal rate %
+                  <Input
+                    className="mt-1"
+                    inputMode="decimal"
+                    aria-label="Guardrails initial withdrawal rate percent"
+                    value={withdrawalDraft.initialRatePct}
+                    onChange={(event) =>
+                      updateWithdrawalDraft(
+                        'initialRatePct',
+                        event.target.value,
+                      )
+                    }
+                  />
+                </label>
               </div>
               <div>
                 <div className="flex items-center justify-between gap-3">
@@ -2727,55 +3104,135 @@ export function MoneyRetirementPanel({
                       />
                     </label>
                   ) : null}
-                  {withdrawalDraft.bridgeGrowth === 'fixed' ? (
-                    <label className="text-xs text-text-muted">
-                      Bridge real return %
-                      <Input
-                        className="mt-1"
-                        inputMode="decimal"
-                        aria-label="Bridge sleeve real return percent"
-                        value={withdrawalDraft.bridgeRealReturnPct}
-                        onChange={(event) =>
-                          updateWithdrawalDraft(
-                            'bridgeRealReturnPct',
-                            event.target.value,
-                          )
-                        }
-                      />
-                    </label>
-                  ) : null}
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {(
-                    [
-                      ['fixed', 'Conservative (fixed return)'],
-                      ['portfolio', 'Invested with portfolio'],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <Button
-                      key={value}
-                      type="button"
-                      size="sm"
-                      variant={
-                        withdrawalDraft.bridgeGrowth === value
-                          ? 'default'
-                          : 'outline'
+                  <label className="text-xs text-text-muted">
+                    Bridge real return %
+                    <Input
+                      className="mt-1"
+                      inputMode="decimal"
+                      aria-label="Bridge sleeve real return percent"
+                      value={withdrawalDraft.bridgeRealReturnPct}
+                      onChange={(event) =>
+                        updateWithdrawalDraft(
+                          'bridgeRealReturnPct',
+                          event.target.value,
+                        )
                       }
-                      onClick={() =>
-                        updateWithdrawalDraft('bridgeGrowth', value)
-                      }
-                    >
-                      {label}
-                    </Button>
-                  ))}
+                    />
+                  </label>
                 </div>
                 <p className="mt-2 text-xs text-text-muted">
                   Auto sizes the sleeve to cover essential-floor gaps from
-                  retirement until Social Security starts. Conservative grows
-                  the sleeve at the fixed real return; invested lets it ride the
-                  simulated portfolio returns, sequence risk included.
+                  retirement until Social Security starts. The sleeve uses a
+                  conservative fixed real return so the bridge is not exposed to
+                  equity sequence risk.
                 </p>
               </div>
+            </div>
+
+            <div className="mt-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                    Child cost drop-offs
+                  </p>
+                  <p className="mt-1 text-xs text-text-muted">
+                    Reduces base living spend when each child is expected to be
+                    self-funded. Healthcare and college stay modeled separately.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={addChildReduction}
+                >
+                  Add child
+                </Button>
+              </div>
+              {childReductionDraft.length === 0 ? (
+                <p className="mt-3 text-sm text-text-muted">
+                  No child reductions yet. Add one if retirement spending should
+                  fall when a child gets a job or moves out.
+                </p>
+              ) : (
+                <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                  {childReductionDraft.map((row, index) => (
+                    <div
+                      key={`${row.id ?? 'new'}-${index}`}
+                      className="rounded-2xl border border-border/35 bg-surface-muted/15 p-3"
+                    >
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <label className="text-xs text-text-muted">
+                          Child
+                          <Input
+                            className="mt-1"
+                            value={row.label}
+                            onChange={(event) =>
+                              updateChildReductionDraft(
+                                index,
+                                'label',
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="text-xs text-text-muted">
+                          Drop starts year
+                          <Input
+                            className="mt-1"
+                            inputMode="numeric"
+                            value={row.startYear}
+                            onChange={(event) =>
+                              updateChildReductionDraft(
+                                index,
+                                'startYear',
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="text-xs text-text-muted">
+                          Spend drop $/mo
+                          <Input
+                            className="mt-1"
+                            inputMode="decimal"
+                            value={row.monthlyAmount}
+                            onChange={(event) =>
+                              updateChildReductionDraft(
+                                index,
+                                'monthlyAmount',
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between gap-3">
+                        <Input
+                          aria-label={`Notes for ${row.label}`}
+                          placeholder="notes"
+                          value={row.notes}
+                          onChange={(event) =>
+                            updateChildReductionDraft(
+                              index,
+                              'notes',
+                              event.target.value,
+                            )
+                          }
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => removeChildReduction(index)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="mt-5">
@@ -3200,6 +3657,232 @@ export function MoneyRetirementPanel({
             </div>
           </>
         ) : null}
+      </SectionCard>
+
+      <SectionCard
+        variant="surface"
+        title="Real estate & family assets"
+        description="Track property value and ownership without inflating retirement success. Include cash flow or sale proceeds only when you explicitly choose that treatment."
+      >
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+              Tracked equity
+            </p>
+            <p className="mt-2 text-2xl font-semibold text-text">
+              {formatCurrencyWhole(realEstateSummary.trackedEquity)}
+            </p>
+            <p className="mt-1 text-xs text-text-muted">
+              Value × ownership minus mortgage. Track-only equity is not
+              spendable in Monte Carlo.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+              Modeled sale proceeds
+            </p>
+            <p className="mt-2 text-2xl font-semibold text-text">
+              {formatCurrencyWhole(realEstateSummary.modeledLiquidity)}
+            </p>
+            <p className="mt-1 text-xs text-text-muted">
+              Added to taxable assets only in the listed sale year.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+              Modeled property income
+            </p>
+            <p className="mt-2 text-2xl font-semibold text-text">
+              {formatCurrency(realEstateSummary.modeledIncome, {
+                decimals: 0,
+              })}
+              /yr
+            </p>
+            <p className="mt-1 text-xs text-text-muted">
+              Added as inflation-adjusted retirement income.
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={addRealEstateAsset}
+          >
+            Add property
+          </Button>
+        </div>
+        {realEstateDraft.length === 0 ? (
+          <p className="mt-3 text-sm text-text-muted">
+            No real estate rows yet. Add the Tampa house, note receivable, or
+            other family property here. Leave treatment as Track only until the
+            value/date/cash path is reliable.
+          </p>
+        ) : (
+          <div className="mt-3 space-y-3">
+            {realEstateDraft.map((row, index) => (
+              <div
+                key={`${row.id ?? 'new'}-${index}`}
+                className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4"
+              >
+                <div className="grid gap-3 md:grid-cols-4">
+                  <label className="text-xs text-text-muted">
+                    Property / asset
+                    <Input
+                      className="mt-1"
+                      value={row.label}
+                      onChange={(event) =>
+                        updateRealEstateDraft(
+                          index,
+                          'label',
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="text-xs text-text-muted">
+                    Value
+                    <Input
+                      className="mt-1"
+                      inputMode="decimal"
+                      value={row.propertyValue}
+                      onChange={(event) =>
+                        updateRealEstateDraft(
+                          index,
+                          'propertyValue',
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="text-xs text-text-muted">
+                    Ownership %
+                    <Input
+                      className="mt-1"
+                      inputMode="decimal"
+                      value={row.ownershipPercent}
+                      onChange={(event) =>
+                        updateRealEstateDraft(
+                          index,
+                          'ownershipPercent',
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="text-xs text-text-muted">
+                    Mortgage / note balance
+                    <Input
+                      className="mt-1"
+                      inputMode="decimal"
+                      value={row.mortgageBalance}
+                      onChange={(event) =>
+                        updateRealEstateDraft(
+                          index,
+                          'mortgageBalance',
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-4">
+                  <label className="text-xs text-text-muted">
+                    Retirement treatment
+                    <Select
+                      value={row.retirementTreatment}
+                      onValueChange={(value) =>
+                        updateRealEstateDraft(
+                          index,
+                          'retirementTreatment',
+                          value,
+                        )
+                      }
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="track_only">Track only</SelectItem>
+                        <SelectItem value="income">Income stream</SelectItem>
+                        <SelectItem value="planned_sale">
+                          Planned sale / liquidity
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </label>
+                  <label className="text-xs text-text-muted">
+                    Income $/yr
+                    <Input
+                      className="mt-1"
+                      inputMode="decimal"
+                      disabled={row.retirementTreatment !== 'income'}
+                      value={row.annualRetirementIncome}
+                      onChange={(event) =>
+                        updateRealEstateDraft(
+                          index,
+                          'annualRetirementIncome',
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="text-xs text-text-muted">
+                    Sale/liquidity year
+                    <Input
+                      className="mt-1"
+                      inputMode="numeric"
+                      disabled={row.retirementTreatment !== 'planned_sale'}
+                      value={row.liquidityYear}
+                      onChange={(event) =>
+                        updateRealEstateDraft(
+                          index,
+                          'liquidityYear',
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="text-xs text-text-muted">
+                    Net proceeds
+                    <Input
+                      className="mt-1"
+                      inputMode="decimal"
+                      disabled={row.retirementTreatment !== 'planned_sale'}
+                      value={row.liquidityAmount}
+                      onChange={(event) =>
+                        updateRealEstateDraft(
+                          index,
+                          'liquidityAmount',
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <Input
+                    aria-label={`Real estate notes for ${row.label}`}
+                    placeholder="ownership, inheritance, sibling split, valuation source"
+                    value={row.notes}
+                    onChange={(event) =>
+                      updateRealEstateDraft(index, 'notes', event.target.value)
+                    }
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => removeRealEstateAsset(index)}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </SectionCard>
 
       <SectionCard

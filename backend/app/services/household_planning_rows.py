@@ -102,6 +102,7 @@ def row_to_housing_cost(
     *,
     iso: Callable[[Any], str],
     to_float: Callable[[Any], float | None],
+    iso_or_none: Callable[[Any], str | None],
 ) -> HouseholdHousingCost:
     return HouseholdHousingCost(
         id=str(row[0]),
@@ -116,13 +117,20 @@ def row_to_housing_cost(
         maintenance_monthly=to_float(row[9]),
         mortgage_balance=to_float(row[10]),
         interest_rate=to_float(row[11]),
-        notes=str(row[12]) if row[12] is not None else None,
-        confirmation_status=str(row[13]),
-        provenance=str(row[14]),
-        evidence_note=str(row[15]) if row[15] is not None else None,
-        source_document_id=str(row[16]) if row[16] is not None else None,
-        created_at=iso(row[17]),
-        updated_at=iso(row[18]),
+        property_value=to_float(row[12]),
+        ownership_percent=to_float(row[13]),
+        value_as_of=iso_or_none(row[14]),
+        retirement_treatment=str(row[15] or "track_only"),
+        annual_retirement_income=to_float(row[16]),
+        liquidity_year=int(row[17]) if row[17] is not None else None,
+        liquidity_amount=to_float(row[18]),
+        notes=str(row[19]) if row[19] is not None else None,
+        confirmation_status=str(row[20]),
+        provenance=str(row[21]),
+        evidence_note=str(row[22]) if row[22] is not None else None,
+        source_document_id=str(row[23]) if row[23] is not None else None,
+        created_at=iso(row[24]),
+        updated_at=iso(row[25]),
     )
 
 

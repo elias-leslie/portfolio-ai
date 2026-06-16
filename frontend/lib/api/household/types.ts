@@ -398,8 +398,30 @@ export interface RetirementWithdrawalHealthcarePoint {
   realAmount: number
 }
 
+export interface RetirementSpendingReduction {
+  label: string
+  startAge: number
+  annualAmount: number
+}
+
+export interface RetirementLiquidityEvent {
+  label: string
+  calendarYear: number
+  realAmount: number
+}
+
+export interface RetirementIncomeSourceInput {
+  label: string
+  sourceType?: string | null
+  ownerName?: string | null
+  startAge: number
+  monthlyAmount: number
+  inflationAdjusted?: boolean
+  survivorBenefit?: number | null
+}
+
 export interface RetirementWithdrawalConfig {
-  strategy: 'vpw' | 'guardrails'
+  strategy: 'guardrails'
   initialRate: number
   declineMode: 'smooth' | 'phase'
   discretionaryDeclineRate: number
@@ -445,6 +467,12 @@ export interface RetirementPreviewRequest {
   withdrawal?: RetirementWithdrawalConfig | null
   /** Explicit schedule (even empty) wins over the persisted one. */
   collegeSchedule?: RetirementCollegeYear[] | null
+  /** Living-spend reductions such as children becoming self-funded. */
+  spendingReductions?: RetirementSpendingReduction[] | null
+  /** One-time real cash events, e.g. planned property sale proceeds. */
+  liquidityEvents?: RetirementLiquidityEvent[] | null
+  /** Preview-only recurring real income streams from manually modeled assets. */
+  extraIncomeSources?: RetirementIncomeSourceInput[] | null
   /** Explicit ACA/Medicare lever config wins over the profile defaults. */
   aca?: RetirementAcaConfig | null
   asOfDate?: string | null
@@ -563,6 +591,8 @@ export interface RetirementInputs {
   assetAllocation: Record<string, number>
   cashYield?: number | null
   incomeSources: Array<Record<string, unknown>>
+  spendingReductions?: RetirementSpendingReduction[]
+  liquidityEvents?: RetirementLiquidityEvent[]
   inflationRate: number
   socialSecurityPayableRatio: number
   socialSecurityDepletionYear: number | null
@@ -683,6 +713,7 @@ export interface RetirementDrawdownYear {
   spendingTarget: number
   floorAmount: number
   discretionaryTarget: number
+  spendingReduction: number
   guaranteedIncome: number
   bridgeDraw: number
   portfolioDraw: number

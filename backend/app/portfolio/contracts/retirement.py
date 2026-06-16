@@ -56,6 +56,26 @@ class WithdrawalHealthcarePoint(BaseModel):
     real_amount: float = Field(..., ge=0.0)
 
 
+class RetirementSpendingReduction(BaseModel):
+    """Annual real living-spend reduction starting at primary ``start_age``."""
+
+    model_config = ConfigDict(frozen=True)
+
+    label: str
+    start_age: int = Field(..., ge=18, le=120)
+    annual_amount: float = Field(..., ge=0.0)
+
+
+class RetirementLiquidityEvent(BaseModel):
+    """One-time real cash event added to taxable assets in ``calendar_year``."""
+
+    model_config = ConfigDict(frozen=True)
+
+    label: str
+    calendar_year: int = Field(..., ge=1900, le=2200)
+    real_amount: float = Field(..., ge=0.0)
+
+
 class WithdrawalConfig(BaseModel):
     """Floor-and-upside spending-plan configuration (real dollars).
 
@@ -68,7 +88,7 @@ class WithdrawalConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    strategy: Literal["vpw", "guardrails"] = "vpw"
+    strategy: Literal["guardrails"] = "guardrails"
     initial_rate: float = Field(0.05, ge=0.0, le=0.2)
     decline_mode: Literal["smooth", "phase"] = "smooth"
     discretionary_decline_rate: float = Field(0.01, ge=0.0, le=0.025)
@@ -187,6 +207,8 @@ class RetirementInputs(BaseModel):
     college_529_value: float = Field(0.0, ge=0.0)
     college_529_real_return: float = Field(0.01, ge=-0.05, le=0.1)
     aca: RetirementACAConfig | None = None
+    spending_reductions: tuple[RetirementSpendingReduction, ...] = ()
+    liquidity_events: tuple[RetirementLiquidityEvent, ...] = ()
     # Partial-retirement window (primary retired, spouse still working).
     # All three are REAL dollars; feature off when net income is None.
     spouse_net_monthly_income: float | None = Field(None, ge=0.0)
@@ -353,6 +375,7 @@ class RetirementDrawdownYear(BaseModel):
     spending_target: float = Field(0.0, ge=0.0)
     floor_amount: float = Field(0.0, ge=0.0)
     discretionary_target: float = Field(0.0, ge=0.0)
+    spending_reduction: float = Field(0.0, ge=0.0)
     guaranteed_income: float = Field(0.0, ge=0.0)
     bridge_draw: float = Field(0.0, ge=0.0)
     portfolio_draw: float = Field(0.0, ge=0.0)

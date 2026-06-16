@@ -109,6 +109,13 @@ class HouseholdHousingCost(HouseholdPlanningItemBase):
     maintenance_monthly: float | None = None
     mortgage_balance: float | None = None
     interest_rate: float | None = None
+    property_value: float | None = None
+    ownership_percent: float | None = None
+    value_as_of: str | None = None
+    retirement_treatment: str = "track_only"
+    annual_retirement_income: float | None = None
+    liquidity_year: int | None = None
+    liquidity_amount: float | None = None
     notes: str | None = None
     created_at: str
     updated_at: str
@@ -127,6 +134,13 @@ class HouseholdHousingCostInput(HouseholdPlanningItemBase):
     maintenance_monthly: float | None = None
     mortgage_balance: float | None = None
     interest_rate: float | None = None
+    property_value: float | None = None
+    ownership_percent: float | None = None
+    value_as_of: str | None = None
+    retirement_treatment: str = "track_only"
+    annual_retirement_income: float | None = None
+    liquidity_year: int | None = None
+    liquidity_amount: float | None = None
     notes: str | None = None
 
 

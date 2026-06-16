@@ -37,8 +37,10 @@ from app.portfolio.contracts.retirement import (
     RetirementIncomeSource,
     RetirementInputs,
     RetirementLeverImpact,
+    RetirementLiquidityEvent,
     RetirementOutcomeFraming,
     RetirementPreview,
+    RetirementSpendingReduction,
     ScenarioResults,
     ScenarioSummary,
     WithdrawalBridgeConfig,
@@ -76,6 +78,9 @@ from app.services._withdrawal_engine import (
 )
 from app.services._withdrawal_engine import (
     PhaseConfig as EnginePhaseConfig,
+)
+from app.services._withdrawal_engine import (
+    SpendingReduction as EngineSpendingReduction,
 )
 from app.services._withdrawal_engine import (
     WithdrawalConfig as EngineWithdrawalConfig,
@@ -506,6 +511,9 @@ class RetirementPlanningService:
         social_security_payable_ratio: float | None = None,
         withdrawal: WithdrawalConfig | None = None,
         college_schedule: tuple[RetirementCollegeYear, ...] | None = None,
+        spending_reductions: tuple[RetirementSpendingReduction, ...] | None = None,
+        liquidity_events: tuple[RetirementLiquidityEvent, ...] | None = None,
+        extra_income_sources: tuple[RetirementIncomeSource, ...] | None = None,
         aca: RetirementACAConfig | None = None,
         spouse_net_monthly_income: float | None = None,
         partial_retirement_monthly_spend: float | None = None,
@@ -691,6 +699,14 @@ class RetirementPlanningService:
                     "college_schedule": tuple(college_rows),
                     "college_529_value": college_529_value,
                 }
+            )
+        if spending_reductions is not None:
+            inputs = inputs.model_copy(update={"spending_reductions": spending_reductions})
+        if liquidity_events is not None:
+            inputs = inputs.model_copy(update={"liquidity_events": liquidity_events})
+        if extra_income_sources:
+            inputs = inputs.model_copy(
+                update={"income_sources": (*inputs.income_sources, *extra_income_sources)}
             )
 
         # ACA healthcare stream: explicit request config wins, else the
@@ -1535,6 +1551,11 @@ class RetirementPlanningService:
         # drained before any retirement money; never part of ending_balance.
         college_balance = inputs.college_529_value
         college_by_year = {row.calendar_year: row.real_amount for row in inputs.college_schedule}
+        liquidity_by_year: dict[int, float] = {}
+        for event in inputs.liquidity_events:
+            liquidity_by_year[event.calendar_year] = (
+                liquidity_by_year.get(event.calendar_year, 0.0) + event.real_amount
+            )
         rows: list[RetirementDrawdownYear] = []
         for year_index in range(inputs.horizon_years):
             primary_age = inputs.primary_age + year_index
@@ -1550,6 +1571,9 @@ class RetirementPlanningService:
                     balances[contribution_bucket] = balances.get(contribution_bucket, 0.0) + inputs.annual_contribution
 
             inflation_factor = (1.0 + inputs.inflation_rate) ** year_index
+            liquidity_real = liquidity_by_year.get(calendar_year, 0.0)
+            if liquidity_real > 0:
+                balances["taxable"] = balances.get("taxable", 0.0) + liquidity_real * inflation_factor
             spouse_age = inputs.spouse_age + year_index if inputs.spouse_age is not None else None
             income_components = _income_components_for_age(
                 inputs.income_sources,
@@ -1713,6 +1737,7 @@ class RetirementPlanningService:
                     spending_target=round(wy.spending_target, 2) if wy is not None else 0.0,
                     floor_amount=round(wy.floor, 2) if wy is not None else 0.0,
                     discretionary_target=round(wy.discretionary_target, 2) if wy is not None else 0.0,
+                    spending_reduction=round(wy.spending_reduction, 2) if wy is not None else 0.0,
                     guaranteed_income=round(wy.guaranteed_income, 2) if wy is not None else 0.0,
                     bridge_draw=round(wy.bridge_draw, 2) if wy is not None else 0.0,
                     portfolio_draw=round(wy.portfolio_draw, 2) if wy is not None else 0.0,
@@ -2517,7 +2542,7 @@ def _withdrawal_config_from_profile(
         return default if raw is None else raw
 
     return WithdrawalConfig(
-        strategy=str(value("withdrawal_strategy", "vpw")),
+        strategy="guardrails",
         initial_rate=float(value("withdrawal_initial_rate", 0.05)),
         decline_mode=str(value("withdrawal_decline_mode", "smooth")),
         discretionary_decline_rate=float(value("discretionary_decline_rate", 0.01)),
@@ -2692,6 +2717,10 @@ def _engine_withdrawal_config(
         EngineHealthcarePoint(age=point.age, real_amount=point.real_amount)
         for point in wc.healthcare_schedule
     )
+    spending_reductions = tuple(
+        EngineSpendingReduction(age=point.start_age, real_amount=point.annual_amount)
+        for point in inputs.spending_reductions
+    )
     if aca_plans is not None:
         manual_only = EngineWithdrawalConfig(healthcare_schedule=healthcare_points)
         healthcare_points = tuple(
@@ -2718,6 +2747,7 @@ def _engine_withdrawal_config(
         ),
         bridge=bridge,
         healthcare_schedule=healthcare_points,
+        spending_reductions=spending_reductions,
         essential_floor=essential_floor,
         base_discretionary=base_discretionary,
         retirement_age=retirement_age,
@@ -3025,8 +3055,6 @@ def _run_tax_aware_monte_carlo(
     starting_balances = _bucket_balances(inputs, buckets)
     contribution_bucket = _contribution_bucket(starting_balances)
     household_retirement_age = _household_retirement_primary_age(inputs)
-    # R5: VPW capacity uses the fixed expected real return, never the
-    # sampled one.
     expected_nominal = float(mus @ weights)
     aca_plans = _aca_year_plans(inputs)
     cfg = _engine_withdrawal_config(
@@ -3094,6 +3122,11 @@ def _run_tax_aware_monte_carlo(
             overflow = cost - draw
             if overflow > 0 and inputs.primary_age + year_index >= household_retirement_age:
                 college_overflow_nominal[year_index] = overflow * year_contexts[year_index][0]
+    liquidity_by_year: dict[int, float] = {}
+    for event in inputs.liquidity_events:
+        liquidity_by_year[event.calendar_year] = (
+            liquidity_by_year.get(event.calendar_year, 0.0) + event.real_amount
+        )
 
     for trial in range(trials):
         balances = dict(starting_balances)
@@ -3121,6 +3154,9 @@ def _run_tax_aware_monte_carlo(
                 balances[contribution_bucket] = balances.get(contribution_bucket, 0.0) + inputs.annual_contribution
 
             inflation_factor, spouse_age, income_components = year_contexts[year_index]
+            liquidity_real = liquidity_by_year.get(inputs.as_of_date.year + year_index, 0.0)
+            if liquidity_real > 0:
+                balances["taxable"] = balances.get("taxable", 0.0) + liquidity_real * inflation_factor
             income = income_components["total"]
 
             wy = None

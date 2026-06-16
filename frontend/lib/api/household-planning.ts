@@ -119,6 +119,13 @@ export interface HouseholdHousingCost {
   maintenanceMonthly?: number | null
   mortgageBalance?: number | null
   interestRate?: number | null
+  propertyValue?: number | null
+  ownershipPercent?: number | null
+  valueAsOf?: string | null
+  retirementTreatment?: 'track_only' | 'income' | 'planned_sale' | string
+  annualRetirementIncome?: number | null
+  liquidityYear?: number | null
+  liquidityAmount?: number | null
   notes?: string | null
   confirmationStatus?: string
   provenance?: string
@@ -141,6 +148,13 @@ export interface HouseholdHousingCostInput {
   maintenanceMonthly?: number | null
   mortgageBalance?: number | null
   interestRate?: number | null
+  propertyValue?: number | null
+  ownershipPercent?: number | null
+  valueAsOf?: string | null
+  retirementTreatment?: 'track_only' | 'income' | 'planned_sale' | string
+  annualRetirementIncome?: number | null
+  liquidityYear?: number | null
+  liquidityAmount?: number | null
   notes?: string | null
   confirmationStatus?: string
   provenance?: string
