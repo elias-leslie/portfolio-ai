@@ -26,7 +26,7 @@ DEFAULT_TASK_SCHEDULE_TIMEOUT = timedelta(days=7)
 DEFAULT_TASK_EXECUTION_TIMEOUT = timedelta(days=7)
 _HATCHET_SHUTDOWN_404_GUARD_ATTR = "_hatchet_shutdown_404_guard"
 
-PauseTaskAssignmentFn = Callable[[Any], Coroutine[Any, Any, None]]
+ShutdownPauseFn = Callable[[Any], Coroutine[Any, Any, None]]
 
 
 def _prime_hatchet_sdk_env() -> None:
@@ -40,27 +40,36 @@ def _prime_hatchet_sdk_env() -> None:
         os.environ.setdefault("HATCHET_CLIENT_TLS_STRATEGY", settings.hatchet_client_tls_strategy)
 
 
+def _describe_hatchet_shutdown_target(target: Any) -> str | None:
+    worker_id = getattr(getattr(target, "listener", None), "worker_id", None)
+    if worker_id:
+        return f"worker_id={worker_id}"
+    worker_name = getattr(target, "name", None)
+    if worker_name:
+        return f"worker={worker_name}"
+    return None
+
+
 def _wrap_hatchet_shutdown_404_guard(
-    pause_task_assignment: PauseTaskAssignmentFn,
+    pause_task_assignment: ShutdownPauseFn,
     *,
     not_found_exception: type[Exception],
-) -> PauseTaskAssignmentFn:
+) -> ShutdownPauseFn:
     if getattr(pause_task_assignment, _HATCHET_SHUTDOWN_404_GUARD_ATTR, False):
         return pause_task_assignment
 
     @wraps(pause_task_assignment)
-    async def guarded_pause_task_assignment(process: Any) -> None:
+    async def guarded_pause_task_assignment(target: Any) -> None:
         try:
-            await pause_task_assignment(process)
+            await pause_task_assignment(target)
         except not_found_exception:
-            worker_id = getattr(getattr(process, "listener", None), "worker_id", None)
             logger.debug(
-                "Hatchet listener worker %s already removed during shutdown pause; suppressing 404",
-                worker_id,
+                "Hatchet worker %s already removed during shutdown pause; suppressing 404",
+                _describe_hatchet_shutdown_target(target),
             )
 
     setattr(guarded_pause_task_assignment, _HATCHET_SHUTDOWN_404_GUARD_ATTR, True)
-    return cast(PauseTaskAssignmentFn, guarded_pause_task_assignment)
+    return cast(ShutdownPauseFn, guarded_pause_task_assignment)
 
 
 def _install_hatchet_shutdown_404_guard() -> None:
@@ -73,16 +82,29 @@ def _install_hatchet_shutdown_404_guard() -> None:
     """
     from hatchet_sdk.clients.rest.exceptions import NotFoundException
     from hatchet_sdk.worker.action_listener_process import WorkerActionListenerProcess
+    from hatchet_sdk.worker.worker import Worker
 
-    guarded_pause_task_assignment = _wrap_hatchet_shutdown_404_guard(
-        WorkerActionListenerProcess.pause_task_assignment,
-        not_found_exception=NotFoundException,
-    )
-    type.__setattr__(
-        WorkerActionListenerProcess,
-        "pause_task_assignment",
-        guarded_pause_task_assignment,
-    )
+    worker_pause_task_assignment = getattr(Worker, "_pause_task_assignment", None)
+    if worker_pause_task_assignment is not None:
+        type.__setattr__(
+            Worker,
+            "_pause_task_assignment",
+            _wrap_hatchet_shutdown_404_guard(
+                worker_pause_task_assignment,
+                not_found_exception=NotFoundException,
+            ),
+        )
+
+    listener_pause_task_assignment = getattr(WorkerActionListenerProcess, "pause_task_assignment", None)
+    if listener_pause_task_assignment is not None:
+        type.__setattr__(
+            WorkerActionListenerProcess,
+            "pause_task_assignment",
+            _wrap_hatchet_shutdown_404_guard(
+                listener_pause_task_assignment,
+                not_found_exception=NotFoundException,
+            ),
+        )
 
 
 @lru_cache

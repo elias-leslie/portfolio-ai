@@ -10,8 +10,10 @@ import pytest
 from hatchet_sdk.runnables.types import TaskDefaults
 
 from app.hatchet_app import (
+    _HATCHET_SHUTDOWN_404_GUARD_ATTR,
     DEFAULT_TASK_EXECUTION_TIMEOUT,
     DEFAULT_TASK_SCHEDULE_TIMEOUT,
+    _install_hatchet_shutdown_404_guard,
     _LazyHatchet,
     _wrap_hatchet_shutdown_404_guard,
     get_hatchet,
@@ -157,6 +159,20 @@ def test_get_hatchet_installs_shutdown_404_guard(monkeypatch) -> None:
     assert result == "hatchet-client"
     mock_prime.assert_called_once_with()
     mock_guard.assert_called_once_with()
+
+
+def test_install_shutdown_404_guard_wraps_current_worker_pause_method(monkeypatch) -> None:
+    from hatchet_sdk.worker.worker import Worker
+
+    async def fake_pause_task_assignment(_worker) -> None:
+        return None
+
+    monkeypatch.setattr(Worker, "_pause_task_assignment", fake_pause_task_assignment)
+
+    _install_hatchet_shutdown_404_guard()
+
+    assert Worker._pause_task_assignment is not fake_pause_task_assignment
+    assert getattr(Worker._pause_task_assignment, _HATCHET_SHUTDOWN_404_GUARD_ATTR) is True
 
 
 def test_disable_worker_sys_exit_handles_read_only_hatchet_property() -> None:
