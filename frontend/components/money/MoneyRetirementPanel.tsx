@@ -1820,11 +1820,52 @@ export function MoneyRetirementPanel({
     )
   }
 
+  const saveRealEstateAssets = async () => {
+    const snapshot = await updatePlanning.mutateAsync({
+      housingCosts: realEstatePlanningRows(dashboard, realEstateDraft),
+    })
+    if (snapshot?.housingCosts) {
+      setRealEstateDraft(
+        defaultRealEstateDraft({
+          ...dashboard,
+          planning: snapshot,
+        } as HouseholdFinanceDashboard),
+      )
+    }
+    return snapshot
+  }
+
   const refreshPropertyValue = async (row: RealEstateDraft) => {
-    if (!row.id || refreshPropertyValuation.isPending) return
+    const address = (row.propertyAddress || row.label).trim()
+    if (
+      !address ||
+      refreshPropertyValuation.isPending ||
+      updatePlanning.isPending
+    ) {
+      return
+    }
+    let housingCostId = row.id ?? null
+    if (!housingCostId) {
+      const snapshot = await saveRealEstateAssets()
+      const label = row.label.trim().toLowerCase()
+      const normalizedAddress = row.propertyAddress.trim().toLowerCase()
+      const saved = snapshot?.housingCosts?.find((candidate) => {
+        if (candidate.id === row.id) return true
+        const candidateLabel = candidate.label.trim().toLowerCase()
+        const candidateAddress = (candidate.propertyAddress ?? '')
+          .trim()
+          .toLowerCase()
+        return (
+          candidateLabel === label &&
+          (!normalizedAddress || candidateAddress === normalizedAddress)
+        )
+      })
+      housingCostId = saved?.id ?? null
+    }
+    if (!housingCostId) return
     await refreshPropertyValuation.mutateAsync({
-      housingCostId: row.id,
-      address: row.propertyAddress || row.label,
+      housingCostId,
+      address,
     })
   }
 
@@ -3801,15 +3842,31 @@ export function MoneyRetirementPanel({
             </p>
           </div>
         </div>
-        <div className="mt-4 flex justify-end">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={addRealEstateAsset}
-          >
-            Add property
-          </Button>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-text-muted">
+            Property edits are saved when you click Save properties or the
+            broader Save assumptions button. Save &amp; refresh persists a new
+            card first, then pulls the latest county valuation.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={updatePlanning.isPending}
+              onClick={() => void saveRealEstateAssets()}
+            >
+              Save properties
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={addRealEstateAsset}
+            >
+              Add property
+            </Button>
+          </div>
         </div>
         {realEstateDraft.length === 0 ? (
           <p className="mt-3 text-sm text-text-muted">
@@ -3858,6 +3915,9 @@ export function MoneyRetirementPanel({
                           <Badge variant={stale ? 'warning' : 'success'}>
                             {stale ? 'Stale / manual' : 'Fresh'}
                           </Badge>
+                          {!row.id ? (
+                            <Badge variant="outline">Unsaved</Badge>
+                          ) : null}
                           <Badge variant="outline">
                             {valuationSourceLabel(row.valuationSource)}
                           </Badge>
@@ -3894,14 +3954,16 @@ export function MoneyRetirementPanel({
                           size="sm"
                           variant="outline"
                           disabled={
-                            !row.id || refreshPropertyValuation.isPending
+                            !(row.propertyAddress || row.label).trim() ||
+                            refreshPropertyValuation.isPending ||
+                            updatePlanning.isPending
                           }
                           onClick={(event) => {
                             event.stopPropagation()
                             void refreshPropertyValue(row)
                           }}
                         >
-                          Refresh
+                          {row.id ? 'Refresh' : 'Save & refresh'}
                         </Button>
                         <span className="text-xs text-text-muted">
                           {expanded ? 'Hide details' : 'Details'}
