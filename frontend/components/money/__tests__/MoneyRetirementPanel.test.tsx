@@ -749,8 +749,10 @@ describe('MoneyRetirementPanel', () => {
 
     expect(screen.getByText('Overview')).toBeInTheDocument()
     expect(screen.getByText('Planning & assumptions')).toBeInTheDocument()
-    expect(screen.getByText(/2,500 simulated\s+trials/)).toBeInTheDocument()
-    expect(screen.getByText(/Last ran/)).toBeInTheDocument()
+    expect(screen.getByText('Success rates')).toBeInTheDocument()
+    expect(screen.getByText(/Last run/)).toBeInTheDocument()
+    expect(screen.getByText('Invested assets')).toBeInTheDocument()
+    expect(screen.getByText('Same source as Today.')).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /expand planner/i }),
     ).toBeInTheDocument()
@@ -904,6 +906,42 @@ describe('MoneyRetirementPanel', () => {
         primaryAge: 49,
         spouseAge: 43,
       }),
+    )
+  })
+
+  it('updates the success-rate plan spend as the manual spend changes', async () => {
+    const user = userEvent.setup()
+    usePreviewMock.mockReturnValue({
+      data: preview,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    await user.click(screen.getByRole('button', { name: /expand planner/i }))
+    const spendInput = screen.getByRole('textbox', {
+      name: /monthly spend in retirement/i,
+    })
+    await user.clear(spendInput)
+    await user.type(spendInput, '6500')
+
+    expect(
+      screen.getByText((_content, element) =>
+        Boolean(
+          element?.tagName === 'SPAN' &&
+            element.textContent?.includes('Plan $6,500/mo'),
+        ),
+      ),
+    ).toBeInTheDocument()
+    await waitFor(() =>
+      expect(usePreviewMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          monthlySpend: 6500,
+          annualExpenses: 78_000,
+        }),
+      ),
     )
   })
 

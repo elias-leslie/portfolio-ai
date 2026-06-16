@@ -1297,8 +1297,37 @@ export function MoneyRetirementPanel({
   )
   const actualSpendPreviewQuery = useRetirementPreview(actualSpendRequest)
   const actualSpendPreview = actualSpendPreviewQuery.data
-  // Withdrawal-plan and ACA/Medicare knobs re-project live (debounced);
-  // the other planner inputs still wait for an explicit "Run preview".
+  const successRatesUpdatedAt = Math.max(
+    previewQuery.dataUpdatedAt || 0,
+    actualSpendPreviewQuery.dataUpdatedAt || 0,
+  )
+  const successRatesRunLabel =
+    successRatesUpdatedAt > 0
+      ? new Date(successRatesUpdatedAt).toLocaleString([], {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+        })
+      : null
+  const investedAssets = dashboard.overview.investedAssets
+  const modeledPortfolioValue = preview?.inputs.portfolioValue ?? null
+  const investedModelDifference =
+    modeledPortfolioValue == null
+      ? null
+      : investedAssets - modeledPortfolioValue
+  // Monthly spend plus withdrawal-plan and ACA/Medicare knobs re-project live
+  // (debounced); the other planner inputs still wait for "Run preview".
+  const debouncedMonthlySpend = useDebounce(draft.monthlySpend, 500)
+  useEffect(() => {
+    const monthlySpend = parseNumber(debouncedMonthlySpend, 6000)
+    setRequest((current) => ({
+      ...current,
+      monthlySpend,
+      annualExpenses: monthlySpend * 12,
+    }))
+  }, [debouncedMonthlySpend])
   const debouncedWithdrawal = useDebounce(withdrawalDraft, 250)
   useEffect(() => {
     setRequest((current) => ({
@@ -2301,13 +2330,13 @@ export function MoneyRetirementPanel({
       <SectionCard
         variant="surface"
         title="Overview"
-        description="The retirement answer first: spending baselines, success odds, ending balance, holdings, and account coverage. Open Planning & assumptions only when you want to change the model."
+        description="Success rates, invested assets, ending balance, and holdings coverage."
       >
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                Planning success
+                Success rates
               </p>
               {preview ? (
                 <Badge
@@ -2320,64 +2349,68 @@ export function MoneyRetirementPanel({
                 </Badge>
               ) : null}
             </div>
-            <p className="mt-2 text-2xl font-semibold text-text">
-              {preview
-                ? percentPoints(preview.successProbability)
-                : previewQuery.isFetching
-                  ? 'running…'
-                  : '—'}
-            </p>
-            <p className="mt-1 text-xs text-text-muted">
-              {formatCurrency(parseNumber(draft.monthlySpend, 0), {
-                decimals: 0,
-              })}
-              /mo plan · 2,500 simulated trials.
-            </p>
-            {preview && previewQuery.dataUpdatedAt ? (
-              <p className="mt-1 text-xs text-text-muted/80">
-                Last ran{' '}
-                {new Date(previewQuery.dataUpdatedAt).toLocaleTimeString([], {
-                  hour: 'numeric',
-                  minute: '2-digit',
-                })}
+            <div className="mt-3 space-y-2 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-text-muted">
+                  Plan{' '}
+                  {formatCurrency(parseNumber(draft.monthlySpend, 0), {
+                    decimals: 0,
+                  })}
+                  /mo
+                </span>
+                <span className="font-mono text-lg text-text">
+                  {preview
+                    ? percentPoints(preview.successProbability)
+                    : previewQuery.isFetching
+                      ? 'running…'
+                      : '—'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-text-muted">
+                  Current spend{' '}
+                  {spendingActuals
+                    ? `${formatCurrency(spendingActuals.totalMonthlySpend, {
+                        decimals: 0,
+                      })}/mo`
+                    : '—'}
+                </span>
+                <span className="font-mono text-lg text-text">
+                  {actualSpendMonthly == null
+                    ? '—'
+                    : actualSpendPreview
+                      ? percentPoints(actualSpendPreview.successProbability)
+                      : actualSpendPreviewQuery.isFetching
+                        ? 'running…'
+                        : '—'}
+                </span>
+              </div>
+            </div>
+            {successRatesRunLabel ? (
+              <p className="mt-2 text-xs text-text-muted/80">
+                Last run {successRatesRunLabel}
               </p>
             ) : null}
           </div>
           <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-              Current spend test
+              Invested assets
             </p>
             <p className="mt-2 text-2xl font-semibold text-text">
-              {spendingActuals
-                ? `${formatCurrency(spendingActuals.totalMonthlySpend, {
-                    decimals: 0,
-                  })}/mo`
-                : '—'}
+              {formatCurrencyWhole(investedAssets)}
             </p>
             <p className="mt-1 text-xs text-text-muted">
-              Monte Carlo:{' '}
-              <span className="font-mono text-text">
-                {actualSpendPreview
-                  ? percentPoints(actualSpendPreview.successProbability)
-                  : actualSpendPreviewQuery.isFetching
-                    ? 'running…'
-                    : '—'}
-              </span>
-              . Money data baseline.
-            </p>
-          </div>
-          <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-              Portfolio modeled
-            </p>
-            <p className="mt-2 text-2xl font-semibold text-text">
-              {formatCurrencyWhole(
-                preview?.inputs.portfolioValue ??
-                  dashboard.portfolioContext?.totalPortfolioValue,
-              )}
-            </p>
-            <p className="mt-1 text-xs text-text-muted">
-              Retirement accounts included in the Monte Carlo input.
+              Same source as Today.
+              {investedModelDifference != null && investedModelDifference > 1
+                ? ` Retirement model excludes ${formatCurrencyWhole(
+                    investedModelDifference,
+                  )}.`
+                : ''}
+              {investedModelDifference != null && investedModelDifference < -1
+                ? ` Retirement model adds ${formatCurrencyWhole(
+                    Math.abs(investedModelDifference),
+                  )}.`
+                : ''}
             </p>
           </div>
           <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
