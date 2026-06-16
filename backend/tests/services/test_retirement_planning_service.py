@@ -308,7 +308,7 @@ def test_outcome_framing_overfunded_plan_reports_upside() -> None:
 def test_median_discretionary_path_covers_horizon_and_declines() -> None:
     service = _make_service(_StubConn())
     withdrawal = WithdrawalConfig(
-        strategy="vpw",
+        strategy="guardrails",
         decline_mode="smooth",
         discretionary_decline_rate=0.02,
         essential_floor=30_000.0,

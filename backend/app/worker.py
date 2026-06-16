@@ -61,6 +61,7 @@ from app.workflows.maintenance import (
     rotate_logs_wf,
     vacuum_db_wf,
 )
+from app.workflows.property_valuations import refresh_property_valuations_wf
 from app.workflows.reference import (
     aca_landscape_wf,
     corporate_actions_wf,
@@ -190,6 +191,8 @@ def main() -> None:
             portfolio_catalyst_prewarm_wf,
             # Data-services account sync (SnapTrade, Plaid) (1)
             sync_accounts_wf,
+            # Household property values (1)
+            refresh_property_valuations_wf,
         ],
     )
     _disable_worker_sys_exit(worker)

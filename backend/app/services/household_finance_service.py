@@ -47,6 +47,7 @@ from app.services.household_portfolio_transaction_sync_service import (
 )
 from app.services.household_product_enrichment_service import HouseholdProductEnrichmentService
 from app.services.household_profile_service import HouseholdProfileService
+from app.services.household_property_valuation_service import HouseholdPropertyValuationService
 from app.services.household_purchase_item_service import HouseholdPurchaseItemService
 from app.services.household_question_command_service import HouseholdQuestionCommandService
 from app.services.household_question_reconciler import HouseholdQuestionReconciler
@@ -208,6 +209,7 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         self.question_reconciler = HouseholdQuestionReconciler()
         self.profile_service = HouseholdProfileService()
         self.planning_service = HouseholdPlanningService()
+        self.property_valuation_service = HouseholdPropertyValuationService()
         self.question_command_service = HouseholdQuestionCommandService()
         self.transaction_rule_service = HouseholdTransactionRuleService()
         self.purchase_item_service = HouseholdPurchaseItemService()
@@ -278,6 +280,33 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
 
     def update_planning_snapshot(self, payload: HouseholdPlanningUpdate) -> HouseholdPlanningSnapshot:
         return self.planning_service.update_snapshot(self, payload)
+
+    def list_property_valuation_histories(
+        self,
+        *,
+        housing_cost_id: str | None = None,
+        limit: int = 36,
+    ) -> Any:
+        return self.property_valuation_service.list_histories(
+            self,
+            housing_cost_id=housing_cost_id,
+            limit=limit,
+        )
+
+    def refresh_property_valuation(
+        self,
+        housing_cost_id: str,
+        *,
+        address: str | None = None,
+    ) -> Any:
+        return self.property_valuation_service.refresh(
+            self,
+            housing_cost_id=housing_cost_id,
+            address=address,
+        )
+
+    def refresh_due_property_valuations(self, *, max_age_days: int = 30) -> dict[str, object]:
+        return self.property_valuation_service.refresh_due(self, max_age_days=max_age_days)
 
     def merge_planning_items(self, *, items: list[dict[str, object]], provenance: str, source_document_id: str | None = None) -> None:
         self.planning_service.merge_planning_items(self, items=items, provenance=provenance, source_document_id=source_document_id)

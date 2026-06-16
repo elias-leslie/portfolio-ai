@@ -13,6 +13,8 @@ import type {
   HouseholdNetWorthTrend,
   HouseholdProfile,
   HouseholdProfileUpdate,
+  HouseholdPropertyValuationHistoryList,
+  HouseholdPropertyValuationRefreshResult,
   HouseholdQuestion,
   HouseholdQuestionAnswer,
   HouseholdQuestionList,
@@ -137,6 +139,34 @@ export async function fetchHouseholdNetWorthTrend(
       ? `/api/household/net-worth-trend?${query}`
       : '/api/household/net-worth-trend',
     options,
+  )
+}
+
+export async function fetchHouseholdPropertyValuations(
+  params?: { housingCostId?: string; limit?: number },
+  options: RequestInit = {},
+): Promise<HouseholdPropertyValuationHistoryList> {
+  const search = new URLSearchParams()
+  if (params?.housingCostId) search.set('housing_cost_id', params.housingCostId)
+  if (params?.limit != null) search.set('limit', String(params.limit))
+  const query = search.toString()
+  return get<HouseholdPropertyValuationHistoryList>(
+    query
+      ? `/api/household/property-valuations?${query}`
+      : '/api/household/property-valuations',
+    options,
+  )
+}
+
+export async function refreshHouseholdPropertyValuation(
+  housingCostId: string,
+  payload: { address?: string | null } = {},
+): Promise<HouseholdPropertyValuationRefreshResult> {
+  return post<HouseholdPropertyValuationRefreshResult>(
+    `/api/household/properties/${encodeURIComponent(
+      housingCostId,
+    )}/valuation/refresh`,
+    payload,
   )
 }
 

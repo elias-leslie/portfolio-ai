@@ -54,6 +54,14 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
     mutateAsync: vi.fn(),
     isPending: false,
   })),
+  useHouseholdPropertyValuations: vi.fn(() => ({
+    data: { items: [] },
+    isLoading: false,
+  })),
+  useRefreshHouseholdPropertyValuation: vi.fn(() => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  })),
 }))
 
 vi.mock('@/lib/api/household', async (importOriginal) => ({

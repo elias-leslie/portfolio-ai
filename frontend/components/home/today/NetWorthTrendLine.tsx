@@ -74,9 +74,13 @@ function trendSummary(points: TrendPoint[]): string {
 export function NetWorthTrendLine({
   points,
   loading,
+  ariaLabel = 'Net worth trend',
+  tooltipTestId = 'net-worth-trend-tooltip',
 }: {
   points: TrendPoint[]
   loading: boolean
+  ariaLabel?: string
+  tooltipTestId?: string
 }) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
 
@@ -115,7 +119,7 @@ export function NetWorthTrendLine({
     <div className="relative mt-2 h-14">
       <svg
         role="img"
-        aria-label="Net worth trend"
+        aria-label={ariaLabel}
         viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
         className="h-10 w-full overflow-visible"
         preserveAspectRatio="none"
@@ -192,7 +196,7 @@ export function NetWorthTrendLine({
       </svg>
       {active && activeCoord ? (
         <div
-          data-testid="net-worth-trend-tooltip"
+          data-testid={tooltipTestId}
           className="pointer-events-none absolute bottom-full z-50 mb-1 w-max max-w-[180px] -translate-x-1/2 rounded-lg border border-border/50 bg-surface px-3 py-2 text-xs shadow-xl"
           style={{ left: `${(activeCoord.x / CHART_WIDTH) * 100}%` }}
         >

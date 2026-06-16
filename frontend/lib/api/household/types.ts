@@ -223,6 +223,37 @@ export interface HouseholdNetWorthTrend {
   staleAccountCount: number
 }
 
+export interface HouseholdPropertyValuationPoint {
+  id: string
+  housingCostId: string
+  source: string
+  sourceLabel: string
+  estimateValue: number
+  rangeLow?: number | null
+  rangeHigh?: number | null
+  confidence?: number | null
+  asOf: string
+  fetchedAt: string
+  methodology?: string | null
+  sourceUrl?: string | null
+  metadata: Record<string, unknown>
+}
+
+export interface HouseholdPropertyValuationHistory {
+  housingCostId: string
+  latest?: HouseholdPropertyValuationPoint | null
+  points: HouseholdPropertyValuationPoint[]
+}
+
+export interface HouseholdPropertyValuationHistoryList {
+  items: HouseholdPropertyValuationHistory[]
+}
+
+export interface HouseholdPropertyValuationRefreshResult {
+  valuation: HouseholdPropertyValuationPoint
+  history: HouseholdPropertyValuationHistory
+}
+
 export interface HouseholdRecentTransaction {
   date: string
   merchant: string

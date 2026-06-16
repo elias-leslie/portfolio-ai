@@ -15,6 +15,7 @@ import {
   fetchHouseholdDocuments,
   fetchHouseholdLedger,
   fetchHouseholdNetWorthTrend,
+  fetchHouseholdPropertyValuations,
   fetchHouseholdSpending,
   fetchRetirementIncomeActuals,
   fetchRetirementPreview,
@@ -29,6 +30,7 @@ import {
   type RetirementAllocationScenarioInput,
   type RetirementIncomeStreamOverrideUpdate,
   type RetirementPreviewRequest,
+  refreshHouseholdPropertyValuation,
   replaceAllocationScenarios,
   replaceHouseholdAccountHoldings,
   reReviewHouseholdDocument,
@@ -153,6 +155,47 @@ export function useHouseholdNetWorthTrend(params?: { days?: number }) {
     staleTime: HOUSEHOLD_MARKET_VALUE_REFRESH_MS,
     refetchInterval: HOUSEHOLD_MARKET_VALUE_REFRESH_MS,
     refetchOnWindowFocus: true,
+  })
+}
+
+export function useHouseholdPropertyValuations(params?: {
+  housingCostId?: string
+  limit?: number
+}) {
+  return useQuery({
+    queryKey: ['household', 'property-valuations', params ?? {}],
+    queryFn: ({ signal }) =>
+      fetchHouseholdPropertyValuations(params, { signal }),
+    staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useRefreshHouseholdPropertyValuation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      housingCostId,
+      address,
+    }: {
+      housingCostId: string
+      address?: string | null
+    }) => refreshHouseholdPropertyValuation(housingCostId, { address }),
+    onSuccess: async () => {
+      toast.success('Property value refreshed')
+      await refreshHouseholdQueries(queryClient)
+      await queryClient.invalidateQueries({
+        queryKey: ['household', 'property-valuations'],
+        exact: false,
+      })
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Property value refresh failed',
+      )
+    },
   })
 }
 

@@ -111,6 +111,7 @@ export interface HouseholdHousingCost {
   label: string
   housingType: string
   occupancyRole: string
+  propertyAddress?: string | null
   monthlyPayment?: number | null
   propertyTaxMonthly?: number | null
   hoaMonthly?: number | null
@@ -122,6 +123,10 @@ export interface HouseholdHousingCost {
   propertyValue?: number | null
   ownershipPercent?: number | null
   valueAsOf?: string | null
+  valuationSource?: string | null
+  valuationConfidence?: number | null
+  valuationRangeLow?: number | null
+  valuationRangeHigh?: number | null
   retirementTreatment?: 'track_only' | 'income' | 'planned_sale' | string
   annualRetirementIncome?: number | null
   liquidityYear?: number | null
@@ -140,6 +145,7 @@ export interface HouseholdHousingCostInput {
   label: string
   housingType: string
   occupancyRole: string
+  propertyAddress?: string | null
   monthlyPayment?: number | null
   propertyTaxMonthly?: number | null
   hoaMonthly?: number | null
@@ -151,6 +157,10 @@ export interface HouseholdHousingCostInput {
   propertyValue?: number | null
   ownershipPercent?: number | null
   valueAsOf?: string | null
+  valuationSource?: string | null
+  valuationConfidence?: number | null
+  valuationRangeLow?: number | null
+  valuationRangeHigh?: number | null
   retirementTreatment?: 'track_only' | 'income' | 'planned_sale' | string
   annualRetirementIncome?: number | null
   liquidityYear?: number | null

@@ -38,7 +38,13 @@ from app.models.household_finance import (
     HouseholdTrackedAccountInput,
     HouseholdTransactionCategoryUpdate,
 )
-from app.models.household_planning import HouseholdPlanningSnapshot, HouseholdPlanningUpdate
+from app.models.household_planning import (
+    HouseholdPlanningSnapshot,
+    HouseholdPlanningUpdate,
+    HouseholdPropertyValuationHistoryList,
+    HouseholdPropertyValuationRefreshRequest,
+    HouseholdPropertyValuationRefreshResult,
+)
 from app.services.household_manual_holdings_service import ManualHoldingsReplaceRequest
 from app.services.household_upload_validation import (
     HouseholdUploadValidationError,
@@ -130,6 +136,42 @@ async def get_household_planning() -> HouseholdPlanningSnapshot:
 async def update_household_planning(payload: HouseholdPlanningUpdate) -> HouseholdPlanningSnapshot:
     """Replace or update typed planning sections."""
     return await run_in_threadpool(_service().update_planning_snapshot, payload)
+
+
+@router.get("/property-valuations", response_model=HouseholdPropertyValuationHistoryList)
+async def list_property_valuations(
+    housing_cost_id: str | None = None,
+    limit: int = Query(36, ge=1, le=120),
+) -> HouseholdPropertyValuationHistoryList:
+    """Return per-property valuation history for trendlines."""
+    return await run_in_threadpool(
+        _service().list_property_valuation_histories,
+        housing_cost_id=housing_cost_id,
+        limit=limit,
+    )
+
+
+@router.post(
+    "/properties/{housing_cost_id}/valuation/refresh",
+    response_model=HouseholdPropertyValuationRefreshResult,
+)
+async def refresh_property_valuation(
+    housing_cost_id: str,
+    payload: HouseholdPropertyValuationRefreshRequest | None = None,
+) -> HouseholdPropertyValuationRefreshResult:
+    """Refresh one property value from the configured public data source."""
+    try:
+        return await run_in_threadpool(
+            _service().refresh_property_valuation,
+            housing_cost_id,
+            address=payload.address if payload else None,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Property valuation refresh failed: {exc}") from exc
 
 
 @router.get("/documents", response_model=HouseholdDocumentList)

@@ -76,3 +76,8 @@ ACCOUNT_SYNC_CRONS = [
     "0 17 * * 1-5",  # midday (~12pm EST / 1pm EDT)
     "30 21 * * 1-5",  # after close (~4:30pm EST / 5:30pm EDT)
 ]
+
+# Monthly property AVM refresh. County assessed values and comparable sales move
+# slowly, so a first-of-month cadence gives retirement/net-worth trendlines a
+# steady history without hammering public county systems.
+PROPERTY_VALUATION_CRONS = ["0 12 1 * *"]

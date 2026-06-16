@@ -101,6 +101,7 @@ class HouseholdHousingCost(HouseholdPlanningItemBase):
     label: str
     housing_type: str
     occupancy_role: str
+    property_address: str | None = None
     monthly_payment: float | None = None
     property_tax_monthly: float | None = None
     hoa_monthly: float | None = None
@@ -112,6 +113,10 @@ class HouseholdHousingCost(HouseholdPlanningItemBase):
     property_value: float | None = None
     ownership_percent: float | None = None
     value_as_of: str | None = None
+    valuation_source: str | None = None
+    valuation_confidence: float | None = None
+    valuation_range_low: float | None = None
+    valuation_range_high: float | None = None
     retirement_treatment: str = "track_only"
     annual_retirement_income: float | None = None
     liquidity_year: int | None = None
@@ -126,6 +131,7 @@ class HouseholdHousingCostInput(HouseholdPlanningItemBase):
     label: str
     housing_type: str
     occupancy_role: str = "primary"
+    property_address: str | None = None
     monthly_payment: float | None = None
     property_tax_monthly: float | None = None
     hoa_monthly: float | None = None
@@ -137,6 +143,10 @@ class HouseholdHousingCostInput(HouseholdPlanningItemBase):
     property_value: float | None = None
     ownership_percent: float | None = None
     value_as_of: str | None = None
+    valuation_source: str | None = None
+    valuation_confidence: float | None = None
+    valuation_range_low: float | None = None
+    valuation_range_high: float | None = None
     retirement_treatment: str = "track_only"
     annual_retirement_income: float | None = None
     liquidity_year: int | None = None
@@ -277,6 +287,41 @@ class HouseholdDocumentRequirementUpdate(BaseModel):
     id: str
     status: str | None = None
     notes: str | None = None
+
+
+class HouseholdPropertyValuationPoint(BaseModel):
+    id: str
+    housing_cost_id: str
+    source: str
+    source_label: str
+    estimate_value: float
+    range_low: float | None = None
+    range_high: float | None = None
+    confidence: float | None = None
+    as_of: str
+    fetched_at: str
+    methodology: str | None = None
+    source_url: str | None = None
+    metadata: dict[str, object] = Field(default_factory=dict)
+
+
+class HouseholdPropertyValuationHistory(BaseModel):
+    housing_cost_id: str
+    latest: HouseholdPropertyValuationPoint | None = None
+    points: list[HouseholdPropertyValuationPoint] = Field(default_factory=list)
+
+
+class HouseholdPropertyValuationHistoryList(BaseModel):
+    items: list[HouseholdPropertyValuationHistory] = Field(default_factory=list)
+
+
+class HouseholdPropertyValuationRefreshRequest(BaseModel):
+    address: str | None = None
+
+
+class HouseholdPropertyValuationRefreshResult(BaseModel):
+    valuation: HouseholdPropertyValuationPoint
+    history: HouseholdPropertyValuationHistory
 
 
 class HouseholdPlanningSectionStatus(BaseModel):

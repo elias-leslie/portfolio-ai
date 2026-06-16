@@ -15,6 +15,10 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import {
+  NetWorthTrendLine,
+  type TrendPoint,
+} from '@/components/home/today/NetWorthTrendLine'
 import { formatBudgetDate } from '@/components/money/budget-helpers'
 import { HouseholdHoldingsDialog } from '@/components/money/HouseholdHoldingsDialog'
 import { freshnessToneClass } from '@/components/money/moneyAccountsUtils'
@@ -57,6 +61,8 @@ import {
 import { useDebounce } from '@/lib/hooks/useDebounce'
 import {
   useAllocationScenarios,
+  useHouseholdPropertyValuations,
+  useRefreshHouseholdPropertyValuation,
   useReplaceAllocationScenarios,
   useRetirementIncomeActuals,
   useRetirementPreview,
@@ -648,7 +654,13 @@ type RealEstateDraft = {
   label: string
   housingType: string
   occupancyRole: string
+  propertyAddress: string
   propertyValue: string
+  valueAsOf: string
+  valuationSource: string
+  valuationConfidence: string
+  valuationRangeLow: string
+  valuationRangeHigh: string
   ownershipPercent: string
   mortgageBalance: string
   retirementTreatment: 'track_only' | 'income' | 'planned_sale'
@@ -779,7 +791,13 @@ function defaultRealEstateDraft(
     label: row.label,
     housingType: row.housingType || 'property',
     occupancyRole: row.occupancyRole || 'family_asset',
+    propertyAddress: row.propertyAddress ?? '',
     propertyValue: amountInput(row.propertyValue),
+    valueAsOf: row.valueAsOf ?? '',
+    valuationSource: row.valuationSource ?? '',
+    valuationConfidence: amountInput(row.valuationConfidence),
+    valuationRangeLow: amountInput(row.valuationRangeLow),
+    valuationRangeHigh: amountInput(row.valuationRangeHigh),
     ownershipPercent: amountInput(row.ownershipPercent ?? 100),
     mortgageBalance: amountInput(row.mortgageBalance),
     retirementTreatment:
@@ -810,6 +828,7 @@ function realEstatePlanningRows(
         label: row.label.trim(),
         housingType: row.housingType || 'property',
         occupancyRole: row.occupancyRole || 'family_asset',
+        propertyAddress: row.propertyAddress.trim() || null,
         monthlyPayment: base?.monthlyPayment ?? null,
         propertyTaxMonthly: base?.propertyTaxMonthly ?? null,
         hoaMonthly: base?.hoaMonthly ?? null,
@@ -820,7 +839,11 @@ function realEstatePlanningRows(
         interestRate: base?.interestRate ?? null,
         propertyValue: parseOptionalAmount(row.propertyValue),
         ownershipPercent: parseOptionalAmount(row.ownershipPercent),
-        valueAsOf: base?.valueAsOf ?? null,
+        valueAsOf: row.valueAsOf || base?.valueAsOf || null,
+        valuationSource: row.valuationSource || base?.valuationSource || null,
+        valuationConfidence: parseOptionalAmount(row.valuationConfidence),
+        valuationRangeLow: parseOptionalAmount(row.valuationRangeLow),
+        valuationRangeHigh: parseOptionalAmount(row.valuationRangeHigh),
         retirementTreatment: row.retirementTreatment,
         annualRetirementIncome: parseOptionalAmount(row.annualRetirementIncome),
         liquidityYear: parseOptionalAmount(row.liquidityYear),
@@ -874,6 +897,46 @@ function extraIncomeSourcesFromRealEstate(
       survivorBenefit: null,
     }))
     .filter((row) => row.monthlyAmount > 0)
+}
+
+function formatShortDate(value: string | null | undefined) {
+  if (!value) return 'No date'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function valuationSourceLabel(source: string | null | undefined) {
+  if (!source) return 'Manual value'
+  if (source === 'pinellas_county_comps') return 'Pinellas comps'
+  if (source === 'pinellas_county_just_market') return 'Pinellas county value'
+  return formatEnumLabel(source)
+}
+
+function valuationStale(valueAsOf: string | null | undefined) {
+  if (!valueAsOf) return true
+  const parsed = new Date(`${valueAsOf.slice(0, 10)}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) return true
+  return Date.now() - parsed.getTime() > 1000 * 60 * 60 * 24 * 90
+}
+
+function propertyTrendPoints(
+  points:
+    | Array<{ fetchedAt: string; asOf: string; estimateValue: number }>
+    | undefined,
+): TrendPoint[] {
+  return (
+    points
+      ?.map((point) => ({
+        date: (point.fetchedAt || point.asOf).slice(0, 10),
+        value: point.estimateValue,
+      }))
+      .filter((point) => Number.isFinite(point.value)) ?? []
+  )
 }
 
 function defaultPartialDraft(
@@ -1218,6 +1281,8 @@ export function MoneyRetirementPanel({
   )
   const updateProfile = useUpdateHouseholdProfile()
   const updatePlanning = useUpdateHouseholdPlanning()
+  const propertyValuationsQuery = useHouseholdPropertyValuations({ limit: 36 })
+  const refreshPropertyValuation = useRefreshHouseholdPropertyValuation()
   const previewQuery = useRetirementPreview(request)
   const preview = previewQuery.data
   const actualSpendMonthly = spendingActuals?.totalMonthlySpend ?? null
@@ -1345,6 +1410,7 @@ export function MoneyRetirementPanel({
     preview?.taxAssumptions,
     taxWarnings,
   )
+  const [expandedPropertyKeys, setExpandedPropertyKeys] = useState<string[]>([])
 
   useEffect(() => {
     const nextDraft = defaultDraft(dashboard)
@@ -1717,6 +1783,16 @@ export function MoneyRetirementPanel({
     'taxableWithdrawalGainRatioDetail',
   )
   const accountRules: RetirementAccountRule[] = preview?.accountRules ?? []
+  const valuationHistoryByProperty = useMemo(
+    () =>
+      new Map(
+        (propertyValuationsQuery.data?.items ?? []).map((history) => [
+          history.housingCostId,
+          history,
+        ]),
+      ),
+    [propertyValuationsQuery.data?.items],
+  )
   const realEstateSummary = useMemo(() => {
     let trackedEquity = 0
     let modeledLiquidity = 0
@@ -1735,6 +1811,22 @@ export function MoneyRetirementPanel({
     }
     return { trackedEquity, modeledLiquidity, modeledIncome }
   }, [realEstateDraft])
+
+  const togglePropertyExpanded = (key: string) => {
+    setExpandedPropertyKeys((current) =>
+      current.includes(key)
+        ? current.filter((item) => item !== key)
+        : [...current, key],
+    )
+  }
+
+  const refreshPropertyValue = async (row: RealEstateDraft) => {
+    if (!row.id || refreshPropertyValuation.isPending) return
+    await refreshPropertyValuation.mutateAsync({
+      housingCostId: row.id,
+      address: row.propertyAddress || row.label,
+    })
+  }
 
   const applyDraft = () => {
     setRequest(
@@ -1928,7 +2020,13 @@ export function MoneyRetirementPanel({
         label: `Property ${current.length + 1}`,
         housingType: 'property',
         occupancyRole: 'family_asset',
+        propertyAddress: '',
         propertyValue: '',
+        valueAsOf: '',
+        valuationSource: '',
+        valuationConfidence: '',
+        valuationRangeLow: '',
+        valuationRangeHigh: '',
         ownershipPercent: '100',
         mortgageBalance: '',
         retirementTreatment: 'track_only',
@@ -3721,166 +3819,314 @@ export function MoneyRetirementPanel({
           </p>
         ) : (
           <div className="mt-3 space-y-3">
-            {realEstateDraft.map((row, index) => (
-              <div
-                key={`${row.id ?? 'new'}-${index}`}
-                className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4"
-              >
-                <div className="grid gap-3 md:grid-cols-4">
-                  <label className="text-xs text-text-muted">
-                    Property / asset
-                    <Input
-                      className="mt-1"
-                      value={row.label}
-                      onChange={(event) =>
-                        updateRealEstateDraft(
-                          index,
-                          'label',
-                          event.target.value,
-                        )
+            {realEstateDraft.map((row, index) => {
+              const propertyKey = row.id ?? `new-${index}`
+              const expanded = expandedPropertyKeys.includes(propertyKey)
+              const history = row.id
+                ? valuationHistoryByProperty.get(row.id)
+                : undefined
+              const trendPoints = propertyTrendPoints(history?.points)
+              const value = parseOptionalAmount(row.propertyValue)
+              const stale = valuationStale(row.valueAsOf)
+              return (
+                <div
+                  key={propertyKey}
+                  className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4"
+                >
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className="w-full text-left"
+                    onClick={() => togglePropertyExpanded(propertyKey)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        togglePropertyExpanded(propertyKey)
                       }
-                    />
-                  </label>
-                  <label className="text-xs text-text-muted">
-                    Value
-                    <Input
-                      className="mt-1"
-                      inputMode="decimal"
-                      value={row.propertyValue}
-                      onChange={(event) =>
-                        updateRealEstateDraft(
-                          index,
-                          'propertyValue',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </label>
-                  <label className="text-xs text-text-muted">
-                    Ownership %
-                    <Input
-                      className="mt-1"
-                      inputMode="decimal"
-                      value={row.ownershipPercent}
-                      onChange={(event) =>
-                        updateRealEstateDraft(
-                          index,
-                          'ownershipPercent',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </label>
-                  <label className="text-xs text-text-muted">
-                    Mortgage / note balance
-                    <Input
-                      className="mt-1"
-                      inputMode="decimal"
-                      value={row.mortgageBalance}
-                      onChange={(event) =>
-                        updateRealEstateDraft(
-                          index,
-                          'mortgageBalance',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </label>
-                </div>
-                <div className="mt-3 grid gap-3 md:grid-cols-4">
-                  <label className="text-xs text-text-muted">
-                    Retirement treatment
-                    <Select
-                      value={row.retirementTreatment}
-                      onValueChange={(value) =>
-                        updateRealEstateDraft(
-                          index,
-                          'retirementTreatment',
-                          value,
-                        )
-                      }
-                    >
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="track_only">Track only</SelectItem>
-                        <SelectItem value="income">Income stream</SelectItem>
-                        <SelectItem value="planned_sale">
-                          Planned sale / liquidity
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </label>
-                  <label className="text-xs text-text-muted">
-                    Income $/yr
-                    <Input
-                      className="mt-1"
-                      inputMode="decimal"
-                      disabled={row.retirementTreatment !== 'income'}
-                      value={row.annualRetirementIncome}
-                      onChange={(event) =>
-                        updateRealEstateDraft(
-                          index,
-                          'annualRetirementIncome',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </label>
-                  <label className="text-xs text-text-muted">
-                    Sale/liquidity year
-                    <Input
-                      className="mt-1"
-                      inputMode="numeric"
-                      disabled={row.retirementTreatment !== 'planned_sale'}
-                      value={row.liquidityYear}
-                      onChange={(event) =>
-                        updateRealEstateDraft(
-                          index,
-                          'liquidityYear',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </label>
-                  <label className="text-xs text-text-muted">
-                    Net proceeds
-                    <Input
-                      className="mt-1"
-                      inputMode="decimal"
-                      disabled={row.retirementTreatment !== 'planned_sale'}
-                      value={row.liquidityAmount}
-                      onChange={(event) =>
-                        updateRealEstateDraft(
-                          index,
-                          'liquidityAmount',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </label>
-                </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <Input
-                    aria-label={`Real estate notes for ${row.label}`}
-                    placeholder="ownership, inheritance, sibling split, valuation source"
-                    value={row.notes}
-                    onChange={(event) =>
-                      updateRealEstateDraft(index, 'notes', event.target.value)
-                    }
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => removeRealEstateAsset(index)}
+                    }}
+                    aria-expanded={expanded}
                   >
-                    Remove
-                  </Button>
+                    <div className="grid gap-3 md:grid-cols-[1.3fr_0.8fr_1.2fr_auto] md:items-start">
+                      <div>
+                        <p className="text-sm font-semibold text-text">
+                          {row.label.trim() || `Property ${index + 1}`}
+                        </p>
+                        <p className="mt-1 text-xs text-text-muted">
+                          {row.propertyAddress.trim() || 'Address not set'}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Badge variant={stale ? 'warning' : 'success'}>
+                            {stale ? 'Stale / manual' : 'Fresh'}
+                          </Badge>
+                          <Badge variant="outline">
+                            {valuationSourceLabel(row.valuationSource)}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                          Value
+                        </p>
+                        <p className="mt-1 text-2xl font-semibold text-text">
+                          {value == null ? '—' : formatCurrencyWhole(value)}
+                        </p>
+                        <p className="mt-1 text-xs text-text-muted">
+                          As of {formatShortDate(row.valueAsOf)}
+                        </p>
+                      </div>
+                      <div>
+                        {trendPoints.length >= 2 ? (
+                          <NetWorthTrendLine
+                            points={trendPoints}
+                            loading={propertyValuationsQuery.isLoading}
+                            ariaLabel={`${row.label || 'Property'} value trend`}
+                            tooltipTestId="property-value-trend-tooltip"
+                          />
+                        ) : (
+                          <div className="rounded-xl border border-border/30 bg-surface/50 px-3 py-2 text-xs text-text-muted">
+                            Trendline starts after two saved valuations.
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={
+                            !row.id || refreshPropertyValuation.isPending
+                          }
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            void refreshPropertyValue(row)
+                          }}
+                        >
+                          Refresh
+                        </Button>
+                        <span className="text-xs text-text-muted">
+                          {expanded ? 'Hide details' : 'Details'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  {expanded ? (
+                    <div className="mt-4 border-t border-border/30 pt-4">
+                      <div className="grid gap-3 md:grid-cols-4">
+                        <label className="text-xs text-text-muted">
+                          Property / asset
+                          <Input
+                            className="mt-1"
+                            value={row.label}
+                            onChange={(event) =>
+                              updateRealEstateDraft(
+                                index,
+                                'label',
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="text-xs text-text-muted md:col-span-2">
+                          Address
+                          <Input
+                            className="mt-1"
+                            placeholder="3636 Avocado Road, Largo, FL 33770"
+                            value={row.propertyAddress}
+                            onChange={(event) =>
+                              updateRealEstateDraft(
+                                index,
+                                'propertyAddress',
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="text-xs text-text-muted">
+                          Value
+                          <Input
+                            className="mt-1"
+                            inputMode="decimal"
+                            value={row.propertyValue}
+                            onChange={(event) =>
+                              updateRealEstateDraft(
+                                index,
+                                'propertyValue',
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="mt-3 grid gap-3 md:grid-cols-4">
+                        <label className="text-xs text-text-muted">
+                          Ownership %
+                          <Input
+                            className="mt-1"
+                            inputMode="decimal"
+                            value={row.ownershipPercent}
+                            onChange={(event) =>
+                              updateRealEstateDraft(
+                                index,
+                                'ownershipPercent',
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="text-xs text-text-muted">
+                          Mortgage / note balance
+                          <Input
+                            className="mt-1"
+                            inputMode="decimal"
+                            value={row.mortgageBalance}
+                            onChange={(event) =>
+                              updateRealEstateDraft(
+                                index,
+                                'mortgageBalance',
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="text-xs text-text-muted">
+                          Valuation source
+                          <Input
+                            className="mt-1"
+                            disabled
+                            value={valuationSourceLabel(row.valuationSource)}
+                          />
+                        </label>
+                        <label className="text-xs text-text-muted">
+                          Range
+                          <Input
+                            className="mt-1"
+                            disabled
+                            value={
+                              row.valuationRangeLow && row.valuationRangeHigh
+                                ? `${formatCurrencyWhole(
+                                    Number(row.valuationRangeLow),
+                                  )}–${formatCurrencyWhole(
+                                    Number(row.valuationRangeHigh),
+                                  )}`
+                                : '—'
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="mt-3 grid gap-3 md:grid-cols-4">
+                        <label className="text-xs text-text-muted">
+                          Retirement treatment
+                          <Select
+                            value={row.retirementTreatment}
+                            onValueChange={(value) =>
+                              updateRealEstateDraft(
+                                index,
+                                'retirementTreatment',
+                                value,
+                              )
+                            }
+                          >
+                            <SelectTrigger className="mt-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="track_only">
+                                Track only
+                              </SelectItem>
+                              <SelectItem value="income">
+                                Income stream
+                              </SelectItem>
+                              <SelectItem value="planned_sale">
+                                Planned sale / liquidity
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </label>
+                        <label className="text-xs text-text-muted">
+                          Income $/yr
+                          <Input
+                            className="mt-1"
+                            inputMode="decimal"
+                            disabled={row.retirementTreatment !== 'income'}
+                            value={row.annualRetirementIncome}
+                            onChange={(event) =>
+                              updateRealEstateDraft(
+                                index,
+                                'annualRetirementIncome',
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="text-xs text-text-muted">
+                          Sale/liquidity year
+                          <Input
+                            className="mt-1"
+                            inputMode="numeric"
+                            disabled={
+                              row.retirementTreatment !== 'planned_sale'
+                            }
+                            value={row.liquidityYear}
+                            onChange={(event) =>
+                              updateRealEstateDraft(
+                                index,
+                                'liquidityYear',
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="text-xs text-text-muted">
+                          Net proceeds
+                          <Input
+                            className="mt-1"
+                            inputMode="decimal"
+                            disabled={
+                              row.retirementTreatment !== 'planned_sale'
+                            }
+                            value={row.liquidityAmount}
+                            onChange={(event) =>
+                              updateRealEstateDraft(
+                                index,
+                                'liquidityAmount',
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+                        <Input
+                          aria-label={`Real estate notes for ${row.label}`}
+                          placeholder="ownership, inheritance, sibling split, valuation source"
+                          value={row.notes}
+                          onChange={(event) =>
+                            updateRealEstateDraft(
+                              index,
+                              'notes',
+                              event.target.value,
+                            )
+                          }
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => removeRealEstateAsset(index)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                      {history?.latest?.methodology ? (
+                        <p className="mt-3 text-xs text-text-muted">
+                          {history.latest.methodology}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </SectionCard>
