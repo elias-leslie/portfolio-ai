@@ -22,7 +22,9 @@ import {
   fetchRetirementSpendingActuals,
   type HouseholdDocument,
   type HouseholdDocumentUpload,
+  type HouseholdFinanceDashboard,
   type HouseholdLedgerParams,
+  type HouseholdPlanningSnapshot,
   type HouseholdPlanningUpdate,
   type HouseholdProfileUpdate,
   type HouseholdTrackedAccountInput,
@@ -54,6 +56,27 @@ async function refreshHouseholdQueries(
     queryKey: ['household'],
     exact: false,
   })
+}
+
+async function invalidateHouseholdQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  await queryClient.invalidateQueries({
+    queryKey: ['household'],
+    exact: false,
+  })
+}
+
+function patchPlanningCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  planning: HouseholdPlanningSnapshot,
+) {
+  queryClient.setQueryData(['household', 'planning'], planning)
+  queryClient.setQueryData(
+    ['household', 'dashboard'],
+    (current: HouseholdFinanceDashboard | undefined) =>
+      current ? { ...current, planning } : current,
+  )
 }
 
 function wait(ms: number) {
@@ -183,7 +206,7 @@ export function useRefreshHouseholdPropertyValuation() {
     }) => refreshHouseholdPropertyValuation(housingCostId, { address }),
     onSuccess: async () => {
       toast.success('Property value refreshed')
-      await refreshHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient)
       await queryClient.invalidateQueries({
         queryKey: ['household', 'property-valuations'],
         exact: false,
@@ -328,7 +351,7 @@ export function useUpdateHouseholdProfile() {
       updateHouseholdProfile(payload),
     onSuccess: async (profile) => {
       queryClient.setQueryData(['household', 'profile'], profile)
-      await refreshHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient)
       toast.success('Household profile updated.')
     },
     onError: (error) => {
@@ -347,8 +370,9 @@ export function useUpdateHouseholdPlanning() {
   return useMutation({
     mutationFn: (payload: HouseholdPlanningUpdate) =>
       updateHouseholdPlanning(payload),
-    onSuccess: async () => {
-      await refreshHouseholdQueries(queryClient)
+    onSuccess: async (planning) => {
+      patchPlanningCache(queryClient, planning)
+      await invalidateHouseholdQueries(queryClient)
       toast.success('Household planning sections updated.')
     },
     onError: (error) => {

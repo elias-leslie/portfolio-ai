@@ -19,7 +19,7 @@ from fastapi import (
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
-from app.middleware.cache import cache_response
+from app.middleware.cache import cache_response, invalidate_cache_pattern
 from app.models.household_finance import (
     ConfirmFactRequest,
     HouseholdConfirmedFact,
@@ -55,6 +55,10 @@ if TYPE_CHECKING:
     from app.services.household_finance_service import HouseholdFinanceService
 
 router = APIRouter(prefix="/api/household", tags=["household"])
+
+
+def _invalidate_household_cache() -> None:
+    invalidate_cache_pattern("GET:/api/household*")
 
 
 @lru_cache(maxsize=1)
@@ -123,7 +127,9 @@ async def get_household_profile() -> HouseholdProfile:
 @router.post("/profile", response_model=HouseholdProfile)
 async def update_household_profile(payload: HouseholdProfileUpdate) -> HouseholdProfile:
     """Update household planning assumptions."""
-    return await run_in_threadpool(_service().update_profile, payload)
+    profile = await run_in_threadpool(_service().update_profile, payload)
+    _invalidate_household_cache()
+    return profile
 
 
 @router.get("/planning", response_model=HouseholdPlanningSnapshot)
@@ -135,7 +141,9 @@ async def get_household_planning() -> HouseholdPlanningSnapshot:
 @router.post("/planning", response_model=HouseholdPlanningSnapshot)
 async def update_household_planning(payload: HouseholdPlanningUpdate) -> HouseholdPlanningSnapshot:
     """Replace or update typed planning sections."""
-    return await run_in_threadpool(_service().update_planning_snapshot, payload)
+    snapshot = await run_in_threadpool(_service().update_planning_snapshot, payload)
+    _invalidate_household_cache()
+    return snapshot
 
 
 @router.get("/property-valuations", response_model=HouseholdPropertyValuationHistoryList)
@@ -161,11 +169,13 @@ async def refresh_property_valuation(
 ) -> HouseholdPropertyValuationRefreshResult:
     """Refresh one property value from the configured public data source."""
     try:
-        return await run_in_threadpool(
+        result = await run_in_threadpool(
             _service().refresh_property_valuation,
             housing_cost_id,
             address=payload.address if payload else None,
         )
+        _invalidate_household_cache()
+        return result
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
