@@ -101,9 +101,9 @@ async def earnings_surprises_wf(input: EmptyInput, ctx: Context) -> dict[str, An
     ),
 )
 async def financial_health_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.reference_tasks import refresh_financial_health_scores
+    from ..tasks.reference_tasks import refresh_financial_health_scores_isolated
 
-    return await asyncio.to_thread(refresh_financial_health_scores)
+    return await asyncio.to_thread(refresh_financial_health_scores_isolated)
 
 
 @hatchet.task(

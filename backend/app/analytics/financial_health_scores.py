@@ -8,6 +8,7 @@ Both scores use balance sheet and income statement data from yfinance.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 try:
@@ -32,7 +33,33 @@ class FinancialHealthScores:
 
 def _get_val(series: object, key: str, default: float = 0) -> float:
     """Safely get a value from a pandas Series, returning default if missing/None."""
-    return series.get(key, default) or default
+    value = series.get(key, default)
+    if value is None:
+        return default
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return default
+    if not math.isfinite(parsed):
+        return default
+    return parsed
+
+
+def _get_total_liabilities(curr_bs: object) -> float:
+    """Return total liabilities from common yfinance balance-sheet labels."""
+    direct_total = (
+        _get_val(curr_bs, "Total Liabilities Net Minority Interest")
+        or _get_val(curr_bs, "Total Liabilities")
+        or _get_val(curr_bs, "Total Liab")
+    )
+    if direct_total > 0:
+        return direct_total
+
+    current = _get_val(curr_bs, "Current Liabilities")
+    non_current = _get_val(curr_bs, "Total Non Current Liabilities Net Minority Interest")
+    if current > 0 and non_current > 0:
+        return current + non_current
+    return 0
 
 
 def _fetch_f_score_statements(
@@ -246,7 +273,9 @@ def _compute_z_score_components(
     retained_earnings = _get_val(curr_bs, "Retained Earnings")
     ebit = _get_val(curr_inc, "EBIT") or _get_val(curr_inc, "Operating Income")
     total_revenue = _get_val(curr_inc, "Total Revenue")
-    total_liabilities = _get_val(curr_bs, "Total Liabilities Net Minority Interest") or 1
+    total_liabilities = _get_total_liabilities(curr_bs)
+    if total_liabilities <= 0:
+        return None, "Invalid total liabilities"
     market_cap = info.get("marketCap", 0) or 0
 
     x1 = working_capital / total_assets

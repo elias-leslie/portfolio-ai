@@ -234,6 +234,34 @@ class TestAltmanZScore:
         if z_score is not None and z_score < 1.81:
             assert zone == "distress"
 
+    @patch("app.analytics.financial_health_scores.yf")
+    def test_z_score_uses_current_plus_non_current_liabilities_fallback(self, mock_yf: MagicMock) -> None:
+        """Test Z-Score when yfinance omits a direct total-liabilities row."""
+        mock_ticker = MagicMock()
+        mock_ticker.balance_sheet = pd.DataFrame(
+            {"2024": [450_000, 100_000, 220_000, 102_000, 77_000]},
+            index=[
+                "Total Assets",
+                "Working Capital",
+                "Retained Earnings",
+                "Current Liabilities",
+                "Total Non Current Liabilities Net Minority Interest",
+            ],
+        )
+        mock_ticker.income_stmt = pd.DataFrame(
+            {"2024": [350_000, 110_000]},
+            index=["Total Revenue", "EBIT"],
+        )
+        mock_ticker.info = {"marketCap": 4_500_000}
+        mock_yf.Ticker.return_value = mock_ticker
+
+        z_score, zone, error = calculate_altman_z_score("GOOGL")
+
+        assert error is None
+        assert z_score is not None
+        assert z_score < 100
+        assert zone == "safe"
+
 
 class TestGetFinancialHealthScores:
     """Tests for get_financial_health_scores combined function."""

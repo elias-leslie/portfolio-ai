@@ -10,12 +10,16 @@ Implementation helpers live in reference_helpers.py.
 from __future__ import annotations
 
 import datetime as dt
+import json
+import sys
 import uuid
+from pathlib import Path
 from typing import Any
 
 from app.analytics.analyst_revisions import refresh_analyst_revisions_for_symbols
 from app.logging_config import get_logger
 from app.repositories import ReferenceRepository
+from app.utils import safe_subprocess
 from app.utils.task_helpers import get_watchlist_symbols_or_early_return
 
 from .reference_helpers import (
@@ -41,9 +45,13 @@ __all__ = [
     "refresh_alphavantage_reference_backup",
     "refresh_analyst_revisions",
     "refresh_financial_health_scores",
+    "refresh_financial_health_scores_isolated",
     "refresh_risk_metrics",
     "refresh_yfinance_reference_data",
 ]
+
+_FINANCIAL_HEALTH_CHILD_TIMEOUT_SECONDS = 3300
+_FINANCIAL_HEALTH_CHILD_RESULT_PREFIX = "FINANCIAL_HEALTH_RESULT_JSON="
 
 
 def _task_result(task_id: str, start_time: dt.datetime, **extra: Any) -> dict[str, Any]:
@@ -225,6 +233,54 @@ def refresh_financial_health_scores() -> dict[str, int | str | float | None]:
     return result
 
 
+def _tail_text(value: str, *, limit: int = 4000) -> str:
+    return value[-limit:] if len(value) > limit else value
+
+
+def _parse_financial_health_child_result(stdout: str) -> dict[str, Any]:
+    for line in reversed(stdout.splitlines()):
+        if line.startswith(_FINANCIAL_HEALTH_CHILD_RESULT_PREFIX):
+            raw = line.removeprefix(_FINANCIAL_HEALTH_CHILD_RESULT_PREFIX)
+            parsed = json.loads(raw)
+            if not isinstance(parsed, dict):
+                raise RuntimeError("financial health child returned non-object JSON")
+            return parsed
+    raise RuntimeError(
+        "financial health child did not emit a result marker. "
+        f"stdout_tail={_tail_text(stdout)!r}"
+    )
+
+
+def refresh_financial_health_scores_isolated() -> dict[str, Any]:
+    """Run financial-health scoring in a short-lived Python process.
+
+    The Hatchet worker is a long-lived, multi-workflow process that also runs
+    frequent yfinance quote/reference jobs. In that environment yfinance
+    financial-statement calls can return empty immediately for every symbol,
+    while the same task succeeds from a fresh process under the same systemd
+    environment. Keep the isolation scoped to this weekly yfinance statement
+    refresh so Hatchet still owns scheduling, retries, and audit.
+    """
+    completed = safe_subprocess.run(
+        [sys.executable, "-m", "app.tasks.reference_tasks", "financial-health"],
+        cwd=Path(__file__).resolve().parents[2],
+        capture_output=True,
+        text=True,
+        timeout=_FINANCIAL_HEALTH_CHILD_TIMEOUT_SECONDS,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(
+            "financial health child process failed "
+            f"rc={completed.returncode} "
+            f"stdout_tail={_tail_text(completed.stdout or '')!r} "
+            f"stderr_tail={_tail_text(completed.stderr or '')!r}"
+        )
+    result = _parse_financial_health_child_result(completed.stdout or "")
+    result["execution_mode"] = "subprocess"
+    logger.info("financial_health_scores_child_completed", **result)
+    return result
+
+
 def _process_risk_for_symbol_today(symbol: str, repo: ReferenceRepository) -> bool:
     """Adapter: call _process_risk_metrics_for_symbol with today's date."""
     return _process_risk_metrics_for_symbol(symbol, repo, dt.date.today())
@@ -258,3 +314,20 @@ def refresh_risk_metrics() -> dict[str, int | str | float | None]:
     )
     logger.info("risk_metrics_refresh_completed", **result)
     return result
+
+
+def _main(argv: list[str] | None = None) -> int:
+    args = sys.argv[1:] if argv is None else argv
+    if args != ["financial-health"]:
+        print("Usage: python -m app.tasks.reference_tasks financial-health", file=sys.stderr)
+        return 2
+    result = refresh_financial_health_scores()
+    print(
+        _FINANCIAL_HEALTH_CHILD_RESULT_PREFIX
+        + json.dumps(result, sort_keys=True, default=str)
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())
