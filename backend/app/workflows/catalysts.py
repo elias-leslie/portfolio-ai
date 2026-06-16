@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -105,7 +106,7 @@ def _refresh_fomc_meetings(storage: Any, anchor: date) -> int:
     try:
         resp = requests.get(FOMC_CALENDAR_URL, timeout=SHORT_HTTP_TIMEOUT)
         resp.raise_for_status()
-        payload = resp.json()
+        payload = json.loads(resp.content.decode("utf-8-sig"))
     except Exception as exc:
         logger.warning("fomc_calendar_fetch_failed", error=str(exc))
         return 0
@@ -153,12 +154,30 @@ def _extract_fomc_rows(
             meeting_type = "press_conference"
         elif "minutes" in title:
             meeting_type = "minutes"
-        date_str = str(entry.get("date") or entry.get("start") or "")
-        meeting = _parse_iso_date(date_str)
+        meeting = _parse_calendar_entry_date(entry)
         if meeting is None or meeting < anchor or meeting > cutoff:
             continue
         out.append((meeting, meeting_type))
     return out
+
+
+def _parse_calendar_entry_date(entry: dict[str, Any]) -> date | None:
+    """Parse both ISO dates and the Fed calendar's month/days fields."""
+    date_str = str(entry.get("date") or entry.get("start") or "")
+    if parsed := _parse_iso_date(date_str):
+        return parsed
+
+    month = str(entry.get("month") or "")
+    day_label = str(entry.get("day") or entry.get("days") or "")
+    if not re.fullmatch(r"\d{4}-\d{2}", month):
+        return None
+    day_match = re.search(r"(\d{1,2})(?!.*\d)", day_label)
+    if day_match is None:
+        return None
+    try:
+        return date.fromisoformat(f"{month}-{int(day_match.group(1)):02d}")
+    except ValueError:
+        return None
 
 
 def _parse_iso_date(raw: str) -> date | None:
@@ -171,10 +190,6 @@ def _parse_iso_date(raw: str) -> date | None:
         return date.fromisoformat(raw)
     except ValueError:
         return None
-
-
-_ = json  # silence linters until JSON shape is exercised in tests
-
 
 @hatchet.task(
     name="portfolio-catalyst-prewarm",

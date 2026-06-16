@@ -32,7 +32,7 @@ dependencies = [
     # Caching & message broker
     "redis==7.1.0",
     # Workflow orchestration
-    "hatchet-sdk>=1.22.0",
+    "hatchet-sdk==1.28.1",
     # Configuration
     "pydantic-settings>=2.6.0",
     "python-dotenv>=1.0.0",

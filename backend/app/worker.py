@@ -7,6 +7,7 @@ Run with: python -m app.worker
 from __future__ import annotations
 
 import os
+from typing import Any
 
 from app.hatchet_app import hatchet
 from app.logging_config import configure_logging
@@ -87,6 +88,22 @@ from app.workflows.watchlist import (
     refresh_watchlist_scores_wf,
     trim_underperforming_wf,
 )
+
+
+def _disable_worker_sys_exit(worker: Any) -> None:
+    """Keep Hatchet worker.start() from owning process termination.
+
+    Hatchet SDK 1.33 made ``handle_kill`` read-only but still stores the
+    underlying flag as ``_handle_kill``. We own shutdown through systemd's
+    control-group kill mode plus the explicit os._exit below, so preserve that
+    behavior across SDK versions.
+    """
+    try:
+        worker.handle_kill = False
+    except AttributeError:
+        if not hasattr(worker, "_handle_kill"):
+            raise
+        worker._handle_kill = False
 
 
 def main() -> None:
@@ -175,7 +192,7 @@ def main() -> None:
             sync_accounts_wf,
         ],
     )
-    worker.handle_kill = False
+    _disable_worker_sys_exit(worker)
     worker.start()
     os._exit(0)
 

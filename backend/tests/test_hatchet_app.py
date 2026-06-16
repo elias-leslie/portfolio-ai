@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from datetime import timedelta
 from types import SimpleNamespace
@@ -12,8 +13,10 @@ from app.hatchet_app import (
     DEFAULT_TASK_EXECUTION_TIMEOUT,
     DEFAULT_TASK_SCHEDULE_TIMEOUT,
     _LazyHatchet,
+    _wrap_hatchet_shutdown_404_guard,
     get_hatchet,
 )
+from app.worker import _disable_worker_sys_exit
 from app.worker import main as worker_main
 
 
@@ -93,6 +96,83 @@ def test_get_hatchet_primes_sdk_env_from_settings(monkeypatch) -> None:
         "host_port": "127.0.0.1:57070",
         "tls": "none",
     }
+
+
+def test_shutdown_guard_swallows_worker_not_found() -> None:
+    class FakeNotFoundError(Exception):
+        pass
+
+    call_log: list[str] = []
+
+    async def raise_not_found(process) -> None:
+        call_log.append(process.listener.worker_id)
+        raise FakeNotFoundError()
+
+    guarded = _wrap_hatchet_shutdown_404_guard(
+        raise_not_found,
+        not_found_exception=FakeNotFoundError,
+    )
+
+    process = SimpleNamespace(listener=SimpleNamespace(worker_id="worker-123"))
+
+    asyncio.run(guarded(process))
+
+    assert call_log == ["worker-123"]
+
+
+def test_shutdown_guard_preserves_unexpected_errors() -> None:
+    class FakeNotFoundError(Exception):
+        pass
+
+    class UnexpectedFailureError(Exception):
+        pass
+
+    async def raise_unexpected(_process) -> None:
+        raise UnexpectedFailureError("boom")
+
+    guarded = _wrap_hatchet_shutdown_404_guard(
+        raise_unexpected,
+        not_found_exception=FakeNotFoundError,
+    )
+
+    with pytest.raises(UnexpectedFailureError, match="boom"):
+        asyncio.run(guarded(SimpleNamespace(listener=None)))
+
+
+def test_get_hatchet_installs_shutdown_404_guard(monkeypatch) -> None:
+    mock_prime = MagicMock()
+    mock_guard = MagicMock()
+    mock_hatchet_cls = MagicMock(return_value="hatchet-client")
+
+    monkeypatch.setattr("app.hatchet_app._prime_hatchet_sdk_env", mock_prime)
+    monkeypatch.setattr("app.hatchet_app._install_hatchet_shutdown_404_guard", mock_guard)
+    monkeypatch.setattr("hatchet_sdk.Hatchet", mock_hatchet_cls)
+
+    get_hatchet.cache_clear()
+    try:
+        result = get_hatchet()
+    finally:
+        get_hatchet.cache_clear()
+
+    assert result == "hatchet-client"
+    mock_prime.assert_called_once_with()
+    mock_guard.assert_called_once_with()
+
+
+def test_disable_worker_sys_exit_handles_read_only_hatchet_property() -> None:
+    class WorkerWithReadOnlyHandleKill:
+        def __init__(self) -> None:
+            self._handle_kill = True
+
+        @property
+        def handle_kill(self) -> bool:
+            return self._handle_kill
+
+    worker = WorkerWithReadOnlyHandleKill()
+
+    _disable_worker_sys_exit(worker)
+
+    assert worker._handle_kill is False
 
 
 def test_worker_registers_macro_calendar_and_ohlcv_workflows(monkeypatch) -> None:
