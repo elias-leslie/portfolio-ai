@@ -8,6 +8,7 @@ since process-level visibility is limited to the current container.
 from __future__ import annotations
 
 import re
+import subprocess
 import time
 from functools import lru_cache
 from pathlib import Path
@@ -21,6 +22,7 @@ from pydantic import BaseModel, Field
 from app.config import settings
 from app.constants.services import SERVICE_PROCESS_PATTERNS
 from app.logging_config import get_logger
+from app.utils import safe_subprocess
 
 logger = get_logger(__name__)
 
@@ -73,6 +75,86 @@ def get_process_by_pattern(pattern: str) -> int | None:
     return None
 
 
+def _status_from_pid(service_name: str, pid: int) -> ServiceStatus:
+    process = psutil.Process(pid)
+    create_time = process.create_time()
+    uptime_seconds = int(time.time() - create_time)
+    memory_bytes = process.memory_info().rss
+    memory_mb = int(memory_bytes / (1024 * 1024))
+
+    return ServiceStatus(
+        service_name=service_name,
+        status="running",
+        pid=pid,
+        uptime_seconds=uptime_seconds,
+        memory_mb=memory_mb,
+    )
+
+
+def get_systemd_user_service_status(service_name: str) -> ServiceStatus | None:
+    """Return user-systemd unit status when this host owns the service unit."""
+    if _is_container():
+        return None
+
+    unit = service_name if service_name.endswith(".service") else f"{service_name}.service"
+    try:
+        result = safe_subprocess.run(
+            [
+                "systemctl",
+                "--user",
+                "show",
+                unit,
+                "-p",
+                "LoadState",
+                "-p",
+                "ActiveState",
+                "-p",
+                "SubState",
+                "-p",
+                "MainPID",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.TimeoutExpired) as e:
+        logger.debug("systemd_user_status_unavailable", service_name=service_name, error=str(e))
+        return None
+
+    status: ServiceStatus | None = None
+    if result.returncode == 0:
+        values = {
+            key: value
+            for line in result.stdout.splitlines()
+            if "=" in line
+            for key, value in [line.split("=", 1)]
+        }
+        load_state = values.get("LoadState", "")
+        active_state = values.get("ActiveState", "")
+        sub_state = values.get("SubState", "")
+        raw_pid = values.get("MainPID", "")
+        if load_state == "loaded":
+            pid = int(raw_pid) if raw_pid.isdigit() else 0
+            if active_state == "active" and pid > 0:
+                try:
+                    status = _status_from_pid(service_name, pid)
+                except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                    status = ServiceStatus(
+                        service_name=service_name,
+                        status="degraded",
+                        pid=pid,
+                        message=f"systemd reports running but process not accessible: {e!s}",
+                    )
+            else:
+                status = ServiceStatus(
+                    service_name=service_name,
+                    status="down",
+                    message=f"systemd unit {unit} is {active_state}/{sub_state}",
+                )
+    return status
+
+
 def get_service_status(
     service_name: str,
     process_pattern: str,
@@ -96,21 +178,7 @@ def get_service_status(
         )
 
     try:
-        process = psutil.Process(pid)
-
-        # Get process info
-        create_time = process.create_time()
-        uptime_seconds = int(time.time() - create_time)
-        memory_bytes = process.memory_info().rss
-        memory_mb = int(memory_bytes / (1024 * 1024))
-
-        return ServiceStatus(
-            service_name=service_name,
-            status="running",
-            pid=pid,
-            uptime_seconds=uptime_seconds,
-            memory_mb=memory_mb,
-        )
+        return _status_from_pid(service_name, pid)
 
     except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
         return ServiceStatus(
@@ -130,7 +198,10 @@ def check_backend_api(skip_http_check: bool = False) -> ServiceStatus:
     Returns:
         ServiceStatus for backend API
     """
-    status = get_service_status("portfolio-backend", r"uvicorn.*main:app")
+    status = get_systemd_user_service_status("portfolio-backend") or get_service_status(
+        "portfolio-backend",
+        SERVICE_PROCESS_PATTERNS["portfolio-backend"],
+    )
 
     if status.status == "down" and _is_container():
         status.status = "running"
@@ -175,7 +246,7 @@ def check_hatchet_worker() -> ServiceStatus:
     """
     # In containers, pgrep can't see the worker process in another container.
     # Try process detection first (works on bare-metal and same-container).
-    status = get_service_status(
+    status = get_systemd_user_service_status("portfolio-hatchet-worker") or get_service_status(
         "portfolio-hatchet-worker",
         SERVICE_PROCESS_PATTERNS["portfolio-hatchet-worker"],
     )
@@ -197,10 +268,13 @@ def check_frontend() -> ServiceStatus:
     Returns:
         ServiceStatus for frontend
     """
-    status = get_service_status(
-        "portfolio-frontend",
-        SERVICE_PROCESS_PATTERNS["portfolio-frontend"],
-    )
+    status = get_systemd_user_service_status("portfolio-frontend")
+    if status is None:
+        status = ServiceStatus(
+            service_name="portfolio-frontend",
+            status="running",
+            message="systemd unavailable; frontend health checked by HTTP",
+        )
 
     # In container mode, skip pgrep result and go straight to HTTP check
     if status.status == "down" and _is_container():

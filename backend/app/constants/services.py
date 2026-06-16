@@ -8,8 +8,8 @@ from __future__ import annotations
 # Process patterns for service detection (used by service_monitor.py)
 # Maps service names to regex patterns for process matching
 SERVICE_PROCESS_PATTERNS: dict[str, str] = {
-    "portfolio-backend": r"uvicorn.*main:app",
-    "portfolio-hatchet-worker": r"python.*app\.worker",
+    "portfolio-backend": r"projects/portfolio-ai/backend/.*uvicorn app\.main:app",
+    "portfolio-hatchet-worker": r"projects/portfolio-ai/backend/.*python -m app\.worker",
     "portfolio-frontend": r"(next.*dev|next.*start|next-server)",
     "portfolio-redis": r"redis-server",
 }

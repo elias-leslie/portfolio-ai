@@ -222,7 +222,7 @@ export function OverallCautionTrendLine() {
                 changes.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height={160}>
                 <LineChart
                   data={chartData}
                   margin={{ top: 6, right: 20, left: -4, bottom: 2 }}
