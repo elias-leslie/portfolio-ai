@@ -27,6 +27,15 @@ logger = get_logger(__name__)
 PINELLAS_BASE_URL = "https://www.pcpao.gov"
 PINELLAS_TIMEOUT_SECONDS = 20.0
 PINELLAS_USER_AGENT = "portfolio-ai-property-valuation/1.0"
+HILLSBOROUGH_BASE_URL = "https://gis.hcpafl.org"
+HILLSBOROUGH_PROPERTY_SEARCH_URL = f"{HILLSBOROUGH_BASE_URL}/propertysearch/"
+HILLSBOROUGH_SEARCH_PATH = "/CommonServices/property/search"
+HILLSBOROUGH_CITY_PATTERN = re.compile(
+    r"\b(apollo beach|brandon|dover|gibsonton|lithia|lutz|mango|odessa|plant city|"
+    r"riverview|ruskin|seffner|sun city center|tampa|temple terrace|thonotosassa|"
+    r"valrico|wimauma)\b",
+    flags=re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -35,6 +44,17 @@ class _ResolvedProperty:
     parcel_number: str
     site_address: str
     property_use: str
+
+
+@dataclass(frozen=True)
+class _HillsboroughProperty:
+    pin: str
+    folio: str
+    display_folio: str
+    display_pin: str
+    site_address: str
+    owner: str
+    land_use: str
 
 
 @dataclass(frozen=True)
@@ -154,6 +174,9 @@ def _datatable_payload(column_count: int) -> dict[str, str]:
 def _address_search_candidates(address: str) -> list[str]:
     first_line = address.split(",", 1)[0].strip()
     candidates = [first_line, address.strip()]
+    without_hash_unit = re.sub(r"#\s*([A-Za-z0-9-]+)", r"\1", first_line)
+    if without_hash_unit != first_line:
+        candidates.append(without_hash_unit)
     suffix_swaps = {
         r"\broad\b": "rd",
         r"\bdrive\b": "dr",
@@ -187,6 +210,7 @@ def _source_label(source: str) -> str:
     return {
         "pinellas_county_comps": "Pinellas County comps",
         "pinellas_county_just_market": "Pinellas County just/market value",
+        "hillsborough_county_just_market": "Hillsborough County just/market value",
     }.get(source, source.replace("_", " ").title())
 
 
@@ -280,7 +304,7 @@ class HouseholdPropertyValuationService:
             raise ValueError("Add a property address before refreshing value.")
 
         now = datetime.now(UTC)
-        valuation = self._fetch_pinellas_valuation(lookup_address, now=now)
+        valuation = self._fetch_valuation(lookup_address, now=now)
         point = self._store_valuation(
             service,
             housing_cost_id=housing_cost_id,
@@ -332,6 +356,30 @@ class HouseholdPropertyValuationService:
                 errors.append({"housing_cost_id": str(housing_cost_id), "error": str(exc)})
         return {"status": "ok", "refreshed": refreshed, "error_count": len(errors), "errors": errors}
 
+    def _fetch_valuation(self, address: str, *, now: datetime) -> _ValuationEstimate:
+        fetchers = [
+            self._fetch_hillsborough_valuation,
+            self._fetch_pinellas_valuation,
+        ]
+        if not self._looks_hillsborough_address(address):
+            fetchers.reverse()
+
+        errors: list[str] = []
+        for fetcher in fetchers:
+            try:
+                return fetcher(address, now=now)
+            except ValueError as exc:
+                errors.append(str(exc))
+        detail = "; ".join(error for error in errors if error)
+        raise ValueError(
+            "No supported county property match found for that address. "
+            "Supported auto-refresh counties: Pinellas and Hillsborough."
+            + (f" Details: {detail}" if detail else "")
+        )
+
+    def _looks_hillsborough_address(self, address: str) -> bool:
+        return HILLSBOROUGH_CITY_PATTERN.search(address) is not None
+
     def _housing_row(self, service: Any, housing_cost_id: str) -> dict[str, str | None] | None:
         with service.storage.connection() as conn:
             row = conn.execute(
@@ -357,6 +405,17 @@ class HouseholdPropertyValuationService:
             },
         )
 
+    def _hillsborough_client(self) -> httpx.Client:
+        return httpx.Client(
+            base_url=HILLSBOROUGH_BASE_URL,
+            timeout=PINELLAS_TIMEOUT_SECONDS,
+            headers={
+                "User-Agent": PINELLAS_USER_AGENT,
+                "Accept": "application/json, text/plain, */*",
+                "Referer": HILLSBOROUGH_PROPERTY_SEARCH_URL,
+            },
+        )
+
     def _fetch_pinellas_valuation(
         self,
         address: str,
@@ -373,6 +432,51 @@ class HouseholdPropertyValuationService:
             facts=facts,
             county_value=county_value,
             sales=sales,
+        )
+
+    def _fetch_hillsborough_valuation(
+        self,
+        address: str,
+        *,
+        now: datetime,
+    ) -> _ValuationEstimate:
+        with self._hillsborough_client() as client:
+            resolved = self._resolve_hillsborough_property(client, address)
+            parcel = self._fetch_hillsborough_parcel_data(client, resolved.pin)
+        market_value = self._hillsborough_market_value(parcel)
+        if market_value is None:
+            raise ValueError("Hillsborough value refresh found no usable county market value.")
+        facts = self._hillsborough_property_facts(parcel)
+        metadata: dict[str, object] = {
+            "provider": "Hillsborough County Property Appraiser",
+            "pin": resolved.pin,
+            "folio": resolved.folio,
+            "displayFolio": resolved.display_folio,
+            "displayPin": resolved.display_pin,
+            "siteAddress": resolved.site_address,
+            "owner": resolved.owner,
+            "propertyUse": resolved.land_use,
+            "landUse": facts["landUse"],
+            "acreage": facts["acreage"],
+            "livingSqft": facts["livingSqft"],
+            "yearBuilt": facts["yearBuilt"],
+            "bedrooms": facts["bedrooms"],
+            "bathrooms": facts["bathrooms"],
+            "countyMarketValue": market_value,
+            "sourceUrl": HILLSBOROUGH_PROPERTY_SEARCH_URL,
+        }
+        return _ValuationEstimate(
+            source="hillsborough_county_just_market",
+            source_label=_source_label("hillsborough_county_just_market"),
+            estimate_value=market_value,
+            range_low=None,
+            range_high=None,
+            confidence=0.55,
+            methodology=(
+                "Latest Hillsborough County market value from the Property Appraiser. "
+                "This is a tax-assessment baseline, not an appraisal."
+            ),
+            metadata=metadata,
         )
 
     def _resolve_pinellas_property(
@@ -416,6 +520,108 @@ class HouseholdPropertyValuationService:
                 property_use=_strip_tags(row[7]),
             )
         raise ValueError("No Pinellas County property match found for that address.")
+
+    def _resolve_hillsborough_property(
+        self,
+        client: httpx.Client,
+        address: str,
+    ) -> _HillsboroughProperty:
+        for candidate in _address_search_candidates(address):
+            response = client.get(
+                f"{HILLSBOROUGH_SEARCH_PATH}/BasicSearch",
+                params={"address": candidate, "pagesize": "10", "page": "1"},
+            )
+            response.raise_for_status()
+            payload = response.json()
+            rows: object = payload if isinstance(payload, list) else None
+            if isinstance(payload, dict):
+                rows = payload.get("data") or payload.get("results")
+            if not isinstance(rows, list):
+                continue
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                pin = str(row.get("pin") or "").strip()
+                if not pin:
+                    continue
+                return _HillsboroughProperty(
+                    pin=pin,
+                    folio=str(row.get("folio") or "").strip(),
+                    display_folio=str(row.get("displayFolio") or "").strip(),
+                    display_pin=str(row.get("displayPin") or "").strip(),
+                    site_address=str(row.get("address") or "").strip(),
+                    owner=str(row.get("owner") or "").strip(),
+                    land_use=str(row.get("landUse") or "").strip(),
+                )
+        raise ValueError("No Hillsborough County property match found for that address.")
+
+    def _fetch_hillsborough_parcel_data(
+        self,
+        client: httpx.Client,
+        pin: str,
+    ) -> dict[str, object]:
+        response = client.get(
+            f"{HILLSBOROUGH_SEARCH_PATH}/ParcelData",
+            params={"pin": pin},
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise ValueError("Hillsborough property facts were malformed.")
+        return payload
+
+    def _hillsborough_market_value(self, parcel: dict[str, object]) -> float | None:
+        value_summary = parcel.get("valueSummary")
+        if isinstance(value_summary, list):
+            values = [
+                value
+                for item in value_summary
+                if isinstance(item, dict)
+                and (value := _float_or_none(item.get("marketVal"))) is not None
+                and value > 0
+            ]
+            if values:
+                return max(values)
+
+        property_card = parcel.get("propertyCard")
+        if not isinstance(property_card, dict):
+            return None
+        current = property_card.get("current")
+        if not isinstance(current, dict):
+            return None
+        appraised = _float_or_none(current.get("appraisedJust"))
+        if appraised and appraised > 0:
+            return appraised
+        parts = [
+            _float_or_none(current.get("land")),
+            _float_or_none(current.get("buildings")),
+            _float_or_none(current.get("extraFeatures")),
+            _float_or_none(current.get("ag")),
+        ]
+        total = sum(value for value in parts if value is not None)
+        return total if total > 0 else None
+
+    def _hillsborough_property_facts(self, parcel: dict[str, object]) -> dict[str, object]:
+        property_card = parcel.get("propertyCard")
+        if not isinstance(property_card, dict):
+            property_card = {}
+        buildings = parcel.get("buildings")
+        building = buildings[0] if isinstance(buildings, list) and buildings else {}
+        if not isinstance(building, dict):
+            building = {}
+        land_use = parcel.get("landUse")
+        if not isinstance(land_use, dict):
+            land_use = property_card.get("landUse")
+        if not isinstance(land_use, dict):
+            land_use = {}
+        return {
+            "acreage": _float_or_none(parcel.get("acreage") or property_card.get("acreage")),
+            "landUse": str(land_use.get("description") or land_use.get("code") or ""),
+            "livingSqft": _float_or_none(building.get("heatedArea") or building.get("grossArea")),
+            "yearBuilt": _int_or_none(building.get("yearBuilt")),
+            "bedrooms": _float_or_none(building.get("bedrooms")),
+            "bathrooms": _float_or_none(building.get("bathrooms")),
+        }
 
     def _fetch_property_facts(self, client: httpx.Client, strap: str) -> _PropertyFacts:
         response = client.post("/dal/comsearchapi/getPropertyByStrap", data={"strap": strap})
@@ -663,7 +869,15 @@ class HouseholdPropertyValuationService:
     ) -> HouseholdPropertyValuationPoint:
         valuation_id = str(uuid.uuid4())
         as_of = now.date()
-        source_url = f"{PINELLAS_BASE_URL}/property-details?s={valuation.metadata.get('strap', '')}"
+        source_url = str(
+            valuation.metadata.get("sourceUrl")
+            or f"{PINELLAS_BASE_URL}/property-details?s={valuation.metadata.get('strap', '')}"
+        )
+        provenance = (
+            "hillsborough_property_appraiser"
+            if valuation.source.startswith("hillsborough_")
+            else "pinellas_property_appraiser"
+        )
         metadata_json = json.dumps(valuation.metadata)
         with service.storage.connection() as conn:
             row = conn.execute(
@@ -715,7 +929,7 @@ class HouseholdPropertyValuationService:
                     valuation_confidence = %s,
                     valuation_range_low = %s,
                     valuation_range_high = %s,
-                    provenance = 'pinellas_property_appraiser',
+                    provenance = %s,
                     evidence_note = %s,
                     updated_at = %s
                 WHERE id = %s
@@ -728,6 +942,7 @@ class HouseholdPropertyValuationService:
                     valuation.confidence,
                     valuation.range_low,
                     valuation.range_high,
+                    provenance,
                     valuation.methodology,
                     now.isoformat(),
                     housing_cost_id,

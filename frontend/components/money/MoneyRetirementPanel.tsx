@@ -914,6 +914,9 @@ function valuationSourceLabel(source: string | null | undefined) {
   if (!source) return 'Manual value'
   if (source === 'pinellas_county_comps') return 'Pinellas comps'
   if (source === 'pinellas_county_just_market') return 'Pinellas county value'
+  if (source === 'hillsborough_county_just_market') {
+    return 'Hillsborough county value'
+  }
   return formatEnumLabel(source)
 }
 
