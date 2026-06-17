@@ -945,6 +945,27 @@ describe('MoneyRetirementPanel', () => {
     )
   })
 
+  it('labels 529 assets as included college funding', () => {
+    usePreviewMock.mockReturnValue({
+      data: {
+        ...preview,
+        inputs: {
+          ...preview.inputs,
+          college529Value: 2126,
+        },
+      },
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    expect(
+      screen.getByText(/Includes 529 college sleeve \$2,126/),
+    ).toBeInTheDocument()
+  })
+
   it('sends ticker allocation what-ifs to the preview request', async () => {
     const user = userEvent.setup()
     usePreviewMock.mockReturnValue({

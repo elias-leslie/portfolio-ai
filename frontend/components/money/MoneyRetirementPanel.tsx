@@ -1312,11 +1312,7 @@ export function MoneyRetirementPanel({
         })
       : null
   const investedAssets = dashboard.overview.investedAssets
-  const modeledPortfolioValue = preview?.inputs.portfolioValue ?? null
-  const investedModelDifference =
-    modeledPortfolioValue == null
-      ? null
-      : investedAssets - modeledPortfolioValue
+  const college529Value = preview?.inputs.college529Value ?? 0
   // Monthly spend plus withdrawal-plan and ACA/Medicare knobs re-project live
   // (debounced); the other planner inputs still wait for "Run preview".
   const debouncedMonthlySpend = useDebounce(draft.monthlySpend, 500)
@@ -2400,17 +2396,11 @@ export function MoneyRetirementPanel({
               {formatCurrencyWhole(investedAssets)}
             </p>
             <p className="mt-1 text-xs text-text-muted">
-              Same source as Today.
-              {investedModelDifference != null && investedModelDifference > 1
-                ? ` Retirement model excludes ${formatCurrencyWhole(
-                    investedModelDifference,
+              {college529Value > 0
+                ? `Includes 529 college sleeve ${formatCurrencyWhole(
+                    college529Value,
                   )}.`
-                : ''}
-              {investedModelDifference != null && investedModelDifference < -1
-                ? ` Retirement model adds ${formatCurrencyWhole(
-                    Math.abs(investedModelDifference),
-                  )}.`
-                : ''}
+                : 'Same source as Today.'}
             </p>
           </div>
           <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
