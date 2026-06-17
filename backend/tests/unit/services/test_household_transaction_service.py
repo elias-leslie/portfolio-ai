@@ -1037,6 +1037,62 @@ def test_build_spending_view_uses_observed_months_when_window_exceeds_data_cover
     assert all_dates.summary.average_monthly_spend == spending.summary.average_monthly_spend
 
 
+def test_build_spending_view_monthly_run_rate_uses_complete_covered_months() -> None:
+    today = date.today()
+
+    def month_date(months_ago: int) -> date:
+        month_index = today.year * 12 + today.month - 1 - months_ago
+        return date(month_index // 12, month_index % 12 + 1, 15)
+
+    def row(row_id: str, row_date: date, amount: str) -> tuple[Any, ...]:
+        return (
+            row_id,
+            None,
+            datetime.combine(row_date, datetime.min.time(), tzinfo=UTC),
+            "AMAZON MKTPL COVERAGE",
+            "AMAZON MKTPL COVERAGE",
+            Decimal(amount),
+            "Retail",
+            "discretionary",
+            "expense",
+            "Checking",
+            f"doc-{row_id}",
+            "Amazon",
+            "statement",
+            "credit_card",
+            "coverage.csv",
+            f"hash-{row_id}",
+            {},
+        )
+
+    complete_month_rows = [
+        row(f"month-1-{index}", month_date(1), "10.00") for index in range(25)
+    ] + [row(f"month-2-{index}", month_date(2), "20.00") for index in range(25)]
+    sparse_history = [row("sparse-old", month_date(8), "900.00")]
+    current_partial = [
+        row(f"current-{index}", today, "1000.00") for index in range(10)
+    ]
+
+    service = HouseholdTransactionService()
+    service.storage = _SequenceStorage(
+        [
+            complete_month_rows + sparse_history + current_partial,
+            [],
+            [],
+            [(7500.0,)],
+            [(4000.0,)],
+        ]
+    )
+
+    spending = service.build_spending_view(window="12m")
+
+    assert spending.summary.total_spend == 11650.0
+    assert spending.summary.coverage_months == 2
+    assert spending.summary.average_monthly_spend == 375.0
+    assert spending.categories[0].average_monthly_spend == 375.0
+    assert spending.summary.average_monthly_income == 2000.0
+
+
 def test_build_spending_view_nets_credit_card_returns_against_spend() -> None:
     today = date.today()
     service = HouseholdTransactionService()

@@ -31,6 +31,10 @@ from app.services._household_merchants import (
     _effective_transaction_classification,
     _effective_transaction_flow,
 )
+from app.services._household_month_coverage import (
+    month_bounds,
+    trailing_complete_coverage_months,
+)
 from app.services._household_report_builder import (
     _merchant_aliases,
     _merchant_root,
@@ -670,6 +674,7 @@ class HouseholdTransactionService:
         category_refund: dict[tuple[str, str], float] = {}
         category_transaction_ids: dict[tuple[str, str], set[str]] = {}
         category_monthly_totals: dict[tuple[str, str, str], float] = {}
+        category_monthly_gross: dict[tuple[str, str, str], float] = {}
         category_monthly_transaction_ids: dict[tuple[str, str, str], set[str]] = {}
         account_labels = {
             str(row["account_label"]).strip()
@@ -703,6 +708,9 @@ class HouseholdTransactionService:
             category_monthly_totals[category_month_key] = (
                 category_monthly_totals.get(category_month_key, 0.0) + signed_amount
             )
+            category_monthly_gross[category_month_key] = (
+                category_monthly_gross.get(category_month_key, 0.0) + gross
+            )
             category_monthly_transaction_ids.setdefault(category_month_key, set()).add(
                 split_identity(row)
             )
@@ -714,20 +722,36 @@ class HouseholdTransactionService:
             key: len(ids) for key, ids in category_monthly_transaction_ids.items()
         }
 
+        total_spend = round(
+            sum(float(row.get("signed_amount", row["amount"])) for row in spend_rows),
+            2,
+        )
         # Fixed windows are reporting periods, not proof that every month has
-        # imported statement coverage. Use covered months when they are fewer
-        # than the requested window so 12M does not dilute the same transaction
-        # set more than All dates; cap at the selected window so a 90-day span
-        # crossing four calendar months still reports a 3-month run-rate.
+        # statement coverage. Prefer a trailing run of full, substantively
+        # covered months for monthly run-rate math; fallback to the selected
+        # window only when there is no complete-month basis yet (for example
+        # the 1M view or a brand-new household).
+        complete_coverage_months = trailing_complete_coverage_months(
+            spend_rows,
+            today=timeframe.end_date,
+            start_date=timeframe.start_date,
+            end_date=timeframe.end_date,
+        )
         observed_coverage_months = max(len(monthly_totals), 1)
-        coverage_months = (
+        fallback_coverage_months = (
             min(timeframe.window_months, observed_coverage_months)
             if timeframe.window_months is not None
             else observed_coverage_months
         )
-        total_spend = round(
-            sum(float(row.get("signed_amount", row["amount"])) for row in spend_rows),
-            2,
+        coverage_months = (
+            len(complete_coverage_months)
+            if complete_coverage_months
+            else fallback_coverage_months
+        )
+        spend_basis_total = (
+            sum(monthly_totals[month] for month in complete_coverage_months)
+            if complete_coverage_months
+            else total_spend
         )
         gross_spend = round(sum(category_gross.values()), 2)
         refund_total = round(sum(category_refund.values()), 2)
@@ -736,7 +760,15 @@ class HouseholdTransactionService:
             start_date=timeframe.start_date,
             end_date=timeframe.end_date,
         )
-        average_monthly_income = round(total_income / coverage_months, 2)
+        income_basis_total = total_income
+        if complete_coverage_months:
+            income_start, _ = month_bounds(complete_coverage_months[0])
+            _, income_end = month_bounds(complete_coverage_months[-1])
+            income_basis_total = self._income_total_between(
+                start_date=income_start,
+                end_date=income_end,
+            )
+        average_monthly_income = round(income_basis_total / coverage_months, 2)
         net_cash_flow = round(total_income - total_spend, 2)
         savings_rate = (
             round(net_cash_flow / total_income, 4) if total_income > 0 else None
@@ -750,7 +782,7 @@ class HouseholdTransactionService:
                 start_date=timeframe.start_date.isoformat() if timeframe.start_date else None,
                 end_date=timeframe.end_date.isoformat(),
                 total_spend=total_spend,
-                average_monthly_spend=round(total_spend / coverage_months, 2),
+                average_monthly_spend=round(spend_basis_total / coverage_months, 2),
                 transaction_count=len(spend_rows),
                 coverage_months=coverage_months,
                 account_count=len(account_labels),
@@ -767,11 +799,35 @@ class HouseholdTransactionService:
                     category=category,
                     essentiality=essentiality,
                     total_spend=round(amount, 2),
-                    average_monthly_spend=round(amount / coverage_months, 2),
+                    average_monthly_spend=round(
+                        (
+                            sum(
+                                category_monthly_totals.get(
+                                    (month, category, essentiality), 0.0
+                                )
+                                for month in complete_coverage_months
+                            )
+                            if complete_coverage_months
+                            else amount
+                        )
+                        / coverage_months,
+                        2,
+                    ),
                     share_of_spend=round(amount / total_spend if total_spend > 0 else 0.0, 4),
                     transaction_count=category_counts[(category, essentiality)],
                     gross_monthly_spend=round(
-                        category_gross[(category, essentiality)] / coverage_months, 2
+                        (
+                            sum(
+                                category_monthly_gross.get(
+                                    (month, category, essentiality), 0.0
+                                )
+                                for month in complete_coverage_months
+                            )
+                            if complete_coverage_months
+                            else category_gross[(category, essentiality)]
+                        )
+                        / coverage_months,
+                        2,
                     ),
                     refund_total=round(category_refund[(category, essentiality)], 2),
                 )

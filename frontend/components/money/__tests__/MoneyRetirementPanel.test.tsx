@@ -699,6 +699,13 @@ function getRunPreviewButton() {
   })[0] as HTMLElement
 }
 
+async function openPlannerSection(
+  user: ReturnType<typeof userEvent.setup>,
+  name: RegExp,
+) {
+  await user.click(screen.getByRole('button', { name }))
+}
+
 describe('MoneyRetirementPanel', () => {
   beforeEach(() => {
     usePreviewMock.mockReset()
@@ -852,6 +859,7 @@ describe('MoneyRetirementPanel', () => {
 
     // Yield freshness badges live inside the allocation sandbox.
     await user.click(screen.getByRole('button', { name: /expand planner/i }))
+    await openPlannerSection(user, /allocation sandbox/i)
     expect(screen.getByText('Yields are current')).toBeInTheDocument()
     expect(
       screen.getByText('19 days old (as of May 7, 2026)'),
@@ -870,13 +878,12 @@ describe('MoneyRetirementPanel', () => {
     render(<MoneyRetirementPanel dashboard={dashboard} />)
 
     await user.click(screen.getByRole('button', { name: /expand planner/i }))
+    await openPlannerSection(user, /allocation sandbox/i)
 
     expect(screen.getByText('60%')).toBeInTheDocument()
     expect(screen.getByText('40%')).toBeInTheDocument()
     expect(screen.getByDisplayValue('3.28')).toBeInTheDocument()
-    expect(
-      screen.getByText(/success odds use total return/i),
-    ).toBeInTheDocument()
+    expect(screen.getByText('No double count')).toBeInTheDocument()
     expect(screen.getByText(/Fidelity SPAXX 7-day yield/i)).toBeInTheDocument()
     expect(
       screen.getAllByText(/Partial account allocation/).length,
@@ -978,7 +985,8 @@ describe('MoneyRetirementPanel', () => {
     render(<MoneyRetirementPanel dashboard={dashboard} />)
 
     await user.click(screen.getByRole('button', { name: /expand planner/i }))
-    await user.click(screen.getByRole('button', { name: /ticker basket/i }))
+    await openPlannerSection(user, /allocation sandbox/i)
+    await user.click(screen.getByRole('button', { name: /^ticker basket$/i }))
     const tickerInput = screen.getByDisplayValue(/SCHD 10/)
     await user.clear(tickerInput)
     await user.type(
@@ -1026,15 +1034,7 @@ describe('MoneyRetirementPanel', () => {
     render(<MoneyRetirementPanel dashboard={savedDashboard} />)
 
     await user.click(screen.getByRole('button', { name: /expand planner/i }))
-    expect(
-      screen.getByText(/primary: rough salary estimate/i),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(/spouse: rough salary estimate/i),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(/average future annual salary set to \$0/i),
-    ).toBeInTheDocument()
+    expect(screen.getByText('SSA assumptions')).toBeInTheDocument()
     const salaryInput = screen.getByDisplayValue('120000')
     await user.clear(salaryInput)
     await user.type(salaryInput, '125000')
@@ -1149,8 +1149,8 @@ describe('MoneyRetirementPanel', () => {
     await user.type(spouseClaimInput, '50')
 
     // The caption never shows a claim age the API would reject.
-    expect(screen.getAllByText(/\/mo at 70/).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/\/mo at 62/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/\/mo @ 70/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/\/mo @ 62/).length).toBeGreaterThan(0)
 
     await user.click(getRunPreviewButton())
     expect(usePreviewMock).toHaveBeenLastCalledWith(
@@ -1213,8 +1213,9 @@ describe('MoneyRetirementPanel', () => {
 
     render(<MoneyRetirementPanel dashboard={dashboard} />)
     await user.click(screen.getByRole('button', { name: /expand planner/i }))
+    await openPlannerSection(user, /allocation sandbox/i)
 
-    expect(screen.getByText('Scenario lab')).toBeInTheDocument()
+    expect(screen.getAllByText('Scenario lab').length).toBeGreaterThan(0)
     expect(screen.getByText('Equity bridge')).toBeInTheDocument()
     expect(screen.getByText('bridge: invested')).toBeInTheDocument()
 
@@ -1257,6 +1258,7 @@ describe('MoneyRetirementPanel', () => {
     )
 
     await user.click(screen.getByRole('button', { name: /expand planner/i }))
+    await openPlannerSection(user, /withdrawal, healthcare & college/i)
     await user.click(
       screen.getByRole('button', { name: /bronze \(lowest premium\)/i }),
     )
@@ -1376,7 +1378,8 @@ describe('MoneyRetirementPanel', () => {
     render(<MoneyRetirementPanel dashboard={dashboard} />)
 
     await user.click(screen.getByRole('button', { name: /expand planner/i }))
-    expect(screen.getByText('Spending used in the plan')).toBeInTheDocument()
+    await openPlannerSection(user, /spending & income/i)
+    expect(screen.getByText('Spending & income')).toBeInTheDocument()
     expect(screen.getByText('Current spend scenario')).toBeInTheDocument()
     expect(screen.getAllByText('$7,484/mo').length).toBeGreaterThan(0)
     expect(screen.getByText('Manual planning scenario')).toBeInTheDocument()
@@ -1402,7 +1405,7 @@ describe('MoneyRetirementPanel', () => {
     expect(
       screen.queryByText(/Actual net while working/),
     ).not.toBeInTheDocument()
-    expect(screen.getByText(/9 duplicate statement rows/)).toBeInTheDocument()
+    expect(screen.getByText(/9 duplicates collapsed/)).toBeInTheDocument()
   })
 
   it('shows the actual-net line when active take-home income exists', async () => {
@@ -1434,6 +1437,7 @@ describe('MoneyRetirementPanel', () => {
     render(<MoneyRetirementPanel dashboard={dashboard} />)
 
     await user.click(screen.getByRole('button', { name: /expand planner/i }))
+    await openPlannerSection(user, /spending & income/i)
     expect(screen.getByText(/Actual net while working/)).toBeInTheDocument()
     // 5999.94 - 7484.06 = -1484.12 → whole-dollar formatting.
     expect(screen.getByText(/-\$1,484\/mo/)).toBeInTheDocument()
@@ -1549,7 +1553,7 @@ describe('MoneyRetirementPanel', () => {
       name: /spouse net monthly take-home during partial retirement/i,
     })
     expect(netInput).toHaveValue('5300')
-    expect(screen.getByText(/window: your age 50–54/i)).toBeInTheDocument()
+    expect(screen.getByText(/window: age 50–54/i)).toBeInTheDocument()
     // Largest recurring non-yield stream renders as a display-only hint.
     expect(
       screen.getByText(/detected from money transactions:/i),
@@ -1580,7 +1584,7 @@ describe('MoneyRetirementPanel', () => {
     // Blank turns the feature off and persists explicit nulls.
     await user.clear(netInput)
     expect(
-      await screen.findByText(/off — years before household retirement/i),
+      await screen.findByText(/off until spouse take-home is entered/i),
     ).toBeInTheDocument()
   })
 

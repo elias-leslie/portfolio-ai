@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import {
   Area,
   AreaChart,
@@ -22,8 +22,15 @@ import {
 import { formatBudgetDate } from '@/components/money/budget-helpers'
 import { HouseholdHoldingsDialog } from '@/components/money/HouseholdHoldingsDialog'
 import { freshnessToneClass } from '@/components/money/moneyAccountsUtils'
+import { InfoBadge } from '@/components/shared/InfoBadge'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -1186,6 +1193,51 @@ function socialSecuritySourceLabel(
   return 'not included'
 }
 
+function PlannerAccordionHeader({
+  title,
+  detail,
+  meta,
+}: {
+  title: string
+  detail: string
+  meta?: ReactNode
+}) {
+  return (
+    <div className="flex w-full flex-col gap-2 text-left md:flex-row md:items-center md:justify-between">
+      <div>
+        <p className="font-display italic text-base tracking-tight text-text">
+          {title}
+        </p>
+        <p className="mt-1 text-xs font-normal text-text-muted">{detail}</p>
+      </div>
+      {meta ? (
+        <div className="flex shrink-0 flex-wrap gap-2">{meta}</div>
+      ) : null}
+    </div>
+  )
+}
+
+function PlannerFieldLabel({
+  children,
+  help,
+}: {
+  children: ReactNode
+  help?: ReactNode
+}) {
+  return (
+    <span className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+      {children}
+      {help ? (
+        <InfoBadge
+          label="?"
+          detail={help}
+          className="h-5 min-w-5 justify-center rounded-full px-1 text-[10px]"
+        />
+      ) : null}
+    </span>
+  )
+}
+
 export function MoneyRetirementPanel({
   dashboard,
   onEditTargets,
@@ -1384,7 +1436,23 @@ export function MoneyRetirementPanel({
     () => JSON.stringify(pendingRequest) !== JSON.stringify(request),
     [pendingRequest, request],
   )
-  const fullRetirementAge = householdRetirementAge(preview?.inputs)
+  const draftRetirementInputs = useMemo(
+    () => ({
+      primaryAge: parseNumber(draft.primaryAge, 0),
+      spouseAge: parseOptionalNumber(draft.spouseAge),
+      retirementAge: parseNumber(draft.retirementAge, 65),
+      spouseRetirementAge: parseOptionalNumber(draft.spouseRetirementAge),
+    }),
+    [
+      draft.primaryAge,
+      draft.retirementAge,
+      draft.spouseAge,
+      draft.spouseRetirementAge,
+    ],
+  )
+  const fullRetirementAge = householdRetirementAge(
+    preview?.inputs ?? draftRetirementInputs,
+  )
   // Partial-retirement window: years where the primary is retired but the
   // household (spouse) is not. Caption-only derivation.
   const partialWindowStartAge =
@@ -2636,9 +2704,9 @@ export function MoneyRetirementPanel({
       <SectionCard
         variant="surface"
         title="Planning & assumptions"
-        description="Edit the model only when needed: spending baselines, withdrawal strategy, ACA/healthcare, college, real estate, Social Security, and allocation what-ifs. Collapsed by default so the overview stays readable."
+        description="A cleaner workspace for the numbers that move the plan. Open a section, adjust values, then run preview."
         padding={plannerOpen ? 'md' : 'none'}
-        contentClassName={plannerOpen ? 'space-y-6' : undefined}
+        contentClassName={plannerOpen ? 'space-y-4' : undefined}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -2686,913 +2754,319 @@ export function MoneyRetirementPanel({
         }
       >
         {plannerOpen ? (
-          <>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Your retire age
-                </p>
-                <Input
-                  className="mt-2"
-                  inputMode="numeric"
-                  aria-label="Your retirement age"
-                  value={draft.retirementAge}
-                  onChange={(event) =>
-                    updateDraft('retirementAge', event.target.value)
-                  }
-                />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Spouse retire age
-                </p>
-                <Input
-                  className="mt-2"
-                  inputMode="numeric"
-                  aria-label="Spouse retirement age"
-                  value={draft.spouseRetirementAge}
-                  onChange={(event) =>
-                    updateDraft('spouseRetirementAge', event.target.value)
-                  }
-                />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Spend / month
-                </p>
-                <Input
-                  className="mt-2"
-                  inputMode="decimal"
-                  aria-label="Monthly spend in retirement"
-                  value={draft.monthlySpend}
-                  onChange={(event) =>
-                    updateDraft('monthlySpend', event.target.value)
-                  }
-                />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Save / month
-                </p>
-                <Input
-                  className="mt-2"
-                  inputMode="decimal"
-                  aria-label="Monthly savings contribution"
-                  value={draft.monthlyContribution}
-                  onChange={(event) =>
-                    updateDraft('monthlyContribution', event.target.value)
-                  }
-                />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Inflation %
-                </p>
-                <Input
-                  className="mt-2"
-                  inputMode="decimal"
-                  aria-label="Inflation rate percent"
-                  value={draft.inflationRate}
-                  onChange={(event) =>
-                    updateDraft('inflationRate', event.target.value)
-                  }
-                />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Horizon years
-                </p>
-                <Input
-                  className="mt-2"
-                  inputMode="numeric"
-                  aria-label="Planning horizon in years"
-                  value={draft.horizonYears}
-                  onChange={(event) =>
-                    updateDraft('horizonYears', event.target.value)
-                  }
-                />
-              </div>
-            </div>
-            <div className="mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-8">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Your age
-                </p>
-                <Input
-                  className="mt-2"
-                  inputMode="numeric"
-                  aria-label="Your current age"
-                  value={draft.primaryAge}
-                  onChange={(event) =>
-                    updateDraft('primaryAge', event.target.value)
-                  }
-                />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Spouse age
-                </p>
-                <Input
-                  className="mt-2"
-                  inputMode="numeric"
-                  aria-label="Spouse current age"
-                  value={draft.spouseAge}
-                  onChange={(event) =>
-                    updateDraft('spouseAge', event.target.value)
-                  }
-                />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Your salary
-                </p>
-                <Input
-                  className="mt-2"
-                  inputMode="decimal"
-                  aria-label="Your annual salary for Social Security estimate"
-                  value={draft.primarySocialSecurityAnnualEarnings}
-                  onChange={(event) =>
-                    updateDraft(
-                      'primarySocialSecurityAnnualEarnings',
-                      event.target.value,
-                    )
-                  }
-                />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Your SS / mo
-                </p>
-                <Input
-                  className="mt-2"
-                  inputMode="decimal"
-                  aria-label="Your monthly Social Security benefit"
-                  value={draft.primarySocialSecurityMonthly}
-                  onChange={(event) =>
-                    updateDraft(
-                      'primarySocialSecurityMonthly',
-                      event.target.value,
-                    )
-                  }
-                />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Your SS age
-                </p>
-                <Input
-                  className="mt-2"
-                  inputMode="numeric"
-                  aria-label="Your Social Security claim age"
-                  value={draft.primarySocialSecurityStartAge}
-                  onChange={(event) =>
-                    updateDraft(
-                      'primarySocialSecurityStartAge',
-                      event.target.value,
-                    )
-                  }
-                />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Spouse salary
-                </p>
-                <Input
-                  className="mt-2"
-                  inputMode="decimal"
-                  aria-label="Spouse annual salary for Social Security estimate"
-                  value={draft.spouseSocialSecurityAnnualEarnings}
-                  onChange={(event) =>
-                    updateDraft(
-                      'spouseSocialSecurityAnnualEarnings',
-                      event.target.value,
-                    )
-                  }
-                />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Spouse SS / mo
-                </p>
-                <Input
-                  className="mt-2"
-                  inputMode="decimal"
-                  aria-label="Spouse monthly Social Security benefit"
-                  value={draft.spouseSocialSecurityMonthly}
-                  onChange={(event) =>
-                    updateDraft(
-                      'spouseSocialSecurityMonthly',
-                      event.target.value,
-                    )
-                  }
-                />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Spouse SS age
-                </p>
-                <Input
-                  className="mt-2"
-                  inputMode="numeric"
-                  aria-label="Spouse Social Security claim age"
-                  value={draft.spouseSocialSecurityStartAge}
-                  onChange={(event) =>
-                    updateDraft(
-                      'spouseSocialSecurityStartAge',
-                      event.target.value,
-                    )
-                  }
-                />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  SS payable %
-                </p>
-                <Input
-                  className="mt-2"
-                  inputMode="decimal"
-                  aria-label="Social Security payable percent after trust fund depletion"
-                  value={draft.socialSecurityPayableRatio}
-                  onChange={(event) =>
-                    updateDraft(
-                      'socialSecurityPayableRatio',
-                      event.target.value,
-                    )
-                  }
-                />
-              </div>
-            </div>
-            <div className="mt-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                Partial retirement (spouse still working)
-              </p>
-              <div className="mt-3 grid gap-3 md:grid-cols-3">
-                <label className="text-xs text-text-muted">
-                  Spouse net take-home $/mo
-                  <Input
-                    className="mt-1"
-                    inputMode="decimal"
-                    aria-label="Spouse net monthly take-home during partial retirement"
-                    placeholder="blank = off"
-                    value={partialDraft.spouseNetMonthly}
-                    onChange={(event) =>
-                      updatePartialDraft('spouseNetMonthly', event.target.value)
-                    }
-                  />
-                </label>
-                <label className="text-xs text-text-muted">
-                  Window spend $/mo
-                  <Input
-                    className="mt-1"
-                    inputMode="decimal"
-                    aria-label="Household spending per month during the partial-retirement window"
-                    placeholder={draft.monthlySpend || 'Spend / month'}
-                    value={partialDraft.windowSpendMonthly}
-                    onChange={(event) =>
-                      updatePartialDraft(
-                        'windowSpendMonthly',
-                        event.target.value,
-                      )
-                    }
-                  />
-                </label>
-                <label className="text-xs text-text-muted">
-                  Spouse gross wages $/yr
-                  <Input
-                    className="mt-1"
-                    inputMode="decimal"
-                    aria-label="Spouse gross annual wages during partial retirement"
-                    placeholder="stacks tax brackets"
-                    value={partialDraft.spouseGrossAnnual}
-                    onChange={(event) =>
-                      updatePartialDraft(
-                        'spouseGrossAnnual',
-                        event.target.value,
-                      )
-                    }
-                  />
-                </label>
-              </div>
-              <p className="mt-2 text-xs text-text-muted">
-                {partialDraft.spouseNetMonthly.trim() === ''
-                  ? 'Off — years before household retirement are modeled as pure accumulation.'
-                  : partialWindowYears > 0
-                    ? `Window: your age ${partialWindowStartAge}–${fullRetirementAge - 1}. Spending above spouse take-home is drawn from the portfolio (penalty-aware; gross wages set the tax brackets, but their own tax never hits the portfolio). Save/month keeps contributing through the window — net take-home is already after payroll deferrals. Surplus take-home is not auto-invested.`
-                    : 'No window — both retirements land in the same year.'}
-              </p>
-              {detectedTakeHome ? (
-                <p className="mt-1 text-xs text-text-muted">
-                  Detected from Money transactions: {detectedTakeHome.label}
-                  {detectedTakeHome.owner ? ` (${detectedTakeHome.owner})` : ''}{' '}
-                  ≈{' '}
-                  {formatCurrency(detectedTakeHome.runRateMonthly, {
-                    decimals: 0,
-                  })}
-                  /mo
-                  {detectedTakeHome.active
-                    ? ''
-                    : `, last deposit ${detectedTakeHome.lastDate}`}{' '}
-                  — reference only, never fed into the plan.
-                </p>
-              ) : null}
-            </div>
-            <p className="mt-3 text-xs text-text-muted">
-              Drawdown starts when both are retired: your age{' '}
-              {fullRetirementAge}.
-              {partialDraft.spouseNetMonthly.trim() !== '' &&
-              partialWindowYears > 0
-                ? ` Partial-retirement years (${partialWindowStartAge}–${fullRetirementAge - 1}) fund the spend gap from the portfolio first.`
-                : ''}
-            </p>
-            <p className="mt-3 text-xs text-text-muted">
-              Social Security included:{' '}
-              <span className="font-mono text-text">
-                {formatCurrency(socialSecurityEstimate.primary ?? 0, {
-                  decimals: 0,
-                })}
-                /mo at {socialSecurityEstimate.primaryClaimAge}
-              </span>{' '}
-              for you and{' '}
-              <span className="font-mono text-text">
-                {formatCurrency(socialSecurityEstimate.spouse ?? 0, {
-                  decimals: 0,
-                })}
-                /mo at {socialSecurityEstimate.spouseClaimAge}
-              </span>{' '}
-              for spouse. Enter exact SSA estimates when available; salary-based
-              values are rough estimates. Modeled at{' '}
-              {formatPercent(socialSecurityEstimate.payableRatio * 100, {
-                decimals: 0,
-              })}{' '}
-              of scheduled benefits after projected trust fund depletion.
-            </p>
-            <p className="mt-2 text-xs text-text-muted">
-              Social Security sources:{' '}
-              <span className="font-medium text-text">
-                primary: {socialSecurityEstimate.primarySource}
-              </span>
-              ;{' '}
-              <span className="font-medium text-text">
-                spouse: {socialSecurityEstimate.spouseSource}
-              </span>
-              . Salary estimates assume earnings start at 22 and stop at your
-              retirement age (zeros fill the rest of the 35-year average). For
-              planning-grade accuracy, enter the monthly benefit from ssa.gov
-              &ldquo;Plan for Retirement&rdquo; with average future annual
-              salary set to $0.
-            </p>
-
-            <SectionCard
-              variant="surface"
-              title="Spending used in the plan"
-              description="Two retirement baselines: current actual spending from Money data, and the manual planning spend you entered. Both use the same allocation, guardrails, child drop-offs, healthcare, college, and Social Security assumptions."
+          <Accordion
+            type="multiple"
+            defaultValue={['core']}
+            className="space-y-3"
+          >
+            <AccordionItem
+              value="core"
+              className="rounded-2xl border border-border/40 bg-surface-muted/10 px-0"
             >
-              {(spendingActuals && spendingActuals.coverageMonths > 0) ||
-              (incomeActuals && incomeActuals.coverageMonths > 0) ? (
-                <>
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                        Current spend scenario
-                      </p>
-                      <p className="mt-2 text-2xl font-semibold text-text">
-                        {spendingActuals
-                          ? `${formatCurrency(
-                              spendingActuals.totalMonthlySpend,
-                              {
-                                decimals: 0,
-                              },
-                            )}/mo`
-                          : '—'}
-                      </p>
-                      <p className="mt-1 text-xs text-text-muted">
-                        Monte Carlo:{' '}
-                        <span className="font-mono text-text">
-                          {actualSpendPreview
-                            ? percentPoints(
-                                actualSpendPreview.successProbability,
-                              )
-                            : actualSpendPreviewQuery.isFetching
-                              ? 'running…'
-                              : '—'}
-                        </span>
-                        . Uses deduped ledger spending, not income.
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                        Manual planning scenario
-                      </p>
-                      <p className="mt-2 text-2xl font-semibold text-text">
-                        {formatCurrency(parseNumber(draft.monthlySpend, 0), {
-                          decimals: 0,
-                        })}
-                        /mo
-                      </p>
-                      <p className="mt-1 text-xs text-text-muted">
-                        Monte Carlo:{' '}
-                        <span className="font-mono text-text">
-                          {preview
-                            ? percentPoints(preview.successProbability)
-                            : '—'}
-                        </span>
-                        . This is the saved retirement spend target.
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                        Data confidence
-                      </p>
-                      <p className="mt-2 text-2xl font-semibold text-text">
-                        {spendingActuals?.coverageMonths ?? 0} mo
-                      </p>
-                      <p className="mt-1 text-xs text-text-muted">
-                        {spendingActuals
-                          ? `${spendingActuals.sourceLabel} ${spendingActuals.firstMonth ?? ''}–${spendingActuals.lastMonth ?? ''}.`
-                          : 'No complete spending window yet.'}
-                      </p>
-                    </div>
-                  </div>
-                  {incomeActuals &&
-                  incomeActuals.activeMonthlyIncome > 0 &&
-                  spendingActuals ? (
-                    <div className="mt-3 grid gap-2 text-sm text-text md:grid-cols-3">
-                      <p>
-                        Income gap to plan:{' '}
-                        <span className="font-mono tabular-nums">
-                          {dashboard.profile.monthlyNetIncomeTarget != null
-                            ? `${formatCurrency(
-                                incomeActuals.activeMonthlyIncome -
-                                  dashboard.profile.monthlyNetIncomeTarget,
-                                { decimals: 0 },
-                              )}/mo`
-                            : '—'}
-                        </span>
-                      </p>
-                      <p>
-                        Actual net while working:{' '}
-                        <span className="font-mono tabular-nums">
-                          {formatCurrency(
-                            incomeActuals.activeMonthlyIncome -
-                              spendingActuals.totalMonthlySpend,
-                            { decimals: 0 },
-                          )}
-                          /mo
-                        </span>
-                      </p>
-                      <p className="text-text-muted">
-                        Spend gap vs take-home:{' '}
-                        <span className="font-mono tabular-nums text-text">
-                          {formatCurrency(
-                            spendingActuals.totalMonthlySpend -
-                              incomeActuals.activeMonthlyIncome,
-                            { decimals: 0 },
-                          )}
-                          /mo
-                        </span>
-                      </p>
-                    </div>
-                  ) : null}
-                  {incomeStaleStreams.length > 0 ? (
-                    <div className="mt-3 rounded-xl border border-warning/40 bg-warning/10 p-3 text-xs text-text">
-                      <span className="font-semibold">
-                        Some income streams have stopped:
-                      </span>{' '}
-                      {incomeStaleStreams
-                        .map(
-                          (stream) =>
-                            `${stream.label} (last deposit ${formatBudgetDate(
-                              stream.lastDate,
-                            )})`,
-                        )
-                        .join('; ')}
-                      . Either the income ended or newer bank statements have
-                      not been imported — only active streams count toward the
-                      take-home figure above.
-                    </div>
-                  ) : null}
-                  <div className="mt-4 overflow-x-auto">
-                    <table className="w-full min-w-[58rem] text-sm">
-                      <thead>
-                        <tr className="text-left text-xs uppercase tracking-[0.12em] text-text-muted">
-                          <th className="py-1.5 pr-3">Stream</th>
-                          <th className="py-1.5 pr-3">Owner</th>
-                          <th className="py-1.5 pr-3">Cadence</th>
-                          <th className="py-1.5 pr-3 text-right">
-                            Run-rate / mo
-                          </th>
-                          <th className="py-1.5 pr-3">Months</th>
-                          <th className="py-1.5 pr-3">Last deposit</th>
-                          <th className="py-1.5">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(incomeActuals?.streams ?? []).map((stream) => {
-                          const status = incomeStreamStatus(stream)
-                          const mergeTargets = activeIncomeMergeTargets.filter(
-                            (target) => target.streamKey !== stream.streamKey,
-                          )
-                          const selectedMergeTarget =
-                            incomeActuals?.streams.find(
-                              (candidate) =>
-                                candidate.streamKey ===
-                                stream.mergedIntoStreamKey,
-                            )
-                          return (
-                            <tr
-                              key={stream.streamKey}
-                              className="border-t border-border/30 align-top"
-                            >
-                              <td className="max-w-[18rem] truncate py-1.5 pr-3 font-medium text-text">
-                                {stream.label}
-                              </td>
-                              <td className="py-1.5 pr-3">
-                                <Select
-                                  value={
-                                    stream.ownerOverride && stream.owner
-                                      ? stream.owner
-                                      : incomeOwnerAutoValue
-                                  }
-                                  disabled={
-                                    updateIncomeStreamOverride.isPending
-                                  }
-                                  onValueChange={(value) =>
-                                    saveIncomeStreamOverride(stream, {
-                                      ownerName:
-                                        value === incomeOwnerAutoValue
-                                          ? null
-                                          : value,
-                                    })
-                                  }
-                                >
-                                  <SelectTrigger
-                                    size="sm"
-                                    aria-label={`Owner for ${stream.label}`}
-                                    className="min-w-[8.5rem] text-xs"
-                                  >
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent align="start">
-                                    <SelectItem value={incomeOwnerAutoValue}>
-                                      Auto
-                                      {stream.owner ? ` · ${stream.owner}` : ''}
-                                    </SelectItem>
-                                    {incomeOwnerOptions.map((owner) => (
-                                      <SelectItem key={owner} value={owner}>
-                                        {owner}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <p className="mt-1 text-[10px] leading-none text-text-muted">
-                                  {stream.ownerOverride
-                                    ? 'Manual owner'
-                                    : stream.owner
-                                      ? 'Auto-detected'
-                                      : 'Auto · unassigned'}
-                                </p>
-                              </td>
-                              <td className="py-1.5 pr-3 text-text-muted">
-                                {incomeCadenceLabels[stream.cadence]}
-                              </td>
-                              <td className="py-1.5 pr-3 text-right font-mono tabular-nums">
-                                {formatCurrency(stream.runRateMonthly, {
-                                  decimals: 0,
-                                })}
-                                {Math.round(stream.runRateMonthly) !==
-                                Math.round(stream.monthlyAverage) ? (
-                                  <p className="text-[10px] font-normal text-text-muted">
-                                    {formatCurrency(stream.monthlyAverage, {
-                                      decimals: 0,
-                                    })}{' '}
-                                    observed
-                                  </p>
-                                ) : null}
-                              </td>
-                              <td className="py-1.5 pr-3 font-mono tabular-nums">
-                                {stream.monthsSeen}
-                              </td>
-                              <td className="py-1.5 pr-3 text-text-muted">
-                                {formatBudgetDate(stream.lastDate)}
-                              </td>
-                              <td className="py-1.5">
-                                <div className="flex min-w-[11rem] flex-col gap-1.5">
-                                  <Select
-                                    value={
-                                      stream.statusOverride ??
-                                      incomeStatusAutoValue
-                                    }
-                                    disabled={
-                                      updateIncomeStreamOverride.isPending
-                                    }
-                                    onValueChange={(value) => {
-                                      if (value === incomeStatusAutoValue) {
-                                        saveIncomeStreamOverride(stream, {
-                                          status: null,
-                                          mergedIntoStreamKey: null,
-                                        })
-                                        return
-                                      }
-                                      const nextStatus =
-                                        value as RetirementIncomeActualsStream['statusOverride']
-                                      saveIncomeStreamOverride(stream, {
-                                        status: nextStatus,
-                                        mergedIntoStreamKey:
-                                          nextStatus === 'merged'
-                                            ? (stream.mergedIntoStreamKey ??
-                                              mergeTargets[0]?.streamKey ??
-                                              null)
-                                            : null,
-                                      })
-                                    }}
-                                  >
-                                    <SelectTrigger
-                                      size="sm"
-                                      aria-label={`Status for ${stream.label}`}
-                                      className="min-w-[11rem] text-xs"
-                                    >
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent align="start">
-                                      <SelectItem value={incomeStatusAutoValue}>
-                                        Auto
-                                      </SelectItem>
-                                      {incomeStatusOptions.map((option) => (
-                                        <SelectItem
-                                          key={option.value}
-                                          value={option.value}
-                                          disabled={
-                                            option.value === 'merged' &&
-                                            mergeTargets.length === 0
-                                          }
-                                        >
-                                          {option.label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                  <div className="flex flex-wrap items-center gap-1">
-                                    <Badge variant={status.variant}>
-                                      {status.label}
-                                    </Badge>
-                                    {stream.statusOverride ? (
-                                      <Badge variant="outline">Manual</Badge>
-                                    ) : null}
-                                  </div>
-                                  {stream.status === 'merged' ? (
-                                    <Select
-                                      value={
-                                        stream.mergedIntoStreamKey ??
-                                        incomeMergeTargetNoneValue
-                                      }
-                                      disabled={
-                                        updateIncomeStreamOverride.isPending
-                                      }
-                                      onValueChange={(value) => {
-                                        if (
-                                          value === incomeMergeTargetNoneValue
-                                        ) {
-                                          return
-                                        }
-                                        saveIncomeStreamOverride(stream, {
-                                          status: 'merged',
-                                          mergedIntoStreamKey: value,
-                                        })
-                                      }}
-                                    >
-                                      <SelectTrigger
-                                        size="sm"
-                                        aria-label={`Merged target for ${stream.label}`}
-                                        className="min-w-[11rem] text-xs"
-                                      >
-                                        <SelectValue placeholder="Merged into" />
-                                      </SelectTrigger>
-                                      <SelectContent align="start">
-                                        <SelectItem
-                                          value={incomeMergeTargetNoneValue}
-                                        >
-                                          Choose stream
-                                        </SelectItem>
-                                        {mergeTargets.map((target) => (
-                                          <SelectItem
-                                            key={target.streamKey}
-                                            value={target.streamKey}
-                                          >
-                                            {target.label}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  ) : null}
-                                  {selectedMergeTarget ? (
-                                    <p className="max-w-[12rem] truncate text-[10px] text-text-muted">
-                                      same as {selectedMergeTarget.label}
-                                    </p>
-                                  ) : null}
-                                </div>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                  <p className="mt-2 text-xs text-text-muted">
-                    {incomeActuals?.sourceLabel} Stream run-rates normalize
-                    weekly and biweekly deposits; observed $/mo still averages
-                    over each stream&apos;s own active months.
-                    {(incomeActuals?.aliasRowsCollapsed ?? 0) > 0
-                      ? ` ${incomeActuals?.aliasRowsCollapsed} duplicate statement rows (the same deposit imported under two account labels) were collapsed.`
-                      : ''}
-                  </p>
-                </>
-              ) : (
-                <p className="text-sm text-text-muted">
-                  {incomeActualsQuery.isLoading
-                    ? 'Scanning Money transactions for income streams…'
-                    : incomeActualsQuery.error
-                      ? 'Failed to load income actuals.'
-                      : 'No complete months of Money transaction coverage yet — import bank statements to compare plan income against actual deposits.'}
-                </p>
-              )}
-            </SectionCard>
-
-            <SectionCard
-              variant="surface"
-              title="Withdrawal plan"
-              description="Floor-and-upside spending: guaranteed income plus a bridge sleeve cover essentials, the portfolio funds discretionary spend that declines with age. Amounts are in today's dollars."
-              actions={
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => void saveDraftDefaults()}
-                  disabled={updateProfile.isPending || updatePlanning.isPending}
-                >
-                  {updateProfile.isPending || updatePlanning.isPending
-                    ? 'Saving…'
-                    : 'Save plan'}
-                </Button>
-              }
-            >
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                    Baseline strategy
-                  </p>
-                  <div className="mt-2 rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                    <Badge variant="success">Guardrails</Badge>
-                    <p className="mt-2 text-sm text-text">
-                      One retirement paycheck, adjusted annually when the
-                      portfolio crosses raise/cut guardrails.
+              <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                <PlannerAccordionHeader
+                  title="Core assumptions"
+                  detail="Retirement ages, spend target, savings, inflation, Social Security, and any one-spouse-working bridge."
+                  meta={
+                    <>
+                      <Badge
+                        variant={hasPendingChanges ? 'warning' : 'success'}
+                      >
+                        {hasPendingChanges ? 'Preview pending' : 'In sync'}
+                      </Badge>
+                      <InfoBadge
+                        label="How to use"
+                        interactive={false}
+                        detail="Keep this open for common edits. The deeper sections below stay collapsed until you need income audits, withdrawal rules, property treatment, or allocation what-ifs."
+                      />
+                    </>
+                  }
+                />
+              </AccordionTrigger>
+              <AccordionContent className="px-4 pb-5">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                      Your retire age
                     </p>
-                  </div>
-                  <label className="mt-3 block text-xs text-text-muted">
-                    Initial withdrawal rate %
                     <Input
-                      className="mt-1"
-                      inputMode="decimal"
-                      aria-label="Guardrails initial withdrawal rate percent"
-                      value={withdrawalDraft.initialRatePct}
+                      className="mt-2"
+                      inputMode="numeric"
+                      aria-label="Your retirement age"
+                      value={draft.retirementAge}
                       onChange={(event) =>
-                        updateWithdrawalDraft(
-                          'initialRatePct',
+                        updateDraft('retirementAge', event.target.value)
+                      }
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                      Spouse retire age
+                    </p>
+                    <Input
+                      className="mt-2"
+                      inputMode="numeric"
+                      aria-label="Spouse retirement age"
+                      value={draft.spouseRetirementAge}
+                      onChange={(event) =>
+                        updateDraft('spouseRetirementAge', event.target.value)
+                      }
+                    />
+                  </div>
+                  <div>
+                    <PlannerFieldLabel help="Manual retirement spending target. The Spending & income section compares it with complete-month Money data.">
+                      Spend / month
+                    </PlannerFieldLabel>
+                    <Input
+                      className="mt-2"
+                      inputMode="decimal"
+                      aria-label="Monthly spend in retirement"
+                      value={draft.monthlySpend}
+                      onChange={(event) =>
+                        updateDraft('monthlySpend', event.target.value)
+                      }
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                      Save / month
+                    </p>
+                    <Input
+                      className="mt-2"
+                      inputMode="decimal"
+                      aria-label="Monthly savings contribution"
+                      value={draft.monthlyContribution}
+                      onChange={(event) =>
+                        updateDraft('monthlyContribution', event.target.value)
+                      }
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                      Inflation %
+                    </p>
+                    <Input
+                      className="mt-2"
+                      inputMode="decimal"
+                      aria-label="Inflation rate percent"
+                      value={draft.inflationRate}
+                      onChange={(event) =>
+                        updateDraft('inflationRate', event.target.value)
+                      }
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                      Horizon years
+                    </p>
+                    <Input
+                      className="mt-2"
+                      inputMode="numeric"
+                      aria-label="Planning horizon in years"
+                      value={draft.horizonYears}
+                      onChange={(event) =>
+                        updateDraft('horizonYears', event.target.value)
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-8">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                      Your age
+                    </p>
+                    <Input
+                      className="mt-2"
+                      inputMode="numeric"
+                      aria-label="Your current age"
+                      value={draft.primaryAge}
+                      onChange={(event) =>
+                        updateDraft('primaryAge', event.target.value)
+                      }
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                      Spouse age
+                    </p>
+                    <Input
+                      className="mt-2"
+                      inputMode="numeric"
+                      aria-label="Spouse current age"
+                      value={draft.spouseAge}
+                      onChange={(event) =>
+                        updateDraft('spouseAge', event.target.value)
+                      }
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                      Your salary
+                    </p>
+                    <Input
+                      className="mt-2"
+                      inputMode="decimal"
+                      aria-label="Your annual salary for Social Security estimate"
+                      value={draft.primarySocialSecurityAnnualEarnings}
+                      onChange={(event) =>
+                        updateDraft(
+                          'primarySocialSecurityAnnualEarnings',
                           event.target.value,
                         )
                       }
                     />
-                  </label>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between gap-3">
+                  </div>
+                  <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                      Discretionary decline
+                      Your SS / mo
                     </p>
-                    <span className="font-mono text-xs text-text">
-                      {formatPercent(withdrawalDraft.declineRate * 100, {
-                        decimals: 1,
-                      })}
-                      /yr
-                    </span>
+                    <Input
+                      className="mt-2"
+                      inputMode="decimal"
+                      aria-label="Your monthly Social Security benefit"
+                      value={draft.primarySocialSecurityMonthly}
+                      onChange={(event) =>
+                        updateDraft(
+                          'primarySocialSecurityMonthly',
+                          event.target.value,
+                        )
+                      }
+                    />
                   </div>
-                  <Slider
-                    className="mt-3"
-                    aria-label="Discretionary decline rate per year"
-                    min={0}
-                    max={0.025}
-                    step={0.001}
-                    value={[withdrawalDraft.declineRate]}
-                    onValueChange={(values) =>
-                      updateWithdrawalDraft('declineRate', values[0] ?? 0.01)
-                    }
-                  />
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {(
-                      [
-                        ['smooth', 'Smooth'],
-                        ['phase', 'Go-go phases'],
-                      ] as const
-                    ).map(([value, label]) => (
-                      <Button
-                        key={value}
-                        type="button"
-                        size="sm"
-                        variant={
-                          withdrawalDraft.declineMode === value
-                            ? 'default'
-                            : 'outline'
-                        }
-                        onClick={() =>
-                          updateWithdrawalDraft('declineMode', value)
-                        }
-                      >
-                        {label}
-                      </Button>
-                    ))}
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                      Your SS age
+                    </p>
+                    <Input
+                      className="mt-2"
+                      inputMode="numeric"
+                      aria-label="Your Social Security claim age"
+                      value={draft.primarySocialSecurityStartAge}
+                      onChange={(event) =>
+                        updateDraft(
+                          'primarySocialSecurityStartAge',
+                          event.target.value,
+                        )
+                      }
+                    />
                   </div>
-                  {withdrawalDraft.declineMode === 'phase' ? (
-                    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {(
-                        [
-                          ['phaseSlowGoAge', 'Slow-go age'],
-                          ['phaseNoGoAge', 'No-go age'],
-                          ['phaseGoGoPct', 'Go-go %'],
-                          ['phaseSlowGoPct', 'Slow-go %'],
-                          ['phaseNoGoPct', 'No-go %'],
-                        ] as const
-                      ).map(([key, label]) => (
-                        <label key={key} className="text-xs text-text-muted">
-                          {label}
-                          <Input
-                            className="mt-1"
-                            inputMode="numeric"
-                            aria-label={label}
-                            value={withdrawalDraft[key]}
-                            onChange={(event) =>
-                              updateWithdrawalDraft(key, event.target.value)
-                            }
-                          />
-                        </label>
-                      ))}
-                    </div>
-                  ) : null}
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                      Spouse salary
+                    </p>
+                    <Input
+                      className="mt-2"
+                      inputMode="decimal"
+                      aria-label="Spouse annual salary for Social Security estimate"
+                      value={draft.spouseSocialSecurityAnnualEarnings}
+                      onChange={(event) =>
+                        updateDraft(
+                          'spouseSocialSecurityAnnualEarnings',
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                      Spouse SS / mo
+                    </p>
+                    <Input
+                      className="mt-2"
+                      inputMode="decimal"
+                      aria-label="Spouse monthly Social Security benefit"
+                      value={draft.spouseSocialSecurityMonthly}
+                      onChange={(event) =>
+                        updateDraft(
+                          'spouseSocialSecurityMonthly',
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                      Spouse SS age
+                    </p>
+                    <Input
+                      className="mt-2"
+                      inputMode="numeric"
+                      aria-label="Spouse Social Security claim age"
+                      value={draft.spouseSocialSecurityStartAge}
+                      onChange={(event) =>
+                        updateDraft(
+                          'spouseSocialSecurityStartAge',
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </div>
+                  <div>
+                    <PlannerFieldLabel help="Percent of scheduled Social Security benefits modeled after projected trust fund depletion.">
+                      SS payable %
+                    </PlannerFieldLabel>
+                    <Input
+                      className="mt-2"
+                      inputMode="decimal"
+                      aria-label="Social Security payable percent after trust fund depletion"
+                      value={draft.socialSecurityPayableRatio}
+                      onChange={(event) =>
+                        updateDraft(
+                          'socialSecurityPayableRatio',
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </div>
                 </div>
-                <div>
+                <div className="mt-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                    Social Security bridge
+                    Partial retirement (spouse still working)
                   </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {(
-                      [
-                        ['auto', 'Auto size'],
-                        ['manual', 'Manual'],
-                      ] as const
-                    ).map(([value, label]) => (
-                      <Button
-                        key={value}
-                        type="button"
-                        size="sm"
-                        variant={
-                          withdrawalDraft.bridgeMode === value
-                            ? 'default'
-                            : 'outline'
-                        }
-                        onClick={() =>
-                          updateWithdrawalDraft('bridgeMode', value)
-                        }
-                      >
-                        {label}
-                      </Button>
-                    ))}
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    {withdrawalDraft.bridgeMode === 'manual' ? (
-                      <label className="text-xs text-text-muted">
-                        Bridge amount $
-                        <Input
-                          className="mt-1"
-                          inputMode="decimal"
-                          aria-label="Manual bridge amount"
-                          value={withdrawalDraft.bridgeManualAmount}
-                          onChange={(event) =>
-                            updateWithdrawalDraft(
-                              'bridgeManualAmount',
-                              event.target.value,
-                            )
-                          }
-                        />
-                      </label>
-                    ) : null}
+                  <div className="mt-3 grid gap-3 md:grid-cols-3">
                     <label className="text-xs text-text-muted">
-                      Bridge real return %
+                      Spouse net take-home $/mo
                       <Input
                         className="mt-1"
                         inputMode="decimal"
-                        aria-label="Bridge sleeve real return percent"
-                        value={withdrawalDraft.bridgeRealReturnPct}
+                        aria-label="Spouse net monthly take-home during partial retirement"
+                        placeholder="blank = off"
+                        value={partialDraft.spouseNetMonthly}
                         onChange={(event) =>
-                          updateWithdrawalDraft(
-                            'bridgeRealReturnPct',
+                          updatePartialDraft(
+                            'spouseNetMonthly',
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </label>
+                    <label className="text-xs text-text-muted">
+                      Window spend $/mo
+                      <Input
+                        className="mt-1"
+                        inputMode="decimal"
+                        aria-label="Household spending per month during the partial-retirement window"
+                        placeholder={draft.monthlySpend || 'Spend / month'}
+                        value={partialDraft.windowSpendMonthly}
+                        onChange={(event) =>
+                          updatePartialDraft(
+                            'windowSpendMonthly',
+                            event.target.value,
+                          )
+                        }
+                      />
+                    </label>
+                    <label className="text-xs text-text-muted">
+                      Spouse gross wages $/yr
+                      <Input
+                        className="mt-1"
+                        inputMode="decimal"
+                        aria-label="Spouse gross annual wages during partial retirement"
+                        placeholder="stacks tax brackets"
+                        value={partialDraft.spouseGrossAnnual}
+                        onChange={(event) =>
+                          updatePartialDraft(
+                            'spouseGrossAnnual',
                             event.target.value,
                           )
                         }
@@ -3600,736 +3074,754 @@ export function MoneyRetirementPanel({
                     </label>
                   </div>
                   <p className="mt-2 text-xs text-text-muted">
-                    Auto sizes the sleeve to cover essential-floor gaps from
-                    retirement until Social Security starts. The sleeve uses a
-                    conservative fixed real return so the bridge is not exposed
-                    to equity sequence risk.
+                    {partialDraft.spouseNetMonthly.trim() === ''
+                      ? 'Off until spouse take-home is entered.'
+                      : partialWindowYears > 0
+                        ? `Window: age ${partialWindowStartAge}–${fullRetirementAge - 1}; portfolio covers spend above spouse take-home.`
+                        : 'No window — both retirements land in the same year.'}
+                    {partialDraft.spouseNetMonthly.trim() !== '' &&
+                    partialWindowYears > 0 ? (
+                      <>
+                        {' '}
+                        <InfoBadge
+                          label="Details"
+                          detail="The model is penalty-aware. Spouse gross wages set tax brackets but their payroll taxes are assumed already removed from net take-home. Save/month continues through the window; surplus take-home is not auto-invested."
+                        />
+                      </>
+                    ) : null}
                   </p>
-                </div>
-              </div>
-
-              <div className="mt-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                      Child cost drop-offs
-                    </p>
+                  {detectedTakeHome ? (
                     <p className="mt-1 text-xs text-text-muted">
-                      Reduces base living spend when each child is expected to
-                      be self-funded. Healthcare and college stay modeled
-                      separately.
+                      Detected from Money transactions: {detectedTakeHome.label}
+                      {detectedTakeHome.owner
+                        ? ` (${detectedTakeHome.owner})`
+                        : ''}{' '}
+                      ≈{' '}
+                      {formatCurrency(detectedTakeHome.runRateMonthly, {
+                        decimals: 0,
+                      })}
+                      /mo
+                      {detectedTakeHome.active
+                        ? ''
+                        : `, last deposit ${detectedTakeHome.lastDate}`}{' '}
+                      — reference only, never fed into the plan.
                     </p>
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={addChildReduction}
-                  >
-                    Add child
-                  </Button>
+                  ) : null}
                 </div>
-                {childReductionDraft.length === 0 ? (
-                  <p className="mt-3 text-sm text-text-muted">
-                    No child reductions yet. Add one if retirement spending
-                    should fall when a child gets a job or moves out.
-                  </p>
-                ) : (
-                  <div className="mt-3 grid gap-2 lg:grid-cols-2">
-                    {childReductionDraft.map((row, index) => (
-                      <div
-                        key={`${row.id ?? 'new'}-${index}`}
-                        className="rounded-2xl border border-border/35 bg-surface-muted/15 p-3"
-                      >
-                        <div className="grid gap-2 sm:grid-cols-3">
-                          <label className="text-xs text-text-muted">
-                            Child
-                            <Input
-                              className="mt-1"
-                              value={row.label}
-                              onChange={(event) =>
-                                updateChildReductionDraft(
-                                  index,
-                                  'label',
-                                  event.target.value,
+                <p className="mt-3 text-xs text-text-muted">
+                  Drawdown starts when both are retired: your age{' '}
+                  {fullRetirementAge}.
+                  {partialDraft.spouseNetMonthly.trim() !== '' &&
+                  partialWindowYears > 0
+                    ? ` Partial-retirement years (${partialWindowStartAge}–${fullRetirementAge - 1}) fund the spend gap from the portfolio first.`
+                    : ''}
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-text-muted">
+                  <span>
+                    Social Security:{' '}
+                    <span className="font-mono text-text">
+                      {formatCurrency(socialSecurityEstimate.primary ?? 0, {
+                        decimals: 0,
+                      })}
+                      /mo @ {socialSecurityEstimate.primaryClaimAge}
+                    </span>{' '}
+                    +{' '}
+                    <span className="font-mono text-text">
+                      {formatCurrency(socialSecurityEstimate.spouse ?? 0, {
+                        decimals: 0,
+                      })}
+                      /mo @ {socialSecurityEstimate.spouseClaimAge}
+                    </span>
+                    ; payable at{' '}
+                    {formatPercent(socialSecurityEstimate.payableRatio * 100, {
+                      decimals: 0,
+                    })}
+                    .
+                  </span>
+                  <InfoBadge
+                    label="SSA assumptions"
+                    detail={`Primary: ${socialSecurityEstimate.primarySource}; spouse: ${socialSecurityEstimate.spouseSource}. Salary estimates assume earnings start at 22 and stop at retirement, with zeros filling the rest of the 35-year average. For planning-grade accuracy, enter the monthly benefit from ssa.gov with average future annual salary set to $0.`}
+                  />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem
+              value="spending"
+              className="rounded-2xl border border-border/40 bg-surface-muted/10 px-0"
+            >
+              <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                <PlannerAccordionHeader
+                  title="Spending & income"
+                  detail="Compare actual Money data against the manual retirement spend target."
+                  meta={
+                    <Badge variant="outline">
+                      {spendingActuals?.coverageMonths ?? 0} complete mo
+                    </Badge>
+                  }
+                />
+              </AccordionTrigger>
+              <AccordionContent className="px-4 pb-5">
+                <SectionCard variant="ghost" padding="none">
+                  {(spendingActuals && spendingActuals.coverageMonths > 0) ||
+                  (incomeActuals && incomeActuals.coverageMonths > 0) ? (
+                    <>
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                            Current spend scenario
+                          </p>
+                          <p className="mt-2 text-2xl font-semibold text-text">
+                            {spendingActuals
+                              ? `${formatCurrency(
+                                  spendingActuals.totalMonthlySpend,
+                                  {
+                                    decimals: 0,
+                                  },
+                                )}/mo`
+                              : '—'}
+                          </p>
+                          <p className="mt-1 text-xs text-text-muted">
+                            Monte Carlo:{' '}
+                            <span className="font-mono text-text">
+                              {actualSpendPreview
+                                ? percentPoints(
+                                    actualSpendPreview.successProbability,
+                                  )
+                                : actualSpendPreviewQuery.isFetching
+                                  ? 'running…'
+                                  : '—'}
+                            </span>
+                            . Uses deduped ledger spending, not income.
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                            Manual planning scenario
+                          </p>
+                          <p className="mt-2 text-2xl font-semibold text-text">
+                            {formatCurrency(
+                              parseNumber(draft.monthlySpend, 0),
+                              {
+                                decimals: 0,
+                              },
+                            )}
+                            /mo
+                          </p>
+                          <p className="mt-1 text-xs text-text-muted">
+                            Monte Carlo:{' '}
+                            <span className="font-mono text-text">
+                              {preview
+                                ? percentPoints(preview.successProbability)
+                                : '—'}
+                            </span>
+                            . This is the saved retirement spend target.
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                            Data confidence
+                          </p>
+                          <p className="mt-2 text-2xl font-semibold text-text">
+                            {spendingActuals?.coverageMonths ?? 0} mo
+                          </p>
+                          <p className="mt-1 text-xs text-text-muted">
+                            {spendingActuals
+                              ? `${spendingActuals.firstMonth ?? '—'}–${spendingActuals.lastMonth ?? '—'} complete months.`
+                              : 'No complete spending window yet.'}
+                            {spendingActuals ? (
+                              <>
+                                {' '}
+                                <InfoBadge
+                                  label="Source"
+                                  detail={spendingActuals.sourceLabel}
+                                />
+                              </>
+                            ) : null}
+                          </p>
+                        </div>
+                      </div>
+                      {incomeActuals &&
+                      incomeActuals.activeMonthlyIncome > 0 &&
+                      spendingActuals ? (
+                        <div className="mt-3 grid gap-2 text-sm text-text md:grid-cols-3">
+                          <p>
+                            Income gap to plan:{' '}
+                            <span className="font-mono tabular-nums">
+                              {dashboard.profile.monthlyNetIncomeTarget != null
+                                ? `${formatCurrency(
+                                    incomeActuals.activeMonthlyIncome -
+                                      dashboard.profile.monthlyNetIncomeTarget,
+                                    { decimals: 0 },
+                                  )}/mo`
+                                : '—'}
+                            </span>
+                          </p>
+                          <p>
+                            Actual net while working:{' '}
+                            <span className="font-mono tabular-nums">
+                              {formatCurrency(
+                                incomeActuals.activeMonthlyIncome -
+                                  spendingActuals.totalMonthlySpend,
+                                { decimals: 0 },
+                              )}
+                              /mo
+                            </span>
+                          </p>
+                          <p className="text-text-muted">
+                            Spend gap vs take-home:{' '}
+                            <span className="font-mono tabular-nums text-text">
+                              {formatCurrency(
+                                spendingActuals.totalMonthlySpend -
+                                  incomeActuals.activeMonthlyIncome,
+                                { decimals: 0 },
+                              )}
+                              /mo
+                            </span>
+                          </p>
+                        </div>
+                      ) : null}
+                      {incomeStaleStreams.length > 0 ? (
+                        <div className="mt-3 rounded-xl border border-warning/40 bg-warning/10 p-3 text-xs text-text">
+                          <span className="font-semibold">
+                            Some income streams have stopped:
+                          </span>{' '}
+                          {incomeStaleStreams
+                            .map(
+                              (stream) =>
+                                `${stream.label} (last deposit ${formatBudgetDate(
+                                  stream.lastDate,
+                                )})`,
+                            )
+                            .join('; ')}
+                          . Either the income ended or newer bank statements
+                          have not been imported — only active streams count
+                          toward the take-home figure above.
+                        </div>
+                      ) : null}
+                      <div className="mt-4 overflow-x-auto">
+                        <table className="w-full min-w-[58rem] text-sm">
+                          <thead>
+                            <tr className="text-left text-xs uppercase tracking-[0.12em] text-text-muted">
+                              <th className="py-1.5 pr-3">Stream</th>
+                              <th className="py-1.5 pr-3">Owner</th>
+                              <th className="py-1.5 pr-3">Cadence</th>
+                              <th className="py-1.5 pr-3 text-right">
+                                Run-rate / mo
+                              </th>
+                              <th className="py-1.5 pr-3">Months</th>
+                              <th className="py-1.5 pr-3">Last deposit</th>
+                              <th className="py-1.5">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(incomeActuals?.streams ?? []).map((stream) => {
+                              const status = incomeStreamStatus(stream)
+                              const mergeTargets =
+                                activeIncomeMergeTargets.filter(
+                                  (target) =>
+                                    target.streamKey !== stream.streamKey,
                                 )
-                              }
-                            />
-                          </label>
-                          <label className="text-xs text-text-muted">
-                            Drop starts year
-                            <Input
-                              className="mt-1"
-                              inputMode="numeric"
-                              value={row.startYear}
-                              onChange={(event) =>
-                                updateChildReductionDraft(
-                                  index,
-                                  'startYear',
-                                  event.target.value,
+                              const selectedMergeTarget =
+                                incomeActuals?.streams.find(
+                                  (candidate) =>
+                                    candidate.streamKey ===
+                                    stream.mergedIntoStreamKey,
                                 )
-                              }
-                            />
-                          </label>
+                              return (
+                                <tr
+                                  key={stream.streamKey}
+                                  className="border-t border-border/30 align-top"
+                                >
+                                  <td className="max-w-[18rem] truncate py-1.5 pr-3 font-medium text-text">
+                                    {stream.label}
+                                  </td>
+                                  <td className="py-1.5 pr-3">
+                                    <Select
+                                      value={
+                                        stream.ownerOverride && stream.owner
+                                          ? stream.owner
+                                          : incomeOwnerAutoValue
+                                      }
+                                      disabled={
+                                        updateIncomeStreamOverride.isPending
+                                      }
+                                      onValueChange={(value) =>
+                                        saveIncomeStreamOverride(stream, {
+                                          ownerName:
+                                            value === incomeOwnerAutoValue
+                                              ? null
+                                              : value,
+                                        })
+                                      }
+                                    >
+                                      <SelectTrigger
+                                        size="sm"
+                                        aria-label={`Owner for ${stream.label}`}
+                                        className="min-w-[8.5rem] text-xs"
+                                      >
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent align="start">
+                                        <SelectItem
+                                          value={incomeOwnerAutoValue}
+                                        >
+                                          Auto
+                                          {stream.owner
+                                            ? ` · ${stream.owner}`
+                                            : ''}
+                                        </SelectItem>
+                                        {incomeOwnerOptions.map((owner) => (
+                                          <SelectItem key={owner} value={owner}>
+                                            {owner}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <p className="mt-1 text-[10px] leading-none text-text-muted">
+                                      {stream.ownerOverride
+                                        ? 'Manual owner'
+                                        : stream.owner
+                                          ? 'Auto-detected'
+                                          : 'Auto · unassigned'}
+                                    </p>
+                                  </td>
+                                  <td className="py-1.5 pr-3 text-text-muted">
+                                    {incomeCadenceLabels[stream.cadence]}
+                                  </td>
+                                  <td className="py-1.5 pr-3 text-right font-mono tabular-nums">
+                                    {formatCurrency(stream.runRateMonthly, {
+                                      decimals: 0,
+                                    })}
+                                    {Math.round(stream.runRateMonthly) !==
+                                    Math.round(stream.monthlyAverage) ? (
+                                      <p className="text-[10px] font-normal text-text-muted">
+                                        {formatCurrency(stream.monthlyAverage, {
+                                          decimals: 0,
+                                        })}{' '}
+                                        observed
+                                      </p>
+                                    ) : null}
+                                  </td>
+                                  <td className="py-1.5 pr-3 font-mono tabular-nums">
+                                    {stream.monthsSeen}
+                                  </td>
+                                  <td className="py-1.5 pr-3 text-text-muted">
+                                    {formatBudgetDate(stream.lastDate)}
+                                  </td>
+                                  <td className="py-1.5">
+                                    <div className="flex min-w-[11rem] flex-col gap-1.5">
+                                      <Select
+                                        value={
+                                          stream.statusOverride ??
+                                          incomeStatusAutoValue
+                                        }
+                                        disabled={
+                                          updateIncomeStreamOverride.isPending
+                                        }
+                                        onValueChange={(value) => {
+                                          if (value === incomeStatusAutoValue) {
+                                            saveIncomeStreamOverride(stream, {
+                                              status: null,
+                                              mergedIntoStreamKey: null,
+                                            })
+                                            return
+                                          }
+                                          const nextStatus =
+                                            value as RetirementIncomeActualsStream['statusOverride']
+                                          saveIncomeStreamOverride(stream, {
+                                            status: nextStatus,
+                                            mergedIntoStreamKey:
+                                              nextStatus === 'merged'
+                                                ? (stream.mergedIntoStreamKey ??
+                                                  mergeTargets[0]?.streamKey ??
+                                                  null)
+                                                : null,
+                                          })
+                                        }}
+                                      >
+                                        <SelectTrigger
+                                          size="sm"
+                                          aria-label={`Status for ${stream.label}`}
+                                          className="min-w-[11rem] text-xs"
+                                        >
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent align="start">
+                                          <SelectItem
+                                            value={incomeStatusAutoValue}
+                                          >
+                                            Auto
+                                          </SelectItem>
+                                          {incomeStatusOptions.map((option) => (
+                                            <SelectItem
+                                              key={option.value}
+                                              value={option.value}
+                                              disabled={
+                                                option.value === 'merged' &&
+                                                mergeTargets.length === 0
+                                              }
+                                            >
+                                              {option.label}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      <div className="flex flex-wrap items-center gap-1">
+                                        <Badge variant={status.variant}>
+                                          {status.label}
+                                        </Badge>
+                                        {stream.statusOverride ? (
+                                          <Badge variant="outline">
+                                            Manual
+                                          </Badge>
+                                        ) : null}
+                                      </div>
+                                      {stream.status === 'merged' ? (
+                                        <Select
+                                          value={
+                                            stream.mergedIntoStreamKey ??
+                                            incomeMergeTargetNoneValue
+                                          }
+                                          disabled={
+                                            updateIncomeStreamOverride.isPending
+                                          }
+                                          onValueChange={(value) => {
+                                            if (
+                                              value ===
+                                              incomeMergeTargetNoneValue
+                                            ) {
+                                              return
+                                            }
+                                            saveIncomeStreamOverride(stream, {
+                                              status: 'merged',
+                                              mergedIntoStreamKey: value,
+                                            })
+                                          }}
+                                        >
+                                          <SelectTrigger
+                                            size="sm"
+                                            aria-label={`Merged target for ${stream.label}`}
+                                            className="min-w-[11rem] text-xs"
+                                          >
+                                            <SelectValue placeholder="Merged into" />
+                                          </SelectTrigger>
+                                          <SelectContent align="start">
+                                            <SelectItem
+                                              value={incomeMergeTargetNoneValue}
+                                            >
+                                              Choose stream
+                                            </SelectItem>
+                                            {mergeTargets.map((target) => (
+                                              <SelectItem
+                                                key={target.streamKey}
+                                                value={target.streamKey}
+                                              >
+                                                {target.label}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      ) : null}
+                                      {selectedMergeTarget ? (
+                                        <p className="max-w-[12rem] truncate text-[10px] text-text-muted">
+                                          same as {selectedMergeTarget.label}
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-text-muted">
+                        <InfoBadge
+                          label="Run-rate math"
+                          detail={`${incomeActuals?.sourceLabel ?? ''} Weekly and biweekly deposits are normalized to monthly run-rates; observed $/mo averages over each stream's own active months.`}
+                        />
+                        {(incomeActuals?.aliasRowsCollapsed ?? 0) > 0 ? (
+                          <InfoBadge
+                            label={`${incomeActuals?.aliasRowsCollapsed} duplicates collapsed`}
+                            detail="Duplicate statement rows from the same deposit imported under two account labels were excluded from the income run-rate."
+                          />
+                        ) : null}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-text-muted">
+                      {incomeActualsQuery.isLoading
+                        ? 'Scanning Money transactions for income streams…'
+                        : incomeActualsQuery.error
+                          ? 'Failed to load income actuals.'
+                          : 'No complete months of Money transaction coverage yet — import bank statements to compare plan income against actual deposits.'}
+                    </p>
+                  )}
+                </SectionCard>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem
+              value="withdrawal"
+              className="rounded-2xl border border-border/40 bg-surface-muted/10 px-0"
+            >
+              <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                <PlannerAccordionHeader
+                  title="Withdrawal, healthcare & college"
+                  detail="Guardrails, bridge sizing, child drop-offs, ACA/Medicare, LTC, and education schedules."
+                  meta={
+                    <InfoBadge
+                      label="Method"
+                      interactive={false}
+                      detail="Floor-and-upside model: guaranteed income and bridge assets cover the floor; portfolio withdrawals fund discretionary spend and adjust with guardrails."
+                    />
+                  }
+                />
+              </AccordionTrigger>
+              <AccordionContent className="px-4 pb-5">
+                <SectionCard
+                  variant="ghost"
+                  padding="none"
+                  actions={
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void saveDraftDefaults()}
+                      disabled={
+                        updateProfile.isPending || updatePlanning.isPending
+                      }
+                    >
+                      {updateProfile.isPending || updatePlanning.isPending
+                        ? 'Saving…'
+                        : 'Save plan'}
+                    </Button>
+                  }
+                >
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                        Baseline strategy
+                      </p>
+                      <div className="mt-2 rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                        <Badge variant="success">Guardrails</Badge>
+                        <div className="mt-2">
+                          <InfoBadge
+                            label="Annual guardrails"
+                            detail="One retirement paycheck is adjusted annually when the portfolio crosses raise/cut guardrails."
+                          />
+                        </div>
+                      </div>
+                      <label className="mt-3 block text-xs text-text-muted">
+                        Initial withdrawal rate %
+                        <Input
+                          className="mt-1"
+                          inputMode="decimal"
+                          aria-label="Guardrails initial withdrawal rate percent"
+                          value={withdrawalDraft.initialRatePct}
+                          onChange={(event) =>
+                            updateWithdrawalDraft(
+                              'initialRatePct',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                          Discretionary decline
+                        </p>
+                        <span className="font-mono text-xs text-text">
+                          {formatPercent(withdrawalDraft.declineRate * 100, {
+                            decimals: 1,
+                          })}
+                          /yr
+                        </span>
+                      </div>
+                      <Slider
+                        className="mt-3"
+                        aria-label="Discretionary decline rate per year"
+                        min={0}
+                        max={0.025}
+                        step={0.001}
+                        value={[withdrawalDraft.declineRate]}
+                        onValueChange={(values) =>
+                          updateWithdrawalDraft(
+                            'declineRate',
+                            values[0] ?? 0.01,
+                          )
+                        }
+                      />
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {(
+                          [
+                            ['smooth', 'Smooth'],
+                            ['phase', 'Go-go phases'],
+                          ] as const
+                        ).map(([value, label]) => (
+                          <Button
+                            key={value}
+                            type="button"
+                            size="sm"
+                            variant={
+                              withdrawalDraft.declineMode === value
+                                ? 'default'
+                                : 'outline'
+                            }
+                            onClick={() =>
+                              updateWithdrawalDraft('declineMode', value)
+                            }
+                          >
+                            {label}
+                          </Button>
+                        ))}
+                      </div>
+                      {withdrawalDraft.declineMode === 'phase' ? (
+                        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          {(
+                            [
+                              ['phaseSlowGoAge', 'Slow-go age'],
+                              ['phaseNoGoAge', 'No-go age'],
+                              ['phaseGoGoPct', 'Go-go %'],
+                              ['phaseSlowGoPct', 'Slow-go %'],
+                              ['phaseNoGoPct', 'No-go %'],
+                            ] as const
+                          ).map(([key, label]) => (
+                            <label
+                              key={key}
+                              className="text-xs text-text-muted"
+                            >
+                              {label}
+                              <Input
+                                className="mt-1"
+                                inputMode="numeric"
+                                aria-label={label}
+                                value={withdrawalDraft[key]}
+                                onChange={(event) =>
+                                  updateWithdrawalDraft(key, event.target.value)
+                                }
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                        Social Security bridge
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {(
+                          [
+                            ['auto', 'Auto size'],
+                            ['manual', 'Manual'],
+                          ] as const
+                        ).map(([value, label]) => (
+                          <Button
+                            key={value}
+                            type="button"
+                            size="sm"
+                            variant={
+                              withdrawalDraft.bridgeMode === value
+                                ? 'default'
+                                : 'outline'
+                            }
+                            onClick={() =>
+                              updateWithdrawalDraft('bridgeMode', value)
+                            }
+                          >
+                            {label}
+                          </Button>
+                        ))}
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        {withdrawalDraft.bridgeMode === 'manual' ? (
                           <label className="text-xs text-text-muted">
-                            Spend drop $/mo
+                            Bridge amount $
                             <Input
                               className="mt-1"
                               inputMode="decimal"
-                              value={row.monthlyAmount}
+                              aria-label="Manual bridge amount"
+                              value={withdrawalDraft.bridgeManualAmount}
                               onChange={(event) =>
-                                updateChildReductionDraft(
-                                  index,
-                                  'monthlyAmount',
+                                updateWithdrawalDraft(
+                                  'bridgeManualAmount',
                                   event.target.value,
                                 )
                               }
                             />
                           </label>
-                        </div>
-                        <div className="mt-2 flex items-center justify-between gap-3">
+                        ) : null}
+                        <label className="text-xs text-text-muted">
+                          Bridge real return %
                           <Input
-                            aria-label={`Notes for ${row.label}`}
-                            placeholder="notes"
-                            value={row.notes}
+                            className="mt-1"
+                            inputMode="decimal"
+                            aria-label="Bridge sleeve real return percent"
+                            value={withdrawalDraft.bridgeRealReturnPct}
                             onChange={(event) =>
-                              updateChildReductionDraft(
-                                index,
-                                'notes',
+                              updateWithdrawalDraft(
+                                'bridgeRealReturnPct',
                                 event.target.value,
                               )
                             }
                           />
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => removeChildReduction(index)}
+                        </label>
+                      </div>
+                      <div className="mt-2">
+                        <InfoBadge
+                          label="Bridge logic"
+                          detail="Auto size covers essential-floor gaps from retirement until Social Security starts. The sleeve uses a conservative fixed real return to avoid equity sequence risk."
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                          Child cost drop-offs
+                        </p>
+                        <div className="mt-1">
+                          <InfoBadge
+                            label="Separate from college"
+                            detail="Reduces base living spend when each child is expected to be self-funded. Healthcare and college stay modeled in their own schedules."
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={addChildReduction}
+                      >
+                        Add child
+                      </Button>
+                    </div>
+                    {childReductionDraft.length === 0 ? (
+                      <p className="mt-3 text-sm text-text-muted">
+                        No child reductions yet. Add one if retirement spending
+                        should fall when a child gets a job or moves out.
+                      </p>
+                    ) : (
+                      <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                        {childReductionDraft.map((row, index) => (
+                          <div
+                            key={`${row.id ?? 'new'}-${index}`}
+                            className="rounded-2xl border border-border/35 bg-surface-muted/15 p-3"
                           >
-                            Remove
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  ACA marketplace &amp; Medicare (modeled automatically)
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {(
-                    [
-                      ['silver', 'Silver benchmark'],
-                      ['bronze', 'Bronze (lowest premium)'],
-                      ['none', 'Off'],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <Button
-                      key={value}
-                      type="button"
-                      size="sm"
-                      variant={acaDraft.tier === value ? 'default' : 'outline'}
-                      onClick={() => updateAcaDraft('tier', value)}
-                    >
-                      {label}
-                    </Button>
-                  ))}
-                </div>
-                {acaDraft.tier === 'none' ? (
-                  <p className="mt-2 text-xs text-text-muted">
-                    Healthcare stream off — only the manual schedule lines below
-                    hit the essential floor.
-                  </p>
-                ) : (
-                  <>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {(
-                        [
-                          ['until22', 'Kids covered to 22'],
-                          ['until26', 'Kids covered to 26'],
-                          ['adultsOnly', 'Adults only'],
-                        ] as const
-                      ).map(([value, label]) => (
-                        <Button
-                          key={value}
-                          type="button"
-                          size="sm"
-                          variant={
-                            acaDraft.coveredLives === value
-                              ? 'default'
-                              : 'outline'
-                          }
-                          onClick={() => updateAcaDraft('coveredLives', value)}
-                        >
-                          {label}
-                        </Button>
-                      ))}
-                    </div>
-                    <p className="mt-2 text-xs text-text-muted">
-                      {acaDraft.coveredLives === 'adultsOnly'
-                        ? 'Assumes the kids get coverage elsewhere (e.g. FL KidCare). They also leave the subsidy household here, which slightly understates the credit.'
-                        : 'Dependents count toward the subsidy household while covered; adults stay on the marketplace until Medicare at 65.'}
-                    </p>
-                    <div className="mt-3 grid gap-3 md:grid-cols-3">
-                      <label className="text-xs text-text-muted">
-                        Premium override $/mo (age 21)
-                        <Input
-                          className="mt-1"
-                          inputMode="decimal"
-                          aria-label="ACA age-21 monthly premium override"
-                          placeholder={
-                            preview?.inputs.aca?.chosenAge21Monthly != null
-                              ? String(preview.inputs.aca.chosenAge21Monthly)
-                              : 'marketplace anchor'
-                          }
-                          value={acaDraft.premiumOverride}
-                          onChange={(event) =>
-                            updateAcaDraft(
-                              'premiumOverride',
-                              event.target.value,
-                            )
-                          }
-                        />
-                      </label>
-                      <label className="text-xs text-text-muted">
-                        Out-of-pocket $/mo
-                        <Input
-                          className="mt-1"
-                          inputMode="decimal"
-                          aria-label="ACA out-of-pocket monthly"
-                          value={acaDraft.oopMonthly}
-                          onChange={(event) =>
-                            updateAcaDraft('oopMonthly', event.target.value)
-                          }
-                        />
-                      </label>
-                      <label className="text-xs text-text-muted">
-                        Medicare $/person/mo
-                        <Input
-                          className="mt-1"
-                          inputMode="decimal"
-                          aria-label="Medicare monthly premium per person"
-                          placeholder={String(medicareDefaultMonthlyPerPerson)}
-                          value={acaDraft.medicareMonthly}
-                          onChange={(event) =>
-                            updateAcaDraft(
-                              'medicareMonthly',
-                              event.target.value,
-                            )
-                          }
-                        />
-                      </label>
-                    </div>
-                    <p className="mt-2 text-xs text-text-muted">
-                      {preview?.inputs.aca?.planYear
-                        ? `PY${preview.inputs.aca.planYear} marketplace anchors: benchmark Silver ${formatCurrency(
-                            preview.inputs.aca.benchmarkAge21Monthly ?? 0,
-                            { decimals: 0 },
-                          )}/mo at age 21; modeling ${formatCurrency(
-                            preview.inputs.aca.chosenAge21Monthly ?? 0,
-                            { decimals: 0 },
-                          )}/mo. Premiums scale by the CMS age curve and grow +2%/yr real. `
-                        : 'Marketplace plan data not ingested yet — the ACA stream is inactive. '}
-                      Out-of-pocket is on top of premiums, every retired year.
-                      The seed comes from your deduped Money run-rate
-                      (ex-ortho); the employer plan absorbs most OOP today, so
-                      it likely understates retirement costs.
-                    </p>
-                    <p className="mt-1 text-xs text-text-muted">
-                      Medicare: blank tracks published rates — 2026 Part B
-                      $202.90 + Part D $38.99 (CMS) + Medigap Plan G $164/mo
-                      (KFF national average) ≈ $
-                      {medicareDefaultMonthlyPerPerson}
-                      /person. Florida Medigap is issue-age rated and typically
-                      pricier — consider raising. Enter 0 to turn the line off.
-                    </p>
-                    <p className="mt-1 text-xs text-text-muted">
-                      Net premiums + out-of-pocket ride the essential floor
-                      until Medicare takes over at 65. The premium tax credit
-                      reprices off each year&apos;s modeled MAGI, so the 400%
-                      FPL subsidy cliff is live in the simulation — see the MAGI
-                      column in the drawdown table.
-                    </p>
-                  </>
-                )}
-              </div>
-
-              <div className="mt-5">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                    Healthcare / LTC schedule (annual, today&apos;s dollars)
-                  </p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={addHealthcareRow}
-                  >
-                    Add line
-                  </Button>
-                </div>
-                {withdrawalDraft.healthcare.length === 0 ? (
-                  <p className="mt-2 text-xs text-text-muted">
-                    No manual healthcare lines yet — when ACA modeling is on,
-                    marketplace premiums + out-of-pocket costs are added to the
-                    floor automatically until Medicare at 65. Add lines only for
-                    extras the ACA stream doesn&apos;t cover, like LTC reserves
-                    at 85.
-                  </p>
-                ) : (
-                  <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                    {withdrawalDraft.healthcare.map((row, index) => (
-                      <div
-                        key={index}
-                        className="flex items-end gap-2 rounded-xl border border-border/25 px-3 py-2"
-                      >
-                        <label className="text-xs text-text-muted">
-                          From age
-                          <Input
-                            className="mt-1"
-                            inputMode="numeric"
-                            aria-label={`Healthcare line ${index + 1} age`}
-                            value={row.age}
-                            onChange={(event) =>
-                              updateHealthcareRow(
-                                index,
-                                'age',
-                                event.target.value,
-                              )
-                            }
-                          />
-                        </label>
-                        <label className="text-xs text-text-muted">
-                          Annual $
-                          <Input
-                            className="mt-1"
-                            inputMode="decimal"
-                            aria-label={`Healthcare line ${index + 1} annual amount`}
-                            value={row.realAmount}
-                            onChange={(event) =>
-                              updateHealthcareRow(
-                                index,
-                                'realAmount',
-                                event.target.value,
-                              )
-                            }
-                          />
-                        </label>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => removeHealthcareRow(index)}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-5">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                    College schedule (annual, today&apos;s dollars)
-                  </p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={addCollegeRow}
-                  >
-                    Add line
-                  </Button>
-                </div>
-                <p className="mt-2 text-xs text-text-muted">
-                  529 accounts
-                  {preview?.inputs.college529Value
-                    ? ` (${formatCurrencyWhole(preview.inputs.college529Value)})`
-                    : ''}{' '}
-                  are earmarked for college and excluded from the retirement
-                  portfolio; each year&apos;s college spend drains them first
-                  and only the overflow hits retirement money.
-                </p>
-                {withdrawalDraft.college.length === 0 ? (
-                  <p className="mt-2 text-xs text-text-muted">
-                    No college lines yet — add a line per spend year, e.g. 2030
-                    while both kids are at SPC, 2032 at USF.
-                  </p>
-                ) : (
-                  <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                    {withdrawalDraft.college.map((row, index) => (
-                      <div
-                        key={index}
-                        className="flex items-end gap-2 rounded-xl border border-border/25 px-3 py-2"
-                      >
-                        <label className="text-xs text-text-muted">
-                          Year
-                          <Input
-                            className="mt-1"
-                            inputMode="numeric"
-                            aria-label={`College line ${index + 1} calendar year`}
-                            value={row.calendarYear}
-                            onChange={(event) =>
-                              updateCollegeRow(
-                                index,
-                                'calendarYear',
-                                event.target.value,
-                              )
-                            }
-                          />
-                        </label>
-                        <label className="text-xs text-text-muted">
-                          Annual $
-                          <Input
-                            className="mt-1"
-                            inputMode="decimal"
-                            aria-label={`College line ${index + 1} annual amount`}
-                            value={row.realAmount}
-                            onChange={(event) =>
-                              updateCollegeRow(
-                                index,
-                                'realAmount',
-                                event.target.value,
-                              )
-                            }
-                          />
-                        </label>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => removeCollegeRow(index)}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                    Success odds
-                  </p>
-                  <p className="mt-2 font-mono text-2xl text-text">
-                    {preview ? percentPoints(preview.successProbability) : '—'}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                    Bridge size
-                  </p>
-                  <p className="mt-2 font-mono text-2xl text-text">
-                    {withdrawalSummary.bridgeSize == null
-                      ? '—'
-                      : formatCurrencyWhole(withdrawalSummary.bridgeSize)}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                    Bridge length
-                  </p>
-                  <p className="mt-2 font-mono text-2xl text-text">
-                    {withdrawalSummary.bridgeYears == null
-                      ? '—'
-                      : `${withdrawalSummary.bridgeYears} yrs`}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                    First-year rate
-                  </p>
-                  <p className="mt-2 font-mono text-2xl text-text">
-                    {withdrawalSummary.firstYearRate == null
-                      ? '—'
-                      : formatPercent(withdrawalSummary.firstYearRate * 100, {
-                          decimals: 1,
-                        })}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                    Post-SS rate
-                  </p>
-                  <p className="mt-2 font-mono text-2xl text-text">
-                    {withdrawalSummary.postSocialSecurityRate == null
-                      ? '—'
-                      : formatPercent(
-                          withdrawalSummary.postSocialSecurityRate * 100,
-                          { decimals: 1 },
-                        )}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Spending plan by age (today&apos;s dollars)
-                </p>
-                <div className="mt-3 h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart
-                      data={spendingPathData}
-                      margin={{ left: 8, right: 8 }}
-                    >
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="var(--color-border)"
-                      />
-                      <XAxis dataKey="age" tickLine={false} />
-                      <YAxis
-                        tickFormatter={(value) =>
-                          `$${Math.round(Number(value) / 1000)}k`
-                        }
-                      />
-                      <Tooltip formatter={currencyTooltip} />
-                      <Legend />
-                      <Bar
-                        dataKey="guaranteed"
-                        stackId="funding"
-                        name="Guaranteed income"
-                        fill="var(--color-chart-2)"
-                      />
-                      <Bar
-                        dataKey="bridge"
-                        stackId="funding"
-                        name="Bridge sleeve"
-                        fill="var(--color-chart-5)"
-                      />
-                      <Bar
-                        dataKey="portfolio"
-                        stackId="funding"
-                        name="Portfolio draw"
-                        fill="var(--color-chart-1)"
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="floor"
-                        name="Essential floor"
-                        stroke="var(--color-warning)"
-                        dot={false}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="target"
-                        name="Spending target"
-                        stroke="var(--color-chart-3)"
-                        strokeDasharray="4 4"
-                        dot={false}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="medianDiscretionary"
-                        name="Median funded discretionary (MC)"
-                        stroke="var(--color-chart-4)"
-                        strokeDasharray="2 4"
-                        dot={false}
-                      />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-                <p className="mt-2 text-xs text-text-muted">
-                  Stacked bars show how each year&apos;s spending target is
-                  funded. The floor line is essentials plus the healthcare
-                  schedule; discretionary spend above it declines with age — the
-                  retirement smile.
-                </p>
-              </div>
-            </SectionCard>
-
-            <SectionCard
-              variant="surface"
-              title="Real estate & family assets"
-              description="Track property value and ownership without inflating retirement success. Include cash flow or sale proceeds only when you explicitly choose that treatment."
-            >
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                    Tracked equity
-                  </p>
-                  <p className="mt-2 text-2xl font-semibold text-text">
-                    {formatCurrencyWhole(realEstateSummary.trackedEquity)}
-                  </p>
-                  <p className="mt-1 text-xs text-text-muted">
-                    Value × ownership minus mortgage. Track-only equity is not
-                    spendable in Monte Carlo.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                    Modeled sale proceeds
-                  </p>
-                  <p className="mt-2 text-2xl font-semibold text-text">
-                    {formatCurrencyWhole(realEstateSummary.modeledLiquidity)}
-                  </p>
-                  <p className="mt-1 text-xs text-text-muted">
-                    Added to taxable assets only in the listed sale year.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                    Modeled property income
-                  </p>
-                  <p className="mt-2 text-2xl font-semibold text-text">
-                    {formatCurrency(realEstateSummary.modeledIncome, {
-                      decimals: 0,
-                    })}
-                    /yr
-                  </p>
-                  <p className="mt-1 text-xs text-text-muted">
-                    Added as inflation-adjusted retirement income.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs text-text-muted">
-                  Property edits are saved when you click Save properties or the
-                  broader Save assumptions button. Save &amp; refresh persists a
-                  new card first, then pulls the latest county valuation.
-                </p>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={updatePlanning.isPending}
-                    onClick={() => void saveRealEstateAssets()}
-                  >
-                    Save properties
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={addRealEstateAsset}
-                  >
-                    Add property
-                  </Button>
-                </div>
-              </div>
-              {realEstateDraft.length === 0 ? (
-                <p className="mt-3 text-sm text-text-muted">
-                  No real estate rows yet. Add the Tampa house, note receivable,
-                  or other family property here. Leave treatment as Track only
-                  until the value/date/cash path is reliable.
-                </p>
-              ) : (
-                <div className="mt-3 space-y-3">
-                  {realEstateDraft.map((row, index) => {
-                    const propertyKey = row.id ?? `new-${index}`
-                    const expanded = expandedPropertyKeys.includes(propertyKey)
-                    const history = row.id
-                      ? valuationHistoryByProperty.get(row.id)
-                      : undefined
-                    const trendPoints = propertyTrendPoints(history?.points)
-                    const value = parseOptionalAmount(row.propertyValue)
-                    const stale = valuationStale(row.valueAsOf)
-                    return (
-                      <div
-                        key={propertyKey}
-                        className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4"
-                      >
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          className="w-full text-left"
-                          onClick={() => togglePropertyExpanded(propertyKey)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                              event.preventDefault()
-                              togglePropertyExpanded(propertyKey)
-                            }
-                          }}
-                          aria-expanded={expanded}
-                        >
-                          <div className="grid gap-3 md:grid-cols-[1.3fr_0.8fr_1.2fr_auto] md:items-start">
-                            <div>
-                              <p className="text-sm font-semibold text-text">
-                                {row.label.trim() || `Property ${index + 1}`}
-                              </p>
-                              <p className="mt-1 text-xs text-text-muted">
-                                {row.propertyAddress.trim() ||
-                                  'Address not set'}
-                              </p>
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                <Badge variant={stale ? 'warning' : 'success'}>
-                                  {stale ? 'Stale / manual' : 'Fresh'}
-                                </Badge>
-                                {!row.id ? (
-                                  <Badge variant="outline">Unsaved</Badge>
-                                ) : null}
-                                <Badge variant="outline">
-                                  {valuationSourceLabel(row.valuationSource)}
-                                </Badge>
-                              </div>
-                            </div>
-                            <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                                Value
-                              </p>
-                              <p className="mt-1 text-2xl font-semibold text-text">
-                                {value == null
-                                  ? '—'
-                                  : formatCurrencyWhole(value)}
-                              </p>
-                              <p className="mt-1 text-xs text-text-muted">
-                                As of {formatShortDate(row.valueAsOf)}
-                              </p>
-                            </div>
-                            <div>
-                              {trendPoints.length >= 2 ? (
-                                <NetWorthTrendLine
-                                  points={trendPoints}
-                                  loading={propertyValuationsQuery.isLoading}
-                                  ariaLabel={`${row.label || 'Property'} value trend`}
-                                  tooltipTestId="property-value-trend-tooltip"
-                                />
-                              ) : (
-                                <div className="rounded-xl border border-border/30 bg-surface/50 px-3 py-2 text-xs text-text-muted">
-                                  Trendline starts after two saved valuations.
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex items-center justify-end gap-2">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                disabled={
-                                  !(row.propertyAddress || row.label).trim() ||
-                                  refreshPropertyValuation.isPending ||
-                                  updatePlanning.isPending
-                                }
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  void refreshPropertyValue(row)
-                                }}
-                              >
-                                {row.id ? 'Refresh' : 'Save & refresh'}
-                              </Button>
-                              <span className="text-xs text-text-muted">
-                                {expanded ? 'Hide details' : 'Details'}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        {expanded ? (
-                          <div className="mt-4 border-t border-border/30 pt-4">
-                            <div className="grid gap-3 md:grid-cols-4">
+                            <div className="grid gap-2 sm:grid-cols-3">
                               <label className="text-xs text-text-muted">
-                                Property / asset
+                                Child
                                 <Input
                                   className="mt-1"
                                   value={row.label}
                                   onChange={(event) =>
-                                    updateRealEstateDraft(
+                                    updateChildReductionDraft(
                                       index,
                                       'label',
                                       event.target.value,
@@ -4337,187 +3829,44 @@ export function MoneyRetirementPanel({
                                   }
                                 />
                               </label>
-                              <label className="text-xs text-text-muted md:col-span-2">
-                                Address
-                                <Input
-                                  className="mt-1"
-                                  placeholder="3636 Avocado Road, Largo, FL 33770"
-                                  value={row.propertyAddress}
-                                  onChange={(event) =>
-                                    updateRealEstateDraft(
-                                      index,
-                                      'propertyAddress',
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </label>
                               <label className="text-xs text-text-muted">
-                                Value
-                                <Input
-                                  className="mt-1"
-                                  inputMode="decimal"
-                                  value={row.propertyValue}
-                                  onChange={(event) =>
-                                    updateRealEstateDraft(
-                                      index,
-                                      'propertyValue',
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </label>
-                            </div>
-                            <div className="mt-3 grid gap-3 md:grid-cols-4">
-                              <label className="text-xs text-text-muted">
-                                Ownership %
-                                <Input
-                                  className="mt-1"
-                                  inputMode="decimal"
-                                  value={row.ownershipPercent}
-                                  onChange={(event) =>
-                                    updateRealEstateDraft(
-                                      index,
-                                      'ownershipPercent',
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </label>
-                              <label className="text-xs text-text-muted">
-                                Mortgage / note balance
-                                <Input
-                                  className="mt-1"
-                                  inputMode="decimal"
-                                  value={row.mortgageBalance}
-                                  onChange={(event) =>
-                                    updateRealEstateDraft(
-                                      index,
-                                      'mortgageBalance',
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </label>
-                              <label className="text-xs text-text-muted">
-                                Valuation source
-                                <Input
-                                  className="mt-1"
-                                  disabled
-                                  value={valuationSourceLabel(
-                                    row.valuationSource,
-                                  )}
-                                />
-                              </label>
-                              <label className="text-xs text-text-muted">
-                                Range
-                                <Input
-                                  className="mt-1"
-                                  disabled
-                                  value={
-                                    row.valuationRangeLow &&
-                                    row.valuationRangeHigh
-                                      ? `${formatCurrencyWhole(
-                                          Number(row.valuationRangeLow),
-                                        )}–${formatCurrencyWhole(
-                                          Number(row.valuationRangeHigh),
-                                        )}`
-                                      : '—'
-                                  }
-                                />
-                              </label>
-                            </div>
-                            <div className="mt-3 grid gap-3 md:grid-cols-4">
-                              <label className="text-xs text-text-muted">
-                                Retirement treatment
-                                <Select
-                                  value={row.retirementTreatment}
-                                  onValueChange={(value) =>
-                                    updateRealEstateDraft(
-                                      index,
-                                      'retirementTreatment',
-                                      value,
-                                    )
-                                  }
-                                >
-                                  <SelectTrigger className="mt-1">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="track_only">
-                                      Track only
-                                    </SelectItem>
-                                    <SelectItem value="income">
-                                      Income stream
-                                    </SelectItem>
-                                    <SelectItem value="planned_sale">
-                                      Planned sale / liquidity
-                                    </SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </label>
-                              <label className="text-xs text-text-muted">
-                                Income $/yr
-                                <Input
-                                  className="mt-1"
-                                  inputMode="decimal"
-                                  disabled={
-                                    row.retirementTreatment !== 'income'
-                                  }
-                                  value={row.annualRetirementIncome}
-                                  onChange={(event) =>
-                                    updateRealEstateDraft(
-                                      index,
-                                      'annualRetirementIncome',
-                                      event.target.value,
-                                    )
-                                  }
-                                />
-                              </label>
-                              <label className="text-xs text-text-muted">
-                                Sale/liquidity year
+                                Drop starts year
                                 <Input
                                   className="mt-1"
                                   inputMode="numeric"
-                                  disabled={
-                                    row.retirementTreatment !== 'planned_sale'
-                                  }
-                                  value={row.liquidityYear}
+                                  value={row.startYear}
                                   onChange={(event) =>
-                                    updateRealEstateDraft(
+                                    updateChildReductionDraft(
                                       index,
-                                      'liquidityYear',
+                                      'startYear',
                                       event.target.value,
                                     )
                                   }
                                 />
                               </label>
                               <label className="text-xs text-text-muted">
-                                Net proceeds
+                                Spend drop $/mo
                                 <Input
                                   className="mt-1"
                                   inputMode="decimal"
-                                  disabled={
-                                    row.retirementTreatment !== 'planned_sale'
-                                  }
-                                  value={row.liquidityAmount}
+                                  value={row.monthlyAmount}
                                   onChange={(event) =>
-                                    updateRealEstateDraft(
+                                    updateChildReductionDraft(
                                       index,
-                                      'liquidityAmount',
+                                      'monthlyAmount',
                                       event.target.value,
                                     )
                                   }
                                 />
                               </label>
                             </div>
-                            <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+                            <div className="mt-2 flex items-center justify-between gap-3">
                               <Input
-                                aria-label={`Real estate notes for ${row.label}`}
-                                placeholder="ownership, inheritance, sibling split, valuation source"
+                                aria-label={`Notes for ${row.label}`}
+                                placeholder="notes"
                                 value={row.notes}
                                 onChange={(event) =>
-                                  updateRealEstateDraft(
+                                  updateChildReductionDraft(
                                     index,
                                     'notes',
                                     event.target.value,
@@ -4528,422 +3877,1341 @@ export function MoneyRetirementPanel({
                                 type="button"
                                 size="sm"
                                 variant="outline"
-                                onClick={() => removeRealEstateAsset(index)}
+                                onClick={() => removeChildReduction(index)}
                               >
                                 Remove
                               </Button>
                             </div>
-                            {history?.latest?.methodology ? (
-                              <p className="mt-3 text-xs text-text-muted">
-                                {history.latest.methodology}
-                              </p>
-                            ) : null}
                           </div>
-                        ) : null}
+                        ))}
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-            </SectionCard>
-
-            <SectionCard
-              variant="surface"
-              title="Allocation sandbox"
-              description="Run the retirement model against current holdings, an asset-class mix, or a ticker basket like VTI / BND / SPAXX."
-            >
-              <div className="flex flex-wrap gap-2">
-                {[
-                  ['current', 'Current portfolio'],
-                  ['classes', 'Asset classes'],
-                  ['tickers', 'Ticker basket'],
-                ].map(([mode, label]) => (
-                  <Button
-                    key={mode}
-                    type="button"
-                    size="sm"
-                    variant={allocationMode === mode ? 'default' : 'outline'}
-                    onClick={() => setAllocationMode(mode as AllocationMode)}
-                  >
-                    {label}
-                  </Button>
-                ))}
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={useCurrentAllocation}
-                >
-                  Copy current to sliders
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={applyDraft}
-                  disabled={previewQuery.isFetching}
-                >
-                  {previewQuery.isFetching
-                    ? 'Running…'
-                    : hasPendingChanges
-                      ? 'Run preview •'
-                      : 'Run preview'}
-                </Button>
-              </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                    Modeled return
-                  </p>
-                  <p className="mt-2 font-mono text-2xl text-text">
-                    {modeledExpectedReturn == null
-                      ? '—'
-                      : formatPercent(modeledExpectedReturn * 100, {
-                          decimals: 1,
-                        })}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                    Income yield
-                  </p>
-                  <p className="mt-2 font-mono text-2xl text-text">
-                    {modeledIncomeYield == null
-                      ? '—'
-                      : formatPercent(modeledIncomeYield * 100, {
-                          decimals: 1,
-                        })}
-                  </p>
-                  {incomeYieldFreshnessLabel ? (
-                    <span
-                      className={`mt-2 inline-block rounded-full border px-2 py-0.5 text-[11px] font-medium ${freshnessToneClass(
-                        incomeYieldFreshnessStatus,
-                      )}`}
-                    >
-                      {incomeYieldFreshnessLabel}
-                    </span>
-                  ) : null}
-                  <p className="mt-2 text-xs text-text-muted">
-                    Shown separately for income and tax drag; success odds use
-                    total return, so dividends and interest are not added twice.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                    Taxable income
-                  </p>
-                  <p className="mt-2 font-mono text-2xl text-text">
-                    {modeledTaxableIncome == null
-                      ? '—'
-                      : formatCurrency(modeledTaxableIncome, { decimals: 0 })}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                    Income tax drag
-                  </p>
-                  <p className="mt-2 font-mono text-2xl text-text">
-                    {modeledTaxDrag == null
-                      ? '—'
-                      : formatCurrency(modeledTaxDrag, { decimals: 0 })}
-                  </p>
-                </div>
-                <label className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4 text-xs text-text-muted">
-                  SPAXX / cash yield %
-                  <Input
-                    className="mt-2"
-                    inputMode="decimal"
-                    value={draft.cashYield}
-                    onChange={(event) =>
-                      updateDraft('cashYield', event.target.value)
-                    }
-                  />
-                  <span className="mt-2 block">
-                    Cash buckets and SPAXX ticker rows use{' '}
-                    {formatPercent(modeledCashYield * 100, { decimals: 2 })}.
-                  </span>
-                  <span className="mt-2 block">
-                    Source: {modeledCashYieldSource}.
-                  </span>
-                  {cashYieldFreshnessLabel ? (
-                    <span
-                      className={`mt-2 inline-block rounded-full border px-2 py-0.5 text-[11px] font-medium ${freshnessToneClass(
-                        cashYieldFreshnessStatus,
-                      )}`}
-                    >
-                      {cashYieldFreshnessLabel}
-                    </span>
-                  ) : null}
-                  <span className="mt-2 block">
-                    Editable — update it when money-market yields move.
-                  </span>
-                </label>
-              </div>
-              <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-                <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                    Modeled allocation
-                  </p>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {allocationRows.map((row) => (
-                      <div
-                        key={row.key}
-                        className="flex items-center justify-between rounded-xl border border-border/25 px-3 py-2 text-sm"
-                      >
-                        <span className="text-text-muted">{row.label}</span>
-                        <span className="font-mono text-text">
-                          {row.value == null
-                            ? '—'
-                            : formatPercent(row.value * 100, { decimals: 0 })}
-                        </span>
-                      </div>
-                    ))}
+                    )}
                   </div>
-                  <p className="mt-3 text-xs text-text-muted">
-                    VTI, VOO, SPY, SCHD, VYM, DGRO, JEPI and common stocks map
-                    to US stocks; SPAXX/FDRXX/VMFXX/SWVXX map to cash.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                  {allocationMode === 'classes' ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                          Asset-class weights
-                        </p>
-                        <p className="font-mono text-xs text-text-muted">
-                          Total {Math.round(allocationDraftTotal)}%
-                        </p>
-                      </div>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {allocationClasses.map((assetClass) => (
-                          <label
-                            key={assetClass.key}
-                            className="text-xs text-text-muted"
-                          >
-                            {assetClass.label}
+
+                  <div className="mt-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                      ACA marketplace &amp; Medicare (modeled automatically)
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(
+                        [
+                          ['silver', 'Silver benchmark'],
+                          ['bronze', 'Bronze (lowest premium)'],
+                          ['none', 'Off'],
+                        ] as const
+                      ).map(([value, label]) => (
+                        <Button
+                          key={value}
+                          type="button"
+                          size="sm"
+                          variant={
+                            acaDraft.tier === value ? 'default' : 'outline'
+                          }
+                          onClick={() => updateAcaDraft('tier', value)}
+                        >
+                          {label}
+                        </Button>
+                      ))}
+                    </div>
+                    {acaDraft.tier === 'none' ? (
+                      <p className="mt-2 text-xs text-text-muted">
+                        Healthcare stream off — only the manual schedule lines
+                        below hit the essential floor.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {(
+                            [
+                              ['until22', 'Kids covered to 22'],
+                              ['until26', 'Kids covered to 26'],
+                              ['adultsOnly', 'Adults only'],
+                            ] as const
+                          ).map(([value, label]) => (
+                            <Button
+                              key={value}
+                              type="button"
+                              size="sm"
+                              variant={
+                                acaDraft.coveredLives === value
+                                  ? 'default'
+                                  : 'outline'
+                              }
+                              onClick={() =>
+                                updateAcaDraft('coveredLives', value)
+                              }
+                            >
+                              {label}
+                            </Button>
+                          ))}
+                        </div>
+                        <div className="mt-2">
+                          <InfoBadge
+                            label="Coverage household"
+                            detail={
+                              acaDraft.coveredLives === 'adultsOnly'
+                                ? 'Kids are assumed covered elsewhere (e.g. FL KidCare) and leave the subsidy household, which can understate the credit.'
+                                : 'Dependents count toward the subsidy household while covered; adults stay on marketplace coverage until Medicare at 65.'
+                            }
+                          />
+                        </div>
+                        <div className="mt-3 grid gap-3 md:grid-cols-3">
+                          <label className="text-xs text-text-muted">
+                            Premium override $/mo (age 21)
                             <Input
                               className="mt-1"
                               inputMode="decimal"
-                              value={allocationDraft[assetClass.key]}
+                              aria-label="ACA age-21 monthly premium override"
+                              placeholder={
+                                preview?.inputs.aca?.chosenAge21Monthly != null
+                                  ? String(
+                                      preview.inputs.aca.chosenAge21Monthly,
+                                    )
+                                  : 'marketplace anchor'
+                              }
+                              value={acaDraft.premiumOverride}
                               onChange={(event) =>
-                                updateAllocationDraft(
-                                  assetClass.key,
+                                updateAcaDraft(
+                                  'premiumOverride',
                                   event.target.value,
                                 )
                               }
                             />
                           </label>
-                        ))}
-                      </div>
-                      <p className="text-xs text-text-muted">
-                        Percentages are normalized automatically when you run
-                        the preview.
-                      </p>
-                    </div>
-                  ) : allocationMode === 'tickers' ? (
-                    <div className="space-y-3">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                        Ticker weights
-                      </p>
-                      <Textarea
-                        value={tickerMix}
-                        onChange={(event) => setTickerMix(event.target.value)}
-                        rows={6}
-                        placeholder={
-                          'VTI 70\nSCHD 10 3.6\nBND 10 4.0\nSPAXX 10'
-                        }
-                      />
-                      <p className="text-xs text-text-muted">
-                        Enter symbol, weight, and optional income yield % per
-                        line. Unknown tickers fall back to US stocks.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-dashed border-border/40 p-4 text-sm text-text-muted">
-                      Current portfolio mode uses live holdings and fund
-                      classification. Switch modes, then Run preview, to compare
-                      a what-if allocation.
-                      {accountAllocationCoverage &&
-                      accountAllocationCoverage.status !== 'exact' ? (
-                        <p className="mt-2">
-                          Current allocation confidence:{' '}
-                          <span className="font-medium text-text">
-                            {accountAllocationCoverage.label}
-                          </span>{' '}
-                          (
-                          {formatPercent(
-                            accountAllocationCoverage.exactShare * 100,
-                            {
-                              decimals: 0,
-                            },
-                          )}{' '}
-                          exact account allocation/cash).
-                        </p>
-                      ) : null}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-5">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                    Scenario lab
-                  </p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={runCompare}
-                    disabled={compareRunning}
-                  >
-                    {compareRunning
-                      ? 'Comparing…'
-                      : `Compare current + ${compareSelection.length} selected`}
-                  </Button>
-                </div>
-                <p className="mt-1 text-xs text-text-muted">
-                  Save ticker mixes as named scenarios, then compare them
-                  side-by-side against your real account allocation. Each
-                  scenario keeps its own bridge style.
-                </p>
-                <div className="mt-3 flex flex-wrap items-end gap-2">
-                  <label className="text-xs text-text-muted">
-                    Scenario name
-                    <Input
-                      className="mt-1 w-56"
-                      aria-label="Scenario name"
-                      value={scenarioName}
-                      onChange={(event) => setScenarioName(event.target.value)}
-                      placeholder="e.g. Equity bridge"
-                    />
-                  </label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={saveScenarioFromMix}
-                    disabled={
-                      replaceScenarios.isPending ||
-                      !scenarioName.trim() ||
-                      (parseTickerMix(tickerMix) ?? []).length === 0
-                    }
-                  >
-                    Save ticker mix as scenario
-                  </Button>
-                </div>
-                {(scenariosQuery.data ?? []).length === 0 ? (
-                  <p className="mt-3 text-xs text-text-muted">
-                    No saved scenarios yet. Enter a ticker mix above and save it
-                    here to start comparing.
-                  </p>
-                ) : (
-                  <div className="mt-3 space-y-2">
-                    {(scenariosQuery.data ?? []).map((scenario) => (
-                      <div
-                        key={scenario.id}
-                        className="flex flex-wrap items-center gap-3 rounded-xl border border-border/35 bg-surface-muted/15 px-3 py-2"
-                      >
-                        <label className="flex items-center gap-2 text-sm text-text">
-                          <input
-                            type="checkbox"
-                            aria-label={`Compare ${scenario.name}`}
-                            checked={compareSelection.includes(scenario.id)}
-                            onChange={(event) =>
-                              setCompareSelection((current) =>
-                                event.target.checked
-                                  ? [...current, scenario.id]
-                                  : current.filter(
-                                      (item) => item !== scenario.id,
-                                    ),
-                              )
+                          <label className="text-xs text-text-muted">
+                            Out-of-pocket $/mo
+                            <Input
+                              className="mt-1"
+                              inputMode="decimal"
+                              aria-label="ACA out-of-pocket monthly"
+                              value={acaDraft.oopMonthly}
+                              onChange={(event) =>
+                                updateAcaDraft('oopMonthly', event.target.value)
+                              }
+                            />
+                          </label>
+                          <label className="text-xs text-text-muted">
+                            Medicare $/person/mo
+                            <Input
+                              className="mt-1"
+                              inputMode="decimal"
+                              aria-label="Medicare monthly premium per person"
+                              placeholder={String(
+                                medicareDefaultMonthlyPerPerson,
+                              )}
+                              value={acaDraft.medicareMonthly}
+                              onChange={(event) =>
+                                updateAcaDraft(
+                                  'medicareMonthly',
+                                  event.target.value,
+                                )
+                              }
+                            />
+                          </label>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <InfoBadge
+                            label={
+                              preview?.inputs.aca?.planYear
+                                ? `PY${preview.inputs.aca.planYear} ACA anchor`
+                                : 'ACA inactive'
+                            }
+                            detail={
+                              preview?.inputs.aca?.planYear
+                                ? `Benchmark Silver ${formatCurrency(
+                                    preview.inputs.aca.benchmarkAge21Monthly ??
+                                      0,
+                                    { decimals: 0 },
+                                  )}/mo at age 21; modeling ${formatCurrency(
+                                    preview.inputs.aca.chosenAge21Monthly ?? 0,
+                                    { decimals: 0 },
+                                  )}/mo. Premiums scale by the CMS age curve and grow +2%/yr real.`
+                                : 'Marketplace plan data has not been ingested, so the ACA stream is inactive.'
                             }
                           />
-                          <span className="font-medium">{scenario.name}</span>
-                        </label>
-                        <span className="text-xs text-text-muted">
-                          {scenario.holdings
-                            .map((row) => `${row.symbol} ${row.weight}`)
-                            .join(' · ')}
-                        </span>
-                        <span className="text-xs text-text-muted">
-                          bridge:{' '}
-                          {scenario.bridgeGrowth === 'portfolio'
-                            ? 'invested'
-                            : `fixed ${formatPercent(
-                                (scenario.bridgeRealReturn ?? 0.01) * 100,
-                                { decimals: 1 },
-                              )}`}
-                        </span>
-                        <span className="ml-auto flex gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => loadScenario(scenario)}
-                          >
-                            Load
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => deleteScenario(scenario.id)}
-                            disabled={replaceScenarios.isPending}
-                          >
-                            Delete
-                          </Button>
-                        </span>
-                      </div>
-                    ))}
+                          <InfoBadge
+                            label="OOP seed"
+                            detail="Out-of-pocket is added on top of premiums each retired year. The seed comes from deduped Money spend excluding ortho; employer coverage absorbs most OOP today, so it may understate retirement costs."
+                          />
+                          <InfoBadge
+                            label="Medicare default"
+                            detail={`Blank tracks published rates: 2026 Part B $202.90 + Part D $38.99 + Medigap Plan G $164/mo ≈ $${medicareDefaultMonthlyPerPerson}/person. Florida Medigap can be pricier; enter 0 to turn it off.`}
+                          />
+                          <InfoBadge
+                            label="MAGI repricing"
+                            detail="Net premiums and out-of-pocket costs ride the essential floor until Medicare at 65. Premium tax credit reprices from modeled MAGI each year; inspect the MAGI column in drawdown."
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
-                )}
-                {compareError ? (
-                  <p className="mt-3 text-xs text-danger">{compareError}</p>
-                ) : null}
-                {compareResults ? (
-                  <div className="mt-3 overflow-x-auto">
-                    <table className="w-full min-w-[28rem] text-sm">
-                      <thead>
-                        <tr className="text-left text-xs uppercase tracking-[0.12em] text-text-muted">
-                          <th className="py-1.5 pr-3">Scenario</th>
-                          <th className="py-1.5 pr-3">Success</th>
-                          <th className="py-1.5 pr-3">Median ending</th>
-                          <th className="py-1.5">First depletion</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {compareResults.map((row) => (
-                          <tr
-                            key={row.name}
-                            className="border-t border-border/30"
+
+                  <div className="mt-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                        Healthcare / LTC schedule (annual, today&apos;s dollars)
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={addHealthcareRow}
+                      >
+                        Add line
+                      </Button>
+                    </div>
+                    {withdrawalDraft.healthcare.length === 0 ? (
+                      <p className="mt-2 text-xs text-text-muted">
+                        No manual lines. Add only extras the ACA/Medicare stream
+                        does not cover, like LTC reserves.
+                      </p>
+                    ) : (
+                      <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                        {withdrawalDraft.healthcare.map((row, index) => (
+                          <div
+                            key={index}
+                            className="flex items-end gap-2 rounded-xl border border-border/25 px-3 py-2"
                           >
-                            <td className="py-1.5 pr-3 font-medium text-text">
-                              {row.name}
-                            </td>
-                            <td className="py-1.5 pr-3 font-mono tabular-nums">
-                              {percentPoints(row.success)}
-                            </td>
-                            <td className="py-1.5 pr-3 font-mono tabular-nums">
-                              {formatCurrencyWhole(row.medianEnding)}
-                            </td>
-                            <td className="py-1.5 font-mono tabular-nums">
-                              {row.depletionAge != null
-                                ? `age ${row.depletionAge}`
-                                : 'never'}
-                            </td>
-                          </tr>
+                            <label className="text-xs text-text-muted">
+                              From age
+                              <Input
+                                className="mt-1"
+                                inputMode="numeric"
+                                aria-label={`Healthcare line ${index + 1} age`}
+                                value={row.age}
+                                onChange={(event) =>
+                                  updateHealthcareRow(
+                                    index,
+                                    'age',
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <label className="text-xs text-text-muted">
+                              Annual $
+                              <Input
+                                className="mt-1"
+                                inputMode="decimal"
+                                aria-label={`Healthcare line ${index + 1} annual amount`}
+                                value={row.realAmount}
+                                onChange={(event) =>
+                                  updateHealthcareRow(
+                                    index,
+                                    'realAmount',
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => removeHealthcareRow(index)}
+                            >
+                              Remove
+                            </Button>
+                          </div>
                         ))}
-                      </tbody>
-                    </table>
-                    <p className="mt-2 text-xs text-text-muted">
-                      Same seed and knob set per run — only the allocation and
-                      bridge style differ.
-                    </p>
+                      </div>
+                    )}
                   </div>
-                ) : null}
-              </div>
-            </SectionCard>
-          </>
+
+                  <div className="mt-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                        College schedule (annual, today&apos;s dollars)
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={addCollegeRow}
+                      >
+                        Add line
+                      </Button>
+                    </div>
+                    <div className="mt-2">
+                      <InfoBadge
+                        label={`529 excluded${preview?.inputs.college529Value ? ` · ${formatCurrencyWhole(preview.inputs.college529Value)}` : ''}`}
+                        detail="529 accounts are earmarked for college and excluded from the retirement portfolio; each year's college spend drains them first and only overflow hits retirement money."
+                      />
+                    </div>
+                    {withdrawalDraft.college.length === 0 ? (
+                      <p className="mt-2 text-xs text-text-muted">
+                        No college lines yet. Add a line per spend year.
+                      </p>
+                    ) : (
+                      <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                        {withdrawalDraft.college.map((row, index) => (
+                          <div
+                            key={index}
+                            className="flex items-end gap-2 rounded-xl border border-border/25 px-3 py-2"
+                          >
+                            <label className="text-xs text-text-muted">
+                              Year
+                              <Input
+                                className="mt-1"
+                                inputMode="numeric"
+                                aria-label={`College line ${index + 1} calendar year`}
+                                value={row.calendarYear}
+                                onChange={(event) =>
+                                  updateCollegeRow(
+                                    index,
+                                    'calendarYear',
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <label className="text-xs text-text-muted">
+                              Annual $
+                              <Input
+                                className="mt-1"
+                                inputMode="decimal"
+                                aria-label={`College line ${index + 1} annual amount`}
+                                value={row.realAmount}
+                                onChange={(event) =>
+                                  updateCollegeRow(
+                                    index,
+                                    'realAmount',
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => removeCollegeRow(index)}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                    <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                        Success odds
+                      </p>
+                      <p className="mt-2 font-mono text-2xl text-text">
+                        {preview
+                          ? percentPoints(preview.successProbability)
+                          : '—'}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                        Bridge size
+                      </p>
+                      <p className="mt-2 font-mono text-2xl text-text">
+                        {withdrawalSummary.bridgeSize == null
+                          ? '—'
+                          : formatCurrencyWhole(withdrawalSummary.bridgeSize)}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                        Bridge length
+                      </p>
+                      <p className="mt-2 font-mono text-2xl text-text">
+                        {withdrawalSummary.bridgeYears == null
+                          ? '—'
+                          : `${withdrawalSummary.bridgeYears} yrs`}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                        First-year rate
+                      </p>
+                      <p className="mt-2 font-mono text-2xl text-text">
+                        {withdrawalSummary.firstYearRate == null
+                          ? '—'
+                          : formatPercent(
+                              withdrawalSummary.firstYearRate * 100,
+                              {
+                                decimals: 1,
+                              },
+                            )}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                        Post-SS rate
+                      </p>
+                      <p className="mt-2 font-mono text-2xl text-text">
+                        {withdrawalSummary.postSocialSecurityRate == null
+                          ? '—'
+                          : formatPercent(
+                              withdrawalSummary.postSocialSecurityRate * 100,
+                              { decimals: 1 },
+                            )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                      Spending plan by age (today&apos;s dollars)
+                    </p>
+                    <div className="mt-3 h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart
+                          data={spendingPathData}
+                          margin={{ left: 8, right: 8 }}
+                        >
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="var(--color-border)"
+                          />
+                          <XAxis dataKey="age" tickLine={false} />
+                          <YAxis
+                            tickFormatter={(value) =>
+                              `$${Math.round(Number(value) / 1000)}k`
+                            }
+                          />
+                          <Tooltip formatter={currencyTooltip} />
+                          <Legend />
+                          <Bar
+                            dataKey="guaranteed"
+                            stackId="funding"
+                            name="Guaranteed income"
+                            fill="var(--color-chart-2)"
+                          />
+                          <Bar
+                            dataKey="bridge"
+                            stackId="funding"
+                            name="Bridge sleeve"
+                            fill="var(--color-chart-5)"
+                          />
+                          <Bar
+                            dataKey="portfolio"
+                            stackId="funding"
+                            name="Portfolio draw"
+                            fill="var(--color-chart-1)"
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="floor"
+                            name="Essential floor"
+                            stroke="var(--color-warning)"
+                            dot={false}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="target"
+                            name="Spending target"
+                            stroke="var(--color-chart-3)"
+                            strokeDasharray="4 4"
+                            dot={false}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="medianDiscretionary"
+                            name="Median funded discretionary (MC)"
+                            stroke="var(--color-chart-4)"
+                            strokeDasharray="2 4"
+                            dot={false}
+                          />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="mt-2">
+                      <InfoBadge
+                        label="Read the chart"
+                        detail="Bars show each funding source. The floor line is essentials plus healthcare; discretionary spend above it declines with age."
+                      />
+                    </div>
+                  </div>
+                </SectionCard>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem
+              value="real-estate"
+              className="rounded-2xl border border-border/40 bg-surface-muted/10 px-0"
+            >
+              <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                <PlannerAccordionHeader
+                  title="Real estate & family assets"
+                  detail="Track property value, ownership, income, or planned sale proceeds without accidentally inflating success."
+                  meta={
+                    <Badge variant="outline">
+                      {formatCurrencyWhole(realEstateSummary.trackedEquity)}
+                    </Badge>
+                  }
+                />
+              </AccordionTrigger>
+              <AccordionContent className="px-4 pb-5">
+                <SectionCard variant="ghost" padding="none">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                        Tracked equity
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold text-text">
+                        {formatCurrencyWhole(realEstateSummary.trackedEquity)}
+                      </p>
+                      <div className="mt-1">
+                        <InfoBadge
+                          label="Track-only"
+                          detail="Value × ownership minus mortgage. Track-only equity is not spendable in Monte Carlo."
+                        />
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                        Modeled sale proceeds
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold text-text">
+                        {formatCurrencyWhole(
+                          realEstateSummary.modeledLiquidity,
+                        )}
+                      </p>
+                      <div className="mt-1">
+                        <InfoBadge
+                          label="Sale year only"
+                          detail="Added to taxable assets only in the listed sale year."
+                        />
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                        Modeled property income
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold text-text">
+                        {formatCurrency(realEstateSummary.modeledIncome, {
+                          decimals: 0,
+                        })}
+                        /yr
+                      </p>
+                      <div className="mt-1">
+                        <InfoBadge
+                          label="Inflation-adjusted"
+                          detail="Added as inflation-adjusted retirement income."
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <InfoBadge
+                      label="Saving"
+                      detail="Property edits are saved by Save properties or the broader Save assumptions button. Save & refresh persists a new row first, then pulls the latest county valuation."
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={updatePlanning.isPending}
+                        onClick={() => void saveRealEstateAssets()}
+                      >
+                        Save properties
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={addRealEstateAsset}
+                      >
+                        Add property
+                      </Button>
+                    </div>
+                  </div>
+                  {realEstateDraft.length === 0 ? (
+                    <p className="mt-3 text-sm text-text-muted">
+                      No real estate rows yet. Add the Tampa house, note
+                      receivable, or other family property here. Leave treatment
+                      as Track only until the value/date/cash path is reliable.
+                    </p>
+                  ) : (
+                    <div className="mt-3 space-y-3">
+                      {realEstateDraft.map((row, index) => {
+                        const propertyKey = row.id ?? `new-${index}`
+                        const expanded =
+                          expandedPropertyKeys.includes(propertyKey)
+                        const history = row.id
+                          ? valuationHistoryByProperty.get(row.id)
+                          : undefined
+                        const trendPoints = propertyTrendPoints(history?.points)
+                        const value = parseOptionalAmount(row.propertyValue)
+                        const stale = valuationStale(row.valueAsOf)
+                        return (
+                          <div
+                            key={propertyKey}
+                            className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4"
+                          >
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              className="w-full text-left"
+                              onClick={() =>
+                                togglePropertyExpanded(propertyKey)
+                              }
+                              onKeyDown={(event) => {
+                                if (
+                                  event.key === 'Enter' ||
+                                  event.key === ' '
+                                ) {
+                                  event.preventDefault()
+                                  togglePropertyExpanded(propertyKey)
+                                }
+                              }}
+                              aria-expanded={expanded}
+                            >
+                              <div className="grid gap-3 md:grid-cols-[1.3fr_0.8fr_1.2fr_auto] md:items-start">
+                                <div>
+                                  <p className="text-sm font-semibold text-text">
+                                    {row.label.trim() ||
+                                      `Property ${index + 1}`}
+                                  </p>
+                                  <p className="mt-1 text-xs text-text-muted">
+                                    {row.propertyAddress.trim() ||
+                                      'Address not set'}
+                                  </p>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    <Badge
+                                      variant={stale ? 'warning' : 'success'}
+                                    >
+                                      {stale ? 'Stale / manual' : 'Fresh'}
+                                    </Badge>
+                                    {!row.id ? (
+                                      <Badge variant="outline">Unsaved</Badge>
+                                    ) : null}
+                                    <Badge variant="outline">
+                                      {valuationSourceLabel(
+                                        row.valuationSource,
+                                      )}
+                                    </Badge>
+                                  </div>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                                    Value
+                                  </p>
+                                  <p className="mt-1 text-2xl font-semibold text-text">
+                                    {value == null
+                                      ? '—'
+                                      : formatCurrencyWhole(value)}
+                                  </p>
+                                  <p className="mt-1 text-xs text-text-muted">
+                                    As of {formatShortDate(row.valueAsOf)}
+                                  </p>
+                                </div>
+                                <div>
+                                  {trendPoints.length >= 2 ? (
+                                    <NetWorthTrendLine
+                                      points={trendPoints}
+                                      loading={
+                                        propertyValuationsQuery.isLoading
+                                      }
+                                      ariaLabel={`${row.label || 'Property'} value trend`}
+                                      tooltipTestId="property-value-trend-tooltip"
+                                    />
+                                  ) : (
+                                    <div className="rounded-xl border border-border/30 bg-surface/50 px-3 py-2 text-xs text-text-muted">
+                                      Trendline starts after two saved
+                                      valuations.
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex items-center justify-end gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={
+                                      !(
+                                        row.propertyAddress || row.label
+                                      ).trim() ||
+                                      refreshPropertyValuation.isPending ||
+                                      updatePlanning.isPending
+                                    }
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      void refreshPropertyValue(row)
+                                    }}
+                                  >
+                                    {row.id ? 'Refresh' : 'Save & refresh'}
+                                  </Button>
+                                  <span className="text-xs text-text-muted">
+                                    {expanded ? 'Hide details' : 'Details'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            {expanded ? (
+                              <div className="mt-4 border-t border-border/30 pt-4">
+                                <div className="grid gap-3 md:grid-cols-4">
+                                  <label className="text-xs text-text-muted">
+                                    Property / asset
+                                    <Input
+                                      className="mt-1"
+                                      value={row.label}
+                                      onChange={(event) =>
+                                        updateRealEstateDraft(
+                                          index,
+                                          'label',
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                  <label className="text-xs text-text-muted md:col-span-2">
+                                    Address
+                                    <Input
+                                      className="mt-1"
+                                      placeholder="3636 Avocado Road, Largo, FL 33770"
+                                      value={row.propertyAddress}
+                                      onChange={(event) =>
+                                        updateRealEstateDraft(
+                                          index,
+                                          'propertyAddress',
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                  <label className="text-xs text-text-muted">
+                                    Value
+                                    <Input
+                                      className="mt-1"
+                                      inputMode="decimal"
+                                      value={row.propertyValue}
+                                      onChange={(event) =>
+                                        updateRealEstateDraft(
+                                          index,
+                                          'propertyValue',
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                </div>
+                                <div className="mt-3 grid gap-3 md:grid-cols-4">
+                                  <label className="text-xs text-text-muted">
+                                    Ownership %
+                                    <Input
+                                      className="mt-1"
+                                      inputMode="decimal"
+                                      value={row.ownershipPercent}
+                                      onChange={(event) =>
+                                        updateRealEstateDraft(
+                                          index,
+                                          'ownershipPercent',
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                  <label className="text-xs text-text-muted">
+                                    Mortgage / note balance
+                                    <Input
+                                      className="mt-1"
+                                      inputMode="decimal"
+                                      value={row.mortgageBalance}
+                                      onChange={(event) =>
+                                        updateRealEstateDraft(
+                                          index,
+                                          'mortgageBalance',
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                  <label className="text-xs text-text-muted">
+                                    Valuation source
+                                    <Input
+                                      className="mt-1"
+                                      disabled
+                                      value={valuationSourceLabel(
+                                        row.valuationSource,
+                                      )}
+                                    />
+                                  </label>
+                                  <label className="text-xs text-text-muted">
+                                    Range
+                                    <Input
+                                      className="mt-1"
+                                      disabled
+                                      value={
+                                        row.valuationRangeLow &&
+                                        row.valuationRangeHigh
+                                          ? `${formatCurrencyWhole(
+                                              Number(row.valuationRangeLow),
+                                            )}–${formatCurrencyWhole(
+                                              Number(row.valuationRangeHigh),
+                                            )}`
+                                          : '—'
+                                      }
+                                    />
+                                  </label>
+                                </div>
+                                <div className="mt-3 grid gap-3 md:grid-cols-4">
+                                  <label className="text-xs text-text-muted">
+                                    Retirement treatment
+                                    <Select
+                                      value={row.retirementTreatment}
+                                      onValueChange={(value) =>
+                                        updateRealEstateDraft(
+                                          index,
+                                          'retirementTreatment',
+                                          value,
+                                        )
+                                      }
+                                    >
+                                      <SelectTrigger className="mt-1">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="track_only">
+                                          Track only
+                                        </SelectItem>
+                                        <SelectItem value="income">
+                                          Income stream
+                                        </SelectItem>
+                                        <SelectItem value="planned_sale">
+                                          Planned sale / liquidity
+                                        </SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </label>
+                                  <label className="text-xs text-text-muted">
+                                    Income $/yr
+                                    <Input
+                                      className="mt-1"
+                                      inputMode="decimal"
+                                      disabled={
+                                        row.retirementTreatment !== 'income'
+                                      }
+                                      value={row.annualRetirementIncome}
+                                      onChange={(event) =>
+                                        updateRealEstateDraft(
+                                          index,
+                                          'annualRetirementIncome',
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                  <label className="text-xs text-text-muted">
+                                    Sale/liquidity year
+                                    <Input
+                                      className="mt-1"
+                                      inputMode="numeric"
+                                      disabled={
+                                        row.retirementTreatment !==
+                                        'planned_sale'
+                                      }
+                                      value={row.liquidityYear}
+                                      onChange={(event) =>
+                                        updateRealEstateDraft(
+                                          index,
+                                          'liquidityYear',
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                  <label className="text-xs text-text-muted">
+                                    Net proceeds
+                                    <Input
+                                      className="mt-1"
+                                      inputMode="decimal"
+                                      disabled={
+                                        row.retirementTreatment !==
+                                        'planned_sale'
+                                      }
+                                      value={row.liquidityAmount}
+                                      onChange={(event) =>
+                                        updateRealEstateDraft(
+                                          index,
+                                          'liquidityAmount',
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                </div>
+                                <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+                                  <Input
+                                    aria-label={`Real estate notes for ${row.label}`}
+                                    placeholder="ownership, inheritance, sibling split, valuation source"
+                                    value={row.notes}
+                                    onChange={(event) =>
+                                      updateRealEstateDraft(
+                                        index,
+                                        'notes',
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => removeRealEstateAsset(index)}
+                                  >
+                                    Remove
+                                  </Button>
+                                </div>
+                                {history?.latest?.methodology ? (
+                                  <p className="mt-3 text-xs text-text-muted">
+                                    {history.latest.methodology}
+                                  </p>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </SectionCard>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem
+              value="allocation"
+              className="rounded-2xl border border-border/40 bg-surface-muted/10 px-0"
+            >
+              <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                <PlannerAccordionHeader
+                  title="Allocation sandbox"
+                  detail="Compare current holdings, asset-class sliders, or ticker baskets without changing real accounts."
+                  meta={
+                    <Badge variant="outline">
+                      {modeledExpectedReturn == null
+                        ? 'Return pending'
+                        : formatPercent(modeledExpectedReturn * 100, {
+                            decimals: 1,
+                          })}
+                    </Badge>
+                  }
+                />
+              </AccordionTrigger>
+              <AccordionContent className="px-4 pb-5">
+                <SectionCard variant="ghost" padding="none">
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      ['current', 'Current portfolio'],
+                      ['classes', 'Asset classes'],
+                      ['tickers', 'Ticker basket'],
+                    ].map(([mode, label]) => (
+                      <Button
+                        key={mode}
+                        type="button"
+                        size="sm"
+                        variant={
+                          allocationMode === mode ? 'default' : 'outline'
+                        }
+                        onClick={() =>
+                          setAllocationMode(mode as AllocationMode)
+                        }
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={useCurrentAllocation}
+                    >
+                      Copy current to sliders
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={applyDraft}
+                      disabled={previewQuery.isFetching}
+                    >
+                      {previewQuery.isFetching
+                        ? 'Running…'
+                        : hasPendingChanges
+                          ? 'Run preview •'
+                          : 'Run preview'}
+                    </Button>
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                    <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                        Modeled return
+                      </p>
+                      <p className="mt-2 font-mono text-2xl text-text">
+                        {modeledExpectedReturn == null
+                          ? '—'
+                          : formatPercent(modeledExpectedReturn * 100, {
+                              decimals: 1,
+                            })}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                        Income yield
+                      </p>
+                      <p className="mt-2 font-mono text-2xl text-text">
+                        {modeledIncomeYield == null
+                          ? '—'
+                          : formatPercent(modeledIncomeYield * 100, {
+                              decimals: 1,
+                            })}
+                      </p>
+                      {incomeYieldFreshnessLabel ? (
+                        <span
+                          className={`mt-2 inline-block rounded-full border px-2 py-0.5 text-[11px] font-medium ${freshnessToneClass(
+                            incomeYieldFreshnessStatus,
+                          )}`}
+                        >
+                          {incomeYieldFreshnessLabel}
+                        </span>
+                      ) : null}
+                      <div className="mt-2">
+                        <InfoBadge
+                          label="No double count"
+                          detail="Income yield and tax drag are shown separately. Success odds use total return, so dividends and interest are not added twice."
+                        />
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                        Taxable income
+                      </p>
+                      <p className="mt-2 font-mono text-2xl text-text">
+                        {modeledTaxableIncome == null
+                          ? '—'
+                          : formatCurrency(modeledTaxableIncome, {
+                              decimals: 0,
+                            })}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                        Income tax drag
+                      </p>
+                      <p className="mt-2 font-mono text-2xl text-text">
+                        {modeledTaxDrag == null
+                          ? '—'
+                          : formatCurrency(modeledTaxDrag, { decimals: 0 })}
+                      </p>
+                    </div>
+                    <label className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4 text-xs text-text-muted">
+                      SPAXX / cash yield %
+                      <Input
+                        className="mt-2"
+                        inputMode="decimal"
+                        value={draft.cashYield}
+                        onChange={(event) =>
+                          updateDraft('cashYield', event.target.value)
+                        }
+                      />
+                      <span className="mt-2 block">
+                        Cash buckets and SPAXX ticker rows use{' '}
+                        {formatPercent(modeledCashYield * 100, { decimals: 2 })}
+                        .
+                      </span>
+                      <span className="mt-2 block">
+                        Source: {modeledCashYieldSource}.
+                      </span>
+                      {cashYieldFreshnessLabel ? (
+                        <span
+                          className={`mt-2 inline-block rounded-full border px-2 py-0.5 text-[11px] font-medium ${freshnessToneClass(
+                            cashYieldFreshnessStatus,
+                          )}`}
+                        >
+                          {cashYieldFreshnessLabel}
+                        </span>
+                      ) : null}
+                      <span className="mt-2 block">
+                        Editable — update it when money-market yields move.
+                      </span>
+                    </label>
+                  </div>
+                  <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+                    <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                        Modeled allocation
+                      </p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {allocationRows.map((row) => (
+                          <div
+                            key={row.key}
+                            className="flex items-center justify-between rounded-xl border border-border/25 px-3 py-2 text-sm"
+                          >
+                            <span className="text-text-muted">{row.label}</span>
+                            <span className="font-mono text-text">
+                              {row.value == null
+                                ? '—'
+                                : formatPercent(row.value * 100, {
+                                    decimals: 0,
+                                  })}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3">
+                        <InfoBadge
+                          label="Ticker mapping"
+                          detail="VTI, VOO, SPY, SCHD, VYM, DGRO, JEPI and common stocks map to US stocks; SPAXX/FDRXX/VMFXX/SWVXX map to cash."
+                        />
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                      {allocationMode === 'classes' ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                              Asset-class weights
+                            </p>
+                            <p className="font-mono text-xs text-text-muted">
+                              Total {Math.round(allocationDraftTotal)}%
+                            </p>
+                          </div>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            {allocationClasses.map((assetClass) => (
+                              <label
+                                key={assetClass.key}
+                                className="text-xs text-text-muted"
+                              >
+                                {assetClass.label}
+                                <Input
+                                  className="mt-1"
+                                  inputMode="decimal"
+                                  value={allocationDraft[assetClass.key]}
+                                  onChange={(event) =>
+                                    updateAllocationDraft(
+                                      assetClass.key,
+                                      event.target.value,
+                                    )
+                                  }
+                                />
+                              </label>
+                            ))}
+                          </div>
+                          <p className="text-xs text-text-muted">
+                            Percentages are normalized automatically when you
+                            run the preview.
+                          </p>
+                        </div>
+                      ) : allocationMode === 'tickers' ? (
+                        <div className="space-y-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                            Ticker weights
+                          </p>
+                          <Textarea
+                            value={tickerMix}
+                            onChange={(event) =>
+                              setTickerMix(event.target.value)
+                            }
+                            rows={6}
+                            placeholder={
+                              'VTI 70\nSCHD 10 3.6\nBND 10 4.0\nSPAXX 10'
+                            }
+                          />
+                          <p className="text-xs text-text-muted">
+                            Enter symbol, weight, and optional income yield %
+                            per line. Unknown tickers fall back to US stocks.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-border/40 p-4 text-sm text-text-muted">
+                          Current portfolio mode uses live holdings. Switch
+                          modes, then Run preview, to compare a what-if
+                          allocation.
+                          {accountAllocationCoverage &&
+                          accountAllocationCoverage.status !== 'exact' ? (
+                            <p className="mt-2">
+                              Current allocation confidence:{' '}
+                              <span className="font-medium text-text">
+                                {accountAllocationCoverage.label}
+                              </span>{' '}
+                              (
+                              {formatPercent(
+                                accountAllocationCoverage.exactShare * 100,
+                                {
+                                  decimals: 0,
+                                },
+                              )}{' '}
+                              exact account allocation/cash).
+                            </p>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                        Scenario lab
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={runCompare}
+                        disabled={compareRunning}
+                      >
+                        {compareRunning
+                          ? 'Comparing…'
+                          : `Compare current + ${compareSelection.length} selected`}
+                      </Button>
+                    </div>
+                    <div className="mt-1">
+                      <InfoBadge
+                        label="Scenario lab"
+                        detail="Save ticker mixes as named scenarios, then compare them side-by-side against your real account allocation. Each scenario keeps its own bridge style."
+                      />
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-end gap-2">
+                      <label className="text-xs text-text-muted">
+                        Scenario name
+                        <Input
+                          className="mt-1 w-56"
+                          aria-label="Scenario name"
+                          value={scenarioName}
+                          onChange={(event) =>
+                            setScenarioName(event.target.value)
+                          }
+                          placeholder="e.g. Equity bridge"
+                        />
+                      </label>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={saveScenarioFromMix}
+                        disabled={
+                          replaceScenarios.isPending ||
+                          !scenarioName.trim() ||
+                          (parseTickerMix(tickerMix) ?? []).length === 0
+                        }
+                      >
+                        Save ticker mix as scenario
+                      </Button>
+                    </div>
+                    {(scenariosQuery.data ?? []).length === 0 ? (
+                      <p className="mt-3 text-xs text-text-muted">
+                        No saved scenarios yet. Enter a ticker mix above and
+                        save it here to start comparing.
+                      </p>
+                    ) : (
+                      <div className="mt-3 space-y-2">
+                        {(scenariosQuery.data ?? []).map((scenario) => (
+                          <div
+                            key={scenario.id}
+                            className="flex flex-wrap items-center gap-3 rounded-xl border border-border/35 bg-surface-muted/15 px-3 py-2"
+                          >
+                            <label className="flex items-center gap-2 text-sm text-text">
+                              <input
+                                type="checkbox"
+                                aria-label={`Compare ${scenario.name}`}
+                                checked={compareSelection.includes(scenario.id)}
+                                onChange={(event) =>
+                                  setCompareSelection((current) =>
+                                    event.target.checked
+                                      ? [...current, scenario.id]
+                                      : current.filter(
+                                          (item) => item !== scenario.id,
+                                        ),
+                                  )
+                                }
+                              />
+                              <span className="font-medium">
+                                {scenario.name}
+                              </span>
+                            </label>
+                            <span className="text-xs text-text-muted">
+                              {scenario.holdings
+                                .map((row) => `${row.symbol} ${row.weight}`)
+                                .join(' · ')}
+                            </span>
+                            <span className="text-xs text-text-muted">
+                              bridge:{' '}
+                              {scenario.bridgeGrowth === 'portfolio'
+                                ? 'invested'
+                                : `fixed ${formatPercent(
+                                    (scenario.bridgeRealReturn ?? 0.01) * 100,
+                                    { decimals: 1 },
+                                  )}`}
+                            </span>
+                            <span className="ml-auto flex gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => loadScenario(scenario)}
+                              >
+                                Load
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => deleteScenario(scenario.id)}
+                                disabled={replaceScenarios.isPending}
+                              >
+                                Delete
+                              </Button>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {compareError ? (
+                      <p className="mt-3 text-xs text-danger">{compareError}</p>
+                    ) : null}
+                    {compareResults ? (
+                      <div className="mt-3 overflow-x-auto">
+                        <table className="w-full min-w-[28rem] text-sm">
+                          <thead>
+                            <tr className="text-left text-xs uppercase tracking-[0.12em] text-text-muted">
+                              <th className="py-1.5 pr-3">Scenario</th>
+                              <th className="py-1.5 pr-3">Success</th>
+                              <th className="py-1.5 pr-3">Median ending</th>
+                              <th className="py-1.5">First depletion</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {compareResults.map((row) => (
+                              <tr
+                                key={row.name}
+                                className="border-t border-border/30"
+                              >
+                                <td className="py-1.5 pr-3 font-medium text-text">
+                                  {row.name}
+                                </td>
+                                <td className="py-1.5 pr-3 font-mono tabular-nums">
+                                  {percentPoints(row.success)}
+                                </td>
+                                <td className="py-1.5 pr-3 font-mono tabular-nums">
+                                  {formatCurrencyWhole(row.medianEnding)}
+                                </td>
+                                <td className="py-1.5 font-mono tabular-nums">
+                                  {row.depletionAge != null
+                                    ? `age ${row.depletionAge}`
+                                    : 'never'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <p className="mt-2 text-xs text-text-muted">
+                          Same seed and knob set per run — only the allocation
+                          and bridge style differ.
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                </SectionCard>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         ) : null}
       </SectionCard>
 

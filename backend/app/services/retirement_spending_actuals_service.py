@@ -21,15 +21,16 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.services._household_month_coverage import (
+    month_key as _month_key,
+)
+from app.services._household_month_coverage import (
+    trailing_complete_coverage_months,
+)
 from app.services.household_transaction_dedup_service import (
     merchant_key,
     merchants_compatible,
 )
-
-# A complete month needs this many ledger rows to count as covered; below it
-# the ledger only has incidental rows (one forwarded receipt), not the
-# household's actual spend, and including it would understate the run-rate.
-MIN_ROWS_PER_COVERED_MONTH = 20
 
 _HEALTHCARE_CATEGORY = "healthcare"
 
@@ -64,34 +65,9 @@ class SpendingActuals(BaseModel):
     healthcare_merchants: list[SpendingActualsMerchant] = Field(default_factory=list)
 
 
-def _month_key(value: date) -> str:
-    return value.strftime("%Y-%m")
-
-
-def _previous_month(month: str) -> str:
-    year, mm = int(month[:4]), int(month[5:7])
-    if mm == 1:
-        return f"{year - 1}-12"
-    return f"{year}-{mm - 1:02d}"
-
-
 def _coverage_window(rows: list[dict[str, Any]], *, today: date) -> list[str]:
     """Trailing contiguous run of complete, substantively covered months."""
-    current_month = _month_key(today)
-    counts: dict[str, int] = {}
-    for row in rows:
-        month = _month_key(row["date"])
-        if month < current_month:
-            counts[month] = counts.get(month, 0) + 1
-    covered = {m for m, n in counts.items() if n >= MIN_ROWS_PER_COVERED_MONTH}
-    if not covered:
-        return []
-    window: list[str] = []
-    month = max(covered)
-    while month in covered:
-        window.append(month)
-        month = _previous_month(month)
-    return sorted(window)
+    return trailing_complete_coverage_months(rows, today=today)
 
 
 def _signed_amount(row: dict[str, Any]) -> float:

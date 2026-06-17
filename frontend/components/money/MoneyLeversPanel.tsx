@@ -37,6 +37,14 @@ const leverWindows: Array<{ value: LeverWindow; label: string }> = [
   { value: 'all', label: 'All' },
 ]
 
+const leverWindowMonths: Record<LeverWindow, number | null> = {
+  '1m': 1,
+  '3m': 3,
+  '6m': 6,
+  '12m': 12,
+  all: null,
+}
+
 const actionLanes: Array<{
   key: SavingsActionKind
   title: string
@@ -147,6 +155,18 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
 
   const totalSpend = spending?.summary.totalSpend ?? 0
   const averageMonthlySpend = spending?.summary.averageMonthlySpend ?? 0
+  const averageCoverageMonths = spending?.summary.coverageMonths ?? 0
+  const requestedCoverageMonths = leverWindowMonths[window]
+  const hasShortCoverage =
+    requestedCoverageMonths != null &&
+    averageCoverageMonths > 0 &&
+    averageCoverageMonths < requestedCoverageMonths
+  const averageMonthlyDetail =
+    averageCoverageMonths > 0
+      ? hasShortCoverage
+        ? `${averageCoverageMonths} complete month${averageCoverageMonths === 1 ? '' : 's'} with data`
+        : 'Complete-month run-rate'
+      : 'No complete spend coverage'
   const categoryRows = useMemo(
     () =>
       [...(spending?.categories ?? [])].sort(
@@ -399,7 +419,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
               {formatCurrency(averageMonthlySpend, { decimals: 0 })}
             </p>
             <p className="mt-1 text-xs text-text-muted">
-              Canonical monthly run-rate
+              {averageMonthlyDetail}
             </p>
           </div>
           <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
@@ -438,6 +458,15 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
             </p>
           </div>
         </div>
+        {hasShortCoverage ? (
+          <p className="mt-3 rounded-xl border border-warning/35 bg-warning/10 px-3 py-2 text-xs text-text">
+            This household does not have {requestedCoverageMonths} complete
+            months of spend data in the selected window. Monthly averages and
+            modeled trims use the {averageCoverageMonths} complete covered month
+            {averageCoverageMonths === 1 ? '' : 's'} instead of dividing by{' '}
+            {requestedCoverageMonths}.
+          </p>
+        ) : null}
       </SectionCard>
 
       <SectionCard
