@@ -953,6 +953,90 @@ def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() ->
     ]
 
 
+def test_build_spending_view_uses_observed_months_when_window_exceeds_data_coverage() -> None:
+    today = date.today()
+
+    def month_date(months_ago: int) -> date:
+        month_index = today.year * 12 + today.month - 1 - months_ago
+        return date(month_index // 12, month_index % 12 + 1, min(today.day, 28))
+
+    rows = [
+        (
+            "txn-current",
+            None,
+            datetime.combine(month_date(0), datetime.min.time(), tzinfo=UTC),
+            "AMAZON MKTPL CURRENT",
+            "AMAZON MKTPL CURRENT",
+            Decimal("300.00"),
+            "Retail",
+            "discretionary",
+            "expense",
+            "Checking",
+            "doc-current",
+            "Amazon",
+            "statement",
+            "credit_card",
+            "current.csv",
+            "hash-current",
+            {},
+        ),
+        (
+            "txn-two-months",
+            None,
+            datetime.combine(month_date(2), datetime.min.time(), tzinfo=UTC),
+            "AMAZON MKTPL TWO MONTH",
+            "AMAZON MKTPL TWO MONTH",
+            Decimal("600.00"),
+            "Retail",
+            "discretionary",
+            "expense",
+            "Checking",
+            "doc-two-months",
+            "Amazon",
+            "statement",
+            "credit_card",
+            "two-months.csv",
+            "hash-two-months",
+            {},
+        ),
+        (
+            "txn-eight-months",
+            None,
+            datetime.combine(month_date(8), datetime.min.time(), tzinfo=UTC),
+            "AMAZON MKTPL EIGHT MONTH",
+            "AMAZON MKTPL EIGHT MONTH",
+            Decimal("900.00"),
+            "Retail",
+            "discretionary",
+            "expense",
+            "Checking",
+            "doc-eight-months",
+            "Amazon",
+            "statement",
+            "credit_card",
+            "eight-months.csv",
+            "hash-eight-months",
+            {},
+        ),
+    ]
+
+    def spending_for_window(window: str) -> Any:
+        service = HouseholdTransactionService()
+        service.storage = _SequenceStorage([rows, []])
+        return service.build_spending_view(window=window)
+
+    spending = spending_for_window("12m")
+    all_dates = spending_for_window("all")
+
+    assert spending.summary.total_spend == 1800.0
+    assert spending.summary.coverage_months == 3
+    assert spending.summary.average_monthly_spend == 600.0
+    assert spending.categories[0].average_monthly_spend == 600.0
+    assert all_dates.summary.total_spend == spending.summary.total_spend
+    assert all_dates.summary.coverage_months == spending.summary.coverage_months
+    assert all_dates.summary.average_monthly_spend == spending.summary.average_monthly_spend
+
+
 def test_build_spending_view_nets_credit_card_returns_against_spend() -> None:
     today = date.today()
     service = HouseholdTransactionService()

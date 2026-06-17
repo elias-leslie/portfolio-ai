@@ -714,10 +714,16 @@ class HouseholdTransactionService:
             key: len(ids) for key, ids in category_monthly_transaction_ids.items()
         }
 
+        # Fixed windows are reporting periods, not proof that every month has
+        # imported statement coverage. Use covered months when they are fewer
+        # than the requested window so 12M does not dilute the same transaction
+        # set more than All dates; cap at the selected window so a 90-day span
+        # crossing four calendar months still reports a 3-month run-rate.
+        observed_coverage_months = max(len(monthly_totals), 1)
         coverage_months = (
-            timeframe.window_months
+            min(timeframe.window_months, observed_coverage_months)
             if timeframe.window_months is not None
-            else max(len(monthly_totals), 1)
+            else observed_coverage_months
         )
         total_spend = round(
             sum(float(row.get("signed_amount", row["amount"])) for row in spend_rows),
