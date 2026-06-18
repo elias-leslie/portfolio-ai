@@ -1649,12 +1649,13 @@ describe('MoneyRetirementPanel', () => {
     const netInput = screen.getByRole('textbox', {
       name: /spouse net monthly take-home during partial retirement/i,
     })
-    expect(netInput).toHaveValue('5300')
+    await waitFor(() => expect(netInput).toHaveValue('6499.93'))
     expect(screen.getByText(/window: age 50–54/i)).toBeInTheDocument()
-    // Largest recurring non-yield stream renders as a display-only hint.
+    // Largest recurring non-yield stream auto-feeds the partial window until edited.
     expect(
       screen.getByText(/detected from money transactions:/i),
     ).toHaveTextContent('Mariana')
+    expect(screen.getByText(/auto-fed into this plan/i)).toBeInTheDocument()
 
     // Levers re-project live through the debounce — no Run preview click.
     await user.clear(netInput)

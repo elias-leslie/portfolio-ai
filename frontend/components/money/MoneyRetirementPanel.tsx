@@ -1383,6 +1383,8 @@ export function MoneyRetirementPanel({
   const [partialDraft, setPartialDraft] = useState(() =>
     defaultPartialDraft(dashboard),
   )
+  const [partialNetManualOverride, setPartialNetManualOverride] =
+    useState(false)
   const [childReductionDraft, setChildReductionDraft] = useState(() =>
     defaultChildReductionDraft(dashboard),
   )
@@ -1591,8 +1593,8 @@ export function MoneyRetirementPanel({
     0,
     fullRetirementAge - partialWindowStartAge,
   )
-  // Largest recurring take-home stream from Money transactions — a
-  // display-only hint for the spouse-net lever, never fed into the sim.
+  // Largest recurring take-home stream from Money transactions — auto-feeds
+  // the spouse-net lever until the user edits it.
   const detectedTakeHome = useMemo(() => {
     const candidates = (incomeActuals?.streams ?? []).filter(
       (stream) => stream.status === 'active',
@@ -1643,6 +1645,7 @@ export function MoneyRetirementPanel({
     const nextPartial = defaultPartialDraft(dashboard)
     const nextChildReductions = defaultChildReductionDraft(dashboard)
     const nextRealEstate = defaultRealEstateDraft(dashboard)
+    setPartialNetManualOverride(false)
     setDraft(nextDraft)
     setWithdrawalDraft(nextWithdrawal)
     setAcaDraft(nextAca)
@@ -1668,6 +1671,16 @@ export function MoneyRetirementPanel({
       ),
     )
   }, [dashboard])
+
+  useEffect(() => {
+    if (!detectedTakeHome || partialNetManualOverride) return
+    const next = amountInput(detectedTakeHome.runRateMonthly)
+    setPartialDraft((current) =>
+      current.spouseNetMonthly === next
+        ? current
+        : { ...current, spouseNetMonthly: next },
+    )
+  }, [detectedTakeHome, partialNetManualOverride])
 
   const projectionData = useMemo(() => {
     if (!preview) return []
@@ -2243,6 +2256,9 @@ export function MoneyRetirementPanel({
   }
 
   const updatePartialDraft = (key: keyof PartialDraft, value: string) => {
+    if (key === 'spouseNetMonthly') {
+      setPartialNetManualOverride(true)
+    }
     setPartialDraft((current) => ({ ...current, [key]: value }))
   }
 
@@ -3554,7 +3570,7 @@ export function MoneyRetirementPanel({
                       {detectedTakeHome.active
                         ? ''
                         : `, last deposit ${detectedTakeHome.lastDate}`}{' '}
-                      — reference only, never fed into the plan.
+                      — auto-fed into this plan until edited.
                     </p>
                   ) : null}
                 </div>

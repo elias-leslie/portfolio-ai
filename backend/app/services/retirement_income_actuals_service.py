@@ -2,9 +2,9 @@
 
 Recurring take-home income streams (payroll deposits, benefits, marketplace
 payouts) are detected from ``flow_type='income'`` rows so the retirement
-planner can show its income assumptions side by side with what actually
-lands in the bank. Detection is informational only — nothing here feeds the
-simulation.
+planner can compare plan income against what actually lands in the bank. The
+Money retirement panel uses the active take-home run-rate as the default
+partial-retirement spouse-net input until the user edits it.
 
 Coverage months come from overall ledger row counts (any flow type): income
 rows are too sparse (2-6/month) for the spend service's per-month row gate,
