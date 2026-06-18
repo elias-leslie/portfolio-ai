@@ -348,6 +348,65 @@ class RetirementAccountAllocationCoverage(BaseModel):
     accounts: tuple[RetirementAccountAllocationAccount, ...] = ()
 
 
+class RetirementBucketStrategyHolding(BaseModel):
+    """Holding/account detail rolled into a time-segment retirement bucket."""
+
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str
+    label: str
+    asset_class: str
+    current_value: float = Field(0.0, ge=0.0)
+    share_of_bucket: float = Field(0.0, ge=0.0, le=1.0)
+    source: Literal["exact", "cash", "inferred"] = "exact"
+    account_label: str | None = None
+
+
+class RetirementBucketStrategyBucket(BaseModel):
+    """One dynamic time-segment bucket in the retirement income strategy."""
+
+    model_config = ConfigDict(frozen=True)
+
+    bucket_id: Literal["now", "soon", "later"]
+    label: str
+    time_horizon: str
+    purpose: str
+    current_value: float = Field(0.0, ge=0.0)
+    target_value: float = Field(0.0, ge=0.0)
+    target_years: float = Field(0.0, ge=0.0)
+    current_share: float = Field(0.0, ge=0.0, le=1.0)
+    target_share: float = Field(0.0, ge=0.0, le=1.0)
+    fill_ratio: float = Field(0.0, ge=0.0)
+    gap_value: float = 0.0
+    status: Literal["underfilled", "aligned", "overfilled", "empty"] = "empty"
+    status_label: str
+    action: str
+    asset_allocation: dict[str, float] = Field(default_factory=dict)
+    holdings: tuple[RetirementBucketStrategyHolding, ...] = ()
+
+
+class RetirementBucketStrategy(BaseModel):
+    """Dynamic three-bucket retirement income strategy for the preview."""
+
+    model_config = ConfigDict(frozen=True)
+
+    strategy_type: Literal["dynamic_three_bucket"] = "dynamic_three_bucket"
+    label: str = "Dynamic 3-bucket strategy"
+    status: Literal["underfilled", "aligned", "overfilled", "empty"] = "empty"
+    status_label: str = "No bucket data"
+    detail: str = "No spendable portfolio buckets are available."
+    years_to_retirement: float = Field(0.0, ge=0.0)
+    retirement_age: int = Field(0, ge=0, le=120)
+    annual_portfolio_need: float = Field(0.0, ge=0.0)
+    target_total: float = Field(0.0, ge=0.0)
+    current_total: float = Field(0.0, ge=0.0)
+    alignment_score: float = Field(0.0, ge=0.0, le=1.0)
+    buckets: tuple[RetirementBucketStrategyBucket, ...] = ()
+    rebalance_actions: tuple[str, ...] = ()
+    methodology: tuple[str, ...] = ()
+    monte_carlo_detail: str = ""
+
+
 class RetirementDrawdownYear(BaseModel):
     """One calendar year in the deterministic drawdown schedule.
 
@@ -480,6 +539,7 @@ class RetirementPreview(BaseModel):
     account_allocation_coverage: RetirementAccountAllocationCoverage = Field(
         default_factory=RetirementAccountAllocationCoverage
     )
+    bucket_strategy: RetirementBucketStrategy = Field(default_factory=RetirementBucketStrategy)
     tax_assumptions: dict[str, Any] = Field(default_factory=dict)
     return_assumptions: dict[str, Any] = Field(default_factory=dict)
     drawdown_schedule: tuple[RetirementDrawdownYear, ...] = ()

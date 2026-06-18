@@ -781,6 +781,7 @@ def test_preview_builds_account_buckets_and_levers(
     service = _make_service(conn)
     preview = service.preview(
         "hh-preview",
+        primary_age=63,
         retirement_age=65,
         monthly_spend=6_000.0,
         horizon_years=25,
@@ -829,6 +830,17 @@ def test_preview_builds_account_buckets_and_levers(
     assert allocation_by_label["IRA"].allocation["us_equity"] == pytest.approx(0.6)
     assert allocation_by_label["IRA"].allocation["bonds"] == pytest.approx(0.4)
     assert preview.inputs.asset_allocation == preview.account_allocation_coverage.asset_allocation
+    assert preview.bucket_strategy.strategy_type == "dynamic_three_bucket"
+    assert preview.bucket_strategy.years_to_retirement == 2.0
+    strategy_by_id = {
+        bucket.bucket_id: bucket for bucket in preview.bucket_strategy.buckets
+    }
+    assert strategy_by_id["now"].target_value > 0
+    assert strategy_by_id["soon"].target_value > strategy_by_id["now"].target_value
+    assert strategy_by_id["now"].current_value == 50_000.0
+    assert strategy_by_id["soon"].asset_allocation == {"bonds": 1.0}
+    assert any("Increase" in action for action in preview.bucket_strategy.rebalance_actions)
+    assert "account buckets" in preview.bucket_strategy.monte_carlo_detail
     assert {bucket.bucket_type for bucket in preview.account_buckets} == {
         "cash",
         "taxable",

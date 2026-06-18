@@ -725,6 +725,53 @@ export interface RetirementAccountAllocationCoverage {
   accounts: RetirementAccountAllocationAccount[]
 }
 
+export interface RetirementBucketStrategyHolding {
+  symbol: string
+  label: string
+  assetClass: string
+  currentValue: number
+  shareOfBucket: number
+  source: 'exact' | 'cash' | 'inferred'
+  accountLabel: string | null
+}
+
+export interface RetirementBucketStrategyBucket {
+  bucketId: 'now' | 'soon' | 'later'
+  label: string
+  timeHorizon: string
+  purpose: string
+  currentValue: number
+  targetValue: number
+  targetYears: number
+  currentShare: number
+  targetShare: number
+  fillRatio: number
+  gapValue: number
+  status: 'underfilled' | 'aligned' | 'overfilled' | 'empty'
+  statusLabel: string
+  action: string
+  assetAllocation: Record<string, number>
+  holdings: RetirementBucketStrategyHolding[]
+}
+
+export interface RetirementBucketStrategy {
+  strategyType: 'dynamic_three_bucket'
+  label: string
+  status: 'underfilled' | 'aligned' | 'overfilled' | 'empty'
+  statusLabel: string
+  detail: string
+  yearsToRetirement: number
+  retirementAge: number
+  annualPortfolioNeed: number
+  targetTotal: number
+  currentTotal: number
+  alignmentScore: number
+  buckets: RetirementBucketStrategyBucket[]
+  rebalanceActions: string[]
+  methodology: string[]
+  monteCarloDetail: string
+}
+
 export interface RetirementDrawdownYear {
   yearIndex: number
   calendarYear: number
@@ -826,6 +873,7 @@ export interface RetirementPreview {
   accountBuckets: RetirementAccountBucket[]
   holdingsCoverage: RetirementHoldingsCoverage | null
   accountAllocationCoverage: RetirementAccountAllocationCoverage | null
+  bucketStrategy: RetirementBucketStrategy | null
   taxAssumptions: Record<string, unknown>
   returnAssumptions: Record<string, unknown>
   drawdownSchedule: RetirementDrawdownYear[]

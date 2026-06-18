@@ -7,9 +7,12 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ComposedChart,
   Legend,
   Line,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -50,6 +53,7 @@ import type {
   RetirementAccountRule,
   RetirementAllocationScenario,
   RetirementAllocationScenarioInput,
+  RetirementBucketStrategyBucket,
   RetirementCollegeYear,
   RetirementIncomeActualsStream,
   RetirementIncomeSourceInput,
@@ -92,6 +96,12 @@ const bucketColors: Record<string, string> = {
   other: 'var(--color-chart-6)',
 }
 
+const strategyBucketColors: Record<string, string> = {
+  now: 'var(--color-chart-5)',
+  soon: 'var(--color-chart-2)',
+  later: 'var(--color-chart-1)',
+}
+
 const bucketOrder = [
   'cash',
   'taxable',
@@ -110,6 +120,10 @@ const allocationClasses = [
   { key: 'real_estate', label: 'Real estate' },
   { key: 'alts', label: 'Alts' },
 ] as const
+
+const allocationLabelByKey = Object.fromEntries(
+  allocationClasses.map(({ key, label }) => [key, label]),
+) as Record<string, string>
 type AllocationMode = 'current' | 'classes' | 'tickers'
 // SSA 2026 constants — mirror backend retirement_planning_service.py
 // SSA_2026_* (deliberate duplicate for live draft estimates)
@@ -198,6 +212,44 @@ function holdingsCoverageVariant(status: string | undefined) {
   if (status === 'partial') return 'warning' as const
   if (status === 'account_value_only') return 'warning' as const
   return 'outline' as const
+}
+
+function bucketStrategyVariant(status: string | undefined) {
+  if (status === 'aligned') return 'success' as const
+  if (status === 'underfilled' || status === 'empty') return 'warning' as const
+  if (status === 'overfilled') return 'secondary' as const
+  return 'outline' as const
+}
+
+function strategyBucketFillLabel(bucket: RetirementBucketStrategyBucket) {
+  if (bucket.targetValue <= 0)
+    return bucket.currentValue > 0 ? 'No target' : 'N/A'
+  return `${Math.round(bucket.fillRatio * 100)}% full`
+}
+
+function strategyBucketGapLabel(bucket: RetirementBucketStrategyBucket) {
+  if (Math.abs(bucket.gapValue) < 1) return 'On target'
+  if (bucket.gapValue < 0) {
+    return `${formatCurrencyWhole(Math.abs(bucket.gapValue))} short`
+  }
+  return `${formatCurrencyWhole(bucket.gapValue)} above`
+}
+
+function allocationBreakdownText(allocation: Record<string, number>) {
+  const rows = Object.entries(allocation)
+    .filter(([, value]) => value > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+  if (rows.length === 0) return 'No allocation detail'
+  return rows
+    .map(
+      ([key, value]) =>
+        `${allocationLabelByKey[key] ?? formatEnumLabel(key)} ${formatPercent(
+          value * 100,
+          { decimals: 0 },
+        )}`,
+    )
+    .join(' · ')
 }
 
 function bucketLabel(value: string) {
@@ -1238,6 +1290,76 @@ function PlannerFieldLabel({
   )
 }
 
+function BucketStrategyTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean
+  payload?: Array<{ payload?: RetirementBucketStrategyBucket }>
+}) {
+  if (!active) return null
+  const bucket = payload?.[0]?.payload
+  if (!bucket) return null
+  return (
+    <div className="max-w-xs rounded-2xl border border-border/50 bg-surface p-4 shadow-xl">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-text">{bucket.label}</p>
+        <Badge variant={bucketStrategyVariant(bucket.status)}>
+          {bucket.statusLabel}
+        </Badge>
+      </div>
+      <p className="mt-1 text-xs text-text-muted">{bucket.timeHorizon}</p>
+      <div className="mt-3 grid gap-1 text-xs text-text-muted">
+        <div className="flex justify-between gap-3">
+          <span>Current</span>
+          <span className="font-mono text-text">
+            {formatCurrencyWhole(bucket.currentValue)}
+          </span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span>Target</span>
+          <span className="font-mono text-text">
+            {formatCurrencyWhole(bucket.targetValue)}
+          </span>
+        </div>
+        <div className="flex justify-between gap-3">
+          <span>Status</span>
+          <span className="text-right text-text">
+            {strategyBucketFillLabel(bucket)} · {strategyBucketGapLabel(bucket)}
+          </span>
+        </div>
+      </div>
+      <p className="mt-3 text-xs text-text-muted">
+        {allocationBreakdownText(bucket.assetAllocation)}
+      </p>
+      {bucket.holdings.length > 0 ? (
+        <div className="mt-3 space-y-1">
+          {bucket.holdings.slice(0, 5).map((holding, index) => (
+            <div
+              key={`${holding.symbol}-${holding.accountLabel ?? ''}-${index}`}
+              className="flex justify-between gap-3 text-xs"
+            >
+              <span className="min-w-0 truncate text-text-muted">
+                {holding.label}
+                {holding.source === 'inferred' ? ' (inferred)' : ''}
+              </span>
+              <span className="font-mono text-text">
+                {formatCurrencyWhole(holding.currentValue)}
+              </span>
+            </div>
+          ))}
+          {bucket.holdings.length > 5 ? (
+            <p className="text-xs text-text-muted">
+              +{bucket.holdings.length - 5} more holding
+              {bucket.holdings.length - 5 === 1 ? '' : 's'}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export function MoneyRetirementPanel({
   dashboard,
   onEditTargets,
@@ -1624,6 +1746,14 @@ export function MoneyRetirementPanel({
       .map((bucket) => ({ bucket, value: totals.get(bucket) ?? 0 }))
       .filter((row) => row.value > 0)
   }, [preview?.accountBuckets])
+  const bucketStrategy = preview?.bucketStrategy ?? null
+  const bucketStrategyPieData = useMemo(
+    () =>
+      (bucketStrategy?.buckets ?? []).filter(
+        (bucket) => bucket.currentValue > 0 || bucket.targetValue > 0,
+      ),
+    [bucketStrategy?.buckets],
+  )
   const holdingsCoverage = preview?.holdingsCoverage ?? null
   const accountAllocationCoverage = preview?.accountAllocationCoverage ?? null
 
@@ -2540,32 +2670,170 @@ export function MoneyRetirementPanel({
           </div>
 
           <div className="space-y-3">
+            {bucketStrategy && bucketStrategyPieData.length > 0 ? (
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                      Bucket strategy
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-text">
+                      {bucketStrategy.label}
+                    </p>
+                  </div>
+                  <Badge variant={bucketStrategyVariant(bucketStrategy.status)}>
+                    {bucketStrategy.statusLabel}
+                  </Badge>
+                </div>
+                <p className="mt-2 text-xs text-text-muted">
+                  {bucketStrategy.detail}
+                </p>
+                <div className="mt-4 h-64">
+                  <ResponsiveContainer
+                    width="100%"
+                    height="100%"
+                    minWidth={240}
+                    minHeight={240}
+                    initialDimension={{ width: 360, height: 260 }}
+                  >
+                    <PieChart>
+                      <Pie
+                        data={bucketStrategyPieData}
+                        dataKey="currentValue"
+                        nameKey="label"
+                        innerRadius={54}
+                        outerRadius={88}
+                        paddingAngle={2}
+                      >
+                        {bucketStrategyPieData.map((bucket) => (
+                          <Cell
+                            key={bucket.bucketId}
+                            fill={strategyBucketColors[bucket.bucketId]}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<BucketStrategyTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {bucketStrategy.buckets.map((bucket) => (
+                    <div
+                      key={bucket.bucketId}
+                      className="rounded-xl border border-border/30 bg-bg/25 p-3"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span
+                            className="h-3 w-3 rounded-full"
+                            style={{
+                              backgroundColor:
+                                strategyBucketColors[bucket.bucketId],
+                            }}
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-text">
+                              {bucket.label}
+                            </p>
+                            <p className="text-xs text-text-muted">
+                              {bucket.timeHorizon} ·{' '}
+                              {allocationBreakdownText(bucket.assetAllocation)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-mono text-sm tabular-nums text-text">
+                            {formatCurrencyWhole(bucket.currentValue)}
+                          </p>
+                          <p className="text-xs text-text-muted">
+                            Target {formatCurrencyWhole(bucket.targetValue)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-border/30">
+                        <div
+                          className={`h-full rounded-full ${
+                            bucket.status === 'underfilled' ||
+                            bucket.status === 'empty'
+                              ? 'bg-warning'
+                              : bucket.status === 'overfilled'
+                                ? 'bg-text-muted'
+                                : 'bg-success'
+                          }`}
+                          style={{
+                            width: `${
+                              Math.min(
+                                Math.max(
+                                  bucket.fillRatio,
+                                  bucket.targetValue > 0 ? 0.03 : 0,
+                                ),
+                                1,
+                              ) * 100
+                            }%`,
+                          }}
+                        />
+                      </div>
+                      <div className="mt-2 flex items-center justify-between gap-3 text-xs">
+                        <Badge variant={bucketStrategyVariant(bucket.status)}>
+                          {strategyBucketFillLabel(bucket)}
+                        </Badge>
+                        <span className="text-right text-text-muted">
+                          {bucket.action}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {bucketStrategy.rebalanceActions.length > 0 ? (
+                  <div className="mt-4 rounded-xl border border-warning/30 bg-warning/10 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                      Next allocation moves
+                    </p>
+                    <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-text-muted">
+                      {bucketStrategy.rebalanceActions.map((action) => (
+                        <li key={action}>{action}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                <p className="mt-3 text-xs text-text-muted">
+                  {bucketStrategy.monteCarloDetail}
+                </p>
+              </div>
+            ) : null}
             {bucketTotals.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/10 p-5 text-sm text-text-muted">
                 No account buckets are available yet.
               </div>
             ) : (
-              bucketTotals.map((bucket) => (
-                <div
-                  key={bucket.bucket}
-                  className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="h-3 w-3 rounded-full"
-                        style={{ backgroundColor: bucketColors[bucket.bucket] }}
-                      />
-                      <p className="text-sm font-semibold text-text">
-                        {bucketLabel(bucket.bucket)}
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Account / tax buckets
+                </p>
+                <div className="mt-3 space-y-2">
+                  {bucketTotals.map((bucket) => (
+                    <div
+                      key={bucket.bucket}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-border/25 px-3 py-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="h-3 w-3 rounded-full"
+                          style={{
+                            backgroundColor: bucketColors[bucket.bucket],
+                          }}
+                        />
+                        <p className="text-sm font-semibold text-text">
+                          {bucketLabel(bucket.bucket)}
+                        </p>
+                      </div>
+                      <p className="font-mono text-sm tabular-nums text-text">
+                        {formatCurrencyWhole(bucket.value)}
                       </p>
                     </div>
-                    <p className="font-mono text-sm tabular-nums text-text">
-                      {formatCurrencyWhole(bucket.value)}
-                    </p>
-                  </div>
+                  ))}
                 </div>
-              ))
+              </div>
             )}
             {holdingsCoverage ? (
               <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
@@ -4261,7 +4529,13 @@ export function MoneyRetirementPanel({
                       Spending plan by age (today&apos;s dollars)
                     </p>
                     <div className="mt-3 h-72">
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer
+                        width="100%"
+                        height="100%"
+                        minWidth={240}
+                        minHeight={260}
+                        initialDimension={{ width: 520, height: 280 }}
+                      >
                         <ComposedChart
                           data={spendingPathData}
                           margin={{ left: 8, right: 8 }}
@@ -5255,7 +5529,13 @@ export function MoneyRetirementPanel({
           description="Portfolio range by age. Wider bands mean return sequence risk matters more."
         >
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+              minWidth={240}
+              minHeight={260}
+              initialDimension={{ width: 720, height: 280 }}
+            >
               <AreaChart data={projectionData} margin={{ left: 8, right: 8 }}>
                 <CartesianGrid
                   strokeDasharray="3 3"
@@ -5304,7 +5584,13 @@ export function MoneyRetirementPanel({
             description="Share of Monte Carlo trials that first miss the essential floor at each age. Early bars signal sequence-of-returns risk; late bars signal longevity risk."
           >
             <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
+                minWidth={240}
+                minHeight={200}
+                initialDimension={{ width: 720, height: 220 }}
+              >
                 <BarChart data={failureAgeData} margin={{ left: 8, right: 8 }}>
                   <CartesianGrid
                     strokeDasharray="3 3"
@@ -5429,7 +5715,13 @@ export function MoneyRetirementPanel({
           description="Gross withdrawals needed by account type after retirement income sources. Future (inflated) dollars."
         >
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+              minWidth={240}
+              minHeight={260}
+              initialDimension={{ width: 720, height: 280 }}
+            >
               <BarChart data={withdrawalData} margin={{ left: 8, right: 8 }}>
                 <CartesianGrid
                   strokeDasharray="3 3"
@@ -5465,7 +5757,13 @@ export function MoneyRetirementPanel({
           description="Stacked expected-path balances after contributions, withdrawals, tax estimates, and RMD estimates. Future (inflated) dollars."
         >
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+              minWidth={240}
+              minHeight={260}
+              initialDimension={{ width: 720, height: 280 }}
+            >
               <AreaChart data={balanceData} margin={{ left: 8, right: 8 }}>
                 <CartesianGrid
                   strokeDasharray="3 3"

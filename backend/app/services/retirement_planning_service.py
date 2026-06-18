@@ -30,6 +30,9 @@ from app.portfolio.contracts.retirement import (
     RetirementAccountAllocationCoverage,
     RetirementAccountBucket,
     RetirementAccountRule,
+    RetirementBucketStrategy,
+    RetirementBucketStrategyBucket,
+    RetirementBucketStrategyHolding,
     RetirementCollegeYear,
     RetirementDrawdownYear,
     RetirementHoldingsCoverage,
@@ -146,6 +149,21 @@ BUCKET_TAX_TREATMENTS = {
     "roth": "tax_free_if_qualified",
     "hsa": "tax_free_for_qualified_medical",
     "other": "planning_estimate",
+}
+STRATEGY_BUCKET_LABELS = {
+    "now": "Now / liquidity",
+    "soon": "Soon / stability",
+    "later": "Later / growth",
+}
+STRATEGY_BUCKET_HORIZONS = {
+    "now": "Retirement year 1",
+    "soon": "Retirement years 2-6",
+    "later": "Years 7+",
+}
+STRATEGY_BUCKET_PURPOSES = {
+    "now": "Cash and cash equivalents for the first year of portfolio withdrawals.",
+    "soon": "High-quality bond exposure for the next five years of portfolio withdrawals.",
+    "later": "Stock, real-estate, and other growth exposure for long-horizon spending.",
 }
 TAXABLE_WITHDRAWAL_GAIN_RATIO = 0.15
 FEDERAL_TAX_YEAR = 2026
@@ -467,6 +485,7 @@ class RetirementPlanningService:
         seed: int | None = None,
         tax_context: FederalTaxContext | None = None,
         buckets: tuple[RetirementAccountBucket, ...] = (),
+        bucket_return_allocations: dict[str, dict[str, float]] | None = None,
     ) -> SimulationOutputs:
         """Run the Monte Carlo without persisting; pure compute.
 
@@ -484,6 +503,7 @@ class RetirementPlanningService:
             cma=cma,
             trials=trials,
             seed=seed,
+            bucket_return_allocations=bucket_return_allocations,
         )
 
     def preview(
@@ -606,6 +626,11 @@ class RetirementPlanningService:
             dashboard,
             inputs.asset_allocation,
         )
+        bucket_return_allocations = (
+            _bucket_return_allocations(account_allocation_coverage, self._cma)
+            if not asset_allocation and not allocation_holdings
+            else {}
+        )
         bucket_total = round(sum(bucket.current_value for bucket in buckets), 2)
         if bucket_total > 0:
             input_updates: dict[str, Any] = {"portfolio_value": bucket_total}
@@ -720,11 +745,25 @@ class RetirementPlanningService:
             inputs = inputs.model_copy(update={"aca": aca_config})
 
         tax_context = _tax_context_from_profile(profile, inputs)
-        sim = self.run_simulation(inputs, trials=trials, seed=seed, tax_context=tax_context, buckets=buckets)
+        sim = self.run_simulation(
+            inputs,
+            trials=trials,
+            seed=seed,
+            tax_context=tax_context,
+            buckets=buckets,
+            bucket_return_allocations=bucket_return_allocations,
+        )
         drawdown = self._drawdown_schedule(
             inputs,
             buckets=buckets,
             tax_context=tax_context,
+            bucket_return_allocations=bucket_return_allocations,
+        )
+        bucket_strategy = self._bucket_strategy_from_dashboard(
+            dashboard,
+            inputs,
+            drawdown=drawdown,
+            account_allocation_coverage=account_allocation_coverage,
         )
         account_control = getattr(dashboard, "account_control", None)
         trusted_totals = not bool(getattr(account_control, "blocking_issue_count", 0))
@@ -741,6 +780,7 @@ class RetirementPlanningService:
             account_buckets=buckets,
             holdings_coverage=holdings_coverage,
             account_allocation_coverage=account_allocation_coverage,
+            bucket_strategy=bucket_strategy,
             tax_assumptions=_tax_assumptions(
                 tax_context, buckets=buckets, inputs=inputs, gain_ratio_meta=gain_ratio_meta
             ),
@@ -764,6 +804,7 @@ class RetirementPlanningService:
                 seed=seed,
                 tax_context=tax_context,
                 buckets=buckets,
+                bucket_return_allocations=bucket_return_allocations,
             ),
             first_depletion_age=_first_depletion_age(drawdown, _household_retirement_primary_age(inputs)),
             median_discretionary_path=tuple(sim.median_discretionary_path),
@@ -1424,6 +1465,113 @@ class RetirementPlanningService:
             )
         return _summarize_account_allocation_coverage(rows, self._cma)
 
+    def _bucket_strategy_from_dashboard(
+        self,
+        dashboard: Any,
+        inputs: RetirementInputs,
+        *,
+        drawdown: list[RetirementDrawdownYear],
+        account_allocation_coverage: RetirementAccountAllocationCoverage,
+    ) -> RetirementBucketStrategy:
+        holdings = self._strategy_holdings_from_dashboard(
+            dashboard,
+            inputs.asset_allocation,
+        )
+        return _build_retirement_bucket_strategy(
+            inputs,
+            drawdown=drawdown,
+            account_allocation_coverage=account_allocation_coverage,
+            holdings=holdings,
+        )
+
+    def _strategy_holdings_from_dashboard(
+        self,
+        dashboard: Any,
+        fallback_allocation: dict[str, float],
+    ) -> tuple[RetirementBucketStrategyHolding, ...]:
+        ac_mod = import_module("app.portfolio.asset_classification")
+        classifier = ac_mod.AssetClassifier(self.storage)
+        linked_ids = [
+            str(linked_id)
+            for account in getattr(dashboard, "accounts", []) or []
+            if (linked_id := getattr(account, "linked_portfolio_account_id", None))
+        ]
+        holdings_by_account = self._priced_holdings_by_account(linked_ids)
+        fallback = _non_cash_fallback_allocation(fallback_allocation, self._cma)
+        rows: list[RetirementBucketStrategyHolding] = []
+        for account in getattr(dashboard, "accounts", []) or []:
+            asset_group = str(getattr(account, "asset_group", "") or "").lower()
+            if asset_group in {"credit", "debt", "education"}:
+                continue
+            value = float(getattr(account, "current_value", 0.0) or 0.0)
+            if value <= 0:
+                continue
+            account_type = str(getattr(account, "account_type", "") or "other")
+            account_label = str(getattr(account, "label", "") or "")
+            bucket_type = _bucket_type(asset_group, account_type)
+            cash_balance = min(float(getattr(account, "cash_balance", 0.0) or 0.0), value)
+            if bucket_type in {"cash", "taxable"} and cash_balance > 0:
+                cash_label = account_label if cash_balance >= value else f"{account_label} cash"
+                rows.append(
+                    RetirementBucketStrategyHolding(
+                        symbol="CASH",
+                        label=cash_label or "Cash",
+                        asset_class="cash",
+                        current_value=round(cash_balance, 2),
+                        share_of_bucket=0.0,
+                        source="cash",
+                        account_label=account_label or None,
+                    )
+                )
+                value = max(value - cash_balance, 0.0)
+                if value <= 0:
+                    continue
+
+            linked_id = getattr(account, "linked_portfolio_account_id", None)
+            exact_holdings = holdings_by_account.get(str(linked_id), []) if linked_id else []
+            exact_total = sum(float(row.get("current_value") or 0.0) for row in exact_holdings)
+            scale = value / exact_total if exact_total > value > 0 else 1.0
+            exact_value = 0.0
+            for holding in exact_holdings:
+                holding_value = float(holding.get("current_value") or 0.0) * scale
+                if holding_value <= 0:
+                    continue
+                symbol = str(holding.get("symbol") or "").upper()
+                if not symbol:
+                    continue
+                asset_class = str(classifier.primary_class(symbol))
+                exact_value += holding_value
+                rows.append(
+                    RetirementBucketStrategyHolding(
+                        symbol=symbol,
+                        label=symbol,
+                        asset_class=asset_class,
+                        current_value=round(holding_value, 2),
+                        share_of_bucket=0.0,
+                        source="exact",
+                        account_label=account_label or None,
+                    )
+                )
+
+            inferred_value = max(value - exact_value, 0.0)
+            if inferred_value > 0.01:
+                for asset_class, weight in fallback.items():
+                    inferred_slice = inferred_value * float(weight or 0.0)
+                    if inferred_slice <= 0:
+                        continue
+                    rows.append(
+                        RetirementBucketStrategyHolding(
+                            symbol=f"INFERRED_{asset_class.upper()}",
+                            label=f"Inferred {_asset_class_label(asset_class)}",
+                            asset_class=asset_class,
+                            current_value=round(inferred_slice, 2),
+                            share_of_bucket=0.0,
+                            source="inferred",
+                            account_label=account_label or None,
+                        )
+                    )
+        return tuple(rows)
+
     def _priced_holdings_by_account(
         self,
         account_ids: list[str],
@@ -1528,12 +1676,19 @@ class RetirementPlanningService:
         *,
         buckets: tuple[RetirementAccountBucket, ...],
         tax_context: FederalTaxContext | None = None,
+        bucket_return_allocations: dict[str, dict[str, float]] | None = None,
         ordinary_tax_rate: float | None = None,
         capital_gains_rate: float | None = None,
     ) -> list[RetirementDrawdownYear]:
         del ordinary_tax_rate, capital_gains_rate  # kept for older direct unit-call compatibility
         tax_context = tax_context or _tax_context_from_profile(None, inputs)
         annual_return = self._expected_return(inputs.asset_allocation, inputs.cash_yield)
+        cash_return = self._expected_return({"cash": 1.0}, inputs.cash_yield)
+        bucket_expected_returns = {
+            bucket: self._expected_return(allocation, inputs.cash_yield)
+            for bucket, allocation in (bucket_return_allocations or {}).items()
+            if allocation
+        }
         r_real = (1.0 + annual_return) / (1.0 + inputs.inflation_rate) - 1.0
         gain_ratio = _effective_gain_ratio(inputs)
         household_retirement_age = _household_retirement_primary_age(inputs)
@@ -1562,7 +1717,11 @@ class RetirementPlanningService:
             calendar_year = inputs.as_of_date.year + year_index
             if year_index > 0:
                 for bucket in list(balances):
-                    balances[bucket] = max(0.0, balances[bucket] * (1.0 + annual_return))
+                    bucket_return = bucket_expected_returns.get(
+                        bucket,
+                        cash_return if bucket == "cash" else annual_return,
+                    )
+                    balances[bucket] = max(0.0, balances[bucket] * (1.0 + bucket_return))
                 bridge_balance *= 1.0 + (
                     r_real if cfg.bridge.growth == "portfolio" else cfg.bridge.real_return
                 )
@@ -1957,6 +2116,7 @@ class RetirementPlanningService:
         seed: int | None,
         tax_context: FederalTaxContext | None = None,
         buckets: tuple[RetirementAccountBucket, ...] = (),
+        bucket_return_allocations: dict[str, dict[str, float]] | None = None,
     ) -> tuple[RetirementLeverImpact, ...]:
         later_update: dict[str, int] = {"retirement_age": min(inputs.retirement_age + 2, 120)}
         if inputs.spouse_retirement_age is not None:
@@ -2010,6 +2170,7 @@ class RetirementPlanningService:
                 seed=seed,
                 tax_context=tax_context,
                 buckets=buckets,
+                bucket_return_allocations=bucket_return_allocations,
             )
             delta = sim.success_probability - base_success_probability
             out.append(
@@ -2328,6 +2489,26 @@ def _normalized_asset_allocation(
     if total <= 0:
         return {}
     return {asset_class: round(weight / total, 6) for asset_class, weight in cleaned.items()}
+
+
+def _simulation_asset_classes(
+    allocation: dict[str, float],
+    bucket_return_allocations: dict[str, dict[str, float]],
+    cma: dict[str, Any],
+) -> list[str]:
+    asset_classes = cma.get("asset_classes", {})
+    wanted = set(_normalized_asset_allocation(allocation, cma))
+    for bucket_allocation in bucket_return_allocations.values():
+        wanted.update(_normalized_asset_allocation(bucket_allocation, cma))
+    return [asset_class for asset_class in asset_classes if asset_class in wanted]
+
+
+def _weights_for_classes(allocation: dict[str, float], classes: list[str]) -> np.ndarray:
+    values = np.array([float(allocation.get(asset_class, 0.0) or 0.0) for asset_class in classes])
+    total = float(np.sum(values))
+    if total <= 0:
+        return np.zeros(len(classes), dtype=np.float64)
+    return values / total
 
 
 def _cash_yield(value: float | None) -> float:
@@ -3039,10 +3220,20 @@ def _run_tax_aware_monte_carlo(
     cma: dict[str, Any],
     trials: int,
     seed: int | None,
+    bucket_return_allocations: dict[str, dict[str, float]] | None = None,
 ) -> SimulationOutputs:
     rng = np.random.default_rng(seed)
     gain_ratio = _effective_gain_ratio(inputs)
-    classes, weights = _normalize_allocation(inputs.asset_allocation, cma)
+    bucket_return_allocations = bucket_return_allocations or {}
+    if bucket_return_allocations:
+        classes = _simulation_asset_classes(
+            inputs.asset_allocation,
+            bucket_return_allocations,
+            cma,
+        )
+        weights = _weights_for_classes(inputs.asset_allocation, classes)
+    else:
+        classes, weights = _normalize_allocation(inputs.asset_allocation, cma)
     if not classes:
         classes = ["cash"]
         weights = np.array([1.0])
@@ -3050,6 +3241,11 @@ def _run_tax_aware_monte_carlo(
     mus = np.array([float(cma["asset_classes"][c]["expected_return"]) for c in classes])
     samples = rng.multivariate_normal(mus, cov, size=(trials, inputs.horizon_years))
     portfolio_returns = samples @ weights
+    bucket_weight_vectors = {
+        bucket: _weights_for_classes(allocation, classes)
+        for bucket, allocation in bucket_return_allocations.items()
+        if allocation
+    }
 
     cash_return = float(cma.get("asset_classes", {}).get("cash", {}).get("expected_return", 0.02) or 0.02)
     starting_balances = _bucket_balances(inputs, buckets)
@@ -3140,7 +3336,14 @@ def _run_tax_aware_monte_carlo(
             primary_age = inputs.primary_age + year_index
             portfolio_return = trial_returns[year_index]
             for bucket in list(balances):
-                annual_return = cash_return if bucket == "cash" else portfolio_return
+                bucket_weights = bucket_weight_vectors.get(bucket)
+                annual_return = (
+                    float(samples[trial, year_index] @ bucket_weights)
+                    if bucket_weights is not None
+                    else cash_return
+                    if bucket == "cash"
+                    else portfolio_return
+                )
                 balances[bucket] = max(0.0, balances[bucket] * (1.0 + annual_return))
             if year_index > 0:
                 # The bridge is tracked in real dollars, so a portfolio-grown
@@ -3933,6 +4136,265 @@ def _summarize_account_allocation_coverage(
         asset_allocation=_values_to_allocation(values_by_class, cma),
         accounts=tuple(rows),
     )
+
+
+def _asset_class_label(asset_class: str) -> str:
+    labels = {
+        "us_equity": "US stocks",
+        "intl_equity": "international stocks",
+        "bonds": "bonds",
+        "cash": "cash",
+        "real_estate": "real estate",
+        "alts": "alternatives",
+        "unclassified": "unclassified assets",
+    }
+    return labels.get(asset_class, asset_class.replace("_", " "))
+
+
+def _strategy_bucket_for_asset_class(asset_class: str) -> str:
+    if asset_class == "cash":
+        return "now"
+    if asset_class == "bonds":
+        return "soon"
+    return "later"
+
+
+def _target_ramp(years_to_retirement: float, start_years: float) -> float:
+    if years_to_retirement <= 0:
+        return 1.0
+    if start_years <= 0:
+        return 1.0
+    # Start a visible glide path at the boundary year instead of waiting
+    # until just inside it: 5y-to-go carries 1/5 of the cash target, 15y
+    # carries 1/15 of the stability target.
+    return max(0.0, min((start_years - years_to_retirement + 1.0) / start_years, 1.0))
+
+
+def _real_portfolio_need(row: RetirementDrawdownYear, inflation_rate: float) -> float:
+    inflation_factor = (1.0 + inflation_rate) ** row.year_index
+    gross_real = row.gross_withdrawal / inflation_factor if inflation_factor > 0 else row.gross_withdrawal
+    return max(0.0, gross_real + row.bridge_draw)
+
+
+def _strategy_status(
+    *,
+    current_value: float,
+    target_value: float,
+    total_value: float,
+) -> tuple[str, str, str]:
+    tolerance = max(1_000.0, target_value * 0.10, total_value * 0.01)
+    gap = current_value - target_value
+    if target_value <= 0.01:
+        if current_value <= tolerance:
+            return "aligned", "Not needed yet", "No current target under this retirement timeline."
+        return (
+            "overfilled",
+            "Above target",
+            f"Redirect about ${abs(gap):,.0f} toward buckets with current targets.",
+        )
+    if current_value <= 0.01:
+        return "empty", "Empty", f"Add about ${target_value:,.0f}."
+    if gap < -tolerance:
+        return "underfilled", "Needs funding", f"Increase by about ${abs(gap):,.0f}."
+    if gap > tolerance:
+        return "overfilled", "Above target", f"Decrease by about ${abs(gap):,.0f}."
+    return "aligned", "Aligned", "Within the strategy band."
+
+
+def _bucket_strategy_current_values(
+    holdings: tuple[RetirementBucketStrategyHolding, ...],
+) -> tuple[dict[str, float], dict[str, dict[str, float]]]:
+    values = {"now": 0.0, "soon": 0.0, "later": 0.0}
+    allocation_values: dict[str, dict[str, float]] = {
+        "now": {},
+        "soon": {},
+        "later": {},
+    }
+    for holding in holdings:
+        bucket_id = _strategy_bucket_for_asset_class(holding.asset_class)
+        value = float(holding.current_value or 0.0)
+        values[bucket_id] += value
+        allocation_values[bucket_id][holding.asset_class] = (
+            allocation_values[bucket_id].get(holding.asset_class, 0.0) + value
+        )
+    return values, allocation_values
+
+
+def _build_retirement_bucket_strategy(
+    inputs: RetirementInputs,
+    *,
+    drawdown: list[RetirementDrawdownYear],
+    account_allocation_coverage: RetirementAccountAllocationCoverage,
+    holdings: tuple[RetirementBucketStrategyHolding, ...],
+) -> RetirementBucketStrategy:
+    total = round(account_allocation_coverage.total_value or inputs.portfolio_value, 2)
+    retirement_age = _household_retirement_primary_age(inputs)
+    years_to_retirement = max(0.0, float(retirement_age - inputs.primary_age))
+    if total <= 0:
+        return RetirementBucketStrategy(
+            retirement_age=retirement_age,
+            years_to_retirement=round(years_to_retirement, 1),
+        )
+
+    retirement_rows = [row for row in drawdown if row.primary_age >= retirement_age]
+    real_needs = [
+        _real_portfolio_need(row, inputs.inflation_rate)
+        for row in retirement_rows[:6]
+    ]
+    first_year_need = next((need for need in real_needs if need > 0.01), 0.0)
+    if first_year_need <= 0.01 and inputs.annual_expenses > 0:
+        first_year_need = inputs.annual_expenses
+    annual_need = first_year_need
+    soon_full_target = sum(real_needs[1:6])
+    if soon_full_target <= 0.01 and annual_need > 0:
+        soon_full_target = annual_need * 5.0
+
+    cash_ramp = _target_ramp(years_to_retirement, 5.0)
+    stable_ramp = _target_ramp(years_to_retirement, 15.0)
+    now_target = min(total, max(0.0, annual_need * cash_ramp))
+    soon_target = min(max(0.0, total - now_target), max(0.0, soon_full_target * stable_ramp))
+    later_target = max(0.0, total - now_target - soon_target)
+    targets = {
+        "now": round(now_target, 2),
+        "soon": round(soon_target, 2),
+        "later": round(later_target, 2),
+    }
+    target_years = {
+        "now": round(cash_ramp, 2),
+        "soon": round(5.0 * stable_ramp, 2),
+        "later": 0.0,
+    }
+    current_values, allocation_values = _bucket_strategy_current_values(holdings)
+    holdings_by_bucket: dict[str, list[RetirementBucketStrategyHolding]] = {
+        "now": [],
+        "soon": [],
+        "later": [],
+    }
+    for holding in holdings:
+        holdings_by_bucket[_strategy_bucket_for_asset_class(holding.asset_class)].append(holding)
+
+    buckets: list[RetirementBucketStrategyBucket] = []
+    rebalance_actions: list[str] = []
+    for bucket_id in ("now", "soon", "later"):
+        current_value = round(current_values[bucket_id], 2)
+        target_value = targets[bucket_id]
+        status, label, action = _strategy_status(
+            current_value=current_value,
+            target_value=target_value,
+            total_value=total,
+        )
+        if status in {"underfilled", "overfilled", "empty"} and target_value > 0.01:
+            rebalance_actions.append(f"{STRATEGY_BUCKET_LABELS[bucket_id]}: {action}")
+        bucket_holdings = tuple(
+            holding.model_copy(
+                update={
+                    "share_of_bucket": (
+                        round(holding.current_value / current_value, 6)
+                        if current_value > 0
+                        else 0.0
+                    )
+                }
+            )
+            for holding in sorted(
+                holdings_by_bucket[bucket_id],
+                key=lambda row: row.current_value,
+                reverse=True,
+            )
+        )
+        allocation_total = sum(allocation_values[bucket_id].values())
+        asset_allocation = {
+            asset_class: round(value / allocation_total, 6)
+            for asset_class, value in sorted(allocation_values[bucket_id].items())
+            if allocation_total > 0 and value > 0
+        }
+        buckets.append(
+            RetirementBucketStrategyBucket(
+                bucket_id=bucket_id,
+                label=STRATEGY_BUCKET_LABELS[bucket_id],
+                time_horizon=STRATEGY_BUCKET_HORIZONS[bucket_id],
+                purpose=STRATEGY_BUCKET_PURPOSES[bucket_id],
+                current_value=current_value,
+                target_value=target_value,
+                target_years=target_years[bucket_id],
+                current_share=round(current_value / total, 6) if total > 0 else 0.0,
+                target_share=round(target_value / total, 6) if total > 0 else 0.0,
+                fill_ratio=round(current_value / target_value, 6) if target_value > 0 else 0.0,
+                gap_value=round(current_value - target_value, 2),
+                status=status,
+                status_label=label,
+                action=action,
+                asset_allocation=asset_allocation,
+                holdings=bucket_holdings,
+            )
+        )
+
+    diff_total = sum(abs(bucket.current_value - bucket.target_value) for bucket in buckets)
+    alignment_score = max(0.0, min(1.0, 1.0 - diff_total / (2.0 * total)))
+    priority_buckets = [bucket for bucket in buckets if bucket.bucket_id in {"now", "soon"}]
+    if any(bucket.status in {"underfilled", "empty"} for bucket in priority_buckets):
+        overall_status = "underfilled"
+        status_label = "Needs bucket funding"
+    elif any(bucket.status == "overfilled" for bucket in priority_buckets):
+        overall_status = "overfilled"
+        status_label = "Bucket mix high in safe assets"
+    elif alignment_score >= 0.9:
+        overall_status = "aligned"
+        status_label = "Aligned"
+    else:
+        overall_status = "underfilled"
+        status_label = "Rebalance suggested"
+
+    if years_to_retirement <= 0:
+        timeline = "already in the modeled retirement window"
+    else:
+        timeline = f"{years_to_retirement:.0f} years from full household retirement"
+    detail = (
+        f"Targets are based on {timeline}, modeled portfolio withdrawals after scheduled income, "
+        "and a simple 1-year cash / 5-year bond / remaining growth framework."
+    )
+    return RetirementBucketStrategy(
+        status=overall_status,
+        status_label=status_label,
+        detail=detail,
+        years_to_retirement=round(years_to_retirement, 1),
+        retirement_age=retirement_age,
+        annual_portfolio_need=round(annual_need, 2),
+        target_total=total,
+        current_total=round(sum(current_values.values()), 2),
+        alignment_score=round(alignment_score, 6),
+        buckets=tuple(buckets),
+        rebalance_actions=tuple(rebalance_actions[:4]),
+        methodology=(
+            "Now: target up to one year of modeled portfolio withdrawals in cash, ramping in over the final five years before full household retirement.",
+            "Soon: target up to five more years of modeled portfolio withdrawals in bonds, ramping in over the final fifteen years.",
+            "Later: remaining assets stay in growth assets so long-horizon money is not dragged down by excess cash.",
+            "Current bucket values come from exact holdings/cash where available; account-value-only balances inherit the modeled fallback allocation.",
+        ),
+        monte_carlo_detail=(
+            "Success odds use the same current account buckets: cash earns the cash yield, "
+            "and account buckets with known/inferred allocations use their bucket-specific return mix."
+        ),
+    )
+
+
+def _bucket_return_allocations(
+    coverage: RetirementAccountAllocationCoverage,
+    cma: dict[str, Any],
+) -> dict[str, dict[str, float]]:
+    values: dict[str, dict[str, float]] = {}
+    for account in coverage.accounts:
+        if account.current_value <= 0:
+            continue
+        bucket_values = values.setdefault(account.bucket_type, {})
+        for asset_class, weight in account.allocation.items():
+            bucket_values[asset_class] = bucket_values.get(asset_class, 0.0) + (
+                account.current_value * float(weight or 0.0)
+            )
+    return {
+        bucket: _values_to_allocation(bucket_values, cma)
+        for bucket, bucket_values in values.items()
+        if sum(bucket_values.values()) > 0
+    }
 
 
 def _rmd_amount(pre_tax_balance: float, primary_age: int) -> float:
