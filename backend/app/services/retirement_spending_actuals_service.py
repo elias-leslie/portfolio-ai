@@ -22,10 +22,11 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from app.services._household_month_coverage import (
-    month_key as _month_key,
+    MIN_ROWS_PER_COVERED_MONTH,
+    trailing_complete_coverage_months,
 )
 from app.services._household_month_coverage import (
-    trailing_complete_coverage_months,
+    month_key as _month_key,
 )
 from app.services.household_transaction_dedup_service import (
     merchant_key,
@@ -33,6 +34,12 @@ from app.services.household_transaction_dedup_service import (
 )
 
 _HEALTHCARE_CATEGORY = "healthcare"
+
+__all__ = [
+    "MIN_ROWS_PER_COVERED_MONTH",
+    "RetirementSpendingActualsService",
+    "derive_spending_actuals",
+]
 
 
 class SpendingActualsMerchant(BaseModel):

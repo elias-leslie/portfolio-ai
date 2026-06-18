@@ -121,9 +121,17 @@ const allocationClasses = [
   { key: 'alts', label: 'Alts' },
 ] as const
 
-const allocationLabelByKey = Object.fromEntries(
-  allocationClasses.map(({ key, label }) => [key, label]),
-) as Record<string, string>
+const allocationLabelByKey = {
+  ...Object.fromEntries(
+    allocationClasses.map(({ key, label }) => [key, label]),
+  ),
+  usEquity: 'US stocks',
+  usequity: 'US stocks',
+  intlEquity: 'Intl stocks',
+  intlequity: 'Intl stocks',
+  realEstate: 'Real estate',
+  realestate: 'Real estate',
+} as Record<string, string>
 type AllocationMode = 'current' | 'classes' | 'tickers'
 // SSA 2026 constants — mirror backend retirement_planning_service.py
 // SSA_2026_* (deliberate duplicate for live draft estimates)
@@ -237,7 +245,7 @@ function strategyBucketGapLabel(bucket: RetirementBucketStrategyBucket) {
 
 function allocationBreakdownText(allocation: Record<string, number>) {
   const rows = Object.entries(allocation)
-    .filter(([, value]) => value > 0)
+    .filter(([, value]) => value >= 0.005)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
   if (rows.length === 0) return 'No allocation detail'
@@ -1754,6 +1762,8 @@ export function MoneyRetirementPanel({
       ),
     [bucketStrategy?.buckets],
   )
+  const terminalProjection =
+    projectionData.length > 0 ? projectionData[projectionData.length - 1] : null
   const holdingsCoverage = preview?.holdingsCoverage ?? null
   const accountAllocationCoverage = preview?.accountAllocationCoverage ?? null
 
@@ -2527,7 +2537,7 @@ export function MoneyRetirementPanel({
       <SectionCard
         variant="surface"
         title="Overview"
-        description="Success rates, invested assets, ending balance, and holdings coverage."
+        description="Readiness, bucket alignment, Monte Carlo bands, and data coverage at a glance."
       >
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
@@ -2634,119 +2644,132 @@ export function MoneyRetirementPanel({
           </div>
         </div>
 
-        <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)]">
-          <div className="space-y-4">
-            {(preview?.leverImpacts ?? []).length > 0 ? (
-              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                  Sensitivity checks
-                </p>
-                <div className="mt-3 grid gap-3 md:grid-cols-3">
-                  {(preview?.leverImpacts ?? []).map((lever) => (
-                    <div
-                      key={lever.id}
-                      className="rounded-2xl border border-border/35 bg-bg/25 p-4"
-                    >
-                      <p className="text-sm font-semibold text-text">
-                        {lever.label}
-                      </p>
-                      <p className="mt-2 text-2xl font-semibold text-text">
-                        {formatPercent(lever.deltaSuccessProbability * 100, {
-                          decimals: 1,
-                          sign: true,
-                        })}
-                      </p>
-                      <p className="mt-1 text-xs uppercase tracking-wide text-text-muted">
-                        {lever.value}
-                      </p>
-                      <p className="mt-3 text-sm text-text-muted">
-                        {lever.detail}
-                      </p>
-                    </div>
-                  ))}
+        <div className="mt-4 grid items-start gap-4 xl:grid-cols-12">
+          {bucketStrategy && bucketStrategyPieData.length > 0 ? (
+            <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4 xl:col-span-8">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                    Bucket strategy
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-text">
+                    {bucketStrategy.label}
+                  </p>
+                  <p className="mt-1 max-w-2xl text-xs text-text-muted">
+                    {bucketStrategy.detail}
+                  </p>
                 </div>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="space-y-3">
-            {bucketStrategy && bucketStrategyPieData.length > 0 ? (
-              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                      Bucket strategy
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-text">
-                      {bucketStrategy.label}
-                    </p>
-                  </div>
+                <div className="flex items-center gap-2">
                   <Badge variant={bucketStrategyVariant(bucketStrategy.status)}>
                     {bucketStrategy.statusLabel}
                   </Badge>
+                  <Badge variant="outline">
+                    {formatPercent(bucketStrategy.alignmentScore * 100, {
+                      decimals: 0,
+                    })}{' '}
+                    aligned
+                  </Badge>
                 </div>
-                <p className="mt-2 text-xs text-text-muted">
-                  {bucketStrategy.detail}
-                </p>
-                <div className="mt-4 h-64">
-                  <ResponsiveContainer
-                    width="100%"
-                    height="100%"
-                    minWidth={240}
-                    minHeight={240}
-                    initialDimension={{ width: 360, height: 260 }}
-                  >
-                    <PieChart>
-                      <Pie
-                        data={bucketStrategyPieData}
-                        dataKey="currentValue"
-                        nameKey="label"
-                        innerRadius={54}
-                        outerRadius={88}
-                        paddingAngle={2}
-                      >
-                        {bucketStrategyPieData.map((bucket) => (
-                          <Cell
-                            key={bucket.bucketId}
-                            fill={strategyBucketColors[bucket.bucketId]}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<BucketStrategyTooltip />} />
-                    </PieChart>
-                  </ResponsiveContainer>
+              </div>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(13rem,0.85fr)_minmax(0,1.15fr)]">
+                <div>
+                  <div className="h-56 rounded-2xl border border-border/25 bg-bg/20 p-2">
+                    <ResponsiveContainer
+                      width="100%"
+                      height="100%"
+                      minWidth={220}
+                      minHeight={200}
+                      initialDimension={{ width: 320, height: 224 }}
+                    >
+                      <PieChart>
+                        <Pie
+                          data={bucketStrategyPieData}
+                          dataKey="currentValue"
+                          nameKey="label"
+                          innerRadius={48}
+                          outerRadius={80}
+                          paddingAngle={2}
+                        >
+                          {bucketStrategyPieData.map((bucket) => (
+                            <Cell
+                              key={bucket.bucketId}
+                              fill={strategyBucketColors[bucket.bucketId]}
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip content={<BucketStrategyTooltip />} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
+                    <div className="rounded-xl border border-border/25 bg-bg/25 p-2">
+                      <p className="text-text-muted">Current</p>
+                      <p className="mt-1 font-mono text-sm text-text">
+                        {formatCurrencyWhole(bucketStrategy.currentTotal)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border/25 bg-bg/25 p-2">
+                      <p className="text-text-muted">Target</p>
+                      <p className="mt-1 font-mono text-sm text-text">
+                        {formatCurrencyWhole(bucketStrategy.targetTotal)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border/25 bg-bg/25 p-2">
+                      <p className="text-text-muted">Runway</p>
+                      <p className="mt-1 font-mono text-sm text-text">
+                        {Math.round(bucketStrategy.yearsToRetirement)}y
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="mt-3 space-y-2">
+
+                <div className="grid gap-2">
                   {bucketStrategy.buckets.map((bucket) => (
                     <div
                       key={bucket.bucketId}
                       className="rounded-xl border border-border/30 bg-bg/25 p-3"
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span
-                            className="h-3 w-3 rounded-full"
-                            style={{
-                              backgroundColor:
-                                strategyBucketColors[bucket.bucketId],
-                            }}
-                          />
-                          <div className="min-w-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="h-3 w-3 rounded-full"
+                              style={{
+                                backgroundColor:
+                                  strategyBucketColors[bucket.bucketId],
+                              }}
+                            />
                             <p className="truncate text-sm font-semibold text-text">
                               {bucket.label}
                             </p>
-                            <p className="text-xs text-text-muted">
-                              {bucket.timeHorizon} ·{' '}
-                              {allocationBreakdownText(bucket.assetAllocation)}
-                            </p>
                           </div>
+                          <p className="mt-1 text-xs text-text-muted">
+                            {bucket.timeHorizon} ·{' '}
+                            {allocationBreakdownText(bucket.assetAllocation)}
+                          </p>
                         </div>
-                        <div className="text-right">
-                          <p className="font-mono text-sm tabular-nums text-text">
+                        <Badge variant={bucketStrategyVariant(bucket.status)}>
+                          {strategyBucketFillLabel(bucket)}
+                        </Badge>
+                      </div>
+                      <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
+                        <div>
+                          <p className="text-text-muted">Current</p>
+                          <p className="font-mono text-text">
                             {formatCurrencyWhole(bucket.currentValue)}
                           </p>
-                          <p className="text-xs text-text-muted">
-                            Target {formatCurrencyWhole(bucket.targetValue)}
+                        </div>
+                        <div>
+                          <p className="text-text-muted">Target</p>
+                          <p className="font-mono text-text">
+                            {formatCurrencyWhole(bucket.targetValue)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-text-muted">Gap</p>
+                          <p className="font-mono text-text">
+                            {strategyBucketGapLabel(bucket)}
                           </p>
                         </div>
                       </div>
@@ -2773,106 +2796,265 @@ export function MoneyRetirementPanel({
                           }}
                         />
                       </div>
-                      <div className="mt-2 flex items-center justify-between gap-3 text-xs">
-                        <Badge variant={bucketStrategyVariant(bucket.status)}>
-                          {strategyBucketFillLabel(bucket)}
-                        </Badge>
-                        <span className="text-right text-text-muted">
-                          {bucket.action}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {bucketStrategy.rebalanceActions.length > 0 ? (
-                  <div className="mt-4 rounded-xl border border-warning/30 bg-warning/10 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                      Next allocation moves
-                    </p>
-                    <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-text-muted">
-                      {bucketStrategy.rebalanceActions.map((action) => (
-                        <li key={action}>{action}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-                <p className="mt-3 text-xs text-text-muted">
-                  {bucketStrategy.monteCarloDetail}
-                </p>
-              </div>
-            ) : null}
-            {bucketTotals.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/10 p-5 text-sm text-text-muted">
-                No account buckets are available yet.
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-                  Account / tax buckets
-                </p>
-                <div className="mt-3 space-y-2">
-                  {bucketTotals.map((bucket) => (
-                    <div
-                      key={bucket.bucket}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-border/25 px-3 py-2"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="h-3 w-3 rounded-full"
-                          style={{
-                            backgroundColor: bucketColors[bucket.bucket],
-                          }}
-                        />
-                        <p className="text-sm font-semibold text-text">
-                          {bucketLabel(bucket.bucket)}
-                        </p>
-                      </div>
-                      <p className="font-mono text-sm tabular-nums text-text">
-                        {formatCurrencyWhole(bucket.value)}
+                      <p className="mt-2 text-xs text-text-muted">
+                        {bucket.action}
                       </p>
                     </div>
                   ))}
                 </div>
               </div>
-            )}
-            {holdingsCoverage ? (
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                <div
+                  className={`rounded-xl border p-3 ${
+                    bucketStrategy.rebalanceActions.length > 0
+                      ? 'border-warning/30 bg-warning/10'
+                      : 'border-success/25 bg-success/10'
+                  }`}
+                >
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                    Next allocation moves
+                  </p>
+                  {bucketStrategy.rebalanceActions.length > 0 ? (
+                    <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-text-muted">
+                      {bucketStrategy.rebalanceActions.map((action) => (
+                        <li key={action}>{action}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-xs text-text-muted">
+                      Current buckets match the target bands for this retirement
+                      date.
+                    </p>
+                  )}
+                </div>
+                <div className="rounded-xl border border-border/25 bg-bg/25 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+                    Monte Carlo inclusion
+                  </p>
+                  <p className="mt-2 text-xs text-text-muted">
+                    {bucketStrategy.monteCarloDetail}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="grid gap-4 xl:col-span-4">
+            {projectionData.length > 0 ? (
               <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                      Monte Carlo band
+                    </p>
+                    <p className="mt-1 text-xs text-text-muted">
+                      Quick read of the P10 / P50 / P90 path.
+                    </p>
+                  </div>
+                  {preview ? (
+                    <Badge
+                      variant={previewStatusVariant(
+                        preview.successProbability,
+                        preview.trustedTotals,
+                      )}
+                    >
+                      {percentPoints(preview.successProbability)} odds
+                    </Badge>
+                  ) : null}
+                </div>
+                <div className="mt-3 h-40">
+                  <ResponsiveContainer
+                    width="100%"
+                    height="100%"
+                    minWidth={220}
+                    minHeight={140}
+                    initialDimension={{ width: 360, height: 160 }}
+                  >
+                    <AreaChart
+                      data={projectionData}
+                      margin={{ top: 8, right: 4, left: 4, bottom: 0 }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="var(--color-border)"
+                      />
+                      <XAxis dataKey="age" tickLine={false} minTickGap={18} />
+                      <YAxis hide />
+                      <Tooltip formatter={currencyTooltip} />
+                      <Area
+                        type="monotone"
+                        dataKey="p90"
+                        name="P90"
+                        stroke="var(--color-chart-3)"
+                        fill="var(--color-chart-3)"
+                        fillOpacity={0.08}
+                        dot={false}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="p50"
+                        name="P50"
+                        stroke="var(--color-chart-1)"
+                        fill="var(--color-chart-1)"
+                        fillOpacity={0.18}
+                        dot={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="p10"
+                        name="P10"
+                        stroke="var(--color-warning)"
+                        dot={false}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+                {terminalProjection ? (
+                  <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-text-muted">
+                    <div>
+                      <p>P10</p>
+                      <p className="font-mono text-text">
+                        {formatCurrencyWhole(terminalProjection.p10)}
+                      </p>
+                    </div>
+                    <div>
+                      <p>P50</p>
+                      <p className="font-mono text-text">
+                        {formatCurrencyWhole(terminalProjection.p50)}
+                      </p>
+                    </div>
+                    <div>
+                      <p>P90</p>
+                      <p className="font-mono text-text">
+                        {formatCurrencyWhole(terminalProjection.p90)}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {(preview?.leverImpacts ?? []).length > 0 ? (
+              <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  Sensitivity checks
+                </p>
+                <div className="mt-3 grid gap-2">
+                  {(preview?.leverImpacts ?? []).map((lever) => (
+                    <div
+                      key={lever.id}
+                      className="rounded-xl border border-border/30 bg-bg/25 p-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-text">
+                            {lever.label}
+                          </p>
+                          <p className="mt-1 text-xs uppercase tracking-wide text-text-muted">
+                            {lever.value}
+                          </p>
+                        </div>
+                        <p className="font-mono text-lg font-semibold text-text">
+                          {formatPercent(lever.deltaSuccessProbability * 100, {
+                            decimals: 1,
+                            sign: true,
+                          })}
+                        </p>
+                      </div>
+                      <p className="mt-2 text-xs text-text-muted">
+                        {lever.detail}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          {bucketTotals.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/10 p-5 text-sm text-text-muted xl:col-span-5">
+              No account buckets are available yet.
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4 xl:col-span-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                Account / tax buckets
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {bucketTotals.map((bucket) => (
+                  <div
+                    key={bucket.bucket}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border/25 bg-bg/25 px-3 py-2"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="h-3 w-3 rounded-full"
+                        style={{
+                          backgroundColor: bucketColors[bucket.bucket],
+                        }}
+                      />
+                      <p className="truncate text-sm font-semibold text-text">
+                        {bucketLabel(bucket.bucket)}
+                      </p>
+                    </div>
+                    <p className="font-mono text-sm tabular-nums text-text">
+                      {formatCurrencyWhole(bucket.value)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {holdingsCoverage ? (
+            <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4 xl:col-span-7">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
                     Holdings coverage
                   </p>
-                  <Badge
-                    variant={holdingsCoverageVariant(holdingsCoverage.status)}
-                  >
-                    {holdingsCoverage.label}
-                  </Badge>
+                  <p className="mt-1 text-xs text-text-muted">
+                    Exact positions improve bucket allocation accuracy.
+                  </p>
                 </div>
-                <p className="mt-3 font-mono text-2xl text-text">
-                  {formatPercent(holdingsCoverage.exactShare * 100, {
-                    decimals: 0,
-                  })}
-                </p>
-                <p className="mt-2 text-xs text-text-muted">
-                  {holdingsCoverage.detail}
-                </p>
-                <div className="mt-3 grid gap-2 text-xs text-text-muted">
-                  <div className="flex items-center justify-between gap-3">
-                    <span>Exact holdings/cash</span>
-                    <span className="font-mono text-text">
+                <Badge
+                  variant={holdingsCoverageVariant(holdingsCoverage.status)}
+                >
+                  {holdingsCoverage.label}
+                </Badge>
+              </div>
+              <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(9rem,0.7fr)_minmax(0,1.3fr)]">
+                <div>
+                  <p className="font-mono text-3xl text-text">
+                    {formatPercent(holdingsCoverage.exactShare * 100, {
+                      decimals: 0,
+                    })}
+                  </p>
+                  <p className="mt-2 text-xs text-text-muted">
+                    {holdingsCoverage.detail}
+                  </p>
+                </div>
+                <div className="grid gap-2 text-xs text-text-muted sm:grid-cols-3">
+                  <div className="rounded-xl border border-border/25 bg-bg/25 p-3">
+                    <p>Exact holdings/cash</p>
+                    <p className="mt-1 font-mono text-sm text-text">
                       {formatCurrencyWhole(holdingsCoverage.exactValue)}
-                    </span>
+                    </p>
                   </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span>Account-value-only</span>
-                    <span className="font-mono text-text">
+                  <div className="rounded-xl border border-border/25 bg-bg/25 p-3">
+                    <p>Account-value-only</p>
+                    <p className="mt-1 font-mono text-sm text-text">
                       {formatCurrencyWhole(holdingsCoverage.inferredValue)}
-                    </span>
+                    </p>
                   </div>
                   {accountAllocationCoverage ? (
-                    <div className="flex items-center justify-between gap-3">
-                      <span>Account allocation</span>
-                      <span className="text-right text-text">
-                        {accountAllocationCoverage.label} ·{' '}
+                    <div className="rounded-xl border border-border/25 bg-bg/25 p-3">
+                      <p>Account allocation</p>
+                      <p className="mt-1 text-sm text-text">
+                        {accountAllocationCoverage.label}
+                      </p>
+                      <p className="text-xs text-text-muted">
                         {formatPercent(
                           accountAllocationCoverage.exactShare * 100,
                           {
@@ -2880,92 +3062,92 @@ export function MoneyRetirementPanel({
                           },
                         )}{' '}
                         exact
-                      </span>
+                      </p>
                     </div>
                   ) : null}
                 </div>
-                <HouseholdHoldingsDialog
-                  open={holdingsDialogAccount !== null}
-                  onOpenChange={(nextOpen) => {
-                    if (!nextOpen) setHoldingsDialogAccount(null)
-                  }}
-                  householdAccountId={
-                    holdingsDialogAccount?.householdAccountId ?? null
-                  }
-                  accountLabel={holdingsDialogAccount?.label ?? ''}
-                  accountValue={holdingsDialogAccount?.currentValue ?? 0}
-                />
-                {holdingsCoverage.accounts.length > 0 ? (
-                  <>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="mt-4"
-                      aria-expanded={accountDetailsOpen}
-                      onClick={() => setAccountDetailsOpen((isOpen) => !isOpen)}
-                    >
-                      {accountDetailsOpen
-                        ? 'Hide account details'
-                        : `Show ${holdingsCoverage.accounts.length} account details`}
-                    </Button>
-                    {accountDetailsOpen ? (
-                      <div className="mt-4 space-y-2">
-                        {holdingsCoverage.accounts.map((account, index) => (
-                          <div
-                            key={`${account.label}-${account.bucketType}-${index}`}
-                            className="rounded-xl border border-border/25 px-3 py-2"
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-medium text-text">
-                                  {account.label}
-                                </p>
-                                <p className="text-xs text-text-muted">
-                                  {account.coverageLabel} ·{' '}
-                                  {bucketLabel(account.bucketType)}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {account.householdAccountId &&
-                                account.manualHoldingsEditable &&
-                                account.coverageStatus !== 'cash' ? (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() =>
-                                      setHoldingsDialogAccount({
-                                        householdAccountId:
-                                          account.householdAccountId as string,
-                                        label: account.label,
-                                        currentValue: account.currentValue,
-                                      })
-                                    }
-                                  >
-                                    {account.coverageStatus ===
-                                    'account_value_only'
-                                      ? 'Add holdings'
-                                      : 'Edit holdings'}
-                                  </Button>
-                                ) : null}
-                                <p className="font-mono text-sm text-text">
-                                  {formatCurrencyWhole(account.currentValue)}
-                                </p>
-                              </div>
-                            </div>
-                            <p className="mt-1 text-xs text-text-muted">
-                              {account.detail}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                  </>
-                ) : null}
               </div>
-            ) : null}
-          </div>
+              <HouseholdHoldingsDialog
+                open={holdingsDialogAccount !== null}
+                onOpenChange={(nextOpen) => {
+                  if (!nextOpen) setHoldingsDialogAccount(null)
+                }}
+                householdAccountId={
+                  holdingsDialogAccount?.householdAccountId ?? null
+                }
+                accountLabel={holdingsDialogAccount?.label ?? ''}
+                accountValue={holdingsDialogAccount?.currentValue ?? 0}
+              />
+              {holdingsCoverage.accounts.length > 0 ? (
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="mt-4"
+                    aria-expanded={accountDetailsOpen}
+                    onClick={() => setAccountDetailsOpen((isOpen) => !isOpen)}
+                  >
+                    {accountDetailsOpen
+                      ? 'Hide account details'
+                      : `Show ${holdingsCoverage.accounts.length} account details`}
+                  </Button>
+                  {accountDetailsOpen ? (
+                    <div className="mt-4 grid gap-2 lg:grid-cols-2">
+                      {holdingsCoverage.accounts.map((account, index) => (
+                        <div
+                          key={`${account.label}-${account.bucketType}-${index}`}
+                          className="rounded-xl border border-border/25 bg-bg/25 px-3 py-2"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-medium text-text">
+                                {account.label}
+                              </p>
+                              <p className="text-xs text-text-muted">
+                                {account.coverageLabel} ·{' '}
+                                {bucketLabel(account.bucketType)}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {account.householdAccountId &&
+                              account.manualHoldingsEditable &&
+                              account.coverageStatus !== 'cash' ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    setHoldingsDialogAccount({
+                                      householdAccountId:
+                                        account.householdAccountId as string,
+                                      label: account.label,
+                                      currentValue: account.currentValue,
+                                    })
+                                  }
+                                >
+                                  {account.coverageStatus ===
+                                  'account_value_only'
+                                    ? 'Add holdings'
+                                    : 'Edit holdings'}
+                                </Button>
+                              ) : null}
+                              <p className="font-mono text-sm text-text">
+                                {formatCurrencyWhole(account.currentValue)}
+                              </p>
+                            </div>
+                          </div>
+                          <p className="mt-1 text-xs text-text-muted">
+                            {account.detail}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </SectionCard>
 
