@@ -904,8 +904,11 @@ class HouseholdTransactionService:
                         else None
                     ),
                     transaction_rule_id=(
-                        str(row["transaction_rule_id"]) if row.get("transaction_rule_id") else None
+                        str(row["transaction_rule_id"])
+                        if row.get("transaction_rule_id")
+                        else None
                     ),
+                    pending=bool(row.get("pending")),
                     category_confidence=(
                         round(float(row["confidence"]), 4)
                         if row.get("confidence") is not None
@@ -959,7 +962,8 @@ class HouseholdTransactionService:
                     t.categorization_source,
                     t.source_system,
                     t.external_transaction_id,
-                    t.transaction_rule_id
+                    t.transaction_rule_id,
+                    t.pending
                 FROM household_transactions t
                 LEFT JOIN household_merchants m ON m.id = t.merchant_id
                 LEFT JOIN household_accounts a ON a.id = t.household_account_id
@@ -1081,6 +1085,7 @@ class HouseholdTransactionService:
                     "transaction_rule_id": (
                         str(_row_value(row, 23)) if _row_value(row, 23) is not None else None
                     ),
+                    "pending": bool(_row_value(row, 24)),
                 }
             )
 
@@ -1110,6 +1115,7 @@ class HouseholdTransactionService:
                 "row_hash": str(row[9]),
                 "source_kind": "import",
                 "metadata": row[7] if len(row) > 7 else None,
+                "pending": False,
             }
             report_rows.append(candidate_row)
 

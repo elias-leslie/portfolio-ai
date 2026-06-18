@@ -1208,6 +1208,7 @@ export interface HouseholdSpendingTransaction {
   categorizationSource?: string | null
   sourceSystem?: string | null
   externalTransactionId?: string | null
+  pending?: boolean
   transactionRuleId?: string | null
   categoryConfidence?: number | null
   needsCategoryReview?: boolean

@@ -316,6 +316,7 @@ class HouseholdSpendingTransaction(BaseModel):
     categorization_source: str | None = None
     source_system: str | None = None
     external_transaction_id: str | None = None
+    pending: bool = False
     transaction_rule_id: str | None = None
     category_confidence: float | None = None
     needs_category_review: bool = False

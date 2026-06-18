@@ -238,7 +238,9 @@ describe('MoneyBudgetPanel', () => {
     expect(
       screen.getByText('4 suggested rows not accepted yet.'),
     ).toBeInTheDocument()
-    expect(screen.getAllByText('$1,200')).not.toHaveLength(0)
+    expect(screen.getByLabelText('Monthly budget for Retail')).toHaveValue(
+      '1200',
+    )
     expect(screen.getByText('Accepted cap')).toBeInTheDocument()
     expect(screen.getAllByText('Over budget')).not.toHaveLength(0)
   })
@@ -319,7 +321,9 @@ describe('MoneyBudgetPanel', () => {
     expect(
       screen.getByText('Income minus tracked spend over this 3M window.'),
     ).toBeInTheDocument()
-    expect(screen.getByText('Month-to-date spend')).toBeInTheDocument()
+    expect(screen.getByText('Connected MTD spend')).toBeInTheDocument()
+    expect(screen.getByText('12M')).toBeInTheDocument()
+    expect(screen.getByText('All')).toBeInTheDocument()
     // Default fixture has discretionary categories with suggested (unconfirmed) caps.
     expect(
       screen.getByRole('button', { name: /Accept all .* suggested cap/i }),

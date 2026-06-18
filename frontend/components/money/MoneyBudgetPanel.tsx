@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   CATEGORY_BUDGET_PREFIX,
   serializeCategoryBudgetMeta,
@@ -20,8 +20,13 @@ import {
 import { BudgetDialog } from './BudgetDialog'
 import { BudgetStatRow } from './BudgetStatRow'
 import { BudgetTable } from './BudgetTable'
-import { type BudgetWindow, budgetWindows } from './budget-helpers'
+import {
+  type BudgetWindow,
+  budgetWindowMonths,
+  budgetWindows,
+} from './budget-helpers'
 import { CategoryTrendChart } from './CategoryTrendChart'
+import { ConnectedSpendTrendChart } from './ConnectedSpendTrendChart'
 import type { InlineComboboxCommitOptions } from './InlineComboboxField'
 import { OwnerSpendInsightsCard } from './OwnerSpendInsightsCard'
 import {
@@ -47,6 +52,7 @@ export function MoneyBudgetPanel() {
     isFetching,
     isLoading,
   } = useHouseholdSpending({ window })
+  const connectedTrendQuery = useHouseholdSpending({ window: '12m' })
   const { data: facts = [] } = useHouseholdFacts()
   const confirmFact = useConfirmFact()
   const categorizeTransaction = useCategorizeHouseholdTransaction()
@@ -74,6 +80,55 @@ export function MoneyBudgetPanel() {
     isolatedCap,
     ownerSpendRows,
   } = useBudgetRows({ spending, facts, isolatedSeries })
+  const connectedMonthStats = useMemo(() => {
+    const endDate = spending?.summary.endDate
+    const monthKey = endDate?.slice(0, 7)
+    const monthRows =
+      monthKey == null
+        ? []
+        : (spending?.transactions ?? []).filter(
+            (transaction) =>
+              transaction.date.slice(0, 7) === monthKey &&
+              transaction.sourceKind === 'transaction' &&
+              ['plaid', 'snaptrade'].includes(
+                transaction.sourceSystem?.toLowerCase() ?? '',
+              ),
+          )
+    const total = monthRows.reduce(
+      (sum, transaction) => sum + transaction.amount,
+      0,
+    )
+    const pendingRows = monthRows.filter((transaction) => transaction.pending)
+    const pendingSpend = pendingRows.reduce(
+      (sum, transaction) => sum + transaction.amount,
+      0,
+    )
+    return {
+      connectedMonthToDateSpend: Math.round(total * 100) / 100,
+      pendingCount: pendingRows.length,
+      pendingSpend: Math.round(pendingSpend * 100) / 100,
+      evidenceSpend:
+        Math.round(((spending?.summary.monthToDateSpend ?? 0) - total) * 100) /
+        100,
+      asOfDate: endDate ?? null,
+    }
+  }, [
+    spending?.summary.endDate,
+    spending?.summary.monthToDateSpend,
+    spending?.transactions,
+  ])
+  const requestedCoverageMonths = budgetWindowMonths[window]
+  const averageCoverageMonths = spending?.summary.coverageMonths ?? 0
+  const hasShortCoverage =
+    requestedCoverageMonths != null &&
+    averageCoverageMonths > 0 &&
+    averageCoverageMonths < requestedCoverageMonths
+  const observedMonthlyDetail =
+    averageCoverageMonths > 0
+      ? hasShortCoverage
+        ? `${averageCoverageMonths} complete month${averageCoverageMonths === 1 ? '' : 's'} with data; not divided by ${requestedCoverageMonths}.`
+        : `Complete-month run-rate over ${averageCoverageMonths} month${averageCoverageMonths === 1 ? '' : 's'}.`
+      : 'No complete covered month yet.'
 
   async function acceptAllSuggestedCaps() {
     for (const entry of foundBudgetRows) {
@@ -290,12 +345,25 @@ export function MoneyBudgetPanel() {
           netCashFlow={spending?.summary.netCashFlow}
           savingsRate={spending?.summary.savingsRate}
           monthToDateSpend={spending?.summary.monthToDateSpend}
+          connectedMonthToDateSpend={
+            connectedMonthStats.connectedMonthToDateSpend
+          }
+          connectedPendingCount={connectedMonthStats.pendingCount}
+          connectedPendingSpend={connectedMonthStats.pendingSpend}
+          evidenceMonthToDateSpend={connectedMonthStats.evidenceSpend}
+          monthToDateAsOfDate={connectedMonthStats.asOfDate}
+          observedMonthlyDetail={observedMonthlyDetail}
           windowLabel={
             budgetWindows.find((option) => option.value === window)?.label ??
             window
           }
         />
       </SectionCard>
+
+      <ConnectedSpendTrendChart
+        transactions={connectedTrendQuery.data?.transactions ?? []}
+        isLoading={connectedTrendQuery.isLoading}
+      />
 
       <CategoryTrendChart
         timeframeLabel={spending?.summary.timeframeLabel}
