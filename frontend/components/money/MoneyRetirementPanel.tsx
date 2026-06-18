@@ -53,6 +53,7 @@ import type {
   RetirementAccountRule,
   RetirementAllocationScenario,
   RetirementAllocationScenarioInput,
+  RetirementBucketStrategy,
   RetirementBucketStrategyBucket,
   RetirementCollegeYear,
   RetirementIncomeActualsStream,
@@ -244,6 +245,99 @@ function strategyBucketGapLabel(bucket: RetirementBucketStrategyBucket) {
     return `${formatCurrencyWhole(Math.abs(bucket.gapValue))} short`
   }
   return `${formatCurrencyWhole(bucket.gapValue)} above`
+}
+
+type BucketTimingContext = {
+  yearsToRetirement: number
+  retirementYear: number | null
+}
+
+function formatRunwayYears(years: number) {
+  if (years <= 0.1) return 'now'
+  if (years < 1) return '<1y'
+  const rounded = Math.round(years * 10) / 10
+  return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)}y`
+}
+
+function bucketTargetYearsLabel(bucket: RetirementBucketStrategyBucket) {
+  if (bucket.targetYears <= 0) return 'No staged target yet'
+  return `${bucket.targetYears.toFixed(1)}y target now`
+}
+
+function strategyBucketTimingLabel(
+  bucket: RetirementBucketStrategyBucket,
+  timing: BucketTimingContext,
+) {
+  if (timing.yearsToRetirement <= 0.1) return 'In the withdrawal window'
+  const runway = formatRunwayYears(timing.yearsToRetirement)
+  const targetDate = timing.retirementYear
+    ? String(timing.retirementYear)
+    : 'retirement start'
+  if (bucket.bucketId === 'now') {
+    return `${bucketTargetYearsLabel(bucket)} · full 1y cash by ${targetDate}`
+  }
+  if (bucket.bucketId === 'soon') {
+    return `${bucketTargetYearsLabel(bucket)} · full 5y stability by ${targetDate}`
+  }
+  return `Growth source for staged funding over ${runway}`
+}
+
+function strategyBucketPaceLabel(
+  bucket: RetirementBucketStrategyBucket,
+  timing: BucketTimingContext,
+) {
+  if (bucket.status === 'aligned') return 'On pace for this stage.'
+  if (Math.abs(bucket.gapValue) < 1) return 'On pace for this stage.'
+  if (timing.yearsToRetirement > 0.25) {
+    const annualPace = Math.abs(bucket.gapValue) / timing.yearsToRetirement
+    const monthlyPace = annualPace / 12
+    const targetDate = timing.retirementYear
+      ? String(timing.retirementYear)
+      : 'retirement'
+    const pace = `${formatCurrencyWhole(annualPace)}/yr (${formatCurrencyWhole(
+      monthlyPace,
+    )}/mo)`
+    if (bucket.gapValue < 0) {
+      return `Fund about ${pace} by ${targetDate}; not an all-at-once move.`
+    }
+    if (bucket.bucketId === 'later') {
+      return `Source about ${pace} from growth by ${targetDate}.`
+    }
+    return `Trim about ${pace} by ${targetDate}.`
+  }
+  return bucket.action
+}
+
+function timingPaceShortLabel(
+  bucket: RetirementBucketStrategyBucket,
+  timing: BucketTimingContext,
+) {
+  if (bucket.status === 'aligned') return 'On pace'
+  if (Math.abs(bucket.gapValue) < 1) return 'On pace'
+  if (timing.yearsToRetirement > 0.25) {
+    const annualPace = Math.abs(bucket.gapValue) / timing.yearsToRetirement
+    const verb =
+      bucket.gapValue < 0
+        ? 'Fund'
+        : bucket.bucketId === 'later'
+          ? 'Source'
+          : 'Trim'
+    return `${verb} ${formatCurrencyWhole(annualPace)}/yr`
+  }
+  return bucket.gapValue < 0 ? 'Fund now' : 'Review'
+}
+
+function bucketStrategyRetirementYear(
+  strategy: RetirementBucketStrategy | null,
+  drawdownSchedule:
+    | Array<{ primaryAge: number; calendarYear: number }>
+    | undefined,
+) {
+  if (!strategy) return null
+  return (
+    drawdownSchedule?.find((row) => row.primaryAge >= strategy.retirementAge)
+      ?.calendarYear ?? null
+  )
 }
 
 function allocationBreakdownText(allocation: Record<string, number>) {
@@ -1412,9 +1506,11 @@ function PlannerFieldLabel({
 function BucketStrategyTooltip({
   active,
   payload,
+  timing,
 }: {
   active?: boolean
   payload?: Array<{ payload?: RetirementBucketStrategyBucket }>
+  timing: BucketTimingContext
 }) {
   if (!active) return null
   const bucket = payload?.[0]?.payload
@@ -1428,6 +1524,9 @@ function BucketStrategyTooltip({
         </Badge>
       </div>
       <p className="mt-1 text-xs text-text-muted">{bucket.timeHorizon}</p>
+      <p className="mt-1 text-xs text-text-muted">
+        {strategyBucketTimingLabel(bucket, timing)}
+      </p>
       <div className="mt-3 grid gap-1 text-xs text-text-muted">
         <div className="flex justify-between gap-3">
           <span>Current</span>
@@ -1450,6 +1549,9 @@ function BucketStrategyTooltip({
       </div>
       <p className="mt-3 text-xs text-text-muted">
         {allocationBreakdownText(bucket.assetAllocation)}
+      </p>
+      <p className="mt-2 text-xs text-text-muted">
+        {strategyBucketPaceLabel(bucket, timing)}
       </p>
       {bucket.holdings.length > 0 ? (
         <div className="mt-3 space-y-1">
@@ -1950,6 +2052,35 @@ export function MoneyRetirementPanel({
         (bucket) => bucket.currentValue > 0 || bucket.targetValue > 0,
       ),
     [bucketStrategy?.buckets],
+  )
+  const bucketRetirementYear = bucketStrategyRetirementYear(
+    bucketStrategy,
+    preview?.drawdownSchedule,
+  )
+  const bucketStrategyTiming = useMemo<BucketTimingContext>(
+    () => ({
+      yearsToRetirement: bucketStrategy?.yearsToRetirement ?? 0,
+      retirementYear: bucketRetirementYear,
+    }),
+    [bucketStrategy?.yearsToRetirement, bucketRetirementYear],
+  )
+  const bucketStrategyMoveActions = useMemo(
+    () =>
+      (bucketStrategy?.buckets ?? [])
+        .filter(
+          (bucket) =>
+            bucket.status !== 'aligned' &&
+            Math.abs(bucket.gapValue) >= 1 &&
+            bucket.targetValue > 0,
+        )
+        .map(
+          (bucket) =>
+            `${bucket.label}: ${strategyBucketPaceLabel(
+              bucket,
+              bucketStrategyTiming,
+            )}`,
+        ),
+    [bucketStrategy?.buckets, bucketStrategyTiming],
   )
   const terminalProjection =
     projectionData.length > 0 ? projectionData[projectionData.length - 1] : null
@@ -2863,6 +2994,10 @@ export function MoneyRetirementPanel({
                   <p className="mt-1 max-w-2xl text-xs text-text-muted">
                     {bucketStrategy.detail}
                   </p>
+                  <p className="mt-1 max-w-2xl text-xs text-text-muted">
+                    Gaps are shown as a glide-path pace over the remaining
+                    retirement runway, not as same-day trade instructions.
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={bucketStrategyVariant(bucketStrategy.status)}>
@@ -2903,7 +3038,13 @@ export function MoneyRetirementPanel({
                             />
                           ))}
                         </Pie>
-                        <Tooltip content={<BucketStrategyTooltip />} />
+                        <Tooltip
+                          content={
+                            <BucketStrategyTooltip
+                              timing={bucketStrategyTiming}
+                            />
+                          }
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -2921,9 +3062,11 @@ export function MoneyRetirementPanel({
                       </p>
                     </div>
                     <div className="rounded-xl border border-border/25 bg-bg/25 p-2">
-                      <p className="text-text-muted">Runway</p>
+                      <p className="text-text-muted">Full retirement</p>
                       <p className="mt-1 font-mono text-sm text-text">
-                        {Math.round(bucketStrategy.yearsToRetirement)}y
+                        {bucketRetirementYear
+                          ? bucketRetirementYear
+                          : formatRunwayYears(bucketStrategy.yearsToRetirement)}
                       </p>
                     </div>
                   </div>
@@ -2953,12 +3096,19 @@ export function MoneyRetirementPanel({
                             {bucket.timeHorizon} ·{' '}
                             {allocationBreakdownText(bucket.assetAllocation)}
                           </p>
+                          <p className="mt-1 text-xs text-text-muted">
+                            Timing:{' '}
+                            {strategyBucketTimingLabel(
+                              bucket,
+                              bucketStrategyTiming,
+                            )}
+                          </p>
                         </div>
                         <Badge variant={bucketStrategyVariant(bucket.status)}>
                           {strategyBucketFillLabel(bucket)}
                         </Badge>
                       </div>
-                      <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
+                      <div className="mt-3 grid gap-2 text-xs sm:grid-cols-4">
                         <div>
                           <p className="text-text-muted">Current</p>
                           <p className="font-mono text-text">
@@ -2975,6 +3125,12 @@ export function MoneyRetirementPanel({
                           <p className="text-text-muted">Gap</p>
                           <p className="font-mono text-text">
                             {strategyBucketGapLabel(bucket)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-text-muted">Pace</p>
+                          <p className="font-mono text-text">
+                            {timingPaceShortLabel(bucket, bucketStrategyTiming)}
                           </p>
                         </div>
                       </div>
@@ -3002,7 +3158,7 @@ export function MoneyRetirementPanel({
                         />
                       </div>
                       <p className="mt-2 text-xs text-text-muted">
-                        {bucket.action}
+                        {strategyBucketPaceLabel(bucket, bucketStrategyTiming)}
                       </p>
                     </div>
                   ))}
@@ -3012,17 +3168,17 @@ export function MoneyRetirementPanel({
               <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                 <div
                   className={`rounded-xl border p-3 ${
-                    bucketStrategy.rebalanceActions.length > 0
+                    bucketStrategyMoveActions.length > 0
                       ? 'border-warning/30 bg-warning/10'
                       : 'border-success/25 bg-success/10'
                   }`}
                 >
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
-                    Next allocation moves
+                    Glide-path funding plan
                   </p>
-                  {bucketStrategy.rebalanceActions.length > 0 ? (
+                  {bucketStrategyMoveActions.length > 0 ? (
                     <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-text-muted">
-                      {bucketStrategy.rebalanceActions.map((action) => (
+                      {bucketStrategyMoveActions.map((action) => (
                         <li key={action}>{action}</li>
                       ))}
                     </ul>

@@ -882,6 +882,17 @@ describe('MoneyRetirementPanel', () => {
     expect(screen.getAllByText('Pre-tax').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Roth').length).toBeGreaterThan(0)
     expect(screen.getByText('Sensitivity checks')).toBeInTheDocument()
+    expect(screen.getByText('Glide-path funding plan')).toBeInTheDocument()
+    expect(
+      screen.getByText(/Gaps are shown as a glide-path pace/),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/full 5y stability by 2041/)).toBeInTheDocument()
+    expect(screen.getByText('Fund $5,333/yr')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Soon / stability: Fund about $5,333/yr ($444/mo) by 2041; not an all-at-once move.',
+      ),
+    ).toBeInTheDocument()
     expect(screen.queryByText('25x checkpoint')).not.toBeInTheDocument()
     expect(screen.queryByText(/save gap \/ month/i)).not.toBeInTheDocument()
     expect(screen.queryByText('Account buckets')).not.toBeInTheDocument()

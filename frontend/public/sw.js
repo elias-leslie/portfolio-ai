@@ -1,4 +1,4 @@
-const CACHE_NAME = 'portfolio-ai-pwa-v2'
+const CACHE_NAME = 'portfolio-ai-pwa-v3'
 const SHELL_ASSETS = [
   '/manifest.json',
   '/favicon.ico',
