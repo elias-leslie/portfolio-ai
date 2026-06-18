@@ -606,6 +606,15 @@ export interface RetirementSpendingActuals {
   totalMonthlySpend: number
   healthcareMonthly: number
   sourceLabel: string
+  categories: RetirementSpendingActualsCategory[]
+}
+
+export interface RetirementSpendingActualsCategory {
+  category: string
+  essentiality: string
+  monthlyAverage: number
+  total: number
+  transactionCount: number
 }
 
 export interface RetirementInputs {

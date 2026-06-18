@@ -59,6 +59,7 @@ import type {
   RetirementIncomeSourceInput,
   RetirementLiquidityEvent,
   RetirementPreviewRequest,
+  RetirementSpendingActuals,
   RetirementSpendingReduction,
   RetirementWithdrawalConfig,
 } from '@/lib/api/household'
@@ -72,6 +73,7 @@ import {
 import { useDebounce } from '@/lib/hooks/useDebounce'
 import {
   useAllocationScenarios,
+  useHouseholdFacts,
   useHouseholdPropertyValuations,
   useRefreshHouseholdPropertyValuation,
   useReplaceAllocationScenarios,
@@ -82,6 +84,7 @@ import {
   useUpdateHouseholdProfile,
   useUpdateRetirementIncomeStreamOverride,
 } from '@/lib/hooks/useHousehold'
+import { categoryBudgetMetaMap } from './household-fact-metadata'
 import { buildOwnerOptions } from './owner-options'
 
 const bucketColors: Record<string, string> = {
@@ -574,17 +577,20 @@ function defaultDraft(dashboard: HouseholdFinanceDashboard) {
     (ages.primaryAge != null && ages.spouseAge != null
       ? ages.spouseAge + Math.max(0, primaryRetirementAge - ages.primaryAge)
       : primaryRetirementAge)
+  const plannedContributionMonthly =
+    retirementContributionEstimateFromPlanning(dashboard)?.monthlyAmount ?? 0
+  const monthlyContribution = Math.max(
+    dashboard.profile.monthlySavingsTarget ?? 0,
+    dashboard.retirementContributionTracker.estimatedMonthlyContributions ?? 0,
+    plannedContributionMonthly,
+  )
   return {
     primaryAge: numberInput(ages.primaryAge, ''),
     spouseAge: numberInput(ages.spouseAge, ''),
     retirementAge: numberInput(primaryRetirementAge, '65'),
     spouseRetirementAge: numberInput(spouseRetirementAge, '65'),
     monthlySpend: numberInput(monthlySpend, '6000'),
-    monthlyContribution: numberInput(
-      dashboard.profile.monthlySavingsTarget ??
-        dashboard.retirementContributionTracker.estimatedMonthlyContributions,
-      '0',
-    ),
+    monthlyContribution: numberInput(monthlyContribution, '0'),
     inflationRate: percentInput(dashboard.profile.retirementInflationRate),
     horizonYears: numberInput(dashboard.profile.retirementHorizonYears, '35'),
     primarySocialSecurityMonthly: socialSecurity.primaryMonthly,
@@ -713,7 +719,25 @@ type ChildReductionDraft = {
   label: string
   startYear: string
   monthlyAmount: string
+  amountSource?: 'manual' | 'money_actuals'
   notes: string
+}
+
+type ChildReductionDraftField =
+  | 'label'
+  | 'startYear'
+  | 'monthlyAmount'
+  | 'notes'
+
+type ChildCostDropEstimate = {
+  householdMonthly: number
+  perChildMonthly: number
+  categories: string[]
+}
+
+type RetirementContributionEstimate = {
+  monthlyAmount: number
+  sources: Array<{ label: string; monthlyAmount: number }>
 }
 
 type RealEstateDraft = {
@@ -753,6 +777,84 @@ function dependentMembers(dashboard: HouseholdFinanceDashboard) {
   )
 }
 
+function dependentNameKeys(dashboard: HouseholdFinanceDashboard) {
+  return dependentMembers(dashboard)
+    .flatMap((member) => {
+      const name = member.displayName.trim().toLowerCase()
+      const firstName = name.split(/\s+/)[0]
+      return [name, firstName]
+    })
+    .filter(Boolean)
+}
+
+function ownerMatchesDependent(
+  ownerName: string | null | undefined,
+  names: string[],
+) {
+  const owner = ownerName?.trim().toLowerCase()
+  if (!owner) return false
+  return names.some((name) => owner.includes(name))
+}
+
+function childCostDropEstimateFromActuals(
+  spendingActuals: RetirementSpendingActuals | undefined,
+  categoryMeta: ReturnType<typeof categoryBudgetMetaMap>,
+  dashboard: HouseholdFinanceDashboard,
+): ChildCostDropEstimate | null {
+  const dependents = dependentMembers(dashboard)
+  if (!spendingActuals || dependents.length === 0) return null
+  const names = dependentNameKeys(dashboard)
+  const childRows = (spendingActuals.categories ?? []).filter((row) => {
+    const meta = categoryMeta.get(row.category)
+    if (!meta || meta.disabled) return false
+    return ownerMatchesDependent(meta.ownerName, names)
+  })
+  const householdMonthly = childRows.reduce(
+    (sum, row) => sum + row.monthlyAverage,
+    0,
+  )
+  if (householdMonthly <= 0) return null
+  return {
+    householdMonthly,
+    perChildMonthly: householdMonthly / dependents.length,
+    categories: Array.from(new Set(childRows.map((row) => row.category))),
+  }
+}
+
+function monthlyAmountFromPlanningSource(source: {
+  monthlyAmount?: number | null
+  annualAmount?: number | null
+}) {
+  if (typeof source.monthlyAmount === 'number' && source.monthlyAmount > 0) {
+    return source.monthlyAmount
+  }
+  if (typeof source.annualAmount === 'number' && source.annualAmount > 0) {
+    return source.annualAmount / 12
+  }
+  return 0
+}
+
+function retirementContributionEstimateFromPlanning(
+  dashboard: HouseholdFinanceDashboard,
+): RetirementContributionEstimate | null {
+  const sources =
+    dashboard.planning?.incomeSources
+      .filter((source) =>
+        source.sourceType.toLowerCase().includes('contribution'),
+      )
+      .map((source) => ({
+        label: source.label,
+        monthlyAmount: monthlyAmountFromPlanningSource(source),
+      }))
+      .filter((source) => source.monthlyAmount > 0) ?? []
+  const monthlyAmount = sources.reduce(
+    (sum, source) => sum + source.monthlyAmount,
+    0,
+  )
+  if (monthlyAmount <= 0) return null
+  return { monthlyAmount, sources }
+}
+
 function defaultChildReductionDraft(
   dashboard: HouseholdFinanceDashboard,
 ): ChildReductionDraft[] {
@@ -766,6 +868,7 @@ function defaultChildReductionDraft(
       label: expense.label,
       startYear: expense.targetDate?.slice(0, 4) ?? '',
       monthlyAmount: amountInput(expense.targetAmount),
+      amountSource: 'manual',
       notes: expense.notes ?? '',
     }))
   }
@@ -776,6 +879,7 @@ function defaultChildReductionDraft(
       ? String(member.birthYear + 22)
       : String(currentYear + 5),
     monthlyAmount: '',
+    amountSource: 'manual',
     notes: 'Expected child costs drop after job / move-out.',
   }))
 }
@@ -835,7 +939,10 @@ function childReductionPlanningRows(
         label: row.label.trim(),
         expenseKind: childReductionExpenseKind,
         category: 'retirement_spending',
-        targetAmount: parseOptionalAmount(row.monthlyAmount),
+        targetAmount:
+          row.amountSource === 'money_actuals'
+            ? null
+            : parseOptionalAmount(row.monthlyAmount),
         targetDate: row.startYear.trim()
           ? `${row.startYear.trim()}-01-01`
           : null,
@@ -843,8 +950,12 @@ function childReductionPlanningRows(
         priority: 'medium',
         notes: row.notes || null,
         confirmationStatus: 'confirmed',
-        provenance: 'manual',
-        evidenceNote: null,
+        provenance:
+          row.amountSource === 'money_actuals' ? 'money_actuals' : 'manual',
+        evidenceNote:
+          row.amountSource === 'money_actuals'
+            ? 'Amount auto-fed from child-owned Money spending categories.'
+            : null,
         sourceDocumentId: null,
       })),
   ]
@@ -1383,11 +1494,17 @@ export function MoneyRetirementPanel({
   const [partialDraft, setPartialDraft] = useState(() =>
     defaultPartialDraft(dashboard),
   )
+  const [
+    monthlyContributionManualOverride,
+    setMonthlyContributionManualOverride,
+  ] = useState(false)
   const [partialNetManualOverride, setPartialNetManualOverride] =
     useState(false)
   const [childReductionDraft, setChildReductionDraft] = useState(() =>
     defaultChildReductionDraft(dashboard),
   )
+  const [childReductionAutoSeeded, setChildReductionAutoSeeded] =
+    useState(false)
   const [realEstateDraft, setRealEstateDraft] = useState(() =>
     defaultRealEstateDraft(dashboard),
   )
@@ -1411,9 +1528,35 @@ export function MoneyRetirementPanel({
   const replaceScenarios = useReplaceAllocationScenarios()
   const incomeActualsQuery = useRetirementIncomeActuals()
   const spendingActualsQuery = useRetirementSpendingActuals()
+  const householdFactsQuery = useHouseholdFacts()
   const updateIncomeStreamOverride = useUpdateRetirementIncomeStreamOverride()
   const incomeActuals = incomeActualsQuery.data
   const spendingActuals = spendingActualsQuery.data
+  const categoryBudgetMeta = useMemo(
+    () => categoryBudgetMetaMap(householdFactsQuery.data ?? []),
+    [householdFactsQuery.data],
+  )
+  const childCostDropEstimate = useMemo(
+    () =>
+      childCostDropEstimateFromActuals(
+        spendingActuals,
+        categoryBudgetMeta,
+        dashboard,
+      ),
+    [spendingActuals, categoryBudgetMeta, dashboard],
+  )
+  const retirementContributionEstimate = useMemo(
+    () => retirementContributionEstimateFromPlanning(dashboard),
+    [dashboard],
+  )
+  const detectedContributionMonthly = Math.max(
+    dashboard.retirementContributionTracker.estimatedMonthlyContributions ?? 0,
+    retirementContributionEstimate?.monthlyAmount ?? 0,
+  )
+  const contributionAutoActive =
+    !monthlyContributionManualOverride &&
+    (dashboard.profile.monthlySavingsTarget ?? 0) <= 0 &&
+    detectedContributionMonthly > 0
   const incomeOwnerOptions = useMemo(
     () =>
       buildOwnerOptions(
@@ -1532,6 +1675,17 @@ export function MoneyRetirementPanel({
       ...partialRequestFields(debouncedPartial),
     }))
   }, [debouncedPartial])
+  const debouncedChildReductions = useDebounce(childReductionDraft, 250)
+  useEffect(() => {
+    setRequest((current) => ({
+      ...current,
+      spendingReductions: spendingReductionsFromDraft(
+        dashboard,
+        draft,
+        debouncedChildReductions,
+      ),
+    }))
+  }, [dashboard, draft, debouncedChildReductions])
   const pendingRequest = useMemo(
     () =>
       buildRequest(
@@ -1645,7 +1799,9 @@ export function MoneyRetirementPanel({
     const nextPartial = defaultPartialDraft(dashboard)
     const nextChildReductions = defaultChildReductionDraft(dashboard)
     const nextRealEstate = defaultRealEstateDraft(dashboard)
+    setMonthlyContributionManualOverride(false)
     setPartialNetManualOverride(false)
+    setChildReductionAutoSeeded(false)
     setDraft(nextDraft)
     setWithdrawalDraft(nextWithdrawal)
     setAcaDraft(nextAca)
@@ -1681,6 +1837,26 @@ export function MoneyRetirementPanel({
         : { ...current, spouseNetMonthly: next },
     )
   }, [detectedTakeHome, partialNetManualOverride])
+
+  useEffect(() => {
+    if (childReductionAutoSeeded || !childCostDropEstimate) return
+    const next = amountInput(childCostDropEstimate.perChildMonthly)
+    let changed = false
+    setChildReductionDraft((current) =>
+      current.map((row) => {
+        if (row.monthlyAmount.trim()) return row
+        changed = true
+        return {
+          ...row,
+          monthlyAmount: next,
+          amountSource: 'money_actuals',
+        }
+      }),
+    )
+    if (changed) {
+      setChildReductionAutoSeeded(true)
+    }
+  }, [childReductionAutoSeeded, childCostDropEstimate])
 
   const projectionData = useMemo(() => {
     if (!preview) return []
@@ -2139,7 +2315,9 @@ export function MoneyRetirementPanel({
       targetRetirementAge: parseNumber(draft.retirementAge, 65),
       targetSpouseRetirementAge: parseOptionalNumber(draft.spouseRetirementAge),
       targetRetirementSpend: parseNumber(draft.monthlySpend, 6000),
-      monthlySavingsTarget: parseNumber(draft.monthlyContribution, 0),
+      monthlySavingsTarget: contributionAutoActive
+        ? dashboard.profile.monthlySavingsTarget
+        : parseNumber(draft.monthlyContribution, 0),
       retirementInflationRate: parseNumber(draft.inflationRate, 2.5) / 100,
       retirementHorizonYears: parseNumber(draft.horizonYears, 35),
       primarySocialSecurityMonthly: parseOptionalNumber(
@@ -2252,6 +2430,9 @@ export function MoneyRetirementPanel({
   }
 
   const updateDraft = (key: keyof typeof draft, value: string) => {
+    if (key === 'monthlyContribution') {
+      setMonthlyContributionManualOverride(true)
+    }
     setDraft((current) => ({ ...current, [key]: value }))
   }
 
@@ -2264,12 +2445,19 @@ export function MoneyRetirementPanel({
 
   const updateChildReductionDraft = (
     index: number,
-    key: keyof ChildReductionDraft,
+    key: ChildReductionDraftField,
     value: string,
   ) => {
     setChildReductionDraft((current) =>
       current.map((row, rowIndex) =>
-        rowIndex === index ? { ...row, [key]: value } : row,
+        rowIndex === index
+          ? {
+              ...row,
+              [key]: value,
+              amountSource:
+                key === 'monthlyAmount' ? 'manual' : row.amountSource,
+            }
+          : row,
       ),
     )
   }
@@ -2281,6 +2469,7 @@ export function MoneyRetirementPanel({
         label: `Child ${current.length + 1}`,
         startYear: String(new Date(dashboard.generatedAt).getFullYear() + 5),
         monthlyAmount: '',
+        amountSource: 'manual',
         notes: '',
       },
     ])
@@ -3306,6 +3495,23 @@ export function MoneyRetirementPanel({
                         updateDraft('monthlyContribution', event.target.value)
                       }
                     />
+                    {retirementContributionEstimate ? (
+                      <p className="mt-2 text-xs text-text-muted">
+                        Detected retirement contribution source:{' '}
+                        {retirementContributionEstimate.sources
+                          .map((source) => source.label)
+                          .join(', ')}{' '}
+                        ≈{' '}
+                        {formatCurrency(
+                          retirementContributionEstimate.monthlyAmount,
+                          { decimals: 0 },
+                        )}
+                        /mo
+                        {contributionAutoActive
+                          ? ' — auto-fed into this plan until edited.'
+                          : '.'}
+                      </p>
+                    ) : null}
                   </div>
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
@@ -4258,6 +4464,19 @@ export function MoneyRetirementPanel({
                             detail="Reduces base living spend when each child is expected to be self-funded. Healthcare and college stay modeled in their own schedules."
                           />
                         </div>
+                        {childCostDropEstimate ? (
+                          <p className="mt-2 text-xs text-text-muted">
+                            Auto-fed from child-owned Money categories:{' '}
+                            {childCostDropEstimate.categories.join(', ')} ≈{' '}
+                            {formatCurrency(
+                              childCostDropEstimate.perChildMonthly,
+                              { decimals: 0 },
+                            )}
+                            /child/mo. Shared groceries, retail, healthcare, and
+                            college stay separate unless categorized to the
+                            children.
+                          </p>
+                        ) : null}
                       </div>
                       <Button
                         type="button"
@@ -4312,6 +4531,9 @@ export function MoneyRetirementPanel({
                               </label>
                               <label className="text-xs text-text-muted">
                                 Spend drop $/mo
+                                {row.amountSource === 'money_actuals'
+                                  ? ' (auto)'
+                                  : ''}
                                 <Input
                                   className="mt-1"
                                   inputMode="decimal"

@@ -11,6 +11,7 @@ import type {
   RetirementSpendingActuals,
 } from '@/lib/api/household'
 import {
+  useHouseholdFacts,
   useRetirementIncomeActuals,
   useRetirementPreview,
   useRetirementSpendingActuals,
@@ -21,6 +22,7 @@ import {
 import { MoneyRetirementPanel } from '../MoneyRetirementPanel'
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
+  useHouseholdFacts: vi.fn(),
   useRetirementPreview: vi.fn(),
   useRetirementIncomeActuals: vi.fn(),
   useRetirementSpendingActuals: vi.fn(),
@@ -776,9 +778,11 @@ const spendingActuals: RetirementSpendingActuals = {
   healthcareMonthly: 363.74,
   sourceLabel:
     'Derived from deduped Money transactions, 2026-01 to 2026-05 (5 complete months).',
+  categories: [],
 }
 
 const usePreviewMock = vi.mocked(useRetirementPreview)
+const useHouseholdFactsMock = vi.mocked(useHouseholdFacts)
 const useIncomeActualsMock = vi.mocked(useRetirementIncomeActuals)
 const useSpendingActualsMock = vi.mocked(useRetirementSpendingActuals)
 const useUpdateProfileMock = vi.mocked(useUpdateHouseholdProfile)
@@ -806,6 +810,12 @@ async function openPlannerSection(
 describe('MoneyRetirementPanel', () => {
   beforeEach(() => {
     usePreviewMock.mockReset()
+    useHouseholdFactsMock.mockReset()
+    useHouseholdFactsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useHouseholdFacts>)
     useIncomeActualsMock.mockReset()
     useIncomeActualsMock.mockReturnValue({
       data: undefined,
