@@ -1667,6 +1667,39 @@ export interface HouseholdShoppingListsResponse {
   lists: HouseholdShoppingList[]
 }
 
+export interface HouseholdShoppingListSuggestionItem {
+  productId: string
+  productName: string
+  purchaseCount: number
+  firstPurchaseDate?: string | null
+  lastPurchaseDate?: string | null
+  medianGapDays?: number | null
+  nextDueDate?: string | null
+  daysUntilDue?: number | null
+  dueBucket: 'buy_now' | 'soon' | 'watch'
+  confidence: number
+  reason: string
+  latestCategory?: string | null
+  latestMerchant?: string | null
+  latestPrice?: number | null
+  packageLabel?: string | null
+  unitLabel?: string | null
+  alreadyOnOpenList: boolean
+  selectedByDefault: boolean
+}
+
+export interface HouseholdShoppingListSuggestions {
+  generatedAt: string
+  lookbackDays: number
+  daysAhead: number
+  watchDays: number
+  itemCount: number
+  buyNowCount: number
+  soonCount: number
+  watchCount: number
+  items: HouseholdShoppingListSuggestionItem[]
+}
+
 export interface HouseholdShoppingListRequest {
   name: string
   status?: string

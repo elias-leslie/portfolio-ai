@@ -15,6 +15,8 @@ from app.models.household_finance import (
     HouseholdShoppingListItem,
     HouseholdShoppingListRequest,
     HouseholdShoppingListsResponse,
+    HouseholdShoppingListSuggestionItem,
+    HouseholdShoppingListSuggestions,
     HouseholdVendorProfile,
     HouseholdVendorProfileList,
     HouseholdVendorProfileUpdate,
@@ -29,6 +31,11 @@ LIST_PARSER_AGENT_SLUG = "household-list-parser"
 _FRESH_QUOTE_DAYS = 14
 _FRESH_ACTUAL_OBSERVATION_DAYS = 90
 _MIN_VENDOR_QUOTE_CONFIDENCE = 0.7
+_SUGGESTION_LOOKBACK_DAYS = 365
+_SUGGESTION_DEFAULT_DAYS_AHEAD = 14
+_SUGGESTION_DEFAULT_WATCH_DAYS = 45
+_SUGGESTION_DEFAULT_LIMIT = 40
+_SUGGESTION_MIN_PURCHASE_EVENTS = 3
 _UNIT_LABELS = {
     "weight_oz": "oz",
     "volume_fl_oz": "fl oz",
@@ -75,6 +82,156 @@ class HouseholdShoppingListService:
             row = self._list_row(conn, list_id)
             items = self._items_for_lists(conn, [list_id]).get(list_id, [])
         return _list_model(row, items)
+
+    def suggested_items(
+        self,
+        *,
+        days_ahead: int = _SUGGESTION_DEFAULT_DAYS_AHEAD,
+        watch_days: int = _SUGGESTION_DEFAULT_WATCH_DAYS,
+        limit: int = _SUGGESTION_DEFAULT_LIMIT,
+    ) -> HouseholdShoppingListSuggestions:
+        """Suggest a grocery/household list from recurring product cadence."""
+        normalized_days_ahead = max(1, min(int(days_ahead), 60))
+        normalized_watch_days = max(normalized_days_ahead, min(int(watch_days), 120))
+        normalized_limit = max(1, min(int(limit), 100))
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                """
+                WITH purchase_events AS (
+                    SELECT p.id AS product_id,
+                           p.canonical_name AS product_name,
+                           i.purchase_date::date AS purchase_date,
+                           SUM(i.amount) AS event_spend,
+                           MAX(i.product_match_confidence) AS event_match_confidence
+                    FROM household_purchase_items i
+                    JOIN household_products p ON p.id = i.product_id
+                    WHERE i.removed IS NOT TRUE
+                      AND i.product_id IS NOT NULL
+                      AND i.purchase_date >= CURRENT_DATE - (%s::int * INTERVAL '1 day')
+                    GROUP BY p.id, p.canonical_name, i.purchase_date::date
+                ),
+                dated_events AS (
+                    SELECT *,
+                           LAG(purchase_date) OVER (
+                               PARTITION BY product_id ORDER BY purchase_date
+                           ) AS previous_purchase_date
+                    FROM purchase_events
+                ),
+                cadence AS (
+                    SELECT product_id,
+                           product_name,
+                           COUNT(*) AS purchase_count,
+                           MIN(purchase_date) AS first_purchase_date,
+                           MAX(purchase_date) AS last_purchase_date,
+                           PERCENTILE_CONT(0.5) WITHIN GROUP (
+                               ORDER BY purchase_date - previous_purchase_date
+                           ) FILTER (
+                               WHERE previous_purchase_date IS NOT NULL
+                           ) AS median_gap_days,
+                           STDDEV_POP(
+                               (purchase_date - previous_purchase_date)::double precision
+                           ) FILTER (
+                               WHERE previous_purchase_date IS NOT NULL
+                           ) AS gap_stddev_days,
+                           SUM(event_spend) AS total_spend,
+                           MAX(event_match_confidence) AS match_confidence
+                    FROM dated_events
+                    GROUP BY product_id, product_name
+                    HAVING COUNT(*) >= %s
+                ),
+                latest_item AS (
+                    SELECT DISTINCT ON (i.product_id)
+                           i.product_id,
+                           i.category AS latest_category,
+                           COALESCE(m.canonical_name, m.display_name) AS latest_merchant
+                    FROM household_purchase_items i
+                    LEFT JOIN household_merchants m ON m.id = i.merchant_id
+                    WHERE i.removed IS NOT TRUE
+                      AND i.product_id IS NOT NULL
+                    ORDER BY i.product_id, i.purchase_date DESC NULLS LAST,
+                             i.created_at DESC
+                ),
+                latest_actual_price AS (
+                    SELECT DISTINCT ON (product_id)
+                           product_id,
+                           total_price,
+                           package_display_label,
+                           package_normalized_unit
+                    FROM household_product_price_observations
+                    WHERE source <> 'vendor_quote'
+                      AND package_normalized_quantity IS NOT NULL
+                      AND package_normalized_quantity > 0
+                      AND package_normalized_unit IS NOT NULL
+                    ORDER BY product_id, observed_date DESC, created_at DESC
+                ),
+                open_list_items AS (
+                    SELECT DISTINCT i.product_id
+                    FROM household_shopping_list_items i
+                    JOIN household_shopping_lists l ON l.id = i.shopping_list_id
+                    WHERE l.status = 'active'
+                      AND i.status = 'open'
+                      AND i.product_id IS NOT NULL
+                ),
+                due_items AS (
+                    SELECT c.*,
+                           (
+                               c.last_purchase_date
+                               + GREATEST(1, ROUND(c.median_gap_days)::int)
+                           )::date AS next_due_date
+                    FROM cadence c
+                    WHERE c.median_gap_days IS NOT NULL
+                      AND c.median_gap_days >= 3
+                      AND c.median_gap_days <= 180
+                )
+                SELECT d.product_id::text,
+                       d.product_name,
+                       d.purchase_count,
+                       d.first_purchase_date,
+                       d.last_purchase_date,
+                       CAST(d.median_gap_days AS DOUBLE PRECISION),
+                       CAST(d.gap_stddev_days AS DOUBLE PRECISION),
+                       d.next_due_date,
+                       d.next_due_date - CURRENT_DATE AS days_until_due,
+                       CAST(d.total_spend AS DOUBLE PRECISION),
+                       CAST(d.match_confidence AS DOUBLE PRECISION),
+                       latest_item.latest_category,
+                       latest_item.latest_merchant,
+                       CAST(latest_actual_price.total_price AS DOUBLE PRECISION),
+                       latest_actual_price.package_display_label,
+                       latest_actual_price.package_normalized_unit,
+                       open_list_items.product_id IS NOT NULL AS already_on_open_list
+                FROM due_items d
+                LEFT JOIN latest_item ON latest_item.product_id = d.product_id
+                LEFT JOIN latest_actual_price
+                       ON latest_actual_price.product_id = d.product_id
+                LEFT JOIN open_list_items ON open_list_items.product_id = d.product_id
+                WHERE d.next_due_date <= CURRENT_DATE + (%s::int * INTERVAL '1 day')
+                ORDER BY d.next_due_date ASC, d.purchase_count DESC,
+                         d.total_spend DESC, d.product_name ASC
+                LIMIT %s
+                """,
+                [
+                    _SUGGESTION_LOOKBACK_DAYS,
+                    _SUGGESTION_MIN_PURCHASE_EVENTS,
+                    normalized_watch_days,
+                    normalized_limit,
+                ],
+            ).fetchall()
+        items = [
+            _suggestion_item(row, days_ahead=normalized_days_ahead)
+            for row in rows
+        ]
+        return HouseholdShoppingListSuggestions(
+            generated_at=datetime.now(UTC).isoformat(),
+            lookback_days=_SUGGESTION_LOOKBACK_DAYS,
+            days_ahead=normalized_days_ahead,
+            watch_days=normalized_watch_days,
+            item_count=len(items),
+            buy_now_count=sum(1 for item in items if item.due_bucket == "buy_now"),
+            soon_count=sum(1 for item in items if item.due_bucket == "soon"),
+            watch_count=sum(1 for item in items if item.due_bucket == "watch"),
+            items=items,
+        )
 
     def update_shopping_list(
         self,
@@ -654,6 +811,110 @@ def _vendor_profile(row: Any) -> HouseholdVendorProfile:
         membership_monthly_fee=to_float(row[6]),
         membership_active=bool(row[7]),
     )
+
+
+def _suggestion_item(row: Any, *, days_ahead: int) -> HouseholdShoppingListSuggestionItem:
+    median_gap = to_float(row[5])
+    gap_stddev = to_float(row[6])
+    days_until_due = int(row[8]) if row[8] is not None else None
+    already_on_open_list = bool(row[16])
+    confidence = _suggestion_confidence(
+        purchase_count=int(row[2] or 0),
+        median_gap_days=median_gap,
+        gap_stddev_days=gap_stddev,
+        match_confidence=to_float(row[10]),
+        has_package=bool(row[14]) and bool(row[15]),
+        days_until_due=days_until_due,
+        days_ahead=days_ahead,
+    )
+    bucket = _suggestion_bucket(days_until_due, days_ahead=days_ahead)
+    return HouseholdShoppingListSuggestionItem(
+        product_id=str(row[0]),
+        product_name=str(row[1] or ""),
+        purchase_count=int(row[2] or 0),
+        first_purchase_date=iso_or_none(row[3]),
+        last_purchase_date=iso_or_none(row[4]),
+        median_gap_days=round(median_gap, 1) if median_gap is not None else None,
+        next_due_date=iso_or_none(row[7]),
+        days_until_due=days_until_due,
+        due_bucket=bucket,
+        confidence=confidence,
+        reason=_suggestion_reason(days_until_due, median_gap),
+        latest_category=str(row[11]) if row[11] else None,
+        latest_merchant=str(row[12]) if row[12] else None,
+        latest_price=to_float(row[13]),
+        package_label=str(row[14]) if row[14] else None,
+        unit_label=_unit_label(str(row[15]) if row[15] else None),
+        already_on_open_list=already_on_open_list,
+        selected_by_default=(
+            bucket in {"buy_now", "soon"}
+            and confidence >= 0.65
+            and not already_on_open_list
+        ),
+    )
+
+
+def _suggestion_bucket(days_until_due: int | None, *, days_ahead: int) -> str:
+    if days_until_due is None:
+        return "watch"
+    if days_until_due <= 0:
+        return "buy_now"
+    if days_until_due <= days_ahead:
+        return "soon"
+    return "watch"
+
+
+def _suggestion_confidence(
+    *,
+    purchase_count: int,
+    median_gap_days: float | None,
+    gap_stddev_days: float | None,
+    match_confidence: float | None,
+    has_package: bool,
+    days_until_due: int | None,
+    days_ahead: int,
+) -> float:
+    score = 0.45
+    if purchase_count >= 6:
+        score += 0.18
+    elif purchase_count >= 4:
+        score += 0.12
+    elif purchase_count >= _SUGGESTION_MIN_PURCHASE_EVENTS:
+        score += 0.07
+
+    if median_gap_days and median_gap_days > 0 and gap_stddev_days is not None:
+        ratio = gap_stddev_days / median_gap_days
+        if ratio <= 0.35:
+            score += 0.18
+        elif ratio <= 0.75:
+            score += 0.10
+        else:
+            score += 0.03
+
+    if match_confidence is not None:
+        score += max(0.0, min(match_confidence, 1.0)) * 0.08
+    if has_package:
+        score += 0.05
+    if days_until_due is not None and days_until_due <= days_ahead:
+        score += 0.08
+    if days_until_due is not None and days_until_due < -days_ahead:
+        score -= 0.05
+    return round(max(0.0, min(score, 0.95)), 2)
+
+
+def _suggestion_reason(days_until_due: int | None, median_gap_days: float | None) -> str:
+    cadence = (
+        f"usually every {round(median_gap_days)} days"
+        if median_gap_days is not None
+        else "recurring purchase"
+    )
+    if days_until_due is None:
+        return cadence
+    if days_until_due < 0:
+        return f"Overdue by {abs(days_until_due)} day{'s' if abs(days_until_due) != 1 else ''}; {cadence}."
+    if days_until_due == 0:
+        return f"Due today; {cadence}."
+    return f"Due in {days_until_due} day{'s' if days_until_due != 1 else ''}; {cadence}."
 
 
 def _optimizer_item(item: HouseholdShoppingListItem) -> dict[str, Any]:

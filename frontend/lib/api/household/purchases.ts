@@ -16,6 +16,7 @@ import type {
   HouseholdShoppingListImportResponse,
   HouseholdShoppingListOptimizeRequest,
   HouseholdShoppingListRequest,
+  HouseholdShoppingListSuggestions,
   HouseholdShoppingListsResponse,
   HouseholdVendorProfileList,
   HouseholdVendorProfileUpdate,
@@ -132,6 +133,27 @@ export async function fetchShoppingLists(
 ): Promise<HouseholdShoppingListsResponse> {
   return get<HouseholdShoppingListsResponse>(
     '/api/household/shopping-lists',
+    options,
+  )
+}
+
+export async function fetchShoppingListSuggestions(
+  params: { daysAhead?: number; watchDays?: number; limit?: number } = {},
+  options: RequestInit = {},
+): Promise<HouseholdShoppingListSuggestions> {
+  const search = new URLSearchParams()
+  if (params.daysAhead != null) {
+    search.set('days_ahead', String(params.daysAhead))
+  }
+  if (params.watchDays != null) {
+    search.set('watch_days', String(params.watchDays))
+  }
+  if (params.limit != null) search.set('limit', String(params.limit))
+  const query = search.toString()
+  return get<HouseholdShoppingListSuggestions>(
+    query
+      ? `/api/household/shopping-lists/suggestions?${query}`
+      : '/api/household/shopping-lists/suggestions',
     options,
   )
 }

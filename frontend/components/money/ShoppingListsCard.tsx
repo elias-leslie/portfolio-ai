@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -15,6 +16,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import type {
   HouseholdShoppingList,
+  HouseholdShoppingListSuggestionItem,
   HouseholdVendorProfile,
 } from '@/lib/api/household'
 import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
@@ -22,6 +24,7 @@ import {
   useCreateShoppingList,
   useImportShoppingListItems,
   useOptimizeShoppingList,
+  useShoppingListSuggestions,
   useShoppingLists,
   useUpdateVendorProfiles,
   useVendorProfiles,
@@ -144,8 +147,20 @@ function profileDraftKey(vendor: HouseholdVendorProfile) {
   return vendor.vendorKey
 }
 
+function bucketLabel(bucket: HouseholdShoppingListSuggestionItem['dueBucket']) {
+  if (bucket === 'buy_now') return 'Buy now'
+  if (bucket === 'soon') return 'Soon'
+  return 'Watch'
+}
+
 export function ShoppingListsCard() {
   const { data: listsData, isLoading } = useShoppingLists()
+  const {
+    data: suggestionData,
+    isLoading: suggestionsLoading,
+    refetch: refetchSuggestions,
+    isFetching: suggestionsFetching,
+  } = useShoppingListSuggestions({ daysAhead: 14, watchDays: 45, limit: 40 })
   const { data: vendorData } = useVendorProfiles()
   const createList = useCreateShoppingList()
   const importItems = useImportShoppingListItems()
@@ -158,8 +173,15 @@ export function ShoppingListsCard() {
     Record<string, HouseholdVendorProfile>
   >({})
   const [maxLocalStores, setMaxLocalStores] = useState(2)
+  const [selectedSuggestionIds, setSelectedSuggestionIds] = useState<
+    Set<string>
+  >(new Set())
 
   const lists = listsData?.lists ?? []
+  const suggestions = suggestionData?.items ?? []
+  const selectedSuggestions = suggestions.filter((item) =>
+    selectedSuggestionIds.has(item.productId),
+  )
   const activeList = lists[0]
   const activeOptimization = activeList ? optimization(activeList) : null
   const vendorBaskets =
@@ -189,6 +211,17 @@ export function ShoppingListsCard() {
       ),
     )
   }, [vendorData?.vendors])
+
+  useEffect(() => {
+    if (!suggestionData?.items) return
+    setSelectedSuggestionIds(
+      new Set(
+        suggestionData.items
+          .filter((item) => item.selectedByDefault)
+          .map((item) => item.productId),
+      ),
+    )
+  }, [suggestionData?.generatedAt, suggestionData?.items])
 
   const draftVendors = useMemo(
     () =>
@@ -221,6 +254,38 @@ export function ShoppingListsCard() {
     setImportListId(null)
   }
 
+  function toggleSuggestion(productId: string, checked: boolean) {
+    setSelectedSuggestionIds((current) => {
+      const next = new Set(current)
+      if (checked) {
+        next.add(productId)
+      } else {
+        next.delete(productId)
+      }
+      return next
+    })
+  }
+
+  async function createSuggestedList() {
+    if (selectedSuggestions.length === 0) return
+    const today = new Date().toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    })
+    await createList.mutateAsync({
+      name: `Suggested groceries ${today}`,
+      items: selectedSuggestions.map((item, index) => ({
+        productId: item.productId,
+        productName: item.productName,
+        quantity: null,
+        unit: null,
+        status: 'open',
+        position: index,
+        matchConfidence: item.confidence,
+      })),
+    })
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 rounded-2xl border border-border/40 bg-surface/45 p-4 md:flex-row md:items-end md:justify-between">
@@ -247,6 +312,115 @@ export function ShoppingListsCard() {
             Create list
           </Button>
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-border/40 bg-surface/45 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-text">
+              Suggested from purchase cadence
+            </p>
+            <p className="text-xs text-text-muted">
+              Auto-drafts groceries and household staples from products you buy
+              repeatedly. Review the checked items, then create the list.
+            </p>
+            {suggestionData ? (
+              <p className="text-xs text-text-muted">
+                {suggestionData.buyNowCount} buy now ·{' '}
+                {suggestionData.soonCount} soon · {suggestionData.watchCount}{' '}
+                watch
+              </p>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                void refetchSuggestions()
+              }}
+              disabled={suggestionsFetching}
+            >
+              Refresh suggestions
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                void createSuggestedList()
+              }}
+              disabled={
+                createList.isPending || selectedSuggestions.length === 0
+              }
+            >
+              Create selected list ({selectedSuggestions.length})
+            </Button>
+          </div>
+        </div>
+
+        {suggestionsLoading ? (
+          <p className="mt-3 text-sm text-text-muted">
+            Finding recurring products…
+          </p>
+        ) : suggestions.length === 0 ? (
+          <p className="mt-3 rounded-xl bg-surface-muted/10 p-3 text-sm text-text-muted">
+            No cadence suggestions yet. More confirmed item-level receipts and
+            order history will improve this.
+          </p>
+        ) : (
+          <div className="mt-3 grid gap-3 lg:grid-cols-3">
+            {(['buy_now', 'soon', 'watch'] as const).map((bucket) => {
+              const bucketItems = suggestions.filter(
+                (item) => item.dueBucket === bucket,
+              )
+              if (bucketItems.length === 0) return null
+              return (
+                <div
+                  key={bucket}
+                  className="rounded-xl bg-surface-muted/10 p-3"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                    {bucketLabel(bucket)}
+                  </p>
+                  <ul className="mt-2 space-y-2">
+                    {bucketItems.slice(0, 8).map((item) => (
+                      <li
+                        key={item.productId}
+                        className="flex gap-2 text-sm text-text"
+                      >
+                        <Checkbox
+                          checked={selectedSuggestionIds.has(item.productId)}
+                          onCheckedChange={(checked) =>
+                            toggleSuggestion(item.productId, checked === true)
+                          }
+                          disabled={item.alreadyOnOpenList}
+                          aria-label={`Select ${item.productName}`}
+                          className="mt-0.5"
+                        />
+                        <div className="min-w-0">
+                          <p className="line-clamp-2">{item.productName}</p>
+                          <p className="text-xs text-text-muted">
+                            {item.reason} · {item.purchaseCount} buys ·{' '}
+                            {Math.round(item.confidence * 100)}% confidence
+                          </p>
+                          <p className="text-xs text-text-muted">
+                            {[item.latestMerchant, item.packageLabel]
+                              .filter(Boolean)
+                              .join(' · ') || 'No package history'}
+                            {item.alreadyOnOpenList
+                              ? ' · already on an open list'
+                              : ''}
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {isLoading ? (

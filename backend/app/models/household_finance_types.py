@@ -1004,6 +1004,39 @@ class HouseholdShoppingListsResponse(BaseModel):
     lists: list[HouseholdShoppingList] = Field(default_factory=list)
 
 
+class HouseholdShoppingListSuggestionItem(BaseModel):
+    product_id: str
+    product_name: str
+    purchase_count: int = 0
+    first_purchase_date: str | None = None
+    last_purchase_date: str | None = None
+    median_gap_days: float | None = None
+    next_due_date: str | None = None
+    days_until_due: int | None = None
+    due_bucket: str = "watch"  # buy_now | soon | watch
+    confidence: float = 0.0
+    reason: str
+    latest_category: str | None = None
+    latest_merchant: str | None = None
+    latest_price: float | None = None
+    package_label: str | None = None
+    unit_label: str | None = None
+    already_on_open_list: bool = False
+    selected_by_default: bool = False
+
+
+class HouseholdShoppingListSuggestions(BaseModel):
+    generated_at: str
+    lookback_days: int
+    days_ahead: int
+    watch_days: int
+    item_count: int = 0
+    buy_now_count: int = 0
+    soon_count: int = 0
+    watch_count: int = 0
+    items: list[HouseholdShoppingListSuggestionItem] = Field(default_factory=list)
+
+
 class HouseholdShoppingListRequest(BaseModel):
     name: str = "Shopping list"
     status: str = "active"

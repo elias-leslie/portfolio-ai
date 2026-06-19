@@ -27,6 +27,7 @@ from app.models.household_finance import (
     HouseholdShoppingListOptimizeRequest,
     HouseholdShoppingListRequest,
     HouseholdShoppingListsResponse,
+    HouseholdShoppingListSuggestions,
     HouseholdVendorProfileList,
     HouseholdVendorProfileUpdate,
 )
@@ -238,6 +239,22 @@ async def get_price_check_status() -> HouseholdPriceCheckStatus:
 async def list_shopping_lists() -> HouseholdShoppingListsResponse:
     """Return shopping lists with current items and latest optimization."""
     return await run_in_threadpool(_shopping_lists().list_shopping_lists)
+
+
+@router.get("/shopping-lists/suggestions", response_model=HouseholdShoppingListSuggestions)
+async def get_shopping_list_suggestions(
+    days_ahead: int = Query(14, ge=1, le=60),
+    watch_days: int = Query(45, ge=7, le=120),
+    limit: int = Query(40, ge=1, le=100),
+) -> HouseholdShoppingListSuggestions:
+    """Suggest recurring household items due soon from purchase cadence."""
+    return await run_in_threadpool(
+        lambda: _shopping_lists().suggested_items(
+            days_ahead=days_ahead,
+            watch_days=watch_days,
+            limit=limit,
+        )
+    )
 
 
 @router.post("/shopping-lists", response_model=HouseholdShoppingList)

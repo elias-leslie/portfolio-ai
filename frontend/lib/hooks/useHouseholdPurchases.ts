@@ -20,6 +20,7 @@ import {
   fetchHouseholdProducts,
   fetchPriceCheckStatus,
   fetchPurchaseItemReviewQueue,
+  fetchShoppingListSuggestions,
   fetchShoppingLists,
   fetchTransactionPurchaseItems,
   fetchVendorProfiles,
@@ -248,6 +249,19 @@ export function useShoppingLists() {
   return useQuery({
     queryKey: ['household', 'shopping-lists'],
     queryFn: ({ signal }) => fetchShoppingLists({ signal }),
+    staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useShoppingListSuggestions(params?: {
+  daysAhead?: number
+  watchDays?: number
+  limit?: number
+}) {
+  return useQuery({
+    queryKey: ['household', 'shopping-list-suggestions', params],
+    queryFn: ({ signal }) => fetchShoppingListSuggestions(params, { signal }),
     staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
     refetchOnWindowFocus: false,
   })

@@ -124,6 +124,8 @@ export type {
   HouseholdShoppingListItem,
   HouseholdShoppingListOptimizeRequest,
   HouseholdShoppingListRequest,
+  HouseholdShoppingListSuggestionItem,
+  HouseholdShoppingListSuggestions,
   HouseholdShoppingListsResponse,
   HouseholdSinkingFund,
   HouseholdSpendingCategory,
