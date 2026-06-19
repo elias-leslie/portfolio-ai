@@ -50,6 +50,13 @@ PRODUCT_CAP_PER_RUN = 12
 # A queued/running row older than this is a dead run (worker crash), not a
 # reason to refuse a new trigger.
 RUN_ACTIVE_WINDOW_MINUTES = 30
+MIN_VENDOR_QUOTE_CONFIDENCE = 0.7
+
+_UNIT_LABELS = {
+    "weight_oz": "oz",
+    "volume_fl_oz": "fl oz",
+    "count": "ct",
+}
 
 
 class HouseholdPriceCheckService:
@@ -364,14 +371,25 @@ class HouseholdPriceCheckService:
             ),
             last_paid AS (
                 SELECT DISTINCT ON (product_id)
-                       product_id, COALESCE(unit_price, total_price) AS comparison_price,
+                       product_id,
+                       total_price / NULLIF(package_normalized_quantity, 0)
+                           AS comparison_unit_price,
+                       package_display_label,
+                       package_normalized_quantity,
+                       package_normalized_unit,
                        observed_date
                 FROM household_product_price_observations
                 WHERE source <> 'vendor_quote'
+                  AND package_normalized_quantity IS NOT NULL
+                  AND package_normalized_quantity > 0
+                  AND package_normalized_unit IS NOT NULL
                 ORDER BY product_id, observed_date DESC, created_at DESC
             )
             SELECT p.id::text, p.canonical_name, p.brand, p.package_display_label,
-                   COALESCE(i.purchase_count, 0), lp.comparison_price
+                   COALESCE(i.purchase_count, 0), lp.comparison_unit_price,
+                   lp.package_display_label AS baseline_package_label,
+                   lp.package_normalized_quantity AS baseline_package_quantity,
+                   lp.package_normalized_unit AS baseline_package_unit
             FROM eligible_products ep
             JOIN household_products p ON p.id = ep.product_id
             LEFT JOIN items i ON i.product_id = p.id
@@ -394,6 +412,9 @@ class HouseholdPriceCheckService:
                 "package": str(row[3]) if row[3] else None,
                 "purchase_count": int(row[4] or 0),
                 "last_paid": to_float(row[5]),
+                "baseline_package_label": str(row[6]) if row[6] else None,
+                "baseline_package_quantity": to_float(row[7]),
+                "baseline_package_unit": str(row[8]) if row[8] else None,
             }
             for row in rows
         ]
@@ -633,28 +654,45 @@ def _finding_candidates(
     vendors: list[VendorAdapter],
     results: dict[str, VendorResult],
 ) -> list[FindingCandidate]:
-    """Best (cheapest) quote per product vs what the household last paid."""
-    by_product: dict[str, tuple[str, VendorQuote]] = {}
+    """Best compatible unit-cost quote per product vs what the household last paid."""
+    products_by_id = {str(product["id"]): product for product in products}
+    by_product: dict[str, tuple[str, VendorQuote, float]] = {}
     for adapter in vendors:
         for quote in results[adapter.vendor_key].quotes:
+            product = products_by_id.get(quote.product_id)
+            if product is None:
+                continue
+            unit_cost = _quote_unit_cost_for_product(quote, product)
+            if unit_cost is None:
+                continue
             current = by_product.get(quote.product_id)
-            if current is None or _quote_comparison_price(quote) < _quote_comparison_price(current[1]):
-                by_product[quote.product_id] = (adapter.vendor_key, quote)
+            if current is None or unit_cost < current[2]:
+                by_product[quote.product_id] = (adapter.vendor_key, quote, unit_cost)
     candidates: list[FindingCandidate] = []
     for product in products:
         best = by_product.get(product["id"])
         if best is None or product.get("last_paid") is None:
             continue
-        vendor_key, quote = best
-        vendor_price = quote.unit_price if quote.unit_price is not None else quote.price
+        vendor_key, quote, vendor_unit_cost = best
+        household_unit_cost = float(product["last_paid"])
+        if vendor_unit_cost >= household_unit_cost:
+            continue
+        unit_label = _unit_label(str(product.get("baseline_package_unit") or ""))
+        baseline_quantity = to_float(product.get("baseline_package_quantity")) or 1.0
         candidates.append(
             FindingCandidate(
                 product_id=product["id"],
                 product_name=product["name"],
                 purchase_count=int(product.get("purchase_count") or 0),
-                household_price=float(product["last_paid"]),
+                household_price=household_unit_cost,
                 vendor_key=vendor_key,
-                vendor_price=vendor_price,
+                vendor_price=vendor_unit_cost,
+                unit_label=unit_label,
+                comparison_quantity=baseline_quantity,
+                household_package_label=product.get("baseline_package_label"),
+                household_equivalent_total=round(household_unit_cost * baseline_quantity, 2),
+                vendor_total_price=quote.price,
+                vendor_equivalent_total=round(vendor_unit_cost * baseline_quantity, 2),
                 vendor_url=quote.url,
                 vendor_title=quote.title,
                 vendor_package_label=quote.package_label,
@@ -664,8 +702,23 @@ def _finding_candidates(
     return candidates
 
 
-def _quote_comparison_price(quote: VendorQuote) -> float:
-    return quote.unit_price if quote.unit_price is not None else quote.price
+def _quote_unit_cost_for_product(quote: VendorQuote, product: dict[str, Any]) -> float | None:
+    """Return quote cost on the product's normalized unit basis, or None if unsafe."""
+    baseline_unit = str(product.get("baseline_package_unit") or "").strip()
+    if not baseline_unit:
+        return None
+    if (quote.confidence or 0.0) < MIN_VENDOR_QUOTE_CONFIDENCE:
+        return None
+    measure = _quote_package_measure(quote)
+    if measure is None or measure.normalized_unit != baseline_unit:
+        return None
+    if quote.price <= 0 or measure.normalized_quantity <= 0:
+        return None
+    return round(float(quote.price) / float(measure.normalized_quantity), 4)
+
+
+def _unit_label(unit: str) -> str:
+    return _UNIT_LABELS.get(unit, unit.replace("_", " "))
 
 
 def _run_model(row: Any) -> HouseholdPriceCheckRun:

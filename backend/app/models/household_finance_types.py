@@ -815,6 +815,16 @@ class HouseholdProductSummary(BaseModel):
     latest_price: float | None = None
     latest_unit_price: float | None = None
     latest_merchant: str | None = None
+    best_researched_vendor_key: str | None = None
+    best_researched_vendor: str | None = None
+    best_researched_total_price: float | None = None
+    best_researched_unit_price: float | None = None
+    best_researched_unit_label: str | None = None
+    best_researched_package_label: str | None = None
+    best_researched_observed_date: str | None = None
+    best_researched_confidence: float | None = None
+    best_researched_url: str | None = None
+    best_researched_source: str | None = None
     catalog_status: str = "active"
     owner_item_id: str | None = None
     owner_name: str | None = None
@@ -893,6 +903,12 @@ class HouseholdPriceFinding(BaseModel):
     savings_estimate: float | None = None
     household_price: float | None = None
     vendor_price: float | None = None
+    unit_label: str | None = None
+    comparison_quantity: float | None = None
+    household_package_label: str | None = None
+    household_equivalent_total: float | None = None
+    vendor_total_price: float | None = None
+    vendor_equivalent_total: float | None = None
     vendor_url: str | None = None
     vendor_title: str | None = None
     vendor_package_label: str | None = None
@@ -992,6 +1008,10 @@ class HouseholdShoppingListRequest(BaseModel):
     name: str = "Shopping list"
     status: str = "active"
     items: list[HouseholdShoppingListItem] | None = None
+
+
+class HouseholdShoppingListOptimizeRequest(BaseModel):
+    max_local_stores: int | None = 2
 
 
 class HouseholdShoppingListImportRequest(BaseModel):

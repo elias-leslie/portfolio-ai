@@ -39,6 +39,27 @@ type VendorBasket = {
   subtotal?: number
   fees?: number
   total?: number
+  cart_subtotal?: number
+  cartSubtotal?: number
+  cart_total?: number
+  cartTotal?: number
+}
+
+type AssignmentLine = {
+  name?: string
+  vendor_key?: string
+  vendorKey?: string
+  price?: number
+  sticker_price?: number
+  stickerPrice?: number
+  unit_price?: number
+  unitPrice?: number
+  unit_label?: string | null
+  unitLabel?: string | null
+  package_label?: string | null
+  packageLabel?: string | null
+  substitution_flag?: boolean
+  substitutionFlag?: boolean
 }
 
 type SplitRecommendation = {
@@ -48,14 +69,17 @@ type SplitRecommendation = {
   subtotal?: number
   fees?: number
   total?: number
-  assignments?: Array<{
-    name?: string
-    vendor_key?: string
-    vendorKey?: string
-    price?: number
-    substitution_flag?: boolean
-    substitutionFlag?: boolean
-  }>
+  cart_subtotal?: number
+  cartSubtotal?: number
+  cart_total?: number
+  cartTotal?: number
+  max_local_stores?: number
+  maxLocalStores?: number
+  local_store_count?: number
+  localStoreCount?: number
+  delivery_vendor_count?: number
+  deliveryVendorCount?: number
+  assignments?: AssignmentLine[]
 }
 
 type Optimization = {
@@ -63,6 +87,8 @@ type Optimization = {
   itemCount?: number
   matched_item_count?: number
   matchedItemCount?: number
+  max_local_stores?: number
+  maxLocalStores?: number
   uncovered_items?: string[]
   uncoveredItems?: string[]
   stale_quote_items?: string[]
@@ -110,6 +136,10 @@ function uncoveredCount(basket: VendorBasket) {
   return basket.uncoveredCount ?? basket.uncovered_count ?? 0
 }
 
+function cartTotal(basket: VendorBasket) {
+  return basket.cartTotal ?? basket.cart_total ?? basket.total
+}
+
 function profileDraftKey(vendor: HouseholdVendorProfile) {
   return vendor.vendorKey
 }
@@ -127,6 +157,7 @@ export function ShoppingListsCard() {
   const [vendorDrafts, setVendorDrafts] = useState<
     Record<string, HouseholdVendorProfile>
   >({})
+  const [maxLocalStores, setMaxLocalStores] = useState(2)
 
   const lists = listsData?.lists ?? []
   const activeList = lists[0]
@@ -256,11 +287,33 @@ export function ShoppingListsCard() {
                   <Button
                     type="button"
                     size="sm"
-                    onClick={() => optimizeList.mutate(list.id)}
+                    onClick={() =>
+                      optimizeList.mutate({
+                        listId: list.id,
+                        maxLocalStores,
+                      })
+                    }
                     disabled={optimizeList.isPending || list.items.length === 0}
                   >
                     Optimize
                   </Button>
+                  <label className="flex items-center gap-2 text-xs text-text-muted">
+                    Max local stores
+                    <Input
+                      aria-label="Maximum local stores"
+                      type="number"
+                      min="0"
+                      max="5"
+                      step="1"
+                      value={maxLocalStores}
+                      onChange={(event) =>
+                        setMaxLocalStores(
+                          Math.max(0, Math.min(5, Number(event.target.value))),
+                        )
+                      }
+                      className="h-8 w-16"
+                    />
+                  </label>
                 </div>
               </div>
               {list.items.length > 0 && (
@@ -309,7 +362,11 @@ export function ShoppingListsCard() {
                 {activeOptimization.itemCount ??
                   activeOptimization.item_count ??
                   0}{' '}
-                open items.
+                open items · max{' '}
+                {activeOptimization.maxLocalStores ??
+                  activeOptimization.max_local_stores ??
+                  maxLocalStores}{' '}
+                local stores.
               </p>
             </div>
             {split?.recommended ? (
@@ -327,6 +384,14 @@ export function ShoppingListsCard() {
               <span className="font-medium">{vendorName(bestSingle)}</span> ·{' '}
               {basketItemCount(bestSingle)} items · total{' '}
               {currency(bestSingle.total)}
+              {cartTotal(bestSingle) !== bestSingle.total ? (
+                <>
+                  {' '}
+                  <span className="text-xs text-text-muted">
+                    ({currency(cartTotal(bestSingle))} sticker cart)
+                  </span>
+                </>
+              ) : null}
             </p>
           )}
 
@@ -346,7 +411,9 @@ export function ShoppingListsCard() {
                   </p>
                   <p className="mt-2 text-sm text-text">
                     {currency(basket.total)}{' '}
-                    <span className="text-xs text-text-muted">incl. fees</span>
+                    <span className="text-xs text-text-muted">
+                      normalized · {currency(cartTotal(basket))} sticker
+                    </span>
                   </p>
                 </div>
               ))}
@@ -356,7 +423,14 @@ export function ShoppingListsCard() {
           {split?.assignments && split.assignments.length > 0 && (
             <div className="mt-3 rounded-xl bg-surface-muted/10 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                Split basket
+                Split basket ·{' '}
+                {split.localStoreCount ?? split.local_store_count ?? 0} local
+                stops
+                {(split.deliveryVendorCount ??
+                  split.delivery_vendor_count ??
+                  0) > 0
+                  ? ` · ${split.deliveryVendorCount ?? split.delivery_vendor_count} delivered`
+                  : ''}
               </p>
               <ul className="mt-2 space-y-1 text-sm text-text-muted">
                 {split.assignments.slice(0, 6).map((assignment, index) => (
@@ -366,6 +440,37 @@ export function ShoppingListsCard() {
                       assignment.vendorKey ?? assignment.vendor_key ?? '',
                     )}{' '}
                     ({currency(assignment.price)})
+                    {(assignment.unitPrice ?? assignment.unit_price) ? (
+                      <>
+                        {' '}
+                        ·{' '}
+                        {currency(
+                          assignment.unitPrice ?? assignment.unit_price,
+                        )}
+                        /
+                        {assignment.unitLabel ??
+                          assignment.unit_label ??
+                          'unit'}
+                      </>
+                    ) : null}
+                    {(assignment.packageLabel ?? assignment.package_label) ? (
+                      <>
+                        {' '}
+                        · {assignment.packageLabel ?? assignment.package_label}
+                      </>
+                    ) : null}
+                    {(assignment.stickerPrice ?? assignment.sticker_price) !=
+                      null &&
+                    (assignment.stickerPrice ?? assignment.sticker_price) !==
+                      assignment.price ? (
+                      <>
+                        {' '}
+                        · sticker{' '}
+                        {currency(
+                          assignment.stickerPrice ?? assignment.sticker_price,
+                        )}
+                      </>
+                    ) : null}
                     {assignment.substitutionFlag || assignment.substitution_flag
                       ? ' · check substitute'
                       : ''}

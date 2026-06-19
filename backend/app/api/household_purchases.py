@@ -24,6 +24,7 @@ from app.models.household_finance import (
     HouseholdShoppingList,
     HouseholdShoppingListImportRequest,
     HouseholdShoppingListImportResponse,
+    HouseholdShoppingListOptimizeRequest,
     HouseholdShoppingListRequest,
     HouseholdShoppingListsResponse,
     HouseholdVendorProfileList,
@@ -288,9 +289,16 @@ async def import_shopping_list_items(
 
 
 @router.post("/shopping-lists/{list_id}/optimize", response_model=HouseholdShoppingList)
-async def optimize_shopping_list(list_id: str) -> HouseholdShoppingList:
+async def optimize_shopping_list(
+    list_id: str,
+    payload: HouseholdShoppingListOptimizeRequest | None = None,
+) -> HouseholdShoppingList:
     """Optimize a shopping list from fresh stored vendor quotes."""
-    optimized = await run_in_threadpool(_shopping_lists().optimize, list_id)
+    optimized = await run_in_threadpool(
+        _shopping_lists().optimize,
+        list_id,
+        None if payload is None else payload.max_local_stores,
+    )
     if optimized is None:
         raise HTTPException(status_code=404, detail=f"Shopping list not found: {list_id}")
     return optimized

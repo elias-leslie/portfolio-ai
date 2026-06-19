@@ -7,7 +7,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type { HouseholdProductSummary } from '@/lib/api/household'
-import { formatCurrency } from '@/lib/formatters'
+import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
 import { formatLedgerDate } from './ledger-helpers'
 import { PriceHistorySparkline } from './PriceHistorySparkline'
 import { PurchaseItemOwnerSelect } from './PurchaseItemOwnerSelect'
@@ -83,6 +83,9 @@ export function ProductCatalogTable({
                   align="right"
                 />
               </th>
+              <th className="border-b border-border/40 px-3 py-2 text-right text-xs font-semibold uppercase tracking-[0.16em] text-text-muted/80">
+                Best observed
+              </th>
               <th className="border-b border-border/40 px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.16em] text-text-muted/80">
                 Price trend
               </th>
@@ -113,7 +116,7 @@ export function ProductCatalogTable({
             {isLoading && !hasData ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   className="px-3 py-10 text-center text-sm text-text-muted"
                 >
                   Loading products...
@@ -122,7 +125,7 @@ export function ProductCatalogTable({
             ) : products.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   className="px-3 py-10 text-center text-sm text-text-muted"
                 >
                   {emptyCopy}
@@ -164,6 +167,24 @@ export function ProductCatalogTable({
                       {product.latestUnitPrice != null
                         ? `${formatCurrency(product.latestUnitPrice, { decimals: 2 })}/unit`
                         : (product.latestMerchant ?? '')}
+                    </div>
+                  </td>
+                  <td className="border-b border-border/20 px-3 py-2.5 text-right font-mono tabular-nums text-text">
+                    {product.bestResearchedUnitPrice != null
+                      ? `${formatCurrency(product.bestResearchedUnitPrice, { decimals: 3 })}/${product.bestResearchedUnitLabel ?? 'unit'}`
+                      : '—'}
+                    <div className="text-xs text-text-muted">
+                      {product.bestResearchedVendor
+                        ? `${product.bestResearchedVendor}${
+                            product.bestResearchedPackageLabel
+                              ? ` · ${product.bestResearchedPackageLabel}`
+                              : ''
+                          }${
+                            product.bestResearchedSource
+                              ? ` · ${formatEnumLabel(product.bestResearchedSource)}`
+                              : ''
+                          }`
+                        : 'No comparable price'}
                     </div>
                   </td>
                   <td className="border-b border-border/20 px-3 py-2.5">

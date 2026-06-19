@@ -36,6 +36,12 @@ class FindingCandidate:
     household_price: float
     vendor_key: str
     vendor_price: float
+    unit_label: str | None = None
+    comparison_quantity: float | None = None
+    household_package_label: str | None = None
+    household_equivalent_total: float | None = None
+    vendor_total_price: float | None = None
+    vendor_equivalent_total: float | None = None
     vendor_url: str | None = None
     vendor_title: str | None = None
     vendor_package_label: str | None = None
@@ -59,8 +65,19 @@ def evaluate_candidates(candidates: list[FindingCandidate]) -> list[FindingDraft
             continue
         if candidate.household_price <= 0:
             continue
-        savings = round(candidate.household_price - candidate.vendor_price, 2)
-        threshold = max(MIN_SAVINGS_ABS, MIN_SAVINGS_PCT * candidate.household_price)
+        basis_quantity = candidate.comparison_quantity or 1.0
+        household_equivalent_total = (
+            candidate.household_equivalent_total
+            if candidate.household_equivalent_total is not None
+            else round(candidate.household_price * basis_quantity, 2)
+        )
+        vendor_equivalent_total = (
+            candidate.vendor_equivalent_total
+            if candidate.vendor_equivalent_total is not None
+            else round(candidate.vendor_price * basis_quantity, 2)
+        )
+        savings = round(household_equivalent_total - vendor_equivalent_total, 2)
+        threshold = max(MIN_SAVINGS_ABS, MIN_SAVINGS_PCT * household_equivalent_total)
         if savings < threshold:
             continue
         drafts.append(
@@ -73,6 +90,12 @@ def evaluate_candidates(candidates: list[FindingCandidate]) -> list[FindingDraft
                     "product_name": candidate.product_name,
                     "household_price": candidate.household_price,
                     "vendor_price": candidate.vendor_price,
+                    "unit_label": candidate.unit_label,
+                    "comparison_quantity": candidate.comparison_quantity,
+                    "household_package_label": candidate.household_package_label,
+                    "household_equivalent_total": household_equivalent_total,
+                    "vendor_total_price": candidate.vendor_total_price,
+                    "vendor_equivalent_total": vendor_equivalent_total,
                     "vendor_url": candidate.vendor_url,
                     "vendor_title": candidate.vendor_title,
                     "vendor_package_label": candidate.vendor_package_label,
@@ -180,6 +203,16 @@ def _finding(row: Any) -> HouseholdPriceFinding:
         savings_estimate=to_float(row[6]),
         household_price=to_float(payload.get("household_price")),
         vendor_price=to_float(payload.get("vendor_price")),
+        unit_label=str(payload["unit_label"]) if payload.get("unit_label") else None,
+        comparison_quantity=to_float(payload.get("comparison_quantity")),
+        household_package_label=(
+            str(payload["household_package_label"])
+            if payload.get("household_package_label")
+            else None
+        ),
+        household_equivalent_total=to_float(payload.get("household_equivalent_total")),
+        vendor_total_price=to_float(payload.get("vendor_total_price")),
+        vendor_equivalent_total=to_float(payload.get("vendor_equivalent_total")),
         vendor_url=payload.get("vendor_url"),
         vendor_title=payload.get("vendor_title"),
         vendor_package_label=payload.get("vendor_package_label"),

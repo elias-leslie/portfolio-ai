@@ -31,6 +31,19 @@ _MULTIPACK_SIZE_RE = re.compile(
     rf"\b(?P<count>\d+(?:\.\d+)?)\s*(?:x|-)\s*(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>{_UNIT_PATTERN})\b",
     re.IGNORECASE,
 )
+_VALUE_UNIT_PACK_OF_RE = re.compile(
+    rf"\b(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>{_UNIT_PATTERN})\b"
+    r"(?:[^\w\n]|\s){0,40}?"
+    r"(?:pack|case|box|bag|bottle|bottles)\s+of\s+"
+    r"(?P<count>\d+(?:\.\d+)?)\b",
+    re.IGNORECASE,
+)
+_PACK_OF_VALUE_UNIT_RE = re.compile(
+    r"\b(?P<count>\d+(?:\.\d+)?)\s*"
+    r"(?:pack|case|box|bag|bottle|bottles)\s+of\s+"
+    rf"(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>{_UNIT_PATTERN})\b",
+    re.IGNORECASE,
+)
 _SIMPLE_SIZE_RE = re.compile(
     rf"\b(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>{_UNIT_PATTERN})\b",
     re.IGNORECASE,
@@ -200,6 +213,20 @@ def _extract_package_measure(description: str, metadata: dict[str, Any]) -> _Pac
         candidate = _build_measure(quantity=value, raw_unit=match.group("unit"), multiplier=count)
         if candidate is not None:
             candidates.append(candidate)
+
+    for pattern in (_VALUE_UNIT_PACK_OF_RE, _PACK_OF_VALUE_UNIT_RE):
+        for match in pattern.finditer(text):
+            count = _parse_decimal_text(match.group("count"))
+            value = _parse_decimal_text(match.group("value"))
+            if count is None or value is None:
+                continue
+            candidate = _build_measure(
+                quantity=value,
+                raw_unit=match.group("unit"),
+                multiplier=count,
+            )
+            if candidate is not None:
+                candidates.append(candidate)
 
     for match in _SIMPLE_SIZE_RE.finditer(text):
         value = _parse_decimal_text(match.group("value"))

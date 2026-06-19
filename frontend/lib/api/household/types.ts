@@ -1453,6 +1453,16 @@ export interface HouseholdProductSummary {
   latestPrice?: number | null
   latestUnitPrice?: number | null
   latestMerchant?: string | null
+  bestResearchedVendorKey?: string | null
+  bestResearchedVendor?: string | null
+  bestResearchedTotalPrice?: number | null
+  bestResearchedUnitPrice?: number | null
+  bestResearchedUnitLabel?: string | null
+  bestResearchedPackageLabel?: string | null
+  bestResearchedObservedDate?: string | null
+  bestResearchedConfidence?: number | null
+  bestResearchedUrl?: string | null
+  bestResearchedSource?: string | null
   catalogStatus: 'active' | 'archived'
   ownerItemId?: string | null
   ownerName?: string | null
@@ -1556,6 +1566,12 @@ export interface HouseholdPriceFinding {
   savingsEstimate?: number | null
   householdPrice?: number | null
   vendorPrice?: number | null
+  unitLabel?: string | null
+  comparisonQuantity?: number | null
+  householdPackageLabel?: string | null
+  householdEquivalentTotal?: number | null
+  vendorTotalPrice?: number | null
+  vendorEquivalentTotal?: number | null
   vendorUrl?: string | null
   vendorTitle?: string | null
   vendorPackageLabel?: string | null
@@ -1655,6 +1671,10 @@ export interface HouseholdShoppingListRequest {
   name: string
   status?: string
   items?: HouseholdShoppingListItem[] | null
+}
+
+export interface HouseholdShoppingListOptimizeRequest {
+  maxLocalStores?: number | null
 }
 
 export interface HouseholdShoppingListImportRequest {

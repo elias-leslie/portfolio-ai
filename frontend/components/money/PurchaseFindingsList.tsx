@@ -8,6 +8,38 @@ interface PurchaseFindingsListProps {
   findings: HouseholdPriceFinding[]
 }
 
+function unitCurrency(value: number | null | undefined) {
+  const decimals = value != null && Math.abs(value) < 1 ? 3 : 2
+  return formatCurrency(value, { decimals })
+}
+
+function findingDetail(finding: HouseholdPriceFinding) {
+  const vendor = formatEnumLabel(finding.vendorKey ?? '')
+  const title = finding.vendorTitle ?? 'a comparable item'
+  const packageLabel = finding.vendorPackageLabel
+    ? ` (${finding.vendorPackageLabel})`
+    : ''
+  const unitLabel = finding.unitLabel
+  if (
+    unitLabel &&
+    finding.vendorPrice != null &&
+    finding.householdPrice != null
+  ) {
+    const vendorTotal =
+      finding.vendorTotalPrice != null
+        ? `; sticker ${formatCurrency(finding.vendorTotalPrice, { decimals: 2 })}`
+        : ''
+    const basisLabel =
+      finding.householdPackageLabel ??
+      (finding.comparisonQuantity != null
+        ? `${finding.comparisonQuantity} ${unitLabel}`
+        : null)
+    const basis = basisLabel ? ` on your ${basisLabel} basis` : ''
+    return `${vendor} quoted ${title}${packageLabel} at ${unitCurrency(finding.vendorPrice)}/${unitLabel}${vendorTotal} vs your ${unitCurrency(finding.householdPrice)}/${unitLabel}${basis}.`
+  }
+  return `${vendor} quoted ${title}${packageLabel} for ${formatCurrency(finding.vendorPrice ?? 0, { decimals: 2 })} vs your ${formatCurrency(finding.householdPrice ?? 0, { decimals: 2 })}.`
+}
+
 export function PurchaseFindingsList({ findings }: PurchaseFindingsListProps) {
   if (findings.length === 0) {
     return (
@@ -38,14 +70,7 @@ export function PurchaseFindingsList({ findings }: PurchaseFindingsListProps) {
             </p>
             {finding.kind === 'cheaper_elsewhere' && (
               <p className="mt-0.5 text-xs text-text-muted">
-                {formatEnumLabel(finding.vendorKey ?? '')} quoted{' '}
-                {finding.vendorTitle ?? 'a comparable item'}
-                {finding.vendorPackageLabel
-                  ? ` (${finding.vendorPackageLabel})`
-                  : ''}{' '}
-                for {formatCurrency(finding.vendorPrice ?? 0, { decimals: 2 })}{' '}
-                vs your{' '}
-                {formatCurrency(finding.householdPrice ?? 0, { decimals: 2 })}
+                {findingDetail(finding)}
                 {finding.vendorUrl && (
                   <>
                     {' · '}

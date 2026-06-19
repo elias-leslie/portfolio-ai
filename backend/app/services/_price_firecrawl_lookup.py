@@ -35,6 +35,7 @@ FIRECRAWL_SEARCH_LIMIT = 2
 FIRECRAWL_VENDOR_PRODUCT_CAP = 4
 
 _FIRECRAWL_SITES: dict[str, tuple[str, ...]] = {
+    "amazon": ("amazon.com",),
     "walmart": ("walmart.com",),
     "aldi": ("aldi.us",),
     "costco": ("costco.com", "sameday.costco.com"),

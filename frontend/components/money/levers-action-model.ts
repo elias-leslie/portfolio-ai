@@ -123,6 +123,16 @@ export function buildSavingsActions({
     const promoText = finding.vendorPromoText
       ? ` Promo: ${finding.vendorPromoText}.`
       : ''
+    const unitText =
+      finding.unitLabel &&
+      finding.vendorPrice != null &&
+      finding.householdPrice != null
+        ? `${money(finding.vendorPrice, finding.vendorPrice < 1 ? 3 : 2)}/${finding.unitLabel} vs your ${money(finding.householdPrice, finding.householdPrice < 1 ? 3 : 2)}/${finding.unitLabel}`
+        : null
+    const totalText =
+      finding.vendorTotalPrice != null
+        ? ` Sticker: ${money(finding.vendorTotalPrice, 2)}.`
+        : ''
     actions.push({
       id: `verified-${finding.id}`,
       kind: 'verified',
@@ -130,9 +140,11 @@ export function buildSavingsActions({
       title: `Buy ${quotedItem} at ${vendor}`,
       playbook: 'Use cheaper comparable item before rebuy',
       detail:
-        finding.vendorPrice != null && finding.householdPrice != null
-          ? `${vendor} quoted ${quotedItem}${packageText} at ${money(finding.vendorPrice, 2)} vs your ${money(finding.householdPrice, 2)} for ${finding.productName ?? 'this product'}.${promoText}`
-          : `${vendor} is cheaper in the latest price-check finding.${promoText}`,
+        unitText != null
+          ? `${vendor} quoted ${quotedItem}${packageText} at ${unitText} for ${finding.productName ?? 'this product'}.${totalText}${promoText}`
+          : finding.vendorPrice != null && finding.householdPrice != null
+            ? `${vendor} quoted ${quotedItem}${packageText} at ${money(finding.vendorPrice, 2)} vs your ${money(finding.householdPrice, 2)} for ${finding.productName ?? 'this product'}.${promoText}`
+            : `${vendor} is cheaper in the latest price-check finding.${promoText}`,
       amountLabel: `Save ${money(savings, 2)}/rebuy`,
       evidenceLabel: 'Verified',
       tone: 'success',

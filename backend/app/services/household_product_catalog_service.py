@@ -27,6 +27,11 @@ _DETAIL_ITEM_CAP = 50
 _REVIEW_QUEUE_CAP = 100
 _ACTIVE_PRODUCT_WINDOW_MONTHS = 18
 _MIN_VENDOR_QUOTE_CONFIDENCE = 0.7
+_UNIT_LABELS = {
+    "weight_oz": "oz",
+    "volume_fl_oz": "fl oz",
+    "count": "ct",
+}
 
 _PRODUCT_LATEST_SEEN_SQL = (
     "CASE "
@@ -76,6 +81,12 @@ def _row_value(row: Any, index: int, default: Any = None) -> Any:
         return row[index]
     except IndexError:
         return default
+
+
+def _unit_label(unit: str | None) -> str | None:
+    if not unit:
+        return None
+    return _UNIT_LABELS.get(unit, unit.replace("_", " "))
 
 
 _ITEM_SELECT = """
@@ -251,9 +262,17 @@ class HouseholdProductCatalogService:
                 product_ids=[str(row[0]) for row in rows],
                 per_product_cap=_PRICE_POINT_CAP,
             )
+            best_prices_by_product = self._best_researched_prices(
+                conn,
+                product_ids=[str(row[0]) for row in rows],
+            )
 
         products = [
-            self._summary(row, points_by_product.get(str(row[0]), []))
+            self._summary(
+                row,
+                points_by_product.get(str(row[0]), []),
+                best_prices_by_product.get(str(row[0])),
+            )
             for row in rows
         ]
         return HouseholdProductList(
@@ -268,7 +287,9 @@ class HouseholdProductCatalogService:
 
     @staticmethod
     def _summary(
-        row: Any, points: list[HouseholdProductPricePoint]
+        row: Any,
+        points: list[HouseholdProductPricePoint],
+        best_price: dict[str, Any] | None = None,
     ) -> HouseholdProductSummary:
         latest = points[-1] if points else None
         return HouseholdProductSummary(
@@ -285,6 +306,38 @@ class HouseholdProductCatalogService:
             latest_price=latest.total_price if latest else None,
             latest_unit_price=latest.unit_price if latest else None,
             latest_merchant=latest.merchant if latest else None,
+            best_researched_vendor_key=(
+                str(best_price["vendor_key"]) if best_price else None
+            ),
+            best_researched_vendor=(
+                str(best_price["vendor_name"]) if best_price else None
+            ),
+            best_researched_total_price=(
+                float(best_price["total_price"]) if best_price else None
+            ),
+            best_researched_unit_price=(
+                float(best_price["unit_price"]) if best_price else None
+            ),
+            best_researched_unit_label=(
+                str(best_price["unit_label"]) if best_price else None
+            ),
+            best_researched_package_label=(
+                str(best_price["package_label"])
+                if best_price and best_price.get("package_label")
+                else None
+            ),
+            best_researched_observed_date=(
+                str(best_price["observed_date"]) if best_price else None
+            ),
+            best_researched_confidence=(
+                to_float(best_price.get("confidence")) if best_price else None
+            ),
+            best_researched_url=(
+                str(best_price["url"]) if best_price and best_price.get("url") else None
+            ),
+            best_researched_source=(
+                str(best_price["source"]) if best_price and best_price.get("source") else None
+            ),
             catalog_status=str(_row_value(row, 14, "active") or "active"),
             owner_item_id=str(row[11]) if _row_value(row, 11) else None,
             owner_name=str(row[12]) if _row_value(row, 12) else None,
@@ -331,6 +384,128 @@ class HouseholdProductCatalogService:
         for row in rows:
             by_product.setdefault(str(row[0]), []).append(_price_point(row[1:7]))
         return by_product
+
+    @staticmethod
+    def _best_researched_prices(
+        conn: Any,
+        *,
+        product_ids: list[str],
+    ) -> dict[str, dict[str, Any]]:
+        """Cheapest researched vendor quote per product on a normalized unit basis."""
+        if not product_ids:
+            return {}
+        rows = conn.execute(
+            f"""
+            WITH latest_actual_unit AS (
+                SELECT DISTINCT ON (product_id)
+                       product_id,
+                       package_normalized_unit
+                FROM household_product_price_observations
+                WHERE product_id = ANY(%s::uuid[])
+                  AND source <> 'vendor_quote'
+                  AND package_normalized_unit IS NOT NULL
+                  AND package_normalized_quantity IS NOT NULL
+                  AND package_normalized_quantity > 0
+                ORDER BY product_id, observed_date DESC, created_at DESC
+            ),
+            comparable_observations AS (
+                SELECT o.product_id::text AS product_id,
+                       COALESCE(
+                           o.metadata ->> 'vendor_key',
+                           LOWER(
+                               REPLACE(
+                                   COALESCE(m.canonical_name, m.display_name, o.source),
+                                   ' ',
+                                   '_'
+                               )
+                           )
+                       ) AS vendor_key,
+                       COALESCE(
+                           m.canonical_name,
+                           m.display_name,
+                           o.metadata ->> 'vendor_key',
+                           o.source
+                       )
+                           AS vendor_name,
+                       CAST(o.total_price AS DOUBLE PRECISION) AS total_price,
+                       CAST(
+                           o.total_price / NULLIF(o.package_normalized_quantity, 0)
+                           AS DOUBLE PRECISION
+                       ) AS unit_price,
+                       o.package_display_label,
+                       o.package_normalized_unit,
+                       o.observed_date,
+                       o.metadata ->> 'url' AS url,
+                       CAST(NULLIF(o.metadata ->> 'confidence', '') AS DOUBLE PRECISION)
+                           AS confidence,
+                       o.source,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY o.product_id,
+                               COALESCE(
+                                   o.metadata ->> 'vendor_key',
+                                   LOWER(
+                                       REPLACE(
+                                           COALESCE(m.canonical_name, m.display_name, o.source),
+                                           ' ',
+                                           '_'
+                                       )
+                                   )
+                               )
+                           ORDER BY
+                               o.observed_date DESC,
+                               o.total_price / NULLIF(o.package_normalized_quantity, 0) ASC,
+                               o.created_at DESC
+                       ) AS latest_vendor_rank
+                FROM household_product_price_observations o
+                LEFT JOIN household_merchants m ON m.id = o.merchant_id
+                LEFT JOIN latest_actual_unit lau ON lau.product_id = o.product_id
+                WHERE o.product_id = ANY(%s::uuid[])
+                  AND o.total_price > 0
+                  AND o.package_normalized_quantity IS NOT NULL
+                  AND o.package_normalized_quantity > 0
+                  AND o.package_normalized_unit IS NOT NULL
+                  AND (
+                      lau.package_normalized_unit IS NULL
+                      OR lau.package_normalized_unit = o.package_normalized_unit
+                  )
+                  AND {_reliable_observation_sql("o")}
+            ),
+            latest_vendor_observations AS (
+                SELECT *
+                FROM comparable_observations
+                WHERE latest_vendor_rank = 1
+            ),
+            best_observations AS (
+                SELECT *,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY product_id
+                           ORDER BY unit_price ASC, observed_date DESC
+                       ) AS best_quote_rank
+                FROM latest_vendor_observations
+            )
+            SELECT product_id, vendor_key, vendor_name, total_price, unit_price,
+                   package_display_label, package_normalized_unit, observed_date,
+                   confidence, url, source
+            FROM best_observations
+            WHERE best_quote_rank = 1
+            """,
+            [product_ids, product_ids],
+        ).fetchall()
+        return {
+            str(row[0]): {
+                "vendor_key": str(row[1]),
+                "vendor_name": str(row[2] or row[1]),
+                "total_price": float(row[3] or 0.0),
+                "unit_price": float(row[4] or 0.0),
+                "package_label": str(row[5]) if row[5] else None,
+                "unit_label": _unit_label(str(row[6]) if row[6] else None),
+                "observed_date": iso_or_none(row[7]),
+                "confidence": to_float(row[8]),
+                "url": str(row[9]) if row[9] else None,
+                "source": str(row[10]) if row[10] else None,
+            }
+            for row in rows
+        }
 
     def get_product_detail(self, product_id: str) -> HouseholdProductDetail | None:
         with self.storage.connection() as conn:
@@ -405,8 +580,16 @@ class HouseholdProductCatalogService:
                 """,
                 [product_id, _DETAIL_ITEM_CAP],
             ).fetchall()
+            best_prices_by_product = self._best_researched_prices(
+                conn,
+                product_ids=[product_id],
+            )
 
-        summary = self._summary(row, observations[-_PRICE_POINT_CAP:])
+        summary = self._summary(
+            row,
+            observations[-_PRICE_POINT_CAP:],
+            best_prices_by_product.get(product_id),
+        )
         return HouseholdProductDetail(
             generated_at=datetime.now(UTC).isoformat(),
             product=summary,

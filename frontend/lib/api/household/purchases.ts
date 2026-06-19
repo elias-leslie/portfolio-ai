@@ -14,6 +14,7 @@ import type {
   HouseholdShoppingList,
   HouseholdShoppingListImportRequest,
   HouseholdShoppingListImportResponse,
+  HouseholdShoppingListOptimizeRequest,
   HouseholdShoppingListRequest,
   HouseholdShoppingListsResponse,
   HouseholdVendorProfileList,
@@ -163,10 +164,11 @@ export async function importShoppingListItems(
 
 export async function optimizeShoppingList(
   listId: string,
+  payload: HouseholdShoppingListOptimizeRequest = {},
 ): Promise<HouseholdShoppingList> {
   return post<HouseholdShoppingList>(
     `/api/household/shopping-lists/${listId}/optimize`,
-    {},
+    payload,
   )
 }
 

@@ -22,6 +22,7 @@ class _ScriptedConn:
         product_detail_row: tuple[Any, ...] | None = None,
         review_count: int = 0,
         price_point_rows: list[tuple[Any, ...]] | None = None,
+        best_price_rows: list[tuple[Any, ...]] | None = None,
         observation_rows: list[tuple[Any, ...]] | None = None,
         identifier_rows: list[tuple[Any, ...]] | None = None,
         item_rows: list[tuple[Any, ...]] | None = None,
@@ -30,6 +31,7 @@ class _ScriptedConn:
         self.product_detail_row = product_detail_row
         self.review_count = review_count
         self.price_point_rows = price_point_rows or []
+        self.best_price_rows = best_price_rows or []
         self.observation_rows = observation_rows or []
         self.identifier_rows = identifier_rows or []
         self.item_rows = item_rows or []
@@ -39,7 +41,9 @@ class _ScriptedConn:
 
     def execute(self, sql: str, params: list[Any] | None = None) -> _ScriptedConn:
         self.queries.append((sql, params or []))
-        if "SELECT COUNT(*)" in sql and "FROM household_purchase_items" in sql:
+        if "best_quote_rank" in sql:
+            self._result = ("all", self.best_price_rows)
+        elif "SELECT COUNT(*)" in sql and "FROM household_purchase_items" in sql:
             self._result = ("one", (self.review_count,))
         elif "recency_rank" in sql:
             self._result = ("all", self.price_point_rows)
@@ -130,6 +134,21 @@ def test_list_products_builds_summaries_with_latest_price_from_points() -> None:
         product_rows=[_PRODUCT_ROW],
         review_count=3,
         price_point_rows=_POINT_ROWS,
+        best_price_rows=[
+            (
+                "prod-1",
+                "walmart",
+                "Walmart",
+                Decimal("5.98"),
+                Decimal("0.4983"),
+                "12 oz",
+                "weight_oz",
+                date(2026, 6, 8),
+                Decimal("0.91"),
+                "https://www.walmart.com/ip/example",
+                "vendor_quote",
+            )
+        ],
     )
 
     catalog = _service(conn).list_products(
@@ -153,6 +172,16 @@ def test_list_products_builds_summaries_with_latest_price_from_points() -> None:
     assert product.latest_price == 1.92
     assert product.latest_unit_price == 1.92
     assert product.latest_merchant == "Walmart"
+    assert product.best_researched_vendor_key == "walmart"
+    assert product.best_researched_vendor == "Walmart"
+    assert product.best_researched_total_price == 5.98
+    assert product.best_researched_unit_price == 0.4983
+    assert product.best_researched_unit_label == "oz"
+    assert product.best_researched_package_label == "12 oz"
+    assert product.best_researched_observed_date == "2026-06-08"
+    assert product.best_researched_confidence == 0.91
+    assert product.best_researched_url == "https://www.walmart.com/ip/example"
+    assert product.best_researched_source == "vendor_quote"
     # Search reaches the SQL as an ILIKE pattern.
     products_sql, products_params = conn.queries[0]
     assert "ILIKE" in products_sql
@@ -166,6 +195,21 @@ def test_product_detail_returns_observations_identifiers_and_items() -> None:
     conn = _ScriptedConn(
         product_detail_row=_PRODUCT_ROW[:10],
         observation_rows=[row[1:7] for row in _POINT_ROWS],
+        best_price_rows=[
+            (
+                "prod-1",
+                "aldi",
+                "Aldi",
+                Decimal("4.99"),
+                Decimal("0.4158"),
+                "12 ounces",
+                "weight_oz",
+                date(2026, 6, 9),
+                Decimal("0.88"),
+                None,
+                "vendor_quote",
+            )
+        ],
         identifier_rows=[("normalized_key", "walmart|gv edamame")],
         item_rows=[_ITEM_ROW],
     )
@@ -175,6 +219,8 @@ def test_product_detail_returns_observations_identifiers_and_items() -> None:
     assert detail is not None
     assert detail.product.canonical_name == "GV Edamame"
     assert detail.product.latest_price == 1.92
+    assert detail.product.best_researched_vendor == "Aldi"
+    assert detail.product.best_researched_unit_label == "oz"
     assert [obs.total_price for obs in detail.observations] == [1.48, 1.92]
     assert detail.identifiers[0].kind == "normalized_key"
     item = detail.recent_items[0]

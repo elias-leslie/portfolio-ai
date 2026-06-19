@@ -18,9 +18,22 @@ def _candidate(**overrides: object) -> FindingCandidate:
         "household_price": 10.0,
         "vendor_key": "walmart",
         "vendor_price": 5.0,
+        "unit_label": "ct",
+        "comparison_quantity": 1.0,
+        "household_package_label": "1 count",
+        "household_equivalent_total": 10.0,
+        "vendor_total_price": 5.0,
+        "vendor_equivalent_total": 5.0,
         "vendor_url": "https://w.mt/x",
     }
     base.update(overrides)
+    quantity = float(base.get("comparison_quantity") or 1.0)
+    if "household_equivalent_total" not in overrides:
+        base["household_equivalent_total"] = round(float(base["household_price"]) * quantity, 2)
+    if "vendor_equivalent_total" not in overrides:
+        base["vendor_equivalent_total"] = round(float(base["vendor_price"]) * quantity, 2)
+    if "vendor_total_price" not in overrides:
+        base["vendor_total_price"] = base["vendor_equivalent_total"]
     return FindingCandidate(**base)
 
 
@@ -34,6 +47,12 @@ def test_material_saving_yields_finding_with_payload() -> None:
         "product_name": "GV Edamame",
         "household_price": 10.0,
         "vendor_price": 5.0,
+        "unit_label": "ct",
+        "comparison_quantity": 1.0,
+        "household_package_label": "1 count",
+        "household_equivalent_total": 10.0,
+        "vendor_total_price": 5.0,
+        "vendor_equivalent_total": 5.0,
         "vendor_url": "https://w.mt/x",
         "vendor_title": None,
         "vendor_package_label": None,
@@ -63,6 +82,33 @@ def test_single_purchase_products_never_alert() -> None:
 
 def test_zero_household_price_is_skipped() -> None:
     assert evaluate_candidates([_candidate(household_price=0.0)]) == []
+
+
+def test_unit_price_savings_are_measured_against_comparable_package_basis() -> None:
+    drafts = evaluate_candidates(
+        [
+            _candidate(
+                household_price=29.67 / 101,
+                vendor_price=0.23,
+                unit_label="fl oz",
+                comparison_quantity=101,
+                household_package_label="101 fl oz",
+                household_equivalent_total=29.67,
+                vendor_total_price=23.23,
+                vendor_equivalent_total=23.23,
+            )
+        ]
+    )
+
+    assert len(drafts) == 1
+    assert drafts[0].savings_estimate == 6.44
+    assert drafts[0].payload is not None
+    payload = drafts[0].payload
+    assert payload["household_price"] == 29.67 / 101
+    assert payload["vendor_price"] == 0.23
+    assert payload["unit_label"] == "fl oz"
+    assert payload["household_equivalent_total"] == 29.67
+    assert payload["vendor_equivalent_total"] == 23.23
 
 
 def test_rollup_threshold_boundary() -> None:

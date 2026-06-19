@@ -7,6 +7,7 @@ import type {
   HouseholdPurchaseItemOwnerUpdate,
   HouseholdPurchaseItemProductAssignment,
   HouseholdShoppingListImportRequest,
+  HouseholdShoppingListOptimizeRequest,
   HouseholdShoppingListRequest,
   HouseholdVendorProfileUpdate,
 } from '@/lib/api/household'
@@ -326,7 +327,11 @@ export function useOptimizeShoppingList() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (listId: string) => optimizeShoppingList(listId),
+    mutationFn: ({
+      listId,
+      ...payload
+    }: HouseholdShoppingListOptimizeRequest & { listId: string }) =>
+      optimizeShoppingList(listId, payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: ['household', 'shopping-lists'],
