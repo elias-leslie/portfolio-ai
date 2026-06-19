@@ -478,7 +478,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => triggerPriceCheck.mutate()}
+            onClick={() => triggerPriceCheck.mutate({})}
             disabled={triggerPriceCheck.isPending}
           >
             Run price check

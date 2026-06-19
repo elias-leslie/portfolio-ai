@@ -12,6 +12,7 @@ const usePurchaseItemReviewQueueMock = vi.hoisted(() => vi.fn())
 const useHouseholdProductDetailMock = vi.hoisted(() => vi.fn())
 const usePriceCheckStatusMock = vi.hoisted(() => vi.fn())
 const useShoppingListsMock = vi.hoisted(() => vi.fn())
+const useShoppingListSuggestionsMock = vi.hoisted(() => vi.fn())
 const useVendorProfilesMock = vi.hoisted(() => vi.fn())
 const useHouseholdFactsMock = vi.hoisted(() => vi.fn())
 const assignMutateAsync = vi.hoisted(() => vi.fn())
@@ -19,7 +20,10 @@ const setOwnerMutateAsync = vi.hoisted(() => vi.fn())
 const categorizeItemMutateAsync = vi.hoisted(() => vi.fn())
 const mergeMutateAsync = vi.hoisted(() => vi.fn())
 const triggerPriceCheckMutate = vi.hoisted(() => vi.fn())
+const triggerPriceCheckMutateAsync = vi.hoisted(() => vi.fn())
 const createShoppingListMutate = vi.hoisted(() => vi.fn())
+const createShoppingListMutateAsync = vi.hoisted(() => vi.fn())
+const dismissShoppingListSuggestionMutate = vi.hoisted(() => vi.fn())
 const importShoppingListMutateAsync = vi.hoisted(() => vi.fn())
 const optimizeShoppingListMutate = vi.hoisted(() => vi.fn())
 const updateVendorProfilesMutate = vi.hoisted(() => vi.fn())
@@ -31,6 +35,7 @@ vi.mock('@/lib/hooks/useHouseholdPurchases', () => ({
   useHouseholdProductDetail: useHouseholdProductDetailMock,
   usePriceCheckStatus: usePriceCheckStatusMock,
   useShoppingLists: useShoppingListsMock,
+  useShoppingListSuggestions: useShoppingListSuggestionsMock,
   useVendorProfiles: useVendorProfilesMock,
   useAssignPurchaseItemProduct: () => ({
     mutateAsync: assignMutateAsync,
@@ -50,10 +55,16 @@ vi.mock('@/lib/hooks/useHouseholdPurchases', () => ({
   }),
   useTriggerPriceCheck: () => ({
     mutate: triggerPriceCheckMutate,
+    mutateAsync: triggerPriceCheckMutateAsync,
     isPending: false,
   }),
   useCreateShoppingList: () => ({
     mutate: createShoppingListMutate,
+    mutateAsync: createShoppingListMutateAsync,
+    isPending: false,
+  }),
+  useDismissShoppingListSuggestion: () => ({
+    mutate: dismissShoppingListSuggestionMutate,
     isPending: false,
   }),
   useImportShoppingListItems: () => ({
@@ -198,6 +209,7 @@ describe('MoneyPurchasesPanel', () => {
     useHouseholdProductDetailMock.mockReset()
     usePriceCheckStatusMock.mockReset()
     useShoppingListsMock.mockReset()
+    useShoppingListSuggestionsMock.mockReset()
     useVendorProfilesMock.mockReset()
     useHouseholdFactsMock.mockReset()
     assignMutateAsync.mockReset()
@@ -205,7 +217,10 @@ describe('MoneyPurchasesPanel', () => {
     categorizeItemMutateAsync.mockReset()
     mergeMutateAsync.mockReset()
     triggerPriceCheckMutate.mockReset()
+    triggerPriceCheckMutateAsync.mockReset()
     createShoppingListMutate.mockReset()
+    createShoppingListMutateAsync.mockReset()
+    dismissShoppingListSuggestionMutate.mockReset()
     importShoppingListMutateAsync.mockReset()
     optimizeShoppingListMutate.mockReset()
     updateVendorProfilesMutate.mockReset()
@@ -230,6 +245,26 @@ describe('MoneyPurchasesPanel', () => {
     useShoppingListsMock.mockReturnValue({
       data: { generatedAt: '2026-06-01T00:00:00Z', lists: [] },
       isLoading: false,
+    })
+    useShoppingListSuggestionsMock.mockReturnValue({
+      data: {
+        generatedAt: '2026-06-01T00:00:00Z',
+        lookbackDays: 365,
+        daysAhead: 14,
+        watchDays: 45,
+        limit: 100,
+        totalCount: 0,
+        itemCount: 0,
+        returnedCount: 0,
+        hasMore: false,
+        buyNowCount: 0,
+        soonCount: 0,
+        watchCount: 0,
+        items: [],
+      },
+      isLoading: false,
+      refetch: vi.fn(),
+      isFetching: false,
     })
     useVendorProfilesMock.mockReturnValue({
       data: { generatedAt: '2026-06-01T00:00:00Z', vendors: [] },

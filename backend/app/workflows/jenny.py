@@ -109,6 +109,7 @@ async def jenny_weekly_price_check_wf(input: PriceCheckInput, ctx: Context) -> d
                 product_limit=input.product_limit,
                 product_ids=input.product_ids,
                 shopping_list_id=input.shopping_list_id,
+                max_local_stores=input.max_local_stores,
             )
         )
         if already_running:

@@ -1589,6 +1589,15 @@ export interface HouseholdPriceCheckStatus {
 export interface HouseholdPriceCheckTriggerResponse {
   runId: string
   alreadyRunning: boolean
+  productLimit?: number | null
+  shoppingListId?: string | null
+}
+
+export interface HouseholdPriceCheckTriggerParams {
+  productLimit?: number | null
+  productIds?: string[]
+  shoppingListId?: string | null
+  maxLocalStores?: number | null
 }
 
 export interface HouseholdBuyGuideTrendPoint {
@@ -1693,11 +1702,19 @@ export interface HouseholdShoppingListSuggestions {
   lookbackDays: number
   daysAhead: number
   watchDays: number
+  limit: number
+  totalCount: number
   itemCount: number
+  returnedCount: number
+  hasMore: boolean
   buyNowCount: number
   soonCount: number
   watchCount: number
   items: HouseholdShoppingListSuggestionItem[]
+}
+
+export interface HouseholdShoppingListSuggestionDismissRequest {
+  reason?: string
 }
 
 export interface HouseholdShoppingListRequest {

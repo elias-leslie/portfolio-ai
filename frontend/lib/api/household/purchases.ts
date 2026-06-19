@@ -2,6 +2,7 @@ import { get, post, put } from '../client'
 import type {
   HouseholdBuyGuide,
   HouseholdPriceCheckStatus,
+  HouseholdPriceCheckTriggerParams,
   HouseholdPriceCheckTriggerResponse,
   HouseholdProductDetail,
   HouseholdProductList,
@@ -16,6 +17,7 @@ import type {
   HouseholdShoppingListImportResponse,
   HouseholdShoppingListOptimizeRequest,
   HouseholdShoppingListRequest,
+  HouseholdShoppingListSuggestionDismissRequest,
   HouseholdShoppingListSuggestions,
   HouseholdShoppingListsResponse,
   HouseholdVendorProfileList,
@@ -121,9 +123,27 @@ export async function fetchPriceCheckStatus(
   )
 }
 
-export async function triggerPriceCheck(): Promise<HouseholdPriceCheckTriggerResponse> {
+export async function triggerPriceCheck(
+  params: HouseholdPriceCheckTriggerParams = {},
+): Promise<HouseholdPriceCheckTriggerResponse> {
+  const search = new URLSearchParams()
+  if (params.productLimit != null) {
+    search.set('product_limit', String(params.productLimit))
+  }
+  if (params.shoppingListId) {
+    search.set('shopping_list_id', params.shoppingListId)
+  }
+  if (params.maxLocalStores != null) {
+    search.set('max_local_stores', String(params.maxLocalStores))
+  }
+  for (const productId of params.productIds ?? []) {
+    search.append('product_id', productId)
+  }
+  const query = search.toString()
   return post<HouseholdPriceCheckTriggerResponse>(
-    '/api/household/price-checks/run',
+    query
+      ? `/api/household/price-checks/run?${query}`
+      : '/api/household/price-checks/run',
     {},
   )
 }
@@ -155,6 +175,16 @@ export async function fetchShoppingListSuggestions(
       ? `/api/household/shopping-lists/suggestions?${query}`
       : '/api/household/shopping-lists/suggestions',
     options,
+  )
+}
+
+export async function dismissShoppingListSuggestion(
+  productId: string,
+  payload: HouseholdShoppingListSuggestionDismissRequest = {},
+): Promise<{ ok: boolean }> {
+  return post<{ ok: boolean }>(
+    `/api/household/shopping-lists/suggestions/${productId}/dismiss`,
+    payload,
   )
 }
 

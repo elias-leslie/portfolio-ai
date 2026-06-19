@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import type {
+  HouseholdPriceCheckTriggerParams,
   HouseholdProductListParams,
   HouseholdPurchaseItemCategoryUpdate,
   HouseholdPurchaseItemOwnerUpdate,
@@ -15,6 +16,7 @@ import {
   assignPurchaseItemProduct,
   categorizePurchaseItem,
   createShoppingList,
+  dismissShoppingListSuggestion,
   fetchHouseholdBuyGuide,
   fetchHouseholdProductDetail,
   fetchHouseholdProducts,
@@ -206,7 +208,8 @@ export function useTriggerPriceCheck() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: () => triggerPriceCheck(),
+    mutationFn: (params?: HouseholdPriceCheckTriggerParams) =>
+      triggerPriceCheck(params),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({
         queryKey: ['household', 'price-check-status'],
@@ -264,6 +267,31 @@ export function useShoppingListSuggestions(params?: {
     queryFn: ({ signal }) => fetchShoppingListSuggestions(params, { signal }),
     staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
     refetchOnWindowFocus: false,
+  })
+}
+
+export function useDismissShoppingListSuggestion() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      productId,
+      reason = 'not_recurring',
+    }: {
+      productId: string
+      reason?: string
+    }) => dismissShoppingListSuggestion(productId, { reason }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['household', 'shopping-list-suggestions'],
+      })
+      toast.success('Removed from recurring suggestions.')
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to remove suggestion',
+      )
+    },
   })
 }
 

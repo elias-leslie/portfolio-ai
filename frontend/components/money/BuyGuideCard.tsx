@@ -109,7 +109,7 @@ export function BuyGuideCard({ onOpenProduct }: BuyGuideCardProps) {
           type="button"
           size="sm"
           variant="outline"
-          onClick={() => triggerPriceCheck.mutate()}
+          onClick={() => triggerPriceCheck.mutate({})}
           disabled={triggerPriceCheck.isPending}
         >
           {triggerPriceCheck.isPending ? 'Starting…' : 'Research prices'}

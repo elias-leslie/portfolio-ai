@@ -22,10 +22,12 @@ import type {
 import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
 import {
   useCreateShoppingList,
+  useDismissShoppingListSuggestion,
   useImportShoppingListItems,
   useOptimizeShoppingList,
   useShoppingListSuggestions,
   useShoppingLists,
+  useTriggerPriceCheck,
   useUpdateVendorProfiles,
   useVendorProfiles,
 } from '@/lib/hooks/useHouseholdPurchases'
@@ -113,6 +115,15 @@ function listItemLabel(list: HouseholdShoppingList) {
   return `${count} open item${count === 1 ? '' : 's'}`
 }
 
+function matchedOpenItemCount(list: HouseholdShoppingList) {
+  return list.items.filter((item) => item.status === 'open' && item.productId)
+    .length
+}
+
+function researchProductLimit(count: number) {
+  return Math.max(1, Math.min(40, count))
+}
+
 function optimization(list: HouseholdShoppingList): Optimization | null {
   const raw = list.latestOptimization
   if (!raw || typeof raw !== 'object') return null
@@ -160,11 +171,13 @@ export function ShoppingListsCard() {
     isLoading: suggestionsLoading,
     refetch: refetchSuggestions,
     isFetching: suggestionsFetching,
-  } = useShoppingListSuggestions({ daysAhead: 14, watchDays: 45, limit: 40 })
+  } = useShoppingListSuggestions({ daysAhead: 14, watchDays: 45, limit: 100 })
   const { data: vendorData } = useVendorProfiles()
   const createList = useCreateShoppingList()
+  const dismissSuggestion = useDismissShoppingListSuggestion()
   const importItems = useImportShoppingListItems()
   const optimizeList = useOptimizeShoppingList()
+  const triggerListPriceCheck = useTriggerPriceCheck()
   const updateProfiles = useUpdateVendorProfiles()
   const [newListName, setNewListName] = useState('Groceries')
   const [importListId, setImportListId] = useState<string | null>(null)
@@ -272,7 +285,7 @@ export function ShoppingListsCard() {
       month: 'short',
       day: 'numeric',
     })
-    await createList.mutateAsync({
+    const list = await createList.mutateAsync({
       name: `Suggested groceries ${today}`,
       items: selectedSuggestions.map((item, index) => ({
         productId: item.productId,
@@ -284,6 +297,18 @@ export function ShoppingListsCard() {
         matchConfidence: item.confidence,
       })),
     })
+    const researchedCount = matchedOpenItemCount(list)
+    if (researchedCount > 0) {
+      try {
+        await triggerListPriceCheck.mutateAsync({
+          shoppingListId: list.id,
+          productLimit: researchProductLimit(researchedCount),
+          maxLocalStores,
+        })
+      } catch {
+        // useTriggerPriceCheck owns the visible error toast.
+      }
+    }
   }
 
   return (
@@ -294,6 +319,12 @@ export function ShoppingListsCard() {
           <p className="text-xs text-text-muted">
             Paste groceries or household supplies, then optimize from stored
             vendor quotes.
+          </p>
+          <p className="text-xs text-text-muted">
+            Research can be run per finalized list; it checks enabled vendors
+            including Amazon, Walmart, Aldi, Costco, and Publix before the
+            optimizer splits stores. List-specific research covers up to 40
+            matched open items per run.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -324,11 +355,21 @@ export function ShoppingListsCard() {
               Auto-drafts groceries and household staples from products you buy
               repeatedly. Review the checked items, then create the list.
             </p>
+            <p className="text-xs text-text-muted">
+              Cadence uses all matched item-level history. If this looks
+              Amazon-heavy today, that reflects current receipt/order evidence;
+              price research still searches enabled stores now for exact or
+              equivalent unit-basis matches before optimizing.
+            </p>
             {suggestionData ? (
               <p className="text-xs text-text-muted">
                 {suggestionData.buyNowCount} buy now ·{' '}
                 {suggestionData.soonCount} soon · {suggestionData.watchCount}{' '}
-                watch
+                watch · showing {suggestionData.returnedCount} of{' '}
+                {suggestionData.totalCount}
+                {suggestionData.hasMore
+                  ? ` due candidates; narrow window or raise limit above ${suggestionData.limit} later.`
+                  : ' due candidates.'}
               </p>
             ) : null}
           </div>
@@ -351,10 +392,12 @@ export function ShoppingListsCard() {
                 void createSuggestedList()
               }}
               disabled={
-                createList.isPending || selectedSuggestions.length === 0
+                createList.isPending ||
+                triggerListPriceCheck.isPending ||
+                selectedSuggestions.length === 0
               }
             >
-              Create selected list ({selectedSuggestions.length})
+              Create + research ({selectedSuggestions.length})
             </Button>
           </div>
         </div>
@@ -384,7 +427,7 @@ export function ShoppingListsCard() {
                     {bucketLabel(bucket)}
                   </p>
                   <ul className="mt-2 space-y-2">
-                    {bucketItems.slice(0, 8).map((item) => (
+                    {bucketItems.map((item) => (
                       <li
                         key={item.productId}
                         className="flex gap-2 text-sm text-text"
@@ -399,7 +442,26 @@ export function ShoppingListsCard() {
                           className="mt-0.5"
                         />
                         <div className="min-w-0">
-                          <p className="line-clamp-2">{item.productName}</p>
+                          <div className="flex gap-2">
+                            <p className="line-clamp-2 flex-1">
+                              {item.productName}
+                            </p>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-2 text-xs"
+                              onClick={() => {
+                                dismissSuggestion.mutate({
+                                  productId: item.productId,
+                                  reason: 'not_recurring',
+                                })
+                              }}
+                              disabled={dismissSuggestion.isPending}
+                            >
+                              Not recurring
+                            </Button>
+                          </div>
                           <p className="text-xs text-text-muted">
                             {item.reason} · {item.purchaseCount} buys ·{' '}
                             {Math.round(item.confidence * 100)}% confidence
@@ -437,87 +499,116 @@ export function ShoppingListsCard() {
         </div>
       ) : (
         <div className="space-y-3">
-          {lists.map((list) => (
-            <div
-              key={list.id}
-              className="rounded-2xl border border-border/40 bg-surface/45 p-4"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium text-text">{list.name}</p>
-                  <p className="text-xs text-text-muted">
-                    {listItemLabel(list)}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setImportListId(list.id)}
-                  >
-                    Import items
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() =>
-                      optimizeList.mutate({
-                        listId: list.id,
-                        maxLocalStores,
-                      })
-                    }
-                    disabled={optimizeList.isPending || list.items.length === 0}
-                  >
-                    Optimize
-                  </Button>
-                  <label className="flex items-center gap-2 text-xs text-text-muted">
-                    Max local stores
-                    <Input
-                      aria-label="Maximum local stores"
-                      type="number"
-                      min="0"
-                      max="5"
-                      step="1"
-                      value={maxLocalStores}
-                      onChange={(event) =>
-                        setMaxLocalStores(
-                          Math.max(0, Math.min(5, Number(event.target.value))),
-                        )
-                      }
-                      className="h-8 w-16"
-                    />
-                  </label>
-                </div>
-              </div>
-              {list.items.length > 0 && (
-                <ul className="mt-3 grid gap-2 md:grid-cols-2">
-                  {list.items.slice(0, 8).map((item) => (
-                    <li
-                      key={item.id}
-                      className="rounded-xl bg-surface-muted/10 px-3 py-2 text-sm text-text"
+          {lists.map((list) => {
+            const matchedCount = matchedOpenItemCount(list)
+            return (
+              <div
+                key={list.id}
+                className="rounded-2xl border border-border/40 bg-surface/45 p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-text">{list.name}</p>
+                    <p className="text-xs text-text-muted">
+                      {listItemLabel(list)} · {matchedCount} matched for price
+                      research
+                      {matchedCount > 40
+                        ? ' · first 40 researched per run'
+                        : ''}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setImportListId(list.id)}
                     >
-                      {item.productName ?? item.freeText ?? 'Item'}
-                      {item.quantity ? (
-                        <span className="ml-2 text-xs text-text-muted">
-                          {item.quantity} {item.unit ?? ''}
-                        </span>
-                      ) : null}
-                      {item.productId ? (
-                        <Badge variant="success" className="ml-2">
-                          matched
-                        </Badge>
-                      ) : (
-                        <Badge variant="warning" className="ml-2">
-                          free text
-                        </Badge>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ))}
+                      Import items
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        triggerListPriceCheck.mutate({
+                          shoppingListId: list.id,
+                          productLimit: researchProductLimit(matchedCount),
+                          maxLocalStores,
+                        })
+                      }
+                      disabled={
+                        triggerListPriceCheck.isPending || matchedCount === 0
+                      }
+                    >
+                      Research prices
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() =>
+                        optimizeList.mutate({
+                          listId: list.id,
+                          maxLocalStores,
+                        })
+                      }
+                      disabled={
+                        optimizeList.isPending || list.items.length === 0
+                      }
+                    >
+                      Optimize
+                    </Button>
+                    <label className="flex items-center gap-2 text-xs text-text-muted">
+                      Max local stores
+                      <Input
+                        aria-label="Maximum local stores"
+                        type="number"
+                        min="0"
+                        max="5"
+                        step="1"
+                        value={maxLocalStores}
+                        onChange={(event) =>
+                          setMaxLocalStores(
+                            Math.max(
+                              0,
+                              Math.min(5, Number(event.target.value)),
+                            ),
+                          )
+                        }
+                        className="h-8 w-16"
+                      />
+                    </label>
+                  </div>
+                </div>
+                {list.items.length > 0 && (
+                  <ul className="mt-3 grid max-h-96 gap-2 overflow-y-auto md:grid-cols-2">
+                    {list.items.map((item) => (
+                      <li
+                        key={item.id}
+                        className="rounded-xl bg-surface-muted/10 px-3 py-2 text-sm text-text"
+                      >
+                        {item.productName ?? item.freeText ?? 'Item'}
+                        {item.quantity ? (
+                          <span className="ml-2 text-xs text-text-muted">
+                            {item.quantity} {item.unit ?? ''}
+                          </span>
+                        ) : null}
+                        {item.productId ? (
+                          <Badge variant="success" className="ml-2">
+                            matched
+                          </Badge>
+                        ) : (
+                          <Badge variant="warning" className="ml-2">
+                            free text
+                          </Badge>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 

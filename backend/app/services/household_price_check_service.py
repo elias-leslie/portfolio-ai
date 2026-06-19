@@ -47,6 +47,7 @@ logger = get_logger(__name__)
 
 PRICE_SCOUT_AGENT_SLUG = "household-price-scout"
 PRODUCT_CAP_PER_RUN = 12
+SHOPPING_LIST_PRODUCT_CAP_PER_RUN = 40
 # A queued/running row older than this is a dead run (worker crash), not a
 # reason to refuse a new trigger.
 RUN_ACTIVE_WINDOW_MINUTES = 30
@@ -77,13 +78,18 @@ class HouseholdPriceCheckService:
         product_limit: int | None = None,
         product_ids: list[str] | None = None,
         shopping_list_id: str | None = None,
+        max_local_stores: int | None = None,
     ) -> tuple[str, bool]:
         """Create a queued run; returns (run_id, already_running)."""
-        limit = max(1, min(int(product_limit or PRODUCT_CAP_PER_RUN), PRODUCT_CAP_PER_RUN))
+        limit = _run_product_limit(
+            product_limit,
+            shopping_list_id=shopping_list_id,
+        )
         metadata = {
             "product_limit": limit,
             "product_ids": product_ids or [],
             "shopping_list_id": shopping_list_id,
+            "max_local_stores": max_local_stores,
             "triggered_by": triggered_by,
         }
         with self.storage.connection() as conn:
@@ -172,15 +178,17 @@ class HouseholdPriceCheckService:
             return {"status": "failed", "error": str(exc)}
 
     def _execute(self, run_id: str, metadata: dict[str, Any]) -> dict[str, Any]:
-        limit = max(
-            1, min(int(metadata.get("product_limit") or PRODUCT_CAP_PER_RUN), PRODUCT_CAP_PER_RUN)
+        shopping_list_id = metadata.get("shopping_list_id")
+        limit = _run_product_limit(
+            metadata.get("product_limit"),
+            shopping_list_id=str(shopping_list_id) if shopping_list_id else None,
         )
         with self.storage.connection() as conn:
             products = self._select_products(
                 conn,
                 limit=limit,
                 product_ids=list(metadata.get("product_ids") or []),
-                shopping_list_id=metadata.get("shopping_list_id"),
+                shopping_list_id=shopping_list_id,
             )
             vendors = self._enabled_vendors(conn)
             self._ensure_agent_workflow(conn, run_id, metadata=metadata)
@@ -264,6 +272,37 @@ class HouseholdPriceCheckService:
             )
             conn.commit()
 
+        optimization_result: dict[str, Any] | None = None
+        if shopping_list_id:
+            from app.services.household_shopping_list_service import (  # noqa: PLC0415
+                HouseholdShoppingListService,
+            )
+
+            optimized = HouseholdShoppingListService().optimize(
+                str(shopping_list_id),
+                max_local_stores=metadata.get("max_local_stores"),
+            )
+            if optimized is not None:
+                optimization_result = {
+                    "shopping_list_id": str(shopping_list_id),
+                    "optimized_at": datetime.now(UTC).isoformat(),
+                }
+                with self.storage.connection() as conn:
+                    conn.execute(
+                        """
+                        UPDATE household_price_check_runs
+                        SET metadata = COALESCE(metadata, '{}'::jsonb)
+                            || jsonb_build_object(
+                                'shopping_list_optimized_at',
+                                CURRENT_TIMESTAMP
+                            ),
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                        """,
+                        [run_id],
+                    )
+                    conn.commit()
+
         logger.info(
             "price_check_run_completed",
             run_id=run_id,
@@ -278,6 +317,7 @@ class HouseholdPriceCheckService:
             "products": len(products),
             "quotes": quote_count,
             "findings": finding_count,
+            "shopping_list_optimization": optimization_result,
         }
 
     # -- internals -----------------------------------------------------------
@@ -474,25 +514,31 @@ class HouseholdPriceCheckService:
                 purpose=f"household_price_check:{adapter.vendor_key}",
             )
         except Exception as exc:
+            fallback = lookup_vendor_prices_with_firecrawl(adapter, products)
+            repo.store_message(
+                agent_run_id,
+                "assistant",
+                f"Web fallback after agent error ({exc}): {vendor_result_to_json(fallback)}",
+            )
             repo.complete_run(
                 run_id=agent_run_id,
                 completed_at=datetime.now(UTC),
-                status="error",
-                num_ideas=0,
-                error_message=str(exc)[:2000],
+                status="completed" if fallback.quotes else fallback.status,
+                num_ideas=len(fallback.quotes),
+                error_message=(fallback.error or str(exc))[:2000],
             )
-            raise
+            return fallback
         finally:
             client.close()
         repo.store_message(agent_run_id, "assistant", response.content)
         result = adapter.parse_response(response.content)
-        if not result.quotes and result.status in {"blocked", "error"}:
+        if not result.quotes and result.status in {"blocked", "error", "partial"}:
             fallback = lookup_vendor_prices_with_firecrawl(adapter, products)
             if fallback.quotes:
                 repo.store_message(
                     agent_run_id,
                     "assistant",
-                    f"Firecrawl fallback: {vendor_result_to_json(fallback)}",
+                    f"Web fallback: {vendor_result_to_json(fallback)}",
                 )
                 result = fallback
         repo.complete_run(
@@ -614,6 +660,20 @@ def _quote_key(quote: VendorQuote) -> str:
     )
     key = re.sub(r"[^a-z0-9]+", "-", raw).strip("-")
     return key[:160] or str(uuid.uuid5(uuid.NAMESPACE_URL, quote.title))
+
+
+def _run_product_limit(
+    product_limit: Any,
+    *,
+    shopping_list_id: str | None,
+) -> int:
+    """List-specific checks can cover a real grocery list; general scans stay tight."""
+    cap = SHOPPING_LIST_PRODUCT_CAP_PER_RUN if shopping_list_id else PRODUCT_CAP_PER_RUN
+    try:
+        requested = int(product_limit or cap)
+    except (TypeError, ValueError):
+        requested = cap
+    return max(1, min(requested, cap))
 
 
 def _quote_package_measure(quote: VendorQuote) -> Any:

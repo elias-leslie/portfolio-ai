@@ -11,6 +11,7 @@ from app.services.household_price_check_service import (
     _completion_status,
     _finding_candidates,
     _quote_unit_cost_for_product,
+    _run_product_limit,
     _run_vendor_checks,
 )
 
@@ -76,6 +77,13 @@ def test_vendor_failure_is_isolated_per_vendor() -> None:
     assert results["amazon"].status == "ok"
     assert results["walmart"].status == "error"
     assert "agent hub down" in (results["walmart"].error or "")
+
+
+def test_run_product_limit_allows_larger_finalized_shopping_lists() -> None:
+    assert _run_product_limit(None, shopping_list_id=None) == 12
+    assert _run_product_limit(80, shopping_list_id=None) == 12
+    assert _run_product_limit(None, shopping_list_id="list-1") == 40
+    assert _run_product_limit(80, shopping_list_id="list-1") == 40
 
 
 def test_completion_status_surfaces_degraded_vendor_results() -> None:

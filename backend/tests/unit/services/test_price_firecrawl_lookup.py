@@ -16,8 +16,18 @@ _PRODUCTS = [
 ]
 
 
-def _completed(args: list[str], stdout: str, returncode: int = 0) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(args=args, returncode=returncode, stdout=stdout, stderr="")
+def _completed(
+    args: list[str],
+    stdout: str,
+    returncode: int = 0,
+    stderr: str = "",
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(
+        args=args,
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
+    )
 
 
 def test_firecrawl_lookup_parses_fenced_scrape_json() -> None:
@@ -69,6 +79,8 @@ def test_firecrawl_search_snippet_does_not_become_a_price_quote() -> None:
         side_effect=[
             _completed(["firecrawl", "search"], search),
             _completed(["firecrawl", "scrape"], "no json here"),
+            _completed(["st", "web", "search"], '{"results":[]}'),
+            _completed(["st", "web", "search"], '{"results":[]}'),
         ],
     ):
         result = lookup_vendor_prices_with_firecrawl(_ALDI, _PRODUCTS)
@@ -76,6 +88,43 @@ def test_firecrawl_search_snippet_does_not_become_a_price_quote() -> None:
     assert result.status == "error"
     assert result.quotes == []
     assert "could not verify" in (result.error or "")
+
+
+def test_st_web_fallback_parses_verified_product_page_when_firecrawl_is_limited() -> None:
+    st_search = (
+        '{"results":[{"url":"https://www.walmart.com/ip/328567678",'
+        '"title":"Great Value Edamame, 12 oz (Frozen) - Walmart.com",'
+        '"snippet":"One-time purchase. $1.92. 12 oz."}]}'
+    )
+    st_fetch = (
+        '{"title":"Great Value Edamame, 12 oz (Frozen) - Walmart.com",'
+        '"content":"Great Value Edamame, 12 oz (Frozen) Current price: $1.92 '
+        '12 oz Pickup or delivery $0.16/oz"}'
+    )
+
+    with patch(
+        "app.services._price_firecrawl_lookup.safe_subprocess.run",
+        side_effect=[
+            _completed(
+                ["firecrawl", "search"],
+                "",
+                returncode=1,
+                stderr="free unauthenticated credits limit",
+            ),
+            _completed(["st", "web", "search"], st_search),
+            _completed(["st", "web", "fetch"], st_fetch),
+        ],
+    ) as run:
+        result = lookup_vendor_prices_with_firecrawl(_WALMART, _PRODUCTS)
+
+    assert result.status == "ok"
+    assert len(result.quotes) == 1
+    quote = result.quotes[0]
+    assert quote.price == 1.92
+    assert quote.package_label == "12 oz"
+    assert quote.unit_price == 0.16
+    assert quote.promo_text == "st web verified page extraction"
+    assert run.call_count == 3
 
 
 def test_firecrawl_lookup_reports_missing_cli() -> None:

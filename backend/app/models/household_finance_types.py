@@ -926,6 +926,8 @@ class HouseholdPriceCheckStatus(BaseModel):
 class HouseholdPriceCheckTriggerResponse(BaseModel):
     run_id: str
     already_running: bool = False
+    product_limit: int | None = None
+    shopping_list_id: str | None = None
 
 
 class HouseholdBuyGuideTrendPoint(BaseModel):
@@ -1030,11 +1032,19 @@ class HouseholdShoppingListSuggestions(BaseModel):
     lookback_days: int
     days_ahead: int
     watch_days: int
+    limit: int = 0
+    total_count: int = 0
     item_count: int = 0
+    returned_count: int = 0
+    has_more: bool = False
     buy_now_count: int = 0
     soon_count: int = 0
     watch_count: int = 0
     items: list[HouseholdShoppingListSuggestionItem] = Field(default_factory=list)
+
+
+class HouseholdShoppingListSuggestionDismissRequest(BaseModel):
+    reason: str = "not_recurring"
 
 
 class HouseholdShoppingListRequest(BaseModel):

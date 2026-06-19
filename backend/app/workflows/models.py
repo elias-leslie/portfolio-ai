@@ -70,3 +70,4 @@ class PriceCheckInput(BaseModel):
     product_limit: int | None = None
     product_ids: list[str] | None = None
     shopping_list_id: str | None = None
+    max_local_stores: int | None = None

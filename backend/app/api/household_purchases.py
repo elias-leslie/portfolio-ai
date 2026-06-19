@@ -27,6 +27,7 @@ from app.models.household_finance import (
     HouseholdShoppingListOptimizeRequest,
     HouseholdShoppingListRequest,
     HouseholdShoppingListsResponse,
+    HouseholdShoppingListSuggestionDismissRequest,
     HouseholdShoppingListSuggestions,
     HouseholdVendorProfileList,
     HouseholdVendorProfileUpdate,
@@ -196,9 +197,10 @@ async def set_purchase_item_owner(
 
 @router.post("/price-checks/run", response_model=HouseholdPriceCheckTriggerResponse)
 async def trigger_price_check(
-    product_limit: int | None = Query(None, ge=1, le=12),
+    product_limit: int | None = Query(None, ge=1, le=40),
     product_id: list[str] | None = Query(None),
     shopping_list_id: str | None = None,
+    max_local_stores: int | None = Query(2, ge=0, le=5),
 ) -> HouseholdPriceCheckTriggerResponse:
     """Queue a cross-vendor price check and hand it to the Hatchet worker."""
     service = _price_checks()
@@ -208,10 +210,16 @@ async def trigger_price_check(
             product_limit=product_limit,
             product_ids=product_id,
             shopping_list_id=shopping_list_id,
+            max_local_stores=max_local_stores,
         )
     )
     if already_running:
-        return HouseholdPriceCheckTriggerResponse(run_id=run_id, already_running=True)
+        return HouseholdPriceCheckTriggerResponse(
+            run_id=run_id,
+            already_running=True,
+            product_limit=product_limit,
+            shopping_list_id=shopping_list_id,
+        )
     try:
         from app.hatchet_app import get_admin_client  # noqa: PLC0415
 
@@ -226,7 +234,12 @@ async def trigger_price_check(
         raise HTTPException(
             status_code=502, detail=f"Could not start price check: {exc}"
         ) from exc
-    return HouseholdPriceCheckTriggerResponse(run_id=run_id, already_running=False)
+    return HouseholdPriceCheckTriggerResponse(
+        run_id=run_id,
+        already_running=False,
+        product_limit=product_limit,
+        shopping_list_id=shopping_list_id,
+    )
 
 
 @router.get("/price-checks/status", response_model=HouseholdPriceCheckStatus)
@@ -245,7 +258,7 @@ async def list_shopping_lists() -> HouseholdShoppingListsResponse:
 async def get_shopping_list_suggestions(
     days_ahead: int = Query(14, ge=1, le=60),
     watch_days: int = Query(45, ge=7, le=120),
-    limit: int = Query(40, ge=1, le=100),
+    limit: int = Query(100, ge=1, le=100),
 ) -> HouseholdShoppingListSuggestions:
     """Suggest recurring household items due soon from purchase cadence."""
     return await run_in_threadpool(
@@ -255,6 +268,34 @@ async def get_shopping_list_suggestions(
             limit=limit,
         )
     )
+
+
+@router.post("/shopping-lists/suggestions/{product_id}/dismiss")
+async def dismiss_shopping_list_suggestion(
+    product_id: str,
+    payload: HouseholdShoppingListSuggestionDismissRequest | None = None,
+) -> dict[str, bool]:
+    """Exclude a product from future recurring shopping-list suggestions."""
+    changed = await run_in_threadpool(
+        _shopping_lists().dismiss_suggestion,
+        product_id,
+        payload,
+    )
+    if not changed:
+        raise HTTPException(status_code=404, detail=f"Product not found: {product_id}")
+    return {"ok": True}
+
+
+@router.post("/shopping-lists/suggestions/{product_id}/restore")
+async def restore_shopping_list_suggestion(product_id: str) -> dict[str, bool]:
+    """Allow a product to appear in future recurring shopping-list suggestions."""
+    changed = await run_in_threadpool(
+        _shopping_lists().restore_suggestion,
+        product_id,
+    )
+    if not changed:
+        raise HTTPException(status_code=404, detail=f"Product not found: {product_id}")
+    return {"ok": True}
 
 
 @router.post("/shopping-lists", response_model=HouseholdShoppingList)

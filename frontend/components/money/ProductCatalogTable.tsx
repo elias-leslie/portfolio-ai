@@ -170,9 +170,20 @@ export function ProductCatalogTable({
                     </div>
                   </td>
                   <td className="border-b border-border/20 px-3 py-2.5 text-right font-mono tabular-nums text-text">
-                    {product.bestResearchedUnitPrice != null
-                      ? `${formatCurrency(product.bestResearchedUnitPrice, { decimals: 3 })}/${product.bestResearchedUnitLabel ?? 'unit'}`
-                      : '—'}
+                    {product.bestResearchedTotalPrice != null
+                      ? formatCurrency(product.bestResearchedTotalPrice, {
+                          decimals: 2,
+                        })
+                      : product.bestResearchedUnitPrice != null
+                        ? `${formatCurrency(product.bestResearchedUnitPrice, { decimals: 3 })}/${product.bestResearchedUnitLabel ?? 'unit'}`
+                        : '—'}
+                    <div className="text-xs text-text-muted">
+                      {product.bestResearchedUnitPrice != null
+                        ? `${formatCurrency(product.bestResearchedUnitPrice, { decimals: 3 })}/${product.bestResearchedUnitLabel ?? 'unit'}`
+                        : product.bestResearchedTotalPrice != null
+                          ? 'Total observed price'
+                          : ''}
+                    </div>
                     <div className="text-xs text-text-muted">
                       {product.bestResearchedVendor
                         ? `${product.bestResearchedVendor}${

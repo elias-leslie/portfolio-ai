@@ -215,7 +215,7 @@ export function MoneyPurchasesPanel({
         <div className="space-y-4">
           <PriceCheckStatusCard
             latestRun={priceCheck?.latestRun}
-            onRun={() => triggerPriceCheck.mutate()}
+            onRun={() => triggerPriceCheck.mutate({})}
             isTriggering={triggerPriceCheck.isPending}
           />
           <PurchaseFindingsList findings={priceCheck?.openFindings ?? []} />

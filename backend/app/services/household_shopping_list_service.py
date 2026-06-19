@@ -15,6 +15,7 @@ from app.models.household_finance import (
     HouseholdShoppingListItem,
     HouseholdShoppingListRequest,
     HouseholdShoppingListsResponse,
+    HouseholdShoppingListSuggestionDismissRequest,
     HouseholdShoppingListSuggestionItem,
     HouseholdShoppingListSuggestions,
     HouseholdVendorProfile,
@@ -34,7 +35,7 @@ _MIN_VENDOR_QUOTE_CONFIDENCE = 0.7
 _SUGGESTION_LOOKBACK_DAYS = 365
 _SUGGESTION_DEFAULT_DAYS_AHEAD = 14
 _SUGGESTION_DEFAULT_WATCH_DAYS = 45
-_SUGGESTION_DEFAULT_LIMIT = 40
+_SUGGESTION_DEFAULT_LIMIT = 100
 _SUGGESTION_MIN_PURCHASE_EVENTS = 3
 _UNIT_LABELS = {
     "weight_oz": "oz",
@@ -107,6 +108,10 @@ class HouseholdShoppingListService:
                     JOIN household_products p ON p.id = i.product_id
                     WHERE i.removed IS NOT TRUE
                       AND i.product_id IS NOT NULL
+                      AND COALESCE(
+                          (p.metadata->'shopping_list'->>'exclude_recurring')::boolean,
+                          false
+                      ) IS NOT TRUE
                       AND i.purchase_date >= CURRENT_DATE - (%s::int * INTERVAL '1 day')
                     GROUP BY p.id, p.canonical_name, i.purchase_date::date
                 ),
@@ -199,7 +204,8 @@ class HouseholdShoppingListService:
                        CAST(latest_actual_price.total_price AS DOUBLE PRECISION),
                        latest_actual_price.package_display_label,
                        latest_actual_price.package_normalized_unit,
-                       open_list_items.product_id IS NOT NULL AS already_on_open_list
+                       open_list_items.product_id IS NOT NULL AS already_on_open_list,
+                       COUNT(*) OVER () AS total_count
                 FROM due_items d
                 LEFT JOIN latest_item ON latest_item.product_id = d.product_id
                 LEFT JOIN latest_actual_price
@@ -221,17 +227,80 @@ class HouseholdShoppingListService:
             _suggestion_item(row, days_ahead=normalized_days_ahead)
             for row in rows
         ]
+        total_count = int(rows[0][17]) if rows and len(rows[0]) > 17 else len(items)
         return HouseholdShoppingListSuggestions(
             generated_at=datetime.now(UTC).isoformat(),
             lookback_days=_SUGGESTION_LOOKBACK_DAYS,
             days_ahead=normalized_days_ahead,
             watch_days=normalized_watch_days,
+            limit=normalized_limit,
+            total_count=total_count,
             item_count=len(items),
+            returned_count=len(items),
+            has_more=total_count > len(items),
             buy_now_count=sum(1 for item in items if item.due_bucket == "buy_now"),
             soon_count=sum(1 for item in items if item.due_bucket == "soon"),
             watch_count=sum(1 for item in items if item.due_bucket == "watch"),
             items=items,
         )
+
+    def dismiss_suggestion(
+        self,
+        product_id: str,
+        payload: HouseholdShoppingListSuggestionDismissRequest | None = None,
+    ) -> bool:
+        """Exclude a product from future recurring-list suggestions."""
+        reason = (payload.reason if payload is not None else "not_recurring").strip()
+        if not reason:
+            reason = "not_recurring"
+        with self.storage.connection() as conn:
+            result = conn.execute(
+                """
+                UPDATE household_products
+                SET metadata = COALESCE(metadata, '{}'::jsonb)
+                    || jsonb_build_object(
+                        'shopping_list',
+                        COALESCE(metadata->'shopping_list', '{}'::jsonb)
+                        || jsonb_build_object(
+                            'exclude_recurring', true,
+                            'exclude_recurring_reason', %s::text,
+                            'exclude_recurring_at', CURRENT_TIMESTAMP
+                        )
+                    ),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s::uuid
+                RETURNING id
+                """,
+                [reason, product_id],
+            )
+            changed = result.fetchone() is not None
+            conn.commit()
+        return changed
+
+    def restore_suggestion(self, product_id: str) -> bool:
+        """Allow a product to appear in recurring-list suggestions again."""
+        with self.storage.connection() as conn:
+            result = conn.execute(
+                """
+                UPDATE household_products
+                SET metadata = COALESCE(metadata, '{}'::jsonb)
+                    || jsonb_build_object(
+                        'shopping_list',
+                        COALESCE(metadata->'shopping_list', '{}'::jsonb)
+                        || jsonb_build_object(
+                            'exclude_recurring', false,
+                            'recurring_restored_at', CURRENT_TIMESTAMP
+                        )
+                    ),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s::uuid
+                RETURNING id
+                """,
+                [product_id],
+            )
+            changed = result.fetchone() is not None
+            conn.commit()
+        return changed
 
     def update_shopping_list(
         self,
