@@ -13,6 +13,7 @@ import {
   assignPurchaseItemProduct,
   categorizePurchaseItem,
   createShoppingList,
+  fetchHouseholdBuyGuide,
   fetchHouseholdProductDetail,
   fetchHouseholdProducts,
   fetchPriceCheckStatus,
@@ -31,6 +32,15 @@ import {
 
 const HOUSEHOLD_WORKSPACE_STALE_MS = 1000 * 60 * 5
 const PRICE_CHECK_POLL_MS = 5000
+
+export function useHouseholdBuyGuide() {
+  return useQuery({
+    queryKey: ['household', 'buy-guide'],
+    queryFn: ({ signal }) => fetchHouseholdBuyGuide({ signal }),
+    staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
+    refetchOnWindowFocus: false,
+  })
+}
 
 async function refreshHouseholdQueries(
   queryClient: ReturnType<typeof useQueryClient>,

@@ -16,6 +16,7 @@ import {
   usePurchaseItemReviewQueue,
   useTriggerPriceCheck,
 } from '@/lib/hooks/useHouseholdPurchases'
+import { BuyGuideCard } from './BuyGuideCard'
 import { PriceCheckStatusCard } from './PriceCheckStatusCard'
 import { PriceSignalsTable } from './PriceSignalsTable'
 import {
@@ -106,6 +107,14 @@ export function MoneyPurchasesPanel({
 
   return (
     <div className="space-y-6">
+      <SectionCard
+        variant="surface"
+        title="Buy Guide"
+        description="Recurring products ranked by actual unit cost: find when a larger package or another vendor beats the size you usually buy."
+      >
+        <BuyGuideCard onOpenProduct={setOpenProductId} />
+      </SectionCard>
+
       <SectionCard
         variant="surface"
         title="Product Catalog"

@@ -1575,6 +1575,53 @@ export interface HouseholdPriceCheckTriggerResponse {
   alreadyRunning: boolean
 }
 
+export interface HouseholdBuyGuideTrendPoint {
+  observedDate: string
+  merchant?: string | null
+  packageLabel?: string | null
+  totalPrice: number
+  unitCost: number
+  source: string
+}
+
+export interface HouseholdBuyGuideItem {
+  productId: string
+  productName: string
+  brand?: string | null
+  purchaseCount: number
+  unitLabel: string
+  currentMerchant?: string | null
+  currentPackageLabel?: string | null
+  currentTotalPrice: number
+  currentUnitCost: number
+  currentObservedDate: string
+  bestMerchant?: string | null
+  bestPackageLabel?: string | null
+  bestTotalPrice: number
+  bestUnitCost: number
+  bestSource: string
+  bestObservedDate: string
+  bestUrl?: string | null
+  bestTitle?: string | null
+  savingsPerUnit: number
+  savingsPct: number
+  estimatedMonthlySavings?: number | null
+  monthsToUse?: number | null
+  findingKind: string
+  recommendation: string
+  confidence: number
+  confidenceReasons: string[]
+  trendPoints: HouseholdBuyGuideTrendPoint[]
+}
+
+export interface HouseholdBuyGuide {
+  generatedAt: string
+  totalCandidates: number
+  returnedCount: number
+  unitCoverageCount: number
+  items: HouseholdBuyGuideItem[]
+}
+
 export interface HouseholdShoppingListItem {
   id?: string | null
   productId?: string | null

@@ -7,6 +7,7 @@ import type { HouseholdPriceInsight } from '@/lib/api/household'
 import { MoneyPurchasesPanel } from '../MoneyPurchasesPanel'
 
 const useHouseholdProductsMock = vi.hoisted(() => vi.fn())
+const useHouseholdBuyGuideMock = vi.hoisted(() => vi.fn())
 const usePurchaseItemReviewQueueMock = vi.hoisted(() => vi.fn())
 const useHouseholdProductDetailMock = vi.hoisted(() => vi.fn())
 const usePriceCheckStatusMock = vi.hoisted(() => vi.fn())
@@ -24,6 +25,7 @@ const optimizeShoppingListMutate = vi.hoisted(() => vi.fn())
 const updateVendorProfilesMutate = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/hooks/useHouseholdPurchases', () => ({
+  useHouseholdBuyGuide: useHouseholdBuyGuideMock,
   useHouseholdProducts: useHouseholdProductsMock,
   usePurchaseItemReviewQueue: usePurchaseItemReviewQueueMock,
   useHouseholdProductDetail: useHouseholdProductDetailMock,
@@ -191,6 +193,7 @@ function lastCatalogParams() {
 describe('MoneyPurchasesPanel', () => {
   beforeEach(() => {
     useHouseholdProductsMock.mockReset()
+    useHouseholdBuyGuideMock.mockReset()
     usePurchaseItemReviewQueueMock.mockReset()
     useHouseholdProductDetailMock.mockReset()
     usePriceCheckStatusMock.mockReset()
@@ -208,6 +211,19 @@ describe('MoneyPurchasesPanel', () => {
     updateVendorProfilesMutate.mockReset()
     usePurchaseItemReviewQueueMock.mockReturnValue({
       data: { generatedAt: '2026-06-01T00:00:00Z', totalCount: 0, items: [] },
+    })
+    useHouseholdBuyGuideMock.mockReturnValue({
+      data: {
+        generatedAt: '2026-06-01T00:00:00Z',
+        totalCandidates: 0,
+        returnedCount: 0,
+        unitCoverageCount: 0,
+        items: [],
+      },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+      isFetching: false,
     })
     useHouseholdFactsMock.mockReturnValue({ data: [] })
     usePriceCheckStatusMock.mockReturnValue({ data: undefined })

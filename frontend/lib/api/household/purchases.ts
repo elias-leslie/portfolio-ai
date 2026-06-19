@@ -1,5 +1,6 @@
 import { get, post, put } from '../client'
 import type {
+  HouseholdBuyGuide,
   HouseholdPriceCheckStatus,
   HouseholdPriceCheckTriggerResponse,
   HouseholdProductDetail,
@@ -18,6 +19,12 @@ import type {
   HouseholdVendorProfileList,
   HouseholdVendorProfileUpdate,
 } from './types'
+
+export async function fetchHouseholdBuyGuide(
+  options: RequestInit = {},
+): Promise<HouseholdBuyGuide> {
+  return get<HouseholdBuyGuide>('/api/household/buy-guide', options)
+}
 
 export async function fetchHouseholdProducts(
   params?: HouseholdProductListParams,

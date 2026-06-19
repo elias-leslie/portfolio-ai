@@ -36,6 +36,7 @@ export {
   assignPurchaseItemProduct,
   categorizePurchaseItem,
   createShoppingList,
+  fetchHouseholdBuyGuide,
   fetchHouseholdProductDetail,
   fetchHouseholdProducts,
   fetchPriceCheckStatus,

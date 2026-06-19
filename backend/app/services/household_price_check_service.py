@@ -12,6 +12,7 @@ findings. Every agent call is audited in ``agent_runs``.
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -24,6 +25,7 @@ from app.models.household_finance import (
 )
 from app.repositories.agent_repository import AgentRunRepository
 from app.services._household_finance_utils import iso_or_none, to_float
+from app.services._household_report_builder import _extract_package_measure
 from app.services._price_vendor_adapters import (
     VENDOR_ADAPTERS,
     VendorAdapter,
@@ -486,11 +488,19 @@ class HouseholdPriceCheckService:
         vendor_key: str,
         run_id: str,
     ) -> None:
-        """One vendor_quote row per product+vendor+day; re-runs update price."""
+        """Persist one quote variant per product+vendor+day.
+
+        The buy guide needs both nearest-size and larger-size quotes. Re-runs
+        update the same quote_key instead of collapsing every vendor result into
+        one row.
+        """
+        quote_key = _quote_key(quote)
+        measure = _quote_package_measure(quote)
         metadata = json.dumps(
             {
                 "vendor_key": vendor_key,
                 "run_id": run_id,
+                "quote_key": quote_key,
                 "title": quote.title,
                 "url": quote.url,
                 "promo_text": quote.promo_text,
@@ -506,27 +516,41 @@ class HouseholdPriceCheckService:
             WHERE product_id = %s AND source = 'vendor_quote'
               AND observed_date = CURRENT_DATE
               AND merchant_id IS NOT DISTINCT FROM %s
+              AND metadata->>'quote_key' = %s
             LIMIT 1
             """,
-            [quote.product_id, merchant_id],
+            [quote.product_id, merchant_id, quote_key],
         ).fetchone()
         if existing is not None:
             conn.execute(
                 """
                 UPDATE household_product_price_observations
                 SET total_price = %s, unit_price = %s, package_display_label = %s,
+                    package_normalized_quantity = %s,
+                    package_normalized_unit = %s,
                     metadata = %s::jsonb, updated_at = CURRENT_TIMESTAMP
                 WHERE id = %s
                 """,
-                [quote.price, quote.unit_price, quote.package_label, metadata, existing[0]],
+                [
+                    quote.price,
+                    quote.unit_price,
+                    quote.package_label,
+                    measure.normalized_quantity if measure is not None else None,
+                    measure.normalized_unit if measure is not None else None,
+                    metadata,
+                    existing[0],
+                ],
             )
             return
         conn.execute(
             """
             INSERT INTO household_product_price_observations (
                 id, product_id, merchant_id, observed_date, total_price,
-                unit_price, package_display_label, source, metadata
-            ) VALUES (%s, %s, %s, CURRENT_DATE, %s, %s, %s, 'vendor_quote', %s::jsonb)
+                unit_price, package_display_label, package_normalized_quantity,
+                package_normalized_unit, source, metadata
+            ) VALUES (
+                %s, %s, %s, CURRENT_DATE, %s, %s, %s, %s, %s, 'vendor_quote', %s::jsonb
+            )
             """,
             [
                 str(uuid.uuid4()),
@@ -535,9 +559,34 @@ class HouseholdPriceCheckService:
                 quote.price,
                 quote.unit_price,
                 quote.package_label,
+                measure.normalized_quantity if measure is not None else None,
+                measure.normalized_unit if measure is not None else None,
                 metadata,
             ],
         )
+
+
+def _quote_key(quote: VendorQuote) -> str:
+    """Stable-enough same-day quote identity for nearest/bulk variants."""
+    raw = "|".join(
+        part.strip().lower()
+        for part in (
+            quote.url or "",
+            quote.title,
+            quote.package_label or "",
+            quote.quote_kind,
+        )
+        if part
+    )
+    key = re.sub(r"[^a-z0-9]+", "-", raw).strip("-")
+    return key[:160] or str(uuid.uuid5(uuid.NAMESPACE_URL, quote.title))
+
+
+def _quote_package_measure(quote: VendorQuote) -> Any:
+    text = " ".join(part for part in (quote.package_label, quote.title) if part)
+    if not text.strip():
+        return None
+    return _extract_package_measure(text, {"Product Name": text})
 
 
 def _run_vendor_checks(

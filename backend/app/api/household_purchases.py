@@ -29,8 +29,10 @@ from app.models.household_finance import (
     HouseholdVendorProfileList,
     HouseholdVendorProfileUpdate,
 )
+from app.models.household_finance_types import HouseholdBuyGuide
 
 if TYPE_CHECKING:
+    from app.services.household_buy_guide_service import HouseholdBuyGuideService
     from app.services.household_finance_service import HouseholdFinanceService
     from app.services.household_price_check_service import HouseholdPriceCheckService
     from app.services.household_product_catalog_service import (
@@ -69,6 +71,13 @@ def _shopping_lists() -> HouseholdShoppingListService:
     return import_module(
         "app.services.household_shopping_list_service"
     ).HouseholdShoppingListService()
+
+
+@lru_cache(maxsize=1)
+def _buy_guide() -> HouseholdBuyGuideService:
+    return import_module(
+        "app.services.household_buy_guide_service"
+    ).HouseholdBuyGuideService()
 
 
 @router.post("/purchase-items/backfill")
@@ -145,6 +154,14 @@ async def list_transaction_purchase_items(
 async def list_purchase_item_review_queue() -> HouseholdPurchaseItemReviewQueue:
     """Return purchase items whose product match needs human review."""
     return await run_in_threadpool(_catalog().list_review_queue)
+
+
+@router.get("/buy-guide", response_model=HouseholdBuyGuide)
+async def get_household_buy_guide(
+    limit: int = Query(12, ge=1, le=50),
+) -> HouseholdBuyGuide:
+    """Recurring-product unit-cost opportunities from actual and quoted prices."""
+    return await run_in_threadpool(lambda: _buy_guide().get_buy_guide(limit=limit))
 
 
 @router.post("/purchase-items/{item_id}/categorize")

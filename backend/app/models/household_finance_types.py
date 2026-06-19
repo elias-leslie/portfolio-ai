@@ -912,6 +912,53 @@ class HouseholdPriceCheckTriggerResponse(BaseModel):
     already_running: bool = False
 
 
+class HouseholdBuyGuideTrendPoint(BaseModel):
+    observed_date: str
+    merchant: str | None = None
+    package_label: str | None = None
+    total_price: float
+    unit_cost: float
+    source: str
+
+
+class HouseholdBuyGuideItem(BaseModel):
+    product_id: str
+    product_name: str
+    brand: str | None = None
+    purchase_count: int = 0
+    unit_label: str
+    current_merchant: str | None = None
+    current_package_label: str | None = None
+    current_total_price: float
+    current_unit_cost: float
+    current_observed_date: str
+    best_merchant: str | None = None
+    best_package_label: str | None = None
+    best_total_price: float
+    best_unit_cost: float
+    best_source: str
+    best_observed_date: str
+    best_url: str | None = None
+    best_title: str | None = None
+    savings_per_unit: float
+    savings_pct: float
+    estimated_monthly_savings: float | None = None
+    months_to_use: float | None = None
+    finding_kind: str
+    recommendation: str
+    confidence: float
+    confidence_reasons: list[str] = Field(default_factory=list)
+    trend_points: list[HouseholdBuyGuideTrendPoint] = Field(default_factory=list)
+
+
+class HouseholdBuyGuide(BaseModel):
+    generated_at: str
+    total_candidates: int = 0
+    returned_count: int = 0
+    unit_coverage_count: int = 0
+    items: list[HouseholdBuyGuideItem] = Field(default_factory=list)
+
+
 class HouseholdShoppingListItem(BaseModel):
     id: str | None = None
     product_id: str | None = None

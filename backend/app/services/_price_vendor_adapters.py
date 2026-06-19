@@ -72,10 +72,12 @@ class VendorAdapter:
             f"Vendor: {self.display_name}\n{self.guidance}\n\n"
             f"Products to price:\n{product_lines}\n\n"
             "For each product, find the current price for the closest matching "
-            "item. Prefer the same brand and package size, but include a lower "
-            "unit-price comparable substitute when it is the same size, same "
-            "count, or same ounces/unit basis even if the brand differs. Use "
-            "search_web and fetch_web_page. If the vendor blocks you (captcha, robot "
+            "item AND, when available, one materially cheaper larger-size or "
+            "multipack comparable option. Prefer the same brand and package size "
+            "for the closest quote; for the value quote, prefer the same brand "
+            "but accept a store-brand or commodity substitute when the unit basis "
+            "is identical (ounces, fl oz, count, pounds, etc.). Use search_web "
+            "and fetch_web_page. If the vendor blocks you (captcha, robot "
             'check, empty bot-walled pages), stop and report status "blocked".\n\n'
             "Respond with ONLY this JSON object:\n"
             "{\n"
@@ -92,12 +94,14 @@ class VendorAdapter:
             '      "promo_text": "<promo text or null>",\n'
             '      "membership_required": <true if price requires paid membership>,\n'
             '      "confidence": <0.0-1.0 match confidence>,\n'
-            '      "quote_kind": "online_price" | "weekly_ad_promo"\n'
+            '      "quote_kind": "exact_or_nearest" | "bulk_variant" | "online_price" | "weekly_ad_promo"\n'
             "    }\n"
             "  ],\n"
             '  "notes": "<short notes, e.g. which products had no match>"\n'
             "}\n"
-            "Omit products you could not confidently match — never guess a price."
+            "Return at most two quotes per product. Omit products you could not "
+            "confidently match — never guess a price. Always include package_label "
+            "and unit_price when the page shows enough information to compute them."
         )
 
     def parse_response(self, content: str) -> VendorResult:
