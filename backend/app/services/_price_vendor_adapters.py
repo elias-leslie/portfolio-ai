@@ -222,7 +222,35 @@ VENDOR_ADAPTERS: tuple[VendorAdapter, ...] = (
         guidance=(
             "Search walmart.com product listings (e.g. "
             "https://www.walmart.com/search?q=<query>). Use the online price "
-            "for the closest brand/package match."
+            "for the closest brand/package match. Walmart pages often show a "
+            "unit price; carry it into unit_price when present."
+        ),
+    ),
+    VendorAdapter(
+        vendor_key="aldi",
+        display_name="Aldi",
+        merchant_name="Aldi",
+        guidance=(
+            "Search Aldi product pages and store listings (e.g. "
+            "https://www.aldi.us/store/aldi/products/<product> or "
+            "aldi.us search results). Aldi prices can be store-local; use the "
+            "current page price only when the page clearly shows price, package "
+            "size, and unit basis. Report status='partial' and note missing "
+            "local price context when only some products have usable pages."
+        ),
+    ),
+    VendorAdapter(
+        vendor_key="costco",
+        display_name="Costco",
+        merchant_name="Costco",
+        guidance=(
+            "Search Costco warehouse/product pages and Costco SameDay pages "
+            "(costco.com and sameday.costco.com). Costco prices may require a "
+            "paid membership or location; set membership_required=true when a "
+            "member price is involved. Treat SameDay/Instacart markup as part "
+            "of the quoted price if that is the visible price. If Costco blocks "
+            "automation, requires a ZIP/location gate, or serves Access Denied, "
+            "report status='blocked' or 'partial' rather than guessing."
         ),
     ),
     VendorAdapter(

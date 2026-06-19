@@ -14,8 +14,14 @@ _PRODUCTS = [
 ]
 
 
-def test_registry_covers_the_three_vendors() -> None:
-    assert [a.vendor_key for a in VENDOR_ADAPTERS] == ["amazon", "walmart", "publix"]
+def test_registry_covers_household_price_vendors() -> None:
+    assert [a.vendor_key for a in VENDOR_ADAPTERS] == [
+        "amazon",
+        "walmart",
+        "aldi",
+        "costco",
+        "publix",
+    ]
 
 
 def test_build_prompt_carries_products_and_vendor_guidance() -> None:
@@ -23,8 +29,18 @@ def test_build_prompt_carries_products_and_vendor_guidance() -> None:
     assert "amazon.com" in prompt
     assert '"product_id": "p-1"' in prompt
     assert "GV Edamame" in prompt
-    assert "lower unit-price comparable substitute" in prompt
+    assert "materially cheaper larger-size" in prompt
     assert '"status": "ok" | "partial" | "blocked"' in prompt
+
+
+def test_adapter_guidance_covers_aldi_and_costco_edge_cases() -> None:
+    aldi = next(a for a in VENDOR_ADAPTERS if a.vendor_key == "aldi")
+    costco = next(a for a in VENDOR_ADAPTERS if a.vendor_key == "costco")
+
+    assert "package size" in aldi.guidance
+    assert "unit basis" in aldi.guidance
+    assert "membership_required=true" in costco.guidance
+    assert "Access Denied" in costco.guidance
 
 
 def test_parse_ok_response_keeps_valid_quotes_and_drops_garbage() -> None:

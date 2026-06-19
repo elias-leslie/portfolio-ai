@@ -3,7 +3,10 @@
 import { AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import type { HouseholdBuyGuideItem } from '@/lib/api/household'
+import type {
+  HouseholdBuyGuideItem,
+  HouseholdProductPricePoint,
+} from '@/lib/api/household'
 import {
   formatCurrency,
   formatEnumLabel,
@@ -13,6 +16,7 @@ import {
   useHouseholdBuyGuide,
   useTriggerPriceCheck,
 } from '@/lib/hooks/useHouseholdPurchases'
+import { PriceHistorySparkline } from './PriceHistorySparkline'
 
 function unitCurrency(value: number | null | undefined) {
   const decimals = value != null && Math.abs(value) < 1 ? 3 : 2
@@ -41,6 +45,18 @@ function confidenceLabel(value: number) {
   if (value >= 0.8) return 'High'
   if (value >= 0.6) return 'Medium'
   return 'Low'
+}
+
+function trendPricePoints(
+  item: HouseholdBuyGuideItem,
+): HouseholdProductPricePoint[] {
+  return item.trendPoints.map((point) => ({
+    observedDate: point.observedDate,
+    merchant: point.merchant,
+    totalPrice: point.totalPrice,
+    unitPrice: point.unitCost,
+    source: point.source,
+  }))
 }
 
 interface BuyGuideCardProps {
@@ -114,7 +130,7 @@ export function BuyGuideCard({ onOpenProduct }: BuyGuideCardProps) {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-border/40 bg-surface/45">
           <div className="max-h-[40vh] overflow-auto [scrollbar-gutter:stable_both-edges]">
-            <table className="w-full min-w-[1080px] border-separate border-spacing-0 text-sm">
+            <table className="w-full min-w-[1180px] border-separate border-spacing-0 text-sm">
               <thead className="sticky top-0 z-20 bg-bg/95 backdrop-blur">
                 <tr className="text-left text-xs uppercase tracking-[0.14em] text-text-muted/80">
                   <th className="border-b border-border/40 px-3 py-2">Item</th>
@@ -123,6 +139,9 @@ export function BuyGuideCard({ onOpenProduct }: BuyGuideCardProps) {
                   </th>
                   <th className="border-b border-border/40 px-3 py-2">
                     Better unit cost
+                  </th>
+                  <th className="border-b border-border/40 px-3 py-2">
+                    Unit trend
                   </th>
                   <th className="border-b border-border/40 px-3 py-2 text-right">
                     Unit delta
@@ -187,6 +206,16 @@ export function BuyGuideCard({ onOpenProduct }: BuyGuideCardProps) {
                             </a>
                           </>
                         ) : null}
+                      </p>
+                    </td>
+                    <td className="border-b border-border/20 px-3 py-3">
+                      <PriceHistorySparkline
+                        points={trendPricePoints(row)}
+                        width={116}
+                        height={34}
+                      />
+                      <p className="mt-1 text-xs text-text-muted">
+                        {row.trendPoints.length} obs · unit cost
                       </p>
                     </td>
                     <td className="border-b border-border/20 px-3 py-3 text-right font-mono tabular-nums text-text">

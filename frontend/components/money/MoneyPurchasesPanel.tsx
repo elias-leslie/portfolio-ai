@@ -210,7 +210,7 @@ export function MoneyPurchasesPanel({
       <SectionCard
         variant="surface"
         title="Cross-Vendor Price Checks"
-        description="Jenny checks Amazon, Walmart, and Publix for your most-bought products. Findings stay in this tab — they never page you."
+        description="Jenny checks Amazon, Walmart, Aldi, Costco, and Publix for your most-bought products. Findings stay in this tab — they never page you."
       >
         <div className="space-y-4">
           <PriceCheckStatusCard

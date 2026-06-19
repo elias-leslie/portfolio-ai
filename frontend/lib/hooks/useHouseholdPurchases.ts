@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import type {
   HouseholdProductListParams,
@@ -32,6 +33,11 @@ import {
 
 const HOUSEHOLD_WORKSPACE_STALE_MS = 1000 * 60 * 5
 const PRICE_CHECK_POLL_MS = 5000
+const PRICE_CHECK_TERMINAL_STATUSES = new Set([
+  'completed',
+  'completed_with_errors',
+  'failed',
+])
 
 export function useHouseholdBuyGuide() {
   return useQuery({
@@ -158,7 +164,9 @@ export function useAssignPurchaseItemProduct() {
 }
 
 export function usePriceCheckStatus() {
-  return useQuery({
+  const queryClient = useQueryClient()
+  const lastInvalidatedRun = useRef<string | null>(null)
+  const query = useQuery({
     queryKey: ['household', 'price-check-status'],
     queryFn: ({ signal }) => fetchPriceCheckStatus({ signal }),
     staleTime: 0,
@@ -170,6 +178,26 @@ export function usePriceCheckStatus() {
     },
     refetchOnWindowFocus: false,
   })
+
+  useEffect(() => {
+    const run = query.data?.latestRun
+    if (!run || !PRICE_CHECK_TERMINAL_STATUSES.has(run.status)) return
+    const invalidationKey = `${run.id}:${run.status}:${run.finishedAt ?? ''}`
+    if (lastInvalidatedRun.current === invalidationKey) return
+    lastInvalidatedRun.current = invalidationKey
+    void queryClient.invalidateQueries({ queryKey: ['household', 'buy-guide'] })
+    void queryClient.invalidateQueries({ queryKey: ['household', 'products'] })
+    void queryClient.invalidateQueries({
+      queryKey: ['household', 'shopping-lists'],
+    })
+  }, [
+    query.data?.latestRun?.finishedAt,
+    query.data?.latestRun?.id,
+    query.data?.latestRun?.status,
+    queryClient,
+  ])
+
+  return query
 }
 
 export function useTriggerPriceCheck() {

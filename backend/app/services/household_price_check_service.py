@@ -26,6 +26,10 @@ from app.models.household_finance import (
 from app.repositories.agent_repository import AgentRunRepository
 from app.services._household_finance_utils import iso_or_none, to_float
 from app.services._household_report_builder import _extract_package_measure
+from app.services._price_firecrawl_lookup import (
+    lookup_vendor_prices_with_firecrawl,
+    vendor_result_to_json,
+)
 from app.services._price_vendor_adapters import (
     VENDOR_ADAPTERS,
     VendorAdapter,
@@ -461,6 +465,15 @@ class HouseholdPriceCheckService:
             client.close()
         repo.store_message(agent_run_id, "assistant", response.content)
         result = adapter.parse_response(response.content)
+        if not result.quotes and result.status in {"blocked", "error"}:
+            fallback = lookup_vendor_prices_with_firecrawl(adapter, products)
+            if fallback.quotes:
+                repo.store_message(
+                    agent_run_id,
+                    "assistant",
+                    f"Firecrawl fallback: {vendor_result_to_json(fallback)}",
+                )
+                result = fallback
         repo.complete_run(
             run_id=agent_run_id,
             completed_at=datetime.now(UTC),
