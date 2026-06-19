@@ -26,6 +26,7 @@ _DETAIL_OBSERVATION_CAP = 200
 _DETAIL_ITEM_CAP = 50
 _REVIEW_QUEUE_CAP = 100
 _ACTIVE_PRODUCT_WINDOW_MONTHS = 18
+_MIN_VENDOR_QUOTE_CONFIDENCE = 0.7
 
 _PRODUCT_LATEST_SEEN_SQL = (
     "CASE "
@@ -46,6 +47,16 @@ _PRODUCT_SORT_COLUMNS = {
     "owner": "LOWER(COALESCE(owner_rule.owner_name, latest_item.owner_name, ''))",
     "review": "COALESCE(items.needs_review_count, 0)",
 }
+
+
+def _reliable_observation_sql(alias: str = "o") -> str:
+    confidence_value = f"{alias}.metadata -> 'confidence'"
+    confidence_text = f"{alias}.metadata ->> 'confidence'"
+    return (
+        f"({alias}.source <> 'vendor_quote' OR "
+        f"(jsonb_typeof({confidence_value}) = 'number' "
+        f"AND ({confidence_text})::double precision >= {_MIN_VENDOR_QUOTE_CONFIDENCE}))"
+    )
 
 
 def _price_point(row: Any) -> HouseholdProductPricePoint:
@@ -158,7 +169,8 @@ class HouseholdProductCatalogService:
                        COUNT(*) AS observation_count,
                        MIN(observed_date) AS first_observed_date,
                        MAX(observed_date) AS last_observed_date
-                FROM household_product_price_observations
+                FROM household_product_price_observations o
+                WHERE {_reliable_observation_sql("o")}
                 GROUP BY product_id
             ),
             items AS (
@@ -198,6 +210,7 @@ class HouseholdProductCatalogService:
                        total_price,
                        unit_price
                 FROM household_product_price_observations
+                WHERE {_reliable_observation_sql("household_product_price_observations")}
                 ORDER BY product_id, observed_date DESC NULLS LAST, created_at DESC
             )
             SELECT p.id, p.canonical_name, p.brand, p.package_display_label, p.image_url,
@@ -289,7 +302,7 @@ class HouseholdProductCatalogService:
         if not product_ids:
             return {}
         rows = conn.execute(
-            """
+            f"""
             SELECT product_id, observed_date, merchant, total_price, quantity,
                    unit_price, source
             FROM (
@@ -307,6 +320,7 @@ class HouseholdProductCatalogService:
                 FROM household_product_price_observations o
                 LEFT JOIN household_merchants m ON m.id = o.merchant_id
                 WHERE o.product_id = ANY(%s::uuid[])
+                  AND {_reliable_observation_sql("o")}
             ) recent
             WHERE recency_rank <= %s
             ORDER BY product_id, observed_date ASC
@@ -321,7 +335,7 @@ class HouseholdProductCatalogService:
     def get_product_detail(self, product_id: str) -> HouseholdProductDetail | None:
         with self.storage.connection() as conn:
             row = conn.execute(
-                """
+                f"""
                 WITH obs AS (
                     SELECT product_id,
                            COUNT(*) AS observation_count,
@@ -329,6 +343,7 @@ class HouseholdProductCatalogService:
                            MAX(observed_date) AS last_observed_date
                     FROM household_product_price_observations
                     WHERE product_id = %s
+                      AND {_reliable_observation_sql("household_product_price_observations")}
                     GROUP BY product_id
                 ),
                 items AS (
@@ -360,12 +375,13 @@ class HouseholdProductCatalogService:
             observations = [
                 _price_point(observation_row)
                 for observation_row in conn.execute(
-                    """
+                    f"""
                     SELECT o.observed_date, m.canonical_name, o.total_price,
                            o.quantity, o.unit_price, o.source
                     FROM household_product_price_observations o
                     LEFT JOIN household_merchants m ON m.id = o.merchant_id
                     WHERE o.product_id = %s
+                      AND {_reliable_observation_sql("o")}
                     ORDER BY o.observed_date ASC, o.created_at ASC
                     LIMIT %s
                     """,

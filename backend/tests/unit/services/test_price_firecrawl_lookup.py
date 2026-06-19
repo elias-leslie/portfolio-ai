@@ -57,7 +57,7 @@ def test_firecrawl_lookup_parses_fenced_scrape_json() -> None:
     assert any("Largo, FL Walmart" in arg for arg in search_args)
 
 
-def test_firecrawl_search_snippet_prefers_current_price_not_unit_price() -> None:
+def test_firecrawl_search_snippet_does_not_become_a_price_quote() -> None:
     search = (
         '{"success":true,"data":{"web":[{"url":"https://www.aldi.us/store/aldi/products/1",'
         '"title":"Simply Nature Organic Extra Virgin Olive Oil - Aldi",'
@@ -73,12 +73,9 @@ def test_firecrawl_search_snippet_prefers_current_price_not_unit_price() -> None
     ):
         result = lookup_vendor_prices_with_firecrawl(_ALDI, _PRODUCTS)
 
-    assert result.status == "ok"
-    quote = result.quotes[0]
-    assert quote.price == 7.99
-    assert quote.package_label == "16.9 fl oz"
-    assert quote.unit_price is None
-    assert quote.confidence == 0.58
+    assert result.status == "error"
+    assert result.quotes == []
+    assert "could not verify" in (result.error or "")
 
 
 def test_firecrawl_lookup_reports_missing_cli() -> None:

@@ -41,19 +41,9 @@ _FIRECRAWL_SITES: dict[str, tuple[str, ...]] = {
     "publix": ("publix.com",),
 }
 
-_PACKAGE_PATTERN = re.compile(
-    r"(?P<quantity>\d+(?:\.\d+)?)\s*"
-    r"(?P<unit>fl\s*oz|fluid\s*ounces?|ounces?|oz|lbs?|pounds?|ct|count|pk|pack)\b",
-    flags=re.I,
-)
 _MONEY_PATTERN = re.compile(r"(?:USD\s*)?\$\s*(?P<amount>\d+(?:\.\d{1,2})?)", flags=re.I)
 _LOOSE_PRICE_PATTERN = re.compile(r"\b(?P<amount>\d+(?:\.\d{1,2})?)\b")
 _CENTS_PATTERN = re.compile(r"(?P<amount>\d+(?:\.\d+)?)\s*(?:¢|cents?)", flags=re.I)
-_CURRENT_PRICE_PATTERN = re.compile(
-    r"(?:current\s+price|one-time\s+purchase|sale\s+price|price)\D{0,30}"
-    r"\$\s*(?P<amount>\d+(?:\.\d{1,2})?)",
-    flags=re.I,
-)
 
 
 def lookup_vendor_prices_with_firecrawl(
@@ -127,9 +117,6 @@ def _lookup_product(
             quote = _quote_from_scrape(adapter, product, result)
             if quote is not None:
                 return quote
-            quote = _quote_from_search_result(adapter, product, result)
-            if quote is not None:
-                return quote
     return None
 
 
@@ -199,33 +186,6 @@ def _quote_from_scrape(
     return _quote_from_payload(adapter, product, payload, url=url, fallback_title=search_result.get("title"))
 
 
-def _quote_from_search_result(
-    adapter: VendorAdapter,
-    product: dict[str, Any],
-    search_result: dict[str, Any],
-) -> VendorQuote | None:
-    text = " ".join(
-        str(search_result.get(field) or "")
-        for field in ("title", "description")
-    )
-    payload = {
-        "product_title": search_result.get("title"),
-        "price": _extract_money_text(text),
-        "package_size": _extract_package_text(text),
-        "unit_price": _extract_unit_price_text(text),
-        "availability": None,
-        "membership_required": adapter.vendor_key == "costco",
-    }
-    return _quote_from_payload(
-        adapter,
-        product,
-        payload,
-        url=str(search_result.get("url") or ""),
-        fallback_title=search_result.get("title"),
-        confidence=0.58,
-    )
-
-
 def _quote_from_payload(
     adapter: VendorAdapter,
     product: dict[str, Any],
@@ -291,35 +251,6 @@ def _parse_bool(value: Any) -> bool:
     if isinstance(value, bool):
         return value
     return str(value or "").strip().lower() in {"1", "true", "yes", "y", "member", "membership"}
-
-
-def _extract_money_text(text: str) -> str | None:
-    current = _CURRENT_PRICE_PATTERN.search(text)
-    if current is not None:
-        return f"${current.group('amount')}"
-    match = _MONEY_PATTERN.search(text)
-    if match is None:
-        return None
-    # Search snippets often include unit prices before package totals. Do not
-    # convert "$0.47/fl oz" into a total price.
-    tail = text[match.end() : match.end() + 12].lower()
-    if "/" in tail or "per" in tail:
-        return None
-    return match.group(0)
-
-
-def _extract_package_text(text: str) -> str | None:
-    match = _PACKAGE_PATTERN.search(text)
-    return match.group(0) if match else None
-
-
-def _extract_unit_price_text(text: str) -> str | None:
-    cents = _CENTS_PATTERN.search(text)
-    if cents is not None:
-        unit = _PACKAGE_PATTERN.search(text[cents.end() :])
-        suffix = f"/{unit.group('unit')}" if unit is not None else ""
-        return f"{cents.group(0)}{suffix}"
-    return None
 
 
 def vendor_result_to_json(result: VendorResult) -> str:

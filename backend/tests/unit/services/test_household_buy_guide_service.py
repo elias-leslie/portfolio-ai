@@ -72,3 +72,26 @@ def test_buy_guide_ignores_stale_historical_bulk_prices() -> None:
     )
 
     assert item is None
+
+
+def test_buy_guide_ignores_low_confidence_vendor_quotes() -> None:
+    today = date(2026, 6, 19)
+    item = _guide_item(
+        product_id="product-olive-oil",
+        observations=[
+            _obs(observed=date(2026, 4, 1), total=9.50, qty=10),
+            _obs(observed=date(2026, 5, 1), total=10.00, qty=10),
+            _obs(
+                observed=date(2026, 6, 18),
+                total=16.59,
+                qty=68,
+                merchant="Publix",
+                source="vendor_quote",
+                label="68 oz",
+                metadata={"url": "https://example.test/oil", "confidence": 0.58},
+            ),
+        ],
+        today=today,
+    )
+
+    assert item is None

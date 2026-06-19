@@ -27,6 +27,7 @@ MIN_MONTHLY_SAVINGS = 1.0
 BULK_SIZE_MULTIPLE = 1.2
 BULK_TRAP_MONTHS = 6.0
 FRESH_QUOTE_DAYS = 14
+MIN_VENDOR_QUOTE_CONFIDENCE = 0.7
 RECENT_USAGE_DAYS = 365
 ACTIVE_BASELINE_DAYS = 548
 ACTUAL_CANDIDATE_MAX_AGE_DAYS = 730
@@ -177,6 +178,11 @@ def _best_candidate(
             continue
         candidate_age = _days_old(candidate, today=today)
         if candidate.source == "vendor_quote" and candidate_age > FRESH_QUOTE_DAYS * 4:
+            continue
+        if (
+            candidate.source == "vendor_quote"
+            and (_quote_confidence(candidate) or 0.0) < MIN_VENDOR_QUOTE_CONFIDENCE
+        ):
             continue
         if candidate.source != "vendor_quote" and candidate_age > ACTUAL_CANDIDATE_MAX_AGE_DAYS:
             continue
