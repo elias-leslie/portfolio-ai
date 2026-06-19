@@ -30,6 +30,7 @@ def test_build_prompt_carries_products_and_vendor_guidance() -> None:
     assert '"product_id": "p-1"' in prompt
     assert "GV Edamame" in prompt
     assert "materially cheaper larger-size" in prompt
+    assert "ZIP code 33770" in prompt
     assert '"status": "ok" | "partial" | "blocked"' in prompt
 
 
@@ -41,6 +42,14 @@ def test_adapter_guidance_covers_aldi_and_costco_edge_cases() -> None:
     assert "unit basis" in aldi.guidance
     assert "membership_required=true" in costco.guidance
     assert "Access Denied" in costco.guidance
+
+
+def test_vendor_prompts_include_store_specific_location_context() -> None:
+    walmart = next(a for a in VENDOR_ADAPTERS if a.vendor_key == "walmart")
+    costco = next(a for a in VENDOR_ADAPTERS if a.vendor_key == "costco")
+
+    assert "Largo, FL Walmart" in walmart.build_prompt(_PRODUCTS)
+    assert "Costco Clearwater" in costco.build_prompt(_PRODUCTS)
 
 
 def test_parse_ok_response_keeps_valid_quotes_and_drops_garbage() -> None:

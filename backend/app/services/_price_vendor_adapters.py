@@ -20,6 +20,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.services._household_price_location import price_location_context
+
 _PRICE_RANGE_OK = (0.01, 10_000.0)
 
 
@@ -70,6 +72,7 @@ class VendorAdapter:
         )
         return (
             f"Vendor: {self.display_name}\n{self.guidance}\n\n"
+            f"{price_location_context(self.vendor_key)}\n\n"
             f"Products to price:\n{product_lines}\n\n"
             "For each product, find the current price for the closest matching "
             "item AND, when available, one materially cheaper larger-size or "

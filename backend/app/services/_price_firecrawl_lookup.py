@@ -15,6 +15,10 @@ from typing import Any
 
 import structlog
 
+from app.services._household_price_location import (
+    firecrawl_location_terms,
+    price_location_context,
+)
 from app.services._price_vendor_adapters import (
     VendorAdapter,
     VendorQuote,
@@ -136,7 +140,11 @@ def _search_query(adapter: VendorAdapter, product: dict[str, Any], site: str) ->
         str(product.get("package") or "").strip(),
     ]
     product_text = " ".join(part for part in parts if part)
-    return f"site:{site} {adapter.display_name} {product_text} price package unit price"
+    location = firecrawl_location_terms(adapter.vendor_key)
+    return (
+        f"site:{site} {adapter.display_name} {product_text} {location} "
+        "price package unit price"
+    )
 
 
 def _firecrawl_search(query: str) -> list[dict[str, Any]]:
@@ -173,7 +181,8 @@ def _quote_from_scrape(
             "-Q",
             (
                 "Return JSON only with product_title, price, package_size, "
-                "unit_price, availability, membership_required from this product page."
+                "unit_price, availability, membership_required from this product page. "
+                f"{price_location_context(adapter.vendor_key)}"
             ),
         ],
         capture_output=True,

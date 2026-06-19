@@ -52,6 +52,9 @@ def test_firecrawl_lookup_parses_fenced_scrape_json() -> None:
     assert quote.unit_price == 0.16
     assert quote.confidence == 0.72
     assert run.call_count == 2
+    search_args = run.call_args_list[0].args[0]
+    assert any("33770" in arg for arg in search_args)
+    assert any("Largo, FL Walmart" in arg for arg in search_args)
 
 
 def test_firecrawl_search_snippet_prefers_current_price_not_unit_price() -> None:
