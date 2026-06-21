@@ -126,9 +126,9 @@ export function MoneyBudgetPanel() {
   const observedMonthlyDetail =
     averageCoverageMonths > 0
       ? hasShortCoverage
-        ? `${averageCoverageMonths} complete month${averageCoverageMonths === 1 ? '' : 's'} with data; not divided by ${requestedCoverageMonths}.`
-        : `Complete-month run-rate over ${averageCoverageMonths} month${averageCoverageMonths === 1 ? '' : 's'}.`
-      : 'No complete covered month yet.'
+        ? `${averageCoverageMonths} month${averageCoverageMonths === 1 ? '' : 's'} with data; not divided by ${requestedCoverageMonths}.`
+        : `Selected-window run-rate over ${averageCoverageMonths} month${averageCoverageMonths === 1 ? '' : 's'}.`
+      : 'No covered month yet.'
 
   async function acceptAllSuggestedCaps() {
     for (const entry of foundBudgetRows) {

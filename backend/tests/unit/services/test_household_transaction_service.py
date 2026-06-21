@@ -1044,7 +1044,7 @@ def test_build_spending_view_uses_observed_months_when_window_exceeds_data_cover
     assert all_dates.summary.average_monthly_spend == spending.summary.average_monthly_spend
 
 
-def test_build_spending_view_monthly_run_rate_uses_complete_covered_months() -> None:
+def test_build_spending_view_monthly_run_rate_uses_selected_window_rows() -> None:
     today = date.today()
 
     def month_date(months_ago: int) -> date:
@@ -1087,17 +1087,16 @@ def test_build_spending_view_monthly_run_rate_uses_complete_covered_months() -> 
             [],
             [],
             [(7500.0,)],
-            [(4000.0,)],
         ]
     )
 
     spending = service.build_spending_view(window="12m")
 
     assert spending.summary.total_spend == 11650.0
-    assert spending.summary.coverage_months == 2
-    assert spending.summary.average_monthly_spend == 375.0
-    assert spending.categories[0].average_monthly_spend == 375.0
-    assert spending.summary.average_monthly_income == 2000.0
+    assert spending.summary.coverage_months == 4
+    assert spending.summary.average_monthly_spend == 2912.5
+    assert spending.categories[0].average_monthly_spend == 2912.5
+    assert spending.summary.average_monthly_income == 1875.0
 
 
 def test_build_spending_view_nets_credit_card_returns_against_spend() -> None:

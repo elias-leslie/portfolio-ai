@@ -164,9 +164,9 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
   const averageMonthlyDetail =
     averageCoverageMonths > 0
       ? hasShortCoverage
-        ? `${averageCoverageMonths} complete month${averageCoverageMonths === 1 ? '' : 's'} with data`
-        : 'Complete-month run-rate'
-      : 'No complete spend coverage'
+        ? `${averageCoverageMonths} month${averageCoverageMonths === 1 ? '' : 's'} with data`
+        : 'Selected-window run-rate'
+      : 'No spend coverage'
   const categoryRows = useMemo(
     () =>
       [...(spending?.categories ?? [])].sort(
