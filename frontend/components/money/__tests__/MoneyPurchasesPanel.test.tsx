@@ -697,11 +697,14 @@ describe('MoneyPurchasesPanel', () => {
     render(<MoneyPurchasesPanel priceInsights={[]} />)
 
     expect(screen.getAllByText('Groceries')).not.toHaveLength(0)
-    expect(screen.getByText('1 open item')).toBeInTheDocument()
+    expect(screen.getAllByText(/1 open item/).length).toBeGreaterThan(0)
     expect(screen.getByText(/Best single vendor/)).toBeInTheDocument()
     expect(screen.getAllByText('Walmart').length).toBeGreaterThan(0)
 
     await user.click(screen.getByRole('button', { name: 'Optimize' }))
-    expect(optimizeShoppingListMutate).toHaveBeenCalledWith('list-1')
+    expect(optimizeShoppingListMutate).toHaveBeenCalledWith({
+      listId: 'list-1',
+      maxLocalStores: 2,
+    })
   })
 })

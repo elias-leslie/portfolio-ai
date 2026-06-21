@@ -11,6 +11,8 @@ const batchMutate = vi.fn()
 const batchMutateAsync = vi.fn()
 const deleteMutate = vi.fn()
 const deleteMutateAsync = vi.fn()
+const reReviewMutate = vi.fn()
+const reReviewMutateAsync = vi.fn()
 const useUploadHouseholdDocumentMock = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
@@ -30,6 +32,11 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
     mutateAsync: deleteMutateAsync,
     isPending: false,
   }),
+  useReReviewHouseholdDocument: () => ({
+    mutate: reReviewMutate,
+    mutateAsync: reReviewMutateAsync,
+    isPending: false,
+  }),
 }))
 
 describe('HouseholdDocumentCenter', () => {
@@ -40,6 +47,8 @@ describe('HouseholdDocumentCenter', () => {
     batchMutateAsync.mockReset()
     deleteMutate.mockReset()
     deleteMutateAsync.mockReset()
+    reReviewMutate.mockReset()
+    reReviewMutateAsync.mockReset()
     useUploadHouseholdDocumentMock.mockReset()
   })
 

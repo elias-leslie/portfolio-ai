@@ -1,3 +1,5 @@
+// fallow-ignore-file unused-file
+// Registered by frontend/app/layout.tsx via a static service-worker script string.
 const CACHE_NAME = 'portfolio-ai-pwa-v3'
 const SHELL_ASSETS = [
   '/manifest.json',

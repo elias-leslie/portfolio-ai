@@ -1,45 +1,51 @@
-import { cva, type VariantProps } from 'class-variance-authority'
 import type * as React from 'react'
 import { cn } from '@/lib/utils'
 
-const badgeVariants = cva(
-  'inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2',
-  {
-    variants: {
-      variant: {
-        default: 'border-transparent bg-primary text-primary-foreground',
-        secondary: 'border-transparent bg-surface-muted text-text',
-        outline: 'border-border text-text',
-        destructive: 'border-transparent bg-destructive/20 text-destructive',
-        gain: 'border-transparent bg-gain/20 text-gain',
-        loss: 'border-transparent bg-loss/20 text-loss',
-        neutral: 'border-transparent bg-neutral/20 text-neutral',
-        success: 'border-transparent bg-gain/20 text-gain',
-        warning: 'border-transparent bg-warning/20 text-warning',
-        error: 'border-transparent bg-loss/20 text-loss',
-        // Score-based variants using viz tokens — low-range boosted for dark bg legibility
-        'viz-0': 'border-border-subtle bg-viz-0/30 text-text-muted',
-        'viz-1': 'border-border-subtle bg-viz-1/30 text-text-muted',
-        'viz-2': 'border-transparent bg-viz-2/30 text-viz-3',
-        'viz-3': 'border-transparent bg-viz-3/30 text-viz-3',
-        'viz-4': 'border-transparent bg-viz-4/30 text-viz-4',
-        'viz-5': 'border-transparent bg-viz-5/30 text-viz-5',
-      },
-    },
-    defaultVariants: {
-      variant: 'default',
-    },
-  },
-)
+const baseBadgeClasses =
+  'inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2'
 
-export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> {}
+const badgeVariantClasses = {
+  default: 'border-transparent bg-primary text-primary-foreground',
+  secondary: 'border-transparent bg-surface-muted text-text',
+  outline: 'border-border text-text',
+  destructive: 'border-transparent bg-destructive/20 text-destructive',
+  gain: 'border-transparent bg-gain/20 text-gain',
+  loss: 'border-transparent bg-loss/20 text-loss',
+  neutral: 'border-transparent bg-neutral/20 text-neutral',
+  success: 'border-transparent bg-gain/20 text-gain',
+  warning: 'border-transparent bg-warning/20 text-warning',
+  error: 'border-transparent bg-loss/20 text-loss',
+  // Score-based variants using viz tokens — low-range boosted for dark bg legibility
+  'viz-0': 'border-border-subtle bg-viz-0/30 text-text-muted',
+  'viz-1': 'border-border-subtle bg-viz-1/30 text-text-muted',
+  'viz-2': 'border-transparent bg-viz-2/30 text-viz-3',
+  'viz-3': 'border-transparent bg-viz-3/30 text-viz-3',
+  'viz-4': 'border-transparent bg-viz-4/30 text-viz-4',
+  'viz-5': 'border-transparent bg-viz-5/30 text-viz-5',
+} as const
+
+type BadgeVariant = keyof typeof badgeVariantClasses
+
+function badgeVariants({
+  variant = 'default',
+  className,
+}: {
+  variant?: BadgeVariant | null
+  className?: string
+} = {}) {
+  return cn(
+    baseBadgeClasses,
+    badgeVariantClasses[variant ?? 'default'],
+    className,
+  )
+}
+
+export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
+  variant?: BadgeVariant | null
+}
 
 function Badge({ className, variant, ...props }: BadgeProps) {
-  return (
-    <div className={cn(badgeVariants({ variant }), className)} {...props} />
-  )
+  return <div className={badgeVariants({ variant, className })} {...props} />
 }
 
 export { Badge, badgeVariants }

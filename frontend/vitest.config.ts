@@ -8,6 +8,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
     globals: true,
+    // ponytail: full jsdom suite can exceed Vitest's 5s default per test; raise the cap, not the tests.
+    testTimeout: 10_000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

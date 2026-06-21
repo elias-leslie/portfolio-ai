@@ -109,7 +109,7 @@ describe('useUploadHouseholdDocument', () => {
         mutations: { retry: false },
       },
     })
-    const resetQueries = vi.spyOn(queryClient, 'resetQueries')
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
     const { result } = renderHook(() => useUploadHouseholdDocument(), {
       wrapper: wrapper(queryClient),
     })
@@ -130,7 +130,7 @@ describe('useUploadHouseholdDocument', () => {
     })
 
     expect(fetchHouseholdDocumentsMock).toHaveBeenCalled()
-    expect(resetQueries).toHaveBeenCalledWith({
+    expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: ['household'],
       exact: false,
     })
