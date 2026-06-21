@@ -138,6 +138,8 @@ def expand_rows_with_item_splits(
             split_row["is_item_split"] = True
             split_row["category"] = part["category"]
             split_row["essentiality"] = part["essentiality"]
+            split_row["owner_name"] = part.get("owner_name") or row.get("owner_name")
+            split_row["owner_source"] = "item" if part.get("owner_name") else row.get("owner_source")
             split_row["amount"] = part["amount"]
             split_row["signed_amount"] = part["amount"]
             expanded.append(split_row)

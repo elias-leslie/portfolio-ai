@@ -16,6 +16,7 @@ import {
   ledgerRowKey,
   utcDateKey,
 } from './ledger-helpers'
+import { TransactionOwnerSelect } from './TransactionOwnerSelect'
 
 interface LedgerRowProps {
   entry: HouseholdLedgerEntry
@@ -126,6 +127,15 @@ export function LedgerRow({
           <div className="text-xs text-text-muted">
             {entry.essentiality ? formatEnumLabel(entry.essentiality) : '—'}
           </div>
+          {entry.kind === 'transaction' ? (
+            <TransactionOwnerSelect
+              transactionId={entry.id}
+              itemLabel={entry.merchant || entry.description}
+              ownerName={entry.ownerName}
+              ownerSource={entry.ownerSource}
+              className="mt-2"
+            />
+          ) : null}
           {entry.itemCategories.length > 1 ? (
             <div className="mt-1 text-xs text-text-muted">
               Split: {entry.itemCategories.join(' · ')}

@@ -51,6 +51,11 @@ def _metadata_account_label(metadata: dict[str, Any]) -> str | None:
     return None
 
 
+def _metadata_text(metadata: dict[str, Any], key: str) -> str | None:
+    value = metadata.get(key)
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
 def _metadata_decimal(metadata: dict[str, Any], *keys: str) -> float | None:
     for key in keys:
         value = metadata.get(key)
@@ -61,6 +66,23 @@ def _metadata_decimal(metadata: dict[str, Any], *keys: str) -> float | None:
         except (InvalidOperation, ValueError):
             continue
     return None
+
+
+def _entry_owner(
+    transaction_metadata: dict[str, Any],
+    merchant_metadata: dict[str, Any] | None,
+) -> tuple[str | None, str | None]:
+    owner = _metadata_text(transaction_metadata, "owner_name")
+    if owner:
+        source = _metadata_text(transaction_metadata, "owner_source")
+        return owner, source or "manual"
+    if isinstance(merchant_metadata, dict):
+        rule = merchant_metadata.get("manual_owner_rule")
+        if isinstance(rule, dict):
+            owner = _metadata_text(rule, "owner_name")
+            if owner:
+                return owner, "merchant_rule"
+    return None, None
 
 
 def _effective_date(*values: Any) -> datetime:
@@ -117,6 +139,8 @@ _LEDGER_SEARCH_FIELDS = (
     "description",
     "category",
     "essentiality",
+    "owner_name",
+    "owner_source",
     "source_document_filename",
     "source_document_id",
     "external_row_id",
@@ -483,6 +507,10 @@ class HouseholdLedgerService:
                 exclusion_reason = excluded_row_hashes.get(str(row[12]))
                 included_in_spend = exclusion_reason is None
             item_count, item_categories = items_by_transaction.get(str(row[0]), (0, []))
+            owner_name, owner_source = _entry_owner(
+                metadata,
+                row[19] if isinstance(row[19], dict) else None,
+            )
             entry = HouseholdLedgerEntry(
                 id=str(row[0]),
                 kind="transaction",
@@ -500,6 +528,8 @@ class HouseholdLedgerService:
                 currency=str(row[9]) if row[9] is not None else None,
                 category=effective_category,
                 essentiality=effective_essentiality,
+                owner_name=owner_name,
+                owner_source=owner_source,
                 original_category=str(_row_value(row, 20)) if _row_value(row, 20) is not None else None,
                 categorization_source=str(_row_value(row, 21)) if _row_value(row, 21) is not None else None,
                 categorization_version=str(_row_value(row, 22)) if _row_value(row, 22) is not None else None,

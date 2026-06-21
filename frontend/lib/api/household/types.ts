@@ -1106,6 +1106,8 @@ export interface HouseholdLedgerEntry {
   currency?: string | null
   category?: string | null
   essentiality?: string | null
+  ownerName?: string | null
+  ownerSource?: string | null
   originalCategory?: string | null
   categorizationSource?: string | null
   categorizationVersion?: string | null
@@ -1403,6 +1405,11 @@ export interface HouseholdQuestionAnswer {
 export interface HouseholdTransactionCategoryUpdate {
   category: string
   essentiality: string
+  applyToMerchant?: boolean
+}
+
+export interface HouseholdTransactionOwnerUpdate {
+  ownerName?: string | null
   applyToMerchant?: boolean
 }
 

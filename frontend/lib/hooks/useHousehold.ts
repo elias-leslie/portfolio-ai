@@ -36,6 +36,7 @@ import {
   replaceAllocationScenarios,
   replaceHouseholdAccountHoldings,
   reReviewHouseholdDocument,
+  setHouseholdTransactionOwner,
   updateHouseholdPlanning,
   updateHouseholdProfile,
   updateHouseholdTrackedAccount,
@@ -611,7 +612,7 @@ export function useConfirmFact() {
       factValue: string
     }) => confirmFact(factKey, factValue),
     onSuccess: async () => {
-      await refreshHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient)
       toast.success('Jenny noted your confirmation.')
     },
     onError: (error) => {
@@ -670,6 +671,37 @@ export function useCategorizeHouseholdTransaction() {
         error instanceof Error
           ? error.message
           : 'Failed to categorize transaction',
+      )
+    },
+  })
+}
+
+export function useSetHouseholdTransactionOwner() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      transactionId,
+      ownerName,
+      applyToMerchant,
+    }: {
+      transactionId: string
+      ownerName?: string | null
+      applyToMerchant?: boolean
+    }) =>
+      setHouseholdTransactionOwner(transactionId, {
+        ownerName,
+        applyToMerchant,
+      }),
+    onSuccess: async () => {
+      await invalidateHouseholdQueries(queryClient)
+      toast.success('Transaction owner saved.')
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to update transaction owner',
       )
     },
   })

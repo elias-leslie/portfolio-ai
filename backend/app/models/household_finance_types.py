@@ -222,6 +222,8 @@ class HouseholdLedgerEntry(BaseModel):
     currency: str | None = None
     category: str | None = None
     essentiality: str | None = None
+    owner_name: str | None = None
+    owner_source: str | None = None
     original_category: str | None = None
     categorization_source: str | None = None
     categorization_version: str | None = None
@@ -312,6 +314,8 @@ class HouseholdSpendingTransaction(BaseModel):
     amount: float
     category: str
     essentiality: str
+    owner_name: str | None = None
+    owner_source: str | None = None
     original_category: str | None = None
     categorization_source: str | None = None
     source_system: str | None = None

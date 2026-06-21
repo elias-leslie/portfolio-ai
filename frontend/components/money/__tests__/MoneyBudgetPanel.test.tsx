@@ -14,10 +14,15 @@ const useHouseholdSpendingMock = vi.fn()
 const useHouseholdFactsMock = vi.fn()
 const confirmFactMutateAsync = vi.fn()
 const categorizeMutateAsync = vi.fn()
+const setTransactionOwnerMutateAsync = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useCategorizeHouseholdTransaction: () => ({
     mutateAsync: categorizeMutateAsync,
+    isPending: false,
+  }),
+  useSetHouseholdTransactionOwner: () => ({
+    mutateAsync: setTransactionOwnerMutateAsync,
     isPending: false,
   }),
   useHouseholdSpending: (params?: { window?: string }) =>
@@ -185,6 +190,7 @@ describe('MoneyBudgetPanel', () => {
     useHouseholdFactsMock.mockReset()
     confirmFactMutateAsync.mockReset()
     categorizeMutateAsync.mockReset()
+    setTransactionOwnerMutateAsync.mockReset()
     useHouseholdFactsMock.mockReturnValue({ data: [] })
     mockSpending()
   })
@@ -411,6 +417,28 @@ describe('MoneyBudgetPanel', () => {
       transactionId: 'txn-household',
       category: 'Groceries',
       essentiality: 'mixed',
+      applyToMerchant: true,
+    })
+  })
+
+  it('sets an owner on a budget drill-down purchase', async () => {
+    const user = userEvent.setup()
+    setTransactionOwnerMutateAsync.mockResolvedValue({ ok: true })
+
+    render(<MoneyBudgetPanel />)
+
+    await user.click(budgetCategoryButton('Household'))
+    await user.click(
+      screen.getByRole('checkbox', {
+        name: 'Merchant owner rule for Owner for Walmart',
+      }),
+    )
+    await user.click(screen.getByLabelText('Owner for Walmart'))
+    await user.click(screen.getByRole('option', { name: 'Cats' }))
+
+    expect(setTransactionOwnerMutateAsync).toHaveBeenLastCalledWith({
+      transactionId: 'txn-household',
+      ownerName: 'Cats',
       applyToMerchant: true,
     })
   })

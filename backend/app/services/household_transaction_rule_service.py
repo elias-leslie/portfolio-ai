@@ -7,7 +7,17 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from app.models.household_finance import HouseholdTransactionCategoryUpdate
+from app.models.household_finance import (
+    HouseholdTransactionCategoryUpdate,
+    HouseholdTransactionOwnerUpdate,
+)
+
+
+def _normalize_owner_name(value: str | None) -> str | None:
+    if value is None:
+        return None
+    owner = value.strip()
+    return owner or None
 
 
 class HouseholdTransactionRuleService:
@@ -187,5 +197,116 @@ class HouseholdTransactionRuleService:
                         merchant_id,
                     ],
                 )
+            conn.commit()
+        return row is not None
+
+    def update_transaction_owner(
+        self,
+        service: Any,
+        transaction_id: str,
+        payload: HouseholdTransactionOwnerUpdate,
+    ) -> bool:
+        owner_name = _normalize_owner_name(payload.owner_name)
+        with service.storage.connection() as conn:
+            target = conn.execute(
+                """
+                SELECT t.id, t.merchant_id
+                FROM household_transactions t
+                WHERE t.id = %s
+                """,
+                [transaction_id],
+            ).fetchone()
+            if target is None:
+                return False
+
+            now = datetime.now(UTC)
+            if owner_name:
+                row = conn.execute(
+                    """
+                    UPDATE household_transactions
+                    SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
+                        updated_at = %s
+                    WHERE id = %s
+                    RETURNING id
+                    """,
+                    [
+                        json.dumps(
+                            {"owner_name": owner_name, "owner_source": "manual"}
+                        ),
+                        now,
+                        transaction_id,
+                    ],
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    """
+                    UPDATE household_transactions
+                    SET metadata = COALESCE(metadata, '{}'::jsonb) - 'owner_name' - 'owner_source',
+                        updated_at = %s
+                    WHERE id = %s
+                    RETURNING id
+                    """,
+                    [now, transaction_id],
+                ).fetchone()
+
+            merchant_id = str(target[1]) if target[1] is not None else None
+            if payload.apply_to_merchant and merchant_id is not None:
+                if owner_name:
+                    owner_patch = json.dumps(
+                        {
+                            "manual_owner_rule": {
+                                "owner_name": owner_name,
+                                "created_from_transaction_id": transaction_id,
+                                "updated_at": now.isoformat(),
+                            }
+                        }
+                    )
+                    conn.execute(
+                        """
+                        UPDATE household_merchants
+                        SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
+                            updated_at = %s
+                        WHERE id = %s
+                        """,
+                        [owner_patch, now, merchant_id],
+                    )
+                    conn.execute(
+                        """
+                        UPDATE household_transactions
+                        SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
+                            updated_at = %s
+                        WHERE merchant_id = %s
+                        """,
+                        [
+                            json.dumps(
+                                {
+                                    "owner_name": owner_name,
+                                    "owner_source": "merchant_rule",
+                                }
+                            ),
+                            now,
+                            merchant_id,
+                        ],
+                    )
+                else:
+                    conn.execute(
+                        """
+                        UPDATE household_merchants
+                        SET metadata = COALESCE(metadata, '{}'::jsonb) - 'manual_owner_rule',
+                            updated_at = %s
+                        WHERE id = %s
+                        """,
+                        [now, merchant_id],
+                    )
+                    conn.execute(
+                        """
+                        UPDATE household_transactions
+                        SET metadata = COALESCE(metadata, '{}'::jsonb) - 'owner_name' - 'owner_source',
+                            updated_at = %s
+                        WHERE merchant_id = %s
+                        """,
+                        [now, merchant_id],
+                    )
+
             conn.commit()
         return row is not None

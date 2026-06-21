@@ -9,6 +9,7 @@ import {
   type InlineComboboxCommitOptions,
   InlineComboboxField,
 } from './InlineComboboxField'
+import { TransactionOwnerSelect } from './TransactionOwnerSelect'
 
 export interface TransactionEditorProps {
   transaction: HouseholdSpendingTransaction
@@ -28,6 +29,7 @@ export function TransactionEditor({
   onCommitCategory,
 }: TransactionEditorProps) {
   const isItemizedSlice = Boolean(transaction.splitParentId)
+  const ownerTransactionId = transaction.splitParentId ?? transaction.id
   const [applyToMerchant, setApplyToMerchant] = useState<boolean | null>(null)
   const hasMerchantRule =
     transaction.transactionRuleId != null ||
@@ -80,27 +82,35 @@ export function TransactionEditor({
         <p className="text-right font-mono tabular-nums text-text">
           {formatCurrency(transaction.amount, { decimals: 2 })}
         </p>
-        {isItemizedSlice ? (
-          <p className="max-w-[260px] text-right text-xs text-text-muted">
-            Category and owner come from linked purchase items. Edit them from
-            the Ledger item drawer.
-          </p>
-        ) : (
-          <InlineComboboxField
-            id={`budget-transaction-category-${transaction.id}`}
-            label={`Category for ${transaction.merchant}`}
-            value={transaction.category}
-            options={categoryOptions}
-            disabled={categorizePending}
-            ruleLabel="Merchant rule"
-            ruleChecked={merchantRuleChecked}
-            onRuleCheckedChange={setApplyToMerchant}
-            className="w-[220px]"
-            onCommit={(category, options) =>
-              onCommitCategory(transaction, category, options)
-            }
+        <div className="flex flex-wrap justify-end gap-2">
+          {isItemizedSlice ? (
+            <p className="max-w-[260px] text-right text-xs text-text-muted">
+              Category comes from linked purchase items.
+            </p>
+          ) : (
+            <InlineComboboxField
+              id={`budget-transaction-category-${transaction.id}`}
+              label={`Category for ${transaction.merchant}`}
+              value={transaction.category}
+              options={categoryOptions}
+              disabled={categorizePending}
+              ruleLabel="Merchant rule"
+              ruleChecked={merchantRuleChecked}
+              onRuleCheckedChange={setApplyToMerchant}
+              className="w-[220px]"
+              onCommit={(category, options) =>
+                onCommitCategory(transaction, category, options)
+              }
+            />
+          )}
+          <TransactionOwnerSelect
+            transactionId={ownerTransactionId}
+            fieldId={transaction.id}
+            itemLabel={transaction.merchant}
+            ownerName={transaction.ownerName}
+            ownerSource={transaction.ownerSource}
           />
-        )}
+        </div>
       </div>
     </div>
   )

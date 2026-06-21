@@ -22,6 +22,7 @@ import type {
   HouseholdTrackedAccount,
   HouseholdTrackedAccountInput,
   HouseholdTransactionCategoryUpdate,
+  HouseholdTransactionOwnerUpdate,
   ManualHoldingsReplaceInput,
   RetirementAllocationScenario,
   RetirementAllocationScenarioInput,
@@ -307,6 +308,16 @@ export async function categorizeHouseholdTransaction(
 ): Promise<{ ok: boolean }> {
   return post<{ ok: boolean }>(
     `/api/household/transactions/${transactionId}/categorize`,
+    payload,
+  )
+}
+
+export async function setHouseholdTransactionOwner(
+  transactionId: string,
+  payload: HouseholdTransactionOwnerUpdate,
+): Promise<{ ok: boolean }> {
+  return post<{ ok: boolean }>(
+    `/api/household/transactions/${transactionId}/owner`,
     payload,
   )
 }

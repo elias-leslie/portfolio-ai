@@ -127,6 +127,22 @@ def _metadata_text(metadata: dict[str, Any], *keys: str) -> str | None:
     return None
 
 
+def _transaction_owner(
+    transaction_metadata: dict[str, Any],
+    merchant_metadata: dict[str, Any] | None,
+) -> tuple[str | None, str | None]:
+    owner = _metadata_text(transaction_metadata, "owner_name")
+    if owner:
+        return owner, _metadata_text(transaction_metadata, "owner_source") or "manual"
+    if isinstance(merchant_metadata, dict):
+        rule = merchant_metadata.get("manual_owner_rule")
+        if isinstance(rule, dict):
+            owner = _metadata_text(rule, "owner_name")
+            if owner:
+                return owner, "merchant_rule"
+    return None, None
+
+
 def _metadata_float(metadata: dict[str, Any], *keys: str) -> float | None:
     for key in keys:
         value = metadata.get(key)
@@ -889,6 +905,12 @@ class HouseholdTransactionService:
                     amount=round(float(row.get("signed_amount", row["amount"])), 2),
                     category=str(row["category"]),
                     essentiality=str(row["essentiality"]),
+                    owner_name=(
+                        str(row["owner_name"]) if row.get("owner_name") else None
+                    ),
+                    owner_source=(
+                        str(row["owner_source"]) if row.get("owner_source") else None
+                    ),
                     original_category=(
                         str(row["original_category"]) if row.get("original_category") else None
                     ),
@@ -1015,6 +1037,10 @@ class HouseholdTransactionService:
             merchant_metadata = _row_value(row, 16)
             confidence = _row_value(row, 17)
             transaction_metadata = _transaction_metadata(_row_value(row, 18))
+            owner_name, owner_source = _transaction_owner(
+                transaction_metadata,
+                merchant_metadata if isinstance(merchant_metadata, dict) else None,
+            )
             effective_flow = _effective_transaction_flow(
                 flow_type=str(row[8] or "expense"),
                 raw_merchant=str(row[11] or row[4] or row[3]),
@@ -1060,6 +1086,8 @@ class HouseholdTransactionService:
                     "signed_amount": -amount if effective_flow == "refund" else amount,
                     "category": effective_category,
                     "essentiality": effective_essentiality,
+                    "owner_name": owner_name,
+                    "owner_source": owner_source,
                     "flow_type": effective_flow,
                     "account_label": str(row[9]) if row[9] is not None else None,
                     "document_id": str(row[10]),

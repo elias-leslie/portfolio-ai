@@ -7,6 +7,7 @@ const useHouseholdLedgerMock = vi.hoisted(() => vi.fn())
 const useHouseholdFactsMock = vi.hoisted(() => vi.fn())
 const categorizeMutateAsync = vi.hoisted(() => vi.fn())
 const categorizeIsPending = vi.hoisted(() => ({ value: false }))
+const setTransactionOwnerMutateAsync = vi.hoisted(() => vi.fn())
 const useTransactionPurchaseItemsMock = vi.hoisted(() => vi.fn())
 const categorizeItemMutateAsync = vi.hoisted(() => vi.fn())
 const setItemOwnerMutateAsync = vi.hoisted(() => vi.fn())
@@ -17,6 +18,10 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
   useCategorizeHouseholdTransaction: () => ({
     mutateAsync: categorizeMutateAsync,
     isPending: categorizeIsPending.value,
+  }),
+  useSetHouseholdTransactionOwner: () => ({
+    mutateAsync: setTransactionOwnerMutateAsync,
+    isPending: false,
   }),
 }))
 
@@ -146,6 +151,7 @@ describe('MoneyLedgerPanel', () => {
     useHouseholdLedgerMock.mockReset()
     useHouseholdFactsMock.mockReset()
     categorizeMutateAsync.mockReset()
+    setTransactionOwnerMutateAsync.mockReset()
     categorizeIsPending.value = false
     useTransactionPurchaseItemsMock.mockReset()
     useTransactionPurchaseItemsMock.mockReturnValue({
@@ -481,6 +487,29 @@ describe('MoneyLedgerPanel', () => {
       category: 'Household',
       essentiality: 'essential',
       applyToProduct: true,
+    })
+  })
+
+  it('sets a ledger transaction owner as a merchant rule', async () => {
+    const user = userEvent.setup()
+    setTransactionOwnerMutateAsync.mockResolvedValue(true)
+    mockLedgerPage([buildEntry(1)])
+
+    render(<MoneyLedgerPanel />)
+
+    const ownerInput = screen.getByLabelText('Owner for Merchant 001')
+    await user.click(
+      screen.getByRole('checkbox', {
+        name: 'Merchant owner rule for Owner for Merchant 001',
+      }),
+    )
+    await user.click(ownerInput)
+    await user.click(screen.getByRole('option', { name: 'Cats' }))
+
+    expect(setTransactionOwnerMutateAsync).toHaveBeenLastCalledWith({
+      transactionId: 'txn-001',
+      ownerName: 'Cats',
+      applyToMerchant: true,
     })
   })
 

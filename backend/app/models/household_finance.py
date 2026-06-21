@@ -189,6 +189,7 @@ __all__ = [
     "HouseholdTrackedAccountInput",
     "HouseholdTransactionCategoryUpdate",
     "HouseholdTransactionDateIssue",
+    "HouseholdTransactionOwnerUpdate",
     "ImportCenter",
     "ImportFormat",
     "JennyMoneyBrief",
@@ -322,6 +323,11 @@ class HouseholdQuestionAnswer(BaseModel):
 class HouseholdTransactionCategoryUpdate(BaseModel):
     category: str
     essentiality: str
+    apply_to_merchant: bool = False
+
+
+class HouseholdTransactionOwnerUpdate(BaseModel):
+    owner_name: str | None = None
     apply_to_merchant: bool = False
 
 

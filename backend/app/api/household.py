@@ -37,6 +37,7 @@ from app.models.household_finance import (
     HouseholdTrackedAccount,
     HouseholdTrackedAccountInput,
     HouseholdTransactionCategoryUpdate,
+    HouseholdTransactionOwnerUpdate,
 )
 from app.models.household_planning import (
     HouseholdPlanningSnapshot,
@@ -371,6 +372,18 @@ async def categorize_household_transaction(
 ) -> dict[str, bool]:
     """Confirm category and essentiality for a household transaction."""
     updated = await run_in_threadpool(_service().update_transaction_category, transaction_id, payload)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Household transaction not found: {transaction_id}")
+    return {"ok": True}
+
+
+@router.post("/transactions/{transaction_id}/owner")
+async def set_household_transaction_owner(
+    transaction_id: str,
+    payload: HouseholdTransactionOwnerUpdate,
+) -> dict[str, bool]:
+    """Set a transaction's owner, optionally as a merchant-level owner rule."""
+    updated = await run_in_threadpool(_service().update_transaction_owner, transaction_id, payload)
     if not updated:
         raise HTTPException(status_code=404, detail=f"Household transaction not found: {transaction_id}")
     return {"ok": True}

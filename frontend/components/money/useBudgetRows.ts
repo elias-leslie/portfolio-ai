@@ -71,7 +71,8 @@ function splitTransactionRows(
         itemCount: split.itemCount,
         itemCategories: [split.category],
         itemSplits: [],
-        ownerName: split.ownerName ?? null,
+        ownerName: split.ownerName ?? transaction.ownerName ?? null,
+        ownerSource: split.ownerName ? 'item' : transaction.ownerSource,
       })
     })
   }

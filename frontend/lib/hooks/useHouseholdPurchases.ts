@@ -61,6 +61,15 @@ async function refreshHouseholdQueries(
   })
 }
 
+async function invalidateHouseholdQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  await queryClient.invalidateQueries({
+    queryKey: ['household'],
+    exact: false,
+  })
+}
+
 export function useHouseholdProducts(params?: HouseholdProductListParams) {
   return useQuery({
     queryKey: ['household', 'products', params ?? {}],
@@ -133,7 +142,7 @@ export function useSetPurchaseItemOwner() {
     }: HouseholdPurchaseItemOwnerUpdate & { itemId: string }) =>
       setPurchaseItemOwner(itemId, payload),
     onSuccess: async () => {
-      await refreshHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient)
       toast.success('Item owner saved.')
     },
     onError: (error) => {

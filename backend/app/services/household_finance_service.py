@@ -23,6 +23,7 @@ from app.models.household_finance import (
     HouseholdTrackedAccount,
     HouseholdTrackedAccountInput,
     HouseholdTransactionCategoryUpdate,
+    HouseholdTransactionOwnerUpdate,
 )
 from app.models.household_planning import HouseholdPlanningSnapshot, HouseholdPlanningUpdate
 from app.portfolio.manager import PortfolioManager
@@ -313,6 +314,9 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
 
     def update_transaction_category(self, transaction_id: str, payload: HouseholdTransactionCategoryUpdate) -> bool:
         return self.transaction_rule_service.update_transaction_category(self, transaction_id, payload)
+
+    def update_transaction_owner(self, transaction_id: str, payload: HouseholdTransactionOwnerUpdate) -> bool:
+        return self.transaction_rule_service.update_transaction_owner(self, transaction_id, payload)
 
     def repair_transaction_system(self, *, limit: int = 5000) -> dict[str, int]:
         return self.transaction_service.repair_transaction_system(limit=limit)
