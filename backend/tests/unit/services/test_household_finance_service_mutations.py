@@ -57,15 +57,39 @@ def test_update_transaction_owner_can_apply_rule_to_merchant() -> None:
     service.storage = MagicMock()
     conn = service.storage.connection.return_value.__enter__.return_value
     select_target = MagicMock()
-    select_target.fetchone.return_value = ("txn-1", "merchant-1")
+    select_target.fetchone.return_value = (
+        "txn-1",
+        "merchant-1",
+        "VENMO PAYMENT 260328 1049234156112 MARIANA LESLIE",
+    )
     update_transaction = MagicMock()
     update_transaction.fetchone.return_value = ("txn-1",)
-    update_merchant = MagicMock()
+    select_merchants = MagicMock()
+    select_merchants.fetchall.return_value = [
+        (
+            "merchant-1",
+            "VENMO PAYMENT 260328 1049234156112 MARIANA LESLIE",
+            None,
+            "venmo payment 260328 1049234156112 mariana leslie",
+            {},
+        ),
+        (
+            "merchant-2",
+            "Venmo Payment 260117 1047668918292 Mariana Leslie",
+            None,
+            "venmo payment 260117 1047668918292 mariana leslie",
+            {},
+        ),
+    ]
+    update_merchant_1 = MagicMock()
+    update_merchant_2 = MagicMock()
     update_merchant_transactions = MagicMock()
     conn.execute.side_effect = [
         select_target,
         update_transaction,
-        update_merchant,
+        select_merchants,
+        update_merchant_1,
+        update_merchant_2,
         update_merchant_transactions,
     ]
 
@@ -78,11 +102,13 @@ def test_update_transaction_owner_can_apply_rule_to_merchant() -> None:
     )
 
     assert updated is True
-    assert conn.execute.call_count == 4
+    assert conn.execute.call_count == 6
     owner_patch = conn.execute.call_args_list[1].args[1][0]
     assert '"owner_name": "Cats"' in owner_patch
-    merchant_patch = conn.execute.call_args_list[2].args[1][0]
+    merchant_patch = conn.execute.call_args_list[3].args[1][0]
     assert "manual_owner_rule" in merchant_patch
+    assert "venmo mariana leslie" in merchant_patch
+    assert conn.execute.call_args_list[5].args[1][2] == ["merchant-1", "merchant-2"]
     conn.commit.assert_called_once()
 
 

@@ -55,7 +55,7 @@ export function useHouseholdBuyGuide() {
 async function refreshHouseholdQueries(
   queryClient: ReturnType<typeof useQueryClient>,
 ) {
-  await queryClient.resetQueries({
+  await queryClient.invalidateQueries({
     queryKey: ['household'],
     exact: false,
   })

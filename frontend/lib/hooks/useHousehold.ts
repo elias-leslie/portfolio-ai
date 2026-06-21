@@ -53,7 +53,7 @@ const HOUSEHOLD_MARKET_VALUE_REFRESH_MS = 1000 * 30
 async function refreshHouseholdQueries(
   queryClient: ReturnType<typeof useQueryClient>,
 ) {
-  await queryClient.resetQueries({
+  await queryClient.invalidateQueries({
     queryKey: ['household'],
     exact: false,
   })

@@ -425,6 +425,13 @@ def test_merchant_aliases_collapse_walmart_variants() -> None:
     assert "wmsupercenter" in aliases
 
 
+def test_merchant_aliases_collapse_venmo_payment_ids() -> None:
+    aliases = _merchant_aliases("VENMO PAYMENT 260328 1049234156112 MARIANA LESLIE")
+
+    assert "venmo mariana leslie" in aliases
+    assert "venmomarianaleslie" in aliases
+
+
 def test_import_document_transactions_holds_future_dated_receipts_for_review() -> None:
     service = HouseholdTransactionService()
     fake_storage = _FakeStorage()

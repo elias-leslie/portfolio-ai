@@ -276,6 +276,10 @@ def _merchant_aliases(raw_merchant: str) -> set[str]:
         aliases.update({"amazon", "amzn", "amazon mktpl", "amazoncom", "amazon com"})
     if "wholefoods" in collapsed:
         aliases.update({"whole foods", "wholefoods"})
+    venmo_match = re.match(r"^venmo(?: payment)?(?: \d+){1,3} (?P<name>[a-z ]+)$", root)
+    if venmo_match:
+        venmo_owner = f"venmo {venmo_match.group('name').strip()}"
+        aliases.update({venmo_owner, venmo_owner.replace(" ", "")})
     return {alias for alias in aliases if alias}
 
 

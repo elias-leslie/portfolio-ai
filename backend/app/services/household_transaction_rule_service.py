@@ -11,6 +11,7 @@ from app.models.household_finance import (
     HouseholdTransactionCategoryUpdate,
     HouseholdTransactionOwnerUpdate,
 )
+from app.services._household_report_builder import _merchant_aliases
 
 
 def _normalize_owner_name(value: str | None) -> str | None:
@@ -22,6 +23,34 @@ def _normalize_owner_name(value: str | None) -> str | None:
 
 class HouseholdTransactionRuleService:
     """Persist transaction category overrides and merchant rules."""
+
+    @staticmethod
+    def _related_merchant_rows(
+        conn: Any,
+        *,
+        merchant_id: str,
+        merchant_name: str,
+    ) -> list[tuple[str, set[str]]]:
+        target_aliases = _merchant_aliases(merchant_name)
+        rows = conn.execute(
+            """
+            SELECT id, canonical_name, display_name, normalized_key, metadata
+            FROM household_merchants
+            """
+        ).fetchall()
+        related: list[tuple[str, set[str]]] = []
+        for row in rows:
+            metadata = row[4] if isinstance(row[4], dict) else {}
+            alias_keys = metadata.get("alias_keys")
+            aliases: set[str] = set()
+            if isinstance(alias_keys, list):
+                aliases.update(str(alias).strip() for alias in alias_keys if str(alias).strip())
+            for value in (row[1], row[2], row[3]):
+                if value:
+                    aliases.update(_merchant_aliases(str(value)))
+            if str(row[0]) == merchant_id or (target_aliases and aliases & target_aliases):
+                related.append((str(row[0]), aliases | target_aliases))
+        return related or [(merchant_id, target_aliases)]
 
     def update_transaction_category(
         self,
@@ -210,8 +239,9 @@ class HouseholdTransactionRuleService:
         with service.storage.connection() as conn:
             target = conn.execute(
                 """
-                SELECT t.id, t.merchant_id
+                SELECT t.id, t.merchant_id, COALESCE(m.canonical_name, t.raw_merchant, t.description)
                 FROM household_transactions t
+                LEFT JOIN household_merchants m ON m.id = t.merchant_id
                 WHERE t.id = %s
                 """,
                 [transaction_id],
@@ -251,31 +281,45 @@ class HouseholdTransactionRuleService:
 
             merchant_id = str(target[1]) if target[1] is not None else None
             if payload.apply_to_merchant and merchant_id is not None:
+                related_merchants = self._related_merchant_rows(
+                    conn,
+                    merchant_id=merchant_id,
+                    merchant_name=str(target[2] or ""),
+                )
+                related_merchant_ids = [row[0] for row in related_merchants]
                 if owner_name:
-                    owner_patch = json.dumps(
-                        {
-                            "manual_owner_rule": {
-                                "owner_name": owner_name,
-                                "created_from_transaction_id": transaction_id,
-                                "updated_at": now.isoformat(),
-                            }
+                    owner_rule = {
+                        "manual_owner_rule": {
+                            "owner_name": owner_name,
+                            "created_from_transaction_id": transaction_id,
+                            "updated_at": now.isoformat(),
                         }
-                    )
-                    conn.execute(
-                        """
-                        UPDATE household_merchants
-                        SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
-                            updated_at = %s
-                        WHERE id = %s
-                        """,
-                        [owner_patch, now, merchant_id],
-                    )
+                    }
+                    for related_id, aliases in related_merchants:
+                        conn.execute(
+                            """
+                            UPDATE household_merchants
+                            SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
+                                updated_at = %s
+                            WHERE id = %s
+                            """,
+                            [
+                                json.dumps(
+                                    {
+                                        **owner_rule,
+                                        "alias_keys": sorted(aliases),
+                                    }
+                                ),
+                                now,
+                                related_id,
+                            ],
+                        )
                     conn.execute(
                         """
                         UPDATE household_transactions
                         SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
                             updated_at = %s
-                        WHERE merchant_id = %s
+                        WHERE merchant_id::text = ANY(%s)
                         """,
                         [
                             json.dumps(
@@ -285,7 +329,7 @@ class HouseholdTransactionRuleService:
                                 }
                             ),
                             now,
-                            merchant_id,
+                            related_merchant_ids,
                         ],
                     )
                 else:
@@ -294,18 +338,18 @@ class HouseholdTransactionRuleService:
                         UPDATE household_merchants
                         SET metadata = COALESCE(metadata, '{}'::jsonb) - 'manual_owner_rule',
                             updated_at = %s
-                        WHERE id = %s
+                        WHERE id::text = ANY(%s)
                         """,
-                        [now, merchant_id],
+                        [now, related_merchant_ids],
                     )
                     conn.execute(
                         """
                         UPDATE household_transactions
                         SET metadata = COALESCE(metadata, '{}'::jsonb) - 'owner_name' - 'owner_source',
                             updated_at = %s
-                        WHERE merchant_id = %s
+                        WHERE merchant_id::text = ANY(%s)
                         """,
-                        [now, merchant_id],
+                        [now, related_merchant_ids],
                     )
 
             conn.commit()
