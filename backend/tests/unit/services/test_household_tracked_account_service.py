@@ -42,14 +42,34 @@ def _tracked_account(
     )
 
 
+class _FakeResult:
+    def __init__(self, *, rowcount: int = 1, fetchone_result: object = None) -> None:
+        self.rowcount = rowcount
+        self._fetchone_result = fetchone_result
+
+    def fetchone(self) -> object:
+        return self._fetchone_result
+
+
 class _FakeConnection:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        fetchone_results: list[object] | None = None,
+        rowcounts: list[int] | None = None,
+    ) -> None:
         self.calls: list[tuple[str, list[object] | None]] = []
         self.committed = False
+        self._fetchone_results = fetchone_results or []
+        self._rowcounts = rowcounts or []
 
-    def execute(self, sql: str, params: list[object] | None = None) -> Mock:
+    def execute(self, sql: str, params: list[object] | None = None) -> _FakeResult:
         self.calls.append((sql, params))
-        return Mock(rowcount=1)
+        fetchone_result = (
+            self._fetchone_results.pop(0) if self._fetchone_results else None
+        )
+        rowcount = self._rowcounts.pop(0) if self._rowcounts else 1
+        return _FakeResult(rowcount=rowcount, fetchone_result=fetchone_result)
 
     def commit(self) -> None:
         self.committed = True
@@ -359,7 +379,7 @@ def test_sync_linked_accounts_from_evidence_ignores_unanchored_rows() -> None:
 
 def test_delete_account_syncs_registry_to_prune_orphan_canonical_rows() -> None:
     service = HouseholdTrackedAccountService()
-    connection = _FakeConnection()
+    connection = _FakeConnection(fetchone_results=[None, None])
     fake_service = Mock()
     fake_service.storage = _FakeStorage(connection)
     fake_service.account_registry_service.sync_registry = Mock()
@@ -368,6 +388,48 @@ def test_delete_account_syncs_registry_to_prune_orphan_canonical_rows() -> None:
 
     assert deleted is True
     assert connection.committed is True
+    fake_service.account_registry_service.sync_registry.assert_called_once_with(
+        fake_service,
+        limit=500,
+    )
+
+
+def test_delete_account_soft_hides_linked_preference() -> None:
+    service = HouseholdTrackedAccountService()
+    connection = _FakeConnection(fetchone_results=[("pref-1", "household-1")])
+    fake_service = Mock()
+    fake_service.storage = _FakeStorage(connection)
+    fake_service.account_registry_service.sync_registry = Mock()
+
+    deleted = service.delete_account(fake_service, "pref-1")
+
+    assert deleted is True
+    assert "UPDATE household_account_preferences" in connection.calls[1][0]
+    _, params = connection.calls[1]
+    assert params is not None
+    assert json.loads(str(params[1]))["account_visibility"] == "hidden"
+    assert params[3] == "pref-1"
+    fake_service.account_registry_service.sync_registry.assert_called_once_with(
+        fake_service,
+        limit=500,
+    )
+
+
+def test_delete_account_creates_hidden_tombstone_for_evidence_only_account() -> None:
+    service = HouseholdTrackedAccountService()
+    connection = _FakeConnection(fetchone_results=[None, ("household-1",)])
+    fake_service = Mock()
+    fake_service.storage = _FakeStorage(connection)
+    fake_service.account_registry_service.sync_registry = Mock()
+
+    deleted = service.delete_account(fake_service, "household-1")
+
+    assert deleted is True
+    assert "INSERT INTO household_account_preferences" in connection.calls[2][0]
+    _, params = connection.calls[2]
+    assert params is not None
+    assert params[0] == "household-1"
+    assert json.loads(str(params[2]))["hidden_reason"] == "user_removed"
     fake_service.account_registry_service.sync_registry.assert_called_once_with(
         fake_service,
         limit=500,

@@ -31,13 +31,14 @@ export function DeleteAccountDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete account display settings</DialogTitle>
+          <DialogTitle>Archive account</DialogTitle>
           <DialogDescription>
-            Remove display settings for{' '}
+            Remove{' '}
             <span className="font-medium text-text">
               {account?.label ?? 'this account'}
-            </span>
-            . Existing uploaded evidence will remain in intake history.
+            </span>{' '}
+            from active Money accounts and totals. Existing supporting documents
+            will stay in evidence history.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -57,7 +58,7 @@ export function DeleteAccountDialog({
             disabled={!account || isPending}
             aria-busy={isPending}
           >
-            {isPending ? 'Deleting...' : 'Delete account'}
+            {isPending ? 'Archiving...' : 'Archive account'}
           </Button>
         </DialogFooter>
       </DialogContent>

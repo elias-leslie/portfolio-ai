@@ -564,13 +564,11 @@ export function useDeleteHouseholdTrackedAccount() {
     mutationFn: (accountId: string) => deleteHouseholdTrackedAccount(accountId),
     onSuccess: async () => {
       await refreshHouseholdQueries(queryClient)
-      toast.success('Account display settings removed.')
+      toast.success('Account archived from active Money views.')
     },
     onError: (error) => {
       toast.error(
-        error instanceof Error
-          ? error.message
-          : 'Failed to remove account display settings',
+        error instanceof Error ? error.message : 'Failed to archive account',
       )
     },
   })

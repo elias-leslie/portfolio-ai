@@ -999,6 +999,7 @@ def build_account_summaries(
     source_owned_household_account_ids: set[str] | None = None,
     source_owned_account_values: dict[str, dict[str, Any]] | None = None,
     closed_household_account_ids: set[str] | None = None,
+    hidden_household_account_ids: set[str] | None = None,
     holdings_by_account: dict[str, float],
     statement_freshness: dict[str, Any],
     latest_transaction_dates_by_household_account: dict[str, date] | None = None,
@@ -1009,9 +1010,35 @@ def build_account_summaries(
     source_owned_household_account_ids = source_owned_household_account_ids or set()
     source_owned_account_values = source_owned_account_values or {}
     closed_household_account_ids = closed_household_account_ids or set()
+    hidden_household_account_ids = hidden_household_account_ids or set()
     latest_transaction_dates_by_household_account = latest_transaction_dates_by_household_account or {}
     latest_transaction_dates_by_document = latest_transaction_dates_by_document or {}
     latest_transaction_dates_by_account_label = latest_transaction_dates_by_account_label or {}
+
+    evidence_accounts = [
+        account
+        for account in evidence_accounts
+        if not (
+            account.household_account_id is not None
+            and str(account.household_account_id) in hidden_household_account_ids
+        )
+    ]
+    portfolio_accounts = [
+        account
+        for account in portfolio_accounts
+        if not (
+            account.household_account_id is not None
+            and str(account.household_account_id) in hidden_household_account_ids
+        )
+    ]
+    source_owned_household_account_ids = (
+        source_owned_household_account_ids - hidden_household_account_ids
+    )
+    source_owned_account_values = {
+        account_id: value
+        for account_id, value in source_owned_account_values.items()
+        if str(account_id) not in hidden_household_account_ids
+    }
 
     documents_by_id = {document.id: document for document in documents}
     tracked_by_household_id = {

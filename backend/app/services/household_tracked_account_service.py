@@ -211,11 +211,58 @@ class HouseholdTrackedAccountService:
         return self.get_account(service, account_id)
 
     def delete_account(self, service: Any, account_id: str) -> bool:
+        now = datetime.now(UTC).isoformat()
+        hidden_metadata = {
+            "account_visibility": "hidden",
+            "hidden_reason": "user_removed",
+            "hidden_at": now,
+        }
         with service.storage.connection() as conn:
-            deleted = conn.execute(
-                "DELETE FROM household_account_preferences WHERE id = %s",
-                [account_id],
-            ).rowcount
+            preference_row = conn.execute(
+                """
+                SELECT id, household_account_id
+                FROM household_account_preferences
+                WHERE id::text = %s OR household_account_id::text = %s
+                LIMIT 1
+                """,
+                [account_id, account_id],
+            ).fetchone()
+            if preference_row is not None:
+                deleted = conn.execute(
+                    """
+                    UPDATE household_account_preferences
+                    SET hidden_at = %s,
+                        metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
+                        updated_at = %s
+                    WHERE id = %s
+                    """,
+                    [now, json.dumps(hidden_metadata), now, preference_row[0]],
+                ).rowcount
+            else:
+                canonical_row = conn.execute(
+                    "SELECT id FROM household_accounts WHERE id::text = %s",
+                    [account_id],
+                ).fetchone()
+                if canonical_row is not None:
+                    conn.execute(
+                        """
+                        INSERT INTO household_account_preferences (
+                            household_account_id, hidden_at, metadata, created_at, updated_at
+                        ) VALUES (%s, %s, %s::jsonb, %s, %s)
+                        ON CONFLICT (household_account_id) DO UPDATE
+                        SET hidden_at = EXCLUDED.hidden_at,
+                            metadata = COALESCE(household_account_preferences.metadata, '{}'::jsonb)
+                                || EXCLUDED.metadata,
+                            updated_at = EXCLUDED.updated_at
+                        """,
+                        [canonical_row[0], now, json.dumps(hidden_metadata), now, now],
+                    )
+                    deleted = 1
+                else:
+                    deleted = conn.execute(
+                        "DELETE FROM household_tracked_accounts WHERE id::text = %s",
+                        [account_id],
+                    ).rowcount
             conn.commit()
         if deleted:
             service.account_registry_service.sync_registry(service, limit=500)

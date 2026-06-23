@@ -24,7 +24,10 @@ from app.models.household_finance import (
     RetirementPreparedness,
 )
 from app.portfolio.account_valuation import calculate_account_valuations
-from app.services._household_account_status import fetch_closed_household_account_ids
+from app.services._household_account_status import (
+    fetch_closed_household_account_ids,
+    fetch_hidden_household_account_ids,
+)
 from app.services._household_dashboard_builders import (
     build_budget_snapshot,
     build_retirement_contribution_tracker,
@@ -569,11 +572,27 @@ def gather_service_data(service: Any) -> dict[str, Any]:
     profile = service.get_profile()
     planning = service.get_planning_snapshot()
     documents = service.list_documents(limit=100).items
-    evidence_accounts = service.list_evidence_accounts(limit=1000, dedupe=False)
-    tracked_accounts = service.list_tracked_accounts(limit=100)
     questions = service.list_questions(limit=25).items
     closed_household_account_ids = fetch_closed_household_account_ids(service.storage)
-    accounts = [a for a in service.portfolio_mgr.get_accounts() if a.account_type != "paper"]
+    hidden_household_account_ids = fetch_hidden_household_account_ids(service.storage)
+    evidence_accounts = [
+        account
+        for account in service.list_evidence_accounts(limit=1000, dedupe=False)
+        if not (
+            account.household_account_id is not None
+            and str(account.household_account_id) in hidden_household_account_ids
+        )
+    ]
+    tracked_accounts = service.list_tracked_accounts(limit=100)
+    accounts = [
+        account
+        for account in service.portfolio_mgr.get_accounts()
+        if account.account_type != "paper"
+        and not (
+            account.household_account_id is not None
+            and str(account.household_account_id) in hidden_household_account_ids
+        )
+    ]
     positions = service.portfolio_mgr.get_positions()
     account_ids = {a.id for a in accounts}
     live_positions = [p for p in positions if p.account_id in account_ids]
@@ -596,6 +615,7 @@ def gather_service_data(service: Any) -> dict[str, Any]:
         "account_valuations": account_valuations,
         "account_control": account_control_result.control,
         "closed_household_account_ids": closed_household_account_ids,
+        "hidden_household_account_ids": hidden_household_account_ids,
         "source_owned_household_account_ids": (
             account_control_result.source_owned_household_account_ids
             | set(account_control_result.source_owned_account_values)

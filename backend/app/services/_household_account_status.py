@@ -45,3 +45,16 @@ def fetch_closed_household_account_ids(storage: Any) -> set[str]:
         for row in rows
         if metadata_indicates_closed(row[1])
     }
+
+
+def fetch_hidden_household_account_ids(storage: Any) -> set[str]:
+    """Return canonical accounts the user removed from active Money views."""
+    with storage.connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT household_account_id::text
+            FROM household_account_preferences
+            WHERE hidden_at IS NOT NULL
+            """
+        ).fetchall()
+    return {str(row[0]) for row in rows if row[0] is not None}

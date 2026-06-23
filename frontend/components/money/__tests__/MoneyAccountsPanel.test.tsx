@@ -158,6 +158,7 @@ describe('MoneyAccountsPanel', () => {
     createMutateAsync.mockResolvedValue(undefined)
     updateMutateAsync.mockResolvedValue(undefined)
     uploadMutateAsync.mockResolvedValue(undefined)
+    deleteMutateAsync.mockResolvedValue(undefined)
   })
 
   it('renders account rows and uploads evidence bound to the selected account', async () => {
@@ -494,16 +495,40 @@ describe('MoneyAccountsPanel', () => {
     expect(within(dialog).getByLabelText(/owner/i)).toBeEnabled()
   })
 
-  it('deletes account display settings from the row dialog', async () => {
+  it('archives account from the row dialog', async () => {
     const user = userEvent.setup()
     render(<MoneyAccountsPanel accounts={accounts} documents={documents} />)
 
     await user.click(screen.getByRole('button', { name: /main checking/i }))
-    await user.click(screen.getByRole('button', { name: /delete/i }))
-    await user.click(screen.getByRole('button', { name: /delete account/i }))
+    await user.click(screen.getByRole('button', { name: /archive/i }))
+    await user.click(screen.getByRole('button', { name: /archive account/i }))
 
     await waitFor(() => {
-      expect(deleteMutateAsync).toHaveBeenCalledWith('tracked-1')
+      expect(deleteMutateAsync).toHaveBeenCalledWith('household-1')
+    })
+  })
+
+  it('archives evidence-only accounts after display settings are gone', async () => {
+    const user = userEvent.setup()
+    render(
+      <MoneyAccountsPanel
+        accounts={[
+          {
+            ...accounts[0],
+            accountOrigin: 'evidence',
+            trackedAccountId: null,
+          },
+        ]}
+        documents={documents}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /main checking/i }))
+    await user.click(screen.getByRole('button', { name: /archive/i }))
+    await user.click(screen.getByRole('button', { name: /archive account/i }))
+
+    await waitFor(() => {
+      expect(deleteMutateAsync).toHaveBeenCalledWith('household-1')
     })
   })
 

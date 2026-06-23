@@ -80,8 +80,10 @@ export function MoneyAccountsPanel({
   }, [intent, openAccountId, selectedAccountId])
 
   const handleDelete = async (account: HouseholdAccountSummary) => {
-    if (!account.trackedAccountId) return
-    await deleteAccount.mutateAsync(account.trackedAccountId)
+    const removableAccountId =
+      account.householdAccountId ?? account.trackedAccountId
+    if (!removableAccountId) return
+    await deleteAccount.mutateAsync(removableAccountId)
     setDeletingAccount(null)
   }
 

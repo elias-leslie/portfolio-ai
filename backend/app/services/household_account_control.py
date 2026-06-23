@@ -114,7 +114,10 @@ def _source_rows(storage: Any) -> list[SourceAccountRow]:
                 sa.last_synced_at
             FROM snaptrade_accounts sa
             LEFT JOIN household_accounts ha ON ha.id = sa.household_account_id
-            WHERE sa.balance IS NOT NULL OR sa.cash_balance IS NOT NULL
+            LEFT JOIN household_account_preferences hap
+              ON hap.household_account_id = sa.household_account_id
+            WHERE (sa.balance IS NOT NULL OR sa.cash_balance IS NOT NULL)
+              AND hap.hidden_at IS NULL
             UNION ALL
             SELECT
                 'plaid' AS source,
@@ -131,7 +134,10 @@ def _source_rows(storage: Any) -> list[SourceAccountRow]:
             FROM plaid_accounts pa
             LEFT JOIN plaid_items pi ON pi.item_id = pa.item_id
             LEFT JOIN household_accounts ha ON ha.id = pa.household_account_id
-            WHERE pa.current_balance IS NOT NULL OR pa.available_balance IS NOT NULL
+            LEFT JOIN household_account_preferences hap
+              ON hap.household_account_id = pa.household_account_id
+            WHERE (pa.current_balance IS NOT NULL OR pa.available_balance IS NOT NULL)
+              AND hap.hidden_at IS NULL
             """
         ).fetchall()
     return [

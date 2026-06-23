@@ -47,6 +47,9 @@ export function AccountAccordionItem({
   const topGap = account.gapFlags[0] ?? null
   const isFocused = account.id === focusedAccountId
   const pricedPositionCount = account.pricedPositionCount ?? 0
+  const canArchive = Boolean(
+    account.householdAccountId ?? account.trackedAccountId,
+  )
 
   return (
     <AccordionItem
@@ -138,40 +141,28 @@ export function AccountAccordionItem({
         <div className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-end gap-2">
-              {account.trackedAccountId ? (
-                <>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onEdit(account)}
-                  >
-                    <Pencil className="mr-2 h-4 w-4" />
-                    Edit
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onDelete(account)}
-                    disabled={isPendingDelete}
-                    aria-busy={isPendingDelete}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
-                  </Button>
-                </>
-              ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => onEdit(account)}
+              >
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
+              </Button>
+              {canArchive ? (
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() => onEdit(account)}
+                  onClick={() => onDelete(account)}
+                  disabled={isPendingDelete}
+                  aria-busy={isPendingDelete}
                 >
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Archive
                 </Button>
-              )}
+              ) : null}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">

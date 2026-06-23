@@ -63,6 +63,40 @@ def test_build_account_summaries_omits_unlinked_no_value_evidence() -> None:
     assert summaries == []
 
 
+def test_build_account_summaries_omits_user_hidden_evidence_account() -> None:
+    summaries = build_account_summaries(
+        evidence_accounts=[
+            HouseholdEvidenceAccount(
+                id="acct-hidden-frs",
+                document_id="doc-hidden-frs",
+                household_account_id="household-hidden-frs",
+                source_type="retirement",
+                asset_group="retirement",
+                account_type="retirement",
+                institution_name="Florida Retirement System (FRS)",
+                account_name="FRS Investment Plan",
+                account_mask=None,
+                owner_name="Alex Demo",
+                currency="USD",
+                balance=47000,
+                holdings_value=47000,
+                cash_balance=None,
+                as_of_date=_iso(27),
+                confidence=0.96,
+                metadata={},
+            )
+        ],
+        documents=[],
+        portfolio_accounts=[],
+        tracked_accounts=[],
+        hidden_household_account_ids={"household-hidden-frs"},
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    assert summaries == []
+
+
 def test_build_account_summaries_groups_evidence_and_surfaces_freshness() -> None:
     documents = [
         HouseholdDocument(
