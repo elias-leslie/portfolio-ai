@@ -178,6 +178,7 @@ export function useHouseholdNetWorthTrend(params?: { days?: number }) {
     queryFn: ({ signal }) => fetchHouseholdNetWorthTrend(params, { signal }),
     staleTime: HOUSEHOLD_MARKET_VALUE_REFRESH_MS,
     refetchInterval: HOUSEHOLD_MARKET_VALUE_REFRESH_MS,
+    refetchOnMount: 'always',
     refetchOnWindowFocus: true,
   })
 }

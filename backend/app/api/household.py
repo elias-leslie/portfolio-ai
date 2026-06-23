@@ -76,7 +76,7 @@ async def get_household_dashboard(request: Request) -> HouseholdFinanceDashboard
 
 
 @router.get("/net-worth-trend", response_model=HouseholdNetWorthTrend)
-@cache_response(ttl=60)
+@cache_response(ttl=30)
 async def get_household_net_worth_trend(
     request: Request,
     days: int = Query(180, ge=7, le=1825),

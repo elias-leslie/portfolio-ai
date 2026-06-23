@@ -334,7 +334,10 @@ describe('DailyBriefPanel', () => {
       },
     })
     usePortfolioAnalyticsMock.mockReturnValue({
-      data: { quoteFreshnessStatus: 'current' },
+      data: {
+        quoteFreshnessStatus: 'current',
+        householdInvestedTotalValue: 625_000,
+      },
     })
     useMarketStatusMock.mockReturnValue({
       data: { isOpen: false },
@@ -387,6 +390,13 @@ describe('DailyBriefPanel', () => {
     expect(screen.getByText('10Y-3M')).toBeInTheDocument()
     expect(screen.getByText('+98 bps')).toBeInTheDocument()
     expect(screen.queryByText(/Action Queue/i)).not.toBeInTheDocument()
+  })
+
+  it('uses the market-refreshed invested total on Today', () => {
+    render(<DailyBriefPanel />)
+
+    expect(screen.getByText('$625,000')).toBeInTheDocument()
+    expect(screen.queryByText('$620,000')).not.toBeInTheDocument()
   })
 
   it('forces a Today data refresh from the header action', () => {

@@ -128,10 +128,10 @@ export function PrimaryTilesGrid({
       .slice(0, 2)
       .map((issue) => issue.title) ?? []
 
-  // Only the household.overview value is invested-only. analytics.effectiveTotalValue
-  // and analytics.portfolioValue.totalValue both include cash, so falling back to them
-  // mislabels Invested + Cash as "Invested" when overview is missing.
-  const investedAssets = household?.overview.investedAssets ?? null
+  const investedAssets =
+    analytics?.householdInvestedTotalValue ??
+    household?.overview.investedAssets ??
+    null
   const cashReserve = household?.overview.cashReserve ?? null
   const cashReserveMonths =
     household?.portfolioContext?.cashReservesMonths ?? null
