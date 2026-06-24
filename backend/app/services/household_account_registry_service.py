@@ -665,6 +665,7 @@ class HouseholdAccountRegistryService:
             and self._evidence_matches_canonical_account(
                 evidence=evidence,
                 canonical_account=canonical_accounts[evidence.household_account_id],
+                require_mask=False,
             )
         ):
             matched_ids.add(evidence.household_account_id)

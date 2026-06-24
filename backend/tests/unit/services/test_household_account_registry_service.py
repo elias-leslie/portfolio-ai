@@ -411,6 +411,44 @@ def test_resolve_from_evidence_uses_preserved_account_id_without_mask() -> None:
     assert merged == 0
 
 
+def test_resolve_from_evidence_keeps_existing_link_without_mask() -> None:
+    registry = HouseholdAccountRegistryService()
+    conn = Mock()
+    canonical_accounts = {
+        "canonical": _canonical(
+            account_id="canonical",
+            label="Wells Fargo checking activity export",
+            asset_group="cash",
+            account_type="checking",
+            source_type="bank",
+            institution_name="Wells Fargo",
+        ),
+    }
+    evidence = _evidence(
+        evidence_id="wells-evidence",
+        document_id="doc-wells",
+        institution_name="Wells Fargo",
+        account_name="Wells Fargo checking activity export",
+        owner_name=None,
+        account_mask=None,
+        asset_group="cash",
+        account_type="checking",
+        source_type="bank",
+    )
+    evidence.household_account_id = "canonical"
+
+    account_id, created, merged = registry._resolve_from_evidence(
+        conn,
+        evidence=evidence,
+        canonical_accounts=canonical_accounts,
+        identity_map={},
+    )
+
+    assert account_id == "canonical"
+    assert created == 0
+    assert merged == 0
+
+
 def test_should_not_merge_same_owner_sibling_evidence_accounts() -> None:
     registry = HouseholdAccountRegistryService()
     left = _canonical(
