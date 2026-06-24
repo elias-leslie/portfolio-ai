@@ -209,7 +209,9 @@ async def create_household_account(
 ) -> HouseholdTrackedAccount:
     """Create a canonical household account or display preferences."""
     try:
-        return await run_in_threadpool(_service().create_tracked_account, payload)
+        account = await run_in_threadpool(_service().create_tracked_account, payload)
+        _invalidate_household_cache()
+        return account
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -230,6 +232,7 @@ async def update_household_account(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if account is None:
         raise HTTPException(status_code=404, detail=f"Household account not found: {account_id}")
+    _invalidate_household_cache()
     return account
 
 
@@ -239,6 +242,7 @@ async def delete_household_account(account_id: str) -> dict[str, bool]:
     deleted = await run_in_threadpool(_service().delete_tracked_account, account_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Household account not found: {account_id}")
+    _invalidate_household_cache()
     return {"ok": True}
 
 
