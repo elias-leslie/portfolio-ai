@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: portfolio_app
           POSTGRES_PASSWORD: secret
@@ -39,6 +39,12 @@ jobs:
       - name: Install backend dependencies
         working-directory: backend
         run: uv sync --frozen --extra dev
+      - name: Prepare test database schema
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          psql "$PORTFOLIO_DB_URL" -v ON_ERROR_STOP=1 -f docker/portfolio-ai-schema.sql
+          uv run --directory backend alembic -c alembic.ini stamp head
       - name: Ruff
         working-directory: backend
         run: uv run ruff check app tests
