@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Response
@@ -123,6 +123,21 @@ def _build_freshness_summary_payload(result: Any) -> dict[str, Any]:
         "stale": summary.get("stale", 0),
         "critical": summary.get("critical", 0),
         "remediations_triggered": summary.get("remediations_triggered", 0),
+    }
+
+
+def _build_live_freshness_summary_payload(result: dict[str, Any]) -> dict[str, Any]:
+    status, message = _freshness_status_message(result)
+    return {
+        "last_check": datetime.now(UTC).isoformat(),
+        "status": status,
+        "check_status": STATUS_SUCCESS,
+        "message": message,
+        "tables_checked": result.get("tables_checked", 0),
+        "fresh": result.get("fresh", 0),
+        "stale": result.get("stale", 0),
+        "critical": result.get("critical", 0),
+        "remediations_triggered": result.get("remediations_triggered", 0),
     }
 
 
@@ -249,6 +264,16 @@ def _build_deletion_rate_message(
 
 async def get_data_freshness_summary() -> dict[str, Any]:
     storage = get_storage()
+    try:
+        live_result = await run_in_threadpool(
+            check_all_tables_freshness,
+            get_connection_manager(),
+            False,
+        )
+        return _build_live_freshness_summary_payload(live_result)
+    except Exception as e:
+        logger.warning("live_data_freshness_summary_failed", error=str(e), exc_info=True)
+
     try:
         with storage.connection() as conn:
             result = conn.execute(DATA_FRESHNESS_QUERY).fetchone()

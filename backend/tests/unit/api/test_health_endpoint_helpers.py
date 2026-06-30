@@ -14,6 +14,7 @@ from app.api.health import (
     _build_automation_decision_domain,
     _build_freshness_summary_payload,
     _build_household_decision_domain,
+    _build_live_freshness_summary_payload,
     _build_market_data_decision_domain,
     _build_source_decision_domain,
     _summarize_decision_data_domains,
@@ -296,6 +297,10 @@ async def test_get_data_freshness_summary_returns_no_data_when_no_row(
     fake_storage.connection.side_effect = fake_connection
 
     monkeypatch.setattr("app.api.health.get_storage", lambda: fake_storage)
+    monkeypatch.setattr(
+        "app.api.health.check_all_tables_freshness",
+        MagicMock(side_effect=RuntimeError("live failed")),
+    )
 
     from app.api.health import get_data_freshness_summary
 
@@ -306,6 +311,23 @@ async def test_get_data_freshness_summary_returns_no_data_when_no_row(
         "status": "no_data",
         "message": "No freshness checks have been run yet",
     }
+
+
+def test_build_live_freshness_summary_payload_uses_current_result() -> None:
+    payload = _build_live_freshness_summary_payload(
+        {
+            "tables_checked": 16,
+            "fresh": 16,
+            "stale": 0,
+            "critical": 0,
+            "remediations_triggered": 0,
+        }
+    )
+
+    assert payload["status"] == "success"
+    assert payload["check_status"] == "success"
+    assert payload["message"] == "All checked feeds are current"
+    assert payload["stale"] == 0
 
 
 def test_freshness_summary_escalates_successful_check_with_overdue_tables() -> None:
