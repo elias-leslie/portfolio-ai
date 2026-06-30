@@ -86,6 +86,21 @@ def test_same_account_across_connections_is_shared_not_duplicate() -> None:
     ]
 
 
+def test_same_account_across_connections_with_staggered_balances_is_shared() -> None:
+    values, source_owned_ids, issues = _collapse_source_rows(
+        [
+            _source_row("snaptrade-account-1", balance="41840.64", connection_id="auth-old"),
+            _source_row("snaptrade-account-2", balance="41841.64", connection_id="auth-new"),
+        ]
+    )
+
+    assert source_owned_ids == {"household-cash"}
+    assert values["household-cash"]["current_value"] == Decimal("41841.64")
+    assert len(issues) == 1
+    assert issues[0].code == "shared_source_account"
+    assert issues[0].affects_totals is False
+
+
 def test_conflicting_source_values_block_trusted_totals() -> None:
     values, source_owned_ids, issues = _collapse_source_rows(
         [

@@ -309,7 +309,32 @@ def _collapse_source_rows(
             for row in account_rows
         }
         source_account_ids = [row.source_account_id for row in ordered]
-        if len(value_keys) > 1:
+        connection_count = len({row.connection_id for row in account_rows if row.connection_id})
+        if len(identity_keys) == 1 and connection_count > 1:
+            # Same account legitimately surfaced by more than one connection — for
+            # example a joint account that appears under each owner's separate
+            # login. Totals already count it once, and there is nothing to remove:
+            # dropping either connection would lose that login's other accounts.
+            # Surface it for transparency, but do not advise removing a connection.
+            issues.append(
+                HouseholdAccountControlIssue(
+                    id=_issue_id("shared_source_account", household_account_id),
+                    code="shared_source_account",
+                    severity="low",
+                    title="Account shared across connections",
+                    detail=(
+                        f"{chosen.account_label} is linked through {connection_count} "
+                        "connections (for example a joint account visible under each "
+                        "owner's login). Totals include it once; no action is needed."
+                    ),
+                    household_account_id=household_account_id,
+                    account_label=chosen.account_label,
+                    source=chosen.source,
+                    source_account_ids=source_account_ids,
+                    affects_totals=False,
+                )
+            )
+        elif len(value_keys) > 1:
             issues.append(
                 HouseholdAccountControlIssue(
                     id=_issue_id("source_value_conflict", household_account_id),
@@ -345,31 +370,6 @@ def _collapse_source_rows(
                     source="source_accounts",
                     source_account_ids=source_account_ids,
                     affects_totals=True,
-                )
-            )
-        elif len({row.connection_id for row in account_rows if row.connection_id}) > 1:
-            # Same account legitimately surfaced by more than one connection — for
-            # example a joint account that appears under each owner's separate
-            # login. Totals already count it once, and there is nothing to remove:
-            # dropping either connection would lose that login's other accounts.
-            # Surface it for transparency, but do not advise removing a connection.
-            connection_count = len({row.connection_id for row in account_rows if row.connection_id})
-            issues.append(
-                HouseholdAccountControlIssue(
-                    id=_issue_id("shared_source_account", household_account_id),
-                    code="shared_source_account",
-                    severity="low",
-                    title="Account shared across connections",
-                    detail=(
-                        f"{chosen.account_label} is linked through {connection_count} "
-                        "connections (for example a joint account visible under each "
-                        "owner's login). Totals include it once; no action is needed."
-                    ),
-                    household_account_id=household_account_id,
-                    account_label=chosen.account_label,
-                    source=chosen.source,
-                    source_account_ids=source_account_ids,
-                    affects_totals=False,
                 )
             )
         else:
