@@ -11,6 +11,8 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    env:
+      PORTFOLIO_DB_URL: postgresql://portfolio_app:secret@localhost:5432/portfolio_ai_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -37,13 +39,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
-      - name: Enable pnpm
-        run: corepack enable && corepack prepare pnpm@10.32.1 --activate
       - name: Install frontend dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile
