@@ -8,7 +8,9 @@ as healthy, degraded, or down.
 from __future__ import annotations
 
 import datetime as dt
+import time
 import uuid
+from typing import Any
 
 from ..logging_config import get_logger
 from ..sources._fetch_helpers import fetch_from_source
@@ -21,6 +23,7 @@ from ..sources.polygon_source import PolygonSource
 from ..sources.twelvedata_source import TwelveDataSource
 from ..sources.yfinance_source import YFinanceSource
 from ..storage import PortfolioStorage
+from ..storage.credential_loader import load_credentials_from_database
 
 logger = get_logger(__name__)
 
@@ -30,6 +33,7 @@ _TEST_LOOKBACK_DAYS = 5
 
 def _build_fetcher() -> MultiSourceFetcher:
     """Instantiate all available sources and wrap them in a MultiSourceFetcher."""
+    load_credentials_from_database()
     storage = PortfolioStorage()
     sources = [
         YFinanceSource(),
@@ -58,13 +62,18 @@ def _check_single_source(
     request: DatasetRequest,
     results: dict[str, str],
     errors: dict[str, str],
+    metrics_manager: Any | None = None,
 ) -> None:
     """Probe one source and update results/errors dicts in place."""
+    started_at = time.monotonic()
     try:
         data = fetch_from_source(source, request, {_TEST_SYMBOL})
+        latency_ms = int((time.monotonic() - started_at) * 1000)
 
         if data is not None and len(data) > 0:
             results[source.name] = "healthy"
+            if metrics_manager is not None:
+                metrics_manager.record_success(source.name, latency_ms)
             logger.info(
                 "source_health_check_healthy",
                 source=source.name,
@@ -81,6 +90,8 @@ def _check_single_source(
     except Exception as e:
         results[source.name] = "down"
         errors[source.name] = str(e)
+        if metrics_manager is not None:
+            metrics_manager.record_failure(source.name, e)
         logger.warning(
             "source_health_check_down",
             source=source.name,
@@ -138,6 +149,6 @@ def check_data_source_health() -> dict[str, object]:
     errors: dict[str, str] = {}
 
     for source in fetcher.sources:
-        _check_single_source(source, request, results, errors)
+        _check_single_source(source, request, results, errors, fetcher.metrics_manager)
 
     return _summarise(task_id, results, errors)

@@ -14,6 +14,7 @@ from typing import Any
 from ..logging_config import get_logger
 from ..portfolio.models import PriceData
 from ..portfolio.price_fetcher import PriceDataFetcher
+from ..storage.credential_loader import load_credentials_from_database
 from ..storage.facade import get_storage
 from ..utils.market_hours import NY_TZ
 from . import repository
@@ -283,6 +284,7 @@ def run(
     current_quote_max_age_minutes: int | None = CURRENT_QUOTE_MAX_AGE_MINUTES,
 ) -> GateOutput | None:
     """Compute today's deployment zone and (optionally) persist the snapshot."""
+    load_credentials_from_database()
     collected = collect_signals(
         snapshot_date=snapshot_date,
         force_quote_refresh=force_quote_refresh,

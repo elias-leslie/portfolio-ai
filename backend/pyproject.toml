@@ -57,6 +57,7 @@ dependencies = [
     "mcp>=1.0.0",
     "openpyxl>=3.1.5",
     "httpx2>=2.5.0",
+    "edgartools>=5.40.1",
 ]
 
 [project.scripts]
@@ -90,6 +91,10 @@ dev = [
     "pip-audit==2.10.0",
 
     # Pre-commit
+]
+ml = [
+    "torch>=2.12.1",
+    "transformers>=5.12.1",
 ]
 [tool.uv]
 # Keep Pygments on a fixed security floor; 2.20.0 is a published PyPI release and addresses known pre-2.20 vulnerabilities.

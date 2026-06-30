@@ -173,3 +173,25 @@ def test_collect_signals_uses_canonical_current_vix_quote(monkeypatch) -> None:
     assert quality["source"] == "price_cache.^VIX via yfinance"
     assert quality["cadence"] == "intraday_current"
     assert quality["as_of"] == quote_time.isoformat()
+
+
+def test_run_loads_database_credentials_before_collecting(monkeypatch) -> None:
+    calls: list[str] = []
+
+    def load_credentials() -> None:
+        calls.append("credentials")
+
+    def collect_signals(**_kwargs) -> service.CollectedSignals:
+        calls.append("collect")
+        return service.CollectedSignals(
+            raw=RawSignals(16.0, 40.0, 55.0, 2.7, 1.2, -0.2),
+            metadata={"component_quality": {}},
+        )
+
+    monkeypatch.setattr(service, "load_credentials_from_database", load_credentials)
+    monkeypatch.setattr(service, "collect_signals", collect_signals)
+
+    output = service.run(snapshot_date=date(2026, 6, 30), persist=False)
+
+    assert output is not None
+    assert calls == ["credentials", "collect"]
