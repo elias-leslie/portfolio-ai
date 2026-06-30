@@ -108,7 +108,9 @@ app/references/
 
 # Project-specific
 .validation-state.json
-backend/models/
+backend/models/*
+!backend/models/article_quality_v1.joblib
+!backend/models/article_quality_v*.joblib
 backend/celerybeat-schedule*
 .beads/beads.db
 .beads/bd.sock
