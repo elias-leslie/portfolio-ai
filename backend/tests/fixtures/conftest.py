@@ -27,7 +27,12 @@ if _env_file.exists():
 os.environ["PYTEST_RUNNING"] = "1"
 
 # Hatchet test configuration - prevent real connections during tests
-os.environ.setdefault("HATCHET_CLIENT_TOKEN", "test-token-not-real")
+os.environ.setdefault(
+    "HATCHET_CLIENT_TOKEN",
+    "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0."
+    "eyJzdWIiOiJ0ZXN0LXRlbmFudCIsInNlcnZlcl91cmwiOiJodHRwOi8vbG9jYWxob3N0OjgwODAiLCJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjcwNzAifQ."
+    "test",
+)
 os.environ.setdefault("HATCHET_CLIENT_TLS_STRATEGY", "none")
 
 import pytest  # noqa: E402
