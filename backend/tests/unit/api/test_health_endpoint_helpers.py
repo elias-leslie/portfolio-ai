@@ -455,6 +455,27 @@ def test_decision_data_household_warns_on_known_stale_net_worth() -> None:
     assert domain.evidence["net_worth_status"] == "stale"
 
 
+def test_decision_data_household_warning_uses_net_worth_message_when_spend_current() -> None:
+    domain = _build_household_decision_domain(
+        SimpleNamespace(
+            generated_at="2026-04-24T13:00:00+00:00",
+            overview=SimpleNamespace(
+                monthly_spend_status="current",
+                monthly_spend_detail="Monthly spend reflects current covered accounts.",
+                net_worth_status="stale",
+                net_worth_detail="Known net worth subtotal has stale manual balances.",
+                needs_refresh_count=3,
+                gap_count=2,
+                inbox_count=1,
+                coverage_months=6,
+            ),
+        )
+    )
+
+    assert domain.status == "aging"
+    assert domain.message == "Known net worth subtotal has stale manual balances."
+
+
 def test_decision_data_automation_marks_no_runs_as_missing() -> None:
     domain = _build_automation_decision_domain(
         SimpleNamespace(

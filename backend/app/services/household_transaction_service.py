@@ -1593,7 +1593,7 @@ class HouseholdTransactionService:
             SELECT id, canonical_name, primary_category, essentiality, metadata
             FROM household_merchants
             WHERE normalized_key = ANY(%s)
-               OR (metadata->'alias_keys') ?| %s
+               OR jsonb_exists_any(metadata->'alias_keys', %s)
             ORDER BY updated_at DESC
             LIMIT 1
             """,

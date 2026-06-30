@@ -202,12 +202,13 @@ def _build_household_decision_domain(dashboard: Any | None) -> DecisionDataDomai
             evidence=evidence,
         )
     if monthly_status != "current" or net_worth_status != "current" or needs_refresh_count > 0 or gap_count > 0:
+        message = monthly_detail if monthly_status != "current" else net_worth_detail
         return _decision_domain(
             key="household_evidence",
             label="Household Evidence",
             status="aging",
             severity="warning",
-            message=monthly_detail or net_worth_detail or "Household evidence needs review.",
+            message=message or net_worth_detail or monthly_detail or "Household evidence needs review.",
             last_updated=last_updated,
             evidence=evidence,
         )

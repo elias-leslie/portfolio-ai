@@ -75,6 +75,8 @@ def test_statement_freshness_excludes_future_rows_and_surfaces_date_quality() ->
     assert freshness["latest_future_date"] == (today + timedelta(days=120)).isoformat()
     assert "transaction_date > CURRENT_DATE" in storage.sql[0]
     assert "transaction_date <= CURRENT_DATE" in storage.sql[2]
+    assert "ROW_NUMBER() OVER (ORDER BY month_start DESC)" in STATEMENT_FRESHNESS_SQL
+    assert "recency_rank <= 6" in STATEMENT_FRESHNESS_SQL
 
 
 def test_transaction_date_issues_include_transaction_and_held_document_rows() -> None:

@@ -102,14 +102,29 @@ MONTH_SPEND_SQL = f"""
 """
 
 STATEMENT_FRESHNESS_SQL = f"""
+    WITH monthly_expenses AS (
+        SELECT
+            date_trunc('month', t.transaction_date)::date AS month_start,
+            MAX(t.transaction_date)::date AS month_last_date
+        FROM household_transactions t
+        WHERE t.flow_type = 'expense'
+          AND {current_transaction_date_predicate("t")}
+          AND NOT {_NON_SPEND_TRANSACTION_SQL}
+        GROUP BY 1
+    ),
+    recent_months AS (
+        SELECT
+            month_start,
+            month_last_date,
+            ROW_NUMBER() OVER (ORDER BY month_start DESC) AS recency_rank
+        FROM monthly_expenses
+    )
     SELECT
-        MAX(transaction_date) AS most_recent_date,
-        COUNT(DISTINCT date_trunc('month', transaction_date)) AS coverage_months,
-        MIN(transaction_date) AS earliest_date
-    FROM household_transactions t
-    WHERE t.flow_type = 'expense'
-      AND {current_transaction_date_predicate("t")}
-      AND NOT {_NON_SPEND_TRANSACTION_SQL}
+        MAX(month_last_date) AS most_recent_date,
+        COUNT(*) AS coverage_months,
+        MIN(month_start) AS earliest_date
+    FROM recent_months
+    WHERE recency_rank <= 6
 """
 
 FUTURE_TRANSACTION_QUALITY_SQL = """

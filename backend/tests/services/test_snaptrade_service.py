@@ -468,6 +468,39 @@ def test_replace_portfolio_positions_removes_unmanaged_rows_for_source_owned_acc
     assert delete_params == ["portfolio-1", ["snaptrade:acct-1:vti"]]
 
 
+def test_portfolio_positions_skip_snaptrade_other_instruments() -> None:
+    etf = SnapTradeNormalizedPosition(
+        position_key="vti",
+        symbol="VTI",
+        raw_symbol="VTI",
+        security_id="vti",
+        security_kind="etf",
+        units=Decimal("1"),
+        price=Decimal("100"),
+        average_purchase_price=None,
+        market_value=Decimal("100"),
+        cost_basis=None,
+        currency="USD",
+        metadata={},
+    )
+    plan_fund = SnapTradeNormalizedPosition(
+        position_key="plan-fund",
+        symbol="NHFSMKX98",
+        raw_symbol="NHFSMKX98",
+        security_id="plan-fund",
+        security_kind="other",
+        units=Decimal("1"),
+        price=Decimal("75.82"),
+        average_purchase_price=None,
+        market_value=Decimal("75.82"),
+        cost_basis=None,
+        currency="USD",
+        metadata={},
+    )
+
+    assert SnapTradeService._portfolio_positions([etf, plan_fund]) == [etf]
+
+
 def test_cash_balance_update_persists_to_source_and_portfolio_accounts() -> None:
     account = SnapTradeNormalizedAccount(
         account_id="acct-1",

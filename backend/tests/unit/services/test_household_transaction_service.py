@@ -432,6 +432,39 @@ def test_merchant_aliases_collapse_venmo_payment_ids() -> None:
     assert "venmomarianaleslie" in aliases
 
 
+def test_resolve_merchant_uses_jsonb_function_for_alias_lookup() -> None:
+    class _Conn:
+        def __init__(self) -> None:
+            self.lookup_sql = ""
+
+        def execute(self, sql: str, params: list[Any] | None = None) -> Any:
+            if "FROM household_merchants" in sql:
+                self.lookup_sql = sql
+                assert params is not None and len(params) == 2
+                return SimpleNamespace(
+                    fetchone=lambda: (
+                        "merchant-1",
+                        "Walmart",
+                        "Household",
+                        "mixed",
+                        {"alias_keys": ["walmart"]},
+                    )
+                )
+            return SimpleNamespace(fetchone=lambda: None)
+
+    conn = _Conn()
+    result = HouseholdTransactionService()._resolve_merchant(
+        conn=conn,
+        raw_merchant="WM SUPERCENTER #5831 ANYTOWN ST",
+        category="Household",
+        essentiality="mixed",
+    )
+
+    assert result[:2] == ("merchant-1", "Walmart")
+    assert "?|" not in conn.lookup_sql
+    assert "jsonb_exists_any" in conn.lookup_sql
+
+
 def test_import_document_transactions_holds_future_dated_receipts_for_review() -> None:
     service = HouseholdTransactionService()
     fake_storage = _FakeStorage()

@@ -425,7 +425,11 @@ class SnapTradeService:
                 """
             ).fetchall()
             position_rows = conn.execute(
-                "SELECT account_id, symbol, units, price FROM snaptrade_positions"
+                """
+                SELECT account_id, symbol, units, price
+                FROM snaptrade_positions
+                WHERE portfolio_position_id IS NOT NULL
+                """
             ).fetchall()
             last_error = conn.execute(
                 """
@@ -792,7 +796,7 @@ class SnapTradeService:
                 totals["account_count"] = int(totals["account_count"]) + 1
                 totals["portfolio_account_count"] = int(totals["portfolio_account_count"]) + 1
                 try:
-                    position_count, position_symbols = self._sync_positions(
+                    position_count, portfolio_position_count, position_symbols = self._sync_positions(
                         client=client,
                         user=user,
                         account=account,
@@ -815,7 +819,7 @@ class SnapTradeService:
                     continue
                 totals["position_count"] = int(totals["position_count"]) + position_count
                 totals["portfolio_position_count"] = (
-                    int(totals["portfolio_position_count"]) + position_count
+                    int(totals["portfolio_position_count"]) + portfolio_position_count
                 )
                 totals["activity_count"] = int(totals["activity_count"]) + activity_count
                 totals["order_count"] = int(totals["order_count"]) + order_count
@@ -1181,7 +1185,7 @@ class SnapTradeService:
         client: SnapTradeReadOnlyClient,
         user: SnapTradeUser,
         account: SnapTradeNormalizedAccount,
-    ) -> tuple[int, set[str]]:
+    ) -> tuple[int, int, set[str]]:
         response = _dict(
             _body(
                 client.account_information.get_all_account_positions(
@@ -1197,7 +1201,9 @@ class SnapTradeService:
             if (position := self._normalize_position(_dict(raw_position))) is not None
         ]
         synced_at = _now()
-        symbols = {position.symbol for position in positions}
+        portfolio_positions = self._portfolio_positions(positions)
+        portfolio_position_keys = {position.position_key for position in portfolio_positions}
+        symbols = {position.symbol for position in portfolio_positions}
         with self.storage.connection() as conn:
             existing_rows = conn.execute(
                 """
@@ -1227,7 +1233,7 @@ class SnapTradeService:
             self._replace_portfolio_positions(
                 conn=conn,
                 account=account,
-                positions=positions,
+                positions=portfolio_positions,
                 existing_portfolio_ids=existing_portfolio_ids,
                 synced_at=synced_at,
             )
@@ -1238,7 +1244,11 @@ class SnapTradeService:
                 synced_at=synced_at,
             )
             for position in positions:
-                portfolio_position_id = f"snaptrade:{account.account_id}:{position.position_key}"
+                portfolio_position_id = (
+                    f"snaptrade:{account.account_id}:{position.position_key}"
+                    if position.position_key in portfolio_position_keys
+                    else None
+                )
                 conn.execute(
                     """
                     INSERT INTO snaptrade_positions (
@@ -1284,7 +1294,7 @@ class SnapTradeService:
                     ],
                 )
             conn.commit()
-        return len(positions), symbols
+        return len(positions), len(portfolio_positions), symbols
 
     def _sync_activities(
         self,
@@ -1806,6 +1816,16 @@ class SnapTradeService:
                     synced_at,
                 ],
             )
+
+    @staticmethod
+    def _portfolio_positions(
+        positions: list[SnapTradeNormalizedPosition],
+    ) -> list[SnapTradeNormalizedPosition]:
+        return [
+            position
+            for position in positions
+            if str(position.security_kind or "").lower() != "other"
+        ]
 
     def _update_portfolio_account_cash_balance(
         self,
