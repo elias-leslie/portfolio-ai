@@ -401,7 +401,7 @@ providers:
       per_day: null  # Unlimited
 
     capabilities:
-      ohlcv: true
+      ohlcv: false
       fundamentals: true
       news: true
       reference: true

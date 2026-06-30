@@ -244,7 +244,7 @@ class FinnhubSource(BaseSource):
 
     name = "finnhub"
     priority = 10  # Same as Polygon - medium priority
-    supports_day = True
+    supports_day = False
     supports_reference = True
     supports_news = True
 

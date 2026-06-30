@@ -148,7 +148,7 @@ def check_data_source_health() -> dict[str, object]:
     results: dict[str, str] = {}
     errors: dict[str, str] = {}
 
-    for source in fetcher.sources:
+    for source in fetcher.get_sources_for_dataset(DATASET_DAY):
         _check_single_source(source, request, results, errors, fetcher.metrics_manager)
 
     return _summarise(task_id, results, errors)

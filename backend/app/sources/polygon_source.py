@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 import polars as pl
 
 from ..logging_config import get_logger
+from ..utils._market_trading_days import get_expected_data_date, is_trading_day
 from .base import BaseSource, DatasetRequest
 from .jsonpath_mapper import map_response_to_schema
 from .polygon_client import get_client
@@ -37,15 +38,16 @@ _DAY_BAR_MAPPING: dict[str, Any] = {
 
 
 def _iterate_dates(start: dt.date | dt.datetime, end: dt.date | dt.datetime) -> list[str]:
-    """Generate list of ISO date strings between start and end."""
+    """Generate completed trading-date ISO strings between start and end."""
     start_date = start.date() if isinstance(start, dt.datetime) else start
-    end_date = end.date() if isinstance(end, dt.datetime) else end
+    end_date = min(end.date() if isinstance(end, dt.datetime) else end, get_expected_data_date())
     if end_date < start_date:
         return []
     days: list[str] = []
     current = start_date
     while current <= end_date:
-        days.append(current.isoformat())
+        if is_trading_day(current):
+            days.append(current.isoformat())
         current += dt.timedelta(days=1)
     return days
 

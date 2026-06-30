@@ -87,3 +87,28 @@ def test_source_health_fetcher_loads_database_credentials(monkeypatch) -> None:
         "finnhub",
         "alphavantage",
     ]
+
+
+def test_source_health_checks_day_sources_only(monkeypatch) -> None:
+    checked: list[str] = []
+    metric_manager = Mock()
+
+    class FakeFetcher:
+        def __init__(self) -> None:
+            self.metrics_manager = metric_manager
+
+        def get_sources_for_dataset(self, dataset: str) -> list[Any]:
+            assert dataset == DATASET_DAY
+            return ["day-source"]
+
+    monkeypatch.setattr(source_health_tasks, "_build_fetcher", FakeFetcher)
+    def fake_check(source: str, _request: DatasetRequest, results: dict[str, str], *_args) -> None:
+        checked.append(source)
+        results[source] = "healthy"
+
+    monkeypatch.setattr(source_health_tasks, "_check_single_source", fake_check)
+
+    result = source_health_tasks.check_data_source_health()
+
+    assert checked == ["day-source"]
+    assert result["total_sources"] == 1

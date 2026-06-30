@@ -29,7 +29,7 @@ def finnhub_source(mock_finnhub_client: Mock) -> FinnhubSource:
     source = FinnhubSource.__new__(FinnhubSource)
     source.name = "finnhub"
     source.priority = 10
-    source.supports_day = True
+    source.supports_day = False
     source.supports_reference = True
     source.supports_news = True
     source.client = mock_finnhub_client
@@ -46,7 +46,7 @@ def test_finnhub_source_initialization() -> None:
 
         assert source.name == "finnhub"
         assert source.priority == 10
-        assert source.supports_day is True
+        assert source.supports_day is False
         assert source.supports_reference is True
         assert source.supports_news is True
         assert source.client == mock_client
