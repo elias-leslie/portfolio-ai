@@ -8,5 +8,5 @@ overrides:
   flatted: ">=3.4.2"
   picomatch: ">=4.0.4"
   postcss: 8.5.15
-  vite: 8.0.5
+  vite: 8.0.16
   ws: 8.20.1
