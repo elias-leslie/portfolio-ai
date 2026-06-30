@@ -466,8 +466,6 @@ class TestBaseHTTPClient:
         mock_httpx_client = Mock()
         client._client = mock_httpx_client
 
-        # Trigger garbage collection
-        del client
+        client.__del__()
 
-        # Note: __del__ is not guaranteed to be called immediately, but we test the implementation
-        # In practice, close() should be called explicitly or via context manager
+        mock_httpx_client.close.assert_called_once()

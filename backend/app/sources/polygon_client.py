@@ -117,12 +117,6 @@ class PolygonClient(BaseHTTPClient):
         path = f"/v3/reference/symbols/{symbol}"
         return self.get(path)
 
-    def __del__(self) -> None:
-        """Close client on garbage collection."""
-        if hasattr(self, "_client"):
-            self.close()
-
-
 # Module-level singleton state
 class _ClientState:
     """Holds singleton client instance."""

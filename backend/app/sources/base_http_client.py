@@ -16,6 +16,7 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from collections import deque
+from contextlib import suppress
 from typing import Any
 
 import httpx
@@ -385,5 +386,7 @@ class BaseHTTPClient(ABC):
 
     def __del__(self) -> None:
         """Close client on garbage collection."""
-        if hasattr(self, "_client"):
-            self.close()
+        client = getattr(self, "_client", None)
+        if client is not None:
+            with suppress(Exception):
+                client.close()

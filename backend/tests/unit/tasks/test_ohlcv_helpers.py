@@ -88,6 +88,9 @@ def test_fetch_watchlist_vwap_data_handles_mixed_vendor_schemas() -> None:
             return self._frame
 
     class _Fetcher:
+        def __init__(self) -> None:
+            self.metrics_manager = _Metrics()
+
         def get_sources_for_dataset(self, _dataset: str) -> list[_Source]:
             return [
                 _Source(
@@ -129,6 +132,17 @@ def test_fetch_watchlist_vwap_data_handles_mixed_vendor_schemas() -> None:
                 ),
             ]
 
+    class _Metrics:
+        def __init__(self) -> None:
+            self.successes: list[str] = []
+
+        def record_success(self, source_name: str, _latency_ms: int) -> None:
+            self.successes.append(source_name)
+
+        def record_failure(self, _source_name: str, _error: Exception) -> None:
+            raise AssertionError("unexpected failure")
+
+    fetcher = _Fetcher()
     request = DatasetRequest(
         dataset="day",
         profile="vwap",
@@ -138,10 +152,11 @@ def test_fetch_watchlist_vwap_data_handles_mixed_vendor_schemas() -> None:
         timezone="UTC",
     )
 
-    result, error_count, errors = _ohlcv_helpers.fetch_watchlist_vwap_data(_Fetcher(), request)
+    result, error_count, errors = _ohlcv_helpers.fetch_watchlist_vwap_data(fetcher, request)
 
     assert error_count == 0
     assert errors == {}
+    assert fetcher.metrics_manager.successes == ["fmp", "polygon"]
     assert result is not None
     assert result.height == 2
     assert "trade_count" in result.columns

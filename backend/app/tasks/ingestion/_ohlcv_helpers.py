@@ -7,6 +7,7 @@ Not part of the public API — import from price_ingestion instead.
 from __future__ import annotations
 
 import datetime as dt
+import time
 from typing import Any
 
 import polars as pl
@@ -374,6 +375,7 @@ def fetch_watchlist_vwap_data(
     frames: list[pl.DataFrame] = []
     errors: dict[str, list[str]] = {}
     symbols_remaining = {str(symbol).upper() for symbol in request.symbols}
+    metrics_manager = getattr(fetcher, "metrics_manager", None)
 
     for source in sources:
         if not symbols_remaining:
@@ -388,11 +390,14 @@ def fetch_watchlist_vwap_data(
                 timezone=request.timezone,
                 ingest_run_id=request.ingest_run_id,
             )
+            started_at = time.monotonic()
             data = source.fetch_day_bars(source_request)
             usable = _usable_vwap_rows(data)
             if usable is None:
                 logger.info("refresh_watchlist_vwap_source_no_usable_rows", source=source.name)
                 continue
+            if metrics_manager is not None:
+                metrics_manager.record_success(source.name, int((time.monotonic() - started_at) * 1000))
             frames.append(usable)
             fetched_symbols = {str(symbol).upper() for symbol in usable["symbol"].unique().to_list()}
             symbols_remaining -= fetched_symbols
@@ -405,6 +410,8 @@ def fetch_watchlist_vwap_data(
             )
         except Exception as e:
             errors.setdefault(source.name, []).append(str(e))
+            if metrics_manager is not None:
+                metrics_manager.record_failure(source.name, e)
             logger.warning(
                 "refresh_watchlist_vwap_source_failed",
                 source=source.name,
