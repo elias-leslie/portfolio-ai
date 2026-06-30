@@ -138,39 +138,39 @@ def fetch_reference_payload(symbols: Iterable[str], as_of: dt.date) -> pl.DataFr
         as_of_date=as_of.isoformat(),
     )
 
-    with _managed_yf_session() as session:
-        for symbol in symbol_list:
-            try:
+    for symbol in symbol_list:
+        try:
+            with _managed_yf_session() as session:
                 yf_obj = _ticker(symbol, session)
                 info = yf_obj.info
 
-                if not info:
-                    logger.debug("yfinance_no_reference_data", symbol=symbol)
-                    continue
-
-                payload_dict = build_reference_payload(symbol, info)
-                records.append(
-                    {
-                        "symbol": symbol,
-                        "as_of_date": as_of,
-                        "payload": json.dumps(payload_dict),
-                        "source": "yfinance",
-                    }
-                )
-
-                logger.debug("yfinance_reference_fetched", symbol=symbol)
-
-            except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
-                logger.warning(
-                    "yfinance_reference_error",
-                    symbol=symbol,
-                    error=str(e),
-                    error_type=type(e).__name__,
-                )
+            if not info:
+                logger.debug("yfinance_no_reference_data", symbol=symbol)
                 continue
 
+            payload_dict = build_reference_payload(symbol, info)
+            records.append(
+                {
+                    "symbol": symbol,
+                    "as_of_date": as_of,
+                    "payload": json.dumps(payload_dict),
+                    "source": "yfinance",
+                }
+            )
+
+            logger.debug("yfinance_reference_fetched", symbol=symbol)
+
+        except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
+            logger.debug(
+                "yfinance_reference_error",
+                symbol=symbol,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            continue
+
     if not records:
-        logger.warning("yfinance_no_reference_data_fetched")
+        logger.info("yfinance_no_reference_data_fetched")
         return None
 
     logger.info("yfinance_reference_complete", num_symbols=len(records))

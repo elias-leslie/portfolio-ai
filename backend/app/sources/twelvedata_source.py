@@ -336,7 +336,7 @@ class TwelveDataSource(BaseSource):
                 # Check for error response
                 if "status" in response and response["status"] == "error":
                     error_msg = response.get("message", "Unknown error")
-                    logger.warning(
+                    logger.debug(
                         "twelvedata_profile_api_error",
                         symbol=symbol,
                         error=error_msg,
@@ -362,7 +362,7 @@ class TwelveDataSource(BaseSource):
                 logger.debug("twelvedata_reference_fetched", symbol=symbol)
 
             except Exception as e:
-                logger.warning(
+                logger.debug(
                     "twelvedata_reference_error",
                     symbol=symbol,
                     error=str(e),
@@ -371,7 +371,7 @@ class TwelveDataSource(BaseSource):
                 continue
 
         if not records:
-            logger.warning("twelvedata_no_reference_data_fetched")
+            logger.info("twelvedata_no_reference_data_fetched")
             return None
 
         logger.info(

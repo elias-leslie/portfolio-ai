@@ -46,7 +46,14 @@ def test_yfinance_reference_fetch_closes_http_session(
         def __init__(self, symbol: str, *, session: Any) -> None:
             assert session is sessions[-1]
             self.symbol = symbol
-            self.info = {"regularMarketPrice": 123.45}
+            self.session = session
+
+        @property
+        def info(self) -> dict[str, float]:
+            if self.symbol == "BAD":
+                self.session.close()
+                raise TypeError("simulated provider parse failure")
+            return {"regularMarketPrice": 123.45}
 
     def session_factory(**_: Any) -> DummySession:
         session = DummySession()
@@ -61,11 +68,12 @@ def test_yfinance_reference_fetch_closes_http_session(
         lambda symbol, info: {"symbol": symbol, "price": info["regularMarketPrice"]},
     )
 
-    df = yfinance_fetchers.fetch_reference_payload(["AAPL"], dt.date(2026, 1, 2))
+    df = yfinance_fetchers.fetch_reference_payload(["BAD", "AAPL"], dt.date(2026, 1, 2))
 
     assert df is not None
     assert df["symbol"].to_list() == ["AAPL"]
-    assert sessions and sessions[0].closed
+    assert len(sessions) == 2
+    assert all(session.closed for session in sessions)
 
 
 @pytest.fixture()
