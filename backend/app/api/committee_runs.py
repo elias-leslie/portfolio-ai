@@ -121,7 +121,7 @@ async def start_run(
             blocking=[i.check for i in report.blocking_issues],
         )
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={
                 "error": "data_unready",
                 "message": (

@@ -9,7 +9,7 @@ dependencies = [
     "fastapi==0.136.3",
     "uvicorn==0.38.0",
     "pydantic==2.13.4",
-    "starlette==1.2.1",
+    "starlette==1.3.1",
     # Database & data processing
     "alembic>=1.13.0",
     "sqlalchemy==2.0.45",
@@ -34,14 +34,14 @@ dependencies = [
     # Workflow orchestration
     "hatchet-sdk==1.33.9",
     # Configuration
-    "pydantic-settings==2.14.1",
+    "pydantic-settings==2.14.2",
     "python-dotenv>=1.0.0",
-    "pypdf>=6.13.0",
+    "pypdf>=6.13.3",
     "pypdfium2>=5.6.0",
     "Pillow>=12.2.0",
     "rapidocr_onnxruntime>=1.2.3",
     # Utilities
-    "cryptography>=48.0.0",
+    "cryptography>=48.0.1",
     "python-dateutil==2.9.0.post0",
     "pyyaml==6.0.3",
     "python-json-logger==4.0.0",
