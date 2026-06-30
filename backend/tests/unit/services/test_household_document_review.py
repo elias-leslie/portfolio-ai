@@ -723,6 +723,7 @@ def test_review_skips_filename_signature_only_money_doc_without_financial_accoun
     )
     service = HouseholdDocumentReviewService(agent_service=MagicMock())
     with (
+        patch(f"{_REVIEW_MODULE}.AGENT_HUB_ENABLED", True),
         patch.object(
             service,
             "_signature_review",

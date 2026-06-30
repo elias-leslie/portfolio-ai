@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict i9ViFj3KaSAybpr8sKVcYjzXh5Y7IrmJ12kkgnbZHBogtQcosYoeQXWqq9r9Ocg
+\restrict Fd4xXtRhVrdg3eASSmZ11nOonAFNnW4EjQWSRqLby9fFpHozerDfj97Mn3vlrAr
 
 -- Dumped from database version 16.13 (Debian 16.13-1.pgdg12+1)
 -- Dumped by pg_dump version 16.14 (Ubuntu 16.14-0ubuntu0.24.04.1)
@@ -441,6 +441,39 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
+-- Name: aca_marketplace_plans; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.aca_marketplace_plans (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    plan_year integer NOT NULL,
+    state_code text NOT NULL,
+    fips_county_code text NOT NULL,
+    county_name text,
+    metal_level text NOT NULL,
+    issuer_name text,
+    plan_id text NOT NULL,
+    plan_marketing_name text,
+    standardized_plan_option text,
+    plan_type text,
+    rating_area text,
+    ehb_percent numeric(6,3),
+    premium_child_age_0_14 numeric(10,2),
+    premium_child_age_18 numeric(10,2),
+    premium_age_21 numeric(10,2),
+    premium_age_27 numeric(10,2),
+    premium_age_30 numeric(10,2),
+    premium_age_40 numeric(10,2),
+    premium_age_50 numeric(10,2),
+    premium_age_60 numeric(10,2),
+    medical_deductible_individual numeric(10,2),
+    medical_moop_individual numeric(10,2),
+    source_url text,
+    ingested_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
 -- Name: agent_conversation_messages; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -844,7 +877,8 @@ CREATE TABLE public.automation_preferences (
     scheduled_jenny_operator_enabled boolean,
     scheduled_ml_labeling_enabled boolean,
     scheduled_strategy_research_enabled boolean,
-    scheduled_account_sync_enabled boolean
+    scheduled_account_sync_enabled boolean,
+    scheduled_price_check_enabled boolean
 );
 
 
@@ -1075,7 +1109,8 @@ CREATE TABLE public.card_rotation_steps (
     projected_earn_value numeric(14,2),
     rule_warnings jsonb DEFAULT '[]'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    player text
 );
 
 
@@ -2101,7 +2136,9 @@ CREATE TABLE public.household_credit_cards (
     notes text,
     metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    player text DEFAULT 'p1'::text NOT NULL,
+    role text DEFAULT 'rotating'::text NOT NULL
 );
 
 
@@ -2266,7 +2303,19 @@ CREATE TABLE public.household_housing_costs (
     evidence_note text,
     source_document_id uuid,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    property_value numeric(14,2),
+    ownership_percent numeric(6,3),
+    value_as_of date,
+    retirement_treatment text DEFAULT 'track_only'::text NOT NULL,
+    annual_retirement_income numeric(12,2),
+    liquidity_year integer,
+    liquidity_amount numeric(14,2),
+    property_address text,
+    valuation_source text,
+    valuation_confidence numeric(5,4),
+    valuation_range_low numeric(14,2),
+    valuation_range_high numeric(14,2)
 );
 
 
@@ -2421,6 +2470,103 @@ CREATE TABLE public.household_planned_expenses (
 
 
 --
+-- Name: household_price_check_runs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_price_check_runs (
+    id uuid NOT NULL,
+    status character varying(32) DEFAULT 'queued'::character varying NOT NULL,
+    triggered_by character varying(32) DEFAULT 'manual'::character varying NOT NULL,
+    vendor_status jsonb DEFAULT '{}'::jsonb NOT NULL,
+    product_count integer DEFAULT 0 NOT NULL,
+    quote_count integer DEFAULT 0 NOT NULL,
+    finding_count integer DEFAULT 0 NOT NULL,
+    error text,
+    started_at timestamp with time zone,
+    finished_at timestamp with time zone,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: household_price_findings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_price_findings (
+    id uuid NOT NULL,
+    kind character varying(32) NOT NULL,
+    product_id uuid,
+    shopping_list_id uuid,
+    merchant_id uuid,
+    vendor_key character varying(64),
+    price_check_run_id uuid,
+    savings_estimate numeric(18,2),
+    status character varying(32) DEFAULT 'open'::character varying NOT NULL,
+    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: household_product_identifiers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_product_identifiers (
+    id uuid NOT NULL,
+    product_id uuid NOT NULL,
+    kind character varying(32) NOT NULL,
+    value text NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: household_product_price_observations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_product_price_observations (
+    id uuid NOT NULL,
+    product_id uuid NOT NULL,
+    purchase_item_id uuid,
+    merchant_id uuid,
+    observed_date date NOT NULL,
+    total_price numeric(18,2) NOT NULL,
+    quantity numeric(18,4),
+    unit_price numeric(18,4),
+    package_display_label text,
+    package_normalized_quantity numeric(18,4),
+    package_normalized_unit character varying(32),
+    source character varying(32) NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: household_products; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_products (
+    id uuid NOT NULL,
+    canonical_name text NOT NULL,
+    brand text,
+    package_display_label text,
+    package_normalized_quantity numeric(18,4),
+    package_normalized_unit character varying(32),
+    image_url text,
+    watched boolean DEFAULT false NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
 -- Name: household_profiles; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2468,7 +2614,67 @@ CREATE TABLE public.household_profiles (
     bridge_manual_amount numeric(12,2),
     bridge_real_return numeric(6,5),
     retirement_essential_floor_override numeric(12,2),
-    retirement_discretionary_override numeric(12,2)
+    retirement_discretionary_override numeric(12,2),
+    bridge_growth text,
+    aca_tier text,
+    aca_premium_age21_override numeric(10,2),
+    aca_oop_monthly numeric(10,2),
+    medicare_monthly_per_person numeric(10,2),
+    spouse_net_monthly_income numeric(10,2),
+    partial_retirement_monthly_spend numeric(10,2),
+    spouse_gross_annual_income numeric(12,2)
+);
+
+
+--
+-- Name: household_property_valuations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_property_valuations (
+    id uuid NOT NULL,
+    housing_cost_id uuid NOT NULL,
+    source text NOT NULL,
+    source_label text NOT NULL,
+    estimate_value numeric(14,2) NOT NULL,
+    range_low numeric(14,2),
+    range_high numeric(14,2),
+    confidence numeric(5,4),
+    as_of date NOT NULL,
+    fetched_at timestamp with time zone NOT NULL,
+    methodology text,
+    source_url text,
+    metadata json DEFAULT '{}'::json NOT NULL
+);
+
+
+--
+-- Name: household_purchase_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_purchase_items (
+    id uuid NOT NULL,
+    import_row_id uuid NOT NULL,
+    document_id uuid,
+    purchase_group_key text NOT NULL,
+    transaction_id uuid,
+    merchant_id uuid,
+    product_id uuid,
+    product_match_status character varying(32) DEFAULT 'unmatched'::character varying NOT NULL,
+    product_match_confidence double precision,
+    purchase_date timestamp with time zone,
+    description text NOT NULL,
+    quantity numeric(18,4),
+    unit_price numeric(18,4),
+    amount numeric(18,2) NOT NULL,
+    allocated_amount numeric(18,2),
+    category text NOT NULL,
+    essentiality text NOT NULL,
+    categorization_source character varying(32) DEFAULT 'parser'::character varying NOT NULL,
+    item_rule_id uuid,
+    removed boolean DEFAULT false NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 
@@ -2491,6 +2697,40 @@ CREATE TABLE public.household_questions (
     question_format text DEFAULT 'short_text'::text NOT NULL,
     options jsonb,
     direction text DEFAULT 'jenny_to_user'::text NOT NULL
+);
+
+
+--
+-- Name: household_retirement_allocation_scenarios; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_retirement_allocation_scenarios (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    holdings jsonb DEFAULT '[]'::jsonb NOT NULL,
+    bridge_growth text,
+    bridge_real_return numeric(6,5),
+    notes text,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: household_retirement_college_schedule; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_retirement_college_schedule (
+    id uuid NOT NULL,
+    calendar_year integer NOT NULL,
+    real_amount numeric(12,2) NOT NULL,
+    notes text,
+    confirmation_status text DEFAULT 'confirmed'::text NOT NULL,
+    provenance text DEFAULT 'manual'::text NOT NULL,
+    evidence_note text,
+    source_document_id uuid,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 
@@ -2531,6 +2771,40 @@ CREATE TABLE public.household_retirement_income_sources (
     provenance text DEFAULT 'manual'::text NOT NULL,
     evidence_note text,
     source_document_id uuid,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: household_shopping_list_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_shopping_list_items (
+    id uuid NOT NULL,
+    shopping_list_id uuid NOT NULL,
+    product_id uuid,
+    free_text text,
+    quantity numeric(18,4),
+    unit character varying(32),
+    status character varying(32) DEFAULT 'open'::character varying NOT NULL,
+    "position" integer DEFAULT 0 NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: household_shopping_lists; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_shopping_lists (
+    id uuid NOT NULL,
+    name text NOT NULL,
+    status character varying(32) DEFAULT 'active'::character varying NOT NULL,
+    latest_optimization jsonb,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -2600,7 +2874,8 @@ CREATE TABLE public.household_transaction_rules (
     applied_count integer DEFAULT 0 NOT NULL,
     metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    product_id uuid
 );
 
 
@@ -2640,6 +2915,27 @@ CREATE TABLE public.household_transactions (
     balance_after numeric(18,4),
     pending boolean DEFAULT false NOT NULL,
     removed boolean DEFAULT false NOT NULL
+);
+
+
+--
+-- Name: household_vendor_profiles; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.household_vendor_profiles (
+    id uuid NOT NULL,
+    vendor_key character varying(64) NOT NULL,
+    display_name text,
+    merchant_id uuid,
+    enabled boolean DEFAULT true NOT NULL,
+    delivery_fee numeric(18,2),
+    pickup_fee numeric(18,2),
+    free_delivery_threshold numeric(18,2),
+    membership_monthly_fee numeric(18,2),
+    membership_active boolean DEFAULT false NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 
@@ -4131,6 +4427,24 @@ CREATE TABLE public.research_universe_symbols (
     added_at timestamp with time zone DEFAULT now() NOT NULL,
     removed_at timestamp with time zone,
     last_seen_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: retirement_income_stream_overrides; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.retirement_income_stream_overrides (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    stream_key character varying(64) NOT NULL,
+    label character varying(255),
+    owner_name character varying(255),
+    status character varying(32),
+    merged_into_stream_key character varying(64),
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_retirement_income_stream_overrides_status CHECK (((status IS NULL) OR ((status)::text = ANY ((ARRAY['active'::character varying, 'stopped'::character varying, 'one_off'::character varying, 'portfolio_yield'::character varying, 'ignored'::character varying, 'merged'::character varying])::text[]))))
 );
 
 
@@ -6262,6 +6576,14 @@ ALTER TABLE ONLY public.yield_curve ALTER COLUMN id SET DEFAULT nextval('public.
 
 
 --
+-- Name: aca_marketplace_plans aca_marketplace_plans_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.aca_marketplace_plans
+    ADD CONSTRAINT aca_marketplace_plans_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: agent_conversation_messages agent_conversation_messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6806,6 +7128,46 @@ ALTER TABLE ONLY public.household_planned_expenses
 
 
 --
+-- Name: household_price_check_runs household_price_check_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_price_check_runs
+    ADD CONSTRAINT household_price_check_runs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: household_price_findings household_price_findings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_price_findings
+    ADD CONSTRAINT household_price_findings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: household_product_identifiers household_product_identifiers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_product_identifiers
+    ADD CONSTRAINT household_product_identifiers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: household_product_price_observations household_product_price_observations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_product_price_observations
+    ADD CONSTRAINT household_product_price_observations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: household_products household_products_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_products
+    ADD CONSTRAINT household_products_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: household_profiles household_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6814,11 +7176,51 @@ ALTER TABLE ONLY public.household_profiles
 
 
 --
+-- Name: household_property_valuations household_property_valuations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_property_valuations
+    ADD CONSTRAINT household_property_valuations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: household_purchase_items household_purchase_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_purchase_items
+    ADD CONSTRAINT household_purchase_items_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: household_questions household_questions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.household_questions
     ADD CONSTRAINT household_questions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: household_retirement_allocation_scenarios household_retirement_allocation_scenarios_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_retirement_allocation_scenarios
+    ADD CONSTRAINT household_retirement_allocation_scenarios_name_key UNIQUE (name);
+
+
+--
+-- Name: household_retirement_allocation_scenarios household_retirement_allocation_scenarios_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_retirement_allocation_scenarios
+    ADD CONSTRAINT household_retirement_allocation_scenarios_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: household_retirement_college_schedule household_retirement_college_schedule_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_retirement_college_schedule
+    ADD CONSTRAINT household_retirement_college_schedule_pkey PRIMARY KEY (id);
 
 
 --
@@ -6835,6 +7237,22 @@ ALTER TABLE ONLY public.household_retirement_healthcare_schedule
 
 ALTER TABLE ONLY public.household_retirement_income_sources
     ADD CONSTRAINT household_retirement_income_sources_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: household_shopping_list_items household_shopping_list_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_shopping_list_items
+    ADD CONSTRAINT household_shopping_list_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: household_shopping_lists household_shopping_lists_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_shopping_lists
+    ADD CONSTRAINT household_shopping_lists_pkey PRIMARY KEY (id);
 
 
 --
@@ -6867,6 +7285,14 @@ ALTER TABLE ONLY public.household_transaction_rules
 
 ALTER TABLE ONLY public.household_transactions
     ADD CONSTRAINT household_transactions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: household_vendor_profiles household_vendor_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_vendor_profiles
+    ADD CONSTRAINT household_vendor_profiles_pkey PRIMARY KEY (id);
 
 
 --
@@ -7246,6 +7672,14 @@ ALTER TABLE ONLY public.research_universe_symbols
 
 
 --
+-- Name: retirement_income_stream_overrides retirement_income_stream_overrides_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.retirement_income_stream_overrides
+    ADD CONSTRAINT retirement_income_stream_overrides_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: retirement_scenarios retirement_scenarios_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7534,6 +7968,14 @@ ALTER TABLE ONLY public.source_metrics
 
 
 --
+-- Name: aca_marketplace_plans uq_aca_marketplace_plans_year_county_plan; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.aca_marketplace_plans
+    ADD CONSTRAINT uq_aca_marketplace_plans_year_county_plan UNIQUE (plan_year, fips_county_code, plan_id);
+
+
+--
 -- Name: agent_conversation_messages uq_agent_conversation_messages_run_seq; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7614,11 +8056,43 @@ ALTER TABLE ONLY public.household_merchants
 
 
 --
+-- Name: household_product_identifiers uq_household_product_identifiers_kind_value; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_product_identifiers
+    ADD CONSTRAINT uq_household_product_identifiers_kind_value UNIQUE (kind, value);
+
+
+--
+-- Name: household_property_valuations uq_household_property_valuations_snapshot; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_property_valuations
+    ADD CONSTRAINT uq_household_property_valuations_snapshot UNIQUE (housing_cost_id, source, as_of);
+
+
+--
+-- Name: household_purchase_items uq_household_purchase_items_import_row_id; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_purchase_items
+    ADD CONSTRAINT uq_household_purchase_items_import_row_id UNIQUE (import_row_id);
+
+
+--
 -- Name: household_transactions uq_household_transactions_row_hash; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.household_transactions
     ADD CONSTRAINT uq_household_transactions_row_hash UNIQUE (row_hash);
+
+
+--
+-- Name: household_vendor_profiles uq_household_vendor_profiles_vendor_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_vendor_profiles
+    ADD CONSTRAINT uq_household_vendor_profiles_vendor_key UNIQUE (vendor_key);
 
 
 --
@@ -7891,6 +8365,13 @@ ALTER TABLE ONLY public.yield_curve
 
 ALTER TABLE ONLY public.yield_curve
     ADD CONSTRAINT yield_curve_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: idx_aca_marketplace_plans_lookup; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_aca_marketplace_plans_lookup ON public.aca_marketplace_plans USING btree (plan_year, state_code, fips_county_code, metal_level);
 
 
 --
@@ -8811,10 +9292,66 @@ CREATE INDEX idx_household_planned_expenses_updated_at ON public.household_plann
 
 
 --
+-- Name: idx_household_price_findings_product_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_price_findings_product_id ON public.household_price_findings USING btree (product_id);
+
+
+--
+-- Name: idx_household_price_findings_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_price_findings_status ON public.household_price_findings USING btree (status);
+
+
+--
+-- Name: idx_household_product_identifiers_product_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_product_identifiers_product_id ON public.household_product_identifiers USING btree (product_id);
+
+
+--
+-- Name: idx_household_product_price_observations_product_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_product_price_observations_product_date ON public.household_product_price_observations USING btree (product_id, observed_date);
+
+
+--
 -- Name: idx_household_profiles_updated_at; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_household_profiles_updated_at ON public.household_profiles USING btree (updated_at);
+
+
+--
+-- Name: idx_household_purchase_items_product_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_purchase_items_product_id ON public.household_purchase_items USING btree (product_id);
+
+
+--
+-- Name: idx_household_purchase_items_product_match_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_purchase_items_product_match_status ON public.household_purchase_items USING btree (product_match_status);
+
+
+--
+-- Name: idx_household_purchase_items_purchase_group_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_purchase_items_purchase_group_key ON public.household_purchase_items USING btree (purchase_group_key);
+
+
+--
+-- Name: idx_household_purchase_items_transaction_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_purchase_items_transaction_id ON public.household_purchase_items USING btree (transaction_id);
 
 
 --
@@ -8846,6 +9383,27 @@ CREATE INDEX idx_household_questions_status ON public.household_questions USING 
 
 
 --
+-- Name: idx_household_retirement_allocation_scenarios_updated_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_retirement_allocation_scenarios_updated_at ON public.household_retirement_allocation_scenarios USING btree (updated_at);
+
+
+--
+-- Name: idx_household_retirement_college_schedule_source_document_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_retirement_college_schedule_source_document_id ON public.household_retirement_college_schedule USING btree (source_document_id);
+
+
+--
+-- Name: idx_household_retirement_college_schedule_updated_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_retirement_college_schedule_updated_at ON public.household_retirement_college_schedule USING btree (updated_at);
+
+
+--
 -- Name: idx_household_retirement_healthcare_schedule_source_document_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8871,6 +9429,13 @@ CREATE INDEX idx_household_retirement_income_sources_source_document_id ON publi
 --
 
 CREATE INDEX idx_household_retirement_income_sources_updated_at ON public.household_retirement_income_sources USING btree (updated_at);
+
+
+--
+-- Name: idx_household_shopping_list_items_list_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_household_shopping_list_items_list_id ON public.household_shopping_list_items USING btree (shopping_list_id);
 
 
 --
@@ -10253,6 +10818,13 @@ CREATE INDEX ix_fomc_meetings_meeting_date ON public.fomc_meetings USING btree (
 
 
 --
+-- Name: ix_household_property_valuations_housing_fetched; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_household_property_valuations_housing_fetched ON public.household_property_valuations USING btree (housing_cost_id, fetched_at);
+
+
+--
 -- Name: ix_ips_drift_history_scope_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10285,6 +10857,13 @@ CREATE INDEX ix_research_universe_symbols_active ON public.research_universe_sym
 --
 
 CREATE INDEX ix_research_universe_symbols_sector ON public.research_universe_symbols USING btree (sector) WHERE (removed_at IS NULL);
+
+
+--
+-- Name: ix_retirement_income_stream_overrides_updated; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_retirement_income_stream_overrides_updated ON public.retirement_income_stream_overrides USING btree (updated_at DESC);
 
 
 --
@@ -10358,6 +10937,13 @@ CREATE UNIQUE INDEX uq_household_credit_cards_primary_active ON public.household
 
 
 --
+-- Name: uq_household_product_price_observations_purchase_item; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_household_product_price_observations_purchase_item ON public.household_product_price_observations USING btree (purchase_item_id) WHERE (purchase_item_id IS NOT NULL);
+
+
+--
 -- Name: uq_household_tracked_accounts_household_account_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10379,6 +10965,13 @@ CREATE UNIQUE INDEX uq_household_transaction_rules_active_merchant ON public.hou
 
 
 --
+-- Name: uq_household_transaction_rules_active_product; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_household_transaction_rules_active_product ON public.household_transaction_rules USING btree (product_id) WHERE ((enabled IS TRUE) AND (product_id IS NOT NULL));
+
+
+--
 -- Name: uq_portfolio_accounts_household_account_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10397,6 +10990,13 @@ CREATE UNIQUE INDEX uq_portfolio_transactions_account_external_id ON public.port
 --
 
 CREATE UNIQUE INDEX uq_price_cache_symbol_current ON public.price_cache USING btree (upper(symbol));
+
+
+--
+-- Name: uq_retirement_income_stream_overrides_stream_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_retirement_income_stream_overrides_stream_key ON public.retirement_income_stream_overrides USING btree (stream_key);
 
 
 --
@@ -10776,6 +11376,14 @@ ALTER TABLE ONLY public.household_tracked_accounts
 
 
 --
+-- Name: household_transaction_rules fk_household_transaction_rules_product_id; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_transaction_rules
+    ADD CONSTRAINT fk_household_transaction_rules_product_id FOREIGN KEY (product_id) REFERENCES public.household_products(id) ON DELETE CASCADE;
+
+
+--
 -- Name: household_transactions fk_household_transactions_household_account_id; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11104,11 +11712,139 @@ ALTER TABLE ONLY public.household_planned_expenses
 
 
 --
+-- Name: household_price_findings household_price_findings_merchant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_price_findings
+    ADD CONSTRAINT household_price_findings_merchant_id_fkey FOREIGN KEY (merchant_id) REFERENCES public.household_merchants(id) ON DELETE SET NULL;
+
+
+--
+-- Name: household_price_findings household_price_findings_price_check_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_price_findings
+    ADD CONSTRAINT household_price_findings_price_check_run_id_fkey FOREIGN KEY (price_check_run_id) REFERENCES public.household_price_check_runs(id) ON DELETE SET NULL;
+
+
+--
+-- Name: household_price_findings household_price_findings_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_price_findings
+    ADD CONSTRAINT household_price_findings_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.household_products(id) ON DELETE CASCADE;
+
+
+--
+-- Name: household_price_findings household_price_findings_shopping_list_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_price_findings
+    ADD CONSTRAINT household_price_findings_shopping_list_id_fkey FOREIGN KEY (shopping_list_id) REFERENCES public.household_shopping_lists(id) ON DELETE CASCADE;
+
+
+--
+-- Name: household_product_identifiers household_product_identifiers_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_product_identifiers
+    ADD CONSTRAINT household_product_identifiers_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.household_products(id) ON DELETE CASCADE;
+
+
+--
+-- Name: household_product_price_observations household_product_price_observations_merchant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_product_price_observations
+    ADD CONSTRAINT household_product_price_observations_merchant_id_fkey FOREIGN KEY (merchant_id) REFERENCES public.household_merchants(id) ON DELETE SET NULL;
+
+
+--
+-- Name: household_product_price_observations household_product_price_observations_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_product_price_observations
+    ADD CONSTRAINT household_product_price_observations_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.household_products(id) ON DELETE CASCADE;
+
+
+--
+-- Name: household_product_price_observations household_product_price_observations_purchase_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_product_price_observations
+    ADD CONSTRAINT household_product_price_observations_purchase_item_id_fkey FOREIGN KEY (purchase_item_id) REFERENCES public.household_purchase_items(id) ON DELETE CASCADE;
+
+
+--
+-- Name: household_property_valuations household_property_valuations_housing_cost_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_property_valuations
+    ADD CONSTRAINT household_property_valuations_housing_cost_id_fkey FOREIGN KEY (housing_cost_id) REFERENCES public.household_housing_costs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: household_purchase_items household_purchase_items_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_purchase_items
+    ADD CONSTRAINT household_purchase_items_document_id_fkey FOREIGN KEY (document_id) REFERENCES public.household_documents(id) ON DELETE CASCADE;
+
+
+--
+-- Name: household_purchase_items household_purchase_items_import_row_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_purchase_items
+    ADD CONSTRAINT household_purchase_items_import_row_id_fkey FOREIGN KEY (import_row_id) REFERENCES public.household_import_rows(id) ON DELETE CASCADE;
+
+
+--
+-- Name: household_purchase_items household_purchase_items_item_rule_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_purchase_items
+    ADD CONSTRAINT household_purchase_items_item_rule_id_fkey FOREIGN KEY (item_rule_id) REFERENCES public.household_transaction_rules(id) ON DELETE SET NULL;
+
+
+--
+-- Name: household_purchase_items household_purchase_items_merchant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_purchase_items
+    ADD CONSTRAINT household_purchase_items_merchant_id_fkey FOREIGN KEY (merchant_id) REFERENCES public.household_merchants(id) ON DELETE SET NULL;
+
+
+--
+-- Name: household_purchase_items household_purchase_items_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_purchase_items
+    ADD CONSTRAINT household_purchase_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.household_products(id) ON DELETE SET NULL;
+
+
+--
+-- Name: household_purchase_items household_purchase_items_transaction_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_purchase_items
+    ADD CONSTRAINT household_purchase_items_transaction_id_fkey FOREIGN KEY (transaction_id) REFERENCES public.household_transactions(id) ON DELETE SET NULL;
+
+
+--
 -- Name: household_questions household_questions_source_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.household_questions
     ADD CONSTRAINT household_questions_source_document_id_fkey FOREIGN KEY (source_document_id) REFERENCES public.household_documents(id) ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+--
+-- Name: household_retirement_college_schedule household_retirement_college_schedule_source_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_retirement_college_schedule
+    ADD CONSTRAINT household_retirement_college_schedule_source_document_id_fkey FOREIGN KEY (source_document_id) REFERENCES public.household_documents(id) ON UPDATE CASCADE ON DELETE SET NULL;
 
 
 --
@@ -11125,6 +11861,22 @@ ALTER TABLE ONLY public.household_retirement_healthcare_schedule
 
 ALTER TABLE ONLY public.household_retirement_income_sources
     ADD CONSTRAINT household_retirement_income_sources_source_document_id_fkey FOREIGN KEY (source_document_id) REFERENCES public.household_documents(id) ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+--
+-- Name: household_shopping_list_items household_shopping_list_items_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_shopping_list_items
+    ADD CONSTRAINT household_shopping_list_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.household_products(id) ON DELETE SET NULL;
+
+
+--
+-- Name: household_shopping_list_items household_shopping_list_items_shopping_list_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_shopping_list_items
+    ADD CONSTRAINT household_shopping_list_items_shopping_list_id_fkey FOREIGN KEY (shopping_list_id) REFERENCES public.household_shopping_lists(id) ON DELETE CASCADE;
 
 
 --
@@ -11181,6 +11933,14 @@ ALTER TABLE ONLY public.household_transactions
 
 ALTER TABLE ONLY public.household_transactions
     ADD CONSTRAINT household_transactions_merchant_id_fkey FOREIGN KEY (merchant_id) REFERENCES public.household_merchants(id) ON DELETE SET NULL;
+
+
+--
+-- Name: household_vendor_profiles household_vendor_profiles_merchant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.household_vendor_profiles
+    ADD CONSTRAINT household_vendor_profiles_merchant_id_fkey FOREIGN KEY (merchant_id) REFERENCES public.household_merchants(id) ON DELETE SET NULL;
 
 
 --
@@ -11531,5 +12291,5 @@ ALTER TABLE ONLY public.watchlist_technical_metrics
 -- PostgreSQL database dump complete
 --
 
-\unrestrict i9ViFj3KaSAybpr8sKVcYjzXh5Y7IrmJ12kkgnbZHBogtQcosYoeQXWqq9r9Ocg
+\unrestrict Fd4xXtRhVrdg3eASSmZ11nOonAFNnW4EjQWSRqLby9fFpHozerDfj97Mn3vlrAr
 
