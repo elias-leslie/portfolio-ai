@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -80,6 +81,15 @@ def test_configure_logging_uses_log_dir_env_override(tmp_path: Path, monkeypatch
     logger.info("env_override_event")
 
     assert (override_dir / "env-override.log").exists()
+
+
+def test_configure_logging_suppresses_yfinance_provider_noise(tmp_path: Path) -> None:
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    configure_logging(log_dir=str(log_dir), log_file="test-yfinance.log")
+
+    assert logging.getLogger("yfinance").level == logging.CRITICAL
 
 
 def test_log_levels(tmp_path: Path) -> None:

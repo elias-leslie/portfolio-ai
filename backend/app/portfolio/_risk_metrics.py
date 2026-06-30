@@ -68,7 +68,7 @@ def compute_local_risk_metrics(
     )
 
     if df.is_empty():
-        logger.warning("no_day_bars_data", symbol=symbol, benchmark=market_benchmark)
+        logger.debug("no_day_bars_data", symbol=symbol, benchmark=market_benchmark)
         return (None, None)
 
     try:
@@ -79,7 +79,7 @@ def compute_local_risk_metrics(
         return (None, None)
 
     if symbol_df.is_empty() or market_df.is_empty():
-        logger.warning(
+        logger.debug(
             "empty_return_series",
             symbol_empty=symbol_df.is_empty(),
             market_empty=market_df.is_empty(),
@@ -88,7 +88,7 @@ def compute_local_risk_metrics(
 
     joined = symbol_df.join(market_df, on="date", how="inner")
     if joined.height < 5:
-        logger.warning(
+        logger.debug(
             "Insufficient overlapping rows (%d < 5) for symbol=%s", joined.height, symbol
         )
         return (None, None)
@@ -102,7 +102,7 @@ def compute_local_risk_metrics(
     market_returns = market_returns[mask]
 
     if symbol_returns.size < 5 or market_returns.size < 5:
-        logger.warning(
+        logger.debug(
             "Insufficient finite return values (%d) for symbol=%s", symbol_returns.size, symbol
         )
         return (None, None)

@@ -166,6 +166,11 @@ def configure_logging(log_dir: str | None = None, log_file: str = "portfolio-ai.
     for handler in handlers:
         root_logger.addHandler(handler)
 
+    # yfinance reports transient provider failures to its own logger at ERROR before callers can
+    # fail over; Portfolio AI records source health separately, so keep routine 401/crumb noise out
+    # of journald.
+    logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+
     # Configure structlog
     structlog.configure(
         processors=[
