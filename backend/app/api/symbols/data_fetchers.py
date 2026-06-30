@@ -144,33 +144,12 @@ def get_portfolio_data(symbol: str, storage: PortfolioStorage) -> dict[str, Any]
 
 
 def get_strategies_data(symbol: str, storage: PortfolioStorage) -> dict[str, Any]:
-    """Fetch active strategies for symbol."""
-    strategies = []
-    try:
-        with storage.connection() as conn:
-            result = conn.execute(
-                """
-                SELECT
-                    id, name, symbol, strategy_type, status,
-                    expected_sharpe, live_sharpe_ratio, live_win_rate,
-                    live_trades_count
-                FROM strategy_definitions
-                WHERE UPPER(symbol) = UPPER(%s)
-                AND status IN ('active', 'testing')
-                ORDER BY live_sharpe_ratio DESC NULLS LAST
-                """,
-                [symbol],
-            )
-            rows = result.fetchall()
-            if rows and result.description:
-                strategies = rows_to_dicts(rows, result.description)
-    except Exception as e:
-        logger.warning("strategies_data_fetch_failed", symbol=symbol, error=str(e))
-
+    """Return the retired strategy-lab payload shape."""
+    strategies: list[dict[str, Any]] = []
     return {
         "strategies": strategies,
-        "active_count": len(strategies),
-        "best": strategies[0] if strategies else None,
+        "active_count": 0,
+        "best": None,
     }
 
 

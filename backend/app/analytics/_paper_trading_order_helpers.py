@@ -19,22 +19,7 @@ logger = get_logger(__name__)
 def fetch_strategy_metrics(
     storage: PortfolioStorage, strategy_id: str
 ) -> tuple[float | None, float | None, float | None]:
-    """Return (sharpe, win_rate, max_drawdown) for a strategy, or (None, None, None) on error."""
-    try:
-        with storage.connection() as conn:
-            row = conn.execute(
-                """SELECT expected_sharpe, expected_win_rate, expected_max_drawdown
-                   FROM strategy_definitions WHERE id = %s""",
-                (strategy_id,),
-            ).fetchone()
-            if row:
-                return (
-                    float(row[0]) if row[0] else None,
-                    float(row[1]) if row[1] else None,
-                    float(row[2]) if row[2] else None,
-                )
-    except Exception as e:
-        logger.warning("strategy_metrics_fetch_failed", error=str(e))
+    """Return empty metrics for the retired strategy-lab schema."""
     return (None, None, None)
 
 

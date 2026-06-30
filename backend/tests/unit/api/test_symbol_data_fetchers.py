@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from unittest.mock import Mock
 
-from app.api.symbols.data_fetchers import get_quote_data, get_watchlist_data
+from app.api.symbols.data_fetchers import get_quote_data, get_strategies_data, get_watchlist_data
 from app.portfolio.models import PriceData
 
 
@@ -23,6 +23,15 @@ def test_get_watchlist_data_uses_watchlist_items_without_decision_enrichment(moc
     watchlist_service.get_items_with_scores.assert_called_once_with(include_decision=False)
     build_mock.assert_called_once_with({"symbol": "NVDA"})
     assert result == {"symbol": "NVDA", "signal_type": "BUY"}
+
+
+def test_get_strategies_data_returns_retired_payload_without_query() -> None:
+    storage = Mock()
+
+    result = get_strategies_data("AAPL", storage)
+
+    assert result == {"strategies": [], "active_count": 0, "best": None}
+    storage.connection.assert_not_called()
 
 
 def test_get_quote_data_reads_canonical_price_with_short_ttl(monkeypatch) -> None:
