@@ -8,6 +8,7 @@ import pytest
 
 from app.tasks._ml_training_helpers import (
     _article_hash,
+    _find_labeled_article,
     _headlines_match,
     _load_training_data,
     _merge_gemini_labels,
@@ -227,6 +228,43 @@ def test_merge_gemini_labels_matches_articles_by_symbol_and_headline_prefix() ->
             "gemini_confidence": "high",
         }
     ]
+
+
+def test_merge_gemini_labels_matches_unique_headline_when_symbol_changes() -> None:
+    article_headline = "Bronstein Gewirtz files Graphic Packaging complaint"
+
+    merged = _merge_gemini_labels(
+        gemini_labels=[
+            {
+                "symbol": "GPK",
+                "headline": f"{article_headline} for investors",
+                "is_useful": True,
+                "reasons": ["material_event"],
+                "confidence": "high",
+            }
+        ],
+        new_articles=[
+            {
+                "symbol": "GLD",
+                "headline": article_headline,
+                "summary": "Summary",
+            }
+        ],
+    )
+
+    assert merged[0]["symbol"] == "GLD"
+    assert merged[0]["gemini_reasons"] == ["material_event"]
+
+
+def test_find_labeled_article_rejects_ambiguous_headline_match() -> None:
+    gemini = {"symbol": "GPK", "headline": "Same headline for duplicate"}
+    assert _find_labeled_article(
+        gemini,
+        [
+            {"symbol": "GLD", "headline": "Same headline for duplicate", "summary": "a"},
+            {"symbol": "SPY", "headline": "Same headline for duplicate", "summary": "b"},
+        ],
+    ) is None
 
 
 def test_merge_gemini_labels_skips_unmatched() -> None:

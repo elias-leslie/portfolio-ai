@@ -27,6 +27,7 @@ _HEADLINE_MATCH_LENGTH = 40
 _ARTICLE_LABELING_AGENT_SLUG = "equity-analyst"
 _ARTICLE_LABELING_TEMPLATE = "portfolio-article-quality-labeling-template"
 _ARTICLE_LABELING_SYSTEM = "portfolio-article-quality-labeling-system"
+_ARTICLE_LABELING_BATCH_SIZE = 10
 _QUERY_ARTICLES_SQL = f"""
         SELECT symbol, headline, summary
         FROM news_cache
@@ -99,6 +100,14 @@ def _row_to_article(row: Any) -> dict[str, str]:
 def _label_articles_with_gemini(new_articles: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Send articles to Agent Hub for quality labeling."""
     logger.info("labeling_articles_with_agent_hub", count=len(new_articles))
+    labels: list[dict[str, Any]] = []
+    for start in range(0, len(new_articles), _ARTICLE_LABELING_BATCH_SIZE):
+        labels.extend(_label_article_batch(new_articles[start : start + _ARTICLE_LABELING_BATCH_SIZE]))
+    logger.info("agent_hub_labeling_complete", count=len(labels))
+    return labels
+
+
+def _label_article_batch(new_articles: list[dict[str, Any]]) -> list[dict[str, Any]]:
     prompt = render_agent_hub_prompt(
         _ARTICLE_LABELING_TEMPLATE,
         article_rows="\n".join(
@@ -117,7 +126,6 @@ def _label_articles_with_gemini(new_articles: list[dict[str, Any]]) -> list[dict
         client.close()
 
     labels = _parse_gemini_output(response.content, "")
-    logger.info("agent_hub_labeling_complete", count=len(labels))
     return labels
 
 
@@ -149,7 +157,7 @@ def _merge_gemini_labels(
     """Match Gemini labels with original articles."""
     newly_labeled = []
     for gemini in gemini_labels:
-        match = next((article for article in new_articles if _headlines_match(gemini, article)), None)
+        match = _find_labeled_article(gemini, new_articles)
         if match is None:
             continue
         newly_labeled.append(
@@ -167,10 +175,26 @@ def _merge_gemini_labels(
     return newly_labeled
 
 
+def _find_labeled_article(
+    gemini: dict[str, Any], new_articles: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    exact = next((article for article in new_articles if _headlines_match(gemini, article)), None)
+    if exact is not None:
+        return exact
+    headline_matches = [article for article in new_articles if _headline_prefix_matches(gemini, article)]
+    return headline_matches[0] if len(headline_matches) == 1 else None
+
+
 def _headlines_match(gemini: dict[str, Any], article: dict[str, Any]) -> bool:
     return (
         gemini["symbol"] == article["symbol"]
-        and gemini["headline"][:_HEADLINE_MATCH_LENGTH].lower()
+        and _headline_prefix_matches(gemini, article)
+    )
+
+
+def _headline_prefix_matches(gemini: dict[str, Any], article: dict[str, Any]) -> bool:
+    return (
+        gemini["headline"][:_HEADLINE_MATCH_LENGTH].lower()
         == article["headline"][:_HEADLINE_MATCH_LENGTH].lower()
     )
 

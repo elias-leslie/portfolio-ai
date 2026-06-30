@@ -201,6 +201,8 @@ def _run_training_phase(
     training_data_path: Path,
     artifacts: TrainingArtifacts,
 ) -> TrainingResult:
+    if len(artifacts.combined_data) < MIN_ARTICLES_TO_TRAIN:
+        return _handle_insufficient_labeled_articles(conn, session_id, len(artifacts.combined_data))
     _write_training_data(training_data_path, artifacts.combined_data)
     _update_progress(
         conn,
@@ -231,6 +233,31 @@ def _run_training_phase(
         "recall": metrics["recall"],
         "f1_score": metrics["f1_score"],
         "training_duration_seconds": training_duration,
+    }
+
+
+def _handle_insufficient_labeled_articles(
+    conn: DatabaseConnection,
+    session_id: str | None,
+    labeled_count: int,
+) -> TrainingResult:
+    logger.info(
+        "Only %d labeled articles, skipping model training (need at least %d)",
+        labeled_count,
+        MIN_ARTICLES_TO_TRAIN,
+    )
+    _update_progress(
+        conn,
+        session_id,
+        STATUS_COMPLETE,
+        STEP_INSUFFICIENT_ARTICLES,
+        PROGRESS_DONE,
+        articles_labeled=labeled_count,
+    )
+    return {
+        "status": STATUS_SKIPPED,
+        "reason": "insufficient_labeled_data",
+        "labeled_articles": labeled_count,
     }
 
 

@@ -4,7 +4,11 @@ from typing import Any
 
 import pytest
 
-from app.tasks.ml_training_tasks import _coerce_progress_value, _update_progress
+from app.tasks.ml_training_tasks import (
+    _coerce_progress_value,
+    _handle_insufficient_labeled_articles,
+    _update_progress,
+)
 
 
 class _FakeConnection:
@@ -63,3 +67,16 @@ def test_update_progress_rejects_disallowed_column() -> None:
     conn = _FakeConnection()
     with pytest.raises(ValueError, match="Disallowed progress column"):
         _update_progress(conn, "sess-123", "training", "Step", 70, evil_column="drop table")
+
+
+def test_handle_insufficient_labeled_articles_skips_training() -> None:
+    conn = _FakeConnection()
+
+    result = _handle_insufficient_labeled_articles(conn, None, 0)
+
+    assert result == {
+        "status": "skipped",
+        "reason": "insufficient_labeled_data",
+        "labeled_articles": 0,
+    }
+    assert conn.executed == []
