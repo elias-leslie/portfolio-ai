@@ -26,7 +26,11 @@ def test_registry_covers_household_price_vendors() -> None:
 
 def test_build_prompt_carries_products_and_vendor_guidance() -> None:
     prompt = _AMAZON.build_prompt(_PRODUCTS)
-    assert "amazon.com" in prompt
+    assert _AMAZON.guidance == (
+        "Search amazon.com product listings (e.g. "
+        "https://www.amazon.com/s?k=<query>). Prefer the exact brand and "
+        "package size; use the listed price, not subscribe-and-save."
+    )
     assert '"product_id": "p-1"' in prompt
     assert "GV Edamame" in prompt
     assert "materially cheaper larger-size" in prompt

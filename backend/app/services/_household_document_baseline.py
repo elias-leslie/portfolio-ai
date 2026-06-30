@@ -1333,8 +1333,7 @@ def _classify_by_content(
     elif "chase.com/amazon" in text_lower or "autopay is on" in text_lower:
         inferred_source, inferred_document, confidence, summary = _classify_chase_amazon(structured_data)
     elif (
-        "order details - walmart.com" in text_lower
-        or ("walmart.com" in text_lower and "order details" in text_lower)
+        ("walmart" in text_lower and "order details" in text_lower)
         or "walmart" in filename_lower
     ):
         inferred_source, inferred_document, confidence, summary = _classify_walmart(structured_data)

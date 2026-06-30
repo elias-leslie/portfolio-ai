@@ -9,9 +9,9 @@ ETag Support:
 - Server returns 304 Not Modified if data unchanged (saves bandwidth)
 """
 
+import fnmatch
 import hashlib
 import json
-import re
 from collections.abc import Callable
 from functools import wraps
 from time import monotonic
@@ -203,8 +203,7 @@ def invalidate_cache_pattern(pattern: str) -> int:
     """Invalidate cache entries matching a glob-style pattern. Returns count removed."""
     if not CACHE_ENABLED:
         return 0
-    regex = re.compile(f"^{pattern.replace('*', '.*').replace('?', '.')}$")
-    keys_to_delete = [key for key in _cache if regex.match(key)]
+    keys_to_delete = [key for key in _cache if fnmatch.fnmatchcase(key, pattern)]
     for key in keys_to_delete:
         del _cache[key]
         logger.debug("cache_invalidated", cache_key=key)

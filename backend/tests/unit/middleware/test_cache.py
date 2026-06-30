@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
 from app.middleware import cache as cache_module
-from app.middleware.cache import cache_response, clear_cache
+from app.middleware.cache import cache_response, clear_cache, invalidate_cache_pattern
 
 
 def test_cache_response_honors_decorator_ttl(monkeypatch) -> None:
@@ -56,3 +56,14 @@ def test_cache_response_keeps_longer_ttl_entries(monkeypatch) -> None:
 
     now = 800.0
     assert client.get("/long").json() == {"calls": 1}
+
+
+def test_invalidate_cache_pattern_uses_glob_not_regex(monkeypatch) -> None:
+    monkeypatch.setattr(cache_module, "CACHE_ENABLED", True)
+    clear_cache()
+    cache_module._cache["GET:/api/v1:{}:"] = ({}, 200, {}, 999.0)
+    cache_module._cache["GET:/apiXv1:{}:"] = ({}, 200, {}, 999.0)
+
+    assert invalidate_cache_pattern("GET:/api/v1*") == 1
+    assert "GET:/api/v1:{}:" not in cache_module._cache
+    assert "GET:/apiXv1:{}:" in cache_module._cache
