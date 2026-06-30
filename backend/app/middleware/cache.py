@@ -137,7 +137,10 @@ def _extract_request(args: tuple, kwargs: dict) -> Request | None:
     for arg in args:
         if isinstance(arg, Request):
             return arg
-    return kwargs.get("request")
+    for value in kwargs.values():
+        if isinstance(value, Request):
+            return value
+    return None
 
 
 def cache_response(

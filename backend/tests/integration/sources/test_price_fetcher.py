@@ -71,6 +71,16 @@ def test_cache_prices(price_fetcher: PriceDataFetcher) -> None:
     assert df["symbol"][0] == "AAPL"
     assert df["price"][0] == 180.0
 
+    price_fetcher._cache_prices(
+        {"aapl": PriceData(symbol="aapl", price=181.0, beta=1.1, sector="Technology")}
+    )
+    updated = price_fetcher.storage.query(
+        "SELECT symbol, price, COUNT(*) OVER () AS row_count FROM price_cache WHERE UPPER(symbol) = 'AAPL'"
+    )
+    assert updated["row_count"][0] == 1
+    assert updated["symbol"][0] == "AAPL"
+    assert updated["price"][0] == 181.0
+
 
 def test_get_cached_prices_valid(price_fetcher: PriceDataFetcher) -> None:
     """Test retrieving valid cached prices."""

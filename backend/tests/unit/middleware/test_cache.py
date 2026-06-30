@@ -58,6 +58,27 @@ def test_cache_response_keeps_longer_ttl_entries(monkeypatch) -> None:
     assert client.get("/long").json() == {"calls": 1}
 
 
+def test_cache_response_finds_request_with_underscored_parameter(monkeypatch) -> None:
+    monkeypatch.setattr(cache_module, "CACHE_ENABLED", True)
+    monkeypatch.setattr(cache_module, "monotonic", lambda: 300.0)
+    clear_cache()
+
+    app = FastAPI()
+    calls = 0
+
+    @app.get("/underscored")
+    @cache_response(ttl=30)
+    async def underscored_cache(_request: Request) -> dict[str, int]:
+        nonlocal calls
+        calls += 1
+        return {"calls": calls}
+
+    client = TestClient(app)
+
+    assert client.get("/underscored").json() == {"calls": 1}
+    assert client.get("/underscored").json() == {"calls": 1}
+
+
 def test_invalidate_cache_pattern_uses_glob_not_regex(monkeypatch) -> None:
     monkeypatch.setattr(cache_module, "CACHE_ENABLED", True)
     clear_cache()

@@ -118,14 +118,24 @@ class _WriteStubStorage:
     def __init__(self) -> None:
         self.executed_sql: str | None = None
         self.executed_params: list[object] | None = None
-        self.inserted_rows: list[dict[str, object]] | None = None
+        self.commits = 0
+        self.metadata_mgr = None
 
     def execute(self, sql: str, params: list[object] | None = None) -> None:
         self.executed_sql = sql
         self.executed_params = params
 
-    def insert_dataframe(self, _table_name: str, df, _mode: str = "append", **_kwargs):
-        self.inserted_rows = df.to_dicts()
+    def connection(self):
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def commit(self) -> None:
+        self.commits += 1
 
 
 def test_cache_prices_normalizes_symbols_before_writing() -> None:
@@ -134,7 +144,7 @@ def test_cache_prices_normalizes_symbols_before_writing() -> None:
     cache_prices({"vgt": PriceData(symbol="vgt", price=123.45)}, storage)
 
     assert storage.executed_sql is not None
-    assert "UPPER(symbol)" in storage.executed_sql
-    assert storage.executed_params == ["VGT"]
-    assert storage.inserted_rows is not None
-    assert storage.inserted_rows[0]["symbol"] == "VGT"
+    assert "ON CONFLICT ((UPPER(symbol)))" in storage.executed_sql
+    assert storage.executed_params is not None
+    assert storage.executed_params[0] == "VGT"
+    assert storage.commits == 1

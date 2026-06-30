@@ -4,14 +4,36 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-import polars as pl
-
 from ..logging_config import get_logger
 from ..storage import PortfolioStorage
 from .models import PriceData
 from .sector_labels import resolve_sector_label
 
 logger = get_logger(__name__)
+
+_PRICE_CACHE_COLUMNS = (
+    "symbol",
+    "price",
+    "beta",
+    "volatility",
+    "sector",
+    "bid",
+    "ask",
+    "bid_size",
+    "ask_size",
+    "cached_at",
+    "quote_time",
+    "price_session",
+    "source",
+    "error",
+)
+
+_PRICE_CACHE_UPSERT_SQL = f"""
+    INSERT INTO price_cache ({", ".join(_PRICE_CACHE_COLUMNS)})
+    VALUES ({", ".join(["?"] * len(_PRICE_CACHE_COLUMNS))})
+    ON CONFLICT ((UPPER(symbol)))
+    DO UPDATE SET {", ".join(f"{column} = EXCLUDED.{column}" for column in _PRICE_CACHE_COLUMNS)}
+"""
 
 
 def get_cached_prices(
@@ -101,17 +123,18 @@ def cache_prices(
         return
 
     rows = [data.model_dump() for data in canonical_data.values()]
-    df = pl.DataFrame(rows)
 
     # price_cache is the canonical current quote table: one latest row per symbol.
-    symbols = list(canonical_data.keys())
-    placeholders = ",".join(["?" for _ in symbols])
-    storage.execute(f"DELETE FROM price_cache WHERE UPPER(symbol) IN ({placeholders})", symbols)
-
-    storage.insert_dataframe("price_cache", df, mode="append")
+    with storage.connection() as conn:
+        for row in rows:
+            conn.execute(_PRICE_CACHE_UPSERT_SQL, [row.get(column) for column in _PRICE_CACHE_COLUMNS])
+        conn.commit()
+        if storage.metadata_mgr:
+            storage.metadata_mgr.update_table_metadata(conn, "price_cache")
+            conn.commit()
 
     logger.info(
         "prices_cached",
         num_cached=len(rows),
-        symbols=symbols,
+        symbols=list(canonical_data.keys()),
     )
