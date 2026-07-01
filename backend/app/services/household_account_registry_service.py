@@ -442,7 +442,11 @@ class HouseholdAccountRegistryService:
                 tracked_accounts=tracked_accounts,
                 portfolio_accounts=portfolio_accounts,
             )
-            transaction_linked = self._sync_transactions(conn, identity_map=identity_map)
+            transaction_linked = self._sync_transactions(
+                conn,
+                identity_map=identity_map,
+                canonical_accounts=canonical_accounts,
+            )
             accounts_pruned = self._prune_orphan_accounts(
                 conn,
                 canonical_accounts=canonical_accounts,
@@ -1713,7 +1717,18 @@ class HouseholdAccountRegistryService:
         )
         return int(getattr(result, "rowcount", 0) or 0)
 
-    def _sync_transactions(self, conn: Any, *, identity_map: dict[str, str]) -> int:
+    def _sync_transactions(
+        self,
+        conn: Any,
+        *,
+        identity_map: dict[str, str],
+        canonical_accounts: dict[str, HouseholdCanonicalAccount],
+    ) -> int:
+        label_map: dict[str, set[str]] = {}
+        for account_id, account in canonical_accounts.items():
+            label = normalize_text(account.canonical_label)
+            if label:
+                label_map.setdefault(label, set()).add(account_id)
         rows = conn.execute(
             """
             SELECT
@@ -1754,6 +1769,7 @@ class HouseholdAccountRegistryService:
                     for key in _mask_identity_candidates(candidates)
                     if key in identity_map
                 }
+                matched.update(label_map.get(normalize_text(transaction_label), set()))
                 if len(matched) == 1:
                     next_account_id = next(iter(matched))
             if not next_account_id:

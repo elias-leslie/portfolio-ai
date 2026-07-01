@@ -51,7 +51,11 @@ class _HFDocumentMethods:
     def _annotate_document(self, document: HouseholdDocument) -> HouseholdDocument:
         metadata = document.metadata if isinstance(document.metadata, dict) else {}
         stored_path = metadata.get("stored_path")
-        metadata["file_available"] = bool(isinstance(stored_path, str) and stored_path and Path(stored_path).exists())
+        expects_file = document.document_type != "api_sync" and document.source_type not in {"plaid", "snaptrade"}
+        if expects_file:
+            metadata["file_available"] = bool(isinstance(stored_path, str) and stored_path and Path(stored_path).exists())
+        else:
+            metadata.pop("file_available", None)
         existing_summary = metadata.get("application_summary")
         if document.review_status or document.parsed_at or isinstance(existing_summary, dict):
             metadata["application_summary"] = self.document_pipeline.describe_application_state(

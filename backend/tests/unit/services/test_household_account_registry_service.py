@@ -82,6 +82,26 @@ class _ConnectionRecorder:
         self.calls.append((sql, params))
 
 
+class _FetchRows:
+    def __init__(self, rows: list[tuple[object, ...]]) -> None:
+        self._rows = rows
+
+    def fetchall(self) -> list[tuple[object, ...]]:
+        return self._rows
+
+
+class _TransactionSyncConnection:
+    def __init__(self, rows: list[tuple[object, ...]]) -> None:
+        self.rows = rows
+        self.updates: list[list[object] | None] = []
+
+    def execute(self, sql: str, params: list[object] | None = None) -> Any:
+        if "FROM household_transactions t" in sql:
+            return _FetchRows(self.rows)
+        self.updates.append(params)
+        return None
+
+
 def _evidence(
     *,
     evidence_id: str,
@@ -151,6 +171,39 @@ def test_sync_tracked_identity_snapshot_preserves_display_owner_for_linked_accou
     _, params = conn.calls[0]
     assert params is not None
     assert params[5] == "Alex Demo"
+
+
+def test_sync_transactions_links_exact_account_label_to_canonical_account() -> None:
+    service = HouseholdAccountRegistryService()
+    conn = _TransactionSyncConnection(
+        [
+            ("tx-1", "doc-1", "Wells Fargo Everyday Checking", None, []),
+            ("tx-2", "doc-2", "Unknown card", None, []),
+        ]
+    )
+    canonical_accounts = {
+        "cash-1": _canonical(
+            account_id="cash-1",
+            label="Wells Fargo Everyday Checking",
+            asset_group="cash",
+            account_type="checking",
+            source_type="bank",
+            institution_name="Wells Fargo",
+            account_mask="4222",
+        )
+    }
+
+    linked = service._sync_transactions(
+        conn,
+        identity_map={},
+        canonical_accounts=canonical_accounts,
+    )
+
+    assert linked == 1
+    params = conn.updates[0]
+    assert params is not None
+    assert params[0] == "cash-1"
+    assert params[2] == "tx-1"
 
 
 def test_account_identity_candidates_do_not_emit_owner_level_education_keys() -> None:
