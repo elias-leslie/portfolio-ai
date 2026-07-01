@@ -887,6 +887,7 @@ def test_build_spending_view_separates_refund_gross_and_income() -> None:
 
 def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() -> None:
     today = date.today()
+    grocery_date = today - timedelta(days=5)
     service = HouseholdTransactionService()
     service.storage = _SequenceStorage(
         [
@@ -913,7 +914,7 @@ def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() ->
                 (
                     "txn-grocery",
                     None,
-                    datetime.combine(today.replace(day=max(today.day - 5, 1)), datetime.min.time(), tzinfo=UTC),
+                    datetime.combine(grocery_date, datetime.min.time(), tzinfo=UTC),
                     "WM SUPERCENTER #5831 | Sale",
                     "WM SUPERCENTER #5831 | Sale",
                     Decimal("155.75"),
@@ -988,7 +989,7 @@ def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() ->
         (point.month, point.category, point.total_spend)
         for point in spending.category_monthly_trend
     ] == [
-        (today.strftime("%Y-%m"), "Household", 155.75),
+        (grocery_date.strftime("%Y-%m"), "Household", 155.75),
         (today.strftime("%Y-%m"), "Retail", 41.81),
     ]
 
