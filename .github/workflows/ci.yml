@@ -40,11 +40,8 @@ jobs:
         working-directory: backend
         run: uv sync --frozen --extra dev
       - name: Prepare test database schema
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-          psql "$PORTFOLIO_DB_URL" -v ON_ERROR_STOP=1 -f docker/portfolio-ai-schema.sql
-          uv run --directory backend alembic -c alembic.ini stamp head
+        working-directory: backend
+        run: uv run alembic upgrade head
       - name: Ruff
         working-directory: backend
         run: uv run ruff check app tests
@@ -82,3 +79,89 @@ jobs:
       - name: Build
         working-directory: frontend
         run: pnpm build
+
+  runtime-smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: portfolio_app
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: portfolio_ai_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U portfolio_app -d portfolio_ai_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PORTFOLIO_DB_URL: postgresql://portfolio_app:secret@localhost:5432/portfolio_ai_test
+      REDIS_URL: redis://localhost:6379/0
+      API_URL: http://127.0.0.1:8000
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.32.1
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen --extra dev
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Install Chromium
+        working-directory: frontend
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Build database from Alembic
+        working-directory: backend
+        run: uv run alembic upgrade head
+      - name: Build frontend
+        working-directory: frontend
+        run: pnpm build
+      - name: Exercise running stack in Chromium
+        run: |
+          set -euo pipefail
+          (cd backend && uv run uvicorn app.main:app --host 127.0.0.1 --port 8000) > /tmp/portfolio-backend.log 2>&1 &
+          backend_pid=$!
+          (cd frontend && HOSTNAME=127.0.0.1 PORT=3000 pnpm start) > /tmp/portfolio-frontend.log 2>&1 &
+          frontend_pid=$!
+          trap 'kill "$backend_pid" "$frontend_pid" 2>/dev/null || true' EXIT
+
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null && curl --fail --silent http://127.0.0.1:3000 >/dev/null; then
+              break
+            fi
+            if [[ "$attempt" == 60 ]]; then
+              cat /tmp/portfolio-backend.log /tmp/portfolio-frontend.log
+              exit 1
+            fi
+            sleep 2
+          done
+
+          (cd frontend && pnpm test:e2e) || {
+            cat /tmp/portfolio-backend.log /tmp/portfolio-frontend.log
+            exit 1
+          }

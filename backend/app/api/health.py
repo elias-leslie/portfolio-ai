@@ -384,11 +384,6 @@ async def detailed_health_check(response: Response) -> DetailedHealthCheckRespon
         health_result=result,
         data_freshness_status=result["data_freshness_status"],
     )
-    if (
-        result.get("status") == "healthy"
-        and result["decision_data_health"].get("status") in {"degraded", "critical", "unknown"}
-    ):
-        result["status"] = "degraded"
     result["recent_remediations"] = await get_recent_remediations()
     result["stale_maintenance_runs"] = await get_stale_maintenance_runs()
     logger.info(

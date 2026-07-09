@@ -685,6 +685,57 @@ async def test_detailed_health_check_runs_service_in_threadpool(
     assert payload.status == "healthy"
 
 
+@pytest.mark.asyncio
+async def test_detailed_health_keeps_operational_and_decision_statuses_separate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeHealthService:
+        def perform_detailed_health_check(self) -> dict[str, object]:
+            return {
+                "status": "healthy",
+                "uptime_seconds": 12,
+                "checks": {"database": CheckResult(status="ok")},
+                "sources": {},
+                "services": {},
+                "day_bars_freshness": [],
+                "worker": WorkerInfo(active=True),
+                "api_keys": [],
+            }
+
+    async def run_now(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    async def freshness_summary() -> dict[str, object]:
+        return {"status": "success", "last_check": None}
+
+    async def decision_health(**_kwargs) -> dict[str, object]:
+        return {"status": "degraded", "message": "Evidence is aging.", "domains": []}
+
+    async def no_rows(*_args, **_kwargs) -> list[dict[str, object]]:
+        return []
+
+    def health_service() -> FakeHealthService:
+        return FakeHealthService()
+
+    monkeypatch.setattr("app.api.health._get_health_service", health_service)
+    monkeypatch.setattr("app.api.health.run_in_threadpool", run_now)
+    monkeypatch.setattr(
+        "app.api.health.get_data_freshness_summary",
+        freshness_summary,
+    )
+    monkeypatch.setattr(
+        "app.api.health.get_decision_data_health",
+        decision_health,
+    )
+    monkeypatch.setattr("app.api.health.get_recent_remediations", no_rows)
+    monkeypatch.setattr("app.api.health.get_stale_maintenance_runs", no_rows)
+
+    payload = await detailed_health_check(Response())
+
+    assert payload.status == "healthy"
+    assert payload.decision_data_health["status"] == "degraded"
+
+
 def test_build_deletion_rate_message_uses_threshold_bands() -> None:
     from app.api.health import _build_deletion_rate_message
 
