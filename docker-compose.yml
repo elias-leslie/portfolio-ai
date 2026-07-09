@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: portfolio
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-portfolio}
     ports:
-      - "${PORTFOLIO_DB_HOST_PORT:-5432}:5432"
+      - "127.0.0.1:${PORTFOLIO_DB_HOST_PORT:-5432}:5432"
     volumes:
       - portfolio-db-data:/var/lib/postgresql/data
       - ./docker/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
@@ -21,7 +21,7 @@ services:
     image: redis:7-alpine@sha256:7aec734b2bb298a1d769fd8729f13b8514a41bf90fcdd1f38ec52267fbaa8ee6
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     ports:
-      - "${PORTFOLIO_REDIS_HOST_PORT:-6379}:6379"
+      - "127.0.0.1:${PORTFOLIO_REDIS_HOST_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -66,8 +66,8 @@ services:
       SERVER_GRPC_BIND_ADDRESS: 0.0.0.0
       SERVER_GRPC_INSECURE: "t"
     ports:
-      - "${HATCHET_GRPC_HOST_PORT:-7070}:7070"
-      - "${HATCHET_HEALTH_HOST_PORT:-8888}:8733"
+      - "127.0.0.1:${HATCHET_GRPC_HOST_PORT:-7070}:7070"
+      - "127.0.0.1:${HATCHET_HEALTH_HOST_PORT:-8888}:8733"
     volumes:
       - ./docker/hatchet-config:/hatchet/config
     depends_on:
@@ -138,7 +138,7 @@ services:
       FRED_API_KEY: ${FRED_API_KEY:-}
       SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
     ports:
-      - "${PORTFOLIO_BACKEND_HOST_PORT:-8000}:8000"
+      - "127.0.0.1:${PORTFOLIO_BACKEND_HOST_PORT:-8000}:8000"
     volumes:
       - portfolio-artifacts:/app/data/artifacts
     healthcheck:
@@ -199,7 +199,7 @@ services:
       HOSTNAME: 0.0.0.0
       API_URL: http://portfolio-api:8000
     ports:
-      - "${PORTFOLIO_FRONTEND_HOST_PORT:-3000}:3000"
+      - "127.0.0.1:${PORTFOLIO_FRONTEND_HOST_PORT:-3000}:3000"
     healthcheck:
       test:
         [

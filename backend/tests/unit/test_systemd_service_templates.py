@@ -18,7 +18,10 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import yaml
+
 SYSTEMD_DIR = Path(__file__).resolve().parents[3] / "scripts" / "systemd"
+REPO_ROOT = SYSTEMD_DIR.parents[1]
 
 
 def _kill_modes(service_path: Path) -> list[str]:
@@ -47,3 +50,30 @@ def test_hatchet_worker_never_uses_process_kill_mode() -> None:
     worker = SYSTEMD_DIR / "portfolio-hatchet-worker.service"
     assert worker.exists(), f"missing {worker}"
     assert "process" not in _kill_modes(worker)
+
+
+def test_http_unit_templates_bind_only_to_loopback() -> None:
+    backend = (SYSTEMD_DIR / "portfolio-backend.service").read_text()
+    frontend = (SYSTEMD_DIR / "portfolio-frontend.service").read_text()
+
+    assert "--host 127.0.0.1" in backend
+    assert 'Environment="HOSTNAME=127.0.0.1"' in frontend
+
+
+def test_standalone_compose_publishes_private_ports_on_loopback() -> None:
+    compose = yaml.safe_load((REPO_ROOT / "docker-compose.yml").read_text())
+    services = compose["services"]
+    published_services = (
+        "portfolio-db",
+        "portfolio-redis",
+        "hatchet",
+        "portfolio-api",
+        "portfolio-web",
+    )
+
+    for service_name in published_services:
+        ports = services[service_name]["ports"]
+        assert ports, f"{service_name} has no published ports to verify"
+        assert all(str(port).startswith("127.0.0.1:") for port in ports), (
+            f"{service_name} exposes a non-loopback host port: {ports}"
+        )
