@@ -6,8 +6,8 @@ numpy + the long-term return estimates loaded from
 ``retirement_cma.yaml`` by the caller.
 
 The simulation itself lives in
-``retirement_planning_service._run_tax_aware_monte_carlo`` (tax-aware
-buckets + the floor-and-upside withdrawal engine). This module keeps
+``retirement_plan_simulation._run_tax_aware_monte_carlo`` (tax-aware buckets
+and the floor-and-upside withdrawal engine). This module keeps
 the allocation/covariance sampling helpers and the
 ``SimulationOutputs`` result shape.
 

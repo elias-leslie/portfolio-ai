@@ -6,7 +6,7 @@ style — module-private helpers, ``@dataclass(slots=True)``, primitives + a
 frozen config in, dataclasses out.
 
 All amounts are **REAL** (today's) dollars. The caller (the tax seam in
-``retirement_planning_service.py``) is responsible for growing balances,
+``retirement_plan_simulation.py``) is responsible for growing balances,
 subtracting the bridge draw, converting the residual portfolio draw to NOMINAL
 (``* inflation_factor``), and handing it to the unchanged tax/RMD machinery.
 
