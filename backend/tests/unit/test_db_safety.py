@@ -67,6 +67,40 @@ def test_connection_manager_uses_psycopg_sqlalchemy_driver(monkeypatch: pytest.M
     assert mock_create_engine.call_args.args[0].startswith("postgresql+psycopg://")
 
 
+def test_connection_manager_defaults_to_shared_host_connection_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "PORTFOLIO_DB_URL",
+        "postgresql://portfolio_app:secret@localhost:5432/portfolio_ai_test_runtime",
+    )
+    monkeypatch.delenv("DB_POOL_SIZE", raising=False)
+    monkeypatch.delenv("DB_MAX_OVERFLOW", raising=False)
+
+    with patch("app.storage.connection.create_engine") as mock_create_engine:
+        ConnectionManager()
+
+    assert mock_create_engine.call_args.kwargs["pool_size"] == 4
+    assert mock_create_engine.call_args.kwargs["max_overflow"] == 2
+
+
+def test_connection_manager_allows_explicit_connection_budget_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "PORTFOLIO_DB_URL",
+        "postgresql://portfolio_app:secret@localhost:5432/portfolio_ai_test_runtime",
+    )
+    monkeypatch.setenv("DB_POOL_SIZE", "7")
+    monkeypatch.setenv("DB_MAX_OVERFLOW", "3")
+
+    with patch("app.storage.connection.create_engine") as mock_create_engine:
+        ConnectionManager()
+
+    assert mock_create_engine.call_args.kwargs["pool_size"] == 7
+    assert mock_create_engine.call_args.kwargs["max_overflow"] == 3
+
+
 def test_connection_manager_preserves_existing_psycopg_driver(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -68,8 +68,12 @@ class ConnectionManager:
         self.database_url: str = url
         self.sqlalchemy_database_url: str = sqlalchemy_database_url(url)
 
-        pool_size_value = int(os.getenv("DB_POOL_SIZE", "20"))
-        max_overflow_value = int(os.getenv("DB_MAX_OVERFLOW", "10"))
+        # This service shares the host PostgreSQL instance with Hatchet and other
+        # managed applications. Keep each API/worker process inside a small,
+        # explicit connection budget; callers can still override it for larger
+        # standalone deployments.
+        pool_size_value = int(os.getenv("DB_POOL_SIZE", "4"))
+        max_overflow_value = int(os.getenv("DB_MAX_OVERFLOW", "2"))
 
         self.engine: Engine = create_engine(
             self.sqlalchemy_database_url,

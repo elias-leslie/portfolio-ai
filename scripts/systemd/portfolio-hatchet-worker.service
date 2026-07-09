@@ -11,6 +11,8 @@ Environment="HOME=%h"
 EnvironmentFile=-__PROJECT_ROOT__/.env
 EnvironmentFile=-__PROJECT_ROOT__/.env.local
 Environment="PYTHONUNBUFFERED=1"
+Environment="DB_POOL_SIZE=4"
+Environment="DB_MAX_OVERFLOW=2"
 Environment="HATCHET_CLIENT_HOST_PORT=127.0.0.1:7070"
 Environment="HATCHET_CLIENT_TLS_STRATEGY=none"
 ExecStart=__PROJECT_ROOT__/backend/.venv/bin/python -m app.worker

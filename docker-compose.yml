@@ -116,6 +116,8 @@ services:
         condition: service_healthy
     environment:
       PORTFOLIO_DB_URL: ${PORTFOLIO_DOCKER_DB_URL:-postgresql://portfolio:${POSTGRES_PASSWORD:-portfolio}@portfolio-db:5432/portfolio_ai}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-4}
+      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-2}
       REDIS_URL: ${PORTFOLIO_DOCKER_REDIS_URL:-redis://portfolio-redis:6379/0}
       HATCHET_CLIENT_TOKEN: ${HATCHET_CLIENT_TOKEN:?Set HATCHET_CLIENT_TOKEN in .env.local or .env}
       HATCHET_CLIENT_TLS_STRATEGY: none
@@ -158,6 +160,8 @@ services:
         condition: service_healthy
     environment:
       PORTFOLIO_DB_URL: ${PORTFOLIO_DOCKER_DB_URL:-postgresql://portfolio:${POSTGRES_PASSWORD:-portfolio}@portfolio-db:5432/portfolio_ai}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-4}
+      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-2}
       REDIS_URL: ${PORTFOLIO_DOCKER_REDIS_URL:-redis://portfolio-redis:6379/0}
       HATCHET_CLIENT_TOKEN: ${HATCHET_CLIENT_TOKEN:?Set HATCHET_CLIENT_TOKEN in .env.local or .env}
       HATCHET_CLIENT_TLS_STRATEGY: none
