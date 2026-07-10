@@ -40,26 +40,30 @@ vi.mock('@/lib/hooks/useTodayRefresh', () => ({
 }))
 
 vi.mock('@/lib/hooks/useMarketEvents', () => ({
-  useMarketEventsWindow: () => ({
-    data: {
-      events: [
-        {
-          id: 1,
-          eventType: 'fomc_decision',
-          eventDate: '2026-06-17',
-          eventTime: null,
-          title: 'FOMC Meeting',
-          impactScore: 5,
-          actualValue: null,
-          expectedValue: null,
-          surprisePct: null,
-        },
-      ],
-      total: 1,
-    },
-    isLoading: false,
-    error: null,
-  }),
+  useMarketEventsWindow: () => {
+    const meeting = new Date()
+    meeting.setDate(meeting.getDate() + 7)
+    return {
+      data: {
+        events: [
+          {
+            id: 1,
+            eventType: 'fomc_decision',
+            eventDate: meeting.toISOString().slice(0, 10),
+            eventTime: null,
+            title: 'FOMC Meeting',
+            impactScore: 5,
+            actualValue: null,
+            expectedValue: null,
+            surprisePct: null,
+          },
+        ],
+        total: 1,
+      },
+      isLoading: false,
+      error: null,
+    }
+  },
 }))
 
 const macroSnapshot = {
@@ -399,6 +403,21 @@ describe('DailyBriefPanel', () => {
     expect(screen.queryByText('$620,000')).not.toBeInTheDocument()
   })
 
+  it('renders available macro data while richer conditions are still loading', () => {
+    useMacroConditionsMock.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: new Error('Conditions refresh still running'),
+    })
+
+    render(<DailyBriefPanel />)
+
+    expect(screen.getByText('Overall Read')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Conditions refresh still running'),
+    ).not.toBeInTheDocument()
+  })
+
   it('forces a Today data refresh from the header action', () => {
     const mutate = vi.fn()
     useTodayRefreshMock.mockReturnValue({
@@ -414,18 +433,21 @@ describe('DailyBriefPanel', () => {
   })
 
   it('shows FedWatch odds on the FOMC catalyst tile and timeline tooltip', () => {
+    const meeting = new Date()
+    meeting.setDate(meeting.getDate() + 7)
+    const meetingDate = meeting.toISOString().slice(0, 10)
     useMacroConditionsMock.mockReturnValue({
       data: {
         ...conditions,
         nextCatalyst: {
           eventType: 'fomc_decision',
-          eventDate: '2026-06-17',
+          eventDate: meetingDate,
           eventTime: null,
           title: 'FOMC Meeting',
           impactScore: 5,
         },
         fedOdds: {
-          meetingDate: '2026-06-17',
+          meetingDate,
           effr: 3.62,
           impliedPostRate: 3.63,
           pCut: 0,
