@@ -25,6 +25,12 @@ def upgrade() -> None:
     baseline_path = Path(__file__).resolve().parents[1] / "baseline.sql"
     driver_connection = op.get_bind().connection.driver_connection
     with driver_connection.cursor() as cursor:
+        # Extensions are infrastructure prerequisites owned by PostgreSQL in
+        # existing installs and by the database owner in fresh CI installs.
+        # CREATE IF NOT EXISTS is safe in both cases and keeps Alembic the
+        # authority for constructing an empty Portfolio database.
+        cursor.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
+        cursor.execute("CREATE EXTENSION IF NOT EXISTS vector")
         cursor.execute(baseline_path.read_text(encoding="utf-8"), prepare=False)
 
 
