@@ -72,9 +72,20 @@ def test_get_accounts_normalizes_household_account_uuid(portfolio_mgr: Portfolio
 
     with portfolio_mgr.storage.connection() as conn:
         conn.execute(
+            """
+            INSERT INTO household_accounts (
+                id, primary_identity_key, canonical_label, asset_group,
+                account_type, source_type
+            )
+            VALUES (%s, %s, 'Test IRA', 'retirement', 'ira', 'manual')
+            """,
+            [household_account_id, f"test-ira::{household_account_id}"],
+        )
+        conn.execute(
             "UPDATE portfolio_accounts SET household_account_id = %s WHERE id = %s",
             [household_account_id, account.id],
         )
+        conn.commit()
 
     accounts = portfolio_mgr.get_accounts()
 
@@ -233,10 +244,10 @@ def test_delete_position(portfolio_mgr: PortfolioManager) -> None:
     assert len(positions) == 0
 
 
-def test_delete_position_idempotent(portfolio_mgr: PortfolioManager) -> None:
-    """Test that deleting a non-existent position doesn't raise an error."""
-    # Should not raise
-    portfolio_mgr.delete_position("nonexistent-id")
+def test_delete_position_missing_raises(portfolio_mgr: PortfolioManager) -> None:
+    """Deleting a non-existent position reports the missing identifier."""
+    with pytest.raises(ValueError, match="nonexistent-id"):
+        portfolio_mgr.delete_position("nonexistent-id")
 
 
 def test_update_account_cash_balance(portfolio_mgr: PortfolioManager) -> None:

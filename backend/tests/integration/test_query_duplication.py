@@ -17,11 +17,13 @@ import json
 from collections import Counter
 from collections.abc import Generator
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.portfolio.models import PriceData
 from app.services import NewsBundle, NewsSummary
 from app.storage import get_storage
 
@@ -339,6 +341,51 @@ def setup_test_watchlist(test_symbols: list[str]) -> str:
             )
             conn.commit()
 
+    with storage.connection() as conn:
+        for symbol in test_symbols:
+            conn.execute(
+                """
+                INSERT INTO symbols (symbol, company_name)
+                VALUES (%s, %s)
+                ON CONFLICT (symbol) DO NOTHING
+                """,
+                [symbol, f"{symbol} Test Symbol"],
+            )
+            conn.execute(
+                """
+                INSERT INTO reference_cache (symbol, as_of_date, payload, source)
+                VALUES (%s, CURRENT_DATE, %s::jsonb, 'fundamentals'),
+                       (%s, CURRENT_DATE, %s::jsonb, 'earnings')
+                ON CONFLICT (symbol, as_of_date, source)
+                DO UPDATE SET payload = EXCLUDED.payload
+                """,
+                [
+                    symbol,
+                    json.dumps(
+                        {
+                            "symbol": symbol,
+                            "profit_margin": 0.10,
+                            "revenue_growth": 0.10,
+                            "debt_to_equity": 0.50,
+                        }
+                    ),
+                    symbol,
+                    json.dumps({"earnings_date": None}),
+                ],
+            )
+            conn.execute(
+                """
+                INSERT INTO day_bars (
+                    symbol, date, open, high, low, close, volume, source
+                ) VALUES
+                    (%s, CURRENT_DATE - 1, 99, 101, 98, 100, 1000000, 'test'),
+                    (%s, CURRENT_DATE, 100, 102, 99, 101, 1000000, 'test')
+                ON CONFLICT DO NOTHING
+                """,
+                [symbol, symbol],
+            )
+        conn.commit()
+
     # Add watchlist items directly via SQL
     # NOTE: No account_id - watchlist is now user-level, not account-level
     for symbol in test_symbols:
@@ -363,6 +410,18 @@ def setup_test_watchlist(test_symbols: list[str]) -> str:
                 conn.commit()
 
     return account_id
+
+
+@pytest.fixture
+def offline_price_fetcher(test_symbols: list[str]) -> Generator[MagicMock]:
+    """Provide deterministic prices and suppress only automatic provider backfill."""
+    fetcher = MagicMock()
+    fetcher.fetch_price_data.return_value = {
+        symbol: PriceData(symbol=symbol, price=102.0, source="test")
+        for symbol in test_symbols
+    }
+    with patch("app.watchlist.scoring_service.context.trigger_auto_backfill"):
+        yield fetcher
 
 
 class TestInstrumentationSetup:
@@ -461,6 +520,8 @@ class TestBaselineMeasurement:
         query_counter: QueryCounter,
         api_tracker: APICallTracker,
         setup_test_watchlist: str,
+        offline_price_fetcher: MagicMock,
+        tmp_path: Path,
     ) -> None:
         """Measure baseline metrics for watchlist refresh with 10 symbols.
 
@@ -482,7 +543,9 @@ class TestBaselineMeasurement:
         query_counter.clear()
         api_tracker.clear()
 
-        # Mock NewsService to track API calls instead of making real ones
+        # This is a query-count benchmark, not an external-provider test. Keep
+        # prices, backfill, fundamentals, earnings, and news deterministic so a
+        # provider timeout cannot distort either the count or runtime baseline.
         with (
             patch(
                 "app.services.news_service.NewsService.get_news_intelligence",
@@ -499,7 +562,11 @@ class TestBaselineMeasurement:
             # Run watchlist refresh
             from app.watchlist.scoring_service import refresh_watchlist_scores
 
-            refresh_watchlist_scores(storage, account_id=account_id)
+            refresh_watchlist_scores(
+                storage,
+                account_id=account_id,
+                price_fetcher=offline_price_fetcher,
+            )
 
             end_time = time.time()
             execution_time = end_time - start_time
@@ -534,9 +601,6 @@ class TestBaselineMeasurement:
         print("=" * 70)
 
         # Save to file for later comparison
-        import json
-        from pathlib import Path
-
         baseline_data = {
             "test_name": "baseline_watchlist_refresh_10_symbols",
             "timestamp": datetime.now(UTC).isoformat(),
@@ -559,8 +623,7 @@ class TestBaselineMeasurement:
             ],
         }
 
-        # Save to tests/integration directory
-        baseline_file = Path(__file__).parent / "baseline_metrics.json"
+        baseline_file = tmp_path / "baseline_metrics.json"
         with baseline_file.open("w", encoding="utf-8") as f:
             json.dump(baseline_data, f, indent=2)
 
@@ -583,6 +646,7 @@ class TestIssue1OverlappingNewsFetches:
         query_counter: QueryCounter,
         api_tracker: APICallTracker,
         setup_test_watchlist: str,
+        offline_price_fetcher: MagicMock,
     ) -> None:
         """Test if watchlist and news tasks fetch news for same symbols.
 
@@ -611,7 +675,11 @@ class TestIssue1OverlappingNewsFetches:
             from app.watchlist.scoring_service import refresh_watchlist_scores
 
             # Run watchlist refresh (simulates what happens in production)
-            refresh_watchlist_scores(storage, account_id=account_id)
+            refresh_watchlist_scores(
+                storage,
+                account_id=account_id,
+                price_fetcher=offline_price_fetcher,
+            )
 
         # Analyze results
         api_calls = api_tracker.get_call_count()
@@ -691,6 +759,8 @@ class TestIssue2PerSymbolNewsFetching:
         query_counter: QueryCounter,
         api_tracker: APICallTracker,
         setup_test_watchlist: str,
+        offline_price_fetcher: MagicMock,
+        tmp_path: Path,
     ) -> None:
         """Validate that news is fetched individually per symbol.
 
@@ -722,7 +792,11 @@ class TestIssue2PerSymbolNewsFetching:
         ):
             from app.watchlist.scoring_service import refresh_watchlist_scores
 
-            refresh_watchlist_scores(storage, account_id=account_id)
+            refresh_watchlist_scores(
+                storage,
+                account_id=account_id,
+                price_fetcher=offline_price_fetcher,
+            )
 
         # Analyze results
         get_news_intelligence_calls = api_tracker.get_calls_by_method("get_news_intelligence")
@@ -763,9 +837,6 @@ class TestIssue2PerSymbolNewsFetching:
         print("=" * 70)
 
         # Save conclusion
-        import json
-        from pathlib import Path
-
         result = {
             "issue": "Issue #2: Per-Symbol News Fetching",
             "hypothesis": "News fetched individually (N calls) vs batch (1 call)",
@@ -784,7 +855,7 @@ class TestIssue2PerSymbolNewsFetching:
             else None,
         }
 
-        results_file = Path(__file__).parent / "issue2_validation.json"
+        results_file = tmp_path / "issue2_validation.json"
         with results_file.open("w", encoding="utf-8") as f:
             json.dump(result, f, indent=2)
 
@@ -812,6 +883,8 @@ class TestIssue3UserPreferencesQueries:
         query_counter: QueryCounter,
         api_tracker: APICallTracker,
         setup_test_watchlist: str,
+        offline_price_fetcher: MagicMock,
+        tmp_path: Path,
     ) -> None:
         """Validate that user preferences are queried multiple times.
 
@@ -843,7 +916,11 @@ class TestIssue3UserPreferencesQueries:
         ):
             from app.watchlist.scoring_service import refresh_watchlist_scores
 
-            refresh_watchlist_scores(storage, account_id=account_id)
+            refresh_watchlist_scores(
+                storage,
+                account_id=account_id,
+                price_fetcher=offline_price_fetcher,
+            )
 
         # Analyze preference queries
         pref_queries = query_counter.get_queries_to_table("user_preferences")
@@ -901,9 +978,7 @@ class TestIssue3UserPreferencesQueries:
             else None,
         }
 
-        from pathlib import Path
-
-        results_file = Path(__file__).parent / "issue3_validation.json"
+        results_file = tmp_path / "issue3_validation.json"
         with results_file.open("w", encoding="utf-8") as f:
             json.dump(result, f, indent=2)
 
@@ -931,6 +1006,8 @@ class TestIssue4WatchlistItemsQueries:
         query_counter: QueryCounter,
         api_tracker: APICallTracker,
         setup_test_watchlist: str,
+        offline_price_fetcher: MagicMock,
+        tmp_path: Path,
     ) -> None:
         """Validate that watchlist items are queried multiple times.
 
@@ -959,7 +1036,11 @@ class TestIssue4WatchlistItemsQueries:
             from app.watchlist.scoring_service import refresh_watchlist_scores
 
             # Run watchlist refresh once
-            refresh_watchlist_scores(storage, account_id=account_id)
+            refresh_watchlist_scores(
+                storage,
+                account_id=account_id,
+                price_fetcher=offline_price_fetcher,
+            )
 
         # Analyze watchlist_items queries
         watchlist_queries = query_counter.get_queries_to_table("watchlist_items")
@@ -1010,9 +1091,7 @@ class TestIssue4WatchlistItemsQueries:
             else "Test with concurrent tasks first",
         }
 
-        from pathlib import Path
-
-        results_file = Path(__file__).parent / "issue4_validation.json"
+        results_file = tmp_path / "issue4_validation.json"
         with results_file.open("w", encoding="utf-8") as f:
             json.dump(result, f, indent=2)
 
@@ -1038,6 +1117,7 @@ class TestIssue5N1QueryPattern:
         self,
         query_counter: QueryCounter,
         setup_test_watchlist: str,
+        tmp_path: Path,
     ) -> None:
         """Validate N+1 query pattern in watchlist service.
 
@@ -1126,9 +1206,7 @@ class TestIssue5N1QueryPattern:
             else None,
         }
 
-        from pathlib import Path
-
-        results_file = Path(__file__).parent / "issue5_validation.json"
+        results_file = tmp_path / "issue5_validation.json"
         with results_file.open("w", encoding="utf-8") as f:
             json.dump(result, f, indent=2)
 

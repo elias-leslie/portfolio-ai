@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from app.storage.connection import ConnectionManager
 from app.storage.types import DatabaseConnection
+from app.utils.db_helpers import ensure_symbol_exists
 from app.watchlist.fundamentals import (
     FinnhubSource,
     FMPSource,
@@ -157,7 +158,7 @@ class TestFMPSource:
             {
                 "netProfitMargin": 0.53,
                 "revenueGrowth": 1.22,
-                "debtEquityRatio": 0.45,
+                "debtToEquityRatio": 0.45,
                 "returnOnEquity": 0.65,
             }
         ]
@@ -369,7 +370,7 @@ class TestCompanyHealthClassification:
 class TestFundamentalsCaching:
     """Test caching functionality for fundamental data (24-hour TTL)."""
 
-    @patch("app.watchlist.fundamentals.fetch_fundamentals")
+    @patch("app.watchlist.fundamentals_cache.fetch_fundamentals")
     def test_cache_stores_fundamentals_on_first_fetch(self, mock_fetch: MagicMock) -> None:
         """Test that fundamentals are stored in reference_cache on first fetch."""
         mock_fetch.return_value = FundamentalData(
@@ -382,6 +383,7 @@ class TestFundamentalsCaching:
         cm = ConnectionManager()
         with cm.connection() as conn:
             db_conn = cast(DatabaseConnection, conn)
+            ensure_symbol_exists(db_conn, "NVDA")
             # First call should fetch from API and cache
             result = fetch_fundamentals_cached(db_conn, "NVDA")
 
@@ -400,7 +402,7 @@ class TestFundamentalsCaching:
             assert cached_data["symbol"] == "NVDA"
             assert cached_data["profit_margin"] == 0.53
 
-    @patch("app.watchlist.fundamentals.fetch_fundamentals")
+    @patch("app.watchlist.fundamentals_cache.fetch_fundamentals")
     def test_cache_hit_avoids_refetch(self, mock_fetch: MagicMock) -> None:
         """Test that cache hit avoids calling API again (within TTL)."""
         mock_fetch.return_value = FundamentalData(
@@ -413,6 +415,7 @@ class TestFundamentalsCaching:
         cm = ConnectionManager()
         with cm.connection() as conn:
             db_conn = cast(DatabaseConnection, conn)
+            ensure_symbol_exists(db_conn, "META")
             # First call - fetches from API
             result1 = fetch_fundamentals_cached(db_conn, "META")
             assert result1 is not None
@@ -424,7 +427,7 @@ class TestFundamentalsCaching:
             assert result2.profit_margin == 0.35
             assert mock_fetch.call_count == 1  # Still only 1 call
 
-    @patch("app.watchlist.fundamentals.fetch_fundamentals")
+    @patch("app.watchlist.fundamentals_cache.fetch_fundamentals")
     def test_cache_ttl_expiration_triggers_refresh(self, mock_fetch: MagicMock) -> None:
         """Test that cache older than 24 hours triggers re-fetch."""
         # First fetch - returns NVDA data
@@ -438,6 +441,7 @@ class TestFundamentalsCaching:
         cm = ConnectionManager()
         with cm.connection() as conn:
             db_conn = cast(DatabaseConnection, conn)
+            ensure_symbol_exists(db_conn, "NVDA")
             # First call - caches data
             result1 = fetch_fundamentals_cached(db_conn, "NVDA")
             assert result1 is not None
@@ -465,7 +469,7 @@ class TestFundamentalsCaching:
             assert result2.profit_margin == 0.55  # New data
             assert mock_fetch.call_count == 2  # Called again
 
-    @patch("app.watchlist.fundamentals.fetch_fundamentals")
+    @patch("app.watchlist.fundamentals_cache.fetch_fundamentals")
     def test_cache_handles_api_failure_gracefully(self, mock_fetch: MagicMock) -> None:
         """Test that None return from API doesn't crash caching."""
         mock_fetch.return_value = None  # API failed

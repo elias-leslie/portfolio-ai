@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from app.services import service_monitor
+from app.services.worker_heartbeat import WorkerHeartbeatSnapshot
 
 
 def test_get_process_by_pattern_returns_none_when_no_process_matches(monkeypatch) -> None:
@@ -92,6 +93,51 @@ def test_check_backend_api_prefers_systemd_unit(monkeypatch) -> None:
     status = service_monitor.check_backend_api(skip_http_check=True)
 
     assert status.pid == 4321
+
+
+def test_check_hatchet_worker_uses_current_persisted_heartbeat(monkeypatch) -> None:
+    heartbeat = WorkerHeartbeatSnapshot(
+        state="current",
+        message="Worker heartbeat current (2s ago)",
+        pid=4321,
+    )
+    monkeypatch.setattr(service_monitor, "read_worker_heartbeat", lambda _storage: heartbeat)
+
+    status = service_monitor.check_hatchet_worker(object())
+
+    assert status.status == "running"
+    assert status.pid == 4321
+    assert "current" in status.message
+
+
+def test_check_hatchet_worker_degrades_on_stale_or_missing_heartbeat(monkeypatch) -> None:
+    for state, message in (
+        ("stale", "Worker heartbeat stale"),
+        ("missing", "No worker heartbeat has been recorded"),
+    ):
+        heartbeat = WorkerHeartbeatSnapshot(state=state, message=message)
+        monkeypatch.setattr(
+            service_monitor,
+            "read_worker_heartbeat",
+            lambda _storage, heartbeat=heartbeat: heartbeat,
+        )
+
+        status = service_monitor.check_hatchet_worker(object())
+
+        assert status.status == "degraded"
+        assert status.message == message
+
+
+def test_check_hatchet_worker_degrades_when_heartbeat_store_is_unavailable(monkeypatch) -> None:
+    def fail_read(_storage) -> WorkerHeartbeatSnapshot:
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(service_monitor, "read_worker_heartbeat", fail_read)
+
+    status = service_monitor.check_hatchet_worker(object())
+
+    assert status.status == "degraded"
+    assert status.message == "Worker heartbeat unavailable"
 
 
 def test_check_frontend_uses_http_when_systemd_is_unavailable(monkeypatch) -> None:

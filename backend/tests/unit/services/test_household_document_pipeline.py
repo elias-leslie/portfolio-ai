@@ -6,7 +6,13 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
+import pytest
+from pydantic import ValidationError
+
 from app.models.household_finance import HouseholdDocument
+from app.services._household_document_pipeline_db import (
+    claim_document_review_decision,
+)
 from app.services.household_document_pipeline import (
     HouseholdDocumentPipeline,
     _apply_upload_account_binding,
@@ -15,6 +21,23 @@ from app.services.household_document_pipeline import (
     _signature_structured_data,
     build_import_row_hash,
 )
+from app.services.household_document_review_contracts import (
+    HouseholdDocumentReviewDecisionRequest,
+    HouseholdDocumentReviewPayload,
+)
+from app.services.household_document_review_proposal import (
+    build_document_review_preview,
+    document_review_proposal_hash,
+)
+
+_PROPOSAL_HASH = "a" * 64
+_EMPTY_PREVIEW = {
+    "accounts": [],
+    "transactions": [],
+    "holdings": [],
+    "planning": [],
+    "inferences": [],
+}
 
 
 class _PipelineStub(HouseholdDocumentPipeline):
@@ -26,6 +49,654 @@ class _PipelineStub(HouseholdDocumentPipeline):
         reviewed: dict[str, object],
     ) -> dict[str, object]:
         return {"inserted": 0, "duplicates": 0}
+
+
+def test_review_payload_rejects_unknown_top_level_actions() -> None:
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        HouseholdDocumentReviewPayload.model_validate(
+            {
+                "source_type": "bank",
+                "document_type": "statement",
+                "confidence": 0.5,
+                "structured_data": {},
+                "execute_sql": "DROP TABLE household_accounts",
+            }
+        )
+
+
+def test_review_payload_rejects_invalid_trust_check_values() -> None:
+    with pytest.raises(ValidationError, match="bool_parsing"):
+        HouseholdDocumentReviewPayload.model_validate(
+            {
+                "source_type": "bank",
+                "document_type": "statement",
+                "confidence": 0.8,
+                "review_checks": {"ambiguity_remaining": "probably"},
+            }
+        )
+
+
+def test_review_payload_derives_ambiguity_from_unresolved_questions() -> None:
+    payload = HouseholdDocumentReviewPayload.model_validate(
+        {
+            "source_type": "bank",
+            "document_type": "statement",
+            "confidence": 0.95,
+            "questions": [{"question": "Which account is this?"}],
+        }
+    )
+
+    assert payload.review_checks.ambiguity_remaining is True
+    assert (
+        HouseholdDocumentPipeline._review_gate_summaries(
+            payload.model_dump(by_alias=True)
+        )
+        is not None
+    )
+
+
+def test_review_decision_requires_exact_review_id_and_bounds_reason() -> None:
+    with pytest.raises(ValidationError, match="string_too_long"):
+        HouseholdDocumentReviewDecisionRequest.model_validate(
+            {
+                "review_id": "review-1",
+                "proposal_hash": _PROPOSAL_HASH,
+                "proposal_preview": _EMPTY_PREVIEW,
+                "decision": "reject",
+                "reason": "x" * 1001,
+            }
+        )
+
+    with pytest.raises(ValidationError, match="missing"):
+        HouseholdDocumentReviewDecisionRequest.model_validate(
+            {
+                "proposal_hash": _PROPOSAL_HASH,
+                "proposal_preview": _EMPTY_PREVIEW,
+                "decision": "approve",
+            }
+        )
+
+
+def test_review_proposal_summarizes_held_mutations() -> None:
+    document = HouseholdDocument(
+        id="doc-held",
+        filename="statement.pdf",
+        source_type="brokerage",
+        document_type="brokerage_statement",
+        status="needs_review",
+        file_size_bytes=10,
+        uploaded_at="2026-07-12T00:00:00+00:00",
+        metadata={},
+    )
+
+    proposal = HouseholdDocumentPipeline._build_review_proposal(
+        document=document,
+        review_id="review-1",
+        blocker="Confidence is too low.",
+        reviewed={
+            "summary": "Possible statement",
+            "confidence": 0.51,
+            "source_type": "brokerage",
+            "document_type": "brokerage_statement",
+            "structured_data": {
+                "financial_accounts": [
+                    {
+                        "account_name": "Brokerage",
+                        "holdings": [{"symbol": "VTI"}],
+                        "transactions": [{"amount": "20"}],
+                    }
+                ]
+            },
+            "planning_items": [],
+            "inferred_values": [],
+        },
+    )
+
+    assert proposal["status"] == "pending"
+    assert proposal["schema_version"] == 2
+    assert proposal["review_id"] == "review-1"
+    assert len(str(proposal["proposal_hash"])) == 64
+    assert proposal["proposed_changes"] == [
+        {"kind": "accounts", "label": "Account snapshots", "count": 1},
+        {"kind": "transactions", "label": "Transactions", "count": 1},
+        {"kind": "holdings", "label": "Portfolio positions", "count": 1},
+    ]
+    assert proposal["preview"] == {
+        "accounts": [
+            {
+                "label": "Brokerage",
+                "account_suffix": None,
+                "balance": None,
+                "holdings_value": None,
+                "cash_balance": None,
+                "currency": None,
+                "as_of_date": None,
+            }
+        ],
+        "transactions": [
+            {
+                "account_label": "Brokerage",
+                "transaction_date": None,
+                "merchant": None,
+                "amount": "20",
+                "currency": None,
+            }
+        ],
+        "holdings": [
+            {
+                "account_label": "Brokerage",
+                "symbol": "VTI",
+                "shares": None,
+                "value": None,
+            }
+        ],
+        "planning": [],
+        "inferences": [],
+    }
+
+
+def test_review_preview_redacts_identifiers_and_hash_binds_exact_values() -> None:
+    document = HouseholdDocument(
+        id="doc-bound",
+        filename="statement.pdf",
+        source_type="brokerage",
+        document_type="brokerage_statement",
+        status="needs_review",
+        account_label="Brokerage 123456789",
+        file_size_bytes=10,
+        uploaded_at="2026-07-12T00:00:00+00:00",
+        metadata={},
+    )
+    reviewed = {
+        "source_type": "brokerage",
+        "document_type": "brokerage_statement",
+        "confidence": 0.5,
+        "structured_data": {
+            "financial_accounts": [
+                {
+                    "account_name": "Individual 987654321",
+                    "account_mask": "123456789",
+                    "balance": "$1,234.50",
+                    "as_of_date": "2026-07-11",
+                    "transactions": [
+                        {
+                            "date": "2026-07-10",
+                            "merchant": "Dividend",
+                            "amount": "12.34",
+                        }
+                    ],
+                    "holdings": [
+                        {
+                            "symbol": "vti",
+                            "quantity": "2.5",
+                            "market_value": "875.00",
+                        }
+                    ],
+                }
+            ]
+        },
+        "planning_items": [
+            {
+                "section": "planned_expenses",
+                "action": "add",
+                "data": {"amount": 300, "account_number": "111122223333"},
+            }
+        ],
+        "inferred_values": [
+            {"field_name": "monthly_net_income_target", "value": "5000"}
+        ],
+    }
+    preview = build_document_review_preview(document=document, reviewed=reviewed)
+
+    assert preview.accounts[0].label == "Individual ••••4321 · ••••6789"
+    assert str(preview.accounts[0].balance) == "1234.50"
+    assert preview.accounts[0].as_of_date.isoformat() == "2026-07-11"
+    assert preview.transactions[0].merchant == "Dividend"
+    assert str(preview.transactions[0].amount) == "12.34"
+    assert preview.holdings[0].symbol == "VTI"
+    assert str(preview.holdings[0].shares) == "2.5"
+    assert preview.planning[0].value == {
+        "amount": 300,
+        "account_number": "[redacted]",
+    }
+    assert preview.inferences[0].field == "monthly_net_income_target"
+
+    first_hash = document_review_proposal_hash(
+        document_id=document.id,
+        review_id="review-1",
+        reviewed=reviewed,
+        preview=preview,
+    )
+    changed = dict(reviewed)
+    changed["summary"] = "Changed review payload"
+    second_hash = document_review_proposal_hash(
+        document_id=document.id,
+        review_id="review-1",
+        reviewed=changed,
+        preview=preview,
+    )
+    assert first_hash != second_hash
+
+
+@pytest.mark.parametrize(
+    ("confidence", "ambiguity_remaining"),
+    [(0.54, False), (0.94, True)],
+)
+def test_persist_held_review_does_not_mutate_inferred_values(
+    confidence: float,
+    ambiguity_remaining: bool,
+) -> None:
+    document = HouseholdDocument(
+        id="doc-held",
+        filename="statement.pdf",
+        source_type="bank",
+        document_type="statement",
+        status="staged",
+        file_size_bytes=10,
+        uploaded_at="2026-07-12T00:00:00+00:00",
+        metadata={},
+    )
+    connection = MagicMock()
+    storage = MagicMock()
+    storage.connection.return_value.__enter__.return_value = connection
+    service = SimpleNamespace(storage=storage)
+    reviewed = {
+        "source_type": "bank",
+        "document_type": "statement",
+        "confidence": confidence,
+        "structured_data": {},
+        "inferred_values": [
+            {
+                "field_name": "monthly_income",
+                "value": "5000",
+                "confidence": confidence,
+            }
+        ],
+        "questions": [{"question": "Which account is this?"}],
+        "review_checks": {"ambiguity_remaining": ambiguity_remaining},
+    }
+
+    with (
+        patch(
+            "app.services.household_document_pipeline.update_document_and_log_review",
+            return_value="review-held",
+        ) as update_review,
+        patch(
+            "app.services.household_document_pipeline.archive_prior_inferred_values"
+        ) as archive_inferences,
+        patch(
+            "app.services.household_document_pipeline.insert_inferred_values"
+        ) as insert_inferences,
+        patch(
+            "app.services.household_document_pipeline.insert_questions"
+        ) as insert_questions_mock,
+    ):
+        review_id = HouseholdDocumentPipeline()._persist_review(
+            service,
+            document=document,
+            reviewed=reviewed,
+            now="2026-07-12T00:01:00+00:00",
+        )
+
+    assert review_id == "review-held"
+    assert update_review.call_args.kwargs["review_status"] == "needs_review"
+    assert update_review.call_args.kwargs["document_status"] == "needs_review"
+    archive_inferences.assert_not_called()
+    insert_inferences.assert_not_called()
+    insert_questions_mock.assert_called_once()
+
+
+def test_persist_trusted_review_replaces_inferred_values() -> None:
+    document = HouseholdDocument(
+        id="doc-trusted",
+        filename="statement.pdf",
+        source_type="bank",
+        document_type="statement",
+        status="staged",
+        file_size_bytes=10,
+        uploaded_at="2026-07-12T00:00:00+00:00",
+        metadata={},
+    )
+    connection = MagicMock()
+    storage = MagicMock()
+    storage.connection.return_value.__enter__.return_value = connection
+    service = SimpleNamespace(storage=storage)
+    reviewed = {
+        "source_type": "bank",
+        "document_type": "statement",
+        "confidence": 0.94,
+        "structured_data": {},
+        "inferred_values": [],
+        "questions": [],
+        "review_checks": {"ambiguity_remaining": False},
+    }
+
+    with (
+        patch(
+            "app.services.household_document_pipeline.update_document_and_log_review",
+            return_value="review-trusted",
+        ) as update_review,
+        patch(
+            "app.services.household_document_pipeline.archive_prior_inferred_values"
+        ) as archive_inferences,
+        patch(
+            "app.services.household_document_pipeline.insert_inferred_values",
+            return_value=0,
+        ) as insert_inferences,
+        patch("app.services.household_document_pipeline.insert_questions"),
+    ):
+        HouseholdDocumentPipeline()._persist_review(
+            service,
+            document=document,
+            reviewed=reviewed,
+            now="2026-07-12T00:01:00+00:00",
+        )
+
+    assert update_review.call_args.kwargs["review_status"] == "complete"
+    assert update_review.call_args.kwargs["document_status"] == "parsed"
+    archive_inferences.assert_called_once_with(
+        connection, "doc-trusted", "2026-07-12T00:01:00+00:00"
+    )
+    insert_inferences.assert_called_once()
+
+
+def test_manual_approval_applies_exact_proposal_and_finalizes_inferences() -> None:
+    preview = {
+        **_EMPTY_PREVIEW,
+        "inferences": [{"field": "monthly_income", "value": "5000"}],
+    }
+    proposal = {
+        "schema_version": 2,
+        "status": "pending",
+        "review_id": "review-manual",
+        "document_id": "doc-manual",
+        "proposal_hash": _PROPOSAL_HASH,
+        "preview": preview,
+        "proposed_changes": [
+            {"kind": "inferences", "label": "Inferred values", "count": 1}
+        ],
+    }
+    document = HouseholdDocument(
+        id="doc-manual",
+        filename="statement.pdf",
+        source_type="bank",
+        document_type="statement",
+        status="needs_review",
+        file_size_bytes=10,
+        uploaded_at="2026-07-12T00:00:00+00:00",
+        metadata={
+            "application_summary": {
+                "status": "needs_review",
+                "impacts": [],
+                "needs_follow_up": True,
+            },
+            "review_proposal": proposal,
+        },
+    )
+    connection = MagicMock()
+    storage = MagicMock()
+    storage.connection.return_value.__enter__.return_value = connection
+    service = SimpleNamespace(storage=storage, get_document=lambda _: document)
+    pipeline = HouseholdDocumentPipeline()
+    pipeline.apply_review_outputs = Mock(  # type: ignore[invalid-assignment]
+        return_value={
+            "status": "incomplete",
+            "impacts": [],
+            "inferred_values": 0,
+            "needs_follow_up": True,
+        }
+    )
+    pipeline._build_reconciliation_summary = Mock(  # type: ignore[method-assign]
+        return_value={"status": "clear", "ambiguity_remaining": False}
+    )
+    pipeline.upsert_document_signatures = Mock()  # type: ignore[method-assign]
+    pipeline._validate_decision_binding = Mock(  # type: ignore[method-assign]
+        return_value=(
+            proposal,
+            {
+                "source_type": "bank",
+                "document_type": "statement",
+                "confidence": 0.54,
+                "structured_data": {},
+                "inferred_values": [
+                    {
+                        "field_name": "monthly_income",
+                        "value": "5000",
+                        "confidence": 0.54,
+                    }
+                ],
+                "review_checks": {"ambiguity_remaining": False},
+            },
+            preview,
+        )
+    )
+    claimed = {
+        "id": "review-manual",
+        "application_phase": "claimed",
+        "application_journal": {},
+    }
+
+    with (
+        patch(
+            "app.services.household_document_pipeline.try_acquire_document_review_executor",
+            return_value=True,
+        ),
+        patch(
+            "app.services.household_document_pipeline.release_document_review_executor"
+        ),
+        patch(
+            "app.services.household_document_pipeline.fetch_document_review_decision_binding",
+            return_value={"id": "review-manual"},
+        ),
+        patch(
+            "app.services.household_document_pipeline.claim_document_review_decision",
+            return_value=claimed,
+        ) as claim_review,
+        patch(
+            "app.services.household_document_pipeline.update_bound_document_review_state",
+            return_value=True,
+        ) as update_state,
+        patch(
+            "app.services.household_document_pipeline.record_document_review_application_phase",
+            return_value=True,
+        ) as record_phase,
+        patch(
+            "app.services.household_document_pipeline.archive_prior_inferred_values"
+        ) as archive_inferences,
+        patch(
+            "app.services.household_document_pipeline.insert_inferred_values",
+            return_value=1,
+        ) as insert_inferences,
+        patch(
+            "app.services.household_document_pipeline.complete_document_review_decision",
+            return_value=True,
+        ) as complete_decision,
+    ):
+        result = pipeline.decide_document_review(
+            service,
+            document_id="doc-manual",
+            review_id="review-manual",
+            proposal_hash=_PROPOSAL_HASH,
+            proposal_preview=preview,
+            decision="approve",
+        )
+
+    assert result.review_id == "review-manual"
+    assert result.status == "applied"
+    assert result.application_summary == {
+        "status": "applied",
+        "impacts": ["inferences"],
+        "inferred_values": 1,
+        "needs_follow_up": False,
+    }
+    assert claim_review.call_args.kwargs["proposal_hash"] == _PROPOSAL_HASH
+    archive_inferences.assert_called_once()
+    insert_inferences.assert_called_once()
+    assert [call.kwargs["phase"] for call in record_phase.call_args_list] == [
+        "outputs_applied",
+        "inferences_applied",
+    ]
+    complete_summary = complete_decision.call_args.kwargs["application_summary"]
+    assert complete_summary["inferred_values"] == 1
+    assert complete_summary["impacts"] == ["inferences"]
+    assert update_state.call_count == 2
+    pipeline.upsert_document_signatures.assert_called_once()
+
+def test_manual_decision_rejects_stale_or_already_decided_proposal() -> None:
+    document = HouseholdDocument(
+        id="doc-stale",
+        filename="statement.pdf",
+        source_type="bank",
+        document_type="statement",
+        status="needs_review",
+        file_size_bytes=10,
+        uploaded_at="2026-07-12T00:00:00+00:00",
+        metadata={
+            "review_proposal": {
+                "schema_version": 1,
+                "status": "pending",
+                "review_id": "review-new",
+            }
+        },
+    )
+    connection = MagicMock()
+    storage = MagicMock()
+    storage.connection.return_value.__enter__.return_value = connection
+    service = SimpleNamespace(storage=storage, get_document=lambda _: document)
+    pipeline = HouseholdDocumentPipeline()
+    pipeline.apply_review_outputs = Mock()  # type: ignore[invalid-assignment]
+
+    with (
+        patch(
+            "app.services.household_document_pipeline.try_acquire_document_review_executor",
+            return_value=True,
+        ),
+        patch(
+            "app.services.household_document_pipeline.release_document_review_executor"
+        ),
+        patch(
+            "app.services.household_document_pipeline.fetch_document_review_decision_binding",
+            return_value=None,
+        ),
+        pytest.raises(ValueError, match="no longer available"),
+    ):
+        pipeline.decide_document_review(
+            service,
+            document_id="doc-stale",
+            review_id="review-old",
+            proposal_hash=_PROPOSAL_HASH,
+            proposal_preview=_EMPTY_PREVIEW,
+            decision="approve",
+        )
+
+    pipeline.apply_review_outputs.assert_not_called()
+
+
+def test_manual_approval_rejects_empty_change_proposal() -> None:
+    document = HouseholdDocument(
+        id="doc-empty",
+        filename="unknown.pdf",
+        source_type="other",
+        document_type="other",
+        status="needs_review",
+        file_size_bytes=10,
+        uploaded_at="2026-07-12T00:00:00+00:00",
+        metadata={
+            "review_proposal": {
+                "schema_version": 2,
+                "status": "pending",
+                "review_id": "review-empty",
+                "document_id": "doc-empty",
+                "proposal_hash": _PROPOSAL_HASH,
+                "preview": _EMPTY_PREVIEW,
+                "proposed_changes": [],
+            }
+        },
+    )
+    connection = MagicMock()
+    storage = MagicMock()
+    storage.connection.return_value.__enter__.return_value = connection
+    service = SimpleNamespace(storage=storage, get_document=lambda _: document)
+    pipeline = HouseholdDocumentPipeline()
+    pipeline._validate_decision_binding = Mock(  # type: ignore[method-assign]
+        return_value=(
+            document.metadata["review_proposal"],
+            {
+                "source_type": "other",
+                "document_type": "other",
+                "structured_data": {},
+            },
+            _EMPTY_PREVIEW,
+        )
+    )
+
+    with (
+        patch(
+            "app.services.household_document_pipeline.try_acquire_document_review_executor",
+            return_value=True,
+        ),
+        patch(
+            "app.services.household_document_pipeline.release_document_review_executor"
+        ),
+        patch(
+            "app.services.household_document_pipeline.fetch_document_review_decision_binding",
+            return_value={"id": "review-empty"},
+        ),
+        patch(
+            "app.services.household_document_pipeline.claim_document_review_decision"
+        ) as claim_review,
+        pytest.raises(ValueError, match="no explicit money-data changes"),
+    ):
+        pipeline.decide_document_review(
+            service,
+            document_id="doc-empty",
+            review_id="review-empty",
+            proposal_hash=_PROPOSAL_HASH,
+            proposal_preview=_EMPTY_PREVIEW,
+            decision="approve",
+        )
+
+    claim_review.assert_not_called()
+
+
+def test_decision_claim_is_bound_to_visible_review_proposal() -> None:
+    connection = MagicMock()
+    result = MagicMock()
+    result.fetchone.return_value = (
+        "review-visible",
+        "Summary",
+        0.5,
+        "text",
+        {},
+        {},
+        _PROPOSAL_HASH,
+        _EMPTY_PREVIEW,
+        "applying",
+        "claimed",
+        {},
+    )
+    connection.execute.return_value = result
+
+    claimed = claim_document_review_decision(
+        connection,
+        document_id="doc-1",
+        review_id="review-visible",
+        proposal_hash=_PROPOSAL_HASH,
+        proposal_preview=_EMPTY_PREVIEW,
+        decision="approve",
+        reason=None,
+        executor_token="executor-1",
+        now="2026-07-12T00:00:00+00:00",
+    )
+
+    sql, params = connection.execute.call_args.args
+    assert "metadata->'review_proposal'->>'review_id'" in sql
+    assert "proposal_preview = %s::jsonb" in sql
+    assert "ORDER BY latest.created_at DESC" in sql
+    assert params.count(_PROPOSAL_HASH) == 2
+    assert params.count("review-visible") == 2
+    assert claimed is not None
+    assert claimed["id"] == "review-visible"
 
 
 def test_classify_document_detects_retirement_statement() -> None:
@@ -934,8 +1605,11 @@ def test_low_confidence_review_is_persisted_but_not_applied(tmp_path: Any) -> No
     )
 
     with (
-        patch.object(pipeline, "_persist_review") as persist_review,
+        patch.object(
+            pipeline, "_persist_review", return_value="review-low-confidence"
+        ) as persist_review,
         patch.object(pipeline, "apply_review_outputs") as apply_outputs,
+        patch.object(pipeline, "_bind_review_proposal") as bind_proposal,
         patch.object(pipeline, "upsert_document_signatures"),
         patch(
             "app.services.household_document_pipeline.update_document_application_summary"
@@ -949,6 +1623,7 @@ def test_low_confidence_review_is_persisted_but_not_applied(tmp_path: Any) -> No
         )
 
     persist_review.assert_called_once()
+    bind_proposal.assert_called_once()
     apply_outputs.assert_not_called()
     summary = update_summary.call_args.kwargs["application_summary"]
     assert summary["status"] == "needs_review"
@@ -963,6 +1638,7 @@ def test_process_document_review_reapplies_latest_review_when_source_missing(
     connection = MagicMock()
     latest_review_result = MagicMock()
     latest_review_result.fetchone.return_value = (
+        "review-3a",
         "Recovered statement",
         0.94,
         "Transaction history",
@@ -971,6 +1647,7 @@ def test_process_document_review_reapplies_latest_review_when_source_missing(
                 {"account_name": "Wells Fargo Everyday Checking"}
             ]
         },
+        {},
     )
     application_counts_result = MagicMock()
     application_counts_result.fetchone.return_value = (0, None, 2, 1, 0)
@@ -1027,8 +1704,8 @@ class _RetryPipeline(HouseholdDocumentPipeline):
         document: HouseholdDocument,
         reviewed: dict[str, object],
         now: str,
-    ) -> None:
-        return None
+    ) -> str:
+        return "review-retry"
 
     def apply_review_outputs(
         self,
@@ -1036,7 +1713,9 @@ class _RetryPipeline(HouseholdDocumentPipeline):
         *,
         document: HouseholdDocument,
         reviewed: dict[str, object],
+        bind_upload_account: bool = True,
     ) -> dict[str, object]:
+        del bind_upload_account
         self.apply_calls += 1
         if self.apply_calls == 1:
             return {
@@ -1113,7 +1792,11 @@ def test_process_document_review_retries_once_for_retryable_reconciliation(
             ]
         )
     )
-    service = SimpleNamespace(review_service=review_service, storage=storage)
+    service = SimpleNamespace(
+        review_service=review_service,
+        storage=storage,
+        _upload_root=lambda: tmp_path,
+    )
     document = HouseholdDocument(
         id="doc-4",
         filename="statement.txt",

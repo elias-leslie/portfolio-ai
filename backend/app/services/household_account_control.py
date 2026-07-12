@@ -116,10 +116,12 @@ def _source_rows(storage: Any) -> list[SourceAccountRow]:
             JOIN snaptrade_connections sc
               ON sc.authorization_id = sa.authorization_id
              AND sc.disabled = false
+             AND sc.is_active = true
             LEFT JOIN household_accounts ha ON ha.id = sa.household_account_id
             LEFT JOIN household_account_preferences hap
               ON hap.household_account_id = sa.household_account_id
             WHERE (sa.balance IS NOT NULL OR sa.cash_balance IS NOT NULL)
+              AND sa.is_active = true
               AND hap.hidden_at IS NULL
             UNION ALL
             SELECT
@@ -140,6 +142,7 @@ def _source_rows(storage: Any) -> list[SourceAccountRow]:
             LEFT JOIN household_account_preferences hap
               ON hap.household_account_id = pa.household_account_id
             WHERE (pa.current_balance IS NOT NULL OR pa.available_balance IS NOT NULL)
+              AND pa.is_active = true
               AND pi.status = 'active'
               AND hap.hidden_at IS NULL
             """

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 from app.models.household_finance import HouseholdDocument
@@ -9,6 +10,10 @@ from app.services._household_finance_document_methods import _HFDocumentMethods
 class _DocumentService(_HFDocumentMethods):
     def __init__(self) -> None:
         self.document_pipeline = SimpleNamespace(describe_application_state=lambda *_args, **_kwargs: {})
+
+    def _upload_root(self) -> Path:
+        """Satisfy the mixin contract with an isolated, nonexistent test root."""
+        return Path("/tmp/portfolio-ai-household-document-method-tests")
 
 
 def _document(*, source_type: str, document_type: str, metadata: dict[str, object]) -> HouseholdDocument:

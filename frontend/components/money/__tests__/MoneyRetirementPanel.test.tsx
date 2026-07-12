@@ -849,6 +849,39 @@ describe('MoneyRetirementPanel', () => {
     } as unknown as ReturnType<typeof useUpdateRetirementIncomeStreamOverride>)
   })
 
+  it('scrolls to holdings coverage when opened from allocation drift', async () => {
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    })
+    window.history.replaceState(
+      {},
+      '',
+      '/money?tab=retirement#holdings-coverage',
+    )
+    let delayedPreview: typeof preview | undefined
+    usePreviewMock.mockImplementation(
+      () =>
+        ({
+          data: delayedPreview,
+          error: null,
+          isFetching: delayedPreview == null,
+          refetch: vi.fn(),
+          dataUpdatedAt: delayedPreview == null ? 0 : Date.now(),
+        }) as unknown as ReturnType<typeof useRetirementPreview>,
+    )
+
+    const { rerender } = render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    expect(scrollIntoView).not.toHaveBeenCalled()
+    delayedPreview = preview
+    rerender(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1))
+    window.history.replaceState({}, '', '/money')
+  })
+
   it('renders visual retirement readiness, buckets, levers, and collapsed account details', async () => {
     const user = userEvent.setup()
     usePreviewMock.mockReturnValue({

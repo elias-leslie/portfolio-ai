@@ -4,17 +4,21 @@ from __future__ import annotations
 
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from fastapi import UploadFile
 
 from app.models.household_finance import HouseholdDocument, HouseholdDocumentList
 from app.services._household_document_pipeline_db import delete_document_row
 from app.services._household_finance_utils import iso, iso_or_none, to_float
+from app.services.household_document_review_contracts import (
+    HouseholdDocumentReviewDecisionResult,
+)
+from app.services.household_document_storage import (
+    resolve_document_upload,
+    resolve_upload_path,
+)
 from app.services.household_finance_rows import row_to_document
-
-if TYPE_CHECKING:
-    pass
 
 _DOC_COLS = (
     "id, filename, source_type, document_type, status, account_label, "
@@ -30,6 +34,9 @@ class _HFDocumentMethods:
 
     storage: Any
     document_pipeline: Any
+
+    def _upload_root(self) -> Path:
+        raise NotImplementedError
 
     async def ingest_document(
         self,
@@ -50,10 +57,11 @@ class _HFDocumentMethods:
 
     def _annotate_document(self, document: HouseholdDocument) -> HouseholdDocument:
         metadata = document.metadata if isinstance(document.metadata, dict) else {}
-        stored_path = metadata.get("stored_path")
         expects_file = document.document_type != "api_sync" and document.source_type not in {"plaid", "snaptrade"}
         if expects_file:
-            metadata["file_available"] = bool(isinstance(stored_path, str) and stored_path and Path(stored_path).exists())
+            metadata["file_available"] = (
+                resolve_document_upload(metadata, self._upload_root()) is not None
+            )
         else:
             metadata.pop("file_available", None)
         existing_summary = metadata.get("application_summary")
@@ -95,9 +103,14 @@ class _HFDocumentMethods:
         with self.storage.connection() as conn:
             deleted, stored_path = delete_document_row(conn, document_id=document_id)
             conn.commit()
-        if deleted and stored_path:
+        resolved_path = resolve_upload_path(
+            stored_path,
+            self._upload_root(),
+            require_exists=False,
+        )
+        if deleted and resolved_path is not None:
             with suppress(OSError):
-                Path(stored_path).unlink(missing_ok=True)
+                resolved_path.unlink(missing_ok=True)
         return deleted
 
     def review_document(self, document_id: str) -> None:
@@ -112,4 +125,24 @@ class _HFDocumentMethods:
             self,
             document_ids,
             review_session_id=review_session_id,
+        )
+
+    def decide_document_review(
+        self,
+        document_id: str,
+        *,
+        review_id: str,
+        proposal_hash: str,
+        proposal_preview: dict[str, object],
+        decision: str,
+        reason: str | None = None,
+    ) -> HouseholdDocumentReviewDecisionResult:
+        return self.document_pipeline.decide_document_review(
+            self,
+            document_id=document_id,
+            review_id=review_id,
+            proposal_hash=proposal_hash,
+            proposal_preview=proposal_preview,
+            decision=decision,
+            reason=reason,
         )

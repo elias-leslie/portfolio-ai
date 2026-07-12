@@ -113,7 +113,9 @@ def _mark_failed(storage: PortfolioStorage, workflow_id: str, error: str) -> Non
         conn.execute(
             """
             UPDATE agent_workflows
-            SET status = 'failed', error = $1, completed_at = $2, last_updated_at = $3
+            SET status = 'failed', error = $1,
+                started_at = COALESCE(started_at, created_at),
+                completed_at = $2, last_updated_at = $3
             WHERE id = $4
             """,
             [error, now, now, workflow_id],
@@ -254,7 +256,9 @@ def complete_workflow(
             conn.execute(
                 """
                 UPDATE agent_workflows
-                SET status = 'complete', result = %s, completed_at = %s, last_updated_at = %s
+                SET status = 'complete', result = %s,
+                    started_at = COALESCE(started_at, created_at),
+                    completed_at = %s, last_updated_at = %s
                 WHERE id = %s
                 """,
                 [json.dumps(result), now, now, workflow_id],

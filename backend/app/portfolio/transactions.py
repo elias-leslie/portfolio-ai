@@ -26,6 +26,7 @@ from typing import Any, Literal
 
 from ..logging_config import get_logger
 from ..storage import PortfolioStorage
+from ..storage.types import DatabaseConnection
 
 logger = get_logger(__name__)
 
@@ -148,37 +149,81 @@ class TransactionLedger:
         symbol_upper = symbol.upper()
         meta_payload = json.dumps(metadata or {})
 
-        if external_id is not None:
-            existing = self._find_by_external_id(account_id, external_id)
-            if existing is not None:
-                return existing
-
         txn_id = str(uuid.uuid4())
         with self.storage.connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO portfolio_transactions
-                    (id, account_id, symbol, transaction_type, trade_date,
-                     settlement_date, shares, price, fees, source,
-                     external_id, metadata)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
-                """,
-                [
-                    txn_id,
-                    account_id,
-                    symbol_upper,
-                    transaction_type,
-                    trade_date,
-                    settlement_date,
-                    shares,
-                    price,
-                    fees,
-                    source,
-                    external_id,
-                    meta_payload,
-                ],
-            )
-            conn.commit()
+            try:
+                inserted = conn.execute(
+                    """
+                    INSERT INTO portfolio_transactions
+                        (id, account_id, symbol, transaction_type, trade_date,
+                         settlement_date, shares, price, fees, source,
+                         external_id, metadata)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+                    ON CONFLICT (account_id, external_id)
+                        WHERE external_id IS NOT NULL
+                    DO NOTHING
+                    RETURNING id
+                    """,
+                    [
+                        txn_id,
+                        account_id,
+                        symbol_upper,
+                        transaction_type,
+                        trade_date,
+                        settlement_date,
+                        shares,
+                        price,
+                        fees,
+                        source,
+                        external_id,
+                        meta_payload,
+                    ],
+                ).fetchone()
+
+                if inserted is None:
+                    if external_id is None:
+                        raise RuntimeError("Transaction insert returned no id")
+                    existing = self._find_by_external_id_with_connection(
+                        conn, account_id, external_id
+                    )
+                    if existing is None:
+                        raise RuntimeError(
+                            "External-id conflict did not resolve to a transaction"
+                        )
+                    # The conflict path performed no writes. End its transaction
+                    # before returning the already-committed canonical row.
+                    conn.rollback()
+                    return existing
+
+                txn_id = str(inserted[0])
+
+                if source != "legacy_aggregate" and transaction_type == "buy":
+                    self._open_lot_for_buy(
+                        conn,
+                        txn_id=txn_id,
+                        account_id=account_id,
+                        symbol=symbol_upper,
+                        trade_date=trade_date,
+                        shares=shares,
+                        price=price,
+                        fees=fees,
+                    )
+                elif source != "legacy_aggregate" and transaction_type == "sell":
+                    consume = self._evaluate_lots_fifo(
+                        account_id=account_id,
+                        symbol=symbol_upper,
+                        shares=shares,
+                        sell_date=trade_date,
+                        sell_price=price,
+                        apply_updates=True,
+                        connection=conn,
+                    )
+                    self._stamp_realized_gain(conn, txn_id, consume.total_realized_gain)
+
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
 
         if source == "legacy_aggregate":
             logger.debug(
@@ -187,27 +232,6 @@ class TransactionLedger:
                 account_id=account_id,
                 symbol=symbol_upper,
             )
-            return txn_id
-
-        if transaction_type == "buy":
-            self._open_lot_for_buy(
-                txn_id=txn_id,
-                account_id=account_id,
-                symbol=symbol_upper,
-                trade_date=trade_date,
-                shares=shares,
-                price=price,
-                fees=fees,
-            )
-        elif transaction_type == "sell":
-            consume = self.consume_lots_fifo(
-                account_id=account_id,
-                symbol=symbol_upper,
-                shares=shares,
-                sell_date=trade_date,
-                sell_price=price,
-            )
-            self._stamp_realized_gain(txn_id, consume.total_realized_gain)
 
         return txn_id
 
@@ -298,35 +322,9 @@ class TransactionLedger:
         """
         symbol_upper = symbol.upper()
         with self.storage.connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT id, account_id, symbol, acquired_date,
-                       original_shares, remaining_shares, cost_per_share,
-                       cost_basis_total, acquisition_txn_id, disposed_at
-                FROM portfolio_tax_lots
-                WHERE account_id = %s
-                  AND symbol = %s
-                  AND remaining_shares > 0
-                ORDER BY acquired_date ASC, id ASC
-                """,
-                [account_id, symbol_upper],
-            ).fetchall()
-
-        return [
-            TaxLot(
-                id=str(row[0]),
-                account_id=str(row[1]),
-                symbol=str(row[2]),
-                acquired_date=_to_date(row[3]),
-                original_shares=float(row[4]),
-                remaining_shares=float(row[5]),
-                cost_per_share=float(row[6]),
-                cost_basis_total=float(row[7]),
-                acquisition_txn_id=str(row[8]) if row[8] is not None else None,
-                disposed_at=_to_datetime(row[9]),
+            return self._open_lots_with_connection(
+                conn, account_id=account_id, symbol=symbol_upper, for_update=False
             )
-            for row in rows
-        ]
 
     def preview_lots_fifo(
         self,
@@ -384,13 +382,66 @@ class TransactionLedger:
         sell_date: date,
         sell_price: float,
         apply_updates: bool,
+        connection: DatabaseConnection | None = None,
     ) -> ConsumeResult:
-        """Build a FIFO result and optionally persist the lot decrements."""
+        """Build a FIFO result and optionally persist the lot decrements.
+
+        Mutating callers either supply their surrounding transaction or let
+        this method own one. Preview callers never request row locks or commit.
+        """
+        if connection is not None:
+            return self._evaluate_lots_fifo_with_connection(
+                connection,
+                account_id=account_id,
+                symbol=symbol,
+                shares=shares,
+                sell_date=sell_date,
+                sell_price=sell_price,
+                apply_updates=apply_updates,
+            )
+
+        with self.storage.connection() as conn:
+            try:
+                result = self._evaluate_lots_fifo_with_connection(
+                    conn,
+                    account_id=account_id,
+                    symbol=symbol,
+                    shares=shares,
+                    sell_date=sell_date,
+                    sell_price=sell_price,
+                    apply_updates=apply_updates,
+                )
+                if apply_updates:
+                    conn.commit()
+                return result
+            except Exception:
+                if apply_updates:
+                    conn.rollback()
+                raise
+
+    def _evaluate_lots_fifo_with_connection(
+        self,
+        connection: DatabaseConnection,
+        *,
+        account_id: str,
+        symbol: str,
+        shares: float,
+        sell_date: date,
+        sell_price: float,
+        apply_updates: bool,
+    ) -> ConsumeResult:
+        """Evaluate FIFO using one connection, locking rows before mutation."""
         symbol_upper = symbol.upper()
-        lots = self.open_lots(account_id, symbol_upper)
+        lots = self._open_lots_with_connection(
+            connection,
+            account_id=account_id,
+            symbol=symbol_upper,
+            for_update=apply_updates,
+        )
 
         if not lots:
             return self._consume_via_position_aggregate(
+                connection,
                 account_id=account_id,
                 symbol=symbol_upper,
                 shares=shares,
@@ -441,21 +492,19 @@ class TransactionLedger:
             updates.append((lot.id, new_remaining))
             remaining_to_sell -= take
 
-        if apply_updates and updates:
-            with self.storage.connection() as conn:
-                for lot_id, new_remaining in updates:
-                    disposed_at = datetime.now(UTC) if new_remaining <= 0 else None
-                    conn.execute(
-                        """
-                        UPDATE portfolio_tax_lots
-                        SET remaining_shares = %s,
-                            disposed_at = COALESCE(%s, disposed_at),
-                            updated_at = now()
-                        WHERE id = %s
-                        """,
-                        [new_remaining, disposed_at, lot_id],
-                    )
-                conn.commit()
+        if apply_updates:
+            for lot_id, new_remaining in updates:
+                disposed_at = datetime.now(UTC) if new_remaining <= 0 else None
+                connection.execute(
+                    """
+                    UPDATE portfolio_tax_lots
+                    SET remaining_shares = %s,
+                        disposed_at = COALESCE(%s, disposed_at),
+                        updated_at = now()
+                    WHERE id = %s
+                    """,
+                    [new_remaining, disposed_at, lot_id],
+                )
 
         # If we ran out of lots before filling the order, consume the
         # rest via the aggregate fallback. This happens when lots were
@@ -463,6 +512,7 @@ class TransactionLedger:
         used_position_aggregate_fallback = remaining_to_sell > 0
         if used_position_aggregate_fallback:
             tail = self._consume_via_position_aggregate(
+                connection,
                 account_id=account_id,
                 symbol=symbol_upper,
                 shares=remaining_to_sell,
@@ -487,20 +537,66 @@ class TransactionLedger:
             used_position_aggregate_fallback=used_position_aggregate_fallback,
         )
 
+    def _open_lots_with_connection(
+        self,
+        connection: DatabaseConnection,
+        *,
+        account_id: str,
+        symbol: str,
+        for_update: bool,
+    ) -> list[TaxLot]:
+        lock_clause = " FOR UPDATE" if for_update else ""
+        rows = connection.execute(
+            f"""
+            SELECT id, account_id, symbol, acquired_date,
+                   original_shares, remaining_shares, cost_per_share,
+                   cost_basis_total, acquisition_txn_id, disposed_at
+            FROM portfolio_tax_lots
+            WHERE account_id = %s
+              AND symbol = %s
+              AND remaining_shares > 0
+            ORDER BY acquired_date ASC, id ASC{lock_clause}
+            """,
+            [account_id, symbol],
+        ).fetchall()
+
+        return [
+            TaxLot(
+                id=str(row[0]),
+                account_id=str(row[1]),
+                symbol=str(row[2]),
+                acquired_date=_to_date(row[3]),
+                original_shares=float(row[4]),
+                remaining_shares=float(row[5]),
+                cost_per_share=float(row[6]),
+                cost_basis_total=float(row[7]),
+                acquisition_txn_id=str(row[8]) if row[8] is not None else None,
+                disposed_at=_to_datetime(row[9]),
+            )
+            for row in rows
+        ]
+
     def _find_by_external_id(self, account_id: str, external_id: str) -> str | None:
         with self.storage.connection() as conn:
-            row = conn.execute(
-                """
-                SELECT id FROM portfolio_transactions
-                WHERE account_id = %s AND external_id = %s
-                LIMIT 1
-                """,
-                [account_id, external_id],
-            ).fetchone()
+            return self._find_by_external_id_with_connection(conn, account_id, external_id)
+
+    @staticmethod
+    def _find_by_external_id_with_connection(
+        connection: DatabaseConnection, account_id: str, external_id: str
+    ) -> str | None:
+        row = connection.execute(
+            """
+            SELECT id FROM portfolio_transactions
+            WHERE account_id = %s AND external_id = %s
+            LIMIT 1
+            """,
+            [account_id, external_id],
+        ).fetchone()
         return str(row[0]) if row else None
 
     def _open_lot_for_buy(
         self,
+        connection: DatabaseConnection,
         *,
         txn_id: str,
         account_id: str,
@@ -516,36 +612,35 @@ class TransactionLedger:
         # math reflects the true acquisition cost.
         cost_per_share = price + (fees / shares if shares else 0.0)
         cost_basis_total = cost_per_share * shares
-        with self.storage.connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO portfolio_tax_lots
-                    (id, account_id, symbol, acquired_date,
-                     original_shares, remaining_shares, cost_per_share,
-                     cost_basis_total, acquisition_txn_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                [
-                    str(uuid.uuid4()),
-                    account_id,
-                    symbol,
-                    trade_date,
-                    shares,
-                    shares,
-                    cost_per_share,
-                    cost_basis_total,
-                    txn_id,
-                ],
-            )
-            conn.commit()
+        connection.execute(
+            """
+            INSERT INTO portfolio_tax_lots
+                (id, account_id, symbol, acquired_date,
+                 original_shares, remaining_shares, cost_per_share,
+                 cost_basis_total, acquisition_txn_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            [
+                str(uuid.uuid4()),
+                account_id,
+                symbol,
+                trade_date,
+                shares,
+                shares,
+                cost_per_share,
+                cost_basis_total,
+                txn_id,
+            ],
+        )
 
-    def _stamp_realized_gain(self, txn_id: str, realized_gain: float) -> None:
-        with self.storage.connection() as conn:
-            conn.execute(
-                "UPDATE portfolio_transactions SET realized_gain = %s WHERE id = %s",
-                [round(realized_gain, 4), txn_id],
-            )
-            conn.commit()
+    @staticmethod
+    def _stamp_realized_gain(
+        connection: DatabaseConnection, txn_id: str, realized_gain: float
+    ) -> None:
+        connection.execute(
+            "UPDATE portfolio_transactions SET realized_gain = %s WHERE id = %s",
+            [round(realized_gain, 4), txn_id],
+        )
 
     def _window_query(
         self,
@@ -578,6 +673,7 @@ class TransactionLedger:
 
     def _consume_via_position_aggregate(
         self,
+        connection: DatabaseConnection,
         *,
         account_id: str,
         symbol: str,
@@ -591,15 +687,14 @@ class TransactionLedger:
         and treats holding period as unknown — emits the gain as
         short-term, the conservative bucket for tax planning.
         """
-        with self.storage.connection() as conn:
-            row = conn.execute(
-                """
-                SELECT cost_basis FROM portfolio_positions
-                WHERE account_id = %s AND symbol = %s
-                LIMIT 1
-                """,
-                [account_id, symbol],
-            ).fetchone()
+        row = connection.execute(
+            """
+            SELECT cost_basis FROM portfolio_positions
+            WHERE account_id = %s AND symbol = %s
+            LIMIT 1
+            """,
+            [account_id, symbol],
+        ).fetchone()
 
         cost_per_share = float(row[0]) if row and row[0] is not None else 0.0
         cost_basis = cost_per_share * shares

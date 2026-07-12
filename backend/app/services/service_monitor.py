@@ -10,9 +10,10 @@ from __future__ import annotations
 import re
 import subprocess
 import time
+from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import httpx
 import psutil
@@ -22,7 +23,11 @@ from pydantic import BaseModel, Field
 from app.config import settings
 from app.constants.services import SERVICE_PROCESS_PATTERNS
 from app.logging_config import get_logger
+from app.services.worker_heartbeat import read_worker_heartbeat
 from app.utils import safe_subprocess
+
+if TYPE_CHECKING:
+    from app.storage import PortfolioStorage
 
 logger = get_logger(__name__)
 
@@ -235,28 +240,41 @@ def check_backend_api(skip_http_check: bool = False) -> ServiceStatus:
     return status
 
 
-def check_hatchet_worker() -> ServiceStatus:
-    """Check Hatchet worker service status.
+def check_hatchet_worker(storage: PortfolioStorage | None = None) -> ServiceStatus:
+    """Check Hatchet worker status from its persisted liveness signal."""
+    try:
+        if storage is None:
+            from app.storage import get_storage  # noqa: PLC0415
 
-    In containers the worker runs in a separate container, so process detection
-    won't work. Fall back to checking if the Hatchet engine reports active workers.
-
-    Returns:
-        ServiceStatus for Hatchet worker
-    """
-    # In containers, pgrep can't see the worker process in another container.
-    # Try process detection first (works on bare-metal and same-container).
-    status = get_systemd_user_service_status("portfolio-hatchet-worker") or get_service_status(
-        "portfolio-hatchet-worker",
-        SERVICE_PROCESS_PATTERNS["portfolio-hatchet-worker"],
+            storage = get_storage()
+        heartbeat = read_worker_heartbeat(storage)
+    except Exception as exc:
+        logger.error("worker_heartbeat_status_failed", error=str(exc), exc_info=True)
+        return ServiceStatus(
+            service_name="portfolio-hatchet-worker",
+            status="degraded",
+            message="Worker heartbeat unavailable",
+        )
+    if heartbeat.active:
+        uptime_seconds = None
+        if heartbeat.started_at is not None:
+            started_at = heartbeat.started_at
+            if started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=UTC)
+            uptime_seconds = max(0, int((datetime.now(UTC) - started_at).total_seconds()))
+        return ServiceStatus(
+            service_name="portfolio-hatchet-worker",
+            status="running",
+            pid=heartbeat.pid,
+            uptime_seconds=uptime_seconds,
+            message=heartbeat.message,
+        )
+    return ServiceStatus(
+        service_name="portfolio-hatchet-worker",
+        status="degraded",
+        pid=heartbeat.pid,
+        message=heartbeat.message,
     )
-
-    if status.status == "down" and _is_container():
-        # Can't see cross-container processes; report as unknown rather than down.
-        status.status = "running"
-        status.message = "Container mode — worker health inferred from Hatchet engine"
-
-    return status
 
 
 def check_frontend() -> ServiceStatus:
@@ -327,12 +345,16 @@ def check_redis() -> ServiceStatus:
     return status
 
 
-def get_all_service_statuses(skip_slow_checks: bool = False) -> dict[str, ServiceStatus]:
+def get_all_service_statuses(
+    skip_slow_checks: bool = False,
+    storage: PortfolioStorage | None = None,
+) -> dict[str, ServiceStatus]:
     """Get status of all monitored services.
 
     Args:
         skip_slow_checks: If True, skip slow operations like backend HTTP checks (fast).
                          If False, perform all checks including slow ones (detailed status page).
+        storage: Shared application storage used to read the worker heartbeat.
 
     Returns:
         Dictionary mapping service key to ServiceStatus
@@ -340,6 +362,6 @@ def get_all_service_statuses(skip_slow_checks: bool = False) -> dict[str, Servic
     return {
         "portfolio-redis": check_redis(),
         "portfolio-backend": check_backend_api(skip_http_check=skip_slow_checks),
-        "portfolio-hatchet-worker": check_hatchet_worker(),
+        "portfolio-hatchet-worker": check_hatchet_worker(storage),
         "portfolio-frontend": check_frontend(),
     }

@@ -63,6 +63,20 @@ class DriftRow(BaseModel):
     drift_value: float
 
 
+class DriftCoverageAccount(BaseModel):
+    """Canonical account whose value is not fully classified by holdings."""
+
+    model_config = ConfigDict(frozen=True)
+
+    household_account_id: str | None = None
+    label: str
+    current_value: float = Field(..., ge=0.0)
+    exact_value: float = Field(..., ge=0.0)
+    unclassified_value: float = Field(..., ge=0.0)
+    manual_holdings_editable: bool = False
+    priced_position_count: int = Field(0, ge=0)
+
+
 class DriftCoverage(BaseModel):
     """Reconciliation of the allocation universe to canonical household value."""
 
@@ -73,6 +87,7 @@ class DriftCoverage(BaseModel):
     coverage_pct: float | None = Field(default=None, ge=0.0, le=1.0)
     excluded_value: float | None = Field(default=None, ge=0.0)
     message: str
+    accounts_needing_holdings: list[DriftCoverageAccount] = Field(default_factory=list)
 
 
 class DriftSummary(BaseModel):

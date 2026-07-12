@@ -57,7 +57,7 @@ def test_get_market_conditions_success(mock_get_fetcher: Mock, client: TestClien
     # Mock price data for market indicators
     mock_fetcher = Mock()
     mock_get_fetcher.return_value = mock_fetcher
-    mock_fetcher.fetch_cached_price_data.return_value = {
+    mock_fetcher.fetch_price_data.return_value = {
         "^GSPC": PriceData(
             symbol="^GSPC",
             price=4500.50,
@@ -91,8 +91,8 @@ def test_get_market_conditions_success(mock_get_fetcher: Mock, client: TestClien
     assert data["dxy"]["price"] == 103.5
 
     # Verify the correct symbols were requested for both indicator and sector fetches
-    assert mock_fetcher.fetch_cached_price_data.call_count == 2
-    indicator_call, sector_call = mock_fetcher.fetch_cached_price_data.call_args_list
+    assert mock_fetcher.fetch_price_data.call_count == 2
+    indicator_call, sector_call = mock_fetcher.fetch_price_data.call_args_list
     assert indicator_call.args[0] == ["^GSPC", "^VIX", "^TNX", "DX-Y.NYB"]
     assert sector_call.args[0] == [
         "XLK",
@@ -115,7 +115,7 @@ def test_get_market_conditions_partial_data(mock_get_fetcher: Mock, client: Test
     # Mock with only S&P 500 and VIX available
     mock_fetcher = Mock()
     mock_get_fetcher.return_value = mock_fetcher
-    mock_fetcher.fetch_cached_price_data.return_value = {
+    mock_fetcher.fetch_price_data.return_value = {
         "^GSPC": PriceData(symbol="^GSPC", price=4500.50, beta=None, volatility=None, sector=None),
         "^VIX": PriceData(symbol="^VIX", price=18.5, beta=None, volatility=None, sector=None),
     }
@@ -139,7 +139,7 @@ def test_get_market_conditions_empty_data(mock_get_fetcher: Mock, client: TestCl
     """Test GET /api/market/conditions when no data is available."""
     mock_fetcher = Mock()
     mock_get_fetcher.return_value = mock_fetcher
-    mock_fetcher.fetch_cached_price_data.return_value = {}
+    mock_fetcher.fetch_price_data.return_value = {}
 
     response = client.get("/api/market/conditions")
 

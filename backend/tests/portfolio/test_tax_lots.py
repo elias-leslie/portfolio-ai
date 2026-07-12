@@ -66,6 +66,7 @@ def test_preview_lots_fifo_is_repeatable_and_does_not_mutate_lots() -> None:
         price=200.0,
     )
     lots_before = deepcopy(store.tax_lots)
+    store.queries.clear()
 
     first = ledger.preview_lots_fifo(
         account_id="acct-1",
@@ -86,6 +87,7 @@ def test_preview_lots_fifo_is_repeatable_and_does_not_mutate_lots() -> None:
     assert first.realized_gain_long_term == 1000.0
     assert first.realized_gain_short_term == 300.0
     assert store.tax_lots == lots_before
+    assert not any("FOR UPDATE" in query.upper() for query in store.queries)
     assert [lot.remaining_shares for lot in ledger.open_lots("acct-1", "AAPL")] == [
         5.0,
         5.0,
@@ -169,6 +171,9 @@ def test_sell_decrements_lot_and_marks_disposed_when_emptied() -> None:
         shares=5.0,
         price=100.0,
     )
+    commits_before = store.commit_count
+    connections_before = store.connection_count
+    store.queries.clear()
     ledger.record_transaction(
         account_id="acct-1",
         symbol="AAPL",
@@ -181,6 +186,9 @@ def test_sell_decrements_lot_and_marks_disposed_when_emptied() -> None:
     lot = store.tax_lots[0]
     assert float(lot["remaining_shares"]) == 0.0
     assert lot["disposed_at"] is not None
+    assert store.commit_count - commits_before == 1
+    assert store.connection_count - connections_before == 1
+    assert any("FOR UPDATE" in query.upper() for query in store.queries)
 
 
 def test_open_lots_skips_fully_disposed_lots() -> None:

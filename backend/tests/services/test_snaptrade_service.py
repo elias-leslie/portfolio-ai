@@ -10,6 +10,7 @@ from app.services import snaptrade_service
 from app.services.snaptrade_service import (
     _READ_ONLY_CONNECTION_TYPE,
     SnapTradeConfigurationError,
+    SnapTradeIntegrationError,
     SnapTradeNormalizedAccount,
     SnapTradeNormalizedPosition,
     SnapTradeReadOnlyClient,
@@ -53,6 +54,48 @@ class _RecordingStorage:
         return None
 
 
+class _QueuedResult:
+    def __init__(self, rows: list[list[object]] | None = None) -> None:
+        self.rows = rows or []
+
+    def fetchall(self) -> list[list[object]]:
+        return self.rows
+
+    def fetchone(self) -> list[object] | None:
+        return self.rows[0] if self.rows else None
+
+
+class _QueuedConnection:
+    def __init__(self, results: list[_QueuedResult]) -> None:
+        self.results = list(results)
+        self.calls: list[tuple[str, list[object] | None]] = []
+
+    def execute(
+        self,
+        sql: str,
+        params: list[object] | None = None,
+    ) -> _QueuedResult:
+        self.calls.append((" ".join(sql.split()), params))
+        return self.results.pop(0) if self.results else _QueuedResult()
+
+    def commit(self) -> None:
+        self.calls.append(("COMMIT", None))
+
+
+class _QueuedStorage:
+    def __init__(self, conn: _QueuedConnection) -> None:
+        self.conn = conn
+
+    def connection(self) -> _QueuedStorage:
+        return self
+
+    def __enter__(self) -> _QueuedConnection:
+        return self.conn
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+
 class _FakeOrderApi:
     def __init__(self, orders: list[dict[str, object]]) -> None:
         self.orders = orders
@@ -66,6 +109,32 @@ class _FakeOrderApi:
 class _FakeOrderClient:
     def __init__(self, orders: list[dict[str, object]]) -> None:
         self.account_information = _FakeOrderApi(orders)
+
+
+class _FakePositionsApi:
+    def __init__(self, response: object) -> None:
+        self.response = response
+
+    def get_all_account_positions(self, **_kwargs: object) -> object:
+        return self.response
+
+
+def _positions_account() -> SnapTradeNormalizedAccount:
+    return SnapTradeNormalizedAccount(
+        account_id="acct-1",
+        authorization_id="auth-1",
+        name="Individual",
+        institution_name="Fidelity",
+        account_mask="1234",
+        raw_type=None,
+        portfolio_account_type="Taxable",
+        balance=None,
+        cash_balance=None,
+        currency="USD",
+        household_account_id="household-1",
+        portfolio_account_id="portfolio-1",
+        metadata={},
+    )
 
 
 def test_connection_portal_is_read_only() -> None:
@@ -501,6 +570,53 @@ def test_portfolio_positions_skip_snaptrade_other_instruments() -> None:
     assert SnapTradeService._portfolio_positions([etf, plan_fund]) == [etf]
 
 
+@pytest.mark.parametrize(
+    "response",
+    [
+        None,
+        [],
+        {},
+        {"results": None},
+        {"results": {}},
+        {"results": ["not-a-position"]},
+        {"results": [{"instrument": {"symbol": "VTI"}}]},
+    ],
+)
+def test_malformed_position_snapshot_preserves_current_mirror(response: object) -> None:
+    conn = _QueuedConnection([])
+    service = object.__new__(SnapTradeService)
+    service.storage = _QueuedStorage(conn)
+    client = SimpleNamespace(account_information=_FakePositionsApi(response))
+
+    with pytest.raises(SnapTradeIntegrationError, match="malformed|valid symbol"):
+        service._sync_positions(
+            client=client,
+            user=SnapTradeUser(user_id="user-1", user_secret="secret"),
+            account=_positions_account(),
+        )
+
+    assert conn.calls == []
+
+
+def test_true_empty_position_snapshot_is_authoritative() -> None:
+    conn = _QueuedConnection([_QueuedResult([])])
+    service = object.__new__(SnapTradeService)
+    service.storage = _QueuedStorage(conn)
+    client = SimpleNamespace(
+        account_information=_FakePositionsApi({"results": []})
+    )
+
+    result = service._sync_positions(
+        client=client,
+        user=SnapTradeUser(user_id="user-1", user_secret="secret"),
+        account=_positions_account(),
+    )
+
+    assert result == (0, 0, set())
+    assert any(sql.startswith("DELETE FROM snaptrade_positions") for sql, _ in conn.calls)
+    assert any(sql.startswith("DELETE FROM portfolio_positions") for sql, _ in conn.calls)
+
+
 def test_cash_balance_update_persists_to_source_and_portfolio_accounts() -> None:
     account = SnapTradeNormalizedAccount(
         account_id="acct-1",
@@ -599,3 +715,207 @@ def test_cash_balance_update_persists_reconciled_cash_when_direct_cash_is_incomp
     assert portfolio_params == [0.0, synced_at, "portfolio-1"]
     assert "UPDATE snaptrade_accounts" in source_sql
     assert source_params == [0.0, synced_at, "acct-1"]
+
+
+def test_account_snapshot_reconciliation_clears_inactive_current_mirror() -> None:
+    conn = _QueuedConnection(
+        [
+            _QueuedResult([["portfolio-1"]]),
+            _QueuedResult(),
+        ]
+    )
+    service = object.__new__(SnapTradeService)
+    service.storage = _QueuedStorage(conn)
+
+    removed = service._reconcile_snaptrade_accounts_for_connection(
+        authorization_id="auth-1",
+        authoritative_account_ids={"account-current"},
+    )
+
+    assert removed == 1
+    update_sql, update_params = conn.calls[0]
+    assert update_sql.startswith("UPDATE snaptrade_accounts")
+    assert "is_active = FALSE" in update_sql
+    assert "account_id <> ALL" in update_sql
+    assert update_params is not None
+    assert update_params[1:] == ["auth-1", ["account-current"]]
+    assert any(sql.startswith("DELETE FROM portfolio_positions") for sql, _ in conn.calls)
+    assert any(
+        sql.startswith("UPDATE portfolio_accounts") and params is not None and params[-1] == "portfolio-1"
+        for sql, params in conn.calls
+    )
+
+
+def test_account_snapshot_reconciliation_preserves_mirror_with_active_alias() -> None:
+    conn = _QueuedConnection(
+        [
+            _QueuedResult([["portfolio-1"]]),
+            _QueuedResult([[1]]),
+        ]
+    )
+    service = object.__new__(SnapTradeService)
+    service.storage = _QueuedStorage(conn)
+
+    removed = service._reconcile_snaptrade_accounts_for_connection(
+        authorization_id="auth-1",
+        authoritative_account_ids=set(),
+    )
+
+    assert removed == 1
+    assert not any(sql.startswith("DELETE FROM portfolio_positions") for sql, _ in conn.calls)
+    assert not any(sql.startswith("UPDATE portfolio_accounts") for sql, _ in conn.calls)
+
+
+def test_connection_snapshot_reconciliation_deactivates_absent_accounts() -> None:
+    conn = _QueuedConnection(
+        [
+            _QueuedResult([["auth-old"]]),
+            _QueuedResult([["portfolio-old"]]),
+            _QueuedResult(),
+        ]
+    )
+    service = object.__new__(SnapTradeService)
+    service.storage = _QueuedStorage(conn)
+
+    removed_connections, removed_accounts = service._reconcile_snaptrade_connections(
+        user_id="user-1",
+        authoritative_connection_ids={"auth-current"},
+    )
+
+    assert (removed_connections, removed_accounts) == (1, 1)
+    connection_sql, connection_params = conn.calls[0]
+    assert connection_sql.startswith("UPDATE snaptrade_connections")
+    assert "authorization_id <> ALL" in connection_sql
+    assert connection_params is not None
+    assert connection_params[1:] == ["user-1", ["auth-current"]]
+    assert any(sql.startswith("DELETE FROM portfolio_positions") for sql, _ in conn.calls)
+
+
+class _SyncConnectionsApi:
+    def __init__(
+        self,
+        *,
+        connections: object,
+        accounts: object = None,
+        account_error: Exception | None = None,
+        connection_error: Exception | None = None,
+    ) -> None:
+        self.connections = connections
+        self.accounts = [] if accounts is None else accounts
+        self.account_error = account_error
+        self.connection_error = connection_error
+
+    def list_brokerage_authorizations(self, **_kwargs: object) -> object:
+        if self.connection_error is not None:
+            raise self.connection_error
+        return self.connections
+
+    def list_brokerage_authorization_accounts(self, **_kwargs: object) -> object:
+        if self.account_error is not None:
+            raise self.account_error
+        return self.accounts
+
+
+def _sync_test_service(client: object) -> SnapTradeService:
+    service = object.__new__(SnapTradeService)
+    service.storage = object()
+    service._load_config = SimpleNamespace
+    service._client = lambda _config: client
+    service._load_user = lambda: SnapTradeUser(
+        user_id="user-1", user_secret="secret"
+    )
+    service._upsert_connection = lambda **_kwargs: None
+    service._reconcile_account_ownership = lambda: None
+    service._record_user_sync = lambda *_args, **_kwargs: None
+    service._record_user_error = lambda *_args, **_kwargs: None
+    return service
+
+
+def _stub_sync_tail(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(snaptrade_service, "bridge_cash_activities", lambda _storage: {})
+    monkeypatch.setattr(
+        snaptrade_service,
+        "ensure_symbols_in_watchlist",
+        lambda *_args, **_kwargs: None,
+    )
+
+
+def test_account_provider_error_does_not_deactivate_prior_snapshot(monkeypatch) -> None:
+    _stub_sync_tail(monkeypatch)
+    client = SimpleNamespace(
+        connections=_SyncConnectionsApi(
+            connections=[{"id": "auth-1", "disabled": False}],
+            account_error=snaptrade_service.ApiException(status=502, reason="unavailable"),
+        ),
+        account_information=SimpleNamespace(),
+    )
+    service = _sync_test_service(client)
+    account_reconciliations: list[tuple[str, set[str]]] = []
+    service._reconcile_snaptrade_accounts_for_connection = (  # type: ignore[method-assign]
+        lambda *, authorization_id, authoritative_account_ids: account_reconciliations.append(
+            (authorization_id, authoritative_account_ids)
+        )
+        or 0
+    )
+    service._reconcile_snaptrade_connections = (  # type: ignore[method-assign]
+        lambda **_kwargs: (0, 0)
+    )
+
+    result = service.sync()
+
+    assert account_reconciliations == []
+    assert len(result["errors"]) == 1
+
+
+def test_successful_empty_account_snapshot_is_authoritative(monkeypatch) -> None:
+    _stub_sync_tail(monkeypatch)
+    client = SimpleNamespace(
+        connections=_SyncConnectionsApi(
+            connections=[{"id": "auth-1", "disabled": False}],
+            accounts=[],
+        ),
+        account_information=SimpleNamespace(),
+    )
+    service = _sync_test_service(client)
+    account_reconciliations: list[tuple[str, set[str]]] = []
+    service._reconcile_snaptrade_accounts_for_connection = (  # type: ignore[method-assign]
+        lambda *, authorization_id, authoritative_account_ids: account_reconciliations.append(
+            (authorization_id, authoritative_account_ids)
+        )
+        or 0
+    )
+    service._reconcile_snaptrade_connections = (  # type: ignore[method-assign]
+        lambda **_kwargs: (0, 0)
+    )
+
+    result = service.sync()
+
+    assert account_reconciliations == [("auth-1", set())]
+    assert result["errors"] == []
+
+
+def test_connection_provider_error_never_reconciles_lifecycle(monkeypatch) -> None:
+    _stub_sync_tail(monkeypatch)
+    client = SimpleNamespace(
+        connections=_SyncConnectionsApi(
+            connections=[],
+            connection_error=snaptrade_service.ApiException(
+                status=502,
+                reason="unavailable",
+            ),
+        ),
+        account_information=SimpleNamespace(),
+    )
+    service = _sync_test_service(client)
+    lifecycle_calls: list[str] = []
+    service._reconcile_snaptrade_accounts_for_connection = (  # type: ignore[method-assign]
+        lambda **_kwargs: lifecycle_calls.append("accounts") or 0
+    )
+    service._reconcile_snaptrade_connections = (  # type: ignore[method-assign]
+        lambda **_kwargs: lifecycle_calls.append("connections") or (0, 0)
+    )
+
+    with pytest.raises(SnapTradeIntegrationError, match="unavailable"):
+        service.sync()
+
+    assert lifecycle_calls == []

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Query
+from fastapi.concurrency import run_in_threadpool
 
 from app.logging_config import get_logger
 from app.repositories.market_repository import MarketRepository
@@ -38,7 +39,9 @@ async def get_corporate_actions(
         List of corporate actions with amounts and dates.
     """
     # Use repository for data access
-    rows = _get_market_repo().get_corporate_actions(action_type, symbol, limit)
+    rows = await run_in_threadpool(
+        lambda: _get_market_repo().get_corporate_actions(action_type, symbol, limit)
+    )
 
     actions = []
     for row in rows:
@@ -73,7 +76,9 @@ async def get_corporate_actions_summary(
         Aggregated buyback totals and counts.
     """
     # Use repository for data access
-    rows = _get_market_repo().get_corporate_actions_summary(symbol)
+    rows = await run_in_threadpool(
+        lambda: _get_market_repo().get_corporate_actions_summary(symbol)
+    )
 
     summaries = []
     for row in rows:

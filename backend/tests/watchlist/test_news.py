@@ -53,6 +53,9 @@ class StubAnalyzer:
     def is_available(self) -> bool:
         return True
 
+    def is_loaded(self) -> bool:
+        return True
+
     def score_batch(self, texts: Sequence[str]) -> list[SentimentScore]:
         assert len(texts) == len(self._scores)
         return self._scores
@@ -63,6 +66,9 @@ class FailingAnalyzer:
         raise FinBertUnavailableError("finbert unavailable")
 
     def is_available(self) -> bool:
+        return False
+
+    def is_loaded(self) -> bool:
         return False
 
 
@@ -234,6 +240,12 @@ def test_news_service_caches_articles(storage: Any) -> None:
 def test_news_service_falls_back_to_vader(storage: Any) -> None:
     news_source = StubNewsSource()
     seed_entry = _sample_entries()[0]
+    seed_entry.update(
+        {
+            "title": "TSLA misses delivery expectations",
+            "link": "https://example.com/tsla-deliveries",
+        }
+    )
     news_source.set_entries([copy.deepcopy(seed_entry)])
 
     failing_finbert: Any = FailingAnalyzer()
@@ -265,6 +277,12 @@ def test_news_service_falls_back_to_vader(storage: Any) -> None:
 def test_news_health_reports_fallback_metrics(storage: Any) -> None:
     news_source = StubNewsSource()
     seed_entry = _sample_entries()[0]
+    seed_entry.update(
+        {
+            "title": "GOOG faces advertising slowdown",
+            "link": "https://example.com/goog-advertising",
+        }
+    )
     news_source.set_entries([copy.deepcopy(seed_entry)])
 
     failing_finbert: Any = FailingAnalyzer()
@@ -298,6 +316,12 @@ def test_news_health_reports_fallback_metrics(storage: Any) -> None:
 def test_news_service_tracks_score_change(storage: Any) -> None:
     news_source = StubNewsSource()
     seed_entry = _sample_entries()[0]
+    seed_entry.update(
+        {
+            "title": "AMD beats earnings expectations",
+            "link": "https://example.com/amd-earnings",
+        }
+    )
     news_source.set_entries([copy.deepcopy(seed_entry)])
 
     positive_analyzer: Any = StubAnalyzer(
@@ -364,8 +388,8 @@ def test_recent_selection_backfills_with_stale_articles(storage: Any) -> None:
         _build_entry("MSFT earnings beat", now - timedelta(minutes=20)),
         _build_entry("MSFT launches new cloud", now - timedelta(minutes=50)),
         _build_entry("MSFT historical analysis", stale_base),
-        _build_entry("Legacy revenue report", stale_base - timedelta(hours=1)),
-        _build_entry("Old partnership news", stale_base - timedelta(hours=2)),
+        _build_entry("MSFT legacy revenue report", stale_base - timedelta(hours=1)),
+        _build_entry("MSFT old partnership news", stale_base - timedelta(hours=2)),
     ]
 
     news_source = StubNewsSource(copy.deepcopy(entries))
@@ -543,7 +567,7 @@ def test_news_service_rescores_cached_fallback_sentiment(storage: Any) -> None:
                 _news_article(
                     symbol=symbol,
                     content_hash=content_hash,
-                    headline="Rescore cached fallback headline",
+                    headline="ZZZRESCORE cached fallback headline",
                     summary="The old cache row used the backup sentiment analyzer.",
                     fetched_at=fetched_at,
                     sentiment=SentimentScore(
@@ -553,7 +577,10 @@ def test_news_service_rescores_cached_fallback_sentiment(storage: Any) -> None:
                         model="vader",
                     ),
                     raw={
-                        "raw": {"vendor": "test-source"},
+                        "raw": {
+                            "vendor": "test-source",
+                            "vendor_payload": {"ticker": symbol},
+                        },
                         "sentiment_model": "vader",
                         "sentiment_fallback": {
                             "reason": "unavailable",
@@ -607,7 +634,7 @@ def test_vendor_entries_round_robin_selection(storage: Any) -> None:
     rows = [
         {
             "symbol": "AAPL",
-            "headline": "Polygon headline 1",
+            "headline": "AAPL Polygon headline 1",
             "url": "https://example.com/polygon-1",
             "summary": "P1 summary",
             "news_source_name": "Polygon Publisher",
@@ -615,10 +642,11 @@ def test_vendor_entries_round_robin_selection(storage: Any) -> None:
             "image_url": None,
             "published_at": now,
             "source": "polygon",
+            "vendor_payload": {"tickers": ["AAPL"]},
         },
         {
             "symbol": "AAPL",
-            "headline": "Polygon headline 2",
+            "headline": "AAPL Polygon headline 2",
             "url": "https://example.com/polygon-2",
             "summary": "P2 summary",
             "news_source_name": "Polygon Publisher",
@@ -626,10 +654,11 @@ def test_vendor_entries_round_robin_selection(storage: Any) -> None:
             "image_url": None,
             "published_at": now - timedelta(minutes=5),
             "source": "polygon",
+            "vendor_payload": {"tickers": ["AAPL"]},
         },
         {
             "symbol": "AAPL",
-            "headline": "Finnhub headline 1",
+            "headline": "AAPL Finnhub headline 1",
             "url": "https://example.com/finnhub-1",
             "summary": "F1 summary",
             "news_source_name": "Finnhub Publisher",
@@ -637,6 +666,7 @@ def test_vendor_entries_round_robin_selection(storage: Any) -> None:
             "image_url": None,
             "published_at": now - timedelta(minutes=2),
             "source": "finnhub",
+            "vendor_payload": {"tickers": ["AAPL"]},
         },
     ]
     dataframe = pl.from_dicts(rows)
@@ -658,14 +688,26 @@ def test_vendor_entries_round_robin_selection(storage: Any) -> None:
         conn.commit()
 
     stub_fetcher: Any = StubFetcher()
+    analyzer: Any = StubAnalyzer(
+        [
+            SentimentScore(score=0.3, label="positive", confidence=0.8, model="finbert"),
+            SentimentScore(score=0.2, label="positive", confidence=0.7, model="finbert"),
+            SentimentScore(score=0.1, label="neutral", confidence=0.6, model="finbert"),
+        ]
+    )
     service = NewsService(
         storage,
         ttl=timedelta(hours=6),
         vendor_sources=[news_source],
         multi_source_fetcher=stub_fetcher,
+        finbert_analyzer=analyzer,
+        fallback_analyzer=analyzer,
         selection_overfetch=1,
         auto_load_credentials=False,
     )
+    service.quality_scorer.quality_model = None
+    service.quality_scorer.mode = "heuristic"
+    service.quality_model = None
 
     bundle = service.get_news_intelligence("AAPL", max_articles=3, force_refresh=True)
     vendors = {article.vendor for article in bundle.articles}

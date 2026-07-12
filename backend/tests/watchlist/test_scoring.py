@@ -58,7 +58,9 @@ def test_calculate_scores_happy_path() -> None:
     assert 0 <= scores.technical.score <= 100
     assert 0 <= scores.overall <= 100
     # Heavier technical weight should pull overall closer to technical score
-    assert scores.overall >= scores.price.score
+    assert abs(scores.overall - scores.technical.score) < abs(
+        scores.overall - scores.price.score
+    )
     assert not scores.price.stale
     assert not scores.technical.stale
 

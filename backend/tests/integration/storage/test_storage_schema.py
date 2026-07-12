@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 from app.storage.connection import ConnectionManager
 from app.storage.queries import QueryManager
@@ -103,7 +105,7 @@ def test_ensure_schema_creates_all_tables(schema_mgr: SchemaManager) -> None:
             "watchlist_snapshots",
             "agent_runs",
             "agent_tool_calls",
-            "validation_results",
+            "cross_validation_results",
             "source_performance",
             "idea_outcomes",
             "table_registry",
@@ -353,15 +355,17 @@ def test_watchlist_snapshot_history_and_upsert(
 
 
 def test_migrations_applied(schema_mgr: SchemaManager) -> None:
-    """Verify that watchlist migration is recorded."""
+    """Verify that the database is at the repository's single Alembic head."""
     schema_mgr.ensure_schema()
 
     with schema_mgr.connection_mgr.connection() as conn:
-        versions = {
-            row[0]
-            for row in conn.execute(
-                "SELECT version FROM schema_migrations ORDER BY version"
-            ).fetchall()
+        applied_heads = {
+            str(row[0]) for row in conn.execute("SELECT version_num FROM alembic_version").fetchall()
         }
 
-    assert 2 in versions, "watchlist migration (002) should be recorded"
+    alembic_config = Config(str(Path(__file__).resolve().parents[3] / "alembic.ini"))
+    script = ScriptDirectory.from_config(alembic_config)
+    repository_heads = set(script.get_heads())
+
+    assert len(repository_heads) == 1, "Migration history must have exactly one deployable head"
+    assert applied_heads == repository_heads

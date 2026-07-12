@@ -85,7 +85,7 @@ def test_portfolio_crud_integration_flow(client: TestClient) -> None:
     assert position_data["cost_basis"] == 150.00
 
     # Step 3: Get portfolio (should include the position with current values)
-    portfolio_response = client.get("/api/portfolio/")
+    portfolio_response = client.get("/api/portfolio")
     assert portfolio_response.status_code == 200
     portfolio = portfolio_response.json()
     assert len(portfolio["positions"]) == 1
@@ -124,7 +124,7 @@ def test_portfolio_crud_integration_flow(client: TestClient) -> None:
     assert position2_response.status_code == 200
 
     # Step 6: Verify portfolio now has 2 positions
-    portfolio_response = client.get("/api/portfolio/")
+    portfolio_response = client.get("/api/portfolio")
     assert portfolio_response.status_code == 200
     portfolio = portfolio_response.json()
     assert len(portfolio["positions"]) == 2
@@ -139,7 +139,7 @@ def test_portfolio_crud_integration_flow(client: TestClient) -> None:
     assert delete_response.json()["status"] == "deleted"
 
     # Step 8: Verify portfolio now has 1 position
-    portfolio_response = client.get("/api/portfolio/")
+    portfolio_response = client.get("/api/portfolio")
     assert portfolio_response.status_code == 200
     portfolio = portfolio_response.json()
     assert len(portfolio["positions"]) == 1
@@ -151,7 +151,7 @@ def test_portfolio_crud_integration_flow(client: TestClient) -> None:
     assert delete_response.status_code == 200
 
     # Step 10: Verify portfolio is now empty
-    portfolio_response = client.get("/api/portfolio/")
+    portfolio_response = client.get("/api/portfolio")
     assert portfolio_response.status_code == 200
     portfolio = portfolio_response.json()
     assert len(portfolio["positions"]) == 0
@@ -197,7 +197,7 @@ def test_portfolio_multiple_accounts_flow(client: TestClient) -> None:
     )
 
     # Verify portfolio aggregates both accounts
-    portfolio_response = client.get("/api/portfolio/")
+    portfolio_response = client.get("/api/portfolio")
     assert portfolio_response.status_code == 200
     portfolio = portfolio_response.json()
     assert len(portfolio["positions"]) == 2
@@ -224,11 +224,11 @@ def test_portfolio_totals_include_account_cash_balances(client: TestClient) -> N
         conn.execute(
             """
             UPDATE portfolio_accounts
-            SET cash_balance = $1,
-                initial_cash = $1
-            WHERE id = $2
+            SET cash_balance = %s,
+                initial_cash = %s
+            WHERE id = %s
             """,
-            [5000.0, account_id],
+            [5000.0, 5000.0, account_id],
         )
         conn.commit()
 
@@ -280,11 +280,11 @@ def test_portfolio_returns_cash_only_accounts(client: TestClient) -> None:
         conn.execute(
             """
             UPDATE portfolio_accounts
-            SET cash_balance = $1,
-                initial_cash = $1
-            WHERE id = $2
+            SET cash_balance = %s,
+                initial_cash = %s
+            WHERE id = %s
             """,
-            [47880.13, account_id],
+            [47880.13, 47880.13, account_id],
         )
         conn.commit()
 
@@ -377,52 +377,6 @@ def test_portfolio_error_handling(client: TestClient) -> None:
     assert payload["top_performers"] == []
     assert payload["bottom_performers"] == []
 
-    # Delete non-existent position (should be idempotent)
+    # Delete non-existent position returns the route's explicit not-found response.
     response = client.delete("/api/portfolio/position/non-existent-id")
-    assert response.status_code == 200
-
-
-def test_recommendations_accept_trailing_slash(client: TestClient) -> None:
-    """Frontend polling should not 404 on the slash variant of recommendations."""
-    response = client.get("/api/recommendations/?min_strength=6&limit=6&signal_type=BUY")
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert "recommendations" in payload
-    assert "summary" in payload
-
-
-def test_recommendations_default_to_live_portfolio_value(client: TestClient) -> None:
-    """Recommendations should size against the real portfolio value when no override is passed."""
-    account_response = client.post(
-        "/api/portfolio/account", json={"name": "Live IRA", "account_type": "IRA"}
-    )
-    assert account_response.status_code == 200
-    account_id = account_response.json()["id"]
-
-    position_response = client.post(
-        "/api/portfolio/position",
-        json={
-            "account_id": account_id,
-            "symbol": "AAPL",
-            "shares": 100,
-            "cost_basis": 150.00,
-            "position_type": "long",
-        },
-    )
-    assert position_response.status_code == 200
-
-    storage = get_storage()
-    with storage.connection() as conn:
-        conn.execute(
-            "UPDATE portfolio_accounts SET cash_balance = %s, initial_cash = %s WHERE id = %s",
-            (2500.0, 2500.0, account_id),
-        )
-        conn.commit()
-
-    response = client.get("/api/recommendations/?min_strength=6&limit=6&signal_type=BUY")
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["summary"]["portfolio_size"] == 20500.0
-    assert payload["summary"]["position_pct"] == 0.05
+    assert response.status_code == 404

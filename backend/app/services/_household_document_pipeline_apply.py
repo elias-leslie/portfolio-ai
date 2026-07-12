@@ -18,6 +18,10 @@ from app.services._household_document_pipeline_db import (
 from app.services._household_document_pipeline_receipt import receipt_line_item_rows
 from app.services._household_document_pipeline_utils import detect_import_dataset
 from app.services._household_finance_utils import iso, iso_or_none, to_float
+from app.services.household_document_storage import (
+    household_upload_root,
+    resolve_document_upload,
+)
 from app.services.household_finance_rows import FIELD_LABELS, row_to_document
 
 if TYPE_CHECKING:
@@ -225,10 +229,10 @@ def import_csv_rows(
     *,
     document: HouseholdDocument,
     dataset_type: str,
-    stored_path: str,
+    stored_path: Path,
 ) -> dict[str, object]:
     now = datetime.now(UTC).isoformat()
-    with Path(stored_path).open("r", encoding="utf-8", errors="ignore", newline="") as fh:
+    with stored_path.open("r", encoding="utf-8", errors="ignore", newline="") as fh:
         rows = list(DictReader(fh))
     inserted = duplicates = 0
     with service.storage.connection() as conn:
@@ -262,8 +266,11 @@ def import_document_rows(
         if not rows:
             return {"dataset_type": None, "inserted": 0, "duplicates": 0}
         return import_receipt_line_item_rows(service, document=document, rows=rows)
-    stored_path = document.metadata.get("stored_path")
-    if not isinstance(stored_path, str) or not stored_path:
+    stored_path = resolve_document_upload(
+        document.metadata,
+        household_upload_root(service),
+    )
+    if stored_path is None:
         return {"dataset_type": dataset_type, "inserted": 0, "duplicates": 0}
     return import_csv_rows(
         service, document=document, dataset_type=dataset_type, stored_path=stored_path

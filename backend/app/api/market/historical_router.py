@@ -6,6 +6,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
+from fastapi.concurrency import run_in_threadpool
 
 from app.api.market._core_helpers import build_intelligence_response_data, fetch_core_market_data
 from app.api.market_responses import (
@@ -204,7 +205,7 @@ async def get_fear_greed_history(
     Includes put/call ratio overlay data when available.
     """
     # Use repository for data access
-    rows = _get_market_repo().get_fear_greed_history_data(days)
+    rows = await run_in_threadpool(lambda: _get_market_repo().get_fear_greed_history_data(days))
 
     dates: list[str] = []
     scores: list[float] = []
@@ -228,11 +229,13 @@ async def get_fear_greed_history(
         sources,
         latest_source,
         latest_as_of,
-    ) = _append_live_mood_point(
-        dates=dates,
-        scores=scores,
-        labels=labels,
-        put_call_ratios=put_call_ratios,
+    ) = await run_in_threadpool(
+        lambda: _append_live_mood_point(
+            dates=dates,
+            scores=scores,
+            labels=labels,
+            put_call_ratios=put_call_ratios,
+        )
     )
 
     return FearGreedHistoryResponse(
@@ -262,9 +265,13 @@ async def get_news_sentiment_history(
     Scores range from -1 (very negative) to +1 (very positive).
     """
     if granularity == "hourly":
-        rows = _get_market_repo().get_news_sentiment_hourly(days)
+        rows = await run_in_threadpool(
+            lambda: _get_market_repo().get_news_sentiment_hourly(days)
+        )
     else:
-        rows = _get_market_repo().get_news_sentiment_daily(days)
+        rows = await run_in_threadpool(
+            lambda: _get_market_repo().get_news_sentiment_daily(days)
+        )
 
     dates: list[str] = []
     scores: list[float] = []
@@ -305,11 +312,15 @@ async def get_indicator_history(
     period_end = ""
     from app.api.market._core_helpers import _get_price_fetcher  # noqa: PLC0415
 
-    current_prices = _get_price_fetcher().fetch_price_data(list(INDICATOR_SYMBOLS.values()))
+    current_prices = await run_in_threadpool(
+        lambda: _get_price_fetcher().fetch_price_data(list(INDICATOR_SYMBOLS.values()))
+    )
 
     for key, symbol in INDICATOR_SYMBOLS.items():
         # Use repository for data access
-        rows = _get_market_repo().get_indicator_history_data(symbol, days)
+        rows = await run_in_threadpool(
+            lambda symbol=symbol: _get_market_repo().get_indicator_history_data(symbol, days)
+        )
         rows = _append_current_quote_row(rows, current_prices.get(symbol))
 
         data_points, period_start, period_end = build_indicator_data_points(
@@ -339,10 +350,14 @@ async def get_overnight_history(
     period_end = ""
     from app.api.market._core_helpers import _get_price_fetcher  # noqa: PLC0415
 
-    current_prices = _get_price_fetcher().fetch_price_data(list(OVERNIGHT_HISTORY_SYMBOLS.values()))
+    current_prices = await run_in_threadpool(
+        lambda: _get_price_fetcher().fetch_price_data(list(OVERNIGHT_HISTORY_SYMBOLS.values()))
+    )
 
     for key, symbol in OVERNIGHT_HISTORY_SYMBOLS.items():
-        rows = _get_market_repo().get_indicator_history_data(symbol, days)
+        rows = await run_in_threadpool(
+            lambda symbol=symbol: _get_market_repo().get_indicator_history_data(symbol, days)
+        )
         rows = _append_current_quote_row(rows, current_prices.get(symbol))
         data_points, period_start, period_end = build_indicator_data_points(
             rows, period_start, period_end
@@ -385,11 +400,18 @@ async def get_sector_history(
     yf_source = YFinanceSource()
     from app.api.market._core_helpers import _get_price_fetcher  # noqa: PLC0415
 
-    current_prices = _get_price_fetcher().fetch_price_data(list(SECTOR_ETFS.keys()))
+    current_prices = await run_in_threadpool(
+        lambda: _get_price_fetcher().fetch_price_data(list(SECTOR_ETFS.keys()))
+    )
 
     for symbol, name in SECTOR_ETFS.items():
         # Fetch fresh adjusted prices via YFinanceSource
-        rows = yf_source.fetch_sector_history(symbol, start_date, end_date)
+        rows = await run_in_threadpool(
+            yf_source.fetch_sector_history,
+            symbol,
+            start_date,
+            end_date,
+        )
 
         if not rows:
             logger.warning("sector_history_no_data", symbol=symbol)

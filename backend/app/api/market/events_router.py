@@ -6,6 +6,7 @@ from datetime import date, timedelta
 from typing import Any, Final, cast, get_args
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
 
 from app.constants import CACHE_TTL_MEDIUM
 from app.logging_config import get_logger
@@ -87,11 +88,13 @@ async def get_market_events(
         # Validate each type - raises HTTPException if any invalid
         types_list = [_validate_event_type(t) for t in parsed_types]
 
-    response = svc_get_events(
-        start_date=start_date,
-        end_date=end_date,
-        event_types=types_list,
-        limit=limit,
+    response = await run_in_threadpool(
+        lambda: svc_get_events(
+            start_date=start_date,
+            end_date=end_date,
+            event_types=types_list,
+            limit=limit,
+        )
     )
 
     return response.model_dump()
@@ -116,7 +119,9 @@ async def get_market_events_for_chart(
     end = date.today()
     start = end - timedelta(days=days)
 
-    events = get_events_for_chart(start_date=start, end_date=end)
+    events = await run_in_threadpool(
+        lambda: get_events_for_chart(start_date=start, end_date=end)
+    )
 
     return {
         "events": events,
@@ -151,7 +156,7 @@ async def get_upcoming_market_events(
     Returns:
         List of upcoming events
     """
-    events = get_upcoming_events(days=days)
+    events = await run_in_threadpool(get_upcoming_events, days=days)
     return {
         "events": [e.model_dump() for e in events],
         "total": len(events),
@@ -193,7 +198,7 @@ async def create_market_event(
         source=source,
     )
 
-    created = svc_create_event(event)
+    created = await run_in_threadpool(svc_create_event, event)
     return created.model_dump()
 
 
@@ -220,7 +225,7 @@ async def update_market_event(
         spy_change_1d=spy_change_1d,
     )
 
-    updated = svc_update_event(event_id, update)
+    updated = await run_in_threadpool(svc_update_event, event_id, update)
     if not updated:
         raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
 

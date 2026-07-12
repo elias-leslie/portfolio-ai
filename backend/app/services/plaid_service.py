@@ -124,6 +124,23 @@ def _to_dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _validated_plaid_account_snapshot(value: object) -> list[dict[str, Any]]:
+    """Normalize an authoritative snapshot before any lifecycle mutation."""
+    if not isinstance(value, list):
+        raise PlaidIntegrationError("Plaid returned a malformed accounts snapshot.")
+    accounts: list[dict[str, Any]] = []
+    for raw_account in value:
+        account = _to_dict(raw_account)
+        account_id = account.get("account_id")
+        if not isinstance(account_id, str) or not account_id.strip():
+            raise PlaidIntegrationError(
+                "Plaid returned an account without a valid account ID."
+            )
+        account["account_id"] = account_id.strip()
+        accounts.append(account)
+    return accounts
+
+
 def _parse_date(value: object) -> date | None:
     if isinstance(value, date):
         return value
@@ -251,7 +268,15 @@ class PlaidService:
             item_count = conn.execute(
                 "SELECT COUNT(*) FROM plaid_items WHERE status = 'active'"
             ).fetchone()
-            account_count = conn.execute("SELECT COUNT(*) FROM plaid_accounts").fetchone()
+            account_count = conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM plaid_accounts pa
+                JOIN plaid_items pi ON pi.item_id = pa.item_id
+                WHERE pa.is_active = TRUE
+                  AND pi.status = 'active'
+                """
+            ).fetchone()
             transaction_count = conn.execute(
                 "SELECT COUNT(*) FROM plaid_transactions WHERE removed IS NOT TRUE"
             ).fetchone()
@@ -524,6 +549,12 @@ class PlaidService:
                 if isinstance(cast_errors, list):
                     cast_errors.append({"item_id": item["item_id"], "error_message": str(exc)})
                 continue
+            except PlaidIntegrationError as exc:
+                self._record_item_error(item["item_id"], str(exc))
+                cast_errors = totals["errors"]
+                if isinstance(cast_errors, list):
+                    cast_errors.append({"item_id": item["item_id"], **exc.error_payload})
+                continue
 
             totals["account_count"] = int(totals["account_count"]) + int(
                 item_result["account_count"]
@@ -577,6 +608,27 @@ class PlaidService:
                 WHERE item_id = %s
                 """,
                 [_now(), item_id],
+            )
+            conn.execute(
+                """
+                UPDATE plaid_accounts
+                SET is_active = FALSE,
+                    removed_at = %s
+                WHERE item_id = %s
+                  AND is_active = TRUE
+                """,
+                [_now(), item_id],
+            )
+            conn.execute(
+                """
+                DELETE FROM household_evidence_accounts AS hea
+                USING household_documents AS hd
+                WHERE hd.id = hea.document_id
+                  AND hd.source_type = 'plaid'
+                  AND hd.document_type = 'api_sync'
+                  AND hd.metadata->>'plaid_item_id' = %s
+                """,
+                [item_id],
             )
             conn.commit()
         logger.info("plaid_item_removed", item_id=item_id)
@@ -726,10 +778,8 @@ class PlaidService:
         accounts_response = _to_dict(
             client.accounts_balance_get(AccountsBalanceGetRequest(access_token=access_token))
         )
-        accounts = (
+        accounts = _validated_plaid_account_snapshot(
             accounts_response.get("accounts")
-            if isinstance(accounts_response.get("accounts"), list)
-            else []
         )
         document_id = self._ensure_sync_document(item=item)
         account_count = self._upsert_accounts(
@@ -830,6 +880,7 @@ class PlaidService:
         document_id: str,
         accounts: list[object],
     ) -> int:
+        validated_accounts = _validated_plaid_account_snapshot(accounts)
         item_id = str(item["item_id"])
         institution_name = str(item.get("institution_name") or "Plaid")
         synced_at = _now()
@@ -843,12 +894,22 @@ class PlaidService:
                 """,
                 [document_id, item_id],
             )
-            for raw_account in accounts:
-                account = _to_dict(raw_account)
-                account_id = str(account.get("account_id") or "")
+            # accounts_balance_get is an authoritative snapshot. Reconcile only
+            # after that request succeeds, and inside the same transaction as
+            # the replacement rows, so a failed write cannot hide current data.
+            conn.execute(
+                """
+                UPDATE plaid_accounts
+                SET is_active = FALSE,
+                    removed_at = %s
+                WHERE item_id = %s
+                  AND is_active = TRUE
+                """,
+                [synced_at, item_id],
+            )
+            for account in validated_accounts:
+                account_id = str(account["account_id"])
                 name = _plaid_account_name(account)
-                if not account_id:
-                    continue
                 balances = _as_json_object(account.get("balances"))
                 current_balance = _money(balances.get("current"))
                 available_balance = _money(balances.get("available"))
@@ -880,12 +941,13 @@ class PlaidService:
                         id, item_id, account_id, household_account_id, name, official_name,
                         mask, type, subtype, verification_status, current_balance,
                         available_balance, iso_currency_code, unofficial_currency_code,
-                        metadata, last_synced_at
+                        metadata, last_synced_at, is_active, removed_at
                     ) VALUES (
                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s::jsonb, %s
+                        %s::jsonb, %s, TRUE, NULL
                     )
                     ON CONFLICT (account_id) DO UPDATE SET
+                        item_id = EXCLUDED.item_id,
                         household_account_id = EXCLUDED.household_account_id,
                         name = EXCLUDED.name,
                         official_name = EXCLUDED.official_name,
@@ -898,7 +960,9 @@ class PlaidService:
                         iso_currency_code = EXCLUDED.iso_currency_code,
                         unofficial_currency_code = EXCLUDED.unofficial_currency_code,
                         metadata = EXCLUDED.metadata,
-                        last_synced_at = EXCLUDED.last_synced_at
+                        last_synced_at = EXCLUDED.last_synced_at,
+                        is_active = TRUE,
+                        removed_at = NULL
                     """,
                     [
                         str(uuid.uuid4()),

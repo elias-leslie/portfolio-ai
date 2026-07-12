@@ -39,6 +39,7 @@ import pytest  # noqa: E402
 
 from app.hatchet_app import get_hatchet  # noqa: E402
 from app.logging_config import configure_logging  # noqa: E402
+from app.middleware.cache import clear_cache  # noqa: E402
 from app.storage.connection import ConnectionManager  # noqa: E402
 from tests.fixtures.db_safety import (  # noqa: E402
     TEST_DB_NAME,
@@ -83,73 +84,20 @@ configure_logging(log_dir=str(TEST_LOG_DIR), log_file="test.log")
 
 logger = logging.getLogger(__name__)
 
-# List of tables to clean between tests (ordered to respect foreign key constraints)
-# Tables are listed in deletion order (children before parents)
-TABLES_TO_CLEAN = [
-    "automation_preferences",
-    "symbol_workflow_events",
-    "symbol_workflows",
-    "household_questions",
-    "household_inferred_values",
-    "household_document_reviews",
-    "household_document_requirements",
-    "household_planned_expenses",
-    "household_retirement_income_sources",
-    "household_insurance_policies",
-    "household_housing_costs",
-    "household_debt_obligations",
-    "household_income_sources",
-    "household_members",
-    "household_transactions",
-    "household_import_rows",
-    "household_merchants",
-    "household_document_signatures",
-    "household_documents",
-    "household_profiles",
-    # Agent workflow tables (agent_messages references agent_workflows)
-    "agent_messages",
-    "agent_workflows",
-    # Agent tables (strategy_seeds references agent_runs and symbols)
-    "strategy_seeds",
-    "agent_tool_calls",
-    "agent_conversation_messages",
-    "agent_runs",
-    # Idea outcomes
-    "idea_outcomes",
-    # SnapTrade brokerage sync (children before parents; reference
-    # portfolio_accounts, so clean before it)
-    "snaptrade_orders",
-    "snaptrade_activities",
-    "snaptrade_positions",
-    "snaptrade_accounts",
-    "snaptrade_connections",
-    "snaptrade_users",
-    # Portfolio ledger (references portfolio_accounts and portfolio_transactions)
-    "portfolio_tax_lots",
-    "portfolio_transactions",
-    # Portfolio positions (references portfolio_accounts)
-    "portfolio_positions",
-    "portfolio_accounts",
-    # Watchlist tables (split schema: narrative/news/technical reference core)
-    "watchlist_narrative",
-    "watchlist_news_summary",
-    "watchlist_technical_metrics",
-    "watchlist_snapshots_core",
-    "watchlist_snapshots",
-    "watchlist_items",
-    # Price and market data
-    "day_bars",
-    "technical_indicators",
-    "price_cache",
-    "reference_cache",
-    "news_cache",
-    "news_summary_log",
-    # Source metadata
-    "source_performance",
-    "validation_results",
-    # User preferences
-    "user_preferences",
-]
+# Migration bookkeeping and reference catalogs are shared fixtures. Every other
+# public table is test-owned data and must be reset, including tables introduced
+# by future migrations. A hard-coded cleanup list had silently missed dozens of
+# newer household/portfolio tables and made the integration suite order-dependent.
+TABLES_TO_PRESERVE = frozenset(
+    {
+        "alembic_version",
+        "endpoint_catalog",
+        "schema_migrations",
+        "source_registry",
+        "symbols",
+        "table_registry",
+    }
+)
 
 
 def _get_existing_tables(conn: ConnectionManager) -> set[str]:
@@ -159,9 +107,50 @@ def _get_existing_tables(conn: ConnectionManager) -> set[str]:
         SELECT table_name
         FROM information_schema.tables
         WHERE table_schema = 'public'
+          AND table_type = 'BASE TABLE'
         """
     ).fetchall()
     return {str(row[0]) for row in rows}
+
+
+def _quote_identifier(identifier: str) -> str:
+    """Quote one PostgreSQL identifier obtained from the system catalog."""
+    return '"' + identifier.replace('"', '""') + '"'
+
+
+def _get_cleanup_roots(
+    conn: ConnectionManager, cleanup_tables: set[str]
+) -> list[str]:
+    """Return the smallest FK-root set whose CASCADE covers cleanup tables."""
+    rows = conn.execute(
+        """
+        SELECT child.relname, parent.relname
+        FROM pg_constraint AS constraint_row
+        JOIN pg_class AS child ON child.oid = constraint_row.conrelid
+        JOIN pg_namespace AS child_namespace ON child_namespace.oid = child.relnamespace
+        JOIN pg_class AS parent ON parent.oid = constraint_row.confrelid
+        WHERE constraint_row.contype = 'f'
+          AND child_namespace.nspname = 'public'
+        """
+    ).fetchall()
+    edges = {
+        (str(child), str(parent))
+        for child, parent in rows
+        if str(child) in cleanup_tables and str(parent) in cleanup_tables
+    }
+    children_with_cleanup_parent = {child for child, _parent in edges}
+    roots = cleanup_tables - children_with_cleanup_parent
+    covered = set(roots)
+    while True:
+        descendants = {child for child, parent in edges if parent in covered}
+        expanded = covered | descendants
+        if expanded == covered:
+            break
+        covered = expanded
+
+    # A self-reference or FK cycle has no graph root. Include any uncovered
+    # members explicitly; CASCADE then handles the rest of that component.
+    return sorted(roots | (cleanup_tables - covered))
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -191,22 +180,9 @@ def ensure_test_schema_up_to_date() -> None:
     )
 
 
-@pytest.fixture(autouse=False)
-def clean_database() -> None:
-    """Clean all test data from database tables between tests.
-
-    This fixture provides database cleanup for integration tests that need
-    test isolation. It truncates all application tables (but preserves
-    schema/metadata tables).
-
-    Note:
-        - Applied automatically to integration/watchlist tests only
-        - Unit tests do NOT use this fixture (they should mock database access)
-        - Uses CASCADE to handle foreign key dependencies
-        - Preserves schema_migrations, source_registry, source_credentials,
-          endpoint_catalog, and table_registry (these are configuration data)
-    """
-    # Create connection manager and clean tables
+def _truncate_test_database() -> None:
+    """Clean all mutable application tables in the configured test database."""
+    clear_cache()
     cm = ConnectionManager(TEST_DB_URL)
 
     with cm.connection() as conn:
@@ -234,18 +210,50 @@ def clean_database() -> None:
             reference_cache_writable=reference_cache_writable,
         )
 
-        existing_tables = [table for table in TABLES_TO_CLEAN if table in _get_existing_tables(conn)]
-        if not existing_tables:
+        cleanup_tables = _get_existing_tables(conn) - TABLES_TO_PRESERVE
+        if not cleanup_tables:
             return
 
         try:
-            for table in existing_tables:
-                conn.execute(f"DELETE FROM {table}")
+            # Names originate from information_schema, not user input. Quote
+            # them defensively and truncate in one statement so PostgreSQL can
+            # resolve the complete foreign-key graph with CASCADE.
+            cleanup_roots = _get_cleanup_roots(conn, cleanup_tables)
+            quoted_tables = ", ".join(_quote_identifier(table) for table in cleanup_roots)
+            conn.execute(f"TRUNCATE TABLE {quoted_tables} RESTART IDENTITY CASCADE")
             conn.commit()
-            logger.debug(f"Cleaned {len(existing_tables)} tables for test isolation")
+            logger.debug(
+                "Cleaned %d tables from %d FK roots for test isolation",
+                len(cleanup_tables),
+                len(cleanup_roots),
+            )
         except Exception:
             conn.rollback()
             raise
+
+
+@pytest.fixture
+def clean_database() -> None:
+    """Provide explicit database isolation to the few DB-backed unit tests.
+
+    Unit tests should normally mock storage. Tests that intentionally exercise
+    PostgreSQL can request this fixture and receive the same guarded cleanup as
+    the integration lane.
+    """
+    _truncate_test_database()
+
+
+@pytest.fixture(autouse=True)
+def isolate_integration_database(request: pytest.FixtureRequest) -> None:
+    """Run database cleanup before any integration/watchlist data builders.
+
+    Resolve ``clean_database`` from this autouse fixture rather than adding it
+    during collection. That keeps cleanup ahead of explicit data-building
+    fixtures while avoiding a database truncate for ordinary unit tests.
+    """
+    if "integration" not in request.node.keywords:
+        return
+    request.getfixturevalue("clean_database")
 
 
 @pytest.fixture(autouse=True)

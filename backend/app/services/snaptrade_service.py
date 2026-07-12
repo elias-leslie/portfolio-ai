@@ -363,8 +363,25 @@ class SnapTradeService:
             user_count = conn.execute(
                 "SELECT COUNT(*) FROM snaptrade_users WHERE status = 'active'"
             ).fetchone()
-            connection_count = conn.execute("SELECT COUNT(*) FROM snaptrade_connections").fetchone()
-            source_account_count = conn.execute("SELECT COUNT(*) FROM snaptrade_accounts").fetchone()
+            connection_count = conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM snaptrade_connections
+                WHERE is_active = TRUE
+                  AND disabled = FALSE
+                """
+            ).fetchone()
+            source_account_count = conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM snaptrade_accounts sa
+                JOIN snaptrade_connections sc
+                  ON sc.authorization_id = sa.authorization_id
+                WHERE sa.is_active = TRUE
+                  AND sc.is_active = TRUE
+                  AND sc.disabled = FALSE
+                """
+            ).fetchone()
             account_count = conn.execute(
                 """
                 SELECT COUNT(*)
@@ -374,11 +391,27 @@ class SnapTradeService:
                         household_account_id::text,
                         account_id
                     ) AS display_account_id
-                    FROM snaptrade_accounts
+                    FROM snaptrade_accounts sa
+                    JOIN snaptrade_connections sc
+                      ON sc.authorization_id = sa.authorization_id
+                    WHERE sa.is_active = TRUE
+                      AND sc.is_active = TRUE
+                      AND sc.disabled = FALSE
                 ) display_accounts
                 """
             ).fetchone()
-            position_count = conn.execute("SELECT COUNT(*) FROM snaptrade_positions").fetchone()
+            position_count = conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM snaptrade_positions sp
+                JOIN snaptrade_accounts sa ON sa.account_id = sp.account_id
+                JOIN snaptrade_connections sc
+                  ON sc.authorization_id = sa.authorization_id
+                WHERE sa.is_active = TRUE
+                  AND sc.is_active = TRUE
+                  AND sc.disabled = FALSE
+                """
+            ).fetchone()
             activity_count = conn.execute("SELECT COUNT(*) FROM snaptrade_activities").fetchone()
             order_count = conn.execute("SELECT COUNT(*) FROM snaptrade_orders").fetchone()
             latest_sync = conn.execute(
@@ -389,6 +422,8 @@ class SnapTradeService:
                 SELECT authorization_id, brokerage_name, brokerage_slug, connection_type,
                        disabled, last_synced_at, owner_is_spouse, owner_name
                 FROM snaptrade_connections
+                WHERE is_active = TRUE
+                  AND disabled = FALSE
                 ORDER BY updated_at DESC
                 LIMIT 20
                 """
@@ -397,24 +432,29 @@ class SnapTradeService:
                 """
                 WITH ranked_accounts AS (
                     SELECT
-                        account_id,
-                        name,
-                        institution_name,
-                        account_mask,
-                        portfolio_account_type,
-                        balance,
-                        cash_balance,
-                        currency,
-                        last_synced_at,
+                        sa.account_id,
+                        sa.name,
+                        sa.institution_name,
+                        sa.account_mask,
+                        sa.portfolio_account_type,
+                        sa.balance,
+                        sa.cash_balance,
+                        sa.currency,
+                        sa.last_synced_at,
                         ROW_NUMBER() OVER (
                             PARTITION BY COALESCE(
-                                portfolio_account_id,
-                                household_account_id::text,
-                                account_id
+                                sa.portfolio_account_id,
+                                sa.household_account_id::text,
+                                sa.account_id
                             )
-                            ORDER BY last_synced_at DESC, account_id
+                            ORDER BY sa.last_synced_at DESC, sa.account_id
                         ) AS row_rank
-                    FROM snaptrade_accounts
+                    FROM snaptrade_accounts sa
+                    JOIN snaptrade_connections sc
+                      ON sc.authorization_id = sa.authorization_id
+                    WHERE sa.is_active = TRUE
+                      AND sc.is_active = TRUE
+                      AND sc.disabled = FALSE
                 )
                 SELECT account_id, name, institution_name, account_mask, portfolio_account_type,
                        balance, cash_balance, currency, last_synced_at
@@ -426,9 +466,15 @@ class SnapTradeService:
             ).fetchall()
             position_rows = conn.execute(
                 """
-                SELECT account_id, symbol, units, price
-                FROM snaptrade_positions
-                WHERE portfolio_position_id IS NOT NULL
+                SELECT sp.account_id, sp.symbol, sp.units, sp.price
+                FROM snaptrade_positions sp
+                JOIN snaptrade_accounts sa ON sa.account_id = sp.account_id
+                JOIN snaptrade_connections sc
+                  ON sc.authorization_id = sa.authorization_id
+                WHERE sp.portfolio_position_id IS NOT NULL
+                  AND sa.is_active = TRUE
+                  AND sc.is_active = TRUE
+                  AND sc.disabled = FALSE
                 """
             ).fetchall()
             last_error = conn.execute(
@@ -712,16 +758,16 @@ class SnapTradeService:
             "order_count": 0,
             "portfolio_account_count": 0,
             "portfolio_position_count": 0,
+            "connection_removed_count": 0,
+            "account_removed_count": 0,
             "errors": [],
         }
         symbols: set[str] = set()
         try:
-            connections = _list(
-                _body(
-                    client.connections.list_brokerage_authorizations(
-                        user_id=user.user_id,
-                        user_secret=user.user_secret,
-                    )
+            connections_payload = _body(
+                client.connections.list_brokerage_authorizations(
+                    user_id=user.user_id,
+                    user_secret=user.user_secret,
                 )
             )
         except ApiException as exc:
@@ -732,24 +778,48 @@ class SnapTradeService:
                 status_code=502,
                 error_payload=payload,
             ) from exc
+        if not isinstance(connections_payload, list):
+            message = "SnapTrade returned an invalid connection snapshot."
+            self._record_user_error(user.user_id, message)
+            raise SnapTradeIntegrationError(message)
+
+        connections = _list(connections_payload)
+        authoritative_connection_ids: set[str] = set()
+        connection_snapshot_complete = True
 
         for raw_connection in connections:
             connection = _dict(raw_connection)
             authorization_id = _string(connection.get("id"))
             if not authorization_id:
+                connection_snapshot_complete = False
+                errors = totals["errors"]
+                if isinstance(errors, list):
+                    errors.append(
+                        {
+                            "surface": "connections",
+                            "error_code": "INVALID_CONNECTION_RESPONSE",
+                            "error_message": "SnapTrade returned a connection without an id.",
+                        }
+                    )
                 continue
+            authoritative_connection_ids.add(authorization_id)
             self._upsert_connection(
                 user_id=user.user_id, authorization_id=authorization_id, connection=connection
             )
             totals["connection_count"] = int(totals["connection_count"]) + 1
+            if bool(connection.get("disabled") or False):
+                totals["account_removed_count"] = int(
+                    totals["account_removed_count"]
+                ) + self._reconcile_snaptrade_accounts_for_connection(
+                    authorization_id=authorization_id, authoritative_account_ids=set()
+                )
+                continue
             try:
-                accounts = _list(
-                    _body(
-                        client.connections.list_brokerage_authorization_accounts(
-                            authorization_id=authorization_id,
-                            user_id=user.user_id,
-                            user_secret=user.user_secret,
-                        )
+                accounts_payload = _body(
+                    client.connections.list_brokerage_authorization_accounts(
+                        authorization_id=authorization_id,
+                        user_id=user.user_id,
+                        user_secret=user.user_secret,
                     )
                 )
             except ApiException as exc:
@@ -758,32 +828,60 @@ class SnapTradeService:
                 if isinstance(errors, list):
                     errors.append({"authorization_id": authorization_id, **payload})
                 continue
+            if not isinstance(accounts_payload, list):
+                errors = totals["errors"]
+                if isinstance(errors, list):
+                    errors.append(
+                        {
+                            "authorization_id": authorization_id,
+                            "surface": "accounts",
+                            "error_code": "INVALID_ACCOUNTS_RESPONSE",
+                            "error_message": "SnapTrade returned an invalid account snapshot.",
+                        }
+                    )
+                continue
+            accounts = _list(accounts_payload)
+            authoritative_account_ids: set[str] = set()
+            account_snapshot_complete = True
             for raw_account in accounts:
                 raw_account_dict = _dict(raw_account)
                 account_id = _string(raw_account_dict.get("id"))
+                if not account_id:
+                    account_snapshot_complete = False
+                    errors = totals["errors"]
+                    if isinstance(errors, list):
+                        errors.append(
+                            {
+                                "authorization_id": authorization_id,
+                                "surface": "accounts",
+                                "error_code": "INVALID_ACCOUNT_RESPONSE",
+                                "error_message": "SnapTrade returned an account without an id.",
+                            }
+                        )
+                    continue
+                authoritative_account_ids.add(account_id)
                 direct_cash_balance: Decimal | None = None
                 direct_cash_currency: str | None = None
-                if account_id:
-                    try:
-                        direct_cash_balance, direct_cash_currency = self._account_cash_balance(
-                            _list(
-                                _body(
-                                    client.account_information.get_user_account_balance(
-                                        account_id=account_id,
-                                        user_id=user.user_id,
-                                        user_secret=user.user_secret,
-                                    )
+                try:
+                    direct_cash_balance, direct_cash_currency = self._account_cash_balance(
+                        _list(
+                            _body(
+                                client.account_information.get_user_account_balance(
+                                    account_id=account_id,
+                                    user_id=user.user_id,
+                                    user_secret=user.user_secret,
                                 )
-                            ),
-                            preferred_currency=self._account_balance(raw_account_dict)[1],
-                        )
-                    except ApiException as exc:
-                        payload = _snaptrade_error_payload(exc)
-                        errors = totals["errors"]
-                        if isinstance(errors, list):
-                            errors.append(
-                                {"account_id": account_id, "surface": "balances", **payload}
                             )
+                        ),
+                        preferred_currency=self._account_balance(raw_account_dict)[1],
+                    )
+                except ApiException as exc:
+                    payload = _snaptrade_error_payload(exc)
+                    errors = totals["errors"]
+                    if isinstance(errors, list):
+                        errors.append(
+                            {"account_id": account_id, "surface": "balances", **payload}
+                        )
                 account = self._sync_account(
                     user=user,
                     raw_account=raw_account_dict,
@@ -792,6 +890,7 @@ class SnapTradeService:
                     cash_currency=direct_cash_currency,
                 )
                 if account is None:
+                    account_snapshot_complete = False
                     continue
                 totals["account_count"] = int(totals["account_count"]) + 1
                 totals["portfolio_account_count"] = int(totals["portfolio_account_count"]) + 1
@@ -825,6 +924,24 @@ class SnapTradeService:
                 totals["order_count"] = int(totals["order_count"]) + order_count
                 symbols.update(position_symbols)
 
+            if account_snapshot_complete:
+                totals["account_removed_count"] = int(
+                    totals["account_removed_count"]
+                ) + self._reconcile_snaptrade_accounts_for_connection(
+                    authorization_id=authorization_id,
+                    authoritative_account_ids=authoritative_account_ids,
+                )
+
+        if connection_snapshot_complete:
+            removed_connections, removed_accounts = self._reconcile_snaptrade_connections(
+                user_id=user.user_id,
+                authoritative_connection_ids=authoritative_connection_ids,
+            )
+            totals["connection_removed_count"] = removed_connections
+            totals["account_removed_count"] = (
+                int(totals["account_removed_count"]) + removed_accounts
+            )
+
         self._reconcile_account_ownership()
         # Mirror cash-management activities into the household ledger so
         # payroll deposits and bill-pay debits reach Money without manual
@@ -837,6 +954,137 @@ class SnapTradeService:
         self._record_user_sync(user.user_id, has_errors=bool(totals["errors"]))
         ensure_symbols_in_watchlist(self.storage, sorted(symbols), source="snaptrade")
         return totals
+
+    def _reconcile_snaptrade_accounts_for_connection(
+        self,
+        *,
+        authorization_id: str,
+        authoritative_account_ids: set[str],
+    ) -> int:
+        """Deactivate accounts absent from one successful provider snapshot."""
+        reconciled_at = _now()
+        with self.storage.connection() as conn:
+            params: list[object] = [reconciled_at, authorization_id]
+            absent_clause = ""
+            if authoritative_account_ids:
+                absent_clause = "AND account_id <> ALL(%s)"
+                params.append(sorted(authoritative_account_ids))
+            rows = conn.execute(
+                f"""
+                UPDATE snaptrade_accounts
+                SET is_active = FALSE,
+                    removed_at = %s
+                WHERE authorization_id = %s
+                  AND is_active = TRUE
+                  {absent_clause}
+                RETURNING portfolio_account_id
+                """,
+                params,
+            ).fetchall()
+            portfolio_account_ids = {
+                str(row[0]) for row in rows if row and row[0] is not None
+            }
+            self._clear_inactive_snaptrade_portfolio_snapshots(
+                conn=conn,
+                portfolio_account_ids=portfolio_account_ids,
+                reconciled_at=reconciled_at,
+            )
+            conn.commit()
+        return len(rows)
+
+    def _reconcile_snaptrade_connections(
+        self,
+        *,
+        user_id: str,
+        authoritative_connection_ids: set[str],
+    ) -> tuple[int, int]:
+        """Deactivate connections absent from a successful provider snapshot."""
+        reconciled_at = _now()
+        with self.storage.connection() as conn:
+            params: list[object] = [reconciled_at, user_id]
+            absent_clause = ""
+            if authoritative_connection_ids:
+                absent_clause = "AND authorization_id <> ALL(%s)"
+                params.append(sorted(authoritative_connection_ids))
+            connection_rows = conn.execute(
+                f"""
+                UPDATE snaptrade_connections
+                SET is_active = FALSE,
+                    removed_at = %s
+                WHERE user_id = %s
+                  AND is_active = TRUE
+                  {absent_clause}
+                RETURNING authorization_id
+                """,
+                params,
+            ).fetchall()
+            account_rows = conn.execute(
+                """
+                UPDATE snaptrade_accounts AS sa
+                SET is_active = FALSE,
+                    removed_at = %s
+                FROM snaptrade_connections AS sc
+                WHERE sc.authorization_id = sa.authorization_id
+                  AND sc.user_id = %s
+                  AND (sc.is_active = FALSE OR sc.disabled = TRUE)
+                  AND sa.is_active = TRUE
+                RETURNING sa.portfolio_account_id
+                """,
+                [reconciled_at, user_id],
+            ).fetchall()
+            portfolio_account_ids = {
+                str(row[0]) for row in account_rows if row and row[0] is not None
+            }
+            self._clear_inactive_snaptrade_portfolio_snapshots(
+                conn=conn,
+                portfolio_account_ids=portfolio_account_ids,
+                reconciled_at=reconciled_at,
+            )
+            conn.commit()
+        return len(connection_rows), len(account_rows)
+
+    @staticmethod
+    def _clear_inactive_snaptrade_portfolio_snapshots(
+        *,
+        conn: Any,
+        portfolio_account_ids: set[str],
+        reconciled_at: datetime,
+    ) -> None:
+        """Clear current mirrors only when no active SnapTrade alias remains."""
+        for portfolio_account_id in sorted(portfolio_account_ids):
+            active_alias = conn.execute(
+                """
+                SELECT 1
+                FROM snaptrade_accounts AS sa
+                JOIN snaptrade_connections AS sc
+                  ON sc.authorization_id = sa.authorization_id
+                WHERE sa.portfolio_account_id = %s
+                  AND sa.is_active = TRUE
+                  AND sc.is_active = TRUE
+                  AND sc.disabled = FALSE
+                LIMIT 1
+                """,
+                [portfolio_account_id],
+            ).fetchone()
+            if active_alias is not None:
+                continue
+            conn.execute(
+                """
+                DELETE FROM portfolio_positions
+                WHERE account_id = %s
+                  AND (id LIKE 'snaptrade:%%' OR strategy_id IS NULL)
+                """,
+                [portfolio_account_id],
+            )
+            conn.execute(
+                """
+                UPDATE portfolio_accounts
+                SET cash_balance = 0,
+                    updated_at = %s
+                WHERE id = %s
+                """,
+                [reconciled_at, portfolio_account_id],
+            )
 
     def _reconcile_account_ownership(self) -> None:
         """Derive ``portfolio_accounts.is_spouse`` from connection ownership.
@@ -861,6 +1109,9 @@ class SnapTradeService:
                     JOIN snaptrade_connections c
                         ON c.authorization_id = sa.authorization_id
                     WHERE sa.portfolio_account_id IS NOT NULL
+                      AND sa.is_active = TRUE
+                      AND c.is_active = TRUE
+                      AND c.disabled = FALSE
                     GROUP BY sa.portfolio_account_id
                 ) sub
                 WHERE pa.id = sub.portfolio_account_id
@@ -1033,17 +1284,20 @@ class SnapTradeService:
     ) -> None:
         brokerage_name, brokerage_slug = _brokerage_fields(connection)
         synced_at = _now()
+        disabled = bool(connection.get("disabled") or False)
+        disabled_at = _coerce_timestamp(connection.get("disabled_date"))
         with self.storage.connection() as conn:
             conn.execute(
                 """
                 INSERT INTO snaptrade_connections (
                     id, user_id, authorization_id, brokerage_name, brokerage_slug,
                     connection_name, connection_type, disabled, disabled_date, metadata,
-                    last_synced_at, created_at, updated_at
+                    last_synced_at, is_active, removed_at, created_at, updated_at
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s
                 )
                 ON CONFLICT (authorization_id) DO UPDATE SET
+                    user_id = EXCLUDED.user_id,
                     brokerage_name = EXCLUDED.brokerage_name,
                     brokerage_slug = EXCLUDED.brokerage_slug,
                     connection_name = EXCLUDED.connection_name,
@@ -1052,6 +1306,11 @@ class SnapTradeService:
                     disabled_date = EXCLUDED.disabled_date,
                     metadata = EXCLUDED.metadata,
                     last_synced_at = EXCLUDED.last_synced_at,
+                    is_active = EXCLUDED.is_active,
+                    removed_at = CASE
+                        WHEN EXCLUDED.is_active THEN NULL
+                        ELSE COALESCE(snaptrade_connections.removed_at, EXCLUDED.removed_at)
+                    END,
                     updated_at = EXCLUDED.updated_at
                 """,
                 [
@@ -1062,10 +1321,12 @@ class SnapTradeService:
                     brokerage_slug,
                     _string(connection.get("name")),
                     _string(connection.get("type")) or _READ_ONLY_CONNECTION_TYPE,
-                    bool(connection.get("disabled") or False),
-                    _coerce_timestamp(connection.get("disabled_date")),
+                    disabled,
+                    disabled_at,
                     _json(connection),
                     synced_at,
+                    not disabled,
+                    (disabled_at or synced_at) if disabled else None,
                     synced_at,
                     synced_at,
                 ],
@@ -1123,10 +1384,10 @@ class SnapTradeService:
                     id, user_id, authorization_id, account_id, portfolio_account_id,
                     household_account_id, name, institution_name, account_mask, raw_type,
                     portfolio_account_type, balance, cash_balance, currency, metadata,
-                    last_synced_at
+                    last_synced_at, is_active, removed_at
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s::jsonb, %s
+                    %s::jsonb, %s, TRUE, NULL
                 )
                 ON CONFLICT (account_id) DO UPDATE SET
                     user_id = EXCLUDED.user_id,
@@ -1141,7 +1402,9 @@ class SnapTradeService:
                     balance = EXCLUDED.balance,
                     currency = EXCLUDED.currency,
                     metadata = EXCLUDED.metadata,
-                    last_synced_at = EXCLUDED.last_synced_at
+                    last_synced_at = EXCLUDED.last_synced_at,
+                    is_active = TRUE,
+                    removed_at = NULL
                 """,
                 [
                     str(uuid.uuid4()),
@@ -1186,20 +1449,37 @@ class SnapTradeService:
         user: SnapTradeUser,
         account: SnapTradeNormalizedAccount,
     ) -> tuple[int, int, set[str]]:
-        response = _dict(
-            _body(
-                client.account_information.get_all_account_positions(
-                    account_id=account.account_id,
-                    user_id=user.user_id,
-                    user_secret=user.user_secret,
-                )
+        response = _body(
+            client.account_information.get_all_account_positions(
+                account_id=account.account_id,
+                user_id=user.user_id,
+                user_secret=user.user_secret,
             )
         )
-        positions = [
-            position
-            for raw_position in _list(response.get("results"))
-            if (position := self._normalize_position(_dict(raw_position))) is not None
-        ]
+        if not isinstance(response, Mapping):
+            raise SnapTradeIntegrationError(
+                "SnapTrade returned a malformed positions response."
+            )
+        raw_results = response.get("results")
+        if not isinstance(raw_results, list):
+            raise SnapTradeIntegrationError(
+                "SnapTrade returned a malformed positions snapshot."
+            )
+        positions: list[SnapTradeNormalizedPosition] = []
+        for raw_position in raw_results:
+            normalized_payload = _plain(raw_position)
+            if not isinstance(normalized_payload, dict):
+                raise SnapTradeIntegrationError(
+                    "SnapTrade returned a malformed position entry."
+                )
+            position = self._normalize_position(
+                cast(dict[str, object], normalized_payload)
+            )
+            if position is None:
+                raise SnapTradeIntegrationError(
+                    "SnapTrade returned a position without a valid symbol and quantity."
+                )
+            positions.append(position)
         synced_at = _now()
         portfolio_positions = self._portfolio_positions(positions)
         portfolio_position_keys = {position.position_key for position in portfolio_positions}

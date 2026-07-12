@@ -159,6 +159,62 @@ Optional integrations:
 
 When optional keys are absent, the app should still start. Features that need a missing provider show degraded or unavailable status instead of requiring secrets at boot.
 
+## Runtime backup and restore
+
+Repository backups are not enough for Money data: PostgreSQL and the private
+household-upload volume must be captured together. The complete backup command
+auto-detects a native install or a running Docker Compose stack and writes one
+checksummed artifact with mode `0600` into a mode-`0700` directory:
+
+```bash
+./scripts/portfolio-backup.sh
+# Compatibility entry point; now creates the same complete artifact:
+./scripts/postgres-backup.sh
+```
+
+For a native install, stop the backend and worker during the short backup
+window so PostgreSQL and uploads represent the same point in time. Compose
+backups automatically pause and unpause the API and worker around the snapshot.
+
+Use `--mode native|compose` or `--upload-dir` to override auto-detection; set
+`PORTFOLIO_DB_URL` in the environment for a one-off native database target so
+credentials do not appear in the process list. Every artifact contains a PostgreSQL custom-format dump,
+portable upload storage keys, and a manifest with the size and SHA-256 of every
+payload. Verify one without changing the installation:
+
+```bash
+./scripts/portfolio-restore.sh data/backups/portfolio_ai_complete_TIMESTAMP.tar.gz --verify-only
+```
+
+A restore is intentionally explicit and destructive. For a native install,
+stop the backend and worker first and make sure the target database already
+exists. Docker Compose restores stop only the app services while leaving
+PostgreSQL available, pre-stage uploads before changing the database, and
+restart the app services only after the entire restore succeeds. On any
+failure, the app services remain stopped: resolve the error and rerun the same
+restore before restarting them, so an incomplete database/upload pair is never
+served:
+
+```bash
+./scripts/portfolio-restore.sh data/backups/portfolio_ai_complete_TIMESTAMP.tar.gz --confirm
+```
+
+Run the isolated end-to-end drill after changing backup infrastructure. It
+creates and drops two disposable databases and never targets the configured
+application database:
+
+```bash
+./scripts/backup-restore-drill.sh
+```
+
+These artifacts contain sensitive financial documents. File permissions do
+not provide encryption; keep them on encrypted storage and copy tested backups
+off-host. `PORTFOLIO_SECRET_KEY` is intentionally excluded from every artifact;
+escrow it separately in an approved encrypted secret store and never embed it
+in a backup. New document rows store relative keys so restores can move between a
+native path and the Docker volume. Existing absolute document paths remain
+read-compatible and are rebased into the configured upload root when moved.
+
 ## Optional Agent Hub companion mode
 
 Agent Hub is not required for the standalone app. To enable companion AI/chat/review flows, start Agent Hub separately, set the companion variables in `.env`, and run:
@@ -224,7 +280,7 @@ Common endpoint groups:
 
 | Group | Endpoints | Purpose |
 | --- | --- | --- |
-| Health | `/health`, `/health/detailed` | Runtime and data-health status |
+| Health | `/health`, `/health/detailed` | Runtime and data-health status; worker liveness comes from a persisted Hatchet runtime heartbeat |
 | Portfolio | `/api/portfolio/*` | Accounts, positions, analytics, IPS, TLH |
 | Watchlist | `/api/watchlist/*` | Watchlist items, refreshes, narratives |
 | Symbols | `/api/symbols/*` | Per-symbol intelligence and decision context |

@@ -17,12 +17,13 @@ ranking helpers are also tested directly.
 from __future__ import annotations
 
 from datetime import date
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
-from app.portfolio.asset_classification import AssetClassifier
+from app.portfolio.asset_classification import AssetClassifier, HoldingValue
 from app.portfolio.contracts.tlh import WashSaleVerdict
 from app.portfolio.ips import (
     RATIONALE_AVOID_REALIZE_GAIN,
@@ -89,7 +90,28 @@ def _build_planner(
 
     classifier = AssetClassifier(storage=None)
     fetcher = _FakePriceFetcher(prices)
-    drift_calc = DriftCalculator(storage, classifier, ips, fetcher)
+    bucketed = classifier.classify_value(
+        HoldingValue(symbol=symbol, value=shares * prices[symbol])
+        for _account_id, symbol, shares, _cost in positions
+        if symbol in prices
+    )
+    universe = SimpleNamespace(
+        total_value=bucketed.total_value,
+        by_class=bucketed.by_class,
+        exact_value=bucketed.total_value,
+        unclassified_value=0.0,
+        status="complete",
+        message="Exact holdings cover household investments.",
+        accounts=(),
+        coverage_pct=1.0,
+    )
+    drift_calc = DriftCalculator(
+        storage,
+        classifier,
+        ips,
+        fetcher,
+        household_allocation_provider=lambda: universe,
+    )
 
     tlh_analyzer = MagicMock()
     tlh_analyzer.wash_sale_check.return_value = wash_sale_verdict or WashSaleVerdict(

@@ -9,6 +9,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Iterable
 from datetime import date
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -481,6 +482,52 @@ def test_drift_includes_account_cash_in_allocation_and_total() -> None:
     assert by_class["cash"].actual_value == 900.0
     assert by_class["cash"].actual_pct == 0.45
     assert by_class["cash"].out_of_band is False
+
+
+def test_household_provider_uses_canonical_denominator_and_surfaces_unknown_value() -> None:
+    calc, _, _ = _make_drift(
+        targets=[("us_equity", 0.6, 0.05), ("cash", 0.1, 0.03)],
+        accounts=[],
+        positions=[],
+        prices={},
+    )
+    calc.household_allocation_provider = lambda: SimpleNamespace(
+        total_value=1_000.0,
+        by_class={"us_equity": 600.0, "cash": 100.0, "unclassified": 300.0},
+        unclassified_value=300.0,
+        coverage_pct=0.7,
+        exact_value=700.0,
+        status="partial",
+        message="Holdings detail is incomplete.",
+        accounts=(
+            SimpleNamespace(
+                household_account_id="hh-account",
+                label="Work plan",
+                current_value=300.0,
+                exact_value=0.0,
+                unclassified_value=300.0,
+                manual_holdings_editable=True,
+                priced_position_count=0,
+                mismatch=False,
+            ),
+        ),
+    )
+
+    report = calc.compute_drift("household", "hh1", snapshot_date=date(2026, 5, 9))
+
+    by_class = {row.asset_class: row for row in report.rows}
+    assert report.total_value == 1_000.0
+    assert by_class["us_equity"].actual_pct == 0.6
+    assert by_class["unclassified"].actual_pct == 0.3
+    assert by_class["unclassified"].out_of_band is False
+    assert report.coverage is not None
+    assert report.coverage.status == "partial"
+    assert report.coverage.accounts_needing_holdings[0].label == "Work plan"
+
+    summary = calc.compute_summary(
+        "household", "hh1", snapshot_date=date(2026, 5, 9)
+    )
+    assert summary.max_drift_pct == pytest.approx(0.0)
 
 
 def test_drift_uses_only_account_in_account_scope() -> None:

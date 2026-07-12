@@ -145,10 +145,10 @@ def test_drift_summary_false_returns_full_report(client: TestClient, scope_id: s
     assert "classes_missing_targets" in body
 
 
-def test_rebalance_returns_deterministic_plan(client: TestClient, scope_id: str) -> None:
-    # Set targets but no positions — planner returns a plan with zero
-    # actionable trades because there's no portfolio data, but the
-    # endpoint contract still returns a valid plan envelope.
+def test_rebalance_fails_closed_without_canonical_household_value(
+    client: TestClient, scope_id: str
+) -> None:
+    """A target alone is not enough evidence to recommend household trades."""
     client.put(
         "/api/portfolio/ips/targets",
         json={
@@ -167,9 +167,5 @@ def test_rebalance_returns_deterministic_plan(client: TestClient, scope_id: str)
             "prefer_ltcg": True,
         },
     )
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["scope"] == "household"
-    assert body["scope_id"] == scope_id
-    assert "trades" in body
-    assert "wash_sale_conflicts" in body
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"] == "Canonical household investment value is unavailable."

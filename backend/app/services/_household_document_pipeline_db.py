@@ -21,6 +21,7 @@ from app.services._household_finance_utils import (
     normalize_question_options,
     to_float,
 )
+from app.services.household_document_storage import document_storage_reference
 from app.services.household_finance_rows import FIELD_LABELS
 from app.storage.types import DatabaseConnection
 
@@ -60,7 +61,7 @@ def insert_document_db(
     *,
     document_id: str,
     filename: str,
-    stored_path: Path,
+    stored_path: str | Path,
     inferred_source: str,
     inferred_type: str,
     account_label: str | None,
@@ -104,8 +105,9 @@ def update_document_and_log_review(
     reviewed: dict[str, object],
     extracted_text: object,
     now: str,
-) -> None:
+) -> str:
     """Update the document record and insert a review audit row."""
+    review_id = str(uuid.uuid4())
     conn.execute(
         """
         UPDATE household_documents
@@ -126,36 +128,33 @@ def update_document_and_log_review(
         """
         INSERT INTO household_document_reviews (
             id, document_id, status, summary, confidence,
-            extracted_text, structured_data, created_at, updated_at
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+            extracted_text, structured_data, review_payload, created_at, updated_at
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s)
         """,
         [
-            str(uuid.uuid4()), document.id, review_status, reviewed.get("summary"),
-            review_confidence, extracted_text, json.dumps(structured_data), now, now,
+            review_id, document.id, review_status, reviewed.get("summary"),
+            review_confidence, extracted_text, json.dumps(structured_data),
+            # extracted_text already has a dedicated column; do not duplicate
+            # potentially large, sensitive OCR text inside JSONB.
+            json.dumps({key: value for key, value in reviewed.items() if key != "extracted_text"}),
+            now,
+            now,
         ],
     )
+    return review_id
 
 
-def archive_prior_document_data(
+def archive_prior_inferred_values(
     conn: DatabaseConnection,
     document_id: str,
     now: str,
 ) -> None:
-    """Supersede old inferred values and dismiss prior questions for a document."""
+    """Supersede prior unconfirmed inferences once replacement data is approved."""
     conn.execute(
         """
         UPDATE household_inferred_values
         SET status = CASE WHEN status = 'confirmed' THEN status ELSE 'superseded' END,
             updated_at = %s
-        WHERE source_document_id = %s
-        """,
-        [now, document_id],
-    )
-    conn.execute(
-        """
-        UPDATE household_questions
-        SET status = CASE WHEN status = 'answered' THEN status ELSE 'dismissed' END,
-            answered_at = COALESCE(answered_at, %s)
         WHERE source_document_id = %s
         """,
         [now, document_id],
@@ -169,7 +168,8 @@ def insert_inferred_values(
     document: HouseholdDocument,
     reviewed: dict[str, object],
     now: str,
-) -> None:
+) -> int:
+    inserted = 0
     for inferred in cast(list[dict[str, object]], reviewed.get("inferred_values") or []):
         field_name = str(inferred.get("field_name") or "").strip()
         if field_name not in FIELD_LABELS:
@@ -192,6 +192,8 @@ def insert_inferred_values(
                 now, now,
             ],
         )
+        inserted += 1
+    return inserted
 
 
 def _build_question_candidate(
@@ -490,9 +492,7 @@ def delete_document_row(
             metadata = None
     stored_path: str | None = None
     if isinstance(metadata, dict):
-        candidate = metadata.get("stored_path")
-        if isinstance(candidate, str) and candidate:
-            stored_path = candidate
+        stored_path = document_storage_reference(metadata)
     return True, stored_path
 
 
@@ -567,11 +567,14 @@ def update_document_application_summary(
     document_id: str,
     application_summary: dict[str, object],
     reconciliation_summary: dict[str, object] | None = None,
+    review_proposal: dict[str, object] | None = None,
 ) -> None:
     """Patch the document metadata with the evidence-application summary."""
     payload: dict[str, object] = {"application_summary": application_summary}
     if reconciliation_summary is not None:
         payload["reconciliation_summary"] = reconciliation_summary
+    if review_proposal is not None:
+        payload["review_proposal"] = review_proposal
     conn.execute(
         """
         UPDATE household_documents
@@ -583,6 +586,394 @@ def update_document_application_summary(
             document_id,
         ],
     )
+
+
+def update_bound_document_review_state(
+    conn: DatabaseConnection,
+    *,
+    document_id: str,
+    review_id: str,
+    proposal_hash: str,
+    expected_statuses: list[str],
+    application_summary: dict[str, object],
+    review_proposal: dict[str, object],
+    reconciliation_summary: dict[str, object] | None = None,
+    document_status: str | None = None,
+    review_status: str | None = None,
+) -> bool:
+    """Update visible state only while the same bound proposal remains current."""
+    payload: dict[str, object] = {
+        "application_summary": application_summary,
+        "review_proposal": review_proposal,
+    }
+    if reconciliation_summary is not None:
+        payload["reconciliation_summary"] = reconciliation_summary
+    conn.execute(
+        """
+        UPDATE household_documents
+        SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
+            status = COALESCE(%s, status),
+            review_status = COALESCE(%s, review_status)
+        WHERE id = %s
+          AND metadata->'review_proposal'->>'schema_version' = '2'
+          AND metadata->'review_proposal'->>'review_id' = %s
+          AND metadata->'review_proposal'->>'proposal_hash' = %s
+          AND metadata->'review_proposal'->>'status' = ANY(%s)
+        """,
+        [
+            json.dumps(payload),
+            document_status,
+            review_status,
+            document_id,
+            review_id,
+            proposal_hash,
+            expected_statuses,
+        ],
+    )
+    return conn.rowcount == 1
+
+
+def bind_document_review_proposal(
+    conn: DatabaseConnection,
+    *,
+    document_id: str,
+    review_id: str,
+    proposal_hash: str,
+    proposal_preview: dict[str, object],
+    now: str,
+) -> bool:
+    """Persist the immutable preview/hash binding on its exact review row."""
+    conn.execute(
+        """
+        UPDATE household_document_reviews
+        SET proposal_hash = %s,
+            proposal_preview = %s::jsonb,
+            updated_at = %s
+        WHERE id = %s
+          AND document_id = %s
+          AND status = 'needs_review'
+          AND decision IS NULL
+          AND (
+              (proposal_hash IS NULL AND proposal_preview IS NULL)
+              OR (proposal_hash = %s AND proposal_preview = %s::jsonb)
+          )
+        """,
+        [
+            proposal_hash,
+            json.dumps(proposal_preview),
+            now,
+            review_id,
+            document_id,
+            proposal_hash,
+            json.dumps(proposal_preview),
+        ],
+    )
+    return conn.rowcount == 1
+
+
+def fetch_document_review_decision_binding(
+    conn: DatabaseConnection,
+    *,
+    document_id: str,
+    review_id: str,
+) -> dict[str, object] | None:
+    """Read the review payload, immutable binding, and current visible proposal."""
+    row = conn.execute(
+        """
+        SELECT review.id, review.summary, review.confidence,
+               review.extracted_text, review.structured_data, review.review_payload,
+               review.proposal_hash, review.proposal_preview,
+               review.decision, review.decision_status, review.application_phase,
+               review.application_journal, document.metadata->'review_proposal'
+        FROM household_document_reviews AS review
+        JOIN household_documents AS document ON document.id = review.document_id
+        WHERE review.id = %s
+          AND review.document_id = %s
+          AND review.status = 'needs_review'
+          AND review.id = (
+              SELECT latest.id
+              FROM household_document_reviews AS latest
+              WHERE latest.document_id = review.document_id
+              ORDER BY latest.created_at DESC, latest.id DESC
+              LIMIT 1
+          )
+        LIMIT 1
+        """,
+        [review_id, document_id],
+    ).fetchone()
+    if row is None:
+        return None
+    return {
+        "id": str(row[0]),
+        "summary": row[1],
+        "confidence": row[2],
+        "extracted_text": row[3],
+        "structured_data": row[4] if isinstance(row[4], dict) else {},
+        "review_payload": row[5] if isinstance(row[5], dict) else {},
+        "proposal_hash": row[6],
+        "proposal_preview": row[7] if isinstance(row[7], dict) else None,
+        "decision": row[8],
+        "decision_status": row[9],
+        "application_phase": row[10],
+        "application_journal": row[11] if isinstance(row[11], dict) else {},
+        "visible_proposal": row[12] if isinstance(row[12], dict) else None,
+    }
+
+
+def try_acquire_document_review_executor(
+    conn: DatabaseConnection,
+    *,
+    document_id: str,
+) -> bool:
+    """Acquire one session-scoped executor lock; process exit releases it."""
+    row = conn.execute(
+        "SELECT pg_try_advisory_lock(hashtext('portfolio-ai:document-review'), hashtext(%s))",
+        [document_id],
+    ).fetchone()
+    return bool(row and row[0])
+
+
+def release_document_review_executor(
+    conn: DatabaseConnection,
+    *,
+    document_id: str,
+) -> None:
+    """Release the session-scoped document review executor lock."""
+    conn.execute(
+        "SELECT pg_advisory_unlock(hashtext('portfolio-ai:document-review'), hashtext(%s))",
+        [document_id],
+    )
+
+
+def claim_document_review_decision(
+    conn: DatabaseConnection,
+    *,
+    document_id: str,
+    review_id: str,
+    proposal_hash: str,
+    proposal_preview: dict[str, object],
+    decision: str,
+    reason: str | None,
+    executor_token: str | None,
+    now: str,
+) -> dict[str, object] | None:
+    """Claim a first decision or resume its exact interrupted approval."""
+    row = conn.execute(
+        """
+        UPDATE household_document_reviews
+        SET decision = COALESCE(decision, %s),
+            decision_status = CASE
+                WHEN %s = 'approve' THEN 'applying'
+                ELSE 'rejected'
+            END,
+            decision_reason = COALESCE(decision_reason, %s),
+            decided_at = COALESCE(decided_at, %s),
+            updated_at = %s,
+            application_phase = CASE
+                WHEN %s = 'approve' THEN COALESCE(application_phase, 'claimed')
+                ELSE application_phase
+            END,
+            application_attempts = application_attempts +
+                CASE WHEN %s = 'approve' THEN 1 ELSE 0 END,
+            application_executor_token = CASE
+                WHEN %s = 'approve' THEN %s
+                ELSE NULL
+            END,
+            application_last_error = CASE
+                WHEN %s = 'approve' THEN NULL
+                ELSE application_last_error
+            END
+        WHERE id = %s
+          AND document_id = %s
+          AND status = 'needs_review'
+          AND id = (
+              SELECT latest.id
+              FROM household_document_reviews AS latest
+              WHERE latest.document_id = %s
+              ORDER BY latest.created_at DESC, latest.id DESC
+              LIMIT 1
+          )
+          AND proposal_hash = %s
+          AND proposal_preview = %s::jsonb
+          AND (
+              (
+                  %s = 'reject'
+                  AND decision IS NULL
+              )
+              OR
+              (
+                  %s = 'approve'
+                  AND (
+                      decision IS NULL
+                      OR (
+                          decision = 'approve'
+                          AND decision_status IN ('applying', 'failed')
+                      )
+                  )
+              )
+          )
+          AND EXISTS (
+              SELECT 1
+              FROM household_documents document
+              WHERE document.id = household_document_reviews.document_id
+                AND document.metadata->'review_proposal'->>'schema_version' = '2'
+                AND document.metadata->'review_proposal'->>'review_id' = %s
+                AND document.metadata->'review_proposal'->>'proposal_hash' = %s
+                AND document.metadata->'review_proposal'->'preview' = %s::jsonb
+                AND (
+                    (%s = 'reject' AND document.metadata->'review_proposal'->>'status' = 'pending')
+                    OR
+                    (%s = 'approve' AND document.metadata->'review_proposal'->>'status'
+                        IN ('pending', 'applying', 'failed'))
+                )
+          )
+        RETURNING id, summary, confidence, extracted_text, structured_data,
+                  review_payload, proposal_hash, proposal_preview,
+                  decision_status, application_phase, application_journal
+        """,
+        [
+            decision,
+            decision,
+            reason,
+            now,
+            now,
+            decision,
+            decision,
+            decision,
+            executor_token,
+            decision,
+            review_id,
+            document_id,
+            document_id,
+            proposal_hash,
+            json.dumps(proposal_preview),
+            decision,
+            decision,
+            review_id,
+            proposal_hash,
+            json.dumps(proposal_preview),
+            decision,
+            decision,
+        ],
+    ).fetchone()
+    if row is None:
+        return None
+    return {
+        "id": str(row[0]),
+        "summary": row[1],
+        "confidence": row[2],
+        "extracted_text": row[3],
+        "structured_data": row[4] if isinstance(row[4], dict) else {},
+        "review_payload": row[5] if isinstance(row[5], dict) else {},
+        "proposal_hash": row[6],
+        "proposal_preview": row[7] if isinstance(row[7], dict) else {},
+        "decision_status": row[8],
+        "application_phase": row[9],
+        "application_journal": row[10] if isinstance(row[10], dict) else {},
+    }
+
+
+def record_document_review_application_phase(
+    conn: DatabaseConnection,
+    *,
+    review_id: str,
+    executor_token: str,
+    expected_phase: str,
+    phase: str,
+    journal_patch: dict[str, object],
+    now: str,
+) -> bool:
+    """Advance one durable phase while retaining the exclusive executor claim."""
+    conn.execute(
+        """
+        UPDATE household_document_reviews
+        SET application_phase = %s,
+            application_journal = application_journal || %s::jsonb,
+            updated_at = %s
+        WHERE id = %s
+          AND decision = 'approve'
+          AND decision_status = 'applying'
+          AND application_executor_token = %s
+          AND application_phase = %s
+        """,
+        [
+            phase,
+            json.dumps(journal_patch),
+            now,
+            review_id,
+            executor_token,
+            expected_phase,
+        ],
+    )
+    return conn.rowcount == 1
+
+
+def fail_document_review_application(
+    conn: DatabaseConnection,
+    *,
+    review_id: str,
+    executor_token: str,
+    error: str,
+    application_summary: dict[str, object] | None,
+    now: str,
+) -> bool:
+    """Record an ordinary failure without erasing the last completed phase."""
+    conn.execute(
+        """
+        UPDATE household_document_reviews
+        SET decision_status = 'failed',
+            decision_application_summary = %s::jsonb,
+            application_executor_token = NULL,
+            application_last_error = %s,
+            updated_at = %s
+        WHERE id = %s
+          AND decision = 'approve'
+          AND decision_status = 'applying'
+          AND application_executor_token = %s
+        """,
+        [
+            json.dumps(application_summary) if application_summary is not None else None,
+            error[:2000],
+            now,
+            review_id,
+            executor_token,
+        ],
+    )
+    return conn.rowcount == 1
+
+
+def complete_document_review_decision(
+    conn: DatabaseConnection,
+    *,
+    review_id: str,
+    executor_token: str,
+    application_summary: dict[str, object] | None,
+    now: str,
+) -> bool:
+    """Finalize the claimed approval from its last durable phase exactly once."""
+    conn.execute(
+        """
+        UPDATE household_document_reviews
+        SET decision_status = 'applied',
+            decision_application_summary = %s::jsonb,
+            application_phase = 'finalized',
+            application_executor_token = NULL,
+            application_last_error = NULL,
+            updated_at = %s
+        WHERE id = %s
+          AND decision = 'approve'
+          AND decision_status = 'applying'
+          AND application_phase = 'inferences_applied'
+          AND application_executor_token = %s
+        """,
+        [
+            json.dumps(application_summary) if application_summary is not None else None,
+            now,
+            review_id,
+            executor_token,
+        ],
+    )
+    return conn.rowcount == 1
 
 
 def fetch_document_application_counts(

@@ -1,7 +1,7 @@
 """Artifact cleanup tasks.
 
 This module provides automated cleanup tasks for:
-- Old backup files (SQL dumps)
+- Old complete backup artifacts and legacy SQL dumps
 - Old ML model versions
 
 All tasks are designed to be:

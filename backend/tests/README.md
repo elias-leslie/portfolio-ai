@@ -29,10 +29,19 @@ uv run ty check app
 uv run pytest
 ```
 
-Slow tests are marked with `slow` and are skipped by default unless explicitly requested:
+Deterministic integration and watchlist suites require PostgreSQL and are skipped by
+default. Run them independently from the default suite with:
 
 ```bash
-uv run pytest tests --runslow
+uv run pytest tests/integration tests/watchlist --runintegration --no-cov
+```
+
+`--runslow` remains a compatibility alias for `--runintegration`; it does **not**
+enable manual tests. Tests under `tests/manual` may call live services and require
+their own explicit opt-in:
+
+```bash
+uv run pytest tests/manual --runmanual --no-cov
 ```
 
 Prefer deterministic fixtures and fake provider payloads. Do not add tests that require real customer data, real brokerage accounts, live credentials, or private infrastructure.

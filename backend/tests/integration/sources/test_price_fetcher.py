@@ -275,8 +275,10 @@ def test_fetch_partial_success(
         assert result["AAPL"].price == 180.0
         assert result["AAPL"].error is None
 
-        # INVALID should not be in result (not returned by source)
-        assert "INVALID" not in result
+        # Every requested symbol has an explicit outcome so callers can surface
+        # partial-data failures instead of silently dropping them.
+        assert result["INVALID"].price == 0.0
+        assert result["INVALID"].error == "All sources failed"
 
 
 def _insert_day_bars(
@@ -285,6 +287,16 @@ def _insert_day_bars(
     start_date: datetime,
     closes: list[float],
 ) -> None:
+    with storage.connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO symbols (symbol, company_name)
+            VALUES (%s, %s)
+            ON CONFLICT (symbol) DO NOTHING
+            """,
+            [symbol, f"{symbol} Test Symbol"],
+        )
+        conn.commit()
     rows = []
     for idx, close in enumerate(closes):
         current_date = (start_date + timedelta(days=idx)).date()

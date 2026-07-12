@@ -33,11 +33,20 @@ def _insert_account(storage, account_id: str) -> None:
     with storage.connection() as conn:
         conn.execute(
             """
-            INSERT INTO household_accounts (id, name, account_type, created_at, updated_at)
-            VALUES (%s, %s, 'credit_card', %s, %s)
+            INSERT INTO household_accounts (
+                id, primary_identity_key, canonical_label, asset_group,
+                account_type, source_type, created_at, updated_at
+            )
+            VALUES (%s, %s, %s, 'credit', 'credit_card', 'manual', %s, %s)
             ON CONFLICT (id) DO NOTHING
             """,
-            [account_id, f"Test card {account_id[:8]}", datetime.now(UTC), datetime.now(UTC)],
+            [
+                account_id,
+                f"test-soft-charge::{account_id}",
+                f"Test card {account_id[:8]}",
+                datetime.now(UTC),
+                datetime.now(UTC),
+            ],
         )
         conn.commit()
 

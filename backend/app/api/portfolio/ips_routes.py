@@ -27,12 +27,13 @@ from app.portfolio.contracts.ips import (
     IPSTarget,
     RebalancePlan,
 )
+from app.portfolio.ips import IncompleteHouseholdCoverageError
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/ips", tags=["portfolio-ips"])
 
-_REBALANCE_COVERAGE_TOLERANCE_RATIO = 0.01
+_NUMERIC_COVERAGE_TOLERANCE_DOLLARS = 1.0
 
 
 @lru_cache(maxsize=1)
@@ -56,6 +57,23 @@ def _price_fetcher():
 
 
 @lru_cache(maxsize=1)
+def _household_allocation_service():
+    service_mod = import_module("app.services.household_allocation_service")
+    return service_mod.HouseholdAllocationService(
+        _storage(),
+        _asset_classifier(),
+        _price_fetcher(),
+    )
+
+
+def _household_allocation_universe():
+    household_service = import_module(
+        "app.services.household_finance_service"
+    ).HouseholdFinanceService()
+    return _household_allocation_service().build(household_service.get_dashboard())
+
+
+@lru_cache(maxsize=1)
 def _drift_calculator():
     ips_mod = import_module("app.portfolio.ips")
     return ips_mod.DriftCalculator(
@@ -63,6 +81,7 @@ def _drift_calculator():
         _asset_classifier(),
         _ips_service(),
         _price_fetcher(),
+        household_allocation_provider=_household_allocation_universe,
     )
 
 
@@ -136,8 +155,7 @@ def _household_drift_coverage(
             ),
         )
     coverage_gap = abs(canonical_value - included_value)
-    tolerance = max(1.0, canonical_value * _REBALANCE_COVERAGE_TOLERANCE_RATIO)
-    if coverage_gap <= tolerance:
+    if coverage_gap <= _NUMERIC_COVERAGE_TOLERANCE_DOLLARS:
         return DriftCoverage(
             status="complete",
             canonical_total_value=canonical_value,
@@ -169,21 +187,6 @@ def _household_drift_coverage(
             "Reconcile duplicate or misclassified holdings before relying on drift or generating trades."
         ),
     )
-
-
-def _household_rebalance_blocker(
-    report: DriftReport,
-    *,
-    dashboard: Any | None = None,
-    totals: Any | None = None,
-) -> str | None:
-    """Return why household coverage is unsafe for a trade proposal, if any."""
-    coverage = _household_drift_coverage(
-        report.total_value,
-        dashboard=dashboard,
-        totals=totals,
-    )
-    return None if coverage.status == "complete" else coverage.message
 
 
 # ----------------------------------------------------------------------
@@ -273,7 +276,7 @@ async def get_drift(
     """
     if summary:
         digest = await run_in_threadpool(_drift_calculator().compute_summary, scope, scope_id)
-        if scope == "household":
+        if scope == "household" and digest.coverage is None:
             coverage = await run_in_threadpool(
                 _household_drift_coverage, digest.total_value
             )
@@ -282,7 +285,7 @@ async def get_drift(
     report: DriftReport = await run_in_threadpool(
         _drift_calculator().compute_drift, scope, scope_id
     )
-    if scope == "household":
+    if scope == "household" and report.coverage is None:
         coverage = await run_in_threadpool(
             _household_drift_coverage, report.total_value
         )
@@ -298,22 +301,14 @@ async def post_rebalance(payload: RebalanceRequest) -> RebalancePlan:
     sells, wash-sale-aware reroute or flag. See
     :class:`app.portfolio.ips.RebalancePlanner` for the contract.
     """
-    if payload.scope == "household":
-        report = await run_in_threadpool(
-            _drift_calculator().compute_drift,
+    try:
+        return await run_in_threadpool(
+            _rebalance_planner().propose_trades,
             payload.scope,
             payload.scope_id,
+            prefer_tax_advantaged=payload.prefer_tax_advantaged,
+            prefer_ltcg=payload.prefer_ltcg,
             snapshot_date=payload.snapshot_date,
         )
-        blocker = await run_in_threadpool(_household_rebalance_blocker, report)
-        if blocker:
-            raise HTTPException(status_code=409, detail=blocker)
-
-    return await run_in_threadpool(
-        _rebalance_planner().propose_trades,
-        payload.scope,
-        payload.scope_id,
-        prefer_tax_advantaged=payload.prefer_tax_advantaged,
-        prefer_ltcg=payload.prefer_ltcg,
-        snapshot_date=payload.snapshot_date,
-    )
+    except IncompleteHouseholdCoverageError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

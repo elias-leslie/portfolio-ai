@@ -204,8 +204,11 @@ class HouseholdPlanningService:
         if not grouped:
             return
 
+        # Section readers own short-lived connections. Load them before the
+        # write transaction so callers holding a document-level advisory-lock
+        # connection never require three simultaneous pool checkouts.
+        existing = self._load_sections(service)
         with service.storage.connection() as conn:
-            existing = self._load_sections(service)
             for section, raw_items in grouped.items():
                 config = _SECTIONS[section]
                 merge_section_rows(

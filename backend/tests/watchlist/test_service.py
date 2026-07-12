@@ -5,12 +5,14 @@ import tempfile
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 import polars as pl
 import pytest
 
 from app.portfolio.models import PriceData
 from app.storage import PortfolioStorage
+from app.utils.db_helpers import ensure_symbol_exists
 from app.watchlist.scoring_service import refresh_watchlist_scores
 from app.watchlist.watchlist_service import _normalize_recent_news_payload
 from tests.test_support.news import build_empty_news_service
@@ -87,6 +89,7 @@ def _insert_user_preferences(
 
 def _insert_watchlist_item(storage: PortfolioStorage, item_id: str, symbol: str) -> None:
     with storage.connection() as conn:
+        ensure_symbol_exists(conn, symbol)
         conn.execute(
             """
             INSERT INTO watchlist_items (id, symbol, metadata)
@@ -98,6 +101,7 @@ def _insert_watchlist_item(storage: PortfolioStorage, item_id: str, symbol: str)
 
 
 def _insert_day_bars(storage: PortfolioStorage, symbol: str, closes: list[float]) -> None:
+    ensure_symbol_exists(storage, symbol)
     start_date = datetime.now(UTC) - timedelta(days=len(closes) + 5)
     rows = []
     for idx, close in enumerate(closes):
@@ -183,12 +187,17 @@ def test_refresh_watchlist_scores_persists_snapshots(storage: PortfolioStorage) 
     fetcher = StubPriceFetcher({"AAPL": price_data})
     news_service = build_empty_news_service()
 
-    result = refresh_watchlist_scores(storage, price_fetcher=fetcher, news_service=news_service)
+    with (
+        patch("app.watchlist.scoring_service.context.trigger_auto_backfill"),
+        patch("app.watchlist.refresh_data_fetchers.fetch_fundamentals_cached", return_value=None),
+        patch("app.watchlist.refresh_data_fetchers.fetch_earnings_date_cached", return_value=None),
+    ):
+        result = refresh_watchlist_scores(storage, price_fetcher=fetcher, news_service=news_service)
 
     assert result["processed"] == 1
     assert result["symbols"] == ["AAPL"]
 
-    df = storage.query("SELECT * FROM watchlist_snapshots WHERE item_id = ?", ["item-1"])
+    df = storage.query("SELECT * FROM watchlist_snapshots_v WHERE item_id = ?", ["item-1"])
     assert df.height == 1
     row = df.to_dicts()[0]
     assert row["overall_score"] is not None

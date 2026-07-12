@@ -10,8 +10,11 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Iterable
+from copy import deepcopy
 from datetime import UTC, date, datetime
 from typing import Any
+
+import pytest
 
 from app.portfolio.transactions import TransactionLedger, TransactionRow
 
@@ -37,6 +40,7 @@ class _FakeConn:
         self.store = store
         self._last_cursor: _Cursor | None = None
         self.committed_count = 0
+        self._snapshot = (deepcopy(store.transactions), deepcopy(store.tax_lots))
 
     def execute(
         self,
@@ -45,6 +49,7 @@ class _FakeConn:
     ) -> _FakeConn:
         params = list(params) if params is not None else []
         normalized = " ".join(query.split())
+        self.store.queries.append(normalized)
         rows = self.store.handle(normalized, params)
         self._last_cursor = _Cursor(rows)
         return self
@@ -59,6 +64,14 @@ class _FakeConn:
 
     def commit(self) -> None:
         self.committed_count += 1
+        self.store.commit_count += 1
+        self._snapshot = (deepcopy(self.store.transactions), deepcopy(self.store.tax_lots))
+
+    def rollback(self) -> None:
+        self.store.rollback_count += 1
+        transactions, tax_lots = self._snapshot
+        self.store.transactions[:] = deepcopy(transactions)
+        self.store.tax_lots[:] = deepcopy(tax_lots)
 
 
 class _FakeStore:
@@ -68,6 +81,10 @@ class _FakeStore:
         self.transactions: list[dict[str, Any]] = []
         self.tax_lots: list[dict[str, Any]] = []
         self.positions: list[dict[str, Any]] = []
+        self.queries: list[str] = []
+        self.connection_count = 0
+        self.commit_count = 0
+        self.rollback_count = 0
 
     def seed_position(self, account_id: str, symbol: str, cost_basis: float) -> None:
         self.positions.append(
@@ -93,10 +110,17 @@ class _FakeStore:
                 "metadata",
             ]
             row = dict(zip(keys, params, strict=True))
+            external_id = row.get("external_id")
+            if external_id is not None and any(
+                existing["account_id"] == row["account_id"]
+                and existing.get("external_id") == external_id
+                for existing in self.transactions
+            ):
+                return []
             row.setdefault("realized_gain", None)
             row["created_at"] = datetime.now(UTC)
             self.transactions.append(row)
-            return []
+            return [(row["id"],)]
 
         if q.startswith("UPDATE PORTFOLIO_TRANSACTIONS SET REALIZED_GAIN"):
             realized_gain, txn_id = params
@@ -230,6 +254,7 @@ class _FakeStorage:
 
     def connection(self) -> Any:
         store = self.store
+        store.connection_count += 1
 
         class _Ctx:
             def __enter__(self_inner) -> _FakeConn:  # noqa: N805
@@ -268,6 +293,8 @@ def test_record_transaction_inserts_row_and_returns_uuid() -> None:
     assert row["source"] == "manual"
     # Lot opened automatically for non-legacy buys
     assert len(store.tax_lots) == 1
+    assert store.connection_count == 1
+    assert store.commit_count == 1
 
 
 def test_record_transaction_idempotent_on_external_id() -> None:
@@ -294,6 +321,37 @@ def test_record_transaction_idempotent_on_external_id() -> None:
 
     assert first == second
     assert len(store.transactions) == 1
+    assert len(store.tax_lots) == 1
+    assert store.connection_count == 2
+    assert store.commit_count == 1
+    assert store.rollback_count == 1
+
+
+def test_record_transaction_rolls_back_buy_when_lot_creation_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ledger, store = _make_ledger()
+
+    def fail_lot_creation(*_args: Any, **_kwargs: Any) -> None:
+        raise RuntimeError("injected lot failure")
+
+    monkeypatch.setattr(ledger, "_open_lot_for_buy", fail_lot_creation)
+
+    with pytest.raises(RuntimeError, match="injected lot failure"):
+        ledger.record_transaction(
+            account_id="acct-1",
+            symbol="AAPL",
+            transaction_type="buy",
+            trade_date=date(2026, 1, 5),
+            shares=10.0,
+            price=180.0,
+            external_id="rollback-buy",
+        )
+
+    assert store.transactions == []
+    assert store.tax_lots == []
+    assert store.commit_count == 0
+    assert store.rollback_count == 1
 
 
 def test_legacy_aggregate_skips_lot_creation() -> None:

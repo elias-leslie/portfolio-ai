@@ -11,6 +11,8 @@ from typing import Any
 
 from app.hatchet_app import hatchet
 from app.logging_config import configure_logging
+from app.services.worker_heartbeat import WorkerHeartbeatPublisher, WorkerReportedStatus
+from app.storage import get_storage
 from app.workflows.account_sync import sync_accounts_wf
 from app.workflows.agents import schedule_new_symbol_wf
 from app.workflows.catalysts import portfolio_catalyst_prewarm_wf
@@ -107,6 +109,16 @@ def _disable_worker_sys_exit(worker: Any) -> None:
         worker._handle_kill = False
 
 
+def _worker_reported_status(worker: Any) -> WorkerReportedStatus:
+    """Map the Hatchet SDK's runtime state to the persisted health contract."""
+    status_name = str(getattr(getattr(worker, "status", None), "name", "")).upper()
+    if status_name == "HEALTHY":
+        return "healthy"
+    if status_name == "UNHEALTHY":
+        return "unhealthy"
+    return "starting"
+
+
 def main() -> None:
     configure_logging()
     worker = hatchet.worker(
@@ -196,6 +208,11 @@ def main() -> None:
         ],
     )
     _disable_worker_sys_exit(worker)
+    heartbeat = WorkerHeartbeatPublisher(
+        get_storage(),
+        status_provider=lambda: _worker_reported_status(worker),
+    )
+    heartbeat.start()
     worker.start()
     os._exit(0)
 

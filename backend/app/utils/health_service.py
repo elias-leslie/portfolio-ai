@@ -90,7 +90,7 @@ class HealthCheckService:
         sources = check_sources(self.storage)
 
         # Service process checks (skip slow service inspect for fast health checks)
-        service_statuses = get_all_service_statuses(skip_slow_checks=True)
+        service_statuses = get_all_service_statuses(skip_slow_checks=True, storage=self.storage)
         services_dict = {name: status.model_dump() for name, status in service_statuses.items()}
 
         # Determine overall status
@@ -141,7 +141,7 @@ class HealthCheckService:
 
         # Get additional detailed checks - now returns Pydantic models directly
         day_bars_freshness = get_day_bars_freshness(self.storage)
-        worker = get_worker_info()
+        worker = get_worker_info(self.storage)
         api_keys = get_api_key_statuses(self.storage)
 
         disk_usage_internal = get_disk_usage()

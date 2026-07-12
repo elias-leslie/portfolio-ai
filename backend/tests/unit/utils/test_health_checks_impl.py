@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import polars as pl
 
+from app.services.worker_heartbeat import WorkerHeartbeatSnapshot
 from app.utils import health_checks_impl
 
 
@@ -15,6 +16,31 @@ class _FrozenDateTime(dt.datetime):
         if tz is None:
             return current.replace(tzinfo=None)
         return current.astimezone(tz)
+
+
+def test_worker_info_exposes_persisted_heartbeat_state(monkeypatch) -> None:
+    last_seen = dt.datetime(2026, 3, 11, 2, 59, 58, tzinfo=dt.UTC)
+    heartbeat = WorkerHeartbeatSnapshot(
+        state="current",
+        message="Worker heartbeat current (2s ago)",
+        hostname="worker-host",
+        pid=4321,
+        last_seen_at=last_seen,
+        age_seconds=2.0,
+    )
+    monkeypatch.setattr(
+        health_checks_impl,
+        "read_worker_heartbeat",
+        lambda _storage: heartbeat,
+    )
+
+    worker = health_checks_impl.get_worker_info(object())
+
+    assert worker.active is True
+    assert worker.heartbeat_state == "current"
+    assert worker.hostname == "worker-host"
+    assert worker.pid == 4321
+    assert worker.last_heartbeat_at == last_seen
 
 
 def test_check_sources_excludes_news_only_vendors(monkeypatch) -> None:

@@ -11,6 +11,11 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Reque
 from fastapi.concurrency import run_in_threadpool
 
 from app.models.household_finance import HouseholdDocument, HouseholdDocumentList
+from app.services.household_document_review_contracts import (
+    HouseholdDocumentReviewApplicationError,
+    HouseholdDocumentReviewDecisionRequest,
+    HouseholdDocumentReviewDecisionResult,
+)
 from app.services.household_upload_validation import (
     HouseholdUploadValidationError,
     validate_household_upload_metadata,
@@ -53,6 +58,34 @@ async def re_review_evidence(
         raise HTTPException(status_code=404, detail="Evidence document not found.")
     background_tasks.add_task(service.review_document, document_id)
     return {"status": "queued", "document_id": document_id}
+
+
+@router.post(
+    "/evidence/{document_id}/decision",
+    response_model=HouseholdDocumentReviewDecisionResult,
+)
+async def decide_evidence_review(
+    document_id: str,
+    payload: HouseholdDocumentReviewDecisionRequest,
+) -> HouseholdDocumentReviewDecisionResult:
+    """Approve or reject the specified held proposal exactly once."""
+    service = _service()
+    try:
+        return await run_in_threadpool(
+            service.decide_document_review,
+            document_id,
+            review_id=payload.review_id,
+            proposal_hash=payload.proposal_hash,
+            proposal_preview=payload.proposal_preview.model_dump(mode="json"),
+            decision=payload.decision,
+            reason=payload.reason,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except HouseholdDocumentReviewApplicationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.post("/evidence", response_model=HouseholdDocument)

@@ -13,9 +13,33 @@ from app.models.household_finance import (
 from app.services.household_account_control import (
     SourceAccountRow,
     _collapse_source_rows,
+    _source_rows,
     account_control_inbox_items,
     apply_account_control_to_summaries,
 )
+
+
+class _EmptyResult:
+    def fetchall(self) -> list[list[object]]:
+        return []
+
+
+class _QueryRecordingStorage:
+    def __init__(self) -> None:
+        self.query = ""
+
+    def connection(self) -> _QueryRecordingStorage:
+        return self
+
+    def __enter__(self) -> _QueryRecordingStorage:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def execute(self, query: str) -> _EmptyResult:
+        self.query = " ".join(query.split())
+        return _EmptyResult()
 
 
 def _source_row(
@@ -132,6 +156,17 @@ def test_unlinked_source_account_with_value_blocks_trusted_totals() -> None:
     assert len(issues) == 1
     assert issues[0].code == "unlinked_source_account"
     assert issues[0].affects_totals is True
+
+
+def test_current_source_values_exclude_removed_provider_snapshots() -> None:
+    storage = _QueryRecordingStorage()
+
+    assert _source_rows(storage) == []
+
+    assert "sa.is_active = true" in storage.query
+    assert "sc.is_active = true" in storage.query
+    assert "pa.is_active = true" in storage.query
+    assert "pi.status = 'active'" in storage.query
 
 
 def _account_summary() -> HouseholdAccountSummary:

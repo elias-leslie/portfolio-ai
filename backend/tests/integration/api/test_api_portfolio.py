@@ -105,4 +105,4 @@ def test_create_duplicate_named_account_skips_conflicting_household_link() -> No
     assert accounts_response.status_code == 200
     matching = [row for row in accounts_response.json() if row["name"] == "ROTH IRA"]
     assert len(matching) == 2
-    assert sorted(row["household_account_id"] for row in matching) == [None, household_account_id]
+    assert {row["household_account_id"] for row in matching} == {None, household_account_id}

@@ -10,7 +10,7 @@ projection) is exercised end-to-end.
 from __future__ import annotations
 
 from collections.abc import Generator
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 from unittest.mock import patch
 
@@ -34,9 +34,15 @@ def stub_universe_and_dates(monkeypatch: pytest.MonkeyPatch) -> Generator[None]:
     """
     from app.services.catalyst_calendar_service import CatalystCalendarService
 
-    earnings = {"AAPL": datetime(2026, 5, 18), "MSFT": datetime(2026, 7, 1)}
-    exdiv = {"AAPL": datetime(2026, 5, 12)}
-    fomc = [(date(2026, 5, 14), "press_conference", "federalreserve.gov")]
+    today = date.today()
+    earnings = {
+        "AAPL": datetime.combine(today + timedelta(days=8), datetime.min.time()),
+        "MSFT": datetime.combine(today + timedelta(days=12), datetime.min.time()),
+    }
+    exdiv = {
+        "AAPL": datetime.combine(today + timedelta(days=4), datetime.min.time())
+    }
+    fomc = [(today + timedelta(days=6), "press_conference", "federalreserve.gov")]
 
     def fake_universe(self: CatalystCalendarService, symbols: Any, *, include_watchlist: bool) -> list[str]:
         del self, include_watchlist

@@ -16,6 +16,7 @@ from app.middleware.cache import clear_cache
 from app.portfolio.models import PriceData
 from app.storage import PortfolioStorage, get_storage
 from app.utils.db_helpers import ensure_symbols_exist
+from tests.test_support.news import build_empty_news_service
 
 
 @pytest.fixture(autouse=True)
@@ -34,10 +35,39 @@ def test_storage() -> Iterator[PortfolioStorage]:
 
     # Ensure symbols exist (FK constraint on watchlist_items)
     with storage.connection() as conn:
-        ensure_symbols_exist(
-            conn,
-            ["AAPL", "TSLA", "MSFT", "GOOGL", "INVALID", "ZZTEST123", "ZZTEST999"],
-        )
+        symbols = [
+            "AAPL",
+            "TSLA",
+            "MSFT",
+            "GOOGL",
+            "INVALID",
+            "ZZTEST123",
+            "ZZTEST999",
+        ]
+        ensure_symbols_exist(conn, symbols)
+        for symbol in symbols:
+            conn.execute(
+                """
+                INSERT INTO reference_cache (symbol, as_of_date, payload, source)
+                VALUES (%s, CURRENT_DATE, %s::jsonb, 'fundamentals'),
+                       (%s, CURRENT_DATE, %s::jsonb, 'earnings')
+                ON CONFLICT (symbol, as_of_date, source)
+                DO UPDATE SET payload = EXCLUDED.payload
+                """,
+                [
+                    symbol,
+                    json.dumps(
+                        {
+                            "symbol": symbol,
+                            "profit_margin": 0.10,
+                            "revenue_growth": 0.10,
+                            "debt_to_equity": 0.50,
+                        }
+                    ),
+                    symbol,
+                    json.dumps({"earnings_date": None}),
+                ],
+            )
         conn.commit()
 
     # Insert test account (needed by all watchlist tests)
@@ -113,6 +143,16 @@ def client(test_storage: PortfolioStorage) -> Iterator[TestClient]:
     with (
         patch("app.api.watchlist.crud_router.get_storage", return_value=test_storage),
         patch("app.api.watchlist.refresh_router.get_storage", return_value=test_storage),
+        # CRUD tests validate the request/database contract, not live market
+        # ingestion. Never let a symbol-normalization assertion depend on
+        # yfinance/SEC/RSS availability or execute slow ingestion inline.
+        patch("app.api.watchlist.crud_router.schedule_new_symbol_tasks"),
+        patch("app.api.watchlist.refresh_router.schedule_refresh_tasks"),
+        patch("app.watchlist.scoring_service.context.trigger_auto_backfill"),
+        patch(
+            "app.watchlist.scoring_service.context.NewsService",
+            return_value=build_empty_news_service(),
+        ),
     ):
         yield TestClient(app)
 

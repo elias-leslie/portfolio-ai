@@ -6,12 +6,14 @@ import hashlib
 import json
 import re
 import uuid
+from contextlib import nullcontext
 from datetime import UTC, date, datetime
 from itertools import pairwise
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+from app.config import settings
 from app.logging_config import get_logger
 from app.models.household_finance import (
     HouseholdReports,
@@ -50,6 +52,7 @@ from app.services.household_account_identity import (
     account_masks_match,
     derive_account_mask,
 )
+from app.services.household_document_storage import resolve_document_upload
 from app.services.household_purchase_item_service import HouseholdPurchaseItemService
 from app.services.household_transaction_dedup_service import (
     HouseholdTransactionDedupService,
@@ -1096,10 +1099,19 @@ class HouseholdTransactionService:
 
         return report_rows
 
-    def infer_merchant_cadence(self, *, merchant: str) -> dict[str, object] | None:
-        with self.storage.connection() as conn:
+    def infer_merchant_cadence(
+        self,
+        *,
+        merchant: str,
+        conn: Any | None = None,
+    ) -> dict[str, object] | None:
+        """Infer cadence while reusing a caller transaction when available."""
+        connection_context = (
+            nullcontext(conn) if conn is not None else self.storage.connection()
+        )
+        with connection_context as active_conn:
             row_dates: list[date] = []
-            rows = conn.execute(
+            rows = active_conn.execute(
                 """
                 SELECT transaction_date
                 FROM household_transactions t
@@ -1114,7 +1126,7 @@ class HouseholdTransactionService:
                 if isinstance(row[0], datetime):
                     row_dates.append(row[0].date())
 
-            document_rows = conn.execute(
+            document_rows = active_conn.execute(
                 """
                 SELECT metadata->'structured_data'->>'merchant', metadata->'structured_data'->>'statement_period'
                 FROM household_documents
@@ -1143,11 +1155,10 @@ class HouseholdTransactionService:
         metadata = getattr(document, "metadata", None)
         if not isinstance(metadata, dict):
             return None
-        stored_path = metadata.get("stored_path")
-        if not isinstance(stored_path, str) or not stored_path:
-            return None
-        path = Path(stored_path)
-        return path if path.exists() else None
+        return resolve_document_upload(
+            metadata,
+            settings.household_upload_dir,
+        )
 
     @staticmethod
     def _resolved_account_label(

@@ -18,7 +18,7 @@ from app.hatchet_app import (
     _wrap_hatchet_shutdown_404_guard,
     get_hatchet,
 )
-from app.worker import _disable_worker_sys_exit
+from app.worker import _disable_worker_sys_exit, _worker_reported_status
 from app.worker import main as worker_main
 
 
@@ -191,14 +191,36 @@ def test_disable_worker_sys_exit_handles_read_only_hatchet_property() -> None:
     assert worker._handle_kill is False
 
 
+@pytest.mark.parametrize(
+    ("sdk_status", "expected"),
+    [
+        ("INITIALIZED", "starting"),
+        ("STARTING", "starting"),
+        ("HEALTHY", "healthy"),
+        ("UNHEALTHY", "unhealthy"),
+    ],
+)
+def test_worker_reported_status_maps_hatchet_runtime_state(
+    sdk_status: str,
+    expected: str,
+) -> None:
+    worker = SimpleNamespace(status=SimpleNamespace(name=sdk_status))
+
+    assert _worker_reported_status(worker) == expected
+
+
 def test_worker_registers_macro_calendar_and_ohlcv_workflows(monkeypatch) -> None:
     worker = MagicMock()
+    heartbeat = MagicMock()
     hatchet = MagicMock()
     configure_logging = MagicMock()
     hatchet.worker.return_value = worker
     exit_mock = MagicMock(side_effect=SystemExit(0))
     monkeypatch.setattr("app.worker.hatchet", hatchet)
     monkeypatch.setattr("app.worker.configure_logging", configure_logging)
+    monkeypatch.setattr("app.worker.get_storage", MagicMock(return_value="storage"))
+    heartbeat_publisher = MagicMock(return_value=heartbeat)
+    monkeypatch.setattr("app.worker.WorkerHeartbeatPublisher", heartbeat_publisher)
     monkeypatch.setattr("app.worker.os._exit", exit_mock)
 
     with pytest.raises(SystemExit):
@@ -209,6 +231,10 @@ def test_worker_registers_macro_calendar_and_ohlcv_workflows(monkeypatch) -> Non
     assert "portfolio-market-macro-calendar-ingestion" in workflow_names
     assert "portfolio-refresh-ohlcv" in workflow_names
     configure_logging.assert_called_once_with()
+    assert heartbeat_publisher.call_args.args == ("storage",)
+    status_provider = heartbeat_publisher.call_args.kwargs["status_provider"]
+    assert status_provider() == "starting"
+    heartbeat.start.assert_called_once_with()
     assert worker.handle_kill is False
     worker.start.assert_called_once_with()
     exit_mock.assert_called_once_with(0)

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 from app.logging_config import get_logger
@@ -14,6 +13,10 @@ from app.services._household_document_pipeline_db import update_document_applica
 from app.services._jenny_review_notifications import (
     resolve_superseded_notifications,
     upsert_notification,
+)
+from app.services.household_document_storage import (
+    household_upload_root,
+    resolve_upload_path,
 )
 
 logger = get_logger(__name__)
@@ -122,7 +125,10 @@ class JennyHouseholdMaintenanceService:
         with service.storage.connection() as conn:
             rows = conn.execute(
                 f"""
-                SELECT id, metadata->>'stored_path' AS stored_path, status, review_status
+                SELECT id,
+                       COALESCE(metadata->>'storage_key', metadata->>'stored_path') AS stored_path,
+                       status,
+                       review_status
                 FROM household_documents
                 WHERE status IN ('staged', 'needs_review')
                    OR COALESCE(review_status, '') IN ('needs_review', 'failed')
@@ -167,8 +173,12 @@ class JennyHouseholdMaintenanceService:
         unresolved = 0
 
         for document_id, stored_path, prior_status, prior_review_status in rows:
-            path = Path(str(stored_path)) if stored_path else None
-            if path is None or not path.exists():
+            path = resolve_upload_path(
+                str(stored_path) if stored_path else None,
+                household_upload_root(service.household_service),
+                allow_legacy_absolute=False,
+            )
+            if path is None:
                 if self._recover_document_without_source(service, str(document_id)):
                     recovered += 1
                     continue

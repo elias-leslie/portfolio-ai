@@ -6,6 +6,7 @@ import {
   categorizeHouseholdTransaction,
   confirmFact,
   createHouseholdTrackedAccount,
+  decideHouseholdDocumentReview,
   deleteHouseholdDocument,
   deleteHouseholdTrackedAccount,
   fetchAllocationScenarios,
@@ -21,6 +22,7 @@ import {
   fetchRetirementPreview,
   fetchRetirementSpendingActuals,
   type HouseholdDocument,
+  type HouseholdDocumentReviewProposalPreview,
   type HouseholdDocumentUpload,
   type HouseholdFinanceDashboard,
   type HouseholdLedgerParams,
@@ -552,6 +554,49 @@ export function useReReviewHouseholdDocument() {
         error instanceof Error
           ? error.message
           : 'Failed to queue document for re-review',
+      )
+    },
+  })
+}
+
+export function useDecideHouseholdDocumentReview() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      documentId,
+      reviewId,
+      proposalHash,
+      proposalPreview,
+      decision,
+    }: {
+      documentId: string
+      reviewId: string
+      proposalHash: string
+      proposalPreview: HouseholdDocumentReviewProposalPreview
+      decision: 'approve' | 'reject'
+    }) =>
+      decideHouseholdDocumentReview(
+        documentId,
+        reviewId,
+        proposalHash,
+        proposalPreview,
+        decision,
+      ),
+    onSuccess: async (result) => {
+      await refreshHouseholdQueries(queryClient)
+      toast.success(
+        result.decision === 'approve'
+          ? 'Reviewed evidence applied.'
+          : 'Review proposal rejected.',
+      )
+    },
+    onError: async (error) => {
+      await refreshHouseholdQueries(queryClient)
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to record the review decision',
       )
     },
   })

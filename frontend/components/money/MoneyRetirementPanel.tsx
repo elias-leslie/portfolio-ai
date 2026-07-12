@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Area,
   AreaChart,
@@ -328,6 +328,8 @@ export function MoneyRetirementPanel({
   const [tickerMix, setTickerMix] = useState(
     'VTI 70\nSCHD 10 3.6\nBND 10 4.0\nSPAXX 10',
   )
+  const holdingsCoverageScrollDone = useRef(false)
+
   const scenariosQuery = useAllocationScenarios()
   const replaceScenarios = useReplaceAllocationScenarios()
   const incomeActualsQuery = useRetirementIncomeActuals()
@@ -417,6 +419,24 @@ export function MoneyRetirementPanel({
   const refreshPropertyValuation = useRefreshHouseholdPropertyValuation()
   const previewQuery = useRetirementPreview(request)
   const preview = previewQuery.data
+  const holdingsCoverage = preview?.holdingsCoverage ?? null
+
+  useEffect(() => {
+    if (
+      holdingsCoverageScrollDone.current ||
+      window.location.hash !== '#holdings-coverage' ||
+      holdingsCoverage == null
+    ) {
+      return
+    }
+    const frame = requestAnimationFrame(() => {
+      const target = document.getElementById('holdings-coverage')
+      if (!target) return
+      target.scrollIntoView({ block: 'start', behavior: 'smooth' })
+      holdingsCoverageScrollDone.current = true
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [holdingsCoverage])
   const actualSpendMonthly = spendingActuals?.totalMonthlySpend ?? null
   const actualSpendRequest = useMemo(
     () =>
@@ -724,7 +744,6 @@ export function MoneyRetirementPanel({
   )
   const terminalProjection =
     projectionData.length > 0 ? projectionData[projectionData.length - 1] : null
-  const holdingsCoverage = preview?.holdingsCoverage ?? null
   const accountAllocationCoverage = preview?.accountAllocationCoverage ?? null
 
   const allocationRows = useMemo(
@@ -1901,7 +1920,10 @@ export function MoneyRetirementPanel({
           )}
 
           {holdingsCoverage ? (
-            <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4 xl:col-span-7">
+            <div
+              id="holdings-coverage"
+              className="scroll-mt-24 rounded-2xl border border-border/35 bg-surface-muted/15 p-4 xl:col-span-7"
+            >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">

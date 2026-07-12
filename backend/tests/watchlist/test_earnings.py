@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from app.storage.connection import ConnectionManager
 from app.storage.types import DatabaseConnection
+from app.utils.db_helpers import ensure_symbol_exists
 from app.watchlist.earnings import (
     fetch_earnings_date,
     fetch_earnings_date_cached,
@@ -41,7 +42,8 @@ class TestFetchEarningsDate:
         mock_ticker.calendar = {}
         mock_ticker_class.return_value = mock_ticker
 
-        earnings_date = fetch_earnings_date("NVDA")
+        with patch("app.watchlist.earnings._fetch_from_finnhub", return_value=None):
+            earnings_date = fetch_earnings_date("NVDA")
 
         # Should return None when calendar is empty
         assert earnings_date is None
@@ -51,7 +53,8 @@ class TestFetchEarningsDate:
         """Test YFinance when API raises exception."""
         mock_ticker_class.side_effect = Exception("API Error")
 
-        earnings_date = fetch_earnings_date("NVDA")
+        with patch("app.watchlist.earnings._fetch_from_finnhub", return_value=None):
+            earnings_date = fetch_earnings_date("NVDA")
 
         assert earnings_date is None
 
@@ -275,6 +278,7 @@ class TestEarningsCaching:
         cm = ConnectionManager()
         with cm.connection() as conn:
             db_conn = cast(DatabaseConnection, conn)
+            ensure_symbol_exists(db_conn, "UNKNOWN")
             result = fetch_earnings_date_cached(db_conn, "UNKNOWN")
 
             assert result is None

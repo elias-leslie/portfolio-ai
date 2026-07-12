@@ -47,6 +47,17 @@ export interface DriftCoverage {
   coveragePct: number | null
   excludedValue: number | null
   message: string
+  accountsNeedingHoldings: DriftCoverageAccount[]
+}
+
+export interface DriftCoverageAccount {
+  householdAccountId: string | null
+  label: string
+  currentValue: number
+  exactValue: number
+  unclassifiedValue: number
+  manualHoldingsEditable: boolean
+  pricedPositionCount: number
 }
 
 export interface DriftReport {

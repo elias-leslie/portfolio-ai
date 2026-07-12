@@ -13,6 +13,7 @@ const deleteMutate = vi.fn()
 const deleteMutateAsync = vi.fn()
 const reReviewMutate = vi.fn()
 const reReviewMutateAsync = vi.fn()
+const decideReviewMutate = vi.fn()
 const useUploadHouseholdDocumentMock = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
@@ -37,6 +38,10 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
     mutateAsync: reReviewMutateAsync,
     isPending: false,
   }),
+  useDecideHouseholdDocumentReview: () => ({
+    mutate: decideReviewMutate,
+    isPending: false,
+  }),
 }))
 
 describe('HouseholdDocumentCenter', () => {
@@ -49,6 +54,7 @@ describe('HouseholdDocumentCenter', () => {
     deleteMutateAsync.mockReset()
     reReviewMutate.mockReset()
     reReviewMutateAsync.mockReset()
+    decideReviewMutate.mockReset()
     useUploadHouseholdDocumentMock.mockReset()
   })
 
@@ -178,6 +184,173 @@ describe('HouseholdDocumentCenter', () => {
     expect(
       screen.getByText(/older document awaiting re-review/i),
     ).toBeInTheDocument()
+  })
+
+  it('shows held review changes and records explicit approval', async () => {
+    const user = userEvent.setup()
+    render(
+      <HouseholdDocumentCenter
+        documents={[
+          {
+            id: 'doc-review',
+            filename: 'uncertain-statement.pdf',
+            sourceType: 'brokerage',
+            documentType: 'brokerage_statement',
+            status: 'needs_review',
+            accountLabel: 'Brokerage',
+            fileSizeBytes: 1024,
+            contentType: 'application/pdf',
+            classificationConfidence: 0.9,
+            reviewStatus: 'needs_review',
+            reviewSummary: 'Possible brokerage snapshot.',
+            reviewConfidence: 0.54,
+            statementStart: null,
+            statementEnd: null,
+            uploadedAt: '2026-07-12T00:00:00Z',
+            parsedAt: '2026-07-12T00:01:00Z',
+            metadata: {
+              applicationSummary: {
+                status: 'needs_review',
+                impacts: [],
+              },
+              reviewProposal: {
+                schemaVersion: 2,
+                status: 'pending',
+                reviewId: 'review-proposal-1',
+                documentId: 'doc-review',
+                proposalHash: 'a'.repeat(64),
+                blocker: 'Review confidence 54% is below the threshold.',
+                preview: {
+                  accounts: [
+                    {
+                      label: 'Example Brokerage · Individual · ••••1234',
+                      accountSuffix: '1234',
+                      balance: '1000.00',
+                      holdingsValue: '875.00',
+                      cashBalance: '125.00',
+                      currency: 'USD',
+                      asOfDate: '2026-07-12',
+                    },
+                  ],
+                  transactions: [
+                    {
+                      accountLabel: 'Example Brokerage · ••••1234',
+                      transactionDate: '2026-07-10',
+                      merchant: 'Dividend payment',
+                      amount: '12.34',
+                      currency: 'USD',
+                    },
+                  ],
+                  holdings: [
+                    {
+                      accountLabel: 'Example Brokerage · ••••1234',
+                      symbol: 'VTI',
+                      shares: '2.5',
+                      value: '875.00',
+                    },
+                  ],
+                  planning: [
+                    { field: 'planned_expenses.add', value: { amount: 300 } },
+                  ],
+                  inferences: [{ field: 'monthly_income', value: '5000' }],
+                },
+                proposedChanges: [
+                  { kind: 'accounts', label: 'Account snapshots', count: 1 },
+                ],
+              },
+            },
+          },
+        ]}
+      />,
+    )
+
+    expect(screen.getByText(/review confidence 54%/i)).toBeInTheDocument()
+    expect(screen.getByText(/account snapshots · 1/i)).toBeInTheDocument()
+    expect(screen.getByText(/exact proposed values/i)).toBeInTheDocument()
+    expect(screen.getByText(/balance \$1,000\.00/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/2026-07-10 · dividend payment/i),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/vti/i)).toBeInTheDocument()
+    expect(screen.getByText(/planned_expenses\.add/i)).toBeInTheDocument()
+    expect(screen.getByText(/monthly_income/i)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /approve changes/i }))
+
+    expect(decideReviewMutate).toHaveBeenCalledWith({
+      documentId: 'doc-review',
+      reviewId: 'review-proposal-1',
+      proposalHash: 'a'.repeat(64),
+      proposalPreview: expect.objectContaining({
+        accounts: [
+          expect.objectContaining({
+            balance: '1000.00',
+            asOfDate: '2026-07-12',
+          }),
+        ],
+        transactions: [
+          expect.objectContaining({
+            merchant: 'Dividend payment',
+            amount: '12.34',
+          }),
+        ],
+        holdings: [expect.objectContaining({ symbol: 'VTI', shares: '2.5' })],
+        planning: [expect.objectContaining({ field: 'planned_expenses.add' })],
+        inferences: [expect.objectContaining({ field: 'monthly_income' })],
+      }),
+      decision: 'approve',
+    })
+  })
+
+  it('fails legacy unbound proposals closed and offers a fresh review', async () => {
+    const user = userEvent.setup()
+    render(
+      <HouseholdDocumentCenter
+        documents={[
+          {
+            id: 'doc-legacy-review',
+            filename: 'legacy-statement.pdf',
+            sourceType: 'bank',
+            documentType: 'statement',
+            status: 'needs_review',
+            accountLabel: 'Checking',
+            fileSizeBytes: 512,
+            contentType: 'application/pdf',
+            classificationConfidence: 0.8,
+            reviewStatus: 'needs_review',
+            reviewSummary: 'Legacy held review.',
+            reviewConfidence: 0.5,
+            statementStart: null,
+            statementEnd: null,
+            uploadedAt: '2026-07-01T00:00:00Z',
+            parsedAt: '2026-07-01T00:01:00Z',
+            metadata: {
+              fileAvailable: true,
+              reviewProposal: {
+                schemaVersion: 1,
+                status: 'pending',
+                reviewId: 'legacy-review',
+                proposedChanges: [
+                  { kind: 'accounts', label: 'Account snapshots', count: 1 },
+                ],
+              },
+            },
+          },
+        ]}
+      />,
+    )
+
+    expect(screen.getByText(/fresh review required/i)).toBeInTheDocument()
+    expect(screen.getByText(/cannot be approved/i)).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /approve changes/i }),
+    ).not.toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', {
+        name: /re-run jenny review on legacy-statement\.pdf/i,
+      }),
+    )
+    expect(reReviewMutate).toHaveBeenCalledWith('doc-legacy-review')
+    expect(decideReviewMutate).not.toHaveBeenCalled()
   })
 
   it('discards an evidence document after confirmation', async () => {

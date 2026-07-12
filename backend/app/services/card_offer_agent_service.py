@@ -29,6 +29,10 @@ from app.logging_config import get_logger
 from app.models.credit_cards import CardIntakeResult
 from app.services._household_document_llm import _build_review_image_content
 from app.services._household_document_text import _extract_text
+from app.services.household_document_storage import (
+    household_upload_root,
+    resolve_document_upload,
+)
 from app.storage import get_storage
 
 if TYPE_CHECKING:
@@ -60,8 +64,10 @@ class CardOfferAgentService:
     def process_offer_document(
         self, service: HouseholdFinanceService, document: HouseholdDocument
     ) -> CardIntakeResult:
-        stored_path = document.metadata.get("stored_path")
-        stored_file = Path(stored_path) if isinstance(stored_path, str) and stored_path else None
+        stored_file = resolve_document_upload(
+            document.metadata,
+            household_upload_root(service),
+        )
         extracted = self._run_extraction(document=document, stored_file=stored_file)
 
         confidence = float(extracted.get("confidence") or 0.0)

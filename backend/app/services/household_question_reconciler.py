@@ -93,9 +93,9 @@ def _bulk_answer_related(
           AND q.question = %s AND COALESCE(q.field_name, '') = COALESCE(%s, '')
           AND (
                 q.source_document_id = %s
-                OR (%s IS NOT NULL AND d.account_label = %s)
-                OR (%s IS NOT NULL AND d.metadata->'structured_data'->>'account_hint' = %s)
-                OR (%s IS NOT NULL AND d.metadata->'structured_data'->>'merchant' = %s)
+                OR (%s::text IS NOT NULL AND d.account_label = %s)
+                OR (%s::text IS NOT NULL AND d.metadata->'structured_data'->>'account_hint' = %s)
+                OR (%s::text IS NOT NULL AND d.metadata->'structured_data'->>'merchant' = %s)
               )
         """,
         [
@@ -242,7 +242,6 @@ class HouseholdQuestionReconciler:
         conn: Any,
         question: HouseholdQuestion,
     ) -> dict[str, object] | None:
-        del conn
         if question_family(question.question, question.field_name) != "merchant_cadence":
             return None
         source_document = question.metadata.get("source_document")
@@ -251,7 +250,10 @@ class HouseholdQuestionReconciler:
         merchant = source_document.get("merchant")
         if not isinstance(merchant, str) or not merchant.strip():
             return None
-        cadence = service.transaction_service.infer_merchant_cadence(merchant=merchant)
+        cadence = service.transaction_service.infer_merchant_cadence(
+            merchant=merchant,
+            conn=conn,
+        )
         if cadence is None:
             return None
         return {

@@ -116,7 +116,12 @@ def process_model_file(
 def collect_backup_files(backup_dir: Path) -> list[tuple[Path, float, int]]:
     """Collect and sort backup files by modification time (newest first)."""
     backup_files: list[tuple[Path, float, int]] = []
-    for pattern in ("*.sql", "*.sql.gz", "*.sql.bz2"):
+    for pattern in (
+        "portfolio_ai_complete_*.tar.gz",
+        "*.sql",
+        "*.sql.gz",
+        "*.sql.bz2",
+    ):
         for f in backup_dir.glob(pattern):
             if f.is_file():
                 stat = f.stat()
@@ -154,7 +159,9 @@ def delete_old_model_versions(
 
 def run_backups_cleanup(task_id: str, dry_run: bool, keep_count: int, log_id: int) -> CleanupResult:
     """Execute backup cleanup core logic (directory scan, delete, build result)."""
-    backup_dir = Path(__file__).parent.parent.parent.parent.parent / "backups"
+    backup_dir = (
+        Path(__file__).parent.parent.parent.parent.parent / "data" / "backups"
+    )
     early_exit = handle_missing_directory(task_id, dry_run, backup_dir, "cleanup_old_backups_task", log_id)
     if early_exit:
         return early_exit
@@ -187,4 +194,3 @@ def run_models_cleanup(task_id: str, dry_run: bool, keep_count: int, log_id: int
                               "model_groups": len(model_groups)},
         would_action_list=would_delete if dry_run else None,
     )
-

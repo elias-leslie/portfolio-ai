@@ -7,6 +7,8 @@ import type {
   HouseholdAccountHoldings,
   HouseholdConfirmedFact,
   HouseholdDocumentList,
+  HouseholdDocumentReviewDecisionResult,
+  HouseholdDocumentReviewProposalPreview,
   HouseholdFinanceDashboard,
   HouseholdLedger,
   HouseholdLedgerParams,
@@ -275,6 +277,19 @@ export async function reReviewHouseholdDocument(
 ): Promise<{ status: string; document_id: string }> {
   return post<{ status: string; document_id: string }>(
     `/api/intake/evidence/${documentId}/review`,
+  )
+}
+
+export async function decideHouseholdDocumentReview(
+  documentId: string,
+  reviewId: string,
+  proposalHash: string,
+  proposalPreview: HouseholdDocumentReviewProposalPreview,
+  decision: 'approve' | 'reject',
+): Promise<HouseholdDocumentReviewDecisionResult> {
+  return post<HouseholdDocumentReviewDecisionResult>(
+    `/api/intake/evidence/${documentId}/decision`,
+    { reviewId, proposalHash, proposalPreview, decision },
   )
 }
 

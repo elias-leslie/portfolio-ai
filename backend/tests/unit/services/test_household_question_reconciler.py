@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from app.models.household_finance import HouseholdQuestion
 from app.services.household_question_reconciler import (
     HouseholdQuestionReconciler,
@@ -94,3 +96,42 @@ def test_closed_account_context_can_dismiss_cashflow_account_question() -> None:
 
     assert _question_allows_closed_account_dismissal(question) is True
     assert _question_label_context_is_closed(question) is True
+
+
+def test_cadence_inference_reuses_the_callers_database_connection() -> None:
+    connection = object()
+
+    class TransactionService:
+        def infer_merchant_cadence(
+            self, *, merchant: str, conn: object
+        ) -> dict[str, object]:
+            assert merchant == "Example Merchant"
+            assert conn is connection
+            return {
+                "label": "monthly",
+                "confidence": 0.9,
+                "rationale": "Observed monthly statement history.",
+            }
+
+    question = _question(
+        question_id="q-cadence",
+        text=(
+            "How often does the household shop at Example Merchant "
+            "(weekly, bi-weekly, or monthly)?"
+        ),
+        field_name="merchant_frequency",
+        metadata={"source_document": {"merchant": "Example Merchant"}},
+    )
+
+    result = HouseholdQuestionReconciler().infer_question_resolution_from_existing_context(
+        SimpleNamespace(transaction_service=TransactionService()),
+        conn=connection,
+        question=question,
+    )
+
+    assert result == {
+        "inferred_resolution": "merchant_cadence_from_existing_context",
+        "inferred_answer": "monthly",
+        "inferred_confidence": 0.9,
+        "inferred_rationale": "Observed monthly statement history.",
+    }

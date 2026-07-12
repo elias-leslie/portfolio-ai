@@ -78,3 +78,25 @@ def test_perform_health_check_degrades_when_any_service_is_degraded(monkeypatch)
     result = service.perform_health_check()
 
     assert result["status"] == "degraded"
+
+
+def test_perform_health_check_degrades_when_worker_heartbeat_is_stale(monkeypatch) -> None:
+    service = _configure_health_service_dependencies(
+        monkeypatch,
+        frontend_status="running",
+    )
+
+    def stale_worker_services(**_kwargs) -> dict[str, ServiceStatus]:
+        return {
+            "portfolio-backend": _service_status("portfolio-backend", "running"),
+            "portfolio-frontend": _service_status("portfolio-frontend", "running"),
+            "portfolio-hatchet-worker": _service_status(
+                "portfolio-hatchet-worker", "degraded"
+            ),
+        }
+
+    monkeypatch.setattr(health_service, "get_all_service_statuses", stale_worker_services)
+
+    result = service.perform_health_check()
+
+    assert result["status"] == "degraded"

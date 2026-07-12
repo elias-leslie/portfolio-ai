@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
@@ -47,6 +47,8 @@ from .asset_classification import (
     ValueByClass,
 )
 from .contracts.ips import (
+    DriftCoverage,
+    DriftCoverageAccount,
     DriftReport,
     DriftRow,
     DriftSummary,
@@ -71,6 +73,10 @@ RATIONALE_AVOID_REALIZE_GAIN = "avoid_realize_gain"
 RATIONALE_WASH_SALE_BLOCKED = "wash_sale_blocked"
 RATIONALE_WASH_SALE_REROUTED = "wash_sale_rerouted"
 RATIONALE_NO_LOTS_FALLBACK = "no_lots_fallback"
+
+
+class IncompleteHouseholdCoverageError(RuntimeError):
+    """Raised when household holdings are unsafe to turn into trades."""
 
 
 # ----------------------------------------------------------------------
@@ -219,11 +225,13 @@ class DriftCalculator:
         asset_classifier: AssetClassifier,
         ips_service: IPSService,
         price_fetcher: PriceDataFetcher,
+        household_allocation_provider: Callable[[], Any] | None = None,
     ) -> None:
         self.storage = storage
         self.classifier = asset_classifier
         self.ips_service = ips_service
         self.price_fetcher = price_fetcher
+        self.household_allocation_provider = household_allocation_provider
 
     def compute_drift(
         self,
@@ -234,15 +242,47 @@ class DriftCalculator:
     ) -> DriftReport:
         """Build the full drift report for one scope."""
         snapshot = snapshot_date or date.today()
-        holdings = self._holdings_for_scope(scope, scope_id)
-        accounts = _accounts_in_scope(self.storage, scope, scope_id)
-        cash_value = sum(max(float(account.get("cash_balance") or 0.0), 0.0) for account in accounts)
-        values = [HoldingValue(symbol=h.symbol, value=h.current_value) for h in holdings]
-        if cash_value > 0:
-            values.append(HoldingValue(symbol="SPAXX", value=cash_value))
-        bucketed = self.classifier.classify_value(
-            values
-        )
+        coverage: DriftCoverage | None = None
+        if scope == "household" and self.household_allocation_provider is not None:
+            universe = self.household_allocation_provider()
+            bucketed = ValueByClass(
+                total_value=float(universe.total_value),
+                by_class=dict(universe.by_class),
+                unclassified_value=float(universe.unclassified_value),
+            )
+            coverage = DriftCoverage(
+                status=universe.status,
+                canonical_total_value=universe.total_value,
+                coverage_pct=universe.coverage_pct,
+                excluded_value=universe.unclassified_value,
+                message=universe.message,
+                accounts_needing_holdings=[
+                    DriftCoverageAccount(
+                        household_account_id=account.household_account_id,
+                        label=account.label,
+                        current_value=account.current_value,
+                        exact_value=account.exact_value,
+                        unclassified_value=account.unclassified_value,
+                        manual_holdings_editable=account.manual_holdings_editable,
+                        priced_position_count=account.priced_position_count,
+                    )
+                    for account in universe.accounts
+                    if account.unclassified_value > 0.01 or account.mismatch
+                ],
+            )
+        else:
+            holdings = self._holdings_for_scope(scope, scope_id)
+            accounts = _accounts_in_scope(self.storage, scope, scope_id)
+            cash_value = sum(
+                max(float(account.get("cash_balance") or 0.0), 0.0)
+                for account in accounts
+            )
+            values = [
+                HoldingValue(symbol=h.symbol, value=h.current_value) for h in holdings
+            ]
+            if cash_value > 0:
+                values.append(HoldingValue(symbol="SPAXX", value=cash_value))
+            bucketed = self.classifier.classify_value(values)
         targets = self.ips_service.get_targets(scope, scope_id)
         target_index = {t.asset_class: t for t in targets}
 
@@ -258,6 +298,7 @@ class DriftCalculator:
             total_value=bucketed.total_value,
             rows=rows,
             classes_missing_targets=missing,
+            coverage=coverage,
         )
 
     def compute_summary(
@@ -269,7 +310,14 @@ class DriftCalculator:
     ) -> DriftSummary:
         """Compact digest used by ``GET /api/portfolio/ips/drift`` by default."""
         report = self.compute_drift(scope, scope_id, snapshot_date=snapshot_date)
-        max_drift = max((abs(r.drift_pct) for r in report.rows), default=0.0)
+        max_drift = max(
+            (
+                abs(row.drift_pct)
+                for row in report.rows
+                if row.asset_class != "unclassified"
+            ),
+            default=0.0,
+        )
         oob = sum(1 for r in report.rows if r.out_of_band)
         return DriftSummary(
             scope=scope,
@@ -278,6 +326,7 @@ class DriftCalculator:
             max_drift_pct=round(max_drift, 6),
             classes_out_of_band=oob,
             snapshot_date=report.snapshot_date,
+            coverage=report.coverage,
         )
 
     # ------------------------------------------------------------------
@@ -338,7 +387,7 @@ def _build_drift_rows(
     and for any over-targeted class actually present.
     """
     rows: list[DriftRow] = []
-    classes = sorted(set(target_index) | set(bucketed.by_class) - {"unclassified"})
+    classes = sorted(set(target_index) | set(bucketed.by_class))
     total = bucketed.total_value or 0.0
     for asset_class in classes:
         target = target_index.get(asset_class)
@@ -446,6 +495,7 @@ class RebalancePlanner:
         """
         snapshot = snapshot_date or date.today()
         report = self.drift_calc.compute_drift(scope, scope_id, snapshot_date=snapshot)
+        self._require_tradeable_coverage(scope=scope, report=report)
         accounts = _accounts_in_scope(self.drift_calc.storage, scope, scope_id)
         if not accounts:
             return RebalancePlan(scope=scope, scope_id=scope_id, snapshot_date=snapshot)
@@ -520,6 +570,24 @@ class RebalancePlanner:
             wash_sale_conflicts=wash_conflicts,
             asset_classes_corrected=corrected,
         )
+
+    @staticmethod
+    def _require_tradeable_coverage(
+        *,
+        scope: IPSScope,
+        report: DriftReport,
+    ) -> None:
+        """Fail closed unless this exact household report has complete coverage."""
+        if scope != "household":
+            return
+        coverage = report.coverage
+        if coverage is None:
+            raise IncompleteHouseholdCoverageError(
+                "Household investment coverage could not be verified. Reconcile "
+                "holdings before generating trades."
+            )
+        if coverage.status != "complete":
+            raise IncompleteHouseholdCoverageError(coverage.message)
 
     # ------------------------------------------------------------------
     # buy planning

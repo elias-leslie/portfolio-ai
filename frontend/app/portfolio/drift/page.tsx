@@ -9,6 +9,7 @@ import {
   Compass,
   ExternalLink,
 } from 'lucide-react'
+import Link from 'next/link'
 import { useState } from 'react'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -89,6 +90,24 @@ interface DriftRowCardProps {
 }
 
 function DriftRowCard({ row, missingTarget }: DriftRowCardProps) {
+  if (row.assetClass === 'unclassified') {
+    return (
+      <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
+        <div className="text-sm font-semibold">Holdings detail needed</div>
+        <div className="text-xs text-muted-foreground">
+          {formatMoney(row.actualValue)} ({formatPct(row.actualPct)} of
+          household investments) cannot yet be assigned to an investment type.
+        </div>
+        <Link
+          href="/money?tab=retirement#holdings-coverage"
+          className="inline-flex text-xs font-medium text-amber-800 underline underline-offset-2 hover:text-amber-950 dark:text-amber-300 dark:hover:text-amber-200"
+        >
+          Add or review account holdings
+        </Link>
+      </div>
+    )
+  }
+
   if (missingTarget) {
     return (
       <div className="space-y-2 rounded-lg border bg-card/50 p-4">
@@ -207,8 +226,16 @@ function DriftPageContent({ scopeId }: DriftPageContentProps) {
               <span className="font-semibold">Partial allocation view.</span>{' '}
               {data.coverage?.message ??
                 'Household investment coverage has not been verified.'}{' '}
-              The percentages below apply only to the included value, and trade
-              proposals are disabled until it reconciles.
+              Percentages use the full household investment value; value that
+              lacks holdings detail is shown separately. Trade proposals remain
+              disabled until every material account reconciles.{' '}
+              <Link
+                href="/money?tab=retirement#holdings-coverage"
+                className="font-medium underline underline-offset-2"
+              >
+                Review holdings
+              </Link>
+              .
             </div>
           ) : null}
           <div
@@ -217,8 +244,8 @@ function DriftPageContent({ scopeId }: DriftPageContentProps) {
             <StatusIcon className="h-4 w-4" />
             {!coverageComplete
               ? oobCount === 0
-                ? 'Included investment types are inside their wiggle room, but household coverage is incomplete.'
-                : `${oobCount} included ${oobCount === 1 ? 'investment type is' : 'investment types are'} outside their wiggle room.`
+                ? 'Classified investment types are inside their wiggle room, but some household value still needs holdings detail.'
+                : `${oobCount} classified ${oobCount === 1 ? 'investment type is' : 'investment types are'} outside their wiggle room.`
               : onPlan
                 ? 'You are on plan — every type of investment is inside its wiggle room.'
                 : `${oobCount} ${oobCount === 1 ? 'type of investment is' : 'types of investment are'} outside their wiggle room.`}

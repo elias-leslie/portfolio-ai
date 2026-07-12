@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import cast
@@ -10,6 +9,7 @@ from typing import cast
 import pytest
 
 from app.storage import get_storage
+from app.utils.db_helpers import ensure_symbol_exists
 
 
 @pytest.fixture
@@ -27,6 +27,7 @@ def setup_test_data() -> Iterator[dict[str, object]]:
     # Ensure 'default' account exists in test database
     now = datetime.now(UTC)
     with storage.connection() as conn:
+        ensure_symbol_exists(conn, "TEST")
         # Check if account exists
         result = conn.execute("SELECT id FROM portfolio_accounts WHERE id = 'default'")
         if not result.fetchall():
@@ -82,23 +83,14 @@ def setup_test_data() -> Iterator[dict[str, object]]:
         "overall": 77.5,
     }
 
-    with storage.connection() as conn:
-        conn.execute(
-            """
-            INSERT INTO watchlist_snapshots
-            (item_id, fetched_at, overall_score, technical_score, raw_metrics, is_stale)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            [
-                "test_item_stale_price",
-                fresh_time,
-                77.5,
-                80.0,
-                json.dumps(raw_metrics),
-                False,
-            ],
-        )
-        conn.commit()
+    storage.query_mgr.upsert_watchlist_snapshot(
+        "test_item_stale_price",
+        fresh_time,
+        overall_score=77.5,
+        technical_score=80.0,
+        raw_metrics=raw_metrics,
+        is_stale=False,
+    )
 
     yield {
         "item_id": "test_item_stale_price",

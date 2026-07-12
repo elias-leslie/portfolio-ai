@@ -1066,6 +1066,82 @@ export interface HouseholdDocumentList {
   items: HouseholdDocument[]
 }
 
+export interface HouseholdDocumentReviewProposalImpact {
+  kind: string
+  label: string
+  count: number
+}
+
+export interface HouseholdDocumentReviewAccountPreview {
+  label: string
+  accountSuffix: string | null
+  balance: string | null
+  holdingsValue: string | null
+  cashBalance: string | null
+  currency: string | null
+  asOfDate: string | null
+}
+
+export interface HouseholdDocumentReviewTransactionPreview {
+  accountLabel: string | null
+  transactionDate: string | null
+  merchant: string | null
+  amount: string | null
+  currency: string | null
+}
+
+export interface HouseholdDocumentReviewHoldingPreview {
+  accountLabel: string | null
+  symbol: string | null
+  shares: string | null
+  value: string | null
+}
+
+export interface HouseholdDocumentReviewFieldPreview {
+  field: string
+  value: unknown
+}
+
+export interface HouseholdDocumentReviewProposalPreview {
+  accounts: HouseholdDocumentReviewAccountPreview[]
+  transactions: HouseholdDocumentReviewTransactionPreview[]
+  holdings: HouseholdDocumentReviewHoldingPreview[]
+  planning: HouseholdDocumentReviewFieldPreview[]
+  inferences: HouseholdDocumentReviewFieldPreview[]
+}
+
+export interface HouseholdDocumentReviewProposal {
+  schemaVersion: number
+  status:
+    | 'pending'
+    | 'applying'
+    | 'approved'
+    | 'rejected'
+    | 'failed'
+    | 'stale'
+    | 'not_required'
+  reviewId?: string | null
+  documentId?: string
+  summary?: string | null
+  confidence?: number | null
+  sourceType?: string
+  documentType?: string
+  blocker?: string
+  proposalHash?: string
+  preview?: HouseholdDocumentReviewProposalPreview
+  proposedChanges?: HouseholdDocumentReviewProposalImpact[]
+  decidedAt?: string
+  reason?: string | null
+}
+
+export interface HouseholdDocumentReviewDecisionResult {
+  documentId: string
+  reviewId: string
+  decision: 'approve' | 'reject'
+  status: 'applied' | 'rejected' | 'failed'
+  applicationSummary: Record<string, unknown> | null
+}
+
 export interface HouseholdQuestion {
   id: string
   fieldName: string | null

@@ -9,9 +9,13 @@ Exercises:
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
+from threading import Barrier
+from typing import Any
 
 import pytest
+from psycopg.errors import CheckViolation
 
 from app.portfolio.account_types import AccountType
 from app.portfolio.manager import PortfolioManager
@@ -94,6 +98,169 @@ def test_external_id_is_idempotent_per_account(
     assert a == b
     rows = ledger.recent_buys([account.id], "AAPL", since_date=date(2026, 1, 1))
     assert len(rows) == 1
+
+
+def test_external_id_is_conflict_safe_under_concurrent_imports(
+    manager: PortfolioManager, ledger: TransactionLedger
+) -> None:
+    account = _make_account(manager)
+    start = Barrier(2)
+
+    def import_once() -> str:
+        start.wait()
+        return ledger.record_transaction(
+            account_id=account.id,
+            symbol="AAPL",
+            transaction_type="buy",
+            trade_date=date(2026, 1, 5),
+            shares=10.0,
+            price=180.0,
+            external_id="concurrent-dup",
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(import_once) for _index in range(2)]
+        ids = [future.result() for future in futures]
+
+    assert ids[0] == ids[1]
+    rows = ledger.recent_buys([account.id], "AAPL", since_date=date(2026, 1, 1))
+    assert len(rows) == 1
+    assert len(ledger.open_lots(account.id, "AAPL")) == 1
+
+
+def test_buy_lot_failure_rolls_back_transaction_row(
+    manager: PortfolioManager,
+    ledger: TransactionLedger,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    account = _make_account(manager)
+
+    def fail_lot_creation(*_args: Any, **_kwargs: Any) -> None:
+        raise RuntimeError("injected buy lot failure")
+
+    monkeypatch.setattr(ledger, "_open_lot_for_buy", fail_lot_creation)
+
+    with pytest.raises(RuntimeError, match="injected buy lot failure"):
+        ledger.record_transaction(
+            account_id=account.id,
+            symbol="AAPL",
+            transaction_type="buy",
+            trade_date=date(2026, 1, 5),
+            shares=10.0,
+            price=180.0,
+            external_id="rollback-buy",
+        )
+
+    assert ledger.recent_buys([account.id], "AAPL", since_date=date.min) == []
+    assert ledger.open_lots(account.id, "AAPL") == []
+
+
+def test_sell_gain_failure_rolls_back_transaction_and_lot_consumption(
+    manager: PortfolioManager,
+    ledger: TransactionLedger,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    account = _make_account(manager)
+    ledger.record_transaction(
+        account_id=account.id,
+        symbol="AAPL",
+        transaction_type="buy",
+        trade_date=date(2025, 1, 5),
+        shares=10.0,
+        price=100.0,
+        external_id="rollback-seed-buy",
+    )
+
+    def fail_gain_stamp(*_args: Any, **_kwargs: Any) -> None:
+        raise RuntimeError("injected gain stamp failure")
+
+    monkeypatch.setattr(ledger, "_stamp_realized_gain", fail_gain_stamp)
+
+    with pytest.raises(RuntimeError, match="injected gain stamp failure"):
+        ledger.record_transaction(
+            account_id=account.id,
+            symbol="AAPL",
+            transaction_type="sell",
+            trade_date=date(2026, 1, 5),
+            shares=7.0,
+            price=150.0,
+            external_id="rollback-sell",
+        )
+
+    assert ledger.recent_sells([account.id], "AAPL", since_date=date.min) == []
+    open_lots = ledger.open_lots(account.id, "AAPL")
+    assert len(open_lots) == 1
+    assert open_lots[0].remaining_shares == pytest.approx(10.0)
+
+
+def test_concurrent_sells_lock_lots_before_consumption(
+    manager: PortfolioManager, ledger: TransactionLedger
+) -> None:
+    account = _make_account(manager)
+    manager.add_position(account.id, "AAPL", shares=10.0, cost_basis=100.0)
+    ledger.record_transaction(
+        account_id=account.id,
+        symbol="AAPL",
+        transaction_type="buy",
+        trade_date=date(2025, 1, 5),
+        shares=10.0,
+        price=100.0,
+        external_id="concurrent-seed-buy",
+    )
+    start = Barrier(2)
+
+    def sell_once(index: int) -> str:
+        start.wait()
+        return ledger.record_transaction(
+            account_id=account.id,
+            symbol="AAPL",
+            transaction_type="sell",
+            trade_date=date(2026, 1, 5),
+            shares=7.0,
+            price=150.0,
+            external_id=f"concurrent-sell-{index}",
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        sell_ids = list(executor.map(sell_once, range(2)))
+
+    assert len(set(sell_ids)) == 2
+    assert ledger.open_lots(account.id, "AAPL") == []
+    sells = ledger.recent_sells([account.id], "AAPL", since_date=date.min)
+    assert len(sells) == 2
+    assert sorted(float(row.realized_gain or 0.0) for row in sells) == [350.0, 350.0]
+
+
+def test_tax_lot_remaining_shares_constraint_rejects_negative_values(
+    storage: PortfolioStorage,
+    manager: PortfolioManager,
+    ledger: TransactionLedger,
+) -> None:
+    account = _make_account(manager)
+    ledger.record_transaction(
+        account_id=account.id,
+        symbol="AAPL",
+        transaction_type="buy",
+        trade_date=date(2026, 1, 5),
+        shares=10.0,
+        price=180.0,
+    )
+
+    with storage.connection() as conn:
+        with pytest.raises(CheckViolation):
+            conn.execute(
+                """
+                UPDATE portfolio_tax_lots
+                SET remaining_shares = -1
+                WHERE account_id = %s AND symbol = %s
+                """,
+                [account.id, "AAPL"],
+            )
+        conn.rollback()
+
+    open_lots = ledger.open_lots(account.id, "AAPL")
+    assert len(open_lots) == 1
+    assert open_lots[0].remaining_shares == pytest.approx(10.0)
 
 
 def test_external_id_independent_across_accounts(

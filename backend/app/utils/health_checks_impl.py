@@ -2,21 +2,18 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
-from subprocess import SubprocessError, TimeoutExpired
 from typing import Any, Literal
 
-import psutil
 import yaml
 from pydantic import BaseModel
 
 from app.logging_config import get_logger
+from app.services.worker_heartbeat import HeartbeatState, read_worker_heartbeat
 from app.storage import PortfolioStorage
-from app.utils import safe_subprocess
 from app.utils.market_hours import get_market_aware_age_hours
 
 logger = get_logger(__name__)
@@ -58,6 +55,13 @@ class WorkerInfo(BaseModel):
     """Worker status information."""
 
     active: bool
+    heartbeat_state: HeartbeatState | None = None
+    instance_id: str | None = None
+    hostname: str | None = None
+    pid: int | None = None
+    started_at: datetime | None = None
+    last_heartbeat_at: datetime | None = None
+    heartbeat_age_seconds: float | None = None
     pool_size: int | None = None
     active_tasks: int | None = None
     message: str = ""
@@ -377,52 +381,17 @@ def get_watchlist_stats(storage: PortfolioStorage) -> WatchlistStats:
         return WatchlistStats(total_items=0)
 
 
-def _check_systemctl_worker() -> WorkerInfo | None:
-    """Return WorkerInfo if systemctl reports the worker active, else None."""
-    try:
-        result = safe_subprocess.run(
-            ["systemctl", "--user", "is-active", "portfolio-hatchet-worker"],
-            capture_output=True, text=True, timeout=5, check=False,
-        )
-        if result.returncode == 0 and result.stdout.strip() == "active":
-            return WorkerInfo(active=True, message="Hatchet worker active")
-    except (FileNotFoundError, TimeoutExpired, SubprocessError, OSError) as e:
-        logger.debug("systemctl_worker_check_failed", error=str(e))
-    return None
-
-
-def _check_pgrep_worker() -> WorkerInfo | None:
-    """Return WorkerInfo if a worker process is visible in this process namespace."""
-    pattern = re.compile(r"python.*app\.worker")
-    for process in psutil.process_iter(["name", "cmdline"]):
-        try:
-            cmdline = process.info.get("cmdline")
-            if cmdline:
-                command = " ".join(str(part) for part in cmdline)
-            else:
-                command = str(process.info.get("name") or "")
-            if pattern.search(command):
-                return WorkerInfo(active=True, message="Hatchet worker active")
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess) as e:
-            logger.debug("worker_process_lookup_skipped", error=str(e))
-            continue
-    return None
-
-
-def get_worker_info() -> WorkerInfo:
-    """Get Hatchet worker active status.
-
-    Tries systemctl first (bare-metal), falls back to process detection (Docker).
-    """
-    if (info := _check_systemctl_worker()) is not None:
-        return info
-
-    if (info := _check_pgrep_worker()) is not None:
-        return info
-
-    # In a container, the worker runs in a separate container — can't detect via process.
-    # Report as unknown rather than definitively down.
-    if Path("/.dockerenv").exists():
-        return WorkerInfo(active=True, message="Container mode — worker status inferred")
-
-    return WorkerInfo(active=False, message="Hatchet worker not active")
+def get_worker_info(storage: PortfolioStorage) -> WorkerInfo:
+    """Get Hatchet worker status from its cross-process durable heartbeat."""
+    heartbeat = read_worker_heartbeat(storage)
+    return WorkerInfo(
+        active=heartbeat.active,
+        heartbeat_state=heartbeat.state,
+        instance_id=str(heartbeat.instance_id) if heartbeat.instance_id else None,
+        hostname=heartbeat.hostname,
+        pid=heartbeat.pid,
+        started_at=heartbeat.started_at,
+        last_heartbeat_at=heartbeat.last_seen_at,
+        heartbeat_age_seconds=heartbeat.age_seconds,
+        message=heartbeat.message,
+    )

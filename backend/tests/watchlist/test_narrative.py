@@ -101,6 +101,11 @@ class TestClassifySignal:
             "volume": 100_000_000,
             "volume_avg_20": 80_000_000,  # Volume >= 70% of avg (strong)
             "company_health": "EXCELLENT",
+            "profit_margin": 0.53,
+            "revenue_growth": 1.22,
+            "debt_to_equity": 0.45,
+            "recommendation_mean": 1.5,
+            "analyst_buy_pct": 0.8,
             "news_sentiment": 0.4,  # >= 0.2 (positive)
         }
 
@@ -164,6 +169,9 @@ class TestClassifySignal:
             "volume": 60_000_000,
             "volume_avg_20": 80_000_000,  # Lower volume
             "company_health": "GOOD",
+            "profit_margin": 0.10,
+            "revenue_growth": 0.12,
+            "debt_to_equity": 1.2,
             "news_sentiment": 0.1,  # Slightly positive but not >= 0.2
         }
 

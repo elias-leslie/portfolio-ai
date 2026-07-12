@@ -24,6 +24,20 @@ export interface SourceHealthCheck {
 
 export interface WorkerLikeStatus {
   active: boolean
+  heartbeatState?:
+    | 'current'
+    | 'starting'
+    | 'unhealthy'
+    | 'stale'
+    | 'missing'
+    | 'unavailable'
+    | null
+  instanceId?: string | null
+  hostname?: string | null
+  pid?: number | null
+  startedAt?: string | null
+  lastHeartbeatAt?: string | null
+  heartbeatAgeSeconds?: number | null
   message?: string
   poolSize?: number | null
   activeTasks?: number | null

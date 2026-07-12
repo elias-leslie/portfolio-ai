@@ -6,12 +6,13 @@ import tempfile
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from app.portfolio.models import PriceData
 from app.storage import PortfolioStorage
+from app.utils.db_helpers import ensure_symbol_exists
 from app.watchlist.scoring_service import refresh_watchlist_scores
 from tests.test_support.news import build_empty_news_service
 
@@ -52,6 +53,7 @@ class TestNarrativeGenerationIntegration:
         """Verify refresh flow calls narrative generation and stores results."""
         # Create watchlist item with good technical setup
         with storage.connection() as conn:
+            ensure_symbol_exists(conn, "NVDA")
             conn.execute(
                 """
                 INSERT INTO watchlist_items (id, symbol, metadata)
@@ -114,11 +116,22 @@ class TestNarrativeGenerationIntegration:
             conn.commit()
 
         # Execute refresh
-        result = refresh_watchlist_scores(
-            storage,
-            price_fetcher=mock_fetcher,
-            news_service=mock_news_service,
-        )
+        with (
+            patch("app.watchlist.scoring_service.context.trigger_auto_backfill"),
+            patch(
+                "app.watchlist.refresh_data_fetchers.fetch_fundamentals_cached",
+                return_value=None,
+            ),
+            patch(
+                "app.watchlist.refresh_data_fetchers.fetch_earnings_date_cached",
+                return_value=None,
+            ),
+        ):
+            result = refresh_watchlist_scores(
+                storage,
+                price_fetcher=mock_fetcher,
+                news_service=mock_news_service,
+            )
 
         assert result["processed"] == 1
         assert "NVDA" in result["symbols"]
@@ -128,7 +141,7 @@ class TestNarrativeGenerationIntegration:
             """
             SELECT signal_type, signal_strength, narrative_headline,
                    recommended_style, style_confidence, optimal_holding_period, risk_level
-            FROM watchlist_snapshots
+            FROM watchlist_snapshots_v
             WHERE item_id = 'narrative-test-1'
             ORDER BY fetched_at DESC
             LIMIT 1
@@ -166,6 +179,7 @@ class TestNarrativeGenerationIntegration:
         """Verify refresh continues if fundamentals cannot be fetched."""
         # Create watchlist item
         with storage.connection() as conn:
+            ensure_symbol_exists(conn, "UNKNOWN")
             conn.execute(
                 """
                 INSERT INTO watchlist_items (id, symbol, metadata)
@@ -189,11 +203,23 @@ class TestNarrativeGenerationIntegration:
         mock_news_service = build_empty_news_service()
 
         # Execute refresh (no technical indicators or fundamentals)
-        result = refresh_watchlist_scores(
-            storage,
-            price_fetcher=mock_fetcher,
-            news_service=mock_news_service,
-        )
+        with (
+            patch("app.watchlist.scoring_service.context.trigger_auto_backfill"),
+            patch("app.tasks.ingestion.ingest_historical_ohlcv"),
+            patch(
+                "app.watchlist.refresh_data_fetchers.fetch_fundamentals_cached",
+                return_value=None,
+            ),
+            patch(
+                "app.watchlist.refresh_data_fetchers.fetch_earnings_date_cached",
+                return_value=None,
+            ),
+        ):
+            result = refresh_watchlist_scores(
+                storage,
+                price_fetcher=mock_fetcher,
+                news_service=mock_news_service,
+            )
 
         # Should still process, but with limited narrative data
         assert result["processed"] == 1
@@ -201,7 +227,7 @@ class TestNarrativeGenerationIntegration:
         snapshots = storage.query(
             """
             SELECT signal_type, narrative_headline, company_health
-            FROM watchlist_snapshots
+            FROM watchlist_snapshots_v
             WHERE item_id = 'narrative-test-2'
             ORDER BY fetched_at DESC
             LIMIT 1

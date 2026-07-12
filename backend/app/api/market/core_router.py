@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
 
 from app.api.market._core_helpers import (
     _extract_price,
@@ -65,7 +66,7 @@ MAX_SYMBOLS_PER_REQUEST = 50  # Prevent DoS with large symbol lists
 @cache_response(ttl=CACHE_TTL_MEDIUM)
 async def get_market_conditions(request: Request) -> MarketConditionsResponse:
     """Get current market conditions with health scoring."""
-    market_data = fetch_core_market_data()
+    market_data = await run_in_threadpool(fetch_core_market_data)
 
     health_score = calculate_market_health(
         vix_price=_extract_price(market_data.vix_data),
@@ -119,7 +120,9 @@ async def get_prices(
 
     from app.api.market._core_helpers import _get_price_fetcher  # noqa: PLC0415
 
-    price_data = _get_price_fetcher().fetch_cached_price_data(symbol_list)
+    price_data = await run_in_threadpool(
+        lambda: _get_price_fetcher().fetch_cached_price_data(symbol_list)
+    )
 
     prices = {
         symbol: PriceResponse(
@@ -139,11 +142,15 @@ async def get_prices(
 @cache_response(ttl=CACHE_TTL_SHORT)
 async def get_market_intelligence(_request: Request) -> MarketIntelligenceResponse:
     """Get unified market intelligence with narrative, dual scoring, and sector rotation."""
-    market_data = fetch_core_market_data()
+    market_data = await run_in_threadpool(fetch_core_market_data)
 
     current_timestamp = market_data.current_timestamp
 
-    data = build_intelligence_response_data(market_data, current_timestamp)
+    data = await run_in_threadpool(
+        build_intelligence_response_data,
+        market_data,
+        current_timestamp,
+    )
 
     return MarketIntelligenceResponse(
         market_health=build_market_health_response(data["health_score_data"]),
@@ -166,7 +173,7 @@ async def get_market_trends(
     days: int = Query(30, ge=1, le=365, description="Number of days of historical data"),
 ) -> MarketTrendsResponse:
     """Get market trends for sparkline charts."""
-    rows = _get_market_repo().get_market_trends_data(days)
+    rows = await run_in_threadpool(lambda: _get_market_repo().get_market_trends_data(days))
 
     dates: list[str] = []
     fear_greed_scores_list: list[float] = []
@@ -221,7 +228,7 @@ async def get_market_movers(
     """Get top market movers (gainers and losers)."""
     from app.sources.market_movers_source import MarketMover, fetch_market_movers  # noqa: PLC0415
 
-    result = fetch_market_movers(get_storage(), count=count)
+    result = await run_in_threadpool(lambda: fetch_market_movers(get_storage(), count=count))
 
     def to_item(m: MarketMover) -> MarketMoverItem:
         return MarketMoverItem(
