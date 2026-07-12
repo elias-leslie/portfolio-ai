@@ -44,6 +44,39 @@ def _fixture_artifact(tmp_path: Path) -> tuple[ModuleType, Path, Path]:
     return tool, artifact, uploads
 
 
+def test_merge_upload_roots_copies_legacy_files_without_overwrite(
+    tmp_path: Path,
+) -> None:
+    tool = _load_tool()
+    source = tmp_path / "legacy" / "household_uploads"
+    target = tmp_path / "portable" / "household_uploads"
+    (source / "nested").mkdir(parents=True)
+    (source / "statement.pdf").write_bytes(b"statement")
+    (source / "nested" / "receipt.csv").write_bytes(b"receipt")
+    target.mkdir(parents=True)
+    (target / "statement.pdf").write_bytes(b"statement")
+
+    summary = tool.merge_upload_roots(source=source, target=target)
+
+    assert summary == {"copied": 1, "identical": 1}
+    assert (target / "nested" / "receipt.csv").read_bytes() == b"receipt"
+    assert stat.S_IMODE(target.stat().st_mode) == 0o700
+    assert stat.S_IMODE((target / "nested" / "receipt.csv").stat().st_mode) == 0o600
+
+
+def test_merge_upload_roots_rejects_conflicting_bytes(tmp_path: Path) -> None:
+    tool = _load_tool()
+    source = tmp_path / "legacy"
+    target = tmp_path / "portable"
+    source.mkdir()
+    target.mkdir()
+    (source / "statement.pdf").write_bytes(b"legacy")
+    (target / "statement.pdf").write_bytes(b"portable")
+
+    with pytest.raises(tool.ArtifactError, match="conflicts"):
+        tool.merge_upload_roots(source=source, target=target)
+
+
 def _run_compose_restore_with_fake_docker(
     *,
     tmp_path: Path,

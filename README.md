@@ -175,6 +175,10 @@ checksummed artifact with mode `0600` into a mode-`0700` directory:
 For a native install, stop the backend and worker during the short backup
 window so PostgreSQL and uploads represent the same point in time. Compose
 backups automatically pause and unpause the API and worker around the snapshot.
+Native backup also detects the former `backend/data/household_uploads` layout
+and safely copies non-conflicting files into the portable upload root before
+the snapshot. The legacy source is retained for rollback; conflicting bytes
+fail the backup instead of choosing one silently.
 
 Use `--mode native|compose` or `--upload-dir` to override auto-detection; set
 `PORTFOLIO_DB_URL` in the environment for a one-off native database target so

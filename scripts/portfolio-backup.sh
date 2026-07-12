@@ -142,6 +142,16 @@ if [ "$MODE" = "native" ]; then
         --file "$DATABASE_DUMP" \
         "${PG_ARGS[@]}"
     UPLOAD_SNAPSHOT="${UPLOAD_DIR:-${HOUSEHOLD_UPLOAD_DIR:-$PORTFOLIO_ROOT/data/household_uploads}}"
+    LEGACY_UPLOAD_ROOT="$PORTFOLIO_ROOT/backend/data/household_uploads"
+    if [ -z "$UPLOAD_DIR" ] \
+        && [ -d "$LEGACY_UPLOAD_ROOT" ] \
+        && [ "$(realpath -m "$LEGACY_UPLOAD_ROOT")" != "$(realpath -m "$UPLOAD_SNAPSHOT")" ] \
+        && find "$LEGACY_UPLOAD_ROOT" -type f -print -quit | grep -q .; then
+        echo "Copying legacy household uploads into the portable upload root..."
+        python3 "$SCRIPT_DIR/portfolio_backup_artifact.py" merge-upload-roots \
+            --source "$LEGACY_UPLOAD_ROOT" \
+            --target "$UPLOAD_SNAPSHOT"
+    fi
 else
     if ! command -v docker >/dev/null 2>&1 || ! portfolio_compose_service_running portfolio-db; then
         echo "Compose backup requires the portfolio-db service to be running" >&2

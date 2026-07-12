@@ -383,6 +383,73 @@ def restore_uploads(*, artifact: Path, target: Path) -> None:
             shutil.rmtree(staging)
 
 
+def merge_upload_roots(*, source: Path, target: Path) -> dict[str, int]:
+    """Copy a legacy upload tree into the portable root without overwrites."""
+    if source.is_symlink() or not source.is_dir():
+        raise ArtifactError(f"Legacy upload root is unsafe or missing: {source}")
+    if target.exists() and (target.is_symlink() or not target.is_dir()):
+        raise ArtifactError(f"Portable upload root is unsafe: {target}")
+    if source.resolve() == target.resolve():
+        return {"copied": 0, "identical": 0}
+
+    target.mkdir(mode=0o700, parents=True, exist_ok=True)
+    target.chmod(0o700)
+    copied = 0
+    identical = 0
+    for key, source_file in _upload_files(source):
+        destination = target.joinpath(*PurePosixPath(key).parts)
+        destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        destination.parent.chmod(0o700)
+        if destination.exists():
+            if destination.is_symlink() or not destination.is_file():
+                raise ArtifactError(
+                    f"Portable upload destination is unsafe: {destination}"
+                )
+            if _sha256_file(source_file) != _sha256_file(destination):
+                raise ArtifactError(
+                    f"Legacy upload conflicts with portable file: {key}"
+                )
+            destination.chmod(0o600)
+            identical += 1
+            continue
+
+        temporary = destination.parent / f".{destination.name}.migrate-{uuid.uuid4().hex}"
+        descriptor = os.open(
+            temporary,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+        )
+        try:
+            with os.fdopen(descriptor, "wb") as output, source_file.open("rb") as input_file:
+                shutil.copyfileobj(input_file, output, _COPY_BUFFER_BYTES)
+                output.flush()
+                os.fsync(output.fileno())
+            try:
+                os.link(temporary, destination)
+            except FileExistsError:
+                if (
+                    destination.is_symlink()
+                    or not destination.is_file()
+                    or _sha256_file(source_file) != _sha256_file(destination)
+                ):
+                    raise ArtifactError(
+                        f"Legacy upload conflicts with portable file: {key}"
+                    ) from None
+                identical += 1
+            else:
+                destination.chmod(0o600)
+                copied += 1
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    directory_fd = os.open(target, os.O_RDONLY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+    return {"copied": copied, "identical": identical}
+
+
 def install_staged_uploads(*, source: Path, target: Path) -> None:
     """Atomically install an already-extracted upload tree on one filesystem."""
     if source.is_symlink() or not source.is_dir():
@@ -446,6 +513,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     install.add_argument("--source", type=Path, required=True)
     install.add_argument("--target", type=Path, required=True)
+    merge = subparsers.add_parser(
+        "merge-upload-roots",
+        help="Safely copy legacy uploads into the configured portable root",
+    )
+    merge.add_argument("--source", type=Path, required=True)
+    merge.add_argument("--target", type=Path, required=True)
     return parser
 
 
@@ -478,6 +551,13 @@ def main() -> int:
             restore_uploads(artifact=args.artifact, target=args.target)
         elif args.command == "install-staged-uploads":
             install_staged_uploads(source=args.source, target=args.target)
+        elif args.command == "merge-upload-roots":
+            print(
+                json.dumps(
+                    merge_upload_roots(source=args.source, target=args.target),
+                    sort_keys=True,
+                )
+            )
     except ArtifactError as exc:
         print(f"ERROR: {exc}", file=os.sys.stderr)
         return 1
