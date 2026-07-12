@@ -89,6 +89,7 @@ class Settings(BaseSettings):
 
     # Filesystem paths
     artifacts_dir: Path = PROJECT_ROOT / "data" / "artifacts"
+    household_upload_dir: Path = PROJECT_ROOT / "data" / "household_uploads"
 
     @field_validator("agent_hub_url", mode="before")
     @classmethod

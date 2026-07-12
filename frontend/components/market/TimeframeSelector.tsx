@@ -62,7 +62,7 @@ export function TimeframeSelector({
   className,
 }: TimeframeSelectorProps) {
   return (
-    <div className={cn('flex gap-1', className)}>
+    <div className={cn('grid grid-cols-3 gap-1 sm:flex', className)}>
       {TIMEFRAMES.map((tf) => (
         <button
           key={tf.value}

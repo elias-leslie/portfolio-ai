@@ -104,6 +104,10 @@ class FinBertSentimentAnalyzer:
         except FinBertUnavailableError:
             return False
 
+    def is_loaded(self) -> bool:
+        """Return model state without importing dependencies or doing network I/O."""
+        return self._model is not None and self._tokenizer is not None
+
     def score_batch(self, texts: Sequence[str]) -> list[SentimentScore]:
         if not texts:
             return []

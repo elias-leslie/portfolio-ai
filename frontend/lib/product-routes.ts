@@ -35,7 +35,7 @@ export const SECONDARY_PRODUCT_ROUTES: MainRoute[] = [
   },
 ]
 
-export function resolveMainProductRoute(pathname: string): MainRoute {
+export function resolveMainProductRoute(pathname: string): MainRoute | null {
   return (
     PRIMARY_PRODUCT_ROUTES.find((route) =>
       (route.matchPrefixes ?? [route.href]).some((prefix) =>
@@ -43,7 +43,7 @@ export function resolveMainProductRoute(pathname: string): MainRoute {
           ? pathname === '/'
           : pathname === prefix || pathname.startsWith(`${prefix}/`),
       ),
-    ) ?? PRIMARY_PRODUCT_ROUTES[0]
+    ) ?? null
   )
 }
 

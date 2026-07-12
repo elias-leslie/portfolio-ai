@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from threading import Lock
 
+from app.logging_config import get_logger
 from app.services._home_action_ranking import (
     PRIORITY_RANK,
     internal_rank_score,
@@ -23,6 +24,7 @@ from app.services.symbol_workflow_service import SymbolWorkflowService
 from app.storage import get_storage
 
 _ACTION_QUEUE_CACHE_SECONDS = 60
+logger = get_logger(__name__)
 
 
 def _normalized_action_title(action: dict[str, object]) -> str:
@@ -122,11 +124,11 @@ class HomeActionService:
         self._workflow_service()
 
         with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [
-                executor.submit(
+            futures = {
+                "portfolio": executor.submit(
                     getattr(self, "_portfolio_health_actions", build_portfolio_health_actions)
                 ),
-                executor.submit(
+                "jenny": executor.submit(
                     getattr(
                         self,
                         "_jenny_actions",
@@ -136,25 +138,50 @@ class HomeActionService:
                         ),
                     )
                 ),
-                executor.submit(
+                "workflow": executor.submit(
                     getattr(
                         self,
                         "_workflow_actions",
                         lambda: build_workflow_actions_from_service(self._workflow_service()),
                     )
                 ),
-                executor.submit(
+                "household": executor.submit(
                     getattr(
                         self,
                         "_household_actions",
                         lambda: build_household_actions_from_service(self._household_service()),
                     )
                 ),
-            ]
+            }
 
         actions: list[dict[str, object]] = []
-        for future in futures:
-            actions.extend(future.result())
+        failed_sources: list[str] = []
+        for source, future in futures.items():
+            try:
+                actions.extend(future.result())
+            except Exception:
+                failed_sources.append(source)
+                logger.exception("home_action_source_failed", source=source)
+
+        if failed_sources:
+            actions.append(
+                {
+                    "id": "action-sources-degraded",
+                    "source": "system",
+                    "category": "overview",
+                    "priority": "high",
+                    "title": "Action queue is incomplete",
+                    "detail": (
+                        "Could not check "
+                        f"{', '.join(sorted(failed_sources))}. "
+                        "Review system status before treating this queue as complete."
+                    ),
+                    "action_label": "Open status",
+                    "href": "/status",
+                    "symbol": None,
+                    "badge": "Degraded",
+                }
+            )
 
         if not actions:
             actions.append(

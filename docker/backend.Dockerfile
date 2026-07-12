@@ -48,7 +48,9 @@ COPY --chown=appuser:appuser --from=builder /app/app ./app
 COPY --chown=appuser:appuser --from=builder /app/alembic.ini ./
 COPY --chown=appuser:appuser --from=builder /app/alembic ./alembic
 
-RUN mkdir -p /app/.cache /app/logs && chown appuser:appuser /app/.cache /app/logs
+RUN mkdir -p /app/.cache /app/logs /app/data/artifacts /app/data/household_uploads \
+    && chown -R appuser:appuser /app/.cache /app/logs /app/data \
+    && chmod 700 /app/data/household_uploads
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1

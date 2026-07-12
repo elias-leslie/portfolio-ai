@@ -16,10 +16,12 @@ from app.portfolio.models import PriceData
 
 
 def _price(symbol: str, price: float, *, error: str | None = None) -> PriceData:
+    quote_time = datetime(2026, 6, 3, 22, 30, tzinfo=UTC)
     return PriceData(
         symbol=symbol,
         price=price,
-        cached_at=datetime(2026, 6, 3, 22, 30, tzinfo=UTC),
+        cached_at=quote_time,
+        quote_time=quote_time,
         source="yfinance",
         error=error,
     )
@@ -94,3 +96,42 @@ def test_position_without_broker_price_contributes_nothing() -> None:
     )
     assert result.valuation_source == "broker"
     assert result.total_value == 49541.96
+
+
+def test_mark_to_market_reports_vendor_quote_time_not_cache_write_time() -> None:
+    vendor_time = datetime(2026, 6, 2, 20, 0, tzinfo=UTC)
+    cached_now = datetime(2026, 6, 3, 22, 30, tzinfo=UTC)
+    quote = PriceData(
+        symbol="VTI",
+        price=110.0,
+        cached_at=cached_now,
+        quote_time=vendor_time,
+        source="yfinance",
+    )
+
+    result = mark_to_market_account_value(
+        Decimal("1000"),
+        [(Decimal("10"), Decimal("100"), "VTI")],
+        {"VTI": quote},
+    )
+
+    assert result.quote_as_of == vendor_time
+
+
+def test_previous_close_without_vendor_time_is_never_reported_as_live() -> None:
+    quote = PriceData(
+        symbol="VTI",
+        price=110.0,
+        cached_at=datetime(2026, 6, 3, 22, 30, tzinfo=UTC),
+        quote_time=None,
+        price_session="previous_close",
+        source="yfinance",
+    )
+
+    result = mark_to_market_account_value(
+        Decimal("1000"),
+        [(Decimal("10"), Decimal("100"), "VTI")],
+        {"VTI": quote},
+    )
+
+    assert result.quote_as_of is None

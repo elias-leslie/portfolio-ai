@@ -214,7 +214,7 @@ describe('PortfolioPage', () => {
 
     render(<PortfolioPage />)
 
-    await user.click(screen.getByRole('button', { name: 'Holdings' }))
+    await user.click(screen.getByRole('tab', { name: 'Holdings' }))
     await user.click(screen.getByRole('button', { name: 'Open Add Account' }))
     await user.type(
       screen.getByLabelText('Account Name'),
@@ -248,7 +248,7 @@ describe('PortfolioPage', () => {
 
     render(<PortfolioPage />)
 
-    await user.click(screen.getByRole('button', { name: 'Holdings' }))
+    await user.click(screen.getByRole('tab', { name: 'Holdings' }))
     await user.click(screen.getByRole('button', { name: 'Open Add Position' }))
     await user.type(screen.getByLabelText('Symbol'), ' msft ')
     await user.type(screen.getByLabelText('Shares'), '10')
@@ -289,7 +289,7 @@ describe('PortfolioPage', () => {
 
     render(<PortfolioPage />)
 
-    await user.click(screen.getByRole('button', { name: 'Holdings' }))
+    await user.click(screen.getByRole('tab', { name: 'Holdings' }))
     await user.click(
       screen.getByRole('button', { name: 'Open Generic Add Position' }),
     )
@@ -316,7 +316,7 @@ describe('PortfolioPage', () => {
 
     render(<PortfolioPage />)
 
-    await user.click(screen.getByRole('button', { name: 'Holdings' }))
+    await user.click(screen.getByRole('tab', { name: 'Holdings' }))
     await user.click(screen.getByRole('button', { name: 'Open Add Account' }))
     expect(screen.getByRole('button', { name: 'Creating...' })).toHaveAttribute(
       'aria-busy',
@@ -324,7 +324,7 @@ describe('PortfolioPage', () => {
     )
 
     await user.click(screen.getByRole('button', { name: 'Close' }))
-    await user.click(screen.getByRole('button', { name: 'Holdings' }))
+    await user.click(screen.getByRole('tab', { name: 'Holdings' }))
     await user.click(screen.getByRole('button', { name: 'Open Add Position' }))
     expect(screen.getByRole('button', { name: 'Adding...' })).toHaveAttribute(
       'aria-busy',
@@ -348,9 +348,9 @@ describe('PortfolioPage', () => {
     expect(
       screen.queryByRole('button', { name: 'Add Position' }),
     ).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'News' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Symbols' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Holdings' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'News' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Symbols' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Holdings' })).toBeInTheDocument()
   })
 
   it('hides symbol filters and search until watchlist data finishes loading', async () => {
@@ -367,7 +367,7 @@ describe('PortfolioPage', () => {
 
     render(<PortfolioPage />)
 
-    await user.click(screen.getByRole('button', { name: 'Symbols' }))
+    await user.click(screen.getByRole('tab', { name: 'Symbols' }))
 
     expect(screen.getByText('Watchlist Loading')).toBeInTheDocument()
     expect(screen.queryByText('Filter Bar')).not.toBeInTheDocument()
@@ -393,7 +393,7 @@ describe('PortfolioPage', () => {
 
     render(<PortfolioPage />)
 
-    await user.click(screen.getByRole('button', { name: 'News' }))
+    await user.click(screen.getByRole('tab', { name: 'News' }))
 
     expect(
       screen.getByText(/Investing News Panel Loading Inputs/),

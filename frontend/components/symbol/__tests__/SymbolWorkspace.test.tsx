@@ -228,7 +228,7 @@ describe('SymbolWorkspace', () => {
       screen.getByText('Latest daily close through Mar 10, 2026'),
     ).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Track' }))
+    await user.click(screen.getByRole('tab', { name: 'Track' }))
 
     expect(screen.getByText(/recent articles/i)).toBeInTheDocument()
     expect(
@@ -386,11 +386,11 @@ describe('SymbolWorkspace', () => {
       .getByText(/previous jenny review: hold/i)
       .closest('details')
     expect(historicalReview).not.toHaveAttribute('open')
-    expect(screen.getByRole('button', { name: 'Track' }).textContent).toBe(
+    expect(screen.getByRole('tab', { name: 'Track' }).textContent).toBe(
       'Track1',
     )
 
-    await user.click(screen.getByRole('button', { name: 'Track' }))
+    await user.click(screen.getByRole('tab', { name: 'Track' }))
 
     const newsAndAlerts = screen
       .getByText(/news and alerts/i)
@@ -465,7 +465,7 @@ describe('SymbolWorkspace', () => {
 
     render(<SymbolWorkspace symbol="nvda" />)
 
-    await user.click(screen.getByRole('button', { name: 'Track' }))
+    await user.click(screen.getByRole('tab', { name: 'Track' }))
 
     expect(
       screen.getByText(

@@ -102,7 +102,7 @@ def mark_to_market_account_value(
             continue
         delta += (float(quote.price) - float(broker_price)) * float(units)
         priced += 1
-        normalized = _normalize_quote_timestamp(quote.cached_at)
+        normalized = _normalize_quote_timestamp(quote.quote_time)
         if normalized is not None:
             quote_times.append(normalized)
 
@@ -172,7 +172,7 @@ def calculate_account_valuations(
             continue
         valuation.priced_positions_value += float(current_fact.current_value)
         valuation.priced_position_count += 1
-        normalized_quote_time = _normalize_quote_timestamp(price.cached_at)
+        normalized_quote_time = _normalize_quote_timestamp(price.quote_time)
         if normalized_quote_time is not None:
             quote_times_by_account.setdefault(account_id, []).append(normalized_quote_time)
         if price.source:

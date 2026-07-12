@@ -155,12 +155,13 @@ class PortfolioManager:
             updated_at=now,
         )
 
-        # Insert into database
+        # The positions table references the canonical symbols table, so the
+        # parent symbol must exist before the position insert.
+        self.sync_portfolio_to_watchlist([position.symbol])
         self.storage.insert_dict(
             "portfolio_positions",
             position.model_dump(),
         )
-        self.sync_portfolio_to_watchlist([position.symbol])
 
         self._record_legacy_aggregate(
             account_id=account_id,
@@ -231,10 +232,11 @@ class PortfolioManager:
 
         position.updated_at = datetime.now(UTC)
 
-        # Update in database using upsert
+        # A symbol change must create the canonical parent row before the
+        # in-place position update reaches its foreign-key check.
+        self.sync_portfolio_to_watchlist([position.symbol])
         df_update = pl.DataFrame([position.model_dump()])
         self.storage.upsert_by_id("portfolio_positions", df_update, "id")
-        self.sync_portfolio_to_watchlist([position.symbol])
 
         shares_changed = position.shares != prior_shares
         cost_changed = position.cost_basis != prior_cost_basis

@@ -50,6 +50,14 @@ def _to_date(value: object) -> date | None:
         return None
 
 
+def _trade_date_sort_key(raw_txn: object) -> tuple[bool, date]:
+    """Sort valid trades oldest-first and leave invalid rows stably at the end."""
+    if not isinstance(raw_txn, dict):
+        return (True, date.max)
+    trade_date = _to_date(raw_txn.get("trade_date"))
+    return (trade_date is None, trade_date or date.max)
+
+
 def _txn_external_id(*, account_number: str, txn: dict[str, Any]) -> str:
     """Deterministic dedupe key for one Fidelity activity row.
 
@@ -129,8 +137,14 @@ class HouseholdPortfolioTransactionSyncService:
                 continue
 
             summary["accounts_linked"] += 1
-            for raw_txn in transactions:
+            # Broker exports commonly arrive newest-first. The ledger updates
+            # FIFO tax lots as each row is recorded, so trades must be applied
+            # chronologically within an account. ``sorted`` is stable: rows
+            # with the same date, and malformed rows placed at the end, retain
+            # their original relative order for deterministic review counts.
+            for raw_txn in sorted(transactions, key=_trade_date_sort_key):
                 if not isinstance(raw_txn, dict):
+                    summary["transactions_skipped"] += 1
                     continue
                 txn = cast(dict[str, Any], raw_txn)
                 transaction_type = _string(txn.get("transaction_type"))

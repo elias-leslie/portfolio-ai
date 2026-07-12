@@ -113,6 +113,9 @@ def _source_rows(storage: Any) -> list[SourceAccountRow]:
                 sa.currency,
                 sa.last_synced_at
             FROM snaptrade_accounts sa
+            JOIN snaptrade_connections sc
+              ON sc.authorization_id = sa.authorization_id
+             AND sc.disabled = false
             LEFT JOIN household_accounts ha ON ha.id = sa.household_account_id
             LEFT JOIN household_account_preferences hap
               ON hap.household_account_id = sa.household_account_id
@@ -137,6 +140,7 @@ def _source_rows(storage: Any) -> list[SourceAccountRow]:
             LEFT JOIN household_account_preferences hap
               ON hap.household_account_id = pa.household_account_id
             WHERE (pa.current_balance IS NOT NULL OR pa.available_balance IS NOT NULL)
+              AND pi.status = 'active'
               AND hap.hidden_at IS NULL
             """
         ).fetchall()
@@ -310,7 +314,26 @@ def _collapse_source_rows(
         }
         source_account_ids = [row.source_account_id for row in ordered]
         connection_count = len({row.connection_id for row in account_rows if row.connection_id})
-        if len(identity_keys) == 1 and connection_count > 1:
+        if len(value_keys) > 1:
+            issues.append(
+                HouseholdAccountControlIssue(
+                    id=_issue_id("source_value_conflict", household_account_id),
+                    code="source_value_conflict",
+                    severity="high",
+                    title="Source balances conflict",
+                    detail=(
+                        f"{chosen.account_label} has {len(account_rows)} source rows "
+                        "with different balances. Totals use the latest row but need "
+                        "reconciliation before they should be trusted."
+                    ),
+                    household_account_id=household_account_id,
+                    account_label=chosen.account_label,
+                    source="source_accounts",
+                    source_account_ids=source_account_ids,
+                    affects_totals=True,
+                )
+            )
+        elif len(identity_keys) == 1 and connection_count > 1:
             # Same account legitimately surfaced by more than one connection — for
             # example a joint account that appears under each owner's separate
             # login. Totals already count it once, and there is nothing to remove:
@@ -332,25 +355,6 @@ def _collapse_source_rows(
                     source=chosen.source,
                     source_account_ids=source_account_ids,
                     affects_totals=False,
-                )
-            )
-        elif len(value_keys) > 1:
-            issues.append(
-                HouseholdAccountControlIssue(
-                    id=_issue_id("source_value_conflict", household_account_id),
-                    code="source_value_conflict",
-                    severity="high",
-                    title="Source balances conflict",
-                    detail=(
-                        f"{chosen.account_label} has {len(account_rows)} source rows "
-                        "with different balances. Totals use the latest row but need "
-                        "reconciliation before they should be trusted."
-                    ),
-                    household_account_id=household_account_id,
-                    account_label=chosen.account_label,
-                    source="source_accounts",
-                    source_account_ids=source_account_ids,
-                    affects_totals=True,
                 )
             )
         elif len(identity_keys) > 1:

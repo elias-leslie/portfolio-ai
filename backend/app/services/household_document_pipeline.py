@@ -203,6 +203,47 @@ class HouseholdDocumentPipeline:
     detect_import_dataset = staticmethod(detect_import_dataset)
     build_import_row_hash = staticmethod(build_import_row_hash)
 
+    @staticmethod
+    def _review_gate_summaries(
+        reviewed: dict[str, object],
+    ) -> tuple[dict[str, object], dict[str, object]] | None:
+        """Return non-applying summaries when review evidence is not trustworthy."""
+        confidence = to_float(reviewed.get("confidence"))
+        review_checks = _review_checks_dict(reviewed)
+        ambiguity_remaining = _bool_value(review_checks.get("ambiguity_remaining")) or False
+        if confidence is not None and confidence >= 0.65 and not ambiguity_remaining:
+            return None
+
+        if ambiguity_remaining:
+            reason = "The review still has unresolved account or evidence ambiguity."
+        elif confidence is None:
+            reason = "The review did not provide a confidence score."
+        else:
+            reason = f"Review confidence {confidence:.0%} is below the 65% auto-apply threshold."
+        application_summary: dict[str, object] = {
+            "status": "needs_review",
+            "impacts": [],
+            "imports": {"inserted": 0, "duplicates": 0},
+            "transactions": {"inserted": 0, "updated": 0, "held_for_date_review": 0},
+            "evidence_accounts": 0,
+            "portfolio_positions": {},
+            "portfolio_transactions": {},
+            "planning_items": 0,
+            "planning_items_skipped": 0,
+            "planning_error": None,
+            "inferred_values": 0,
+            "needs_follow_up": True,
+            "review_blocker": reason,
+        }
+        reconciliation_summary: dict[str, object] = {
+            "status": "needs_review",
+            "retry_recommended": False,
+            "review_strategy": str(reviewed.get("_review_strategy") or "unknown"),
+            "ambiguity_remaining": ambiguity_remaining,
+            "issues": [reason],
+        }
+        return application_summary, reconciliation_summary
+
     async def ingest_document(
         self,
         service: HouseholdFinanceService,
@@ -392,6 +433,10 @@ class HouseholdDocumentPipeline:
             )
             reviewed = _apply_upload_account_binding(service, document=document, reviewed=reviewed)
             self._persist_review(service, document=document, reviewed=reviewed, now=now)
+            gated_summaries = self._review_gate_summaries(reviewed)
+            if gated_summaries is not None:
+                application_summary, reconciliation_summary = gated_summaries
+                break
             application_summary = self.apply_review_outputs(service, document=document, reviewed=reviewed)
             reconciliation_summary = self._build_reconciliation_summary(
                 document=document, reviewed=reviewed, application_summary=application_summary,
@@ -437,10 +482,18 @@ class HouseholdDocumentPipeline:
             )
             return False
         reviewed = _apply_upload_account_binding(service, document=document, reviewed=reviewed)
-        application_summary = self.apply_review_outputs(service, document=document, reviewed=reviewed)
-        reconciliation_summary = self._build_reconciliation_summary(
-            document=document, reviewed=reviewed, application_summary=application_summary,
-        )
+        gated_summaries = self._review_gate_summaries(reviewed)
+        if gated_summaries is not None:
+            application_summary, reconciliation_summary = gated_summaries
+        else:
+            application_summary = self.apply_review_outputs(
+                service, document=document, reviewed=reviewed
+            )
+            reconciliation_summary = self._build_reconciliation_summary(
+                document=document,
+                reviewed=reviewed,
+                application_summary=application_summary,
+            )
         if reconciliation_summary["status"] != "clear":
             application_summary["needs_follow_up"] = True
         with service.storage.connection() as conn:

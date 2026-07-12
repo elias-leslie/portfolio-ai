@@ -54,6 +54,9 @@ class _FakePkResult:
     def fetchall(self) -> list[tuple[str]]:
         return [("symbol",), ("date",)]
 
+    def fetchone(self) -> tuple[int]:
+        return (1,)
+
 
 class _FakeUpsertConnection:
     def __init__(self) -> None:

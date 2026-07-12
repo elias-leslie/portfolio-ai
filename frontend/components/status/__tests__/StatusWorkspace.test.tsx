@@ -142,7 +142,7 @@ describe('StatusWorkspace', () => {
         'No app-service status entries are available right now.',
       ),
     ).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /sources/i }))
+    await user.click(screen.getByRole('tab', { name: /sources/i }))
     expect(
       screen.getByText('No provider health checks yet'),
     ).toBeInTheDocument()
@@ -476,7 +476,7 @@ describe('StatusWorkspace', () => {
 
     render(<StatusWorkspace />)
 
-    await user.click(screen.getByRole('button', { name: /automation/i }))
+    await user.click(screen.getByRole('tab', { name: /automation/i }))
     expect(screen.getAllByText('technical_indicators')).toHaveLength(1)
     expect(screen.getByText('resolved')).toBeInTheDocument()
     expect(
@@ -639,7 +639,7 @@ describe('StatusWorkspace', () => {
     expect(
       screen.getAllByText('Loading decision-data health...').length,
     ).toBeGreaterThan(0)
-    await user.click(screen.getByRole('button', { name: /sources/i }))
+    await user.click(screen.getByRole('tab', { name: /sources/i }))
     expect(
       screen.getByText('Loading provider health signals...'),
     ).toBeInTheDocument()
@@ -865,7 +865,7 @@ describe('StatusWorkspace', () => {
     expect(
       screen.getByText(/data recency issue: one table was overdue/i),
     ).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /sources/i }))
+    await user.click(screen.getByRole('tab', { name: /sources/i }))
     expect(screen.getByText('0/1 healthy')).toBeInTheDocument()
     expect(screen.getByText('1 feed needs review · 1 down')).toBeInTheDocument()
     expect(screen.getByText('Request success: 62.0%')).toBeInTheDocument()
@@ -966,7 +966,7 @@ describe('StatusWorkspace', () => {
     expect(
       screen.getByText('No successful automation run recorded yet.'),
     ).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /sources/i }))
+    await user.click(screen.getByRole('tab', { name: /sources/i }))
     expect(
       screen.getByText('1 feed needs review · 1 degraded'),
     ).toBeInTheDocument()

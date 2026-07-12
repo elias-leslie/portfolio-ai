@@ -59,4 +59,19 @@ describe('Navigation', () => {
       screen.getAllByRole('link', { name: /status\./i }).length,
     ).toBeGreaterThan(0)
   })
+
+  it('marks only Status current and hides Today actions on the status route', () => {
+    usePathnameMock.mockReturnValue('/status')
+
+    render(<Navigation />)
+
+    expect(screen.getByRole('link', { name: /status\./i })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    for (const todayLink of screen.getAllByRole('link', { name: /today\./i })) {
+      expect(todayLink).not.toHaveAttribute('aria-current')
+    }
+    expect(screen.queryByRole('button', { name: 'Actions 0' })).toBeNull()
+  })
 })

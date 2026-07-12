@@ -138,7 +138,7 @@ export function WorkspaceTabs({
       <div className="sticky top-0 z-20 -mx-px rounded-2xl border border-border/40 bg-bg p-3 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-bg/95">
         <TabsList
           aria-label={ariaLabel}
-          className="flex h-auto w-full flex-wrap justify-start gap-2 bg-transparent p-0"
+          className="flex h-auto w-full flex-nowrap justify-start gap-2 overflow-x-auto bg-transparent p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {tabs.map((tab) => (
             <TabsTrigger
@@ -146,9 +146,8 @@ export function WorkspaceTabs({
               value={tab.value}
               id={`${idBase}-${tab.value}-tab`}
               aria-controls={`${idBase}-${tab.value}-panel`}
-              aria-current={tab.value === value ? 'page' : undefined}
               className={cn(
-                'rounded-xl border border-border/30 bg-surface/50 px-4 py-2.5 text-left transition-all duration-200',
+                'shrink-0 rounded-xl border border-border/30 bg-surface/50 px-4 py-2.5 text-left transition-all duration-200',
                 'hover:border-border/50 hover:bg-surface/70',
                 'data-[state=active]:border-primary/40 data-[state=active]:bg-gradient-to-br data-[state=active]:from-primary/15 data-[state=active]:to-primary/5 data-[state=active]:shadow-[0_0_16px_-3px] data-[state=active]:shadow-primary/25',
               )}

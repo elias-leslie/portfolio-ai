@@ -120,6 +120,58 @@ def test_sync_writes_one_transaction_via_ledger() -> None:
     assert kwargs["settlement_date"] == date(2026, 5, 11)
 
 
+def test_sync_applies_newest_first_buy_and_sell_chronologically() -> None:
+    """A newest-first broker export must open the lot before consuming it."""
+    storage = _fake_storage_with_account("acct-1")
+    service = _fake_service(storage)
+    ledger = MagicMock()
+    ledger.storage = storage
+    sync = HouseholdPortfolioTransactionSyncService(ledger=ledger)
+    reviewed = {
+        "structured_data": {
+            "financial_accounts": [
+                {
+                    "transaction_source": "fidelity_activity_history_csv",
+                    "account_mask": "Z00000002",
+                    "household_account_id": "hh-1",
+                    "transactions": [
+                        {
+                            "transaction_type": "sell",
+                            "trade_date": "2026-05-08",
+                            "symbol": "VTI",
+                            "shares": 1.0,
+                            "price": 110.0,
+                            "amount": 110.0,
+                        },
+                        {
+                            "transaction_type": "buy",
+                            "trade_date": "2026-05-01",
+                            "symbol": "VTI",
+                            "shares": 1.0,
+                            "price": 100.0,
+                            "amount": -100.0,
+                        },
+                    ],
+                }
+            ]
+        }
+    }
+
+    summary = sync.sync_from_reviewed_accounts(
+        service, document=cast(Any, MagicMock()), reviewed=reviewed
+    )
+
+    applied = [
+        (call.kwargs["transaction_type"], call.kwargs["trade_date"])
+        for call in ledger.record_transaction.call_args_list
+    ]
+    assert applied == [
+        ("buy", date(2026, 5, 1)),
+        ("sell", date(2026, 5, 8)),
+    ]
+    assert summary["transactions_inserted"] == 2
+
+
 def test_external_id_is_deterministic() -> None:
     """Same row → same external_id → ledger short-circuits dupes."""
     txn = {
@@ -263,6 +315,7 @@ def test_sync_skips_malformed_transaction_rows() -> None:
                     "account_mask": "Z00000002",
                     "household_account_id": "hh-1",
                     "transactions": [
+                        "not a transaction row",
                         # missing shares
                         {"transaction_type": "buy", "trade_date": "2026-05-01", "symbol": "VTI", "price": 100.0},
                         # missing trade_date
@@ -277,6 +330,6 @@ def test_sync_skips_malformed_transaction_rows() -> None:
     summary = sync.sync_from_reviewed_accounts(
         service, document=cast(Any, MagicMock()), reviewed=reviewed
     )
-    assert summary["transactions_skipped"] == 3
+    assert summary["transactions_skipped"] == 4
     assert summary["transactions_inserted"] == 0
     ledger.record_transaction.assert_not_called()

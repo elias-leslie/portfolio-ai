@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -35,10 +36,22 @@ def save_upload_to_disk(
     upload_dir: Path,
 ) -> Path:
     """Write upload bytes to disk and return the stored path."""
-    upload_dir.mkdir(parents=True, exist_ok=True)
+    upload_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    upload_dir.chmod(0o700)
     suffix = Path(filename).suffix or ".bin"
     stored_path = upload_dir / f"{document_id}{suffix.lower()}"
-    stored_path.write_bytes(content)
+    temporary_path = stored_path.with_suffix(f"{stored_path.suffix}.tmp")
+    file_descriptor = os.open(temporary_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(file_descriptor, "wb") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        temporary_path.replace(stored_path)
+        stored_path.chmod(0o600)
+    except BaseException:
+        temporary_path.unlink(missing_ok=True)
+        raise
     return stored_path
 
 

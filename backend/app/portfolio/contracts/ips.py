@@ -63,6 +63,18 @@ class DriftRow(BaseModel):
     drift_value: float
 
 
+class DriftCoverage(BaseModel):
+    """Reconciliation of the allocation universe to canonical household value."""
+
+    model_config = ConfigDict(frozen=True)
+
+    status: Literal["complete", "partial", "mismatch", "blocked", "unverified"]
+    canonical_total_value: float | None = None
+    coverage_pct: float | None = Field(default=None, ge=0.0, le=1.0)
+    excluded_value: float | None = Field(default=None, ge=0.0)
+    message: str
+
+
 class DriftSummary(BaseModel):
     """Compact digest for ``GET /api/portfolio/ips/drift`` (default response)."""
 
@@ -75,6 +87,7 @@ class DriftSummary(BaseModel):
     max_drift_pct: float
     classes_out_of_band: int
     snapshot_date: date
+    coverage: DriftCoverage | None = None
 
 
 class DriftReport(BaseModel):
@@ -94,6 +107,7 @@ class DriftReport(BaseModel):
     total_value: float
     rows: list[DriftRow] = Field(default_factory=list)
     classes_missing_targets: list[str] = Field(default_factory=list)
+    coverage: DriftCoverage | None = None
     """Asset classes present in the portfolio but absent from IPS targets."""
 
 

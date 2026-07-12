@@ -61,7 +61,7 @@ describe('WorkspaceTabs', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Planning' }))
+    await user.click(screen.getByRole('tab', { name: 'Planning' }))
 
     expect(window.location.pathname).toBe('/money')
     expect(window.location.search).toBe('?symbol=VTI&tab=planning')
@@ -91,7 +91,7 @@ describe('WorkspaceTabs', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Operate' }))
+    await user.click(screen.getByRole('tab', { name: 'Operate' }))
 
     expect(window.location.pathname).toBe('/money')
     expect(window.location.search).toBe('?symbol=VTI')
@@ -148,7 +148,7 @@ describe('WorkspaceTabs', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Planning' }))
+    await user.click(screen.getByRole('tab', { name: 'Planning' }))
 
     expect(window.location.search).toBe('?symbol=VTI&tab=planning')
     expect(window.location.hash).toBe('#intake')
@@ -234,9 +234,9 @@ describe('WorkspaceTabs', () => {
       />,
     )
 
-    expect(screen.getByRole('button', { name: 'Operate' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Operate' })).toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: 'Operate7' }),
+      screen.queryByRole('tab', { name: 'Operate7' }),
     ).not.toBeInTheDocument()
   })
 
@@ -255,12 +255,44 @@ describe('WorkspaceTabs', () => {
       />,
     )
 
-    const trigger = screen.getByRole('button', { name: 'Operate' })
+    const trigger = screen.getByRole('tab', { name: 'Operate' })
     const panel = document.getElementById(
       trigger.getAttribute('aria-controls') ?? '',
     )
 
     expect(trigger).not.toHaveAttribute('aria-describedby')
+    expect(trigger).toHaveAttribute('aria-selected', 'true')
     expect(panel).toHaveAttribute('aria-labelledby', trigger.getAttribute('id'))
+    expect(panel).toHaveAttribute('role', 'tabpanel')
+  })
+
+  it('moves focus and selection with arrow keys', async () => {
+    const user = userEvent.setup()
+    render(
+      <WorkspaceTabs
+        defaultValue="operate"
+        tabs={[
+          {
+            value: 'operate',
+            label: 'Operate',
+            content: <div>Operate Content</div>,
+          },
+          {
+            value: 'planning',
+            label: 'Planning',
+            content: <div>Planning Content</div>,
+          },
+        ]}
+      />,
+    )
+
+    const operate = screen.getByRole('tab', { name: 'Operate' })
+    operate.focus()
+    await user.keyboard('{ArrowRight}')
+
+    const planning = screen.getByRole('tab', { name: 'Planning' })
+    expect(planning).toHaveFocus()
+    expect(planning).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('Planning Content')).toBeInTheDocument()
   })
 })

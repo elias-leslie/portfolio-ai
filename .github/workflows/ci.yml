@@ -39,6 +39,9 @@ jobs:
       - name: Install backend dependencies
         working-directory: backend
         run: uv sync --frozen --extra dev
+      - name: Audit backend dependencies
+        working-directory: backend
+        run: uv run pip-audit
       - name: Prepare test database schema
         working-directory: backend
         run: uv run alembic upgrade head
@@ -67,6 +70,9 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile
+      - name: Audit frontend dependencies
+        working-directory: frontend
+        run: pnpm audit --audit-level high
       - name: Biome lint
         working-directory: frontend
         run: pnpm lint

@@ -90,7 +90,7 @@ function NavigationContent({ pathname }: { pathname: string }) {
             <div className="flex items-center gap-1 rounded-full border border-border/50 bg-surface-muted/50 p-1 shadow-sm backdrop-blur-sm">
               {PRIMARY_PRODUCT_ROUTES.map((link) => {
                 const Icon = routeIcons[link.href]
-                const isActive = activeRoute.href === link.href
+                const isActive = activeRoute?.href === link.href
 
                 return (
                   <Link
@@ -123,7 +123,7 @@ function NavigationContent({ pathname }: { pathname: string }) {
 
           {/* Utility Items */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {activeRoute.href === '/' ? <HomeActionQueueBadge /> : null}
+            {activeRoute?.href === '/' ? <HomeActionQueueBadge /> : null}
             <FreshnessStatusBadge />
             <div className="hidden md:block">
               <MarketStatusBadge />
@@ -163,7 +163,7 @@ function NavigationContent({ pathname }: { pathname: string }) {
           <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {PRIMARY_PRODUCT_ROUTES.map((link) => {
               const Icon = routeIcons[link.href]
-              const isActive = activeRoute.href === link.href
+              const isActive = activeRoute?.href === link.href
 
               return (
                 <Link

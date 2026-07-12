@@ -49,6 +49,7 @@ interface TabsListProps extends React.HTMLAttributes<HTMLDivElement> {
 export function TabsList({ children, className, ...props }: TabsListProps) {
   return (
     <div
+      role="tablist"
       className={cn(
         'inline-flex h-10 items-center justify-center rounded-md bg-surface-muted p-1 text-text-muted',
         className,
@@ -70,6 +71,8 @@ export function TabsTrigger({
   value,
   children,
   className,
+  onClick,
+  onKeyDown,
   ...props
 }: TabsTriggerProps) {
   const { value: selectedValue, onValueChange } = useTabsContext()
@@ -78,7 +81,46 @@ export function TabsTrigger({
   return (
     <button
       type="button"
-      onClick={() => onValueChange(value)}
+      role="tab"
+      aria-selected={isActive}
+      tabIndex={isActive ? 0 : -1}
+      data-state={isActive ? 'active' : 'inactive'}
+      onClick={(event) => {
+        onClick?.(event)
+        if (!event.defaultPrevented) {
+          onValueChange(value)
+        }
+      }}
+      onKeyDown={(event) => {
+        onKeyDown?.(event)
+        if (event.defaultPrevented) {
+          return
+        }
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+          return
+        }
+        const tabList = event.currentTarget.closest('[role="tablist"]')
+        const tabs = Array.from(
+          tabList?.querySelectorAll<HTMLButtonElement>(
+            '[role="tab"]:not(:disabled)',
+          ) ?? [],
+        )
+        if (tabs.length === 0) {
+          return
+        }
+        const currentIndex = tabs.indexOf(event.currentTarget)
+        const nextIndex =
+          event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? tabs.length - 1
+              : event.key === 'ArrowRight'
+                ? (currentIndex + 1) % tabs.length
+                : (currentIndex - 1 + tabs.length) % tabs.length
+        event.preventDefault()
+        tabs[nextIndex]?.focus()
+        tabs[nextIndex]?.click()
+      }}
       className={cn(
         'inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-bg transition-all duration-200 ease-in-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40',
         isActive
@@ -112,6 +154,7 @@ export function TabsContent({
 
   return (
     <div
+      role="tabpanel"
       className={cn(
         'mt-2 ring-offset-bg animate-tab-enter focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2',
         className,

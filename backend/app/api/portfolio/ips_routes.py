@@ -21,6 +21,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.logging_config import get_logger
 from app.portfolio.contracts.ips import (
+    DriftCoverage,
     DriftReport,
     IPSScope,
     IPSTarget,
@@ -30,6 +31,8 @@ from app.portfolio.contracts.ips import (
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/ips", tags=["portfolio-ips"])
+
+_REBALANCE_COVERAGE_TOLERANCE_RATIO = 0.01
 
 
 @lru_cache(maxsize=1)
@@ -78,6 +81,109 @@ def _tlh_analyzer():
 def _rebalance_planner():
     ips_mod = import_module("app.portfolio.ips")
     return ips_mod.RebalancePlanner(_drift_calculator(), _tlh_analyzer(), _ledger())
+
+
+def _household_drift_coverage(
+    included_value: float,
+    *,
+    dashboard: Any | None = None,
+    totals: Any | None = None,
+) -> DriftCoverage:
+    """Reconcile the allocation universe to trusted household investments."""
+    try:
+        if dashboard is None:
+            household_service = import_module(
+                "app.services.household_finance_service"
+            ).HouseholdFinanceService()
+            dashboard = household_service.get_dashboard()
+        if totals is None:
+            totals = import_module(
+                "app.services.household_portfolio_totals"
+            ).get_effective_portfolio_totals(
+                _storage(),
+                dashboard=dashboard,
+            )
+    except Exception as exc:
+        logger.warning("rebalance_coverage_check_failed", error=str(exc))
+        return DriftCoverage(
+            status="unverified",
+            message=(
+                "Household investment coverage could not be verified. Treat this "
+                "allocation as incomplete and do not generate trades from it."
+            ),
+        )
+
+    account_control = getattr(dashboard, "account_control", None)
+    blocking_count = int(getattr(account_control, "blocking_issue_count", 0) or 0)
+    if blocking_count > 0:
+        return DriftCoverage(
+            status="blocked",
+            message=(
+                f"{blocking_count} account-control issue"
+                f"{'s' if blocking_count != 1 else ''} block trusted household totals. "
+                "Resolve them before evaluating allocation or generating trades."
+            ),
+        )
+
+    canonical_raw = getattr(totals, "household_invested_total_value", None)
+    canonical_value = float(canonical_raw or 0.0)
+    if canonical_value <= 0:
+        return DriftCoverage(
+            status="unverified",
+            message=(
+                "Canonical household investment value is unavailable. Treat this "
+                "allocation as incomplete and do not generate trades from it."
+            ),
+        )
+    coverage_gap = abs(canonical_value - included_value)
+    tolerance = max(1.0, canonical_value * _REBALANCE_COVERAGE_TOLERANCE_RATIO)
+    if coverage_gap <= tolerance:
+        return DriftCoverage(
+            status="complete",
+            canonical_total_value=canonical_value,
+            coverage_pct=1.0,
+            excluded_value=0.0,
+            message="Allocation value reconciles to canonical household investments.",
+        )
+    if included_value < canonical_value:
+        coverage_pct = max(0.0, min(included_value / canonical_value, 1.0))
+        excluded_value = canonical_value - included_value
+        return DriftCoverage(
+            status="partial",
+            canonical_total_value=canonical_value,
+            coverage_pct=coverage_pct,
+            excluded_value=excluded_value,
+            message=(
+                "The allocation view covers only "
+                f"{coverage_pct:.1%} of canonical household investments. "
+                "Reconcile the excluded holdings before relying on drift or generating trades."
+            ),
+        )
+    return DriftCoverage(
+        status="mismatch",
+        canonical_total_value=canonical_value,
+        coverage_pct=1.0,
+        excluded_value=0.0,
+        message=(
+            "The allocation view exceeds canonical household investments. "
+            "Reconcile duplicate or misclassified holdings before relying on drift or generating trades."
+        ),
+    )
+
+
+def _household_rebalance_blocker(
+    report: DriftReport,
+    *,
+    dashboard: Any | None = None,
+    totals: Any | None = None,
+) -> str | None:
+    """Return why household coverage is unsafe for a trade proposal, if any."""
+    coverage = _household_drift_coverage(
+        report.total_value,
+        dashboard=dashboard,
+        totals=totals,
+    )
+    return None if coverage.status == "complete" else coverage.message
 
 
 # ----------------------------------------------------------------------
@@ -167,10 +273,20 @@ async def get_drift(
     """
     if summary:
         digest = await run_in_threadpool(_drift_calculator().compute_summary, scope, scope_id)
+        if scope == "household":
+            coverage = await run_in_threadpool(
+                _household_drift_coverage, digest.total_value
+            )
+            digest = digest.model_copy(update={"coverage": coverage})
         return digest.model_dump(mode="json")
     report: DriftReport = await run_in_threadpool(
         _drift_calculator().compute_drift, scope, scope_id
     )
+    if scope == "household":
+        coverage = await run_in_threadpool(
+            _household_drift_coverage, report.total_value
+        )
+        report = report.model_copy(update={"coverage": coverage})
     return report.model_dump(mode="json")
 
 
@@ -182,6 +298,17 @@ async def post_rebalance(payload: RebalanceRequest) -> RebalancePlan:
     sells, wash-sale-aware reroute or flag. See
     :class:`app.portfolio.ips.RebalancePlanner` for the contract.
     """
+    if payload.scope == "household":
+        report = await run_in_threadpool(
+            _drift_calculator().compute_drift,
+            payload.scope,
+            payload.scope_id,
+            snapshot_date=payload.snapshot_date,
+        )
+        blocker = await run_in_threadpool(_household_rebalance_blocker, report)
+        if blocker:
+            raise HTTPException(status_code=409, detail=blocker)
+
     return await run_in_threadpool(
         _rebalance_planner().propose_trades,
         payload.scope,

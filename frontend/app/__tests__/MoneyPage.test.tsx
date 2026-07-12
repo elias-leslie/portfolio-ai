@@ -157,30 +157,24 @@ describe('MoneyPage', () => {
 
     render(<MoneyPage />)
 
-    expect(screen.getByRole('button', { name: 'Accounts' }).textContent).toBe(
+    expect(screen.getByRole('tab', { name: 'Accounts' }).textContent).toBe(
       'Accounts3',
     )
     expect(screen.queryByText('Coverage')).not.toBeInTheDocument()
     expect(
       screen.getByRole('link', { name: /add anything/i }),
     ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: /Dashboard/i }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Budget/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Levers/i })).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: /Retirement/i }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Dashboard/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Budget/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Levers/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Retirement/i })).toBeInTheDocument()
     // Allocation folded into the Dashboard tab — no standalone tab anymore.
     expect(
-      screen.queryByRole('button', { name: /Allocation/i }),
+      screen.queryByRole('tab', { name: /Allocation/i }),
     ).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: /Accounts/i }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Intake/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Review/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Accounts/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Intake/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Review/i })).toBeInTheDocument()
     expect(screen.getByText('Money Overview Panel')).toBeInTheDocument()
     expect(screen.queryByText('Net Worth')).not.toBeInTheDocument()
     expect(screen.queryByText('Fix Money Data')).not.toBeInTheDocument()
@@ -242,7 +236,7 @@ describe('MoneyPage', () => {
 
     render(<MoneyPage />)
 
-    await user.click(screen.getByRole('button', { name: 'Intake' }))
+    await user.click(screen.getByRole('tab', { name: 'Intake' }))
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(refetchDocuments).toHaveBeenCalled()

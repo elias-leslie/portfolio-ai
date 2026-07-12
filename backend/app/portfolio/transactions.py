@@ -328,6 +328,30 @@ class TransactionLedger:
             for row in rows
         ]
 
+    def preview_lots_fifo(
+        self,
+        *,
+        account_id: str,
+        symbol: str,
+        shares: float,
+        sell_date: date,
+        sell_price: float,
+    ) -> ConsumeResult:
+        """Estimate FIFO lot consumption without changing stored tax lots.
+
+        The returned gain and holding-period breakdown matches
+        :meth:`consume_lots_fifo`, but repeated previews are idempotent. Use
+        this path for rebalance proposals and other what-if flows.
+        """
+        return self._evaluate_lots_fifo(
+            account_id=account_id,
+            symbol=symbol,
+            shares=shares,
+            sell_date=sell_date,
+            sell_price=sell_price,
+            apply_updates=False,
+        )
+
     def consume_lots_fifo(
         self,
         *,
@@ -337,14 +361,31 @@ class TransactionLedger:
         sell_date: date,
         sell_price: float,
     ) -> ConsumeResult:
-        """FIFO-consume open lots for a sell; falls back to position aggregate.
+        """FIFO-consume open lots for a sale that actually happened."""
+        return self._evaluate_lots_fifo(
+            account_id=account_id,
+            symbol=symbol,
+            shares=shares,
+            sell_date=sell_date,
+            sell_price=sell_price,
+            apply_updates=True,
+        )
 
-        Returns a per-lot breakdown plus realized-gain totals split by
-        holding period. When no lots exist, falls back to the
-        ``portfolio_positions.cost_basis`` aggregate and returns a
-        single synthetic row marked
-        ``used_position_aggregate_fallback=True``.
-        """
+    # ------------------------------------------------------------------
+    # internals
+    # ------------------------------------------------------------------
+
+    def _evaluate_lots_fifo(
+        self,
+        *,
+        account_id: str,
+        symbol: str,
+        shares: float,
+        sell_date: date,
+        sell_price: float,
+        apply_updates: bool,
+    ) -> ConsumeResult:
+        """Build a FIFO result and optionally persist the lot decrements."""
         symbol_upper = symbol.upper()
         lots = self.open_lots(account_id, symbol_upper)
 
@@ -363,60 +404,64 @@ class TransactionLedger:
         short_term_gain = 0.0
         long_term_threshold = sell_date - timedelta(days=_LONG_TERM_DAYS)
 
-        with self.storage.connection() as conn:
-            for lot in lots:
-                if remaining_to_sell <= 0:
-                    break
-                take = min(remaining_to_sell, lot.remaining_shares)
-                if take <= 0:
-                    continue
-                cost_basis = take * lot.cost_per_share
-                proceeds = take * sell_price
-                gain = proceeds - cost_basis
-                holding_period = (sell_date - lot.acquired_date).days
-                # IRS rule: held *more* than one year qualifies as
-                # long-term. Acquired at or after one-year-prior is
-                # short-term.
-                is_long_term = lot.acquired_date < long_term_threshold
+        updates: list[tuple[str, float]] = []
+        for lot in lots:
+            if remaining_to_sell <= 0:
+                break
+            take = min(remaining_to_sell, lot.remaining_shares)
+            if take <= 0:
+                continue
+            cost_basis = take * lot.cost_per_share
+            proceeds = take * sell_price
+            gain = proceeds - cost_basis
+            holding_period = (sell_date - lot.acquired_date).days
+            # IRS rule: held *more* than one year qualifies as
+            # long-term. Acquired at or after one-year-prior is
+            # short-term.
+            is_long_term = lot.acquired_date < long_term_threshold
 
-                consumed.append(
-                    LotConsumption(
-                        lot_id=lot.id,
-                        acquired_date=lot.acquired_date,
-                        shares=take,
-                        cost_basis=cost_basis,
-                        proceeds=proceeds,
-                        realized_gain=gain,
-                        holding_period_days=holding_period,
-                        is_long_term=is_long_term,
+            consumed.append(
+                LotConsumption(
+                    lot_id=lot.id,
+                    acquired_date=lot.acquired_date,
+                    shares=take,
+                    cost_basis=cost_basis,
+                    proceeds=proceeds,
+                    realized_gain=gain,
+                    holding_period_days=holding_period,
+                    is_long_term=is_long_term,
+                )
+            )
+            if is_long_term:
+                long_term_gain += gain
+            else:
+                short_term_gain += gain
+
+            new_remaining = lot.remaining_shares - take
+            updates.append((lot.id, new_remaining))
+            remaining_to_sell -= take
+
+        if apply_updates and updates:
+            with self.storage.connection() as conn:
+                for lot_id, new_remaining in updates:
+                    disposed_at = datetime.now(UTC) if new_remaining <= 0 else None
+                    conn.execute(
+                        """
+                        UPDATE portfolio_tax_lots
+                        SET remaining_shares = %s,
+                            disposed_at = COALESCE(%s, disposed_at),
+                            updated_at = now()
+                        WHERE id = %s
+                        """,
+                        [new_remaining, disposed_at, lot_id],
                     )
-                )
-                if is_long_term:
-                    long_term_gain += gain
-                else:
-                    short_term_gain += gain
-
-                new_remaining = lot.remaining_shares - take
-                disposed_at = (
-                    datetime.now(UTC) if new_remaining <= 0 else None
-                )
-                conn.execute(
-                    """
-                    UPDATE portfolio_tax_lots
-                    SET remaining_shares = %s,
-                        disposed_at = COALESCE(%s, disposed_at),
-                        updated_at = now()
-                    WHERE id = %s
-                    """,
-                    [new_remaining, disposed_at, lot.id],
-                )
-                remaining_to_sell -= take
-            conn.commit()
+                conn.commit()
 
         # If we ran out of lots before filling the order, consume the
         # rest via the aggregate fallback. This happens when lots were
         # only partially backfilled.
-        if remaining_to_sell > 0:
+        used_position_aggregate_fallback = remaining_to_sell > 0
+        if used_position_aggregate_fallback:
             tail = self._consume_via_position_aggregate(
                 account_id=account_id,
                 symbol=symbol_upper,
@@ -439,12 +484,8 @@ class TransactionLedger:
             total_proceeds=round(total_proceeds, 4),
             realized_gain_long_term=round(long_term_gain, 4),
             realized_gain_short_term=round(short_term_gain, 4),
-            used_position_aggregate_fallback=remaining_to_sell > 0,
+            used_position_aggregate_fallback=used_position_aggregate_fallback,
         )
-
-    # ------------------------------------------------------------------
-    # internals
-    # ------------------------------------------------------------------
 
     def _find_by_external_id(self, account_id: str, external_id: str) -> str | None:
         with self.storage.connection() as conn:

@@ -75,7 +75,7 @@ export function DailyBriefPanel() {
       </div>
 
       <div className="grid items-start gap-4 p-4 lg:grid-cols-[minmax(16rem,0.82fr)_minmax(30rem,1.7fr)]">
-        <div className="flex flex-col gap-4">
+        <div className="flex min-w-0 flex-col gap-4">
           <MarketConditionHero
             conditions={conditions}
             macro={macro}
@@ -89,7 +89,7 @@ export function DailyBriefPanel() {
           <OverallCautionTrendLine />
         </div>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex min-w-0 flex-col gap-4">
           <DecisionBrief conditions={conditions} />
           <PrimaryTilesGrid
             household={household}

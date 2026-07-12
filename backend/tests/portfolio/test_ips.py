@@ -75,8 +75,22 @@ class _FakeStore:
         self.positions: list[dict[str, Any]] = []
 
     # --- helpers ---
-    def add_account(self, *, id: str, account_type: str, is_spouse: bool = False) -> None:
-        self.accounts.append({"id": id, "account_type": account_type, "is_spouse": is_spouse})
+    def add_account(
+        self,
+        *,
+        id: str,
+        account_type: str,
+        is_spouse: bool = False,
+        cash_balance: float = 0.0,
+    ) -> None:
+        self.accounts.append(
+            {
+                "id": id,
+                "account_type": account_type,
+                "is_spouse": is_spouse,
+                "cash_balance": cash_balance,
+            }
+        )
 
     def add_position(self, *, account_id: str, symbol: str, shares: float, cost_basis: float) -> None:
         self.positions.append(
@@ -174,8 +188,19 @@ class _FakeStore:
                 acc = next((a for a in self.accounts if a["id"] == account_id), None)
                 if acc is None:
                     return [], 0
-                return [(acc["id"], acc["account_type"], acc["is_spouse"])], 0
-            return [(a["id"], a["account_type"], a["is_spouse"]) for a in self.accounts], 0
+                return [
+                    (
+                        acc["id"],
+                        acc["account_type"],
+                        acc["is_spouse"],
+                        acc["cash_balance"],
+                    )
+                ], 0
+            return [
+                (a["id"], a["account_type"], a["is_spouse"], a["cash_balance"])
+                for a in self.accounts
+                if a["account_type"] != "paper"
+            ], 0
 
         if q.startswith("SELECT ACCOUNT_ID, SYMBOL, SHARES, COST_BASIS"):
             return [
@@ -436,6 +461,26 @@ def test_drift_marks_classes_present_but_missing_targets() -> None:
     )
     report = calc.compute_drift("household", "hh1", snapshot_date=date(2026, 5, 9))
     assert "bonds" in report.classes_missing_targets
+    by_class = {row.asset_class: row for row in report.rows}
+    assert by_class["bonds"].out_of_band is False
+
+
+def test_drift_includes_account_cash_in_allocation_and_total() -> None:
+    calc, _, store = _make_drift(
+        targets=[("us_equity", 0.55, 0.05), ("cash", 0.45, 0.05)],
+        accounts=[("acct-tax", "Taxable")],
+        positions=[("acct-tax", "VTI", 11.0, 100.0)],
+        prices={"VTI": 100.0},
+    )
+    store.accounts[0]["cash_balance"] = 900.0
+
+    report = calc.compute_drift("household", "hh1", snapshot_date=date(2026, 5, 9))
+
+    by_class = {row.asset_class: row for row in report.rows}
+    assert report.total_value == 2000.0
+    assert by_class["cash"].actual_value == 900.0
+    assert by_class["cash"].actual_pct == 0.45
+    assert by_class["cash"].out_of_band is False
 
 
 def test_drift_uses_only_account_in_account_scope() -> None:

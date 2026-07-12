@@ -327,22 +327,14 @@ class NewsService:
         return updated
 
     def get_health(self) -> dict[str, Any]:
-        """Return lightweight health metrics for the news pipeline."""
-        try:
-            finbert_available = self.finbert_analyzer.is_available()
-        except FinBertUnavailableError:
-            finbert_available = False
+        """Return read-only health metrics for the news pipeline."""
+        finbert_available = self.finbert_analyzer.is_loaded()
         quality_model_available = self.quality_scorer.is_model_available()
         quality_scoring_mode = self.quality_scorer.mode
 
         now = datetime.now(UTC)
         window_start = now - timedelta(hours=24)
         sentiment_rescored_24h = 0
-        if finbert_available:
-            sentiment_rescored_24h = self.rescore_recent_fallback_sentiment(
-                since=window_start,
-                limit=self._sentiment_repair_limit(),
-            )
         fm = self.health_metrics.get_fallback_metrics(window_start)
         mx = self.health_metrics.get_article_mix_metrics(now)
         vendor_health = self.health_metrics.build_vendor_health(

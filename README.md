@@ -152,9 +152,10 @@ Required for the app stack:
 
 Optional integrations:
 
-- Market data: `POLYGON_API_KEY`, `TWELVEDATA_API_KEY`, `FMP_API_KEY`, `FINNHUB_API_KEY`, `ALPHAVANTAGE_API_KEY`, `FRED_API_KEY`, `SERPAPI_API_KEY`.
+- Market data: `POLYGON_API_KEY`, `TWELVEDATA_API_KEY`, `FMP_API_KEY`, `FINNHUB_API_KEY`, `ALPHAVANTAGE_API_KEY`, `FRED_API_KEY`, `SERPAPI_API_KEY`. Set `SEC_USER_AGENT` to a descriptive name and contact email to enable SEC EDGAR within its fair-access policy.
 - Agent Hub companion: `AGENT_HUB_URL`, `PORTFOLIO_CLIENT_ID`, `PORTFOLIO_REQUEST_SOURCE`.
 - Encrypted Plaid/SnapTrade credentials: set `PORTFOLIO_SECRET_KEY` before storing provider credentials.
+- Household uploads: `HOUSEHOLD_UPLOAD_DIR` overrides the private document directory for native installs. Docker Compose persists it in the `portfolio-household-uploads` volume.
 
 When optional keys are absent, the app should still start. Features that need a missing provider show degraded or unavailable status instead of requiring secrets at boot.
 

@@ -235,8 +235,13 @@ class DriftCalculator:
         """Build the full drift report for one scope."""
         snapshot = snapshot_date or date.today()
         holdings = self._holdings_for_scope(scope, scope_id)
+        accounts = _accounts_in_scope(self.storage, scope, scope_id)
+        cash_value = sum(max(float(account.get("cash_balance") or 0.0), 0.0) for account in accounts)
+        values = [HoldingValue(symbol=h.symbol, value=h.current_value) for h in holdings]
+        if cash_value > 0:
+            values.append(HoldingValue(symbol="SPAXX", value=cash_value))
         bucketed = self.classifier.classify_value(
-            HoldingValue(symbol=h.symbol, value=h.current_value) for h in holdings
+            values
         )
         targets = self.ips_service.get_targets(scope, scope_id)
         target_index = {t.asset_class: t for t in targets}
@@ -354,7 +359,9 @@ def _build_drift_rows(
                 actual_pct=round(actual_pct, 6),
                 drift_pct=round(drift_pct, 6),
                 drift_band_pct=round(band, 6),
-                out_of_band=abs(drift_pct) > band if band > 0 else abs(drift_pct) > 0,
+                out_of_band=(
+                    abs(drift_pct) > band if target is not None and band > 0 else False
+                ),
                 target_value=round(target_value, 4),
                 actual_value=round(actual_value, 4),
                 drift_value=round(actual_value - target_value, 4),
@@ -371,7 +378,8 @@ def _accounts_in_scope(
         with storage.connection() as conn:
             rows = conn.execute(
                 """
-                SELECT id, account_type, COALESCE(is_spouse, false)
+                SELECT id, account_type, COALESCE(is_spouse, false),
+                       COALESCE(cash_balance, 0)
                 FROM portfolio_accounts WHERE id = %s
                 """,
                 [scope_id],
@@ -380,12 +388,19 @@ def _accounts_in_scope(
         with storage.connection() as conn:
             rows = conn.execute(
                 """
-                SELECT id, account_type, COALESCE(is_spouse, false)
+                SELECT id, account_type, COALESCE(is_spouse, false),
+                       COALESCE(cash_balance, 0)
                 FROM portfolio_accounts
+                WHERE account_type <> 'paper'
                 """
             ).fetchall()
     return [
-        {"id": str(r[0]), "account_type": str(r[1]), "is_spouse": bool(r[2])}
+        {
+            "id": str(r[0]),
+            "account_type": str(r[1]),
+            "is_spouse": bool(r[2]),
+            "cash_balance": float(r[3]),
+        }
         for r in rows
     ]
 
@@ -650,7 +665,7 @@ class RebalancePlanner:
         st_gain = 0.0
         no_lots_fallback = False
         if is_taxable(chosen_account["account_type"]):
-            consume = self.ledger.consume_lots_fifo(
+            consume = self.ledger.preview_lots_fifo(
                 account_id=chosen.account_id,
                 symbol=chosen.symbol,
                 shares=approx_shares if approx_shares > 0 else chosen.shares,

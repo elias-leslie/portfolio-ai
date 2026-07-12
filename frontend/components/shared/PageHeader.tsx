@@ -55,7 +55,7 @@ export function PageHeader({
         )}
       >
         {eyebrow && (
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-muted/60">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">
             {eyebrow}
           </p>
         )}

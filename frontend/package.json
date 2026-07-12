@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=20 <25",
+    "pnpm": "10.32.1"
+  },
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
@@ -50,12 +55,12 @@
     "@types/react": "19",
     "@types/react-dom": "19",
     "@vitejs/plugin-react": "^5.1.2",
-    "@vitest/coverage-v8": "^4.0.17",
-    "@vitest/ui": "^4.0.17",
-    "jsdom": "^27.3.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/ui": "^4.1.10",
+    "jsdom": "^27.4.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vite": "8.0.16",
-    "vitest": "^4.0.17"
+    "vitest": "^4.1.10"
   }
 }

@@ -77,7 +77,7 @@ class PortfolioStorage:
         return self.ingestion_mgr.insert_dataframe(table_name, df, mode)
 
     def upsert_by_id(self, table_name: str, df: pl.DataFrame, id_column: str = "id") -> int:
-        """Upsert data by primary key (delete + insert)."""
+        """Atomically upsert data by primary key without deleting rows."""
         return self.ingestion_mgr.upsert_by_id(table_name, df, id_column)
 
     def insert_dict(self, table_name: str, data: dict[str, DatabaseValue]) -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import date
 
 from tests.portfolio.test_transactions import _make_ledger
@@ -43,6 +44,52 @@ def test_consume_lots_fifo_breaks_long_and_short_term() -> None:
     # First consumption row is the older lot.
     assert result.consumed[0].is_long_term is True
     assert result.consumed[1].is_long_term is False
+
+
+def test_preview_lots_fifo_is_repeatable_and_does_not_mutate_lots() -> None:
+    ledger, store = _make_ledger()
+
+    ledger.record_transaction(
+        account_id="acct-1",
+        symbol="AAPL",
+        transaction_type="buy",
+        trade_date=date(2024, 1, 1),
+        shares=5.0,
+        price=100.0,
+    )
+    ledger.record_transaction(
+        account_id="acct-1",
+        symbol="AAPL",
+        transaction_type="buy",
+        trade_date=date(2026, 3, 1),
+        shares=5.0,
+        price=200.0,
+    )
+    lots_before = deepcopy(store.tax_lots)
+
+    first = ledger.preview_lots_fifo(
+        account_id="acct-1",
+        symbol="AAPL",
+        shares=8.0,
+        sell_date=date(2026, 4, 1),
+        sell_price=300.0,
+    )
+    second = ledger.preview_lots_fifo(
+        account_id="acct-1",
+        symbol="AAPL",
+        shares=8.0,
+        sell_date=date(2026, 4, 1),
+        sell_price=300.0,
+    )
+
+    assert first == second
+    assert first.realized_gain_long_term == 1000.0
+    assert first.realized_gain_short_term == 300.0
+    assert store.tax_lots == lots_before
+    assert [lot.remaining_shares for lot in ledger.open_lots("acct-1", "AAPL")] == [
+        5.0,
+        5.0,
+    ]
 
 
 def test_consume_lots_fifo_falls_back_to_position_aggregate_when_no_lots() -> None:

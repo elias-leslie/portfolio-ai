@@ -565,6 +565,7 @@ def test_create_notifications_adds_invalidation_alerts() -> None:
             evaluations=[],
         )
     )
+    service._build_position_action_map = Mock(return_value={})
     service._upsert_notification = Mock()
 
     created = service._create_notifications(

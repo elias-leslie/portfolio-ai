@@ -7,6 +7,7 @@
 # Default backup dir: <project-root>/data/backups
 
 set -euo pipefail
+umask 077
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/lib/project-root.sh"
@@ -69,7 +70,8 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 # Create backup directory if it doesn't exist
-mkdir -p "$BACKUP_DIR"
+mkdir -p -m 700 "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR"
 
 echo -e "${YELLOW}Starting PostgreSQL backup...${NC}"
 echo "Database: $DB_NAME"

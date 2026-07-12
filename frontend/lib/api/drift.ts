@@ -38,6 +38,15 @@ export interface DriftSummary {
   maxDriftPct: number
   classesOutOfBand: number
   snapshotDate: string
+  coverage: DriftCoverage | null
+}
+
+export interface DriftCoverage {
+  status: 'complete' | 'partial' | 'mismatch' | 'blocked' | 'unverified'
+  canonicalTotalValue: number | null
+  coveragePct: number | null
+  excludedValue: number | null
+  message: string
 }
 
 export interface DriftReport {
@@ -48,6 +57,7 @@ export interface DriftReport {
   totalValue: number
   rows: DriftRow[]
   classesMissingTargets: string[]
+  coverage: DriftCoverage | null
 }
 
 export async function fetchDriftSummary(

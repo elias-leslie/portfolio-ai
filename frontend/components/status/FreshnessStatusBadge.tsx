@@ -340,11 +340,16 @@ export function FreshnessStatusBadge() {
 
           <div className="mt-4 space-y-3 rounded-md border border-border/35 bg-background/20 p-3">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-medium text-text">
+              <label
+                htmlFor="freshness-auto-refresh"
+                className="text-xs font-medium text-text"
+              >
                 Auto-refresh open UI
-              </p>
+              </label>
               <Switch
+                id="freshness-auto-refresh"
                 checked={autoRefreshEnabled}
+                disabled={updatePreferences.isPending}
                 onCheckedChange={(checked) =>
                   updatePreferences.mutate({
                     frontendPollInterval: checked ? 300 : 0,
@@ -353,18 +358,26 @@ export function FreshnessStatusBadge() {
               />
             </div>
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-medium text-text">
+              <label
+                htmlFor="freshness-open-cadence"
+                className="text-xs font-medium text-text"
+              >
                 Open/focus cadence
-              </p>
+              </label>
               <Select
                 value={pollOption}
+                disabled={updatePreferences.isPending}
                 onValueChange={(value) =>
                   updatePreferences.mutate({
                     frontendPollInterval: Number(value),
                   })
                 }
               >
-                <SelectTrigger size="sm" className="w-32">
+                <SelectTrigger
+                  id="freshness-open-cadence"
+                  size="sm"
+                  className="w-32"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -378,11 +391,16 @@ export function FreshnessStatusBadge() {
             </div>
             <div className="grid gap-2 pt-1">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-medium text-text">
+                <label
+                  htmlFor="freshness-account-syncs"
+                  className="text-xs font-medium text-text"
+                >
                   Account syncs (SnapTrade, Plaid)
-                </p>
+                </label>
                 <Switch
+                  id="freshness-account-syncs"
                   checked={preferences?.scheduledAccountSyncEnabled ?? false}
+                  disabled={updatePreferences.isPending}
                   onCheckedChange={(checked) =>
                     updatePreferences.mutate({
                       scheduledAccountSyncEnabled: checked,
@@ -391,11 +409,16 @@ export function FreshnessStatusBadge() {
                 />
               </div>
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-medium text-text">
+                <label
+                  htmlFor="freshness-jenny-runs"
+                  className="text-xs font-medium text-text"
+                >
                   Jenny scheduled runs
-                </p>
+                </label>
                 <Switch
+                  id="freshness-jenny-runs"
                   checked={preferences?.scheduledJennyOperatorEnabled ?? false}
+                  disabled={updatePreferences.isPending}
                   onCheckedChange={(checked) =>
                     updatePreferences.mutate({
                       scheduledJennyOperatorEnabled: checked,
@@ -404,11 +427,18 @@ export function FreshnessStatusBadge() {
                 />
               </div>
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-medium text-text">Strategy agents</p>
+                <label
+                  htmlFor="freshness-strategy-agents"
+                  className="text-xs font-medium text-text"
+                >
+                  Strategy agents
+                </label>
                 <Switch
+                  id="freshness-strategy-agents"
                   checked={
                     preferences?.scheduledStrategyResearchEnabled ?? false
                   }
+                  disabled={updatePreferences.isPending}
                   onCheckedChange={(checked) =>
                     updatePreferences.mutate({
                       scheduledStrategyResearchEnabled: checked,
@@ -417,11 +447,16 @@ export function FreshnessStatusBadge() {
                 />
               </div>
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-medium text-text">
+                <label
+                  htmlFor="freshness-ml-labeling"
+                  className="text-xs font-medium text-text"
+                >
                   ML labeling jobs
-                </p>
+                </label>
                 <Switch
+                  id="freshness-ml-labeling"
                   checked={preferences?.scheduledMlLabelingEnabled ?? false}
+                  disabled={updatePreferences.isPending}
                   onCheckedChange={(checked) =>
                     updatePreferences.mutate({
                       scheduledMlLabelingEnabled: checked,
@@ -430,6 +465,12 @@ export function FreshnessStatusBadge() {
                 />
               </div>
             </div>
+            {updatePreferences.error ? (
+              <p role="alert" className="text-xs text-loss">
+                Could not save this preference. Check system status and try
+                again.
+              </p>
+            ) : null}
           </div>
         </div>
       ) : null}

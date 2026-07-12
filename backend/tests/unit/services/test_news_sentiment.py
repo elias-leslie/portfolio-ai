@@ -10,8 +10,11 @@ from app.services.news_service import NewsService
 
 
 class _UnavailableFinBert:
-    def is_available(self) -> bool:
+    def is_loaded(self) -> bool:
         return False
+
+    def is_available(self) -> bool:
+        raise AssertionError("health checks must not initialize FinBERT")
 
 
 def test_load_finbert_dependencies_returns_none_when_optional_packages_missing(mocker) -> None:
@@ -29,7 +32,7 @@ def test_load_finbert_dependencies_returns_none_when_optional_packages_missing(m
     assert auto_model is None
 
 
-def test_news_health_includes_ml_install_hint_when_finbert_unavailable() -> None:
+def test_news_health_includes_ml_install_hint_when_finbert_unavailable(mocker) -> None:
     news_service = NewsService(Mock())
     news_service.finbert_analyzer = _UnavailableFinBert()
     news_service.quality_scorer = Mock()
@@ -65,6 +68,11 @@ def test_news_health_includes_ml_install_hint_when_finbert_unavailable() -> None
     }
     news_service.health_metrics.to_iso.side_effect = (
         lambda value: value.isoformat() if value is not None else None
+    )
+    mocker.patch.object(
+        news_service,
+        "rescore_recent_fallback_sentiment",
+        side_effect=AssertionError("health checks must not rescore or write articles")
     )
 
     health = news_service.get_health()

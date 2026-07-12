@@ -9,6 +9,7 @@ from threading import Lock
 from time import monotonic
 from typing import Any
 
+from app.config import settings
 from app.models.household_finance import (
     HouseholdConfirmedFact,
     HouseholdEvidenceAccount,
@@ -352,7 +353,7 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         return int(self.account_registry_service.sync_registry(self, limit=limit).get("tracked_linked", 0))
 
     def _upload_root(self) -> Path:
-        return Path(__file__).resolve().parents[2] / "data" / "household_uploads"
+        return settings.household_upload_dir
 
     def get_resolved_values(self, *, profile: HouseholdProfile, questions: list[Any]) -> list[HouseholdResolvedValue]:
         inferred_map = fetch_inferred_value_rows(self.storage)

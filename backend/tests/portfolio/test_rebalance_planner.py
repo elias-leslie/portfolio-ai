@@ -57,7 +57,7 @@ def _ledger_returning_lots(lots_by_position: dict[tuple[str, str], list[Any]]) -
         consume.used_position_aggregate_fallback = not lots_by_position.get((account_id, symbol))
         return consume
 
-    ledger.consume_lots_fifo.side_effect = _consume
+    ledger.preview_lots_fifo.side_effect = _consume
     return ledger
 
 
@@ -233,6 +233,8 @@ def test_overweight_class_triggers_sell_with_lt_loss_priority() -> None:
     assert sells, "expected a sell trade for overweight us_equity"
     assert sells[0].symbol == "VTI"
     assert sells[0].rationale == RATIONALE_LT_LOSS_FIRST
+    ledger.preview_lots_fifo.assert_called_once()
+    ledger.consume_lots_fifo.assert_not_called()
 
 
 def test_wash_sale_conflict_reroutes_to_tax_advantaged_sibling() -> None:

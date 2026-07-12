@@ -117,6 +117,15 @@ class IngestionManager:
 
         # Get all columns from dataframe
         all_columns = df.columns
+        invalid_columns = [
+            column
+            for column in all_columns
+            if not self._validate_column_exists(conn, table_name, column)
+        ]
+        if invalid_columns:
+            raise ValueError(
+                f"Columns {invalid_columns!r} do not exist in table '{table_name}'"
+            )
         non_pk_columns = [col for col in all_columns if col not in pk_columns]
 
         # Convert Polars DataFrame to pandas for to_sql
@@ -138,7 +147,11 @@ class IngestionManager:
                 )
             else:
                 update_assignments.append(f"{col} = EXCLUDED.{col}")
-        update_set = ", ".join(update_assignments)
+        conflict_action = (
+            f"DO UPDATE SET {', '.join(update_assignments)}"
+            if update_assignments
+            else "DO NOTHING"
+        )
 
         # Build and execute INSERT ... ON CONFLICT statement
         for _, row in pdf.iterrows():
@@ -147,7 +160,7 @@ class IngestionManager:
                 INSERT INTO {table_name} ({columns_str})
                 VALUES ({values_placeholders})
                 ON CONFLICT ({pk_conflict})
-                DO UPDATE SET {update_set}
+                {conflict_action}
             """
             conn.execute(query, values)
 
@@ -215,7 +228,7 @@ class IngestionManager:
         df: pl.DataFrame,
         id_column: str = "id",
     ) -> int:
-        """Upsert data by primary key (delete + insert).
+        """Atomically upsert data by primary key without deleting rows.
 
         Args:
             table_name: Name of the table
@@ -235,33 +248,21 @@ class IngestionManager:
             if not self._validate_column_exists(conn, table_name, id_column):
                 raise ValueError(f"Column '{id_column}' does not exist in table '{table_name}'")
 
-            # Get unique IDs to delete
-            ids = df[id_column].to_list()
-            placeholders = ",".join(["?" for _ in ids])
+            if id_column not in df.columns:
+                raise ValueError(f"DataFrame is missing ID column '{id_column}'")
 
-            # Delete existing rows (safe after validation)
-            conn.execute(
-                f"DELETE FROM {table_name} WHERE {id_column} IN ({placeholders})",  # validated: table/column from information_schema
-                ids,
-            )
-
-            # CRITICAL: Commit the DELETE before the INSERT to avoid deadlocks
-            # insert_dataframe opens its own transaction, so we must commit first
-            conn.commit()
-
-            # Use explicit DataFrame insertion instead of variable reference
-            # Note: This opens a NEW transaction (via engine.connect())
-            conn.insert_dataframe(table_name, df, if_exists="append")
-
-            # CRITICAL: Commit the INSERT to persist data
-            conn.commit()
+            # PostgreSQL's ON CONFLICT path updates the existing row in place.
+            # This preserves dependent foreign keys and keeps the old row intact
+            # if validation or insertion fails before the single commit.
+            self._upsert_dataframe(conn, table_name, df)
 
             row_count = len(df)
 
             # Update metadata if manager exists
             if self.metadata_mgr:
                 self.metadata_mgr.update_table_metadata(conn, table_name)
-                conn.commit()
+
+            conn.commit()
 
             logger.info("rows_upserted", table=table_name, count=row_count)
             return row_count

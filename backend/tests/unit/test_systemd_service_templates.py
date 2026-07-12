@@ -77,3 +77,25 @@ def test_standalone_compose_publishes_private_ports_on_loopback() -> None:
         assert all(str(port).startswith("127.0.0.1:") for port in ports), (
             f"{service_name} exposes a non-loopback host port: {ports}"
         )
+
+
+def test_standalone_compose_supports_pgvector_and_persists_private_uploads() -> None:
+    compose = yaml.safe_load((REPO_ROOT / "docker-compose.yml").read_text())
+    services = compose["services"]
+
+    assert services["portfolio-db"]["image"].startswith(
+        "pgvector/pgvector:pg16@sha256:"
+    )
+    for service_name in ("portfolio-api", "portfolio-worker"):
+        service = services[service_name]
+        environment = service["environment"]
+        assert environment["HOUSEHOLD_UPLOAD_DIR"] == "/app/data/household_uploads"
+        assert "PORTFOLIO_SECRET_KEY" in environment
+        assert "SEC_USER_AGENT" in environment
+        assert (
+            "portfolio-household-uploads:/app/data/household_uploads"
+            in service["volumes"]
+        )
+
+    assert services["portfolio-worker"]["restart"] == "unless-stopped"
+    assert "portfolio-household-uploads" in compose["volumes"]

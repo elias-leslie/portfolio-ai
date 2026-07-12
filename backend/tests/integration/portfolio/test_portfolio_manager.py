@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import polars as pl
+import psycopg
 import pytest
 
 from app.portfolio.manager import PortfolioManager
@@ -249,3 +251,57 @@ def test_update_account_cash_balance(portfolio_mgr: PortfolioManager) -> None:
 
     assert updated.cash_balance == 1427.53
     assert updated.initial_cash == 1427.53
+
+
+def test_update_account_cash_balance_preserves_dependent_portfolio_rows(
+    portfolio_mgr: PortfolioManager,
+) -> None:
+    """Updating an account must not cascade-delete its positions or ledger."""
+    account = portfolio_mgr.add_account("Brokerage", "Taxable")
+    position = portfolio_mgr.add_position(account.id, "AAPL", 10.0, 150.0)
+    transactions_before = portfolio_mgr.storage.query(
+        "SELECT id FROM portfolio_transactions WHERE account_id = ?",
+        [account.id],
+    )
+
+    portfolio_mgr.update_account_cash_balance(account.id, cash_balance=2500.0)
+
+    positions_after = portfolio_mgr.storage.query(
+        "SELECT id FROM portfolio_positions WHERE account_id = ?",
+        [account.id],
+    )
+    transactions_after = portfolio_mgr.storage.query(
+        "SELECT id FROM portfolio_transactions WHERE account_id = ?",
+        [account.id],
+    )
+    assert positions_after["id"].to_list() == [position.id]
+    assert transactions_after["id"].to_list() == transactions_before["id"].to_list()
+
+
+def test_failed_position_upsert_keeps_the_existing_row(
+    portfolio_mgr: PortfolioManager,
+) -> None:
+    """A rejected update must roll back rather than delete the prior row."""
+    account = portfolio_mgr.add_account("Brokerage", "Taxable")
+    position = portfolio_mgr.add_position(account.id, "AAPL", 10.0, 150.0)
+    before = portfolio_mgr.storage.query(
+        "SELECT * FROM portfolio_positions WHERE id = ?",
+        [position.id],
+    )
+    invalid_update = before.with_columns(
+        pl.lit(str(uuid4())).alias("account_id"),
+        pl.lit(25.0).alias("shares"),
+    )
+
+    with pytest.raises(psycopg.errors.ForeignKeyViolation):
+        portfolio_mgr.storage.upsert_by_id(
+            "portfolio_positions",
+            invalid_update,
+            "id",
+        )
+
+    after = portfolio_mgr.storage.query(
+        "SELECT * FROM portfolio_positions WHERE id = ?",
+        [position.id],
+    )
+    assert after.to_dicts() == before.to_dicts()

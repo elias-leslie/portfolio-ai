@@ -66,8 +66,20 @@ export default function RootLayout({
         )}
       >
         <Providers>
+          <a
+            href="#main-content"
+            className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-md bg-primary px-4 py-2 font-semibold text-primary-foreground shadow-lg transition-transform focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2 focus:ring-offset-bg"
+          >
+            Skip to main content
+          </a>
           <Navigation />
-          <main className="flex-1 overflow-auto">{children}</main>
+          <main
+            id="main-content"
+            className="flex-1 overflow-auto"
+            tabIndex={-1}
+          >
+            {children}
+          </main>
           <JennyChatWidget />
           <Toaster
             position="top-right"

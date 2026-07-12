@@ -1,6 +1,6 @@
 services:
   portfolio-db:
-    image: postgres:16-alpine@sha256:4e6e670bb069649261c9c18031f0aded7bb249a5b6664ddec29c013a89310d50
+    image: pgvector/pgvector:pg16@sha256:1d533553fefe4f12e5d80c7b80622ba0c382abb5758856f52983d8789179f0fb
     environment:
       POSTGRES_DB: portfolio_ai
       POSTGRES_USER: portfolio
@@ -125,6 +125,9 @@ services:
       FRONTEND_URL: http://portfolio-web:3000
       FRONTEND_EXTRA_ORIGINS: ${FRONTEND_EXTRA_ORIGINS:-http://localhost:${PORTFOLIO_FRONTEND_HOST_PORT:-3000},http://127.0.0.1:${PORTFOLIO_FRONTEND_HOST_PORT:-3000}}
       ARTIFACTS_DIR: /app/data/artifacts
+      HOUSEHOLD_UPLOAD_DIR: /app/data/household_uploads
+      PORTFOLIO_SECRET_KEY: ${PORTFOLIO_SECRET_KEY:-}
+      SEC_USER_AGENT: ${SEC_USER_AGENT:-}
       LOG_DIR: /tmp/portfolio-ai-logs
       CACHE_ENABLED: ${CACHE_ENABLED:-true}
       CACHE_MAX_SIZE: ${CACHE_MAX_SIZE:-1000}
@@ -140,6 +143,7 @@ services:
       - "127.0.0.1:${PORTFOLIO_BACKEND_HOST_PORT:-8000}:8000"
     volumes:
       - portfolio-artifacts:/app/data/artifacts
+      - portfolio-household-uploads:/app/data/household_uploads
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health >/dev/null"]
       interval: 15s
@@ -169,6 +173,9 @@ services:
       FRONTEND_URL: http://portfolio-web:3000
       FRONTEND_EXTRA_ORIGINS: ${FRONTEND_EXTRA_ORIGINS:-http://localhost:${PORTFOLIO_FRONTEND_HOST_PORT:-3000},http://127.0.0.1:${PORTFOLIO_FRONTEND_HOST_PORT:-3000}}
       ARTIFACTS_DIR: /app/data/artifacts
+      HOUSEHOLD_UPLOAD_DIR: /app/data/household_uploads
+      PORTFOLIO_SECRET_KEY: ${PORTFOLIO_SECRET_KEY:-}
+      SEC_USER_AGENT: ${SEC_USER_AGENT:-}
       LOG_DIR: /tmp/portfolio-ai-logs
       CACHE_ENABLED: ${CACHE_ENABLED:-true}
       CACHE_MAX_SIZE: ${CACHE_MAX_SIZE:-1000}
@@ -182,6 +189,8 @@ services:
       SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
     volumes:
       - portfolio-artifacts:/app/data/artifacts
+      - portfolio-household-uploads:/app/data/household_uploads
+    restart: unless-stopped
     init: true
 
   portfolio-web:
@@ -212,3 +221,4 @@ services:
 volumes:
   portfolio-db-data:
   portfolio-artifacts:
+  portfolio-household-uploads:

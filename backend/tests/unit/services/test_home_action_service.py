@@ -113,6 +113,44 @@ def test_get_action_queue_sorts_and_dedupes_actions() -> None:
     assert all("_rank_score" not in action for action in payload["actions"])
 
 
+def test_get_action_queue_keeps_partial_results_when_one_source_fails() -> None:
+    service = object.__new__(HomeActionService)
+    service._portfolio_health_actions = lambda: [
+        {
+            "id": "portfolio-action",
+            "source": "portfolio",
+            "category": "investing",
+            "priority": "high",
+            "title": "Review concentration",
+            "detail": "Largest holding is above the preferred range.",
+            "action_label": "Open holdings",
+            "href": "/portfolio?tab=holdings",
+            "symbol": None,
+            "badge": "Concentration",
+        }
+    ]
+    service._jenny_actions = lambda: []
+
+    def fail_workflow_actions() -> list[dict[str, object]]:
+        raise RuntimeError("workflow store unavailable")
+
+    service._workflow_actions = fail_workflow_actions
+    service._household_actions = lambda: []
+
+    payload = service.get_action_queue()
+
+    titles = [action["title"] for action in payload["actions"]]
+    assert "Review concentration" in titles
+    assert "Action queue is incomplete" in titles
+    degraded = next(
+        action
+        for action in payload["actions"]
+        if action["title"] == "Action queue is incomplete"
+    )
+    assert degraded["href"] == "/status"
+    assert "workflow" in degraded["detail"]
+
+
 def test_get_action_queue_uses_rank_score_before_title_order() -> None:
     service = object.__new__(HomeActionService)
     service._portfolio_health_actions = lambda: [

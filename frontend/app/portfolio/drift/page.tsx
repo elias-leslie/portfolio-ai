@@ -85,9 +85,24 @@ function DriftBar({ row }: DriftBarProps) {
 
 interface DriftRowCardProps {
   row: DriftRow
+  missingTarget: boolean
 }
 
-function DriftRowCard({ row }: DriftRowCardProps) {
+function DriftRowCard({ row, missingTarget }: DriftRowCardProps) {
+  if (missingTarget) {
+    return (
+      <div className="space-y-2 rounded-lg border bg-card/50 p-4">
+        <div className="text-sm font-semibold">{friendly(row.assetClass)}</div>
+        <div className="text-xs text-muted-foreground">
+          No goal set · You currently hold {formatMoney(row.actualValue)} (
+          {formatPct(row.actualPct)} of this allocation).
+        </div>
+        <div className="text-xs font-medium text-amber-700 dark:text-amber-400">
+          Add a target before evaluating drift for this investment type.
+        </div>
+      </div>
+    )
+  }
   const direction = row.driftPct > 0 ? 'over' : 'under'
   const tone = row.outOfBand
     ? 'text-amber-700 dark:text-amber-400'
@@ -161,7 +176,8 @@ function DriftPageContent({ scopeId }: DriftPageContentProps) {
   }
 
   const oobCount = data.rows.filter((r) => r.outOfBand).length
-  const onPlan = oobCount === 0
+  const coverageComplete = data.coverage?.status === 'complete'
+  const onPlan = coverageComplete && oobCount === 0
   const StatusIcon = onPlan ? CheckCircle2 : AlertTriangle
   const statusTone = onPlan
     ? 'text-emerald-600 dark:text-emerald-400'
@@ -183,13 +199,29 @@ function DriftPageContent({ scopeId }: DriftPageContentProps) {
           </p>
         </CardHeader>
         <CardContent className="space-y-2">
+          {!coverageComplete ? (
+            <div
+              role="alert"
+              className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200"
+            >
+              <span className="font-semibold">Partial allocation view.</span>{' '}
+              {data.coverage?.message ??
+                'Household investment coverage has not been verified.'}{' '}
+              The percentages below apply only to the included value, and trade
+              proposals are disabled until it reconciles.
+            </div>
+          ) : null}
           <div
             className={`flex items-center gap-2 text-sm font-medium ${statusTone}`}
           >
             <StatusIcon className="h-4 w-4" />
-            {onPlan
-              ? 'You are on plan — every type of investment is inside its wiggle room.'
-              : `${oobCount} ${oobCount === 1 ? 'type of investment is' : 'types of investment are'} outside their wiggle room.`}
+            {!coverageComplete
+              ? oobCount === 0
+                ? 'Included investment types are inside their wiggle room, but household coverage is incomplete.'
+                : `${oobCount} included ${oobCount === 1 ? 'investment type is' : 'investment types are'} outside their wiggle room.`
+              : onPlan
+                ? 'You are on plan — every type of investment is inside its wiggle room.'
+                : `${oobCount} ${oobCount === 1 ? 'type of investment is' : 'types of investment are'} outside their wiggle room.`}
           </div>
           {data.classesMissingTargets.length > 0 && (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
@@ -204,7 +236,11 @@ function DriftPageContent({ scopeId }: DriftPageContentProps) {
 
       <div className="grid gap-3 md:grid-cols-2">
         {data.rows.map((row) => (
-          <DriftRowCard key={row.assetClass} row={row} />
+          <DriftRowCard
+            key={row.assetClass}
+            row={row}
+            missingTarget={data.classesMissingTargets.includes(row.assetClass)}
+          />
         ))}
       </div>
 
@@ -233,8 +269,8 @@ function DriftPageContent({ scopeId }: DriftPageContentProps) {
 
 export default function DriftPage() {
   // Single-household v1 — scope_id is a literal until household selection
-  // gets wired through the navigation. The household scope already
-  // pre-aggregates every linked account.
+  // gets wired through the navigation. Coverage reconciliation in the API
+  // qualifies any household accounts that are not represented here.
   const [scopeId] = useState<string>('default')
 
   return (
