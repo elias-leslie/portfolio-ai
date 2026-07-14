@@ -627,4 +627,46 @@ describe('MoneyAccountsPanel', () => {
       ),
     ).toBeInTheDocument()
   })
+
+  it('offers authoritative remediation for a stale document-only account', async () => {
+    const user = userEvent.setup()
+    render(
+      <MoneyAccountsPanel
+        accounts={[
+          {
+            ...accounts[0],
+            accountOrigin: 'evidence',
+            valuationSource: 'evidence',
+            linkedPortfolioAccountId: null,
+            balanceFreshnessStatus: 'stale',
+            balanceFreshnessLabel: 'Stale',
+            freshnessStatus: 'stale',
+            freshnessLabel: 'Stale',
+            gapFlags: [
+              {
+                code: 'stale_balance',
+                severity: 'high',
+                title: 'Stale balance',
+                detail: 'The last document value is no longer current.',
+              },
+            ],
+          },
+        ]}
+        documents={documents}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /main checking/i }))
+
+    expect(screen.getByText('Last known document value')).toBeInTheDocument()
+    expect(
+      screen.getByText(/it cannot refresh automatically/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /upload newer evidence/i }),
+    ).toHaveAttribute('href', '#account-evidence-upload-account-1')
+    expect(
+      screen.getByRole('button', { name: /archive closed account/i }),
+    ).toBeInTheDocument()
+  })
 })

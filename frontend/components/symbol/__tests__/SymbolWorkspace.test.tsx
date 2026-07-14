@@ -594,4 +594,56 @@ describe('SymbolWorkspace', () => {
 
     expect(refresh.mutate).toHaveBeenCalledTimes(1)
   })
+
+  it('keeps valid symbol sections visible when one section is unavailable', () => {
+    const currentResult = vi.mocked(useSymbolIntelligence)('VTI')
+    vi.mocked(useSymbolIntelligence).mockReturnValue({
+      ...currentResult,
+      data: {
+        ...currentResult.data!,
+        sectionIssues: [
+          {
+            section: 'portfolio',
+            message: 'Portfolio position context is temporarily unavailable.',
+          },
+        ],
+      },
+    } as never)
+
+    render(<SymbolWorkspace symbol="vti" />)
+
+    expect(
+      screen.getByText(/some symbol intelligence is temporarily unavailable/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /portfolio position context is temporarily unavailable/i,
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText('$122.04')).toBeInTheDocument()
+    expect(screen.getByText(/fresh quote/i)).toBeInTheDocument()
+  })
+
+  it('shows independent workspace context instead of a full-page failure', () => {
+    vi.mocked(useSymbolIntelligence).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isFetching: false,
+      error: new Error('symbol endpoint unavailable'),
+      refetch: vi.fn(),
+    } as never)
+
+    render(<SymbolWorkspace symbol="vti" />)
+
+    expect(
+      screen.getByText(/symbol intelligence is incomplete/i),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/current quote/i)).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Market Context' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/failed to load symbol intelligence/i),
+    ).not.toBeInTheDocument()
+  })
 })

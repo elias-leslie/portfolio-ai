@@ -5,7 +5,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from unittest.mock import Mock
 
-from app.api.symbols.data_fetchers import get_quote_data, get_strategies_data, get_watchlist_data
+from app.api.symbols.data_fetchers import (
+    fetch_all_data,
+    get_quote_data,
+    get_strategies_data,
+    get_watchlist_data,
+)
 from app.portfolio.models import PriceData
 
 
@@ -32,6 +37,50 @@ def test_get_strategies_data_returns_retired_payload_without_query() -> None:
 
     assert result == {"strategies": [], "active_count": 0, "best": None}
     storage.connection.assert_not_called()
+
+
+def test_fetch_all_data_keeps_valid_sections_when_portfolio_fails(monkeypatch) -> None:
+    """A failed source should be explicit without discarding other source data."""
+    monkeypatch.setattr(
+        "app.api.symbols.data_fetchers.get_quote_data",
+        lambda *_args, **_kwargs: {"price": 122.04},
+    )
+    monkeypatch.setattr(
+        "app.api.symbols.data_fetchers.get_watchlist_data",
+        lambda *_args, **_kwargs: {"symbol": "VTI", "signal_type": "BUY"},
+    )
+    monkeypatch.setattr(
+        "app.api.symbols.data_fetchers.get_portfolio_data",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("portfolio store unavailable")
+        ),
+    )
+    monkeypatch.setattr(
+        "app.api.symbols.data_fetchers.get_strategies_data",
+        lambda *_args, **_kwargs: {"strategies": []},
+    )
+    monkeypatch.setattr(
+        "app.api.symbols.data_fetchers.get_news_data",
+        lambda *_args, **_kwargs: {"article_count": 2},
+    )
+    monkeypatch.setattr(
+        "app.api.symbols.data_fetchers.get_market_data",
+        lambda *_args, **_kwargs: {"vix": 18.2},
+    )
+
+    result = fetch_all_data("VTI", Mock(), Mock(), True, True)
+
+    assert result["quote"] == {"price": 122.04}
+    assert result["watchlist"] == {"symbol": "VTI", "signal_type": "BUY"}
+    assert result["portfolio"] == {}
+    assert result["news"] == {"article_count": 2}
+    assert result["market"] == {"vix": 18.2}
+    assert result["section_issues"] == [
+        {
+            "section": "portfolio",
+            "message": "Portfolio position context is temporarily unavailable.",
+        }
+    ]
 
 
 def test_get_quote_data_reads_canonical_price_with_short_ttl(monkeypatch) -> None:

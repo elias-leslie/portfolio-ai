@@ -2,7 +2,6 @@
 
 import { AlertCircle, ArrowRight, ExternalLink, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
-import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { RelativeTime } from '@/components/shared/RelativeTime'
@@ -128,7 +127,9 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
     ? heldPositionSummary.join(' · ') || 'Live position details unavailable.'
     : data?.recommendation?.ifNotHeld?.reasoning
       ? formatIfNotHeldReasoning(data.recommendation.ifNotHeld.reasoning)
-      : 'Jenny does not see a live portfolio position.'
+      : error || data?.error
+        ? 'Position status is temporarily unavailable from symbol intelligence.'
+        : 'Jenny does not see a live portfolio position.'
   const decisionUsesLiveModel =
     currentDecision?.sourceKind === 'live_signal_model'
   const entrySignalAction =
@@ -158,35 +159,20 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
     quote?.session ? formatEnumLabel(quote.session) : null,
     quote?.freshnessLabel ?? null,
   ].filter((part): part is string => Boolean(part))
+  const monolithUnavailable = Boolean(error || data?.error)
+  const sectionIssues = data?.sectionIssues ?? []
+  const unavailableSections = new Set(
+    sectionIssues.map((issue) => issue.section),
+  )
+  const newsUnavailable =
+    !data?.news &&
+    (monolithUnavailable ||
+      unavailableSections.has('news') ||
+      unavailableSections.has('watchlist'))
 
   // Decision + Quote come only from the monolithic call; show per-card
   // skeletons for just those while the standalone-hydrated cards fill.
   const monolithPending = isLoading && !data
-
-  if (error || data?.error) {
-    return (
-      <PageContainer className="space-y-6 py-8">
-        <PageHeader
-          title={uppercaseSymbol}
-          actions={
-            <Button asChild variant="outline">
-              <Link href="/portfolio?tab=symbols">Back to Investing</Link>
-            </Button>
-          }
-        />
-        <SectionCard variant="surface">
-          <LoadErrorState
-            title="Failed to load symbol intelligence."
-            detail="Retry to refresh the symbol score, recommendation, and linked workflow context."
-            onRetry={() => {
-              refreshSymbol.mutate()
-            }}
-            isRetrying={isRefreshingSymbol}
-          />
-        </SectionCard>
-      </PageContainer>
-    )
-  }
 
   return (
     <PageContainer className="space-y-6 py-8">
@@ -217,6 +203,34 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           </>
         }
       />
+
+      {monolithUnavailable ? (
+        <div
+          role="status"
+          className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning"
+        >
+          <p className="font-semibold">Symbol intelligence is incomplete.</p>
+          <p className="mt-1">
+            Scores, quote, or recommendation data could not be refreshed.
+            Independent position and market context are still shown when
+            available.
+          </p>
+        </div>
+      ) : sectionIssues.length > 0 ? (
+        <div
+          role="status"
+          className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning"
+        >
+          <p className="font-semibold">
+            Some symbol intelligence is temporarily unavailable.
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {sectionIssues.map((issue) => (
+              <li key={`${issue.section}-${issue.message}`}>{issue.message}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {jennyError ? (
         <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
@@ -364,7 +378,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           ) : (
             <>
               <p className="font-display italic text-2xl tabular-nums text-text">
-                Not held
+                {monolithUnavailable ? 'Unavailable' : 'Not held'}
               </p>
               <p className="mt-2 text-sm text-text-muted">{positionSummary}</p>
             </>
@@ -483,7 +497,9 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                     data?.news?.headline ??
                     ((data?.news?.articleCount24H ?? 0) > 0
                       ? 'Article volume is available, but recent headlines were not attached to this snapshot.'
-                      : 'Latest headlines and alert signals.')
+                      : newsUnavailable
+                        ? 'News context is temporarily unavailable; existing Jenny alerts remain visible.'
+                        : 'Latest headlines and alert signals.')
                   }
                 >
                   <div className="space-y-3">
@@ -513,13 +529,24 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                         </p>
                       </div>
                     ) : null}
-                    <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">
-                      {formatNewsSentimentSummary(data?.news)}
-                      {' · '}
-                      {data?.news?.articleCount24H ?? 0} article
-                      {data?.news?.articleCount24H === 1 ? '' : 's'} in the last
-                      24h
-                    </div>
+                    {data?.news ? (
+                      <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">
+                        {formatNewsSentimentSummary(data.news)}
+                        {' · '}
+                        {data.news.articleCount24H ?? 0} article
+                        {data.news.articleCount24H === 1 ? '' : 's'} in the last
+                        24h
+                      </div>
+                    ) : newsUnavailable ? (
+                      <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning">
+                        News data is temporarily unavailable. Existing Jenny
+                        alerts are still shown.
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">
+                        No recent news summary is available for this symbol.
+                      </div>
+                    )}
                     {data?.alerts?.length ? (
                       <div className="flex flex-wrap gap-2">
                         {data.alerts.map((alert) => (
@@ -549,7 +576,9 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                       ))
                     ) : (
                       <div className="rounded-2xl border border-border/40 bg-surface/60 p-4 text-sm text-text-muted">
-                        No recent key events attached to this symbol right now.
+                        {newsUnavailable
+                          ? 'Recent key events are temporarily unavailable.'
+                          : 'No recent key events attached to this symbol right now.'}
                       </div>
                     )}
                     {(data?.news?.recentArticles ?? []).length > 0 ? (

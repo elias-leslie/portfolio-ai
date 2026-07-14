@@ -1644,6 +1644,8 @@ class SnapTradeService:
                         "status": 502,
                     },
                 )
+            if self._is_ignorable_position(normalized_payload):
+                continue
             position = self._normalize_position(
                 cast(dict[str, object], normalized_payload)
             )
@@ -2439,6 +2441,31 @@ class SnapTradeService:
                 return cash, currency
         currency, cash = candidates[0]
         return cash, currency or preferred
+
+    @staticmethod
+    def _is_ignorable_position(raw_position: dict[str, object]) -> bool:
+        """Ignore provider placeholders and cash already represented by account totals."""
+        units = _decimal(raw_position.get("units"))
+        if units is None:
+            units = _decimal(raw_position.get("fractional_units"))
+        if units == 0:
+            return True
+        if raw_position.get("cash_equivalent") is True:
+            return True
+
+        instrument = _dict(raw_position.get("instrument"))
+        legacy_symbol = _dict(raw_position.get("symbol"))
+        universal_symbol = _dict(legacy_symbol.get("symbol"))
+        symbol_candidates = (
+            instrument.get("symbol"),
+            universal_symbol.get("symbol"),
+            raw_position.get("symbol"),
+        )
+        return any(
+            (candidate := _string(value)) is not None
+            and candidate.replace("*", "").strip().upper() in _CASH_SYMBOLS
+            for value in symbol_candidates
+        )
 
     def _normalize_position(
         self,

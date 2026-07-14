@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from app.logging_config import get_logger
@@ -19,6 +20,42 @@ logger = get_logger(__name__)
 
 _PILLARS = ["price", "technical", "fundamental", "catalyst", "options_flow"]
 _SYMBOL_QUOTE_MAX_AGE_MINUTES = 1
+
+_SECTION_FAILURE_MESSAGES = {
+    "quote": "Current quote is temporarily unavailable.",
+    "watchlist": "Scores and signal evidence are temporarily unavailable.",
+    "portfolio": "Portfolio position context is temporarily unavailable.",
+    "strategies": "Strategy context is temporarily unavailable.",
+    "news": "News context is temporarily unavailable.",
+    "market": "Market context is temporarily unavailable.",
+}
+
+
+def _fetch_section(
+    *,
+    symbol: str,
+    section: str,
+    fetch: Callable[[], Any],
+    fallback: Any,
+    issues: list[dict[str, str]],
+) -> Any:
+    """Keep independent symbol sources usable when one source fails."""
+    try:
+        return fetch()
+    except Exception as exc:
+        logger.warning(
+            "symbol_data_section_failed",
+            symbol=symbol,
+            section=section,
+            error=str(exc),
+        )
+        issues.append(
+            {
+                "section": section,
+                "message": _SECTION_FAILURE_MESSAGES[section],
+            }
+        )
+        return fallback
 
 
 def get_quote_data(
@@ -123,15 +160,11 @@ def _build_watchlist_result(item: dict[str, Any]) -> dict[str, Any]:
 
 def get_watchlist_data(symbol: str, watchlist_service: WatchlistService) -> dict[str, Any] | None:
     """Fetch watchlist data for symbol using the watchlist service."""
-    try:
-        items = watchlist_service.get_items_with_scores(include_decision=False)
-        for item in items:
-            if item.get("symbol", "").upper() == symbol.upper():
-                return _build_watchlist_result(item)
-        return None
-    except Exception as e:
-        logger.warning("watchlist_data_fetch_failed", symbol=symbol, error=str(e))
-        return None
+    items = watchlist_service.get_items_with_scores(include_decision=False)
+    for item in items:
+        if item.get("symbol", "").upper() == symbol.upper():
+            return _build_watchlist_result(item)
+    return None
 
 
 def get_portfolio_data(symbol: str, storage: PortfolioStorage) -> dict[str, Any]:
@@ -155,23 +188,20 @@ def get_strategies_data(symbol: str, storage: PortfolioStorage) -> dict[str, Any
 
 def get_news_data(symbol: str, storage: PortfolioStorage) -> dict[str, Any]:
     """Fetch news sentiment for symbol."""
-    try:
-        with storage.connection() as conn:
-            result = conn.execute(
-                """
-                SELECT symbol, sentiment_score, article_count, created_at
-                FROM news_summary_log
-                WHERE UPPER(symbol) = UPPER(%s)
-                ORDER BY created_at DESC
-                LIMIT 1
-                """,
-                [symbol],
-            )
-            row = result.fetchone()
-            if row and result.description:
-                return row_to_dict(row, result.description)
-    except Exception as e:
-        logger.warning("news_data_fetch_failed", symbol=symbol, error=str(e))
+    with storage.connection() as conn:
+        result = conn.execute(
+            """
+            SELECT symbol, sentiment_score, article_count, created_at
+            FROM news_summary_log
+            WHERE UPPER(symbol) = UPPER(%s)
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            [symbol],
+        )
+        row = result.fetchone()
+        if row and result.description:
+            return row_to_dict(row, result.description)
     return {}
 
 
@@ -274,14 +304,75 @@ def fetch_all_data(
 ) -> dict[str, Any]:
     """Fetch all data sources for symbol intelligence.
 
-    Returns dict with keys: quote, watchlist, portfolio, strategies, news, market
+    Returns independent section payloads plus structured section issues.
     """
-    quote = get_quote_data(symbol, storage, force_refresh=force_quote_refresh)
+    issues: list[dict[str, str]] = []
+    quote = _fetch_section(
+        symbol=symbol,
+        section="quote",
+        fetch=lambda: get_quote_data(symbol, storage, force_refresh=force_quote_refresh),
+        fallback={},
+        issues=issues,
+    )
+    watchlist = _fetch_section(
+        symbol=symbol,
+        section="watchlist",
+        fetch=lambda: get_watchlist_data(symbol, watchlist_service),
+        fallback=None,
+        issues=issues,
+    )
+    portfolio = _fetch_section(
+        symbol=symbol,
+        section="portfolio",
+        fetch=lambda: get_portfolio_data(symbol, storage),
+        fallback={},
+        issues=issues,
+    )
+    strategies = (
+        _fetch_section(
+            symbol=symbol,
+            section="strategies",
+            fetch=lambda: get_strategies_data(symbol, storage),
+            fallback=None,
+            issues=issues,
+        )
+        if include_strategies
+        else None
+    )
+
+    has_watchlist_news = bool(
+        watchlist
+        and (watchlist.get("news_intelligence") or watchlist.get("recent_news"))
+    )
+    news = (
+        {}
+        if has_watchlist_news
+        else _fetch_section(
+            symbol=symbol,
+            section="news",
+            fetch=lambda: get_news_data(symbol, storage),
+            fallback={},
+            issues=issues,
+        )
+    )
+    market = (
+        _fetch_section(
+            symbol=symbol,
+            section="market",
+            fetch=lambda: get_market_data(storage),
+            fallback={},
+            issues=issues,
+        )
+        if include_market
+        else {}
+    )
+
     return {
         "quote": quote,
-        "watchlist": get_watchlist_data(symbol, watchlist_service),
-        "portfolio": get_portfolio_data(symbol, storage),
-        "strategies": get_strategies_data(symbol, storage) if include_strategies else None,
-        "news": get_news_data(symbol, storage),
-        "market": get_market_data(storage) if include_market else {},
+        "watchlist": watchlist,
+        "portfolio": portfolio,
+        "strategies": strategies,
+        "news": news,
+        "market": market,
+        "section_issues": issues,
     }

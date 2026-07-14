@@ -135,6 +135,11 @@ export interface SymbolAlert {
   category?: string | null
 }
 
+export interface SymbolSectionIssue {
+  section: string
+  message: string
+}
+
 export interface SymbolIntelligence {
   symbol: string
   generatedAt: string
@@ -148,6 +153,7 @@ export interface SymbolIntelligence {
   alerts: SymbolAlert[]
   recommendation?: SymbolRecommendationSection | null
   decision?: SymbolDecisionSection | null
+  sectionIssues?: SymbolSectionIssue[]
   error?: string | null
 }
 

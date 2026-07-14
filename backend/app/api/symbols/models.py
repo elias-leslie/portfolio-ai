@@ -217,6 +217,13 @@ class DecisionSection(BaseModel):
     severity: str | None = None
 
 
+class SymbolSectionIssue(BaseModel):
+    """One unavailable intelligence section in an otherwise usable response."""
+
+    section: str
+    message: str
+
+
 class SymbolIntelligenceResponse(BaseModel):
     """Complete symbol intelligence response."""
 
@@ -236,5 +243,6 @@ class SymbolIntelligenceResponse(BaseModel):
     alerts: list[AlertIndicator] = []
     recommendation: RecommendationSection | None = None
     decision: DecisionSection | None = None
+    section_issues: list[SymbolSectionIssue] = Field(default_factory=list)
 
     error: str | None = None

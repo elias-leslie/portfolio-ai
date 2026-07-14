@@ -70,10 +70,12 @@ async def get_symbol_intelligence(
             True,
             force_quote_refresh,
         )
-    except Exception as e:
+    except Exception:
         logger.exception("symbol_intelligence_failed", symbol=symbol)
         return SymbolIntelligenceResponse(
-            symbol=symbol.upper(), generated_at=datetime.now(UTC), error=str(e)
+            symbol=symbol.upper(),
+            generated_at=datetime.now(UTC),
+            error="Symbol intelligence is temporarily unavailable.",
         )
 
 

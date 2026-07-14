@@ -581,6 +581,7 @@ def test_portfolio_positions_skip_snaptrade_other_instruments() -> None:
         {"results": {}},
         {"results": ["not-a-position"]},
         {"results": [{"instrument": {"symbol": "VTI"}}]},
+        {"results": [{"instrument": {"symbol": "not a ticker"}, "units": "2"}]},
     ],
 )
 def test_malformed_position_snapshot_preserves_current_mirror(response: object) -> None:
@@ -647,6 +648,52 @@ def test_true_empty_position_snapshot_is_authoritative() -> None:
     assert result == (0, 0, set())
     assert any(sql.startswith("DELETE FROM snaptrade_positions") for sql, _ in conn.calls)
     assert any(sql.startswith("DELETE FROM portfolio_positions") for sql, _ in conn.calls)
+
+
+def test_position_snapshot_ignores_cash_and_zero_unit_provider_rows() -> None:
+    conn = _QueuedConnection([_QueuedResult([])])
+    service = object.__new__(SnapTradeService)
+    service.storage = _QueuedStorage(conn)
+    client = SimpleNamespace(
+        account_information=_FakePositionsApi(
+            {
+                "results": [
+                    {
+                        "cash_equivalent": True,
+                        "instrument": {"id": "cash", "kind": "cash", "symbol": "SPAXX"},
+                        "price": "1",
+                        "units": "25",
+                    },
+                    {
+                        "instrument": {"id": "zero", "kind": "etf", "symbol": "VOO"},
+                        "price": "500",
+                        "units": "0",
+                    },
+                    {
+                        "instrument": {"id": "vti", "kind": "etf", "symbol": "VTI"},
+                        "price": "100",
+                        "units": "2",
+                    },
+                ]
+            }
+        )
+    )
+
+    result = service._sync_positions(
+        client=client,
+        user=SnapTradeUser(user_id="user-1", user_secret="secret"),
+        account=_positions_account(),
+    )
+
+    assert result == (1, 1, {"VTI"})
+    position_inserts = [
+        params
+        for sql, params in conn.calls
+        if sql.startswith("INSERT INTO snaptrade_positions")
+    ]
+    assert len(position_inserts) == 1
+    assert position_inserts[0] is not None
+    assert position_inserts[0][4] == "VTI"
 
 
 def test_valid_position_snapshot_advances_freshness_even_without_cash_value() -> None:

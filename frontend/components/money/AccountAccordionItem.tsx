@@ -1,4 +1,4 @@
-import { Pencil, Trash2 } from 'lucide-react'
+import { AlertTriangle, FileUp, Pencil, Trash2 } from 'lucide-react'
 import { InfoBadge } from '@/components/shared/InfoBadge'
 import {
   AccordionContent,
@@ -50,6 +50,10 @@ export function AccountAccordionItem({
   const canArchive = Boolean(
     account.householdAccountId ?? account.trackedAccountId,
   )
+  const needsDocumentRefresh =
+    account.balanceFreshnessStatus === 'stale' &&
+    account.valuationSource === 'evidence' &&
+    !account.linkedPortfolioAccountId
 
   return (
     <AccordionItem
@@ -129,9 +133,11 @@ export function AccountAccordionItem({
                 : '—'}
             </p>
             <p className="mt-1 text-xs text-text-muted">
-              {account.moneyRole === 'spend_driver'
-                ? 'Spending account'
-                : 'Net worth account'}
+              {needsDocumentRefresh
+                ? 'Last known document value'
+                : account.moneyRole === 'spend_driver'
+                  ? 'Spending account'
+                  : 'Net worth account'}
             </p>
           </div>
         </div>
@@ -164,6 +170,51 @@ export function AccountAccordionItem({
                 </Button>
               ) : null}
             </div>
+
+            {needsDocumentRefresh ? (
+              <div
+                role="status"
+                className="rounded-2xl border border-warning/35 bg-warning/10 p-4"
+              >
+                <div className="flex items-start gap-3">
+                  <AlertTriangle
+                    className="mt-0.5 h-5 w-5 shrink-0 text-warning"
+                    aria-hidden
+                  />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-text">
+                      Upload a current source document
+                    </p>
+                    <p className="mt-1 text-sm leading-relaxed text-text-muted">
+                      This is a last-known document value, not a current
+                      connected balance. It cannot refresh automatically. Upload
+                      a newer statement, screenshot, or export for this account.
+                      If the account is closed, archive it so the old value no
+                      longer appears in current household totals.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button asChild type="button" size="sm">
+                        <a href={`#account-evidence-upload-${account.id}`}>
+                          <FileUp className="mr-2 h-4 w-4" aria-hidden />
+                          Upload newer evidence
+                        </a>
+                      </Button>
+                      {canArchive ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onDelete(account)}
+                          disabled={isPendingDelete}
+                        >
+                          Archive closed account
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl border border-border/30 bg-surface-muted/20 p-4">
