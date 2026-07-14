@@ -36,6 +36,15 @@ def mock_llm_response() -> Callable[..., LLMResponse]:
     return _create_response
 
 
+@pytest.fixture(autouse=True)
+def enable_mocked_agent_hub(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep mocked client tests independent of machine-local Agent Hub settings."""
+    monkeypatch.setattr(
+        "app.agents.clients.agent_hub_client.AGENT_HUB_ENABLED",
+        True,
+    )
+
+
 class TestGapAnalysisUseCase:
     """Test Agent Hub clients with gap analysis data patterns."""
 
@@ -95,6 +104,7 @@ Reply with just the severity level."""
 
             assert response.content.strip().upper() in ["LOW", "MEDIUM", "HIGH"]
             mock_generate.assert_called_once()
+
 
 class TestPaperTradingUseCase:
     """Test Agent Hub with paper trading decision data."""
