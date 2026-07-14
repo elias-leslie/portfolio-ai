@@ -37,6 +37,7 @@ def test_build_news_section_from_watchlist_uses_recent_news_fallback() -> None:
                 "articles": [
                     {
                         "headline": "NVIDIA supplier demand stays elevated",
+                        "url": "https://www.reuters.com/technology/nvidia-supplier-demand/",
                         "source": "Reuters",
                         "published_at": "2026-03-10T14:00:00Z",
                     }
@@ -49,6 +50,10 @@ def test_build_news_section_from_watchlist_uses_recent_news_fallback() -> None:
     assert section.article_count_24h == 200
     assert section.headline == "NVIDIA supplier demand stays elevated"
     assert len(section.recent_articles) == 1
+    assert (
+        section.recent_articles[0].url
+        == "https://www.reuters.com/technology/nvidia-supplier-demand/"
+    )
     assert section.recent_articles[0].source == "Reuters"
 
 

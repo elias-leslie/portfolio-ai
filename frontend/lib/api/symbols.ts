@@ -104,6 +104,7 @@ export interface SymbolNewsSection {
   }>
   recentArticles: Array<{
     headline: string
+    url?: string | null
     source?: string | null
     publishedAt?: string | null
   }>

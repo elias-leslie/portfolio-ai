@@ -91,6 +91,7 @@ export interface SnapTradePortalResponse {
 }
 
 export interface SnapTradeSyncResult {
+  status: 'success' | 'partial'
   connectionCount: number
   accountCount: number
   positionCount: number
@@ -98,6 +99,7 @@ export interface SnapTradeSyncResult {
   orderCount: number
   portfolioAccountCount: number
   portfolioPositionCount: number
+  errorCount: number
   errors: Array<Record<string, unknown>>
 }
 

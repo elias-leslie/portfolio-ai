@@ -150,19 +150,23 @@ export function PositionTableRow({
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-1">
           <Button
+            type="button"
             variant="ghost"
             size="sm"
             onClick={() => onEdit(position)}
             className="h-8 w-8 p-0"
+            aria-label={`Edit ${position.symbol} position`}
           >
             <Pencil className="h-3.5 w-3.5" />
           </Button>
           <Button
+            type="button"
             variant="ghost"
             size="sm"
             onClick={() => onDelete(position.id, position.symbol)}
             disabled={isDeleting}
             className="h-8 w-8 p-0"
+            aria-label={`Delete ${position.symbol} position`}
           >
             <Trash2 className="h-3.5 w-3.5 text-loss" />
           </Button>

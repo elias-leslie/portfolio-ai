@@ -294,6 +294,26 @@ def _snaptrade_error_payload(exc: ApiException) -> dict[str, object]:
     }
 
 
+def _snaptrade_integration_error_payload(
+    exc: SnapTradeIntegrationError,
+) -> dict[str, object]:
+    """Normalize an internal provider-data failure for sync results and status."""
+    source = _dict(exc.error_payload)
+    payload: dict[str, object] = {
+        "error_type": _string(source.get("error_type")) or "SNAPTRADE_INTEGRATION_ERROR",
+        "error_code": _string(source.get("error_code")) or "INVALID_PROVIDER_DATA",
+        "error_message": (
+            _string(source.get("error_message"))
+            or _string(source.get("detail"))
+            or str(exc)
+        ),
+        "status": int(_decimal(source.get("status")) or exc.status_code),
+    }
+    if surface := _string(source.get("surface")):
+        payload["surface"] = surface
+    return payload
+
+
 def _connection_portal_kwargs(
     *,
     user: SnapTradeUser,
@@ -477,11 +497,11 @@ class SnapTradeService:
                   AND sc.disabled = FALSE
                 """
             ).fetchall()
-            last_error = conn.execute(
+            user_sync_state = conn.execute(
                 """
-                SELECT last_error
+                SELECT last_error, metadata, updated_at
                 FROM snaptrade_users
-                WHERE status = 'active' AND last_error IS NOT NULL
+                WHERE status = 'active'
                 ORDER BY updated_at DESC
                 LIMIT 1
                 """
@@ -498,6 +518,41 @@ class SnapTradeService:
         client_id_configured = bool(raw_credentials.get("client_id"))
         consumer_key_configured = bool(raw_credentials.get("consumer_key"))
         configured = client_id_configured and consumer_key_configured
+
+        last_error = (
+            str(user_sync_state[0])
+            if user_sync_state and user_sync_state[0]
+            else None
+        )
+        user_metadata = _dict(user_sync_state[1]) if user_sync_state else {}
+        last_sync = _dict(user_metadata.get("last_sync"))
+        last_sync_errors: list[dict[str, object]] = []
+        for raw_error in _list(last_sync.get("errors")):
+            error = _dict(raw_error)
+            if error:
+                last_sync_errors.append(error)
+        last_sync_status = _string(last_sync.get("status"))
+        if last_sync_status not in {"success", "partial", "error"}:
+            if last_error:
+                last_sync_status = "error"
+            elif latest_sync and isinstance(latest_sync[0], datetime):
+                last_sync_status = "success"
+            else:
+                last_sync_status = "never"
+        last_sync_attempt_at = _string(last_sync.get("attempted_at"))
+        if (
+            not last_sync_attempt_at
+            and user_sync_state
+            and isinstance(user_sync_state[2], datetime)
+            and (last_error or (latest_sync and isinstance(latest_sync[0], datetime)))
+        ):
+            last_sync_attempt_at = user_sync_state[2].isoformat()
+        stored_error_count = _decimal(last_sync.get("error_count"))
+        last_sync_error_count = (
+            max(0, int(stored_error_count))
+            if stored_error_count is not None
+            else len(last_sync_errors)
+        )
 
         # Re-value each account to current market price rather than displaying the
         # broker's last-synced total. We anchor on the broker total and apply only
@@ -543,7 +598,11 @@ class SnapTradeService:
             "last_successful_sync_at": latest_sync[0].isoformat()
             if latest_sync and isinstance(latest_sync[0], datetime)
             else None,
-            "last_error": str(last_error[0]) if last_error and last_error[0] else None,
+            "last_error": last_error,
+            "last_sync_status": last_sync_status,
+            "last_sync_attempt_at": last_sync_attempt_at,
+            "last_sync_error_count": last_sync_error_count,
+            "last_sync_errors": last_sync_errors,
             "connections": [
                 {
                     "authorization_id": str(row[0]),
@@ -750,7 +809,9 @@ class SnapTradeService:
         config = self._load_config()
         client = self._client(config)
         user = self._load_user()
+        sync_errors: list[dict[str, object]] = []
         totals: dict[str, object] = {
+            "status": "success",
             "connection_count": 0,
             "account_count": 0,
             "position_count": 0,
@@ -760,7 +821,8 @@ class SnapTradeService:
             "portfolio_position_count": 0,
             "connection_removed_count": 0,
             "account_removed_count": 0,
-            "errors": [],
+            "error_count": 0,
+            "errors": sync_errors,
         }
         symbols: set[str] = set()
         try:
@@ -772,7 +834,11 @@ class SnapTradeService:
             )
         except ApiException as exc:
             payload = _snaptrade_error_payload(exc)
-            self._record_user_error(user.user_id, str(payload["error_message"]))
+            self._record_user_error(
+                user.user_id,
+                str(payload["error_message"]),
+                error_payload={"surface": "connections", **payload},
+            )
             raise SnapTradeIntegrationError(
                 str(payload["error_message"]),
                 status_code=502,
@@ -780,8 +846,15 @@ class SnapTradeService:
             ) from exc
         if not isinstance(connections_payload, list):
             message = "SnapTrade returned an invalid connection snapshot."
-            self._record_user_error(user.user_id, message)
-            raise SnapTradeIntegrationError(message)
+            payload = {
+                "surface": "connections",
+                "error_type": "SNAPTRADE_INTEGRATION_ERROR",
+                "error_code": "INVALID_CONNECTIONS_RESPONSE",
+                "error_message": message,
+                "status": 502,
+            }
+            self._record_user_error(user.user_id, message, error_payload=payload)
+            raise SnapTradeIntegrationError(message, error_payload=payload)
 
         connections = _list(connections_payload)
         authoritative_connection_ids: set[str] = set()
@@ -792,15 +865,15 @@ class SnapTradeService:
             authorization_id = _string(connection.get("id"))
             if not authorization_id:
                 connection_snapshot_complete = False
-                errors = totals["errors"]
-                if isinstance(errors, list):
-                    errors.append(
-                        {
-                            "surface": "connections",
-                            "error_code": "INVALID_CONNECTION_RESPONSE",
-                            "error_message": "SnapTrade returned a connection without an id.",
-                        }
-                    )
+                sync_errors.append(
+                    {
+                        "surface": "connections",
+                        "error_type": "SNAPTRADE_INTEGRATION_ERROR",
+                        "error_code": "INVALID_CONNECTION_RESPONSE",
+                        "error_message": "SnapTrade returned a connection without an id.",
+                        "status": 502,
+                    }
+                )
                 continue
             authoritative_connection_ids.add(authorization_id)
             self._upsert_connection(
@@ -824,21 +897,25 @@ class SnapTradeService:
                 )
             except ApiException as exc:
                 payload = _snaptrade_error_payload(exc)
-                errors = totals["errors"]
-                if isinstance(errors, list):
-                    errors.append({"authorization_id": authorization_id, **payload})
+                sync_errors.append(
+                    {
+                        "authorization_id": authorization_id,
+                        "surface": "accounts",
+                        **payload,
+                    }
+                )
                 continue
             if not isinstance(accounts_payload, list):
-                errors = totals["errors"]
-                if isinstance(errors, list):
-                    errors.append(
-                        {
-                            "authorization_id": authorization_id,
-                            "surface": "accounts",
-                            "error_code": "INVALID_ACCOUNTS_RESPONSE",
-                            "error_message": "SnapTrade returned an invalid account snapshot.",
-                        }
-                    )
+                sync_errors.append(
+                    {
+                        "authorization_id": authorization_id,
+                        "surface": "accounts",
+                        "error_type": "SNAPTRADE_INTEGRATION_ERROR",
+                        "error_code": "INVALID_ACCOUNTS_RESPONSE",
+                        "error_message": "SnapTrade returned an invalid account snapshot.",
+                        "status": 502,
+                    }
+                )
                 continue
             accounts = _list(accounts_payload)
             authoritative_account_ids: set[str] = set()
@@ -848,16 +925,16 @@ class SnapTradeService:
                 account_id = _string(raw_account_dict.get("id"))
                 if not account_id:
                     account_snapshot_complete = False
-                    errors = totals["errors"]
-                    if isinstance(errors, list):
-                        errors.append(
-                            {
-                                "authorization_id": authorization_id,
-                                "surface": "accounts",
-                                "error_code": "INVALID_ACCOUNT_RESPONSE",
-                                "error_message": "SnapTrade returned an account without an id.",
-                            }
-                        )
+                    sync_errors.append(
+                        {
+                            "authorization_id": authorization_id,
+                            "surface": "accounts",
+                            "error_type": "SNAPTRADE_INTEGRATION_ERROR",
+                            "error_code": "INVALID_ACCOUNT_RESPONSE",
+                            "error_message": "SnapTrade returned an account without an id.",
+                            "status": 502,
+                        }
+                    )
                     continue
                 authoritative_account_ids.add(account_id)
                 direct_cash_balance: Decimal | None = None
@@ -877,52 +954,117 @@ class SnapTradeService:
                     )
                 except ApiException as exc:
                     payload = _snaptrade_error_payload(exc)
-                    errors = totals["errors"]
-                    if isinstance(errors, list):
-                        errors.append(
-                            {"account_id": account_id, "surface": "balances", **payload}
-                        )
-                account = self._sync_account(
-                    user=user,
-                    raw_account=raw_account_dict,
-                    authorization_id=authorization_id,
-                    cash_balance=direct_cash_balance,
-                    cash_currency=direct_cash_currency,
-                )
+                    sync_errors.append(
+                        {
+                            "authorization_id": authorization_id,
+                            "account_id": account_id,
+                            "surface": "balances",
+                            **payload,
+                        }
+                    )
+                try:
+                    account = self._sync_account(
+                        user=user,
+                        raw_account=raw_account_dict,
+                        authorization_id=authorization_id,
+                        cash_balance=direct_cash_balance,
+                        cash_currency=direct_cash_currency,
+                    )
+                except (ApiException, SnapTradeIntegrationError) as exc:
+                    payload = (
+                        _snaptrade_error_payload(exc)
+                        if isinstance(exc, ApiException)
+                        else _snaptrade_integration_error_payload(exc)
+                    )
+                    sync_errors.append(
+                        {
+                            "authorization_id": authorization_id,
+                            "account_id": account_id,
+                            "surface": "account",
+                            **payload,
+                        }
+                    )
+                    continue
                 if account is None:
                     account_snapshot_complete = False
                     continue
+
                 totals["account_count"] = int(totals["account_count"]) + 1
-                totals["portfolio_account_count"] = int(totals["portfolio_account_count"]) + 1
+                totals["portfolio_account_count"] = (
+                    int(totals["portfolio_account_count"]) + 1
+                )
                 try:
                     position_count, portfolio_position_count, position_symbols = self._sync_positions(
                         client=client,
                         user=user,
                         account=account,
                     )
+                except (ApiException, SnapTradeIntegrationError) as exc:
+                    payload = (
+                        _snaptrade_error_payload(exc)
+                        if isinstance(exc, ApiException)
+                        else _snaptrade_integration_error_payload(exc)
+                    )
+                    sync_errors.append(
+                        {
+                            "authorization_id": authorization_id,
+                            "account_id": account_id,
+                            "surface": "positions",
+                            **payload,
+                        }
+                    )
+                else:
+                    totals["position_count"] = int(totals["position_count"]) + position_count
+                    totals["portfolio_position_count"] = (
+                        int(totals["portfolio_position_count"]) + portfolio_position_count
+                    )
+                    symbols.update(position_symbols)
+
+                try:
                     activity_count = self._sync_activities(
                         client=client,
                         user=user,
                         account_id=account.account_id,
                     )
+                except (ApiException, SnapTradeIntegrationError) as exc:
+                    payload = (
+                        _snaptrade_error_payload(exc)
+                        if isinstance(exc, ApiException)
+                        else _snaptrade_integration_error_payload(exc)
+                    )
+                    sync_errors.append(
+                        {
+                            "authorization_id": authorization_id,
+                            "account_id": account_id,
+                            "surface": "activities",
+                            **payload,
+                        }
+                    )
+                else:
+                    totals["activity_count"] = int(totals["activity_count"]) + activity_count
+
+                try:
                     order_count = self._sync_orders(
                         client=client,
                         user=user,
                         account_id=account.account_id,
                     )
-                except ApiException as exc:
-                    payload = _snaptrade_error_payload(exc)
-                    errors = totals["errors"]
-                    if isinstance(errors, list):
-                        errors.append({"account_id": account.account_id, **payload})
-                    continue
-                totals["position_count"] = int(totals["position_count"]) + position_count
-                totals["portfolio_position_count"] = (
-                    int(totals["portfolio_position_count"]) + portfolio_position_count
-                )
-                totals["activity_count"] = int(totals["activity_count"]) + activity_count
-                totals["order_count"] = int(totals["order_count"]) + order_count
-                symbols.update(position_symbols)
+                except (ApiException, SnapTradeIntegrationError) as exc:
+                    payload = (
+                        _snaptrade_error_payload(exc)
+                        if isinstance(exc, ApiException)
+                        else _snaptrade_integration_error_payload(exc)
+                    )
+                    sync_errors.append(
+                        {
+                            "authorization_id": authorization_id,
+                            "account_id": account_id,
+                            "surface": "orders",
+                            **payload,
+                        }
+                    )
+                else:
+                    totals["order_count"] = int(totals["order_count"]) + order_count
 
             if account_snapshot_complete:
                 totals["account_removed_count"] = int(
@@ -951,7 +1093,11 @@ class SnapTradeService:
         except Exception as exc:  # pragma: no cover - defensive seam
             logger.warning("snaptrade_ledger_bridge_failed", error=str(exc))
             totals["ledger_bridge"] = {"status": "error", "error": str(exc)}
-        self._record_user_sync(user.user_id, has_errors=bool(totals["errors"]))
+        totals["status"] = "partial" if sync_errors else "success"
+        totals["error_count"] = len(sync_errors)
+        self._record_user_sync(user.user_id, errors=sync_errors)
+        if sync_errors:
+            logger.warning("snaptrade_sync_partial", error_count=len(sync_errors))
         ensure_symbols_in_watchlist(self.storage, sorted(symbols), source="snaptrade")
         return totals
 
@@ -1378,6 +1524,8 @@ class SnapTradeService:
                 cash_balance=None,
             )
             synced_at = _now()
+            # For existing accounts, freshness represents a complete positions
+            # mirror. Preserve it here; _sync_positions advances it after validation.
             conn.execute(
                 """
                 INSERT INTO snaptrade_accounts (
@@ -1402,7 +1550,7 @@ class SnapTradeService:
                     balance = EXCLUDED.balance,
                     currency = EXCLUDED.currency,
                     metadata = EXCLUDED.metadata,
-                    last_synced_at = EXCLUDED.last_synced_at,
+                    last_synced_at = snaptrade_accounts.last_synced_at,
                     is_active = TRUE,
                     removed_at = NULL
                 """,
@@ -1457,27 +1605,59 @@ class SnapTradeService:
             )
         )
         if not isinstance(response, Mapping):
+            message = "SnapTrade returned a malformed positions response."
             raise SnapTradeIntegrationError(
-                "SnapTrade returned a malformed positions response."
+                message,
+                error_payload={
+                    "surface": "positions",
+                    "error_type": "SNAPTRADE_INTEGRATION_ERROR",
+                    "error_code": "INVALID_POSITIONS_RESPONSE",
+                    "error_message": message,
+                    "status": 502,
+                },
             )
         raw_results = response.get("results")
         if not isinstance(raw_results, list):
+            message = "SnapTrade returned a malformed positions snapshot."
             raise SnapTradeIntegrationError(
-                "SnapTrade returned a malformed positions snapshot."
+                message,
+                error_payload={
+                    "surface": "positions",
+                    "error_type": "SNAPTRADE_INTEGRATION_ERROR",
+                    "error_code": "INVALID_POSITIONS_SNAPSHOT",
+                    "error_message": message,
+                    "status": 502,
+                },
             )
         positions: list[SnapTradeNormalizedPosition] = []
         for raw_position in raw_results:
             normalized_payload = _plain(raw_position)
             if not isinstance(normalized_payload, dict):
+                message = "SnapTrade returned a malformed position entry."
                 raise SnapTradeIntegrationError(
-                    "SnapTrade returned a malformed position entry."
+                    message,
+                    error_payload={
+                        "surface": "positions",
+                        "error_type": "SNAPTRADE_INTEGRATION_ERROR",
+                        "error_code": "INVALID_POSITION_ENTRY",
+                        "error_message": message,
+                        "status": 502,
+                    },
                 )
             position = self._normalize_position(
                 cast(dict[str, object], normalized_payload)
             )
             if position is None:
+                message = "SnapTrade returned a position without a valid symbol and quantity."
                 raise SnapTradeIntegrationError(
-                    "SnapTrade returned a position without a valid symbol and quantity."
+                    message,
+                    error_payload={
+                        "surface": "positions",
+                        "error_type": "SNAPTRADE_INTEGRATION_ERROR",
+                        "error_code": "INVALID_POSITION",
+                        "error_message": message,
+                        "status": 502,
+                    },
                 )
             positions.append(position)
         synced_at = _now()
@@ -2116,25 +2296,28 @@ class SnapTradeService:
         synced_at: datetime,
     ) -> None:
         cash_balance = self._source_cash_balance(account, positions)
-        if cash_balance is None:
-            return
-        conn.execute(
-            """
-            UPDATE portfolio_accounts
-            SET cash_balance = %s,
-                updated_at = %s
-            WHERE id = %s
-            """,
-            [float(cash_balance), synced_at, account.portfolio_account_id],
-        )
+        if cash_balance is not None:
+            conn.execute(
+                """
+                UPDATE portfolio_accounts
+                SET cash_balance = %s,
+                    updated_at = %s
+                WHERE id = %s
+                """,
+                [float(cash_balance), synced_at, account.portfolio_account_id],
+            )
         conn.execute(
             """
             UPDATE snaptrade_accounts
-            SET cash_balance = %s,
+            SET cash_balance = COALESCE(%s, cash_balance),
                 last_synced_at = %s
             WHERE account_id = %s
             """,
-            [float(cash_balance), synced_at, account.account_id],
+            [
+                float(cash_balance) if cash_balance is not None else None,
+                synced_at,
+                account.account_id,
+            ],
         )
 
     @staticmethod
@@ -2363,30 +2546,79 @@ class SnapTradeService:
             or _symbol(activity.get("symbol"))
         )
 
-    def _record_user_error(self, user_id: str, message: str) -> None:
+    def _record_user_error(
+        self,
+        user_id: str,
+        message: str,
+        *,
+        error_payload: Mapping[str, object] | None = None,
+    ) -> None:
+        attempted_at = _now()
+        error = dict(error_payload or {})
+        error.setdefault("error_type", "SNAPTRADE_INTEGRATION_ERROR")
+        error.setdefault("error_code", "SYNC_FAILED")
+        error.setdefault("error_message", message)
+        error.setdefault("status", 502)
+        sync_state = {
+            "status": "error",
+            "attempted_at": attempted_at.isoformat(),
+            "error_count": 1,
+            "errors": [error],
+        }
         with self.storage.connection() as conn:
             conn.execute(
                 """
                 UPDATE snaptrade_users
                 SET last_error = %s,
+                    metadata = metadata || %s::jsonb,
                     updated_at = %s
                 WHERE user_id = %s
                 """,
-                [message, _now(), user_id],
+                [message, _json({"last_sync": sync_state}), attempted_at, user_id],
             )
             conn.commit()
 
-    def _record_user_sync(self, user_id: str, *, has_errors: bool) -> None:
+    def _record_user_sync(
+        self,
+        user_id: str,
+        *,
+        errors: Sequence[Mapping[str, object]],
+    ) -> None:
+        attempted_at = _now()
+        sync_errors = [dict(error) for error in errors]
+        has_errors = bool(sync_errors)
+        sync_state = {
+            "status": "partial" if has_errors else "success",
+            "attempted_at": attempted_at.isoformat(),
+            "error_count": len(sync_errors),
+            "errors": sync_errors,
+        }
+        last_error = (
+            f"SnapTrade sync partially completed with {len(sync_errors)} error(s)."
+            if has_errors
+            else None
+        )
         with self.storage.connection() as conn:
             conn.execute(
                 """
                 UPDATE snaptrade_users
-                SET last_successful_sync_at = %s,
-                    last_error = CASE WHEN %s THEN last_error ELSE NULL END,
+                SET last_successful_sync_at = CASE
+                        WHEN %s THEN last_successful_sync_at
+                        ELSE %s
+                    END,
+                    last_error = %s,
+                    metadata = metadata || %s::jsonb,
                     updated_at = %s
                 WHERE user_id = %s
                 """,
-                [_now(), has_errors, _now(), user_id],
+                [
+                    has_errors,
+                    attempted_at,
+                    last_error,
+                    _json({"last_sync": sync_state}),
+                    attempted_at,
+                    user_id,
+                ],
             )
             conn.commit()
 

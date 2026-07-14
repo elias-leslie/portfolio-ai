@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DailyBriefPanel } from '../DailyBriefPanel'
 
@@ -341,6 +342,9 @@ describe('DailyBriefPanel', () => {
       data: {
         quoteFreshnessStatus: 'current',
         householdInvestedTotalValue: 625_000,
+        householdTotalsTrusted: true,
+        accountControlBlockingIssueCount: 0,
+        accountControlSummary: 'Household totals reconcile.',
       },
     })
     useMarketStatusMock.mockReturnValue({
@@ -394,6 +398,90 @@ describe('DailyBriefPanel', () => {
     expect(screen.getByText('10Y-3M')).toBeInTheDocument()
     expect(screen.getByText('+98 bps')).toBeInTheDocument()
     expect(screen.queryByText(/Action Queue/i)).not.toBeInTheDocument()
+  })
+
+  it('marks the invested total for reconciliation when account control blocks totals', () => {
+    useHouseholdDashboardMock.mockReturnValue({
+      data: {
+        generatedAt: '2026-05-28T21:45:00Z',
+        overview: {
+          netWorth: 850_000,
+          netWorthStatus: 'blocked',
+          investedAssets: 620_000,
+          cashReserve: 55_000,
+        },
+        accountControl: {
+          status: 'blocked',
+          summary: 'A material source account is not linked.',
+          blockingIssueCount: 1,
+          issues: [
+            {
+              id: 'unlinked-source',
+              title: 'Unlinked source account',
+              affectsTotals: true,
+            },
+          ],
+        },
+        portfolioContext: { cashReservesMonths: 7.2 },
+        budgetSnapshot: {
+          paceStatus: 'on_track',
+          monthToDateSpend: 4_000,
+          monthToDatePlan: 4_500,
+        },
+      },
+      isLoading: false,
+    })
+
+    render(<DailyBriefPanel />)
+
+    expect(screen.getAllByText('Totals need reconciliation').length).toBe(3)
+  })
+
+  it('uses analytics account control when the household dashboard is unavailable', async () => {
+    const user = userEvent.setup()
+    useHouseholdDashboardMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+    })
+    usePortfolioAnalyticsMock.mockReturnValue({
+      data: {
+        quoteFreshnessStatus: 'current',
+        householdInvestedTotalValue: 625_000,
+        householdTotalsTrusted: false,
+        accountControlBlockingIssueCount: 1,
+        accountControlSummary: 'A material source account is not linked.',
+      },
+      isLoading: false,
+    })
+
+    render(<DailyBriefPanel />)
+
+    const investedTile = screen.getByText('Invested').closest('article')
+    expect(investedTile).not.toBeNull()
+    expect(
+      within(investedTile as HTMLElement).getByText('$625,000'),
+    ).toBeVisible()
+    expect(
+      within(investedTile as HTMLElement).getByText(
+        'Totals need reconciliation',
+      ),
+    ).toBeVisible()
+    expect(
+      within(investedTile as HTMLElement).getByText('Unavailable'),
+    ).toBeVisible()
+    expect(
+      within(investedTile as HTMLElement).queryByText('Current'),
+    ).not.toBeInTheDocument()
+    await user.hover(
+      within(investedTile as HTMLElement).getByRole('button', {
+        name: 'Unavailable: more detail',
+      }),
+    )
+    expect(
+      (
+        await screen.findAllByText('A material source account is not linked.')
+      )[0],
+    ).toBeVisible()
   })
 
   it('uses the market-refreshed invested total on Today', () => {

@@ -97,6 +97,10 @@ class PortfolioResponse(BaseModel):
     household_invested_total_value: float | None = None
     household_cash_reserve: float | None = None
     household_investment_accounts_count: int | None = None
+    household_totals_trusted: bool = False
+    account_control_status: str | None = None
+    account_control_summary: str | None = None
+    account_control_blocking_issue_count: int = 0
     quotes_updated_at: str | None = None
     quote_freshness_status: str | None = None
     quote_freshness_label: str | None = None
@@ -159,6 +163,10 @@ class AnalyticsResponse(BaseModel):
     household_invested_total_value: float | None = None
     household_cash_reserve: float | None = None
     household_investment_accounts_count: int | None = None
+    household_totals_trusted: bool = False
+    account_control_status: str | None = None
+    account_control_summary: str | None = None
+    account_control_blocking_issue_count: int = 0
     quotes_updated_at: str | None = None
     quote_freshness_status: str | None = None
     quote_freshness_label: str | None = None

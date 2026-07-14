@@ -76,6 +76,9 @@ vi.mock('@/components/money/MoneyLedgerPanel', () => ({
 vi.mock('@/components/money/MoneyBudgetPanel', () => ({
   MoneyBudgetPanel: () => <div>Money Budget Panel</div>,
 }))
+vi.mock('@/components/money/MoneyLeversPanel', () => ({
+  MoneyLeversPanel: () => <div>Money Levers Panel</div>,
+}))
 vi.mock('@/components/money/MoneyRetirementPanel', () => ({
   MoneyRetirementPanel: () => <div>Money Retirement Panel</div>,
 }))
@@ -132,7 +135,7 @@ describe('MoneyPage', () => {
     })
   })
 
-  it('offers retry when the household workspace fails to load', async () => {
+  it('keeps independent tabs usable when the household dashboard fails', async () => {
     const user = userEvent.setup()
     const refetch = vi.fn()
     useHouseholdDashboardMock.mockReturnValue({
@@ -147,7 +150,29 @@ describe('MoneyPage', () => {
 
     render(<MoneyPage />)
 
-    await user.click(screen.getByRole('button', { name: 'Retry workspace' }))
+    expect(
+      screen.getByText('Dashboard data is unavailable.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Budget, Levers, and Ledger remain available. Retry to restore the overview, retirement, account, intake, and review data.',
+      ),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: 'Budget' }))
+    expect(screen.getByText('Money Budget Panel')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: 'Levers' }))
+    expect(screen.getByText('Money Levers Panel')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: 'Ledger' }))
+    expect(screen.getByText('Money Ledger Panel')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: 'Retirement' }))
+    expect(
+      screen.getByText('Dashboard data is unavailable.'),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Retry dashboard' }))
 
     expect(refetch).toHaveBeenCalled()
   })

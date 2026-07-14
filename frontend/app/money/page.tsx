@@ -114,31 +114,24 @@ function MoneyPageContent() {
   }
 
   // Only the dashboard-dependent tabs need the dashboard payload. Budget, Levers,
-  // and Ledger fetch their own data, so a slow dashboard query must not blank them —
-  // we render the workspace shell and let each tab resolve its own loading state.
-  if (error && !dashboard) {
-    return (
-      <PageContainer className="space-y-6 py-8">
-        <PageHeader eyebrow="Household Finance" title="Money" />
-        <LoadErrorState
-          title="Failed to load the money workspace."
-          detail="Retry to refresh the dashboard, account cards, and evidence coverage."
-          onRetry={() => {
-            void refetchDashboard()
-          }}
-          isRetrying={isFetchingDashboard}
-          retryLabel="Retry workspace"
-          className="rounded-3xl p-8"
-        />
-      </PageContainer>
+  // and Ledger fetch their own data, so a dashboard failure must not blank them.
+  const dashboardFallback =
+    error && !dashboard ? (
+      <LoadErrorState
+        title="Dashboard data is unavailable."
+        detail="Budget, Levers, and Ledger remain available. Retry to restore the overview, retirement, account, intake, and review data."
+        onRetry={() => {
+          void refetchDashboard()
+        }}
+        isRetrying={isFetchingDashboard}
+        retryLabel="Retry dashboard"
+        className="rounded-3xl p-8"
+      />
+    ) : isLoading ? (
+      <MoneyWorkspaceSkeleton />
+    ) : (
+      <LoadingState />
     )
-  }
-
-  const dashboardFallback = isLoading ? (
-    <MoneyWorkspaceSkeleton />
-  ) : (
-    <LoadingState />
-  )
   const documentItems = documents?.items ?? []
   const openQuestions = dashboard?.questions.filter((q) => !q.answeredAt) ?? []
 
@@ -151,7 +144,9 @@ function MoneyPageContent() {
       }}
       isRetrying={isFetchingDocuments}
     />
-  ) : !dashboard || (!documents && isFetchingDocuments) ? (
+  ) : !dashboard ? (
+    dashboardFallback
+  ) : !documents && isFetchingDocuments ? (
     <LoadingState />
   ) : (
     <HouseholdDocumentCenter
@@ -266,7 +261,7 @@ function MoneyPageContent() {
     {
       value: 'review',
       label: 'Review',
-      content: (
+      content: dashboard ? (
         <div id="money-clarifications" className="space-y-6">
           <SectionCard
             variant="surface"
@@ -288,6 +283,8 @@ function MoneyPageContent() {
             )}
           </SectionCard>
         </div>
+      ) : (
+        dashboardFallback
       ),
     },
   ]

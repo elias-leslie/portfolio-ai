@@ -87,8 +87,33 @@ export function useSyncSnapTrade() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: syncSnapTrade,
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await refreshSnapTrade(queryClient)
+      const issueCount = Math.max(
+        result.errorCount,
+        result.errors.length,
+        result.status === 'partial' ? 1 : 0,
+      )
+      if (result.status === 'partial' || result.errorCount > 0) {
+        const firstError = result.errors[0]
+        const surface =
+          typeof firstError?.surface === 'string'
+            ? firstError.surface.replaceAll('_', ' ')
+            : null
+        const message =
+          typeof firstError?.errorMessage === 'string'
+            ? firstError.errorMessage
+            : null
+        const remainingCount = Math.max(issueCount - 1, 0)
+        const description = message
+          ? `${surface ? `${surface}: ` : ''}${message}${remainingCount > 0 ? ` (+${remainingCount} more)` : ''}`
+          : 'Some brokerage data could not be refreshed.'
+        toast.warning(
+          `SnapTrade sync finished with ${issueCount} issue${issueCount === 1 ? '' : 's'}.`,
+          { description },
+        )
+        return
+      }
       toast.success('SnapTrade sync finished.')
     },
     onError: (error) => {

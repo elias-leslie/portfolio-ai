@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from app.watchlist.models import WatchlistSnapshot
+from app.watchlist.models import ScoreBreakdown, ScoreComponent, WatchlistSnapshot
 
 
 class TestExtendedWatchlistSnapshot:
@@ -115,6 +115,45 @@ class TestExtendedWatchlistSnapshot:
         assert params["narrative_why_bullets"] == {"bullets": ["Overbought"]}
         assert params["entry_price"] == 150.0
         assert params["recommended_style"] == "Value"
+
+    def test_snapshot_preserves_every_score_pillar_for_persistence(self) -> None:
+        """Score explanations must survive model validation before the DB upsert."""
+        component = ScoreComponent(
+            score=72.5,
+            weight=0.2,
+            sub_scores={"quality": 75.0},
+            metadata={"source": "fixture"},
+        )
+        breakdown = ScoreBreakdown(
+            price=component,
+            technical=component,
+            fundamental=component,
+            catalyst=component,
+            options_flow=component,
+            performance_factor=component,
+            overall=72.5,
+        )
+
+        snapshot = WatchlistSnapshot(
+            item_id="test-item-score-payload",
+            fetched_at=datetime.now(UTC),
+            raw_metrics=breakdown.to_snapshot_payload(),
+        )
+
+        expected_keys = {
+            "price",
+            "technical",
+            "fundamental",
+            "catalyst",
+            "options_flow",
+            "performance_factor",
+            "overall",
+        }
+        assert set(snapshot.raw_metrics) == expected_keys
+        persisted = snapshot.to_upsert_params()["raw_metrics"]
+        assert set(persisted) == expected_keys
+        assert persisted["fundamental"]["score"] == 72.5
+        assert persisted["options_flow"]["metadata"] == {"source": "fixture"}
 
     def test_snapshot_with_none_narrative_fields(self) -> None:
         """Verify WatchlistSnapshot handles None for optional narrative fields."""

@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertCircle, ArrowRight, RefreshCw } from 'lucide-react'
+import { AlertCircle, ArrowRight, ExternalLink, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { PageContainer } from '@/components/shared/PageContainer'
@@ -34,6 +34,21 @@ import {
   formatPortfolioWeight,
   formatShareCount,
 } from './symbol-formatters'
+
+function safeArticleUrl(value: string | null | undefined) {
+  if (!value) {
+    return null
+  }
+
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+      ? url.toString()
+      : null
+  } catch {
+    return null
+  }
+}
 
 export function SymbolWorkspace({ symbol }: { symbol: string }) {
   const uppercaseSymbol = symbol.toUpperCase()
@@ -544,29 +559,47 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                         </p>
                         {data?.news?.recentArticles
                           .slice(0, 4)
-                          .map((article, idx) => (
-                            <div
-                              key={`${article.headline}-${article.publishedAt ?? idx}`}
-                              className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
-                            >
-                              <p className="text-sm font-medium text-text">
-                                {article.headline}
-                              </p>
-                              <p className="mt-1 text-xs text-text-muted">
-                                {article.source ?? 'Unknown source'}
-                                {article.publishedAt
-                                  ? ` · ${new Date(
-                                      article.publishedAt,
-                                    ).toLocaleString('en-US', {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      hour: 'numeric',
-                                      minute: '2-digit',
-                                    })}`
-                                  : ''}
-                              </p>
-                            </div>
-                          ))}
+                          .map((article, idx) => {
+                            const articleUrl = safeArticleUrl(article.url)
+                            return (
+                              <div
+                                key={`${article.headline}-${article.publishedAt ?? idx}`}
+                                className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4"
+                              >
+                                {articleUrl ? (
+                                  <a
+                                    href={articleUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-start gap-2 text-sm font-medium text-text underline-offset-4 transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                                  >
+                                    <span>{article.headline}</span>
+                                    <ExternalLink
+                                      className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                                      aria-hidden
+                                    />
+                                  </a>
+                                ) : (
+                                  <p className="text-sm font-medium text-text">
+                                    {article.headline}
+                                  </p>
+                                )}
+                                <p className="mt-1 text-xs text-text-muted">
+                                  {article.source ?? 'Unknown source'}
+                                  {article.publishedAt
+                                    ? ` · ${new Date(
+                                        article.publishedAt,
+                                      ).toLocaleString('en-US', {
+                                        month: 'short',
+                                        day: 'numeric',
+                                        hour: 'numeric',
+                                        minute: '2-digit',
+                                      })}`
+                                    : ''}
+                                </p>
+                              </div>
+                            )
+                          })}
                       </div>
                     ) : (data?.news?.articleCount24H ?? 0) > 0 ? (
                       <div className="rounded-2xl border border-dashed border-border/40 bg-surface/40 p-4 text-sm text-text-muted">

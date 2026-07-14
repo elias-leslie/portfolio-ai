@@ -107,20 +107,28 @@ export function PrimaryTilesGrid({
       : null
   const netWorth = netWorthTrendLatest ?? household?.overview.netWorth ?? null
   const accountControl = household?.accountControl
-  const accountControlBlocksTotals = Boolean(
+  const householdAccountControlBlocksTotals = Boolean(
     accountControl && accountControl.blockingIssueCount > 0,
   )
-  const accountControlStatus =
-    accountControl?.blockingIssueCount && accountControl.blockingIssueCount > 0
-      ? 'blocked'
+  const analyticsAccountControlBlocksTotals = Boolean(
+    analytics?.householdTotalsTrusted === false &&
+      analytics.accountControlBlockingIssueCount > 0,
+  )
+  const accountControlBlocksTotals =
+    householdAccountControlBlocksTotals || analyticsAccountControlBlocksTotals
+  const accountControlSummary = householdAccountControlBlocksTotals
+    ? accountControl?.summary
+    : analyticsAccountControlBlocksTotals
+      ? analytics?.accountControlSummary
       : null
+  const accountControlStatus = accountControlBlocksTotals ? 'blocked' : null
   const netWorthStatus =
     accountControlStatus ??
     netWorthTrend?.status ??
     household?.overview.netWorthStatus ??
     null
   const netWorthDetail = accountControlBlocksTotals
-    ? accountControl?.summary
+    ? accountControlSummary
     : (netWorthTrend?.detail ?? household?.overview.netWorthDetail)
   const accountControlIssueLines =
     accountControl?.issues
@@ -209,12 +217,20 @@ export function PrimaryTilesGrid({
     {
       label: 'Invested',
       value: renderMoneyValue(investedAssets, householdLoading && !household),
-      detail: 'Money currently in investments',
+      detail: accountControlBlocksTotals
+        ? 'Totals need reconciliation'
+        : 'Money currently in investments',
       labelDetail:
         'Retirement and brokerage assets. Cash kept on the side stays out.',
-      badge: investedFreshnessLabel,
-      badgeDetail: investedFreshnessDetail,
-      badgeVariant: qualityBadgeVariant(investedFreshnessStatus),
+      badge: accountControlBlocksTotals
+        ? netWorthBadgeLabel(accountControlStatus)
+        : investedFreshnessLabel,
+      badgeDetail: accountControlBlocksTotals
+        ? accountControlSummary
+        : investedFreshnessDetail,
+      badgeVariant: accountControlBlocksTotals
+        ? netWorthBadgeVariant(accountControlStatus)
+        : qualityBadgeVariant(investedFreshnessStatus),
     },
     {
       label: 'Cash Reserve',
@@ -224,22 +240,19 @@ export function PrimaryTilesGrid({
         : 'Cash available before selling assets',
       labelDetail:
         'Cash you can use now without selling long-term investments.',
-      badge:
-        accountControlBlocksTotals && accountControl
-          ? netWorthBadgeLabel(accountControlStatus)
-          : cashReserveMonths != null
-            ? `${cashReserveMonths.toFixed(1)} mo`
-            : null,
-      badgeDetail:
-        accountControlBlocksTotals && accountControl
-          ? accountControl.summary
-          : cashReserveMonths != null
-            ? `Cash reserve covers about ${cashReserveMonths.toFixed(1)} months of essential spending.`
-            : 'Months of cash runway will appear once essential spending coverage is available.',
-      badgeVariant:
-        accountControlBlocksTotals && accountControl
-          ? netWorthBadgeVariant(accountControlStatus)
-          : 'outline',
+      badge: accountControlBlocksTotals
+        ? netWorthBadgeLabel(accountControlStatus)
+        : cashReserveMonths != null
+          ? `${cashReserveMonths.toFixed(1)} mo`
+          : null,
+      badgeDetail: accountControlBlocksTotals
+        ? accountControlSummary
+        : cashReserveMonths != null
+          ? `Cash reserve covers about ${cashReserveMonths.toFixed(1)} months of essential spending.`
+          : 'Months of cash runway will appear once essential spending coverage is available.',
+      badgeVariant: accountControlBlocksTotals
+        ? netWorthBadgeVariant(accountControlStatus)
+        : 'outline',
     },
     {
       label: 'Spend Pace',

@@ -38,7 +38,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "pypdf>=6.13.3",
     "pypdfium2>=5.6.0",
-    "Pillow>=12.2.0",
+    "Pillow>=12.3.0",
     "rapidocr_onnxruntime>=1.2.3",
     # Utilities
     "cryptography>=48.0.1",

@@ -3,6 +3,7 @@
 import { ExternalLink, Newspaper, Target } from 'lucide-react'
 import Link from 'next/link'
 import { type ReactNode, useMemo } from 'react'
+import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { RelativeTime } from '@/components/shared/RelativeTime'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
@@ -915,12 +916,47 @@ export function InvestingNewsPanel({
   positions: PositionWithValue[]
   isInputLoading?: boolean
 }) {
-  const { data: marketNews } = useNewsIntelligence(undefined, { limit: 24 })
-  const { data: newsHealth } = useNewsHealth(60000)
-  const { data: watchlistNews } = useWatchlistNews({
+  const marketNewsQuery = useNewsIntelligence(undefined, { limit: 24 })
+  const newsHealthQuery = useNewsHealth(60000)
+  const watchlistNewsQuery = useWatchlistNews({
     maxResults: 8,
     enabled: watchlistItems.length > 0,
   })
+  const marketNews = marketNewsQuery.data
+  const newsHealth = newsHealthQuery.data
+  const watchlistNews = watchlistNewsQuery.data
+  const watchlistNewsEnabled = watchlistItems.length > 0
+  const dependenciesLoading =
+    isInputLoading ||
+    (!marketNews && marketNewsQuery.isLoading) ||
+    (!newsHealth && newsHealthQuery.isLoading) ||
+    (watchlistNewsEnabled && !watchlistNews && watchlistNewsQuery.isLoading)
+  const failedDependencies = [
+    marketNewsQuery.error ? 'market news' : null,
+    watchlistNewsEnabled && watchlistNewsQuery.error ? 'watchlist news' : null,
+    newsHealthQuery.error ? 'news source health' : null,
+  ].filter((label): label is string => Boolean(label))
+  const hasFeedError = Boolean(
+    marketNewsQuery.error || (watchlistNewsEnabled && watchlistNewsQuery.error),
+  )
+  const isRetryingFailedDependency = Boolean(
+    (marketNewsQuery.error && marketNewsQuery.isFetching) ||
+      (watchlistNewsEnabled &&
+        watchlistNewsQuery.error &&
+        watchlistNewsQuery.isFetching) ||
+      (newsHealthQuery.error && newsHealthQuery.isFetching),
+  )
+  const retryFailedDependencies = () => {
+    if (marketNewsQuery.error) {
+      void marketNewsQuery.refetch()
+    }
+    if (watchlistNewsEnabled && watchlistNewsQuery.error) {
+      void watchlistNewsQuery.refetch()
+    }
+    if (newsHealthQuery.error) {
+      void newsHealthQuery.refetch()
+    }
+  }
   const heldSymbols = useMemo(
     () => new Set(positions.map((position) => position.symbol.toUpperCase())),
     [positions],
@@ -954,15 +990,34 @@ export function InvestingNewsPanel({
     [groups, marketNews, newsHealth, watchlistItems, watchlistNewsBySymbol],
   )
 
-  if (isInputLoading) {
+  if (dependenciesLoading) {
     return (
       <SectionCard title="News" variant="surface">
         <div
           aria-busy="true"
           className="rounded-2xl border border-border/40 bg-surface-muted/15 px-5 py-8 text-sm text-text-muted"
         >
-          Loading portfolio and watchlist news context.
+          Loading portfolio, watchlist, and news source context.
         </div>
+      </SectionCard>
+    )
+  }
+
+  const dependencyError =
+    failedDependencies.length > 0 ? (
+      <LoadErrorState
+        title="Some investing news data is unavailable."
+        detail={`Could not load ${failedDependencies.join(', ')}. Retry before treating a quiet feed as all clear.`}
+        onRetry={retryFailedDependencies}
+        isRetrying={isRetryingFailedDependency}
+        retryLabel="Retry news data"
+      />
+    ) : null
+
+  if (hasFeedError && groups.length === 0) {
+    return (
+      <SectionCard title="News" variant="surface">
+        {dependencyError}
       </SectionCard>
     )
   }
@@ -971,6 +1026,7 @@ export function InvestingNewsPanel({
     return (
       <SectionCard title="News" variant="surface">
         <div className="space-y-4">
+          {dependencyError}
           <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/15 px-5 py-8 text-sm text-text-muted">
             {audit.reviewedCount === 0
               ? 'No ingested portfolio news reached this panel.'
@@ -984,6 +1040,7 @@ export function InvestingNewsPanel({
 
   return (
     <div className="space-y-4">
+      {dependencyError}
       <div className="grid gap-4 xl:grid-cols-3">
         {groups.map((group) => (
           <HeadlineGroupCard key={group.id} group={group} />

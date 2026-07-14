@@ -71,6 +71,10 @@ export interface PortfolioResponse {
   householdInvestedTotalValue: number | null
   householdCashReserve: number | null
   householdInvestmentAccountsCount: number | null
+  householdTotalsTrusted: boolean
+  accountControlStatus: string | null
+  accountControlSummary: string | null
+  accountControlBlockingIssueCount: number
   quotesUpdatedAt?: string | null
   quoteFreshnessStatus?: string | null
   quoteFreshnessLabel?: string | null
@@ -113,6 +117,10 @@ export interface PortfolioAnalytics {
   householdInvestedTotalValue: number | null
   householdCashReserve: number | null
   householdInvestmentAccountsCount: number | null
+  householdTotalsTrusted: boolean
+  accountControlStatus: string | null
+  accountControlSummary: string | null
+  accountControlBlockingIssueCount: number
   quotesUpdatedAt?: string | null
   quoteFreshnessStatus?: string | null
   quoteFreshnessLabel?: string | null

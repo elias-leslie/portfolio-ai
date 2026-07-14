@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NewsBundle, NewsHealthResponse } from '@/lib/api/news'
 import type { PositionWithValue } from '@/lib/api/portfolio'
@@ -111,6 +112,10 @@ describe('InvestingNewsPanel', () => {
     useWatchlistNewsMock.mockReset()
     useNewsHealthMock.mockReturnValue({
       data: buildNewsHealth(),
+      error: null,
+      isFetching: false,
+      isLoading: false,
+      refetch: vi.fn(),
     })
     useNewsIntelligenceMock.mockReturnValue({
       data: {
@@ -126,12 +131,20 @@ describe('InvestingNewsPanel', () => {
         },
         articles: [],
       } satisfies NewsBundle,
+      error: null,
+      isFetching: false,
+      isLoading: false,
+      refetch: vi.fn(),
     })
     useWatchlistNewsMock.mockReturnValue({
       data: {
         accountId: 'default',
         items: [],
       },
+      error: null,
+      isFetching: false,
+      isLoading: false,
+      refetch: vi.fn(),
     })
   })
 
@@ -336,12 +349,180 @@ describe('InvestingNewsPanel', () => {
     )
 
     expect(
-      screen.getByText('Loading portfolio and watchlist news context.'),
+      screen.getByText(
+        'Loading portfolio, watchlist, and news source context.',
+      ),
     ).toBeInTheDocument()
     expect(
       screen.queryByText('No ingested portfolio news reached this panel.'),
     ).not.toBeInTheDocument()
     expect(screen.queryByText(/Reviewed 0 headlines/)).not.toBeInTheDocument()
+  })
+
+  it('does not show a successful empty state while market news is loading', () => {
+    useNewsIntelligenceMock.mockReturnValue({
+      data: undefined,
+      error: null,
+      isFetching: true,
+      isLoading: true,
+      refetch: vi.fn(),
+    })
+
+    render(<InvestingNewsPanel positions={[]} watchlistItems={[]} />)
+
+    expect(
+      screen.getByText(
+        'Loading portfolio, watchlist, and news source context.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('No ingested portfolio news reached this panel.'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('honors loading state for the enabled watchlist news query', () => {
+    useWatchlistNewsMock.mockReturnValue({
+      data: undefined,
+      error: null,
+      isFetching: true,
+      isLoading: true,
+      refetch: vi.fn(),
+    })
+
+    render(
+      <InvestingNewsPanel
+        positions={[]}
+        watchlistItems={[buildWatchlistItem()]}
+      />,
+    )
+
+    expect(
+      screen.getByText(
+        'Loading portfolio, watchlist, and news source context.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('No ingested portfolio news reached this panel.'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('honors loading state for news source health', () => {
+    useNewsHealthMock.mockReturnValue({
+      data: undefined,
+      error: null,
+      isFetching: true,
+      isLoading: true,
+      refetch: vi.fn(),
+    })
+
+    render(<InvestingNewsPanel positions={[]} watchlistItems={[]} />)
+
+    expect(
+      screen.getByText(
+        'Loading portfolio, watchlist, and news source context.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('No ingested portfolio news reached this panel.'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows a retryable error instead of an empty feed when market news fails', async () => {
+    const user = userEvent.setup()
+    const refetch = vi.fn()
+    useNewsIntelligenceMock.mockReturnValue({
+      data: undefined,
+      error: new Error('market unavailable'),
+      isFetching: false,
+      isLoading: false,
+      refetch,
+    })
+
+    render(<InvestingNewsPanel positions={[]} watchlistItems={[]} />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Could not load market news',
+    )
+    expect(
+      screen.queryByText('No ingested portfolio news reached this panel.'),
+    ).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Retry news data' }))
+
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps available headlines visible while reporting a failed companion query', () => {
+    useWatchlistNewsMock.mockReturnValue({
+      data: undefined,
+      error: new Error('watchlist news unavailable'),
+      isFetching: false,
+      isLoading: false,
+      refetch: vi.fn(),
+    })
+    useNewsIntelligenceMock.mockReturnValue({
+      data: {
+        symbol: '__MARKET__',
+        summary: {
+          score: 0,
+          scoreChange: 0,
+          positiveCount: 0,
+          neutralCount: 1,
+          negativeCount: 0,
+          articleCount: 1,
+          modelBreakdown: {},
+        },
+        articles: [
+          buildArticle({
+            headline: 'Treasury yields retreat after inflation data',
+            summary:
+              'Lower yields improve the discount-rate backdrop for diversified equity holdings.',
+            source: 'Reuters',
+            contentHash: 'market-yields',
+          }),
+        ],
+      } satisfies NewsBundle,
+      error: null,
+      isFetching: false,
+      isLoading: false,
+      refetch: vi.fn(),
+    })
+
+    render(
+      <InvestingNewsPanel
+        positions={[]}
+        watchlistItems={[buildWatchlistItem()]}
+      />,
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Could not load watchlist news',
+    )
+    expect(
+      screen.getByText('Treasury yields retreat after inflation data'),
+    ).toBeInTheDocument()
+  })
+
+  it('reports and retries a news source health failure', async () => {
+    const user = userEvent.setup()
+    const refetch = vi.fn()
+    useNewsHealthMock.mockReturnValue({
+      data: undefined,
+      error: new Error('health unavailable'),
+      isFetching: false,
+      isLoading: false,
+      refetch,
+    })
+
+    render(<InvestingNewsPanel positions={[]} watchlistItems={[]} />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Could not load news source health',
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Retry news data' }))
+
+    expect(refetch).toHaveBeenCalledTimes(1)
   })
 
   it('shows source-disabled state when no decision-useful news is available', () => {

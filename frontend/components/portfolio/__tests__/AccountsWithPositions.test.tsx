@@ -354,7 +354,15 @@ describe('AccountsWithPositions', () => {
 
     expect(screen.getAllByText('1 SnapTrade lot').length).toBeGreaterThan(0)
     expect(screen.getByText('Total holdings')).toBeVisible()
-    await user.click(screen.getByRole('button', { name: /BrokerageTaxable/ }))
+    const accountTrigger = screen.getByRole('button', {
+      name: /BrokerageTaxable/,
+    })
+    expect(accountTrigger.querySelector('button')).toBeNull()
+    expect(
+      screen.getByRole('button', { name: 'Delete Brokerage account' }),
+    ).toBeVisible()
+
+    await user.click(accountTrigger)
     expect(screen.getByRole('button', { name: 'Sort by Symbol' })).toBeVisible()
     expect(
       screen.getByRole('button', { name: 'Sort by Cost / sh' }),
@@ -364,6 +372,12 @@ describe('AccountsWithPositions', () => {
     expect(screen.getByText('broker snapshot')).toBeInTheDocument()
     expect(screen.getAllByText(/\+45\.55%/).length).toBeGreaterThan(0)
     expect(screen.queryByText('Basis review')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Edit VTI position' }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Delete VTI position' }),
+    ).toBeVisible()
   })
 
   it('shows a retryable error state when account data fails', async () => {

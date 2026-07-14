@@ -89,6 +89,10 @@ vi.mock('@/components/portfolio/InvestingNewsPanel', () => ({
   ),
 }))
 
+vi.mock('@/components/portfolio/InvestmentAnalysisPanel', () => ({
+  InvestmentAnalysisPanel: () => <div>Investment Analysis Panel</div>,
+}))
+
 vi.mock('@/lib/hooks/usePortfolio', () => ({
   useAccounts: vi.fn(),
   useAddPosition: vi.fn(),
@@ -351,6 +355,7 @@ describe('PortfolioPage', () => {
     expect(screen.getByRole('tab', { name: 'News' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Symbols' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Holdings' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Analysis' })).toBeInTheDocument()
   })
 
   it('hides symbol filters and search until watchlist data finishes loading', async () => {

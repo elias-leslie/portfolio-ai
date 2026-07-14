@@ -234,6 +234,7 @@ def build_news_section_from_watchlist(watchlist: dict[str, Any]) -> NewsSection 
         recent_articles=[
             NewsArticle(
                 headline=a.get("headline", ""),
+                url=a.get("url"),
                 source=a.get("source"),
                 published_at=a.get("published_at"),
             )

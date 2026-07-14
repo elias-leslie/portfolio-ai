@@ -303,6 +303,7 @@ export function AccountAccordionItem({
                     variant={linkedFreshnessVariant(
                       linkedHouseholdAccount.freshnessStatus,
                     )}
+                    interactive={false}
                   />
                 ) : null}
               </div>
@@ -333,6 +334,7 @@ export function AccountAccordionItem({
                         label={`${basisReviewCount} basis review${basisReviewCount === 1 ? '' : 's'}`}
                         detail="Review lots where basis per share is far below the current quote. This can be valid for very old lots, but it is often a stale or partial broker basis."
                         variant="warning"
+                        interactive={false}
                       />
                     ) : null}
                   </>
@@ -350,6 +352,7 @@ export function AccountAccordionItem({
                       linkedHouseholdAccount?.quoteFreshnessStatus ??
                         (positions.length > 0 ? 'fresh' : undefined),
                     )}
+                    interactive={false}
                   />
                 ) : null}
                 {evidenceLabel ? (
@@ -359,6 +362,7 @@ export function AccountAccordionItem({
                     variant={linkedFreshnessVariant(
                       linkedHouseholdAccount?.balanceFreshnessStatus,
                     )}
+                    interactive={false}
                   />
                 ) : null}
                 {snapTradePositionCount > 0 ? (
@@ -366,6 +370,7 @@ export function AccountAccordionItem({
                     label={`${snapTradePositionCount} SnapTrade lot${snapTradePositionCount === 1 ? '' : 's'}`}
                     detail={snapTradeDetail ?? undefined}
                     variant="success"
+                    interactive={false}
                   />
                 ) : null}
                 {linkedHouseholdAccount?.institutionName ? (
@@ -376,6 +381,7 @@ export function AccountAccordionItem({
           </div>
         </AccordionTrigger>
         <Button
+          type="button"
           variant="ghost"
           size="sm"
           onClick={(e) => {
@@ -384,6 +390,7 @@ export function AccountAccordionItem({
           }}
           disabled={isDeleting}
           className="h-8 w-8 p-0 ml-2"
+          aria-label={`Delete ${displayName} account`}
         >
           <Trash2 className="h-4 w-4 text-loss" />
         </Button>

@@ -9,6 +9,7 @@ import { AccountsWithPositionsContent } from '@/components/portfolio/AccountsWit
 import { AddAccountDialog } from '@/components/portfolio/AddAccountDialog'
 import { AddPositionDialog } from '@/components/portfolio/AddPositionDialog'
 import { InvestingNewsPanel } from '@/components/portfolio/InvestingNewsPanel'
+import { InvestmentAnalysisPanel } from '@/components/portfolio/InvestmentAnalysisPanel'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
 import type { WorkspaceTab } from '@/components/shared/WorkspaceTabs'
@@ -128,6 +129,27 @@ function PortfolioPageContent() {
       badge: totalCount > 0 ? String(totalCount) : undefined,
       content: (
         <div className="space-y-4">
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={handleRefresh}
+              disabled={refreshMutation.isPending}
+              aria-busy={refreshMutation.isPending}
+            >
+              <RefreshCw
+                className={cn(
+                  'mr-2 h-4 w-4',
+                  refreshMutation.isPending && 'animate-spin',
+                )}
+              />
+              Refresh symbols
+            </Button>
+            <Button onClick={() => setAddSymbolOpen(true)}>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Add Symbol
+            </Button>
+          </div>
+
           {watchlistError ? (
             <WatchlistErrorView
               message={watchlistError.message}
@@ -213,35 +235,16 @@ function PortfolioPageContent() {
         />
       ),
     },
+    {
+      value: 'analysis',
+      label: 'Analysis',
+      content: <InvestmentAnalysisPanel />,
+    },
   ]
 
   return (
     <PageContainer className="space-y-6 py-8">
-      <PageHeader
-        title="Investing"
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={handleRefresh}
-              disabled={refreshMutation.isPending}
-              aria-busy={refreshMutation.isPending}
-            >
-              <RefreshCw
-                className={cn(
-                  'mr-2 h-4 w-4',
-                  refreshMutation.isPending && 'animate-spin',
-                )}
-              />
-              Refresh
-            </Button>
-            <Button onClick={() => setAddSymbolOpen(true)}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Add Symbol
-            </Button>
-          </div>
-        }
-      />
+      <PageHeader title="Investing" />
 
       <WorkspaceTabs
         defaultValue="symbols"

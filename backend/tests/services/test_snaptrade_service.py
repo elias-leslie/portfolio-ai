@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
@@ -119,9 +120,9 @@ class _FakePositionsApi:
         return self.response
 
 
-def _positions_account() -> SnapTradeNormalizedAccount:
+def _positions_account(account_id: str = "acct-1") -> SnapTradeNormalizedAccount:
     return SnapTradeNormalizedAccount(
-        account_id="acct-1",
+        account_id=account_id,
         authorization_id="auth-1",
         name="Individual",
         institution_name="Fidelity",
@@ -131,8 +132,8 @@ def _positions_account() -> SnapTradeNormalizedAccount:
         balance=None,
         cash_balance=None,
         currency="USD",
-        household_account_id="household-1",
-        portfolio_account_id="portfolio-1",
+        household_account_id=f"household-{account_id}",
+        portfolio_account_id=f"portfolio-{account_id}",
         metadata={},
     )
 
@@ -598,6 +599,37 @@ def test_malformed_position_snapshot_preserves_current_mirror(response: object) 
     assert conn.calls == []
 
 
+def test_malformed_position_snapshot_does_not_advance_existing_account_freshness() -> None:
+    conn = _RecordingConnection()
+    service = object.__new__(SnapTradeService)
+    service.storage = _RecordingStorage(conn)
+    service._resolve_household_account = lambda **_kwargs: "household-1"
+    service._resolve_portfolio_account = lambda **_kwargs: "portfolio-1"
+    account = service._sync_account(
+        user=SnapTradeUser(user_id="user-1", user_secret="secret"),
+        raw_account={"id": "acct-1", "name": "Individual"},
+        authorization_id="auth-1",
+    )
+    assert account is not None
+    account_upsert_sql, _account_params = conn.calls[0]
+    assert "last_synced_at = snaptrade_accounts.last_synced_at" in account_upsert_sql
+    calls_before_position_validation = list(conn.calls)
+    client = SimpleNamespace(
+        account_information=_FakePositionsApi(
+            {"results": [{"instrument": {"symbol": "VTI"}}]}
+        )
+    )
+
+    with pytest.raises(SnapTradeIntegrationError, match="valid symbol"):
+        service._sync_positions(
+            client=client,
+            user=SnapTradeUser(user_id="user-1", user_secret="secret"),
+            account=account,
+        )
+
+    assert conn.calls == calls_before_position_validation
+
+
 def test_true_empty_position_snapshot_is_authoritative() -> None:
     conn = _QueuedConnection([_QueuedResult([])])
     service = object.__new__(SnapTradeService)
@@ -615,6 +647,26 @@ def test_true_empty_position_snapshot_is_authoritative() -> None:
     assert result == (0, 0, set())
     assert any(sql.startswith("DELETE FROM snaptrade_positions") for sql, _ in conn.calls)
     assert any(sql.startswith("DELETE FROM portfolio_positions") for sql, _ in conn.calls)
+
+
+def test_valid_position_snapshot_advances_freshness_even_without_cash_value() -> None:
+    conn = _RecordingConnection()
+    service = object.__new__(SnapTradeService)
+    synced_at = datetime(2026, 7, 14, 15, 0, tzinfo=UTC)
+
+    service._update_portfolio_account_cash_balance(
+        conn=conn,
+        account=_positions_account(),
+        positions=[],
+        synced_at=synced_at,
+    )
+
+    assert len(conn.calls) == 1
+    sql, params = conn.calls[0]
+    assert "UPDATE snaptrade_accounts" in sql
+    assert "cash_balance = COALESCE(%s, cash_balance)" in sql
+    assert "last_synced_at = %s" in sql
+    assert params == [None, synced_at, "acct-1"]
 
 
 def test_cash_balance_update_persists_to_source_and_portfolio_accounts() -> None:
@@ -919,3 +971,243 @@ def test_connection_provider_error_never_reconciles_lifecycle(monkeypatch) -> No
         service.sync()
 
     assert lifecycle_calls == []
+
+
+def test_account_validation_failure_is_partial_and_does_not_abort_later_accounts(
+    monkeypatch,
+) -> None:
+    _stub_sync_tail(monkeypatch)
+    client = SimpleNamespace(
+        connections=_SyncConnectionsApi(
+            connections=[{"id": "auth-1", "disabled": False}],
+            accounts=[{"id": "acct-bad"}, {"id": "acct-good"}],
+        ),
+        account_information=SimpleNamespace(
+            get_user_account_balance=lambda **_kwargs: []
+        ),
+    )
+    service = _sync_test_service(client)
+    position_calls: list[str] = []
+    activity_calls: list[str] = []
+    order_calls: list[str] = []
+    recorded_syncs: list[tuple[str, list[dict[str, object]]]] = []
+    account_reconciliations: list[tuple[str, set[str]]] = []
+
+    service._sync_account = (  # type: ignore[method-assign]
+        lambda **kwargs: _positions_account(str(kwargs["raw_account"]["id"]))
+    )
+
+    def sync_positions(**kwargs: object) -> tuple[int, int, set[str]]:
+        account = kwargs["account"]
+        assert isinstance(account, SnapTradeNormalizedAccount)
+        position_calls.append(account.account_id)
+        if account.account_id == "acct-bad":
+            raise SnapTradeIntegrationError(
+                "SnapTrade returned a position without a valid symbol and quantity.",
+                error_payload={
+                    "surface": "positions",
+                    "error_code": "INVALID_POSITION",
+                    "error_message": (
+                        "SnapTrade returned a position without a valid symbol and quantity."
+                    ),
+                },
+            )
+        return 1, 1, {"VTI"}
+
+    service._sync_positions = sync_positions  # type: ignore[method-assign]
+    service._sync_activities = (  # type: ignore[method-assign]
+        lambda **kwargs: activity_calls.append(str(kwargs["account_id"])) or 2
+    )
+    service._sync_orders = (  # type: ignore[method-assign]
+        lambda **kwargs: order_calls.append(str(kwargs["account_id"])) or 3
+    )
+    service._reconcile_snaptrade_accounts_for_connection = (  # type: ignore[method-assign]
+        lambda *, authorization_id, authoritative_account_ids: account_reconciliations.append(
+            (authorization_id, authoritative_account_ids)
+        )
+        or 0
+    )
+    service._reconcile_snaptrade_connections = (  # type: ignore[method-assign]
+        lambda **_kwargs: (0, 0)
+    )
+    service._record_user_sync = (  # type: ignore[method-assign]
+        lambda user_id, *, errors: recorded_syncs.append(
+            (user_id, [dict(error) for error in errors])
+        )
+    )
+
+    result = service.sync()
+
+    assert result["status"] == "partial"
+    assert result["error_count"] == 1
+    assert result["position_count"] == 1
+    assert result["activity_count"] == 4
+    assert result["order_count"] == 6
+    assert position_calls == ["acct-bad", "acct-good"]
+    assert activity_calls == ["acct-bad", "acct-good"]
+    assert order_calls == ["acct-bad", "acct-good"]
+    assert account_reconciliations == [
+        ("auth-1", {"acct-bad", "acct-good"})
+    ]
+    assert recorded_syncs[0][0] == "user-1"
+    errors = recorded_syncs[0][1]
+    assert errors == result["errors"]
+    assert errors[0]["authorization_id"] == "auth-1"
+    assert errors[0]["account_id"] == "acct-bad"
+    assert errors[0]["surface"] == "positions"
+    assert errors[0]["error_code"] == "INVALID_POSITION"
+
+
+def test_activity_failure_keeps_position_counts_and_still_attempts_orders(
+    monkeypatch,
+) -> None:
+    _stub_sync_tail(monkeypatch)
+    client = SimpleNamespace(
+        connections=_SyncConnectionsApi(
+            connections=[{"id": "auth-1", "disabled": False}],
+            accounts=[{"id": "acct-1"}],
+        ),
+        account_information=SimpleNamespace(
+            get_user_account_balance=lambda **_kwargs: []
+        ),
+    )
+    service = _sync_test_service(client)
+    activity_calls: list[str] = []
+    order_calls: list[str] = []
+    service._sync_account = (  # type: ignore[method-assign]
+        lambda **_kwargs: _positions_account()
+    )
+    service._sync_positions = (  # type: ignore[method-assign]
+        lambda **_kwargs: (2, 1, {"VTI"})
+    )
+
+    def fail_activities(**kwargs: object) -> int:
+        activity_calls.append(str(kwargs["account_id"]))
+        raise snaptrade_service.ApiException(status=503, reason="activities unavailable")
+
+    service._sync_activities = fail_activities  # type: ignore[method-assign]
+    service._sync_orders = (  # type: ignore[method-assign]
+        lambda **kwargs: order_calls.append(str(kwargs["account_id"])) or 4
+    )
+    service._reconcile_snaptrade_accounts_for_connection = (  # type: ignore[method-assign]
+        lambda **_kwargs: 0
+    )
+    service._reconcile_snaptrade_connections = (  # type: ignore[method-assign]
+        lambda **_kwargs: (0, 0)
+    )
+
+    result = service.sync()
+
+    assert result["status"] == "partial"
+    assert result["error_count"] == 1
+    assert result["position_count"] == 2
+    assert result["portfolio_position_count"] == 1
+    assert result["activity_count"] == 0
+    assert result["order_count"] == 4
+    assert activity_calls == ["acct-1"]
+    assert order_calls == ["acct-1"]
+    errors = result["errors"]
+    assert isinstance(errors, list)
+    error = errors[0]
+    assert isinstance(error, dict)
+    assert error["surface"] == "activities"
+    assert error["error_code"] == "503"
+
+
+def test_record_user_sync_persists_partial_state_without_advancing_success() -> None:
+    partial_conn = _RecordingConnection()
+    service = object.__new__(SnapTradeService)
+    service.storage = _RecordingStorage(partial_conn)
+    errors = [
+        {
+            "account_id": "acct-bad",
+            "surface": "positions",
+            "error_code": "INVALID_POSITION",
+            "error_message": "Invalid position snapshot.",
+        }
+    ]
+
+    service._record_user_sync("user-1", errors=errors)
+
+    partial_sql, partial_params = partial_conn.calls[0]
+    assert "WHEN %s THEN last_successful_sync_at" in partial_sql
+    assert partial_params is not None
+    assert partial_params[0] is True
+    assert partial_params[2] == "SnapTrade sync partially completed with 1 error(s)."
+    partial_state = json.loads(str(partial_params[3]))["last_sync"]
+    assert partial_state["status"] == "partial"
+    assert partial_state["error_count"] == 1
+    assert partial_state["errors"] == errors
+
+    success_conn = _RecordingConnection()
+    service.storage = _RecordingStorage(success_conn)
+    service._record_user_sync("user-1", errors=[])
+
+    _success_sql, success_params = success_conn.calls[0]
+    assert success_params is not None
+    assert success_params[0] is False
+    assert isinstance(success_params[1], datetime)
+    assert success_params[2] is None
+    success_state = json.loads(str(success_params[3]))["last_sync"]
+    assert success_state == {
+        "status": "success",
+        "attempted_at": success_params[1].isoformat(),
+        "error_count": 0,
+        "errors": [],
+    }
+
+
+def test_status_exposes_structured_partial_sync_state() -> None:
+    attempted_at = datetime(2026, 7, 14, 14, 30, tzinfo=UTC)
+    prior_success = datetime(2026, 7, 12, 10, 0, tzinfo=UTC)
+    last_error = "SnapTrade sync partially completed with 1 error(s)."
+    sync_error = {
+        "account_id": "acct-bad",
+        "surface": "positions",
+        "error_code": "INVALID_POSITION",
+        "error_message": "Invalid position snapshot.",
+    }
+    conn = _QueuedConnection(
+        [
+            _QueuedResult([]),
+            _QueuedResult([[1]]),
+            _QueuedResult([[0]]),
+            _QueuedResult([[0]]),
+            _QueuedResult([[0]]),
+            _QueuedResult([[0]]),
+            _QueuedResult([[0]]),
+            _QueuedResult([[0]]),
+            _QueuedResult([[prior_success]]),
+            _QueuedResult([]),
+            _QueuedResult([]),
+            _QueuedResult([]),
+            _QueuedResult(
+                [
+                    [
+                        last_error,
+                        {
+                            "last_sync": {
+                                "status": "partial",
+                                "attempted_at": attempted_at.isoformat(),
+                                "error_count": 1,
+                                "errors": [sync_error],
+                            }
+                        },
+                        attempted_at,
+                    ]
+                ]
+            ),
+        ]
+    )
+    service = object.__new__(SnapTradeService)
+    service.storage = _QueuedStorage(conn)
+    service.cipher = SimpleNamespace(available=True)
+
+    result = service.get_status()
+
+    assert result["last_successful_sync_at"] == prior_success.isoformat()
+    assert result["last_error"] == last_error
+    assert result["last_sync_status"] == "partial"
+    assert result["last_sync_attempt_at"] == attempted_at.isoformat()
+    assert result["last_sync_error_count"] == 1
+    assert result["last_sync_errors"] == [sync_error]

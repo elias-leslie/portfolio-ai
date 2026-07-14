@@ -87,6 +87,7 @@ class NewsArticle(BaseModel):
     """Recent news article."""
 
     headline: str
+    url: str | None = None
     source: str | None = None
     published_at: str | None = None
 

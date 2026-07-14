@@ -49,23 +49,6 @@ class NarrativeBulletsDict(TypedDict):
     bullets: list[str]
 
 
-class RawMetricsDict(TypedDict, total=False):
-    """Raw technical metrics dictionary (indicators and calculations)."""
-
-    rsi_14: float
-    macd: float
-    sma_5: float
-    sma_20: float
-    sma_50: float
-    sma_200: float
-    ema_20: float
-    vwap: float
-    price: float | ScoreComponentDict
-    technical: ScoreComponentDict
-    volume: float
-    volume_avg_20: float
-
-
 class RecentNewsDict(TypedDict, total=False):
     """Recent news headlines dictionary structure."""
 
@@ -398,7 +381,11 @@ class WatchlistSnapshot(BaseModel):
     competitor_score: float | None = None
     overall_score: float | None = None
     is_stale: bool = False
-    raw_metrics: RawMetricsDict | dict[str, Any] = Field(default_factory=dict)
+    # This JSON payload intentionally stays open-ended. It contains every active
+    # score pillar today and may gain new pillars without a schema migration.
+    # A TypedDict union here caused Pydantic to select the narrow branch and
+    # silently discard fundamental/catalyst/options/performance explanations.
+    raw_metrics: dict[str, Any] = Field(default_factory=dict)
 
     # Narrative intelligence fields
     signal_type: str | None = None

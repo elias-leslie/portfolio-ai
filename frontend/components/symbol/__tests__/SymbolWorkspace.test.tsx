@@ -96,8 +96,15 @@ describe('SymbolWorkspace', () => {
           recentArticles: [
             {
               headline: 'ETF flows remain constructive',
+              url: 'https://www.reuters.com/markets/etf-flows/',
               source: 'Reuters',
               publishedAt: '2026-03-10T14:00:00Z',
+            },
+            {
+              headline: 'Unsafe source URL is not linked',
+              url: 'javascript:alert(1)',
+              source: 'Unknown',
+              publishedAt: '2026-03-10T13:00:00Z',
             },
           ],
         },
@@ -230,10 +237,24 @@ describe('SymbolWorkspace', () => {
 
     await user.click(screen.getByRole('tab', { name: 'Track' }))
 
-    expect(screen.getByText(/recent articles/i)).toBeInTheDocument()
+    expect(
+      screen.getByText('Recent articles', { selector: 'p' }),
+    ).toBeInTheDocument()
     expect(
       screen.getByText(/etf flows remain constructive/i),
     ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /etf flows remain constructive/i }),
+    ).toHaveAttribute('href', 'https://www.reuters.com/markets/etf-flows/')
+    expect(
+      screen.getByRole('link', { name: /etf flows remain constructive/i }),
+    ).toHaveAttribute('target', '_blank')
+    expect(
+      screen.getByRole('link', { name: /etf flows remain constructive/i }),
+    ).toHaveAttribute('rel', 'noopener noreferrer')
+    expect(
+      screen.getByText('Unsafe source URL is not linked').closest('a'),
+    ).toBeNull()
     expect(
       screen.getByText(
         /constructive · score 0.7 · 4 articles in the last 24h/i,
