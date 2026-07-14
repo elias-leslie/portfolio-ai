@@ -196,6 +196,7 @@ class TestEarningsCaching:
         cm = ConnectionManager()
         with cm.connection() as conn:
             db_conn = cast(DatabaseConnection, conn)
+            ensure_symbol_exists(db_conn, "NVDA")
             # First call should fetch from API and cache
             result = fetch_earnings_date_cached(db_conn, "NVDA")
 
@@ -224,6 +225,7 @@ class TestEarningsCaching:
         cm = ConnectionManager()
         with cm.connection() as conn:
             db_conn = cast(DatabaseConnection, conn)
+            ensure_symbol_exists(db_conn, "META")
             # First call - fetches from API
             result1 = fetch_earnings_date_cached(db_conn, "META")
             assert result1 is not None
@@ -246,6 +248,7 @@ class TestEarningsCaching:
         cm = ConnectionManager()
         with cm.connection() as conn:
             db_conn = cast(DatabaseConnection, conn)
+            ensure_symbol_exists(db_conn, "NVDA")
             # First call - caches data
             result1 = fetch_earnings_date_cached(db_conn, "NVDA")
             assert result1 is not None
