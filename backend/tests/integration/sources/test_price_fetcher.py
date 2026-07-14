@@ -16,6 +16,7 @@ import pytest
 
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.storage import PortfolioStorage
+from app.utils.db_helpers import ensure_symbol_exists
 
 
 @pytest.fixture
@@ -40,6 +41,7 @@ def storage() -> Generator[PortfolioStorage]:
     )
     storage_inst.query_mgr = QueryManager(storage_inst.connection_mgr)
     storage_inst.schema_mgr.ensure_schema()
+    ensure_symbol_exists(storage_inst, "AAPL")
 
     yield storage_inst
 

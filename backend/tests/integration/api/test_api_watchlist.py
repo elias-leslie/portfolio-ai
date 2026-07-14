@@ -40,6 +40,7 @@ def test_storage() -> Iterator[PortfolioStorage]:
             "TSLA",
             "MSFT",
             "GOOGL",
+            "NVDA",
             "INVALID",
             "ZZTEST123",
             "ZZTEST999",

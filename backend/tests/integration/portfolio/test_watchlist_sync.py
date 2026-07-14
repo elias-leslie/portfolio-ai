@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from app.portfolio.manager import PortfolioManager
 from app.storage import get_storage
+from app.utils.db_helpers import ensure_symbol_exists
 
 
 def test_portfolio_ticker_auto_added_to_empty_watchlist() -> None:
@@ -37,6 +38,7 @@ def test_existing_manual_watchlist_ticker_not_modified() -> None:
     # Clear watchlist and add a manual ticker
     with storage.connection() as conn:
         conn.execute("DELETE FROM watchlist_items")
+        ensure_symbol_exists(conn, "AAPL")
         conn.execute(
             """
             INSERT INTO watchlist_items (id, symbol, source, note, created_at, updated_at)
@@ -138,6 +140,7 @@ def test_empty_tickers_list_no_changes() -> None:
     # Clear watchlist and add a ticker
     with storage.connection() as conn:
         conn.execute("DELETE FROM watchlist_items")
+        ensure_symbol_exists(conn, "AAPL")
         conn.execute(
             """
             INSERT INTO watchlist_items (id, symbol, source, created_at, updated_at)

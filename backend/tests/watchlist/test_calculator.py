@@ -7,6 +7,7 @@ from typing import cast
 
 from app.storage.connection import ConnectionManager
 from app.storage.types import DatabaseConnection
+from app.utils.db_helpers import ensure_symbol_exists
 from app.watchlist.calculator import (
     calculate_entry_price,
     calculate_position_size,
@@ -24,6 +25,7 @@ def test_get_swing_low_returns_lowest_close_in_10_days() -> None:
     with cm.connection() as conn:
         # Setup: Insert 15 days of data with known lowest point
         symbol = "NVDA"
+        ensure_symbol_exists(conn, symbol)
         today = date.today()
 
         # Create price data with lowest close in last 10 records (192.0 at day 5)
@@ -76,6 +78,7 @@ def test_get_swing_low_returns_none_for_insufficient_data() -> None:
 
     with cm.connection() as conn:
         symbol = "TSLA"
+        ensure_symbol_exists(conn, symbol)
         today = date.today()
 
         # Insert only 5 days of data
@@ -102,6 +105,7 @@ def test_get_swing_high_returns_highest_close_in_30_days() -> None:
 
     with cm.connection() as conn:
         symbol = "AAPL"
+        ensure_symbol_exists(conn, symbol)
         today = date.today()
 
         # Create 35 days of data with highest close on day 15 (30 days ago)
@@ -147,6 +151,7 @@ def test_get_swing_high_returns_none_for_insufficient_data() -> None:
 
     with cm.connection() as conn:
         symbol = "GOOGL"
+        ensure_symbol_exists(conn, symbol)
         today = date.today()
 
         # Insert only 20 days of data
@@ -220,6 +225,7 @@ class TestCalculateStopLoss:
         with cm.connection() as conn:
             # Setup: Create technical indicators with ATR
             symbol = "NVDA"
+            ensure_symbol_exists(conn, symbol)
             today = date.today()
 
             conn.execute(
@@ -241,6 +247,7 @@ class TestCalculateStopLoss:
         cm = ConnectionManager()
         with cm.connection() as conn:
             symbol = "AAPL"
+            ensure_symbol_exists(conn, symbol)
             today = date.today()
 
             # ATR-based stop: 150 - (2 x 3) = 144
@@ -288,6 +295,7 @@ class TestCalculateProfitTarget:
         cm = ConnectionManager()
         with cm.connection() as conn:
             symbol = "META"
+            ensure_symbol_exists(conn, symbol)
             today = date.today()
 
             conn.execute(
@@ -309,6 +317,7 @@ class TestCalculateProfitTarget:
         cm = ConnectionManager()
         with cm.connection() as conn:
             symbol = "GOOGL"
+            ensure_symbol_exists(conn, symbol)
             today = date.today()
 
             # ATR-based target: 160 + (2 x 4) = 168
