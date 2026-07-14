@@ -305,6 +305,14 @@ def test_watchlist_snapshot_history_and_upsert(
     with schema_mgr.connection_mgr.connection() as conn:
         conn.execute(
             """
+            INSERT INTO symbols (symbol, company_name)
+            VALUES (?, ?)
+            ON CONFLICT (symbol) DO NOTHING
+            """,
+            ["AAPL", "Apple Inc."],
+        )
+        conn.execute(
+            """
             INSERT INTO watchlist_items (id, symbol, metadata)
             VALUES (?, ?, ?)
             """,
