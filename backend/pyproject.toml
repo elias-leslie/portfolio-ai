@@ -54,7 +54,7 @@ dependencies = [
     "vaderSentiment>=3.3.2",
     "snaptrade-python-sdk>=11.0.195",
     # MCP server (stdio transport for Claude Code / Codex CLI tie-in)
-    "mcp>=1.0.0",
+    "mcp>=1.28.1",
     "openpyxl>=3.1.5",
     "httpx2>=2.5.0",
     "edgartools>=5.40.1",
