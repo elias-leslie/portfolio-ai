@@ -28,10 +28,12 @@ export function WorkspaceTabs({
 }) {
   const idBase = useId().replace(/:/g, '')
   const fallbackValue = defaultValue ?? tabs[0]?.value ?? ''
-  const resolveValue = (requestedValue: string | null) =>
-    tabs.some((tab) => tab.value === requestedValue) && requestedValue
-      ? requestedValue
+  const resolveValue = (requestedValue: string | null) => {
+    const target = requestedValue === 'review' ? 'intake' : requestedValue
+    return tabs.some((tab) => tab.value === target) && target
+      ? target
       : fallbackValue
+  }
   const readRequestedValue = () => {
     if (typeof window === 'undefined') {
       return null

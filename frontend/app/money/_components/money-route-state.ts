@@ -65,9 +65,14 @@ function resolveRequestedIntent(value: string | null): MoneyIntent | null {
 export function resolveMoneyRouteState(
   searchParams: URLSearchParams,
 ): MoneyRouteState {
+  const tab = searchParams.get('tab')
+  const focus = searchParams.get('focus')
+  const focusedReview =
+    resolveRequestedFocus(focus) ?? (tab === 'review' ? 'clarifications' : null)
+
   return {
     openUtility: resolveRequestedUtility(searchParams.get('utility')),
-    focusedReview: resolveRequestedFocus(searchParams.get('focus')),
+    focusedReview,
     selectedAccountId: searchParams.get('account'),
     selectedQuestionId: searchParams.get('question'),
     selectedIntent: resolveRequestedIntent(searchParams.get('intent')),

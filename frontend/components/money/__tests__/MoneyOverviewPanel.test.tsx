@@ -6,6 +6,14 @@ import { describe, expect, it, vi } from 'vitest'
 import type { HouseholdFinanceDashboard } from '@/lib/api/household'
 import { MoneyOverviewPanel } from '../MoneyOverviewPanel'
 
+vi.mock('@/lib/hooks/useHousehold', () => ({
+  useHouseholdNetWorthTrend: () => ({ data: undefined, isLoading: false }),
+}))
+
+vi.mock('@/lib/hooks/usePortfolio', () => ({
+  usePortfolioAnalytics: () => ({ data: undefined, isLoading: false }),
+}))
+
 vi.mock('recharts', () => {
   const MockChart = ({ children }: { children?: ReactNode }) => (
     <div>{children}</div>

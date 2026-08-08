@@ -13,6 +13,7 @@ export const allocationColors = [
 ]
 
 export type MoneyOverviewSection =
+  | 'tiles'
   | 'decision'
   | 'allocation'
   | 'trend'

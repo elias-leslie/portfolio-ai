@@ -26,7 +26,9 @@ import {
   useHouseholdDashboard,
   useHouseholdDocuments,
   useHouseholdFacts,
+  useHouseholdNetWorthTrend,
 } from '@/lib/hooks/useHousehold'
+import { usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
 import {
   LoadingState,
   MoneyWorkspaceSkeleton,
@@ -60,6 +62,8 @@ function MoneyPageContent() {
     refetch: refetchDashboard,
     isFetching: isFetchingDashboard,
   } = useHouseholdDashboard()
+  const { data: analytics } = usePortfolioAnalytics()
+  const { data: netWorthTrend } = useHouseholdNetWorthTrend({ days: 180 })
   const {
     data: documents,
     error: documentsError,
@@ -72,9 +76,17 @@ function MoneyPageContent() {
     const syncFromLocation = () => {
       const currentUrl = new URL(window.location.href)
       const currentUtility = currentUrl.searchParams.get('utility')
+      const currentTab = currentUrl.searchParams.get('tab')
       if (currentUtility === 'evidence') {
         currentUrl.searchParams.delete('utility')
         currentUrl.searchParams.set('tab', 'intake')
+        window.history.replaceState(window.history.state, '', currentUrl)
+      }
+      if (currentTab === 'review') {
+        currentUrl.searchParams.set('tab', 'intake')
+        if (!currentUrl.searchParams.get('focus')) {
+          currentUrl.searchParams.set('focus', 'clarifications')
+        }
         window.history.replaceState(window.history.state, '', currentUrl)
       }
 
@@ -165,7 +177,9 @@ function MoneyPageContent() {
         <div className="space-y-6">
           <MoneyOverviewPanel
             dashboard={dashboard}
-            sections={['decision', 'allocation', 'trend']}
+            analytics={analytics}
+            netWorthTrend={netWorthTrend}
+            sections={['tiles', 'decision', 'allocation', 'commitments']}
           />
         </div>
       ) : (
@@ -255,36 +269,36 @@ function MoneyPageContent() {
     },
     {
       value: 'intake',
-      label: 'Intake',
-      content: intakeContent,
-    },
-    {
-      value: 'review',
-      label: 'Review',
-      content: dashboard ? (
-        <div id="money-clarifications" className="space-y-6">
-          <SectionCard
-            variant="surface"
-            title="Review"
-            description="Targeted follow-up tools. Today owns the queue; this tab handles the selected drill-down."
-          >
-            {focusedReview === 'clarifications' || selectedQuestionId ? (
-              <JennyQuestionInbox
-                questions={openQuestions}
-                title="Clarifications"
-                description="Resolve the targeted clarification, then return to Today."
-                selectedQuestionId={selectedQuestionId}
-              />
-            ) : (
-              <p className="text-sm text-text-muted">
-                Use Today → Action Queue to open a specific clarification or
-                data-quality review.
-              </p>
-            )}
-          </SectionCard>
+      label: 'Intake & Review',
+      content: (
+        <div className="space-y-6">
+          {intakeContent}
+          {dashboard ? (
+            <div id="money-clarifications" className="space-y-6">
+              <SectionCard
+                variant="surface"
+                title="Clarifications & Review"
+                description="Targeted follow-up questions and data-quality reviews."
+              >
+                {openQuestions.length > 0 ||
+                focusedReview === 'clarifications' ||
+                selectedQuestionId ? (
+                  <JennyQuestionInbox
+                    questions={openQuestions}
+                    title="Clarifications"
+                    description="Resolve the targeted clarification, then return to Today."
+                    selectedQuestionId={selectedQuestionId}
+                  />
+                ) : (
+                  <p className="text-sm text-text-muted">
+                    No open clarification questions right now. Use Today →
+                    Action Queue to view active items.
+                  </p>
+                )}
+              </SectionCard>
+            </div>
+          ) : null}
         </div>
-      ) : (
-        dashboardFallback
       ),
     },
   ]

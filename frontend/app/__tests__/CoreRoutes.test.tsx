@@ -50,8 +50,19 @@ vi.mock('@/lib/hooks/useHousehold', async () => {
       error: null,
       refetch: vi.fn(),
     }),
+    useHouseholdNetWorthTrend: () => ({
+      data: undefined,
+      isLoading: false,
+    }),
   }
 })
+
+vi.mock('@/lib/hooks/usePortfolio', () => ({
+  usePortfolioAnalytics: () => ({
+    data: undefined,
+    isLoading: false,
+  }),
+}))
 
 vi.mock('@/components/money/MoneyOverviewPanel', () => ({
   MoneyOverviewPanel: () => <div>Money Overview Panel</div>,

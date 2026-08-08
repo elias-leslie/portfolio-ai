@@ -21,13 +21,13 @@ export function LoadingState() {
 const TAB_LABELS = [
   'Dashboard',
   'Budget',
+  'Purchases',
   'Levers',
+  'Cards',
   'Retirement',
-  'Allocation',
   'Accounts',
   'Ledger',
-  'Intake',
-  'Review',
+  'Intake & Review',
 ]
 
 export function MoneyWorkspaceSkeleton() {

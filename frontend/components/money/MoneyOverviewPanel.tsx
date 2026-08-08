@@ -1,7 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { HouseholdFinanceDashboard } from '@/lib/api/household'
+import { PrimaryTilesGrid } from '@/components/home/today/PrimaryTilesGrid'
+import type {
+  HouseholdFinanceDashboard,
+  HouseholdNetWorthTrend,
+} from '@/lib/api/household'
+import type { PortfolioAnalytics } from '@/lib/api/portfolio'
+import { useHouseholdNetWorthTrend } from '@/lib/hooks/useHousehold'
+import { usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
 import { formatRelativeTime } from '@/lib/utils'
 import { AllocationCard } from './AllocationCard'
 import { BudgetPulseCard } from './BudgetPulseCard'
@@ -42,11 +49,21 @@ function MidSentenceRelativeTime({ value }: { value: string }) {
 
 export function MoneyOverviewPanel({
   dashboard,
+  analytics: analyticsProp,
+  netWorthTrend: netWorthTrendProp,
   sections,
 }: {
   dashboard: HouseholdFinanceDashboard
+  analytics?: PortfolioAnalytics
+  netWorthTrend?: HouseholdNetWorthTrend
   sections?: MoneyOverviewSection[]
 }) {
+  const { data: analyticsQuery } = usePortfolioAnalytics()
+  const { data: netWorthTrendQuery } = useHouseholdNetWorthTrend({ days: 180 })
+
+  const analytics = analyticsProp ?? analyticsQuery
+  const netWorthTrend = netWorthTrendProp ?? netWorthTrendQuery
+
   const visibleSections = new Set<MoneyOverviewSection>(
     sections ?? [
       'decision',
@@ -58,6 +75,7 @@ export function MoneyOverviewPanel({
       'levers',
     ],
   )
+  const showTiles = visibleSections.has('tiles')
   const showDecision = visibleSections.has('decision')
   const showAllocation = visibleSections.has('allocation')
   const showTrend = visibleSections.has('trend')
@@ -76,6 +94,17 @@ export function MoneyOverviewPanel({
 
   return (
     <div className="space-y-6">
+      {showTiles ? (
+        <PrimaryTilesGrid
+          household={dashboard}
+          householdLoading={false}
+          analytics={analytics}
+          analyticsLoading={!analytics}
+          netWorthTrend={netWorthTrend}
+          trendLoading={!netWorthTrend}
+          hideSpendPace
+        />
+      ) : null}
       {showDecision ? (
         <DecisionBoard
           dashboard={dashboard}

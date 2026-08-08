@@ -2,12 +2,8 @@
 
 import { Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {
-  useHouseholdDashboard,
-  useHouseholdNetWorthTrend,
-} from '@/lib/hooks/useHousehold'
+import { useHouseholdDashboard } from '@/lib/hooks/useHousehold'
 import { useMacroConditions, useMacroCurrent } from '@/lib/hooks/useMacro'
-import { usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
 import { useTodayRefresh } from '@/lib/hooks/useTodayRefresh'
 import {
   DecisionBrief,
@@ -18,7 +14,6 @@ import {
 } from './DailyBriefSections'
 import { OverallCautionTrendLine } from './OverallCautionTrendLine'
 import { LeadingLaggingStrip } from './today/LeadingLaggingStrip'
-import { PrimaryTilesGrid } from './today/PrimaryTilesGrid'
 
 export function DailyBriefPanel() {
   const refreshToday = useTodayRefresh()
@@ -32,12 +27,7 @@ export function DailyBriefPanel() {
     isLoading: conditionsLoading,
     error: conditionsError,
   } = useMacroConditions()
-  const { data: household, isLoading: householdLoading } =
-    useHouseholdDashboard()
-  const { data: analytics, isLoading: analyticsLoading } =
-    usePortfolioAnalytics()
-  const { data: netWorthTrend, isLoading: trendLoading } =
-    useHouseholdNetWorthTrend({ days: 180 })
+  const { data: household } = useHouseholdDashboard()
   const updateTimestamp =
     conditions?.computedAt ??
     macro?.computedAt ??
@@ -91,14 +81,6 @@ export function DailyBriefPanel() {
 
         <div className="flex min-w-0 flex-col gap-4">
           <DecisionBrief conditions={conditions} />
-          <PrimaryTilesGrid
-            household={household}
-            householdLoading={householdLoading}
-            analytics={analytics}
-            analyticsLoading={analyticsLoading}
-            netWorthTrend={netWorthTrend}
-            trendLoading={trendLoading}
-          />
           <LeadingLaggingStrip />
           <MarketEvidenceStrip evidence={conditions?.evidence} />
         </div>

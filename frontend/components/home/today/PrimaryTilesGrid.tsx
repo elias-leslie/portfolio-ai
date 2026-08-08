@@ -86,6 +86,7 @@ export interface PrimaryTilesGridProps {
   analyticsLoading: boolean
   netWorthTrend: HouseholdNetWorthTrend | undefined
   trendLoading: boolean
+  hideSpendPace?: boolean
 }
 
 export function PrimaryTilesGrid({
@@ -95,6 +96,7 @@ export function PrimaryTilesGrid({
   analyticsLoading,
   netWorthTrend,
   trendLoading,
+  hideSpendPace = false,
 }: PrimaryTilesGridProps) {
   const netWorthTrendPoints: TrendPoint[] =
     netWorthTrend?.points.map((point) => ({
@@ -189,7 +191,7 @@ export function PrimaryTilesGrid({
     'Uses the latest available market prices for invested balances.'
   )
 
-  const tiles: CompactTileProps[] = [
+  const allTiles: CompactTileProps[] = [
     {
       label: 'Net Worth',
       value: renderMoneyValue(netWorth, householdLoading && !household),
@@ -272,9 +274,19 @@ export function PrimaryTilesGrid({
     },
   ]
 
+  const tiles = hideSpendPace
+    ? allTiles.filter((tile) => tile.label !== 'Spend Pace')
+    : allTiles
+
   return (
     <div className="@container">
-      <div className="grid gap-3 @[36rem]:grid-cols-2">
+      <div
+        className={
+          hideSpendPace
+            ? 'grid gap-3 @[28rem]:grid-cols-3'
+            : 'grid gap-3 @[36rem]:grid-cols-2'
+        }
+      >
         {tiles.map((tile) => (
           <CompactOverviewTile key={tile.label} {...tile} />
         ))}
