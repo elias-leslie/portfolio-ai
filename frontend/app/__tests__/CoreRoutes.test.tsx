@@ -17,9 +17,6 @@ global.IntersectionObserver =
 vi.mock('@/components/home/DailyBriefPanel', () => ({
   DailyBriefPanel: () => <div>Daily Brief Panel</div>,
 }))
-vi.mock('@/components/home/HomeNextActions', () => ({
-  HomeNextActions: () => <div>Next Actions Panel</div>,
-}))
 vi.mock('@/components/portfolio/InvestingMarketPanel', () => ({
   InvestingMarketTrendPanels: () => <div>Today Market Pulse Panel</div>,
 }))
@@ -109,9 +106,7 @@ describe('core product routes', () => {
     render(<HomePage />)
 
     expect(screen.getByText('Today')).toBeInTheDocument()
-    const nextActions = screen.getByText('Next Actions Panel')
-    const dailyBrief = screen.getByText('Daily Brief Panel')
-    expect(nextActions.nextElementSibling).toBe(dailyBrief)
+    expect(screen.getByText('Daily Brief Panel')).toBeInTheDocument()
     expect(screen.getByText('Today Market Pulse Panel')).toBeInTheDocument()
     expect(screen.queryByText('Automation Center')).not.toBeInTheDocument()
   })
