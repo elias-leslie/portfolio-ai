@@ -44,6 +44,120 @@ def _close_money(left: Decimal, right: Decimal) -> bool:
 # ---------------------------------------------------------------------------
 
 
+_DISCOUNT_KEYS = ("discount", "discount_amount", "savings", "instant_savings")
+
+
+def _receipt_line_item_discount(raw_item: dict[str, object]) -> Decimal:
+    """Discount applied to this line, as a positive magnitude.
+
+    Warehouse clubs print the markdown on its own line referencing the item
+    above (``0000388263 / 1761722    4.50-``). The extractor is asked to report
+    those separately and never to net them itself, so the subtraction happens
+    here where it is exact.
+    """
+    discount = _decimal_value(_first_present_value(raw_item, _DISCOUNT_KEYS))
+    if discount is None:
+        return Decimal("0")
+    return abs(discount)
+
+
+def _receipt_line_item_net_amount(raw_item: dict[str, object]) -> Decimal | None:
+    """Amount actually paid for the line: printed price less any markdown."""
+    amount = _decimal_value(_first_present_value(raw_item, ("amount", "total", "price")))
+    if amount is None:
+        return None
+    return amount - _receipt_line_item_discount(raw_item)
+
+
+def _is_discount_only_line(raw_item: dict[str, object]) -> bool:
+    """True when the row is a standalone markdown, not a purchased item.
+
+    Kept as a fallback for extractors that emit the markdown as its own
+    negative line instead of attaching it. Such a line still belongs in the
+    reconciliation sum, but it is not a product and must not be counted
+    against the receipt's declared item count.
+    """
+    amount = _decimal_value(_first_present_value(raw_item, ("amount", "total", "price")))
+    return amount is not None and amount < 0
+
+
+def _fold_receipt_markdowns(line_items: object) -> list[dict[str, object]]:
+    """Attach standalone markdown rows to the item printed directly above them.
+
+    Receipts print the markdown below the line it reduces, so the association is
+    positional and can be resolved exactly here. Extractors are far more
+    reliable at transcribing lines in order than at re-associating them, so the
+    model is asked only for a negative amount in printed position.
+
+    An already-attached ``discount`` is preserved, and a markdown with no
+    preceding item is left in place so it still reaches the reconciliation sum
+    rather than silently vanishing.
+    """
+    if not isinstance(line_items, list):
+        return []
+    folded: list[dict[str, object]] = []
+    for raw_item in line_items:
+        if not isinstance(raw_item, dict):
+            continue
+        if _is_discount_only_line(raw_item) and folded:
+            parent = folded[-1]
+            markdown = _decimal_value(_first_present_value(raw_item, ("amount", "total", "price")))
+            if markdown is not None and not _is_discount_only_line(parent):
+                parent["discount"] = str(_receipt_line_item_discount(parent) + abs(markdown))
+                continue
+        folded.append(dict(raw_item))
+    return folded
+
+
+def _normalized_description(value: object) -> str:
+    return " ".join(str(value or "").split()).casefold()
+
+
+def _merge_receipt_discounts(
+    line_items: list[dict[str, object]], discounts: object
+) -> list[dict[str, object]]:
+    """Attach a separately-reported markdown list back onto the items it reduces.
+
+    Extractors reliably transcribe markdowns into a dedicated list but will not
+    interleave them into a list framed as purchases, so they arrive detached and
+    have to be reattached here.
+
+    Each markdown is matched to the first not-yet-discounted item with the same
+    description, which keeps repeated purchases of one product correct: two
+    RXBAR markdowns land on the two separate RXBAR lines rather than doubling up
+    on the first. A markdown that matches nothing is kept as a negative line so
+    it still reaches the reconciliation sum instead of quietly disappearing.
+    """
+    if not isinstance(discounts, list):
+        return line_items
+    for raw_discount in discounts:
+        if not isinstance(raw_discount, dict):
+            continue
+        amount = _decimal_value(_first_present_value(raw_discount, ("amount", "total", "price")))
+        if amount is None or amount == 0:
+            continue
+        target = _normalized_description(
+            _first_present_value(
+                raw_discount, ("applies_to", "applies_to_description", "item", "description", "ref")
+            )
+        )
+        match = next(
+            (
+                item
+                for item in line_items
+                if _normalized_description(item.get("description") or item.get("name")) == target
+                and _receipt_line_item_discount(item) == 0
+                and not _is_discount_only_line(item)
+            ),
+            None,
+        )
+        if match is None:
+            line_items.append({"description": target or "markdown", "amount": str(-abs(amount))})
+            continue
+        match["discount"] = str(_receipt_line_item_discount(match) + abs(amount))
+    return line_items
+
+
 def _receipt_line_item_amounts(line_items: object) -> list[Decimal]:
     if not isinstance(line_items, list):
         return []
@@ -54,7 +168,7 @@ def _receipt_line_item_amounts(line_items: object) -> list[Decimal]:
         description = _string_value(raw_item.get("description") or raw_item.get("name"))
         if not description:
             continue
-        amount = _decimal_value(_first_present_value(raw_item, ("amount", "total", "price")))
+        amount = _receipt_line_item_net_amount(raw_item)
         if amount is not None:
             amounts.append(amount)
     return amounts
@@ -70,6 +184,10 @@ def _receipt_line_item_quantity_total(line_items: object) -> Decimal:
         description = _string_value(raw_item.get("description") or raw_item.get("name"))
         amount = _decimal_value(_first_present_value(raw_item, ("amount", "total", "price")))
         if not description or amount is None:
+            continue
+        # Standalone markdown rows would otherwise pad the count and let a
+        # receipt with unread items still clear its declared-count check.
+        if _is_discount_only_line(raw_item):
             continue
         quantity = _decimal_value(raw_item.get("quantity")) or Decimal("1")
         total += quantity
@@ -137,11 +255,18 @@ def _receipt_line_item_row(
     context: dict[str, str | None],
 ) -> dict[str, str | None] | None:
     description = _string_value(raw_item.get("description") or raw_item.get("name"))
-    amount = _string_value(_first_present_value(raw_item, ("amount", "total", "price")))
+    gross = _string_value(_first_present_value(raw_item, ("amount", "total", "price")))
     receipt_date = context["receipt_date"]
-    if not description or not amount or not receipt_date:
+    if not description or not gross or not receipt_date:
         return None
-    return {
+    # A standalone markdown row counts toward the receipt total but is not a
+    # product, so it must not reach purchase history as one.
+    if _is_discount_only_line(raw_item):
+        return None
+    discount = _receipt_line_item_discount(raw_item)
+    net = _receipt_line_item_net_amount(raw_item)
+    amount = f"{net:.2f}" if net is not None else gross
+    row: dict[str, str | None] = {
         "Document ID": document.id,
         "External Row ID": f"{document.id}:{receipt_index}:{line_index}",
         "Receipt Index": str(receipt_index),
@@ -160,6 +285,12 @@ def _receipt_line_item_row(
         "Receipt Total": context["receipt_total"],
         "Source": "receipt_line_item",
     }
+    if discount > 0:
+        # Keep the shelf price and the markdown visible; downstream price
+        # history compares "Total Amount", which is what was actually paid.
+        row["Gross Amount"] = gross
+        row["Discount Amount"] = f"{discount:.2f}"
+    return row
 
 
 def _append_receipt_line_item_rows(
@@ -169,9 +300,13 @@ def _append_receipt_line_item_rows(
     receipt_index: int,
     line_items: object,
     context: dict[str, str | None],
+    discounts: object = None,
 ) -> None:
     if not isinstance(line_items, list):
         return
+    # Resolve markdown-to-item association once, so the reconciliation sum and
+    # the imported rows are built from the same interpretation of the receipt.
+    line_items = _merge_receipt_discounts(_fold_receipt_markdowns(line_items), discounts)
     if not _receipt_line_items_reconcile(
         line_items=line_items,
         receipt_total=context["receipt_total"],
@@ -322,6 +457,7 @@ def receipt_line_item_rows(
                 receipt_index=receipt_index,
                 line_items=raw_transaction.get("line_items"),
                 context=context,
+                discounts=raw_transaction.get("discounts"),
             )
 
     _append_receipt_line_item_rows(
@@ -329,6 +465,7 @@ def receipt_line_item_rows(
         document=document,
         receipt_index=0,
         line_items=structured_data.get("line_items"),
+        discounts=structured_data.get("discounts"),
         context=_build_top_level_context(
             structured_data,
             review_declared_items_sold,

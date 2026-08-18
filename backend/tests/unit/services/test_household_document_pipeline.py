@@ -1884,3 +1884,264 @@ def test_reconciliation_text_statement_still_flags_missing_transactions() -> Non
         isinstance(issue, dict) and issue.get("code") == "missing_transactions"
         for issue in issues
     )
+
+
+def _receipt_document() -> HouseholdDocument:
+    return HouseholdDocument(
+        id="doc-costco",
+        filename="costco.jpg",
+        source_type="receipt",
+        document_type="receipt",
+        status="parsed",
+        account_label=None,
+        content_type="image/jpeg",
+        file_size_bytes=10,
+        classification_confidence=0.9,
+        uploaded_at="2026-08-17T00:00:00+00:00",
+        metadata={},
+    )
+
+
+def test_receipt_line_item_rows_net_attached_warehouse_discounts() -> None:
+    """Real Costco #336 receipt: 19 items, $187.51 gross less $16.20 markdowns.
+
+    Gross alone does not reconcile against the $171.31 subtotal, so before
+    discounts were netted this whole receipt was rejected and no purchase
+    history was recorded for it.
+    """
+    rows = _receipt_line_item_rows(
+        document=_receipt_document(),
+        reviewed={
+            "source_type": "receipt",
+            "structured_data": {
+                "transactions": [
+                    {
+                        "date": "2026-08-17",
+                        "merchant": "Costco Wholesale",
+                        "amount": "172.89",
+                        "subtotal": "171.31",
+                        "tax_amount": "1.58",
+                        "declared_items_sold": "19",
+                        "line_items": [
+                            {"description": "WATERMELON", "amount": "4.99"},
+                            {"description": "RXBAR VTY", "amount": "17.99", "discount": "4.50"},
+                            {"description": "RXBAR VTY", "amount": "17.99", "discount": "4.50"},
+                            {"description": "ORG SPINACH", "amount": "4.29"},
+                            {"description": "KS CHS PIZZA", "amount": "11.79"},
+                            {"description": "CHEEZ-IT 48Z", "amount": "9.99", "discount": "3.00"},
+                            {"description": "KS CHKN TNDR", "amount": "19.99"},
+                            {"description": "SOUR CREAM", "amount": "5.49"},
+                            {"description": "KSPLANTDISH", "amount": "7.99"},
+                            {"description": "KS LEMONADE", "amount": "6.79"},
+                            {"description": "ZIPLOC SANDW", "amount": "9.99", "discount": "2.20"},
+                            {"description": "KS FR 2DZ", "amount": "5.29"},
+                            {"description": "KS FR 2DZ", "amount": "5.29"},
+                            {"description": "CSTLOHAVARTI", "amount": "8.59", "discount": "2.00"},
+                            {"description": "KS SLCD TRKY", "amount": "12.99"},
+                            {"description": "HONEST COW", "amount": "7.49"},
+                            {"description": "KS ORG OAT", "amount": "10.79"},
+                            {"description": "PEROXIDE 2PK", "amount": "2.79"},
+                            {"description": "KS COCNUTOIL", "amount": "16.99"},
+                        ],
+                    }
+                ],
+            },
+        },
+    )
+
+    assert len(rows) == 19
+    # Both identical egg lines survive; collapsing them would lose a purchase.
+    assert [r["Product Name"] for r in rows].count("KS FR 2DZ") == 2
+    discounted = next(r for r in rows if r["Product Name"] == "RXBAR VTY")
+    assert discounted["Total Amount"] == "13.49"
+    assert discounted["Gross Amount"] == "17.99"
+    assert discounted["Discount Amount"] == "4.50"
+    plain = next(r for r in rows if r["Product Name"] == "WATERMELON")
+    assert plain["Total Amount"] == "4.99"
+    assert "Discount Amount" not in plain
+
+
+def test_receipt_line_item_rows_fold_standalone_markdown_onto_item_above() -> None:
+    """The markdown is printed below the item it reduces, so it folds upward.
+
+    It must not survive as its own product row, and the item it reduces must
+    record what was actually paid rather than the shelf price.
+    """
+    rows = _receipt_line_item_rows(
+        document=_receipt_document(),
+        reviewed={
+            "source_type": "receipt",
+            "structured_data": {
+                "transactions": [
+                    {
+                        "date": "2026-08-17",
+                        "merchant": "Costco Wholesale",
+                        "amount": "13.49",
+                        "declared_items_sold": "1",
+                        "line_items": [
+                            {"description": "RXBAR VTY", "amount": "17.99"},
+                            {"description": "0000388263 / 1761722", "amount": "-4.50"},
+                        ],
+                    }
+                ],
+            },
+        },
+    )
+
+    assert [r["Product Name"] for r in rows] == ["RXBAR VTY"]
+    assert rows[0]["Total Amount"] == "13.49"
+    assert rows[0]["Gross Amount"] == "17.99"
+    assert rows[0]["Discount Amount"] == "4.50"
+
+
+def test_receipt_markdown_without_preceding_item_still_reaches_total() -> None:
+    """A markdown with nothing above it must not silently vanish.
+
+    It cannot be folded, so it stays in the sum; dropping it would inflate the
+    line total and reject an otherwise correct receipt.
+    """
+    rows = _receipt_line_item_rows(
+        document=_receipt_document(),
+        reviewed={
+            "source_type": "receipt",
+            "structured_data": {
+                "transactions": [
+                    {
+                        "date": "2026-08-17",
+                        "merchant": "Costco Wholesale",
+                        "amount": "13.49",
+                        "declared_items_sold": "1",
+                        "line_items": [
+                            {"description": "0000388263 / 1761722", "amount": "-4.50"},
+                            {"description": "RXBAR VTY", "amount": "17.99"},
+                        ],
+                    }
+                ],
+            },
+        },
+    )
+
+    assert [r["Product Name"] for r in rows] == ["RXBAR VTY"]
+    assert rows[0]["Total Amount"] == "17.99"
+
+
+def test_receipt_declared_count_not_padded_by_markdown_lines() -> None:
+    """Markdown rows must not let a receipt with unread items pass the count check.
+
+    The receipt declares 2 items but only 1 was read. Counting the markdown row
+    as an item makes the total reconcile *and* satisfy the declared count, so
+    the miss is hidden and the markdown is imported as a phantom product.
+    """
+    rows = _receipt_line_item_rows(
+        document=_receipt_document(),
+        reviewed={
+            "source_type": "receipt",
+            "structured_data": {
+                "transactions": [
+                    {
+                        "date": "2026-08-17",
+                        "merchant": "Costco Wholesale",
+                        "amount": "13.49",
+                        "declared_items_sold": "2",
+                        "line_items": [
+                            {"description": "RXBAR VTY", "amount": "17.99"},
+                            {"description": "0000388263 / 1761722", "amount": "-4.50"},
+                        ],
+                    }
+                ],
+            },
+        },
+    )
+
+    assert rows == []
+
+
+def test_receipt_detached_discount_list_reattaches_to_named_items() -> None:
+    """The shape the vision extractor actually returns for a Costco receipt.
+
+    Markdowns arrive in their own list rather than inline, and both RXBAR
+    markdowns must land on the two separate RXBAR purchases instead of doubling
+    up on the first one.
+    """
+    rows = _receipt_line_item_rows(
+        document=_receipt_document(),
+        reviewed={
+            "source_type": "receipt",
+            "structured_data": {
+                "transactions": [
+                    {
+                        "date": "2026-08-17",
+                        "merchant": "Costco Wholesale",
+                        "amount": "172.89",
+                        "subtotal": "171.31",
+                        "tax_amount": "1.58",
+                        "declared_items_sold": "19",
+                        "line_items": [
+                            {"description": "WATERMELON", "amount": "4.99"},
+                            {"description": "RXBAR VTY", "amount": "17.99"},
+                            {"description": "RXBAR VTY", "amount": "17.99"},
+                            {"description": "ORG SPINACH", "amount": "4.29"},
+                            {"description": "KS CHS PIZZA", "amount": "11.79"},
+                            {"description": "CHEEZ-IT 48Z", "amount": "9.99"},
+                            {"description": "KS CHKN TNDR", "amount": "19.99"},
+                            {"description": "SOUR CREAM", "amount": "5.49"},
+                            {"description": "KSPLANTDISH", "amount": "7.99"},
+                            {"description": "KS LEMONADE", "amount": "6.79"},
+                            {"description": "ZIPLOC SANDW", "amount": "9.99"},
+                            {"description": "KS FR 2DZ", "amount": "5.29"},
+                            {"description": "KS FR 2DZ", "amount": "5.29"},
+                            {"description": "CSTLOHAVARTI", "amount": "8.59"},
+                            {"description": "KS SLCD TRKY", "amount": "12.99"},
+                            {"description": "HONEST COW", "amount": "7.49"},
+                            {"description": "KS ORG OAT", "amount": "10.79"},
+                            {"description": "PEROXIDE 2PK", "amount": "2.79"},
+                            {"description": "KS COCNUTOIL", "amount": "16.99"},
+                        ],
+                        "discounts": [
+                            {"applies_to": "RXBAR VTY", "amount": "4.50"},
+                            {"applies_to": "RXBAR VTY", "amount": "4.50"},
+                            {"applies_to": "CHEEZ-IT 48Z", "amount": "3.00"},
+                            {"applies_to": "ZIPLOC SANDW", "amount": "2.20"},
+                            {"applies_to": "CSTLOHAVARTI", "amount": "2.00"},
+                        ],
+                    }
+                ],
+            },
+        },
+    )
+
+    assert len(rows) == 19
+    rxbars = [r for r in rows if r["Product Name"] == "RXBAR VTY"]
+    assert [r["Total Amount"] for r in rxbars] == ["13.49", "13.49"]
+    assert next(r for r in rows if r["Product Name"] == "CHEEZ-IT 48Z")["Total Amount"] == "6.99"
+    assert next(r for r in rows if r["Product Name"] == "WATERMELON")["Total Amount"] == "4.99"
+
+
+def test_receipt_unmatched_discount_still_counts_against_total() -> None:
+    """A markdown naming no known item must not be silently discarded.
+
+    Dropping it would leave the line total above the subtotal and reject the
+    receipt, so it is kept as a negative line instead.
+    """
+    rows = _receipt_line_item_rows(
+        document=_receipt_document(),
+        reviewed={
+            "source_type": "receipt",
+            "structured_data": {
+                "transactions": [
+                    {
+                        "date": "2026-08-17",
+                        "merchant": "Costco Wholesale",
+                        "amount": "13.49",
+                        "declared_items_sold": "1",
+                        "line_items": [{"description": "RXBAR VTY", "amount": "17.99"}],
+                        "discounts": [{"applies_to": "UNREADABLE", "amount": "4.50"}],
+                    }
+                ],
+            },
+        },
+    )
+
+    # Reconciles on 17.99 - 4.50, and the unmatched markdown is not a product.
+    assert [r["Product Name"] for r in rows] == ["RXBAR VTY"]
+    assert rows[0]["Total Amount"] == "17.99"
