@@ -237,11 +237,16 @@ def get_portfolio_volatility(
         cache_result = storage.query(cache_query, [portfolio_id, weight_hash])
         if not cache_result.is_empty():
             row = cache_result.to_dicts()[0]
-            return (
-                row["portfolio_volatility"],
-                row["weighted_avg_volatility"],
-                row["diversification_benefit"],
-            )
+            cached_vol = row["portfolio_volatility"]
+            # A cached NaN outlives the bad prices that produced it, and the
+            # caller only checks for None, so it reads as a real volatility and
+            # then breaks JSON serialization at the API edge. Recalculate.
+            if cached_vol is not None and math.isfinite(cached_vol):
+                return (
+                    cached_vol,
+                    row["weighted_avg_volatility"],
+                    row["diversification_benefit"],
+                )
 
     # Get or update covariance matrix
     cov_matrix = get_covariance_matrix(storage, symbols)
@@ -257,6 +262,13 @@ def get_portfolio_volatility(
 
     # Calculate portfolio volatility
     portfolio_vol = calculate_portfolio_volatility_from_covariance(weights, cov_matrix)
+    if not math.isfinite(portfolio_vol):
+        logger.warning(
+            "portfolio_volatility_non_finite",
+            portfolio_id=portfolio_id,
+            symbols=symbols,
+        )
+        return None, None, None
 
     # Calculate weighted average volatility (the incorrect old method)
     weighted_avg_vol = 0.0

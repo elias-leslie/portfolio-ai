@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from itertools import pairwise
+from math import isfinite
 from typing import TYPE_CHECKING, Any
 
 from ..constants import INDEX_SP500, SECTOR_ETFS
@@ -86,12 +87,19 @@ class TrendConfig:
 
 
 def _maybe_float(value: object) -> float | None:
+    """Parse a float, treating NaN/inf as missing rather than as a number.
+
+    A NaN price passes every `is None` and `<= 0` guard downstream and then
+    reads as a real value, which is how a NaN close once became a maximum
+    tape-stress score and a "Defensive" headline. Missing must stay missing.
+    """
     if value is None:
         return None
     try:
-        return float(value)
+        parsed = float(value)
     except (TypeError, ValueError):
         return None
+    return parsed if isfinite(parsed) else None
 
 
 def _date_text(value: object) -> str | None:
@@ -417,8 +425,16 @@ def _evidence_tone(kind: str, value: float | None) -> str:
     return tone
 
 
-def _stress_from_decline(decline_pct: float) -> float:
-    """Map an equity decline percentage to a 0-100 tape stress score."""
+def _stress_from_decline(decline_pct: float) -> float | None:
+    """Map an equity decline percentage to a 0-100 tape stress score.
+
+    Returns None for a non-finite input. NaN compares False against every
+    anchor, so without this check it walks the whole ladder and lands on the
+    95.0 fall-through — silently turning "we do not know" into "maximum
+    stress", which is the loudest thing this scale can say.
+    """
+    if not isfinite(decline_pct):
+        return None
     if decline_pct <= 0:
         return 15.0
     anchors = [
@@ -445,6 +461,8 @@ def _sector_tape_stress(
     if weakest_sector_change_pct is None or sector_count <= 0:
         return None
     base = _stress_from_decline(-weakest_sector_change_pct)
+    if base is None:
+        return None
     negative_ratio = max(0.0, min(1.0, negative_sector_count / sector_count))
     return base * (0.55 + 0.45 * negative_ratio)
 

@@ -309,14 +309,19 @@ def _overnight_stress(
 
     if live_stock_changes:
         avg = sum(live_stock_changes) / len(live_stock_changes)
-        stress = _stress_from_decline(-avg) if avg < 0 else _STRESS_FLOOR
+        # A non-finite change maps to None, which reads the same as "no decline".
+        decline_stress = _stress_from_decline(-avg) if avg < 0 else None
+        stress = decline_stress if decline_stress is not None else _STRESS_FLOOR
     else:
         # Weekend: futures shut. Only a real crypto risk-off move counts, damped.
         crypto = by_key.get("crypto")
-        if crypto and crypto.live and crypto.change_pct is not None and crypto.change_pct < 0:
-            stress = min(
-                _WEEKEND_CRYPTO_STRESS_CAP, _stress_from_decline(-crypto.change_pct) * 0.5
-            )
+        crypto_stress = (
+            _stress_from_decline(-crypto.change_pct)
+            if crypto and crypto.live and crypto.change_pct is not None and crypto.change_pct < 0
+            else None
+        )
+        if crypto_stress is not None:
+            stress = min(_WEEKEND_CRYPTO_STRESS_CAP, crypto_stress * 0.5)
         else:
             stress = _STRESS_FLOOR
 

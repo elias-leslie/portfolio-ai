@@ -429,12 +429,21 @@ def get_scoring_weights() -> ScoringWeightsUpdate:
     if not weights_json:
         return default_weights
 
-    return ScoringWeightsUpdate(
-        price=float(weights_json.get("price", 25.0)),
-        technical=float(weights_json.get("technical", 25.0)),
-        fundamental=float(weights_json.get("fundamental", 30.0)),
-        catalyst=float(weights_json.get("catalyst", 20.0)),
-    )
+    # A pillar the stored row never mentions is a weight the user never set, so
+    # it reads as 0 rather than borrowing the default. Filling it from the
+    # default instead is how a legacy 3-pillar row (33/33/34) summed to 120 and
+    # made this endpoint fail its own must-sum-to-100 validator on read.
+    stored = {
+        pillar: float(weights_json.get(pillar, 0.0))
+        for pillar in ("price", "technical", "fundamental", "catalyst")
+    }
+    total = sum(stored.values())
+    if total <= 0:
+        return default_weights
+    # Keep the stored emphasis, restated against the 100-point scale the model
+    # requires. An already-valid row is unchanged by this.
+    scaled = {pillar: value * 100.0 / total for pillar, value in stored.items()}
+    return ScoringWeightsUpdate(**scaled)
 
 
 def update_scoring_weights(weights: ScoringWeightsUpdate) -> ScoringWeightsUpdate:

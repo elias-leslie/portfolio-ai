@@ -81,7 +81,11 @@ def calculate_daily_returns(
             curr_date = prices[i][0]
             if prev_price > 0:
                 daily_return = (curr_price - prev_price) / prev_price
-                returns.append((curr_date, daily_return))
+                # A NaN close yields a NaN return, which then poisons every
+                # covariance pair it touches and finally the portfolio
+                # volatility the API serves. Skip the observation instead.
+                if math.isfinite(daily_return):
+                    returns.append((curr_date, daily_return))
         symbol_returns[symbol] = returns
 
     return symbol_returns

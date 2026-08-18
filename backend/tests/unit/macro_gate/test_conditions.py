@@ -680,3 +680,50 @@ def test_conditions_payload_trigger_fires_and_clamps_when_threshold_crossed() ->
     calm = conditions.build_conditions_payload(_snapshot(vix_close=15.0))
     vix_calm = {row["key"]: row for row in calm["triggers"]}["vix"]
     assert vix_calm["tone"] == "gain"
+
+
+def test_stress_from_decline_treats_non_finite_input_as_unknown() -> None:
+    """NaN must not walk the anchor ladder into the 95.0 fall-through.
+
+    Every ``nan <= anchor`` comparison is False, so an unguarded NaN exits the
+    loop at the maximum score and "we do not know" is published as "maximum
+    stress" — the loudest reading this scale has.
+    """
+    assert conditions._stress_from_decline(float("nan")) is None
+    assert conditions._stress_from_decline(float("inf")) is None
+    assert conditions._stress_from_decline(-0.5) == 15.0
+
+
+def test_maybe_float_treats_non_finite_values_as_missing() -> None:
+    assert conditions._maybe_float(float("nan")) is None
+    assert conditions._maybe_float(float("-inf")) is None
+    assert conditions._maybe_float("12.5") == 12.5
+
+
+def test_get_tape_stress_is_unavailable_when_every_quote_change_is_nan(monkeypatch) -> None:
+    """A NaN close in day_bars once made every quote change NaN.
+
+    The tape then scored 95 with ``0/11 sectors down`` and the brief read
+    "Defensive — protect capital first". Unknown tape must read as unavailable.
+    """
+    now = datetime(2026, 6, 5, 10, 30, tzinfo=conditions.NY_TZ)
+    fresh = now - timedelta(minutes=5)
+    sector_symbols = list(conditions.SECTOR_ETFS.keys())
+
+    def quote(change_pct: float) -> conditions.CurrentQuoteChange:
+        return conditions.CurrentQuoteChange(
+            change_pct=change_pct,
+            as_of=fresh.isoformat(),
+            cached_at=fresh,
+        )
+
+    monkeypatch.setattr(
+        conditions,
+        "_current_quote_changes",
+        lambda _symbols: {
+            conditions.INDEX_SP500: quote(float("nan")),
+            **{symbol: quote(float("nan")) for symbol in sector_symbols},
+        },
+    )
+
+    assert conditions.get_tape_stress(now=now) is None

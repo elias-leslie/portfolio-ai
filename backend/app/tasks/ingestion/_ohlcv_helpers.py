@@ -28,6 +28,7 @@ __all__ = [
     "calculate_date_range",
     "empty_result",
     "fetch_ohlcv_data",
+    "filter_finite_price_rows",
     "initialize_sources_with_credentials",
     "insert_ohlcv_data",
     "load_watchlist_symbols",
@@ -118,6 +119,41 @@ def filter_completed_trading_rows(result_df: pl.DataFrame, ingest_run_id: str) -
     return filtered_df
 
 
+def filter_finite_price_rows(result_df: pl.DataFrame, ingest_run_id: str) -> pl.DataFrame:
+    """Drop rows whose OHLC prices are not usable numbers.
+
+    A vendor batch can return a row with real volume but NaN prices — a whole
+    equity chunk of one yfinance fetch did exactly that on 2026-08-17. NaN then
+    survives every downstream `is None` / `<= 0` guard and reads as a real
+    number, so a missing bar becomes a wrong answer rather than a gap. Reject it
+    here, where the fetch is still the thing being blamed.
+
+    `close` must additionally be positive, because it is the price every
+    downstream calculation anchors on. `open`/`high`/`low` only have to be
+    finite: a legitimate index bar can print 0 there (^VIX opens at 0).
+    """
+    price_columns = [column for column in ("open", "high", "low", "close") if column in result_df.columns]
+    if not price_columns or result_df.is_empty():
+        return result_df
+
+    finite_prices = pl.all_horizontal(
+        pl.col(column).is_not_null() & pl.col(column).is_finite() for column in price_columns
+    )
+    if "close" in price_columns:
+        finite_prices = finite_prices & (pl.col("close") > 0)
+
+    filtered_df = result_df.filter(finite_prices)
+    dropped_rows = len(result_df) - len(filtered_df)
+    if dropped_rows > 0:
+        logger.warning(
+            "ohlcv_non_finite_price_rows_dropped",
+            ingest_run_id=ingest_run_id,
+            dropped_rows=dropped_rows,
+            kept_rows=len(filtered_df),
+        )
+    return filtered_df
+
+
 def prepare_dataframe(result_df: Any, ingest_run_id: str) -> tuple[Any, list[str]]:
     """Validate and prepare a DataFrame for insertion into day_bars.
 
@@ -147,6 +183,7 @@ def prepare_dataframe(result_df: Any, ingest_run_id: str) -> tuple[Any, list[str
         result_df = result_df.with_columns(pl.lit(ingest_run_id).alias("ingest_run_id"))
 
     result_df = filter_completed_trading_rows(result_df, ingest_run_id)
+    result_df = filter_finite_price_rows(result_df, ingest_run_id)
     result_df = result_df.select(_DAY_BARS_COLUMNS)
     unique_symbols: list[str] = result_df["symbol"].unique().to_list()
     return result_df, unique_symbols

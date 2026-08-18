@@ -74,7 +74,10 @@ class RunSnapshotResponse(BaseModel):
 
 class RunListItem(BaseModel):
     id: str
-    symbol: str
+    # Nullable in the table and null on 18 of the 38 stored runs, so a required
+    # str here made the whole listing fail rather than the one run without a
+    # symbol.
+    symbol: str | None
     status: str
     decision_action: str | None
     decision_pct_portfolio: float | None

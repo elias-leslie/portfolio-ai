@@ -12,6 +12,7 @@ from app.models.preferences import PreferencesUpdate
 from app.services.preferences_service import (
     dict_to_preferences_response,
     get_automation_preferences,
+    get_scoring_weights,
     update_preferences,
 )
 
@@ -330,3 +331,57 @@ def test_update_preferences_allows_clearing_automation_overrides(monkeypatch) ->
             "scheduled_strategy_research_enabled": None,
         }
     )
+
+
+def _scoring_weights_storage(stored: object) -> MagicMock:
+    """Storage stub whose only row carries ``watchlist_score_weights``."""
+    result_df = MagicMock()
+    result_df.is_empty.return_value = False
+    result_df.row.return_value = {"watchlist_score_weights": stored}
+
+    connection = MagicMock()
+    connection.__enter__.return_value = connection
+    connection.__exit__.return_value = None
+    connection.execute.return_value.fetchdf.return_value = result_df
+
+    mock_storage = MagicMock()
+    mock_storage.connection.return_value = connection
+    return mock_storage
+
+
+def test_get_scoring_weights_reads_a_legacy_three_pillar_row(monkeypatch) -> None:
+    """A row written before the catalyst pillar existed must still be readable.
+
+    Filling the missing pillar from the default made the four weights sum to
+    120, which the model's own must-sum-to-100 validator rejected — so the
+    endpoint failed on data it had written itself.
+    """
+    monkeypatch.setattr(
+        "app.services.preferences_service.get_storage",
+        lambda: _scoring_weights_storage(
+            {"price": 33, "technical": 33, "fundamental": 34}
+        ),
+    )
+
+    weights = get_scoring_weights()
+
+    assert weights.price == 33.0
+    assert weights.technical == 33.0
+    assert weights.fundamental == 34.0
+    assert weights.catalyst == 0.0
+
+
+def test_get_scoring_weights_restates_partial_weights_against_one_hundred(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.preferences_service.get_storage",
+        lambda: _scoring_weights_storage(
+            {"price": 20, "technical": 10, "fundamental": 10, "catalyst": 10}
+        ),
+    )
+
+    weights = get_scoring_weights()
+
+    assert weights.price == 40.0
+    assert weights.technical == 20.0
+    assert weights.fundamental == 20.0
+    assert weights.catalyst == 20.0

@@ -807,3 +807,48 @@ def test_get_stream_returns_event_stream_with_sse_framing(
     assert "event: run.complete\n" in body
     # Frames terminate with the standard SSE \n\n separator.
     assert "\n\n" in body
+
+
+def test_get_runs_lists_a_run_that_has_no_symbol(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient
+) -> None:
+    """``committee_runs.symbol`` is nullable, and 18 of the 38 stored runs are null.
+
+    A required ``str`` on the response model turned one symbol-less run into a
+    500 for the entire listing, so the rows that do have a symbol became
+    unreadable too.
+    """
+
+    def fake_list_recent_runs(household_id: str | None, *, limit: int = 20) -> list[dict[str, Any]]:
+        return [
+            {
+                "id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+                "symbol": None,
+                "status": "complete",
+                "decision_action": None,
+                "decision_pct_portfolio": None,
+                "confidence": None,
+                "parent_run_id": None,
+                "started_at": "2026-05-13T22:12:58+00:00",
+                "completed_at": "2026-05-13T22:20:00+00:00",
+            },
+            {
+                "id": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+                "symbol": "MSFT",
+                "status": "complete",
+                "decision_action": "buy",
+                "decision_pct_portfolio": 0.02,
+                "confidence": 0.66,
+                "parent_run_id": None,
+                "started_at": "2026-05-13T21:00:00+00:00",
+                "completed_at": "2026-05-13T21:12:00+00:00",
+            },
+        ]
+
+    monkeypatch.setattr(committee_store, "list_recent_runs", fake_list_recent_runs)
+
+    response = client.get("/api/committee/runs")
+
+    assert response.status_code == 200
+    runs = response.json()["runs"]
+    assert [run["symbol"] for run in runs] == [None, "MSFT"]

@@ -161,3 +161,61 @@ def test_fetch_watchlist_vwap_data_handles_mixed_vendor_schemas() -> None:
     assert result.height == 2
     assert "trade_count" in result.columns
     assert set(result["symbol"].to_list()) == {"AAPL", "MSFT"}
+
+
+def test_prepare_dataframe_drops_rows_whose_prices_are_not_finite(monkeypatch) -> None:
+    """A vendor batch once returned real volume with NaN prices for a whole chunk.
+
+    NaN survives every downstream ``is None`` / ``<= 0`` guard and then reads as
+    a real number, so the bar has to be rejected at ingestion.
+    """
+    monkeypatch.setattr(
+        _ohlcv_helpers,
+        "get_expected_data_date",
+        lambda _now: dt.date(2026, 8, 17),
+    )
+    monkeypatch.setattr(
+        _ohlcv_helpers,
+        "is_trading_day",
+        lambda value: value.weekday() < 5,
+    )
+    frame = pl.DataFrame(
+        [
+            {
+                "symbol": "SPY",
+                "date": dt.date(2026, 8, 17),
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.0,
+                "close": 100.5,
+                "volume": 1000,
+                "source": "test",
+            },
+            {
+                "symbol": "XLK",
+                "date": dt.date(2026, 8, 17),
+                "open": float("nan"),
+                "high": float("nan"),
+                "low": float("nan"),
+                "close": float("nan"),
+                "volume": 6098500,
+                "source": "test",
+            },
+            {
+                # Indices legitimately print a zero open; only close must be positive.
+                "symbol": "^VIX",
+                "date": dt.date(2026, 8, 17),
+                "open": 0.0,
+                "high": 16.0,
+                "low": 15.0,
+                "close": 15.19,
+                "volume": 0,
+                "source": "test",
+            },
+        ]
+    )
+
+    prepared, symbols = _ohlcv_helpers.prepare_dataframe(frame, "ingest-test")
+
+    assert sorted(prepared["symbol"].to_list()) == ["SPY", "^VIX"]
+    assert sorted(symbols) == ["SPY", "^VIX"]
