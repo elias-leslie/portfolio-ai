@@ -5,7 +5,7 @@ _Sessions: 1 | Last run: 2026-06-08 | State: ISSUES_
 - Stack: Python backend (FastAPI, :8000, uv-managed venv) + Next.js frontend (:3000) + Hatchet worker (`portfolio-hatchet-worker.service`) + Postgres + Redis. Managed via `st` (SummitFlow) tooling; services: portfolio-backend / portfolio-frontend / portfolio-hatchet-worker.
 - Backend `backend/app/`: api, services, sources, tasks, workflows, ml, analytics, watchlist, storage. Market data via `sources/multi_source_fetcher` over cboe, yfinance, twelvedata, fmp, polygon, finnhub, alphavantage. ML via sklearn (`ml/article_quality_classifier` RandomForest, `services/story_clusterer` TfidfVectorizer).
 - Worker entry `backend/app/worker.py`: registers ~50 Hatchet workflows; `worker.handle_kill = False`; ends in `os._exit(0)`.
-- Frontend `frontend/`: `app/` Next routes incl. catch-all proxy routes `app/api/[...path]` + `app/health/[...path]` → backend (via `lib/upstream-proxy.proxyRequest` / `ProxyRouteContext`). `components/` (money, committee, home, market, watchlist, shared). Shared utils in `lib/formatters.ts`, `lib/utils.ts`.
+- Frontend `frontend/`: `app/` Next routes incl. catch-all proxy routes `app/api/[...path]` + `app/health/[...path]` → backend (via `lib/upstream-proxy.proxyRequest` / `ProxyRouteContext`). `components/` (money, home, market, watchlist, shared). Shared utils in `lib/formatters.ts`, `lib/utils.ts`.
 
 ## Project Tooling Notes
 - Quality gate: `st check --quick --changed-only` (ruff+types+pytest+biome+tsc). Targeted tests: `st check pytest -- <paths>`. Never raw pytest/biome/tsc.

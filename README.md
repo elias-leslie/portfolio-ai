@@ -21,29 +21,39 @@ Portfolio AI is a full-stack investment intelligence workspace for portfolio tra
 - Applies a lightweight ML layer (scikit-learn article-quality classifier, TF-IDF news story clustering) and technical analysis (RSI, MACD, Bollinger Bands, ATR, VWAP, and more) on top of the ingested data.
 - Provides optional household money, document-intake, budgeting, and retirement-planning (Monte Carlo) surfaces, plus encrypted Plaid and SnapTrade account linking.
 - Manages household credit cards: a catalog-driven rewards ranking (valuation/credit stances), a two-player 90-day rotation planner that respects issuer rules (Chase 5/24, Amex lifetime, Capital One velocity), keeper-card routing, welcome-bonus spend tracking with soft/provisional charges, AI offer-screenshot intake and monthly catalog research via Agent Hub, and Telegram alerts for spend pace, bonus deadlines, rotation actions, and annual-fee renewals.
-- Offers an optional Agent Hub companion path for AI chat, thesis validation/invalidation, cross-validation, document review, and a multi-stage AI investment-committee review — all routed through Agent Hub with no hardcoded model IDs.
+- Offers an optional Agent Hub companion path for AI chat, thesis validation/invalidation, cross-validation, and document review — all routed through Agent Hub with no hardcoded model IDs. Agents read, extract, and explain; they never produce a score or a buy/sell verdict of their own.
 - Ships a read-only MCP server that exposes the signal stack to MCP clients over stdio.
 
 ## How it compares
 
 Self-hosted finance tools split into three camps — trackers, budgeters, and
 research terminals. Portfolio AI is the only one that spans all three *and* layers
-AI-scored research on top: it scores each watchlist symbol from market data, news,
+AI-assisted research on top: it scores each watchlist symbol from market data, news,
 technicals, and fundamentals into a **plain-language narrative**, and (with the
-optional Agent Hub companion) runs thesis validation and an **AI investment-committee**
-review.
+optional Agent Hub companion) runs **thesis validation** and **document intake** over
+that same deterministic data.
 
 | | Portfolio AI | Ghostfolio · Wealthfolio | Maybe · Investbrain | OpenBB |
 |---|:---:|:---:|:---:|:---:|
 | Portfolio + tax-lot + drift tracking | ✅ | ✅ | ✅ | partial |
 | AI-scored watchlist with narratives | ✅ | — | — | bring-your-own copilot |
 | Household budgeting + retirement | ✅ | — | Maybe only | — |
-| AI thesis validation / investment-committee | ✅ | — | chatbot only | — |
+| AI thesis validation + document intake | ✅ | — | chatbot only | — |
 | Self-hosted, no SaaS required | ✅ | ✅ | ✅ | ✅ |
 
 Trackers like Ghostfolio stop at performance math; Maybe and Investbrain bolt on a
 chatbot; OpenBB has the research depth but no budgeting or household surfaces.
-Portfolio AI brings scoring, narratives, budgeting, and committee review together.
+Portfolio AI brings scoring, narratives, budgeting, and household document intake together.
+
+### Design principle: deterministic core, agents at the edges
+
+Every number the app acts on — pillar scores, the macro deployment gate,
+covariance and volatility, drift, retirement projections, card rotation rules — is
+computed in Python from stored data and is back-testable and reproducible. Agents
+are used where judgment over unstructured input is the actual problem: reading a
+receipt or statement, validating a thesis against the evidence, answering questions
+about your own portfolio. An agent may call deterministic code as a tool; it is
+never the thing that decides what a position is worth or whether to buy it.
 
 > ⭐ If this is the finance workspace you've wanted, a star helps others find it.
 
@@ -266,7 +276,7 @@ curl -fsS http://localhost:3000 >/dev/null
 
 ## MCP server
 
-The backend package installs a read-only MCP server named `portfolio-ai-mcp`. It exposes the signal stack to MCP clients over stdio, with four read-only tools: `get_deployment_zone`, `get_deployment_history`, `get_committee_runs_today`, and `get_symbol_full_picture`.
+The backend package installs a read-only MCP server named `portfolio-ai-mcp`. It exposes the signal stack to MCP clients over stdio, with three read-only tools: `get_deployment_zone`, `get_deployment_history`, and `get_symbol_full_picture`. Every value they return is deterministic; no tool triggers model inference.
 
 From `backend/`:
 
@@ -290,7 +300,7 @@ Common endpoint groups:
 | Symbols | `/api/symbols/*` | Per-symbol intelligence and decision context |
 | Market | `/api/market/*` | Market data, events, corporate actions, source status |
 | Macro | `/api/macro/*` | Deployment-gate score, conditions, history, backtests |
-| Thesis & committee | `/api/thesis/*`, `/api/committee/*` | AI thesis validation and investment-committee runs |
+| Thesis | `/api/thesis/*` | AI thesis validation and invalidation |
 | Catalysts & retirement | `/api/catalysts/*`, `/api/retirement/*` | Forward catalyst calendar; retirement scenarios |
 | Household | `/api/household/*` | Optional household finance workspace |
 | Credit cards | `/api/household/cards/*` | Card catalog, rewards ranking, two-player rotation plans, soft charges, offer intake, catalog research |

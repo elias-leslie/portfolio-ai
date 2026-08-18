@@ -2,14 +2,12 @@
 
 Each tool is a thin adapter over a repository — these tests stub the
 repositories and assert that the tools shape the return value correctly
-(tier/kind tagging, clamping, missing-row fallbacks, 24-hour filtering).
+(tier/kind tagging, clamping, missing-row fallbacks).
 """
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
 from typing import Any
-from uuid import uuid4
 
 import pytest
 
@@ -37,25 +35,6 @@ def _macro_snapshot(snapshot_date: str, deployment_score: float, zone: str) -> d
         "zone": zone,
         "raw_json": {},
         "computed_at": f"{snapshot_date}T17:30:00",
-    }
-
-
-def _committee_row(
-    *,
-    status: str,
-    completed_at: str | None,
-    symbol: str = "AAPL",
-) -> dict[str, Any]:
-    return {
-        "id": str(uuid4()),
-        "symbol": symbol,
-        "status": status,
-        "decision_action": "buy" if status in {"complete", "approved"} else None,
-        "decision_pct_portfolio": 2.5,
-        "confidence": 0.7,
-        "parent_run_id": None,
-        "started_at": completed_at,
-        "completed_at": completed_at,
     }
 
 
@@ -165,65 +144,6 @@ def test_get_deployment_history_min_clamp(monkeypatch: pytest.MonkeyPatch) -> No
     assert result["count"] == 0
 
 
-# --------------------------------------------------------------- get_committee_runs_today
-
-
-def test_get_committee_runs_today_filters_status_and_window(monkeypatch: pytest.MonkeyPatch) -> None:
-    now = datetime.now(UTC)
-    rows = [
-        _committee_row(status="complete", completed_at=now.isoformat(), symbol="AAPL"),
-        _committee_row(status="approved", completed_at=(now - timedelta(hours=12)).isoformat(), symbol="MSFT"),
-        _committee_row(status="failed",   completed_at=now.isoformat(), symbol="XOM"),  # filtered: status
-        _committee_row(status="complete", completed_at=(now - timedelta(hours=30)).isoformat(), symbol="OLD"),  # filtered: window
-        _committee_row(status="complete", completed_at=None, symbol="NULL"),  # filtered: missing ts
-    ]
-
-    def fake_list_recent(household: str | None, *, limit: int) -> list[dict[str, Any]]:
-        assert household is None
-        return rows[:limit]
-
-    monkeypatch.setattr(mcp_server.committee_store, "list_recent_runs", fake_list_recent)
-
-    result = mcp_server.get_committee_runs_today()
-
-    assert result["tier"] == "L3"
-    assert result["kind"] == "non-deterministic"
-    assert result["window_hours"] == 24
-    symbols = sorted(r["symbol"] for r in result["rows"])
-    assert symbols == ["AAPL", "MSFT"]
-    assert result["count"] == 2
-
-
-def test_get_committee_runs_today_handles_naive_timestamps(monkeypatch: pytest.MonkeyPatch) -> None:
-    now = datetime.now(UTC)
-    # Naive ISO string (no tz) is treated as UTC by the wrapper.
-    naive_ts = now.replace(tzinfo=None).isoformat()
-    rows = [_committee_row(status="complete", completed_at=naive_ts)]
-
-    def fake_list_recent(_household: str | None, *, limit: int) -> list[dict[str, Any]]:
-        return rows[:limit]
-
-    monkeypatch.setattr(mcp_server.committee_store, "list_recent_runs", fake_list_recent)
-
-    result = mcp_server.get_committee_runs_today()
-
-    assert result["count"] == 1
-
-
-def test_get_committee_runs_today_skips_malformed_timestamps(monkeypatch: pytest.MonkeyPatch) -> None:
-    rows = [_committee_row(status="complete", completed_at="not-a-timestamp")]
-
-    def fake_list_recent(_household: str | None, *, limit: int) -> list[dict[str, Any]]:
-        return rows[:limit]
-
-    monkeypatch.setattr(mcp_server.committee_store, "list_recent_runs", fake_list_recent)
-
-    result = mcp_server.get_committee_runs_today()
-
-    assert result["count"] == 0
-    assert result["rows"] == []
-
-
 # --------------------------------------------------------------- get_symbol_full_picture
 
 
@@ -238,57 +158,32 @@ def test_get_symbol_full_picture_rejects_empty_ticker(monkeypatch: pytest.Monkey
     assert result["error"] == "empty_ticker"
     assert result["symbol"] == ""
     assert result["macro"] is None
-    assert result["committee"] is None
 
 
-def test_get_symbol_full_picture_unifies_macro_and_committee(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_symbol_full_picture_returns_macro_context(monkeypatch: pytest.MonkeyPatch) -> None:
     macro = _macro_snapshot("2026-05-18", deployment_score=72.0, zone="FULL_DEPLOY")
-    committee_payload = {
-        "NVDA": {
-            "run_id": str(uuid4()),
-            "symbol": "NVDA",
-            "status": "complete",
-            "action": "buy",
-            "confidence": 0.82,
-            "completed_at": "2026-05-18T18:42:00+00:00",
-        }
-    }
-
-    captured: dict[str, Any] = {}
 
     def fake_get_latest() -> dict[str, Any]:
         return macro
 
-    def fake_committee(symbols: list[str]) -> dict[str, dict[str, Any]]:
-        captured["symbols"] = symbols
-        return committee_payload
-
     monkeypatch.setattr(mcp_server.macro_repo, "get_latest", fake_get_latest)
-    monkeypatch.setattr(mcp_server.committee_store, "get_latest_completed_by_symbol", fake_committee)
 
     result = mcp_server.get_symbol_full_picture(ticker=" nvda ", days=400)
 
     assert result["symbol"] == "NVDA"
     assert result["days"] == 365  # clamped for backward compatibility
-    assert captured["symbols"] == ["NVDA"]
     assert result["macro"]["zone"] == "FULL_DEPLOY"
     assert result["macro"]["components"]["vix"] == 70.0
-    assert result["committee"]["latest"]["action"] == "buy"
 
 
-def test_get_symbol_full_picture_returns_none_committee_when_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_symbol_full_picture_handles_missing_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_get_latest() -> dict[str, Any] | None:
         return None
 
-    def fake_committee(_symbols: list[str]) -> dict[str, dict[str, Any]]:
-        return {}
-
     monkeypatch.setattr(mcp_server.macro_repo, "get_latest", fake_get_latest)
-    monkeypatch.setattr(mcp_server.committee_store, "get_latest_completed_by_symbol", fake_committee)
 
     result = mcp_server.get_symbol_full_picture(ticker="XOM")
 
-    assert result["committee"]["latest"] is None
     assert result["macro"]["zone"] is None
 
 
@@ -303,7 +198,6 @@ def test_fastmcp_server_registers_release_tools() -> None:
     assert names == {
         "get_deployment_zone",
         "get_deployment_history",
-        "get_committee_runs_today",
         "get_symbol_full_picture",
     }
 

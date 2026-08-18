@@ -14,8 +14,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import (
     cards,
-    committee_runs,
-    committee_stream,
     health,
     home,
     household,
@@ -106,9 +104,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Load API credentials from database into environment variables
     load_credentials_from_database()
 
-    if not os.getenv("PYTEST_RUNNING"):
-        await committee_runs.resume_incomplete_runs()
-
     yield
 
     # Shutdown (placeholder for future cleanup logic)
@@ -164,8 +159,6 @@ app.include_router(rules.router)
 app.include_router(symbols.router)
 app.include_router(thesis.router)
 app.include_router(macro_router)
-app.include_router(committee_runs.router)
-app.include_router(committee_stream.router)
 
 
 @app.get("/")

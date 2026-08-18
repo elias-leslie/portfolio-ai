@@ -265,10 +265,10 @@ class AgentHubAPIClient(LLMClient):
     def _get_async_client(self) -> AsyncSDKClient:
         """Return a lazily-constructed async SDK client.
 
-        Used by the Investment Committee runner so analyst/researcher/risk
-        stages can call ``asyncio.gather`` and actually parallelize. The sync
-        client and async client share the same configuration but maintain
-        independent ``httpx`` connection pools.
+        For callers that fan several requests out with ``asyncio.gather`` and
+        want real I/O parallelism. The sync client and async client share the
+        same configuration but maintain independent ``httpx`` connection
+        pools. Nothing calls this today; it is constructed only on demand.
         """
         if self._async_client is None:
             self._async_client = AsyncSDKClient(**self._sdk_kwargs)

@@ -24,6 +24,8 @@ AGENT_SPECS: tuple[JennyAgentSpec, ...] = (
         agent_slug="trade-manager",
         prompt_mode="exit",
     ),
+    # Agent Hub agent slug only — unrelated to the deleted multi-agent
+    # investment-committee pipeline. This is Jenny's synthesis stage.
     JennyAgentSpec(
         agent_slug="investment-committee",
         prompt_mode="synthesis",

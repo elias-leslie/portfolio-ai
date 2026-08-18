@@ -36,12 +36,12 @@ dependencies = [
     # Configuration
     "pydantic-settings==2.14.2",
     "python-dotenv>=1.0.0",
-    "pypdf>=6.13.3",
+    "pypdf>=6.15.0",  # 6.15.0 fixes PYSEC-2026-3655/3656
     "pypdfium2>=5.6.0",
     "Pillow>=12.3.0",
     "rapidocr_onnxruntime>=1.2.3",
     # Utilities
-    "cryptography>=48.0.1",
+    "cryptography>=50.0.0",  # 50.0.0 fixes PYSEC-2026-3552
     "python-dateutil==2.9.0.post0",
     "pyyaml==6.0.3",
     "python-json-logger==4.0.0",
@@ -54,7 +54,8 @@ dependencies = [
     "vaderSentiment>=3.3.2",
     "snaptrade-python-sdk>=11.0.195",
     # MCP server (stdio transport for Claude Code / Codex CLI tie-in)
-    "mcp>=1.0.0",
+    # <2 until the 2.x transport rewrite is exercised against app/mcp_server.
+    "mcp>=1.28.1,<2",  # 1.28.1 fixes PYSEC-2026-3481/3482/3483
     "openpyxl>=3.1.5",
     "httpx2>=2.5.0",
     "edgartools>=5.40.1",

@@ -3,29 +3,26 @@
 Tools are thin adapters over existing repositories:
 
 * L1 (macro gate)   — :mod:`app.macro_gate.repository`
-* Committee         — :mod:`app.agents.committee.store`
 
-Each tool documents its tier and whether the underlying values are
-deterministic (back-testable) or non-deterministic (LLM-judgment, paid).
+Every value a tool returns is deterministic and back-testable: the tools read
+rows that background workflows already persisted, and never call a model.
 Returns are plain JSON-serializable dicts; the existing repositories
 already coerce DB rows into ISO-string + float primitives.
 """
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from ..agents.committee import store as committee_store
 from ..macro_gate import repository as macro_repo
 
 INSTRUCTIONS = (
-    "Read-only access to portfolio-ai's macro and committee context:\n"
+    "Read-only access to portfolio-ai's macro context:\n"
     "  L1 (DETERMINISTIC)     daily macro deployment gate "
-    "(FULL_DEPLOY / REDUCED / DEFENSIVE)\n"
-    "  Committee (NON-DETERMINISTIC) investment committee verdicts (AI, paid per run)\n\n"
+    "(FULL_DEPLOY / REDUCED / DEFENSIVE)\n\n"
     "All numbers are persisted by background workflows; tools never trigger "
     "LLM inference or recompute anything."
 )
@@ -125,48 +122,11 @@ def get_deployment_history(days: int = 90) -> dict[str, Any]:
 
 
 @mcp.tool()
-def get_committee_runs_today() -> dict[str, Any]:
-    """L3 committee runs completed in the last 24 hours, newest first.
-
-    NON-DETERMINISTIC tier — each row is an LLM-pipeline verdict (typically
-    ~$0.20-$2.00 per run via agent-hub). Filtered to
-    ``status in ('complete', 'approved')`` with a ``completed_at`` inside
-    the 24-hour window.
-    """
-    runs = committee_store.list_recent_runs(None, limit=100)
-    cutoff = datetime.now(UTC) - timedelta(hours=24)
-    rows: list[dict[str, Any]] = []
-    for row in runs:
-        if row.get("status") not in {"complete", "approved"}:
-            continue
-        completed = row.get("completed_at")
-        if not completed:
-            continue
-        try:
-            ts = datetime.fromisoformat(completed)
-        except ValueError:
-            continue
-        if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=UTC)
-        if ts < cutoff:
-            continue
-        rows.append(row)
-    return {
-        "tier": "L3",
-        "kind": "non-deterministic",
-        "window_hours": 24,
-        "count": len(rows),
-        "rows": rows,
-    }
-
-
-@mcp.tool()
 def get_symbol_full_picture(ticker: str, days: int = 30) -> dict[str, Any]:
-    """Unified macro + latest committee view for one symbol.
+    """Current macro deployment context, scoped to one symbol.
 
-    Combines the current macro deployment zone with the freshest completed
-    committee verdict. ``days`` is accepted for backward compatibility and
-    clamped, but no additional historical series is returned.
+    ``days`` is accepted for backward compatibility and clamped, but no
+    additional historical series is returned.
     """
     sym = ticker.upper().strip()
     if not sym:
@@ -174,11 +134,9 @@ def get_symbol_full_picture(ticker: str, days: int = 30) -> dict[str, Any]:
             "error": "empty_ticker",
             "symbol": "",
             "macro": None,
-            "committee": None,
         }
     days = max(1, min(int(days), 365))
     macro = macro_repo.get_latest()
-    committee = committee_store.get_latest_completed_by_symbol([sym]).get(sym)
     return {
         "symbol": sym,
         "days": days,
@@ -189,10 +147,5 @@ def get_symbol_full_picture(ticker: str, days: int = 30) -> dict[str, Any]:
             "zone": macro["zone"] if macro else None,
             "deployment_score": macro.get("deployment_score") if macro else None,
             "components": _components_from_snapshot(macro),
-        },
-        "committee": {
-            "tier": "committee",
-            "kind": "non-deterministic",
-            "latest": committee,
         },
     }

@@ -177,6 +177,6 @@ PREDICTION_DRIVER_FEATURES: list[str] = [
     "XLU",
 ]
 
-# Canonical target universe for the market-prediction committee v1.
+# Canonical target universe for market prediction v1.
 # Keeps the scope explicit and aligned with the approved product contract.
 PREDICTION_TARGET_SYMBOLS: list[str] = [BENCHMARK_SPY, *SECTOR_ETF_SYMBOLS]
