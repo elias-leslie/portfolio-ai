@@ -12,6 +12,11 @@ from typing import Any
 from agent_hub.models.content import ImageContent, MessageInput, TextContent
 from PIL import Image, ImageOps
 
+from app.services.household_document_redaction import (
+    redact_sensitive_text,
+    redact_sensitive_value,
+)
+
 _IMAGE_REVIEW_MAX_BYTES = 4_000_000
 _IMAGE_REVIEW_MAX_DIMENSION = 3200
 _IMAGE_REVIEW_MIN_DIMENSION = 1400
@@ -37,7 +42,14 @@ def _compact_prompt_value(value: Any) -> Any:
 
 
 def _prompt_json(value: Any) -> str:
-    return json.dumps(_compact_prompt_value(value), indent=2, default=str)
+    """Serialise a prompt block, masking account- and tax-id-shaped numbers.
+
+    Every caller passes household document data, so redaction belongs here
+    rather than at each call site; the static instruction text around these
+    blocks is deliberately left alone so its worked examples stay readable.
+    """
+    compacted = redact_sensitive_value(_compact_prompt_value(value))
+    return json.dumps(compacted, indent=2, default=str)
 
 
 def _crop_receipt_region(image: Image.Image) -> Image.Image:
@@ -170,7 +182,9 @@ def _build_messages(
             ]
         )
     if extracted_text:
-        prompt_parts.extend(["", "Extracted text preview:", extracted_text[:12000]])
+        prompt_parts.extend(
+            ["", "Extracted text preview:", redact_sensitive_text(extracted_text[:12000])]
+        )
     else:
         prompt_parts.extend(["", "Extracted text preview:", "[none]"])
     prompt = "\n".join(prompt_parts)

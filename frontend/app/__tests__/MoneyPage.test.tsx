@@ -8,8 +8,14 @@ const useHouseholdDocumentsMock = vi.fn()
 const useHouseholdFactsMock = vi.fn()
 const useHouseholdLedgerMock = vi.fn()
 const useAnswerHouseholdQuestionMock = vi.fn()
-const useHouseholdNetWorthTrendMock = vi.fn(() => ({ data: undefined, isLoading: false }))
-const usePortfolioAnalyticsMock = vi.fn(() => ({ data: undefined, isLoading: false }))
+const useHouseholdNetWorthTrendMock = vi.fn(() => ({
+  data: undefined,
+  isLoading: false,
+}))
+const usePortfolioAnalyticsMock = vi.fn(() => ({
+  data: undefined,
+  isLoading: false,
+}))
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdDashboard: () => useHouseholdDashboardMock(),
@@ -205,7 +211,9 @@ describe('MoneyPage', () => {
       screen.queryByRole('tab', { name: /Allocation/i }),
     ).not.toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /Accounts/i })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Intake & Review/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('tab', { name: /Intake & Review/i }),
+    ).toBeInTheDocument()
     expect(screen.getByText('Money Overview Panel')).toBeInTheDocument()
     expect(screen.queryByText('Net Worth')).not.toBeInTheDocument()
     expect(screen.queryByText('Fix Money Data')).not.toBeInTheDocument()

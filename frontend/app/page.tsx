@@ -10,11 +10,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 export default function Dashboard() {
   return (
     <PageContainer className="space-y-6 py-5">
-      <PageHeader
-        title="Today"
-        size="md"
-        variant="plain"
-      />
+      <PageHeader title="Today" size="md" variant="plain" />
       <DailyBriefPanel />
       <InvestingMarketTrendPanels />
     </PageContainer>

@@ -1610,7 +1610,9 @@ def test_review_with_llm_uses_dedicated_financial_document_agent(mock_client_cla
     )
 
     assert payload is not None
-    agent_service.ensure_agent.assert_called_once()
+    # Agent provisioning now happens inside resolve_review_agent_slug, which also
+    # decides between the general reviewer and the receipt vision agent.
+    agent_service.resolve_review_agent_slug.assert_called_once_with(include_image=False)
     mock_sdk_client.complete_messages.assert_called_once()
     kwargs = mock_sdk_client.complete_messages.call_args.kwargs
     assert kwargs["response_format"] == {"type": "json_object"}
