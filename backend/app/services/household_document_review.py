@@ -35,10 +35,7 @@ from app.services._household_document_review_signatures import (
 )
 from app.services._household_document_text import _extract_csv_text, _extract_text
 from app.services.household_account_identity import clean_text, derive_account_mask
-from app.services.household_review_agent_service import (
-    HOUSEHOLD_REVIEW_AGENT_SLUG,
-    HouseholdReviewAgentService,
-)
+from app.services.household_review_agent_service import HouseholdReviewAgentService
 from app.storage import get_storage
 
 logger = get_logger(__name__)
@@ -590,8 +587,8 @@ class HouseholdDocumentReviewService(HouseholdDocumentContextMixin, HouseholdDoc
         include_image: bool = False,
     ) -> dict[str, Any] | None:
         try:
-            self.agent_service.ensure_agent()
-            client = AgentHubAPIClient(agent_slug=HOUSEHOLD_REVIEW_AGENT_SLUG, use_memory=True)
+            agent_slug = self.agent_service.resolve_review_agent_slug(include_image=include_image)
+            client = AgentHubAPIClient(agent_slug=agent_slug, use_memory=True)
             baseline_confidence = float(baseline_review.get("confidence") or 0.0)
             thinking_level = "high" if include_image else (
                 "medium"
