@@ -416,16 +416,51 @@ class PlaidService:
         logger.info("plaid_source_credentials_saved", environment=environment)
         return self.get_status()
 
-    def create_link_token(self) -> dict[str, object]:
+    def create_link_token(self, *, item_id: str | None = None) -> dict[str, object]:
+        """Build a Link token, optionally in update mode for an existing item.
+
+        Without ``item_id`` this starts a fresh connection. With it, Link reopens
+        the account picker for a connection that already exists, which is the
+        only way to grant access to accounts that were left unselected the first
+        time. Adding a second card at an institution the household is already
+        connected to is otherwise impossible: linking again with the same
+        credentials mints a duplicate item rather than extending the first, and
+        the new accounts still never appear.
+
+        Plaid requires ``products`` to be omitted in update mode -- the item's
+        products are already fixed -- so the request is built differently rather
+        than patched afterwards.
+        """
         config = self._load_config()
         client = self._client(config)
-        request = LinkTokenCreateRequest(
-            products=[Products(product) for product in config.products],
-            client_name="Portfolio AI",
-            country_codes=[CountryCode(code) for code in config.country_codes],
-            language="en",
-            user=LinkTokenCreateRequestUser(client_user_id="portfolio-ai-household"),
-        )
+        update_access_token: str | None = None
+        if item_id:
+            items = self._load_items(item_id=item_id)
+            if not items:
+                raise PlaidIntegrationError(
+                    f"No active Plaid connection with item_id {item_id!r}.",
+                    status_code=404,
+                )
+            update_access_token = self.cipher.decrypt(
+                str(items[0]["access_token_ciphertext"])
+            )
+
+        if update_access_token:
+            request = LinkTokenCreateRequest(
+                client_name="Portfolio AI",
+                country_codes=[CountryCode(code) for code in config.country_codes],
+                language="en",
+                user=LinkTokenCreateRequestUser(client_user_id="portfolio-ai-household"),
+                access_token=update_access_token,
+            )
+        else:
+            request = LinkTokenCreateRequest(
+                products=[Products(product) for product in config.products],
+                client_name="Portfolio AI",
+                country_codes=[CountryCode(code) for code in config.country_codes],
+                language="en",
+                user=LinkTokenCreateRequestUser(client_user_id="portfolio-ai-household"),
+            )
         if config.redirect_uri:
             request["redirect_uri"] = config.redirect_uri
         try:

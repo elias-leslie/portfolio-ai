@@ -36,6 +36,12 @@ class PlaidSyncRequest(BaseModel):
     item_id: str | None = None
 
 
+class PlaidLinkTokenRequest(BaseModel):
+    """``item_id`` reopens an existing connection's account picker (update mode)."""
+
+    item_id: str | None = None
+
+
 def _service() -> PlaidService:
     return PlaidService()
 
@@ -77,9 +83,15 @@ async def configure_plaid(payload: PlaidConfigureRequest) -> dict[str, object]:
 
 
 @router.post("/link-token")
-async def create_plaid_link_token() -> dict[str, object]:
+async def create_plaid_link_token(
+    payload: PlaidLinkTokenRequest | None = None,
+) -> dict[str, object]:
+    """Start a Link flow -- new connection, or update mode for an existing item."""
     try:
-        return await run_in_threadpool(_service().create_link_token)
+        return await run_in_threadpool(
+            _service().create_link_token,
+            item_id=payload.item_id if payload else None,
+        )
     except Exception as exc:
         _raise_public_error(exc)
         raise

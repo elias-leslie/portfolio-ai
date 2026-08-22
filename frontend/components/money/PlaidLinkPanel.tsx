@@ -167,9 +167,11 @@ export function PlaidLinkPanel() {
     setPendingOpen(false)
   }, [open, pendingOpen, ready])
 
-  const handleConnect = async () => {
+  const handleConnect = async (itemId?: string) => {
     setLinkError(null)
-    const response = await createLinkToken.mutateAsync()
+    // itemId opens Link in update mode against an existing connection, which is
+    // how an additional card at an already-linked institution gets authorised.
+    const response = await createLinkToken.mutateAsync(itemId ? { itemId } : {})
     setLinkToken(response.linkToken)
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(LINK_TOKEN_STORAGE_KEY, response.linkToken)
@@ -437,6 +439,16 @@ export function PlaidLinkPanel() {
                 >
                   {item.status}
                 </Badge>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleConnect(item.itemId)}
+                  disabled={createLinkToken.isPending}
+                >
+                  <Link2 className="mr-1.5 h-3.5 w-3.5" />
+                  Add accounts
+                </Button>
                 <Button
                   type="button"
                   variant="ghost"

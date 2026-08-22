@@ -65,8 +65,15 @@ export function configurePlaid(
   return post<PlaidStatus>('/api/plaid/configure', payload)
 }
 
-export function createPlaidLinkToken(): Promise<PlaidLinkTokenResponse> {
-  return post<PlaidLinkTokenResponse>('/api/plaid/link-token')
+export function createPlaidLinkToken(
+  payload: { itemId?: string | null } = {},
+): Promise<PlaidLinkTokenResponse> {
+  // With an itemId, Link reopens the account picker for a connection that
+  // already exists -- the only way to add a card at an institution the
+  // household is already connected to.
+  return post<PlaidLinkTokenResponse>('/api/plaid/link-token', {
+    item_id: payload.itemId ?? null,
+  })
 }
 
 export function exchangePlaidPublicToken(payload: {
