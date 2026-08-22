@@ -47,6 +47,38 @@ def fetch_closed_household_account_ids(storage: Any) -> set[str]:
     }
 
 
+def fetch_registry_classification_overrides(storage: Any) -> dict[str, dict[str, str]]:
+    """Return the classifications an operator set because the provider is wrong.
+
+    A provider that reports a 529 as ``Taxable`` is not a parsing problem to be
+    corrected once; it reports that way on every sync, which is why the registry
+    carries an override. The override was only ever read back inside the registry
+    itself, so the dashboard kept filing those accounts by the provider's word --
+    the money was counted, under the wrong heading.
+
+    Only overridden rows are returned. A registry classification that merely
+    agrees with the provider has nothing to say here, and preferring the registry
+    everywhere would silently move totals no one asked to move.
+    """
+    with storage.connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id::text, asset_group, account_type
+            FROM household_accounts
+            WHERE jsonb_exists(COALESCE(metadata, '{}'::jsonb), 'classification_override')
+              AND archived_at IS NULL
+            """
+        ).fetchall()
+    return {
+        str(row[0]): {
+            "asset_group": str(row[1] or ""),
+            "account_type": str(row[2] or ""),
+        }
+        for row in rows
+        if row[1] or row[2]
+    }
+
+
 def fetch_hidden_household_account_ids(storage: Any) -> set[str]:
     """Return canonical accounts the user removed from active Money views."""
     with storage.connection() as conn:

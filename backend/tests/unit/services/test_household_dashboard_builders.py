@@ -16,6 +16,34 @@ from app.services._household_dashboard_builders import (
 )
 
 
+def test_an_annual_bill_becomes_a_commitment_and_is_not_annualized_twelve_times() -> None:
+    """A once-a-year bill was not a cadence the builder recognised at all.
+
+    Without ``annual`` in the vocabulary an HOA or a property tax fell straight
+    through, so it never reached a sinking fund -- which is the exact shape of
+    under-funding the fund is meant to prevent.
+    """
+    commitment = build_recurring_commitment(
+        (
+            "Lakeside Association",
+            "Home",
+            104.13,
+            1,
+            datetime(2026, 2, 17, tzinfo=UTC),
+        ),
+        "annual",
+        {"confidence": 1.0},
+        date(2026, 8, 22),
+    )
+
+    assert commitment is not None
+    assert commitment.cadence == "annual"
+    assert commitment.annualized_cost == 104.13
+    assert commitment.next_expected is not None
+    assert commitment.next_expected.startswith("2027-02-17")
+    assert commitment.due_status == "upcoming"
+
+
 def test_build_recurring_commitment_accepts_likely_monthly_labels() -> None:
     commitment = build_recurring_commitment(
         (

@@ -268,6 +268,10 @@ def test_gather_service_data_uses_dashboard_sync_gate_before_raw_registry_sync()
             "app.services._household_dashboard_assembly.fetch_hidden_household_account_ids",
             return_value=set(),
         ),
+        patch(
+            "app.services._household_dashboard_assembly.fetch_registry_classification_overrides",
+            return_value={},
+        ),
     ):
         gather_service_data(service)
 

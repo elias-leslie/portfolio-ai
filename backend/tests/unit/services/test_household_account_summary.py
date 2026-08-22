@@ -2588,3 +2588,63 @@ def test_build_account_summaries_preserve_balance_from_statement_when_newer_doc_
     assert summary.last_balance_at == "2026-04-11T00:00:00+00:00"
     assert summary.last_transaction_at == "2026-04-12T00:00:00+00:00"
     assert not any(gap.code == "missing_balance" for gap in summary.gap_flags)
+
+
+def test_an_operator_override_outranks_the_provider_account_type() -> None:
+    """A provider that reports a 529 as taxable does so on every sync.
+
+    That is why the registry carries a classification override -- but it was only
+    read back inside the registry, so the dashboard kept filing the account by
+    the provider's word. The money was counted, under the wrong heading, and
+    education read as a fraction of itself.
+    """
+    portfolio_account = Account(
+        id="portfolio-529",
+        name="Individual - 529",
+        account_type="Taxable",
+        cash_balance=0.0,
+        household_account_id="household-529",
+    )
+
+    summaries = build_account_summaries(
+        evidence_accounts=[],
+        documents=[],
+        portfolio_accounts=[portfolio_account],
+        tracked_accounts=[],
+        registry_classification_overrides={
+            "household-529": {"asset_group": "education", "account_type": "529"}
+        },
+        holdings_by_account={"portfolio-529": 12500.0},
+        statement_freshness={"coverage_months": 0, "gap_months": []},
+    )
+
+    assert len(summaries) == 1
+    assert summaries[0].asset_group == "education"
+    assert summaries[0].account_type == "529"
+
+
+def test_without_an_override_the_provider_classification_still_stands() -> None:
+    """Only an explicit override moves an account; agreement changes nothing."""
+    portfolio_account = Account(
+        id="portfolio-brokerage",
+        name="Individual - TOD",
+        account_type="Taxable",
+        cash_balance=0.0,
+        household_account_id="household-tod",
+    )
+
+    summaries = build_account_summaries(
+        evidence_accounts=[],
+        documents=[],
+        portfolio_accounts=[portfolio_account],
+        tracked_accounts=[],
+        registry_classification_overrides={
+            "household-529": {"asset_group": "education", "account_type": "529"}
+        },
+        holdings_by_account={"portfolio-brokerage": 1000.0},
+        statement_freshness={"coverage_months": 0, "gap_months": []},
+    )
+
+    assert len(summaries) == 1
+    assert summaries[0].asset_group == "taxable"
+    assert summaries[0].account_type == "Taxable"

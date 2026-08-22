@@ -22,6 +22,7 @@ _CADENCE_MULTIPLIERS: dict[str, int] = {
     "biweekly": 26,
     "monthly": 12,
     "quarterly": 4,
+    "annual": 1,
 }
 
 _CADENCE_OFFSETS: dict[str, timedelta | relativedelta] = {
@@ -29,14 +30,22 @@ _CADENCE_OFFSETS: dict[str, timedelta | relativedelta] = {
     "biweekly": timedelta(weeks=2),
     "monthly": relativedelta(months=1),
     "quarterly": relativedelta(months=3),
+    "annual": relativedelta(years=1),
 }
 
 _SUBSCRIPTION_CATEGORIES = {"subscriptions", "dining"}
-_RECURRING_CADENCES = {"monthly", "biweekly", "weekly", "quarterly"}
+# Annual belongs here even though nothing can infer it from two sightings a year
+# apart: it is the cadence a household declares, and leaving it out meant a
+# property tax or an HOA due once a year could never become a commitment at all,
+# which is precisely the gap that under-funds the sinking fund by a twelfth of
+# itself every month.
+_RECURRING_CADENCES = {"monthly", "biweekly", "weekly", "quarterly", "annual"}
 _CADENCE_LABEL_MAP = {
     "likely weekly": "weekly",
     "likely bi-weekly": "biweekly",
     "likely monthly": "monthly",
+    "likely quarterly": "quarterly",
+    "likely annual": "annual",
 }
 
 _CATEGORY_KEYWORDS: list[tuple[list[str], str]] = [

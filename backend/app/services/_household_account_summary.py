@@ -618,10 +618,23 @@ def _build_portfolio_summary(
     account_valuations: dict[str, Any],
     source_owned_household_account_ids: set[str],
     source_owned_account_values: dict[str, dict[str, Any]],
+    registry_classification_overrides: dict[str, dict[str, str]] | None = None,
     holdings_by_account: dict[str, float],
 ) -> HouseholdAccountSummary:
     portfolio_valuation = account_valuations.get(account.id)
     portfolio_household_account_id = getattr(account, "household_account_id", None)
+    # The provider's account type is the default reading, but an operator
+    # override on the registry row exists precisely because the provider is
+    # wrong about this account on every sync.
+    override = (registry_classification_overrides or {}).get(
+        str(portfolio_household_account_id)
+    ) if portfolio_household_account_id is not None else None
+    effective_asset_group = (
+        str(override.get("asset_group") or "") if override else ""
+    ) or _portfolio_asset_group(account)
+    effective_account_type = (
+        str(override.get("account_type") or "") if override else ""
+    ) or str(account.account_type)
     source_owned = (
         portfolio_household_account_id is not None
         and str(portfolio_household_account_id) in source_owned_household_account_ids
@@ -637,7 +650,7 @@ def _build_portfolio_summary(
     balance_status, balance_label = (
         _freshness_state_from_thresholds(
             _BALANCE_FRESHNESS_THRESHOLDS,
-            _portfolio_asset_group(account),
+            effective_asset_group,
             days_since=days_since_source_balance,
         )
         if source_owned
@@ -668,8 +681,8 @@ def _build_portfolio_summary(
         id=_portfolio_summary_key(account),
         household_account_id=portfolio_household_account_id,
         label=_portfolio_label(account),
-        asset_group=_portfolio_asset_group(account),
-        account_type=str(account.account_type),
+        asset_group=effective_asset_group,
+        account_type=effective_account_type,
         source_type=_portfolio_source_type(account),
         match_key=None,
         current_value=effective_current,
@@ -687,7 +700,7 @@ def _build_portfolio_summary(
         linked_portfolio_account_name=_portfolio_label(account),
         account_origin="portfolio",
         money_role=_money_role(
-            _portfolio_asset_group(account), str(account.account_type), _portfolio_label(account)
+            effective_asset_group, effective_account_type, _portfolio_label(account)
         ),
         last_balance_at=source_balance_dt.isoformat() if source_balance_dt is not None else None,
         days_since_balance=days_since_source_balance,
@@ -1000,6 +1013,7 @@ def build_account_summaries(
     source_owned_account_values: dict[str, dict[str, Any]] | None = None,
     closed_household_account_ids: set[str] | None = None,
     hidden_household_account_ids: set[str] | None = None,
+    registry_classification_overrides: dict[str, dict[str, str]] | None = None,
     holdings_by_account: dict[str, float],
     statement_freshness: dict[str, Any],
     latest_transaction_dates_by_household_account: dict[str, date] | None = None,
@@ -1011,6 +1025,7 @@ def build_account_summaries(
     source_owned_account_values = source_owned_account_values or {}
     closed_household_account_ids = closed_household_account_ids or set()
     hidden_household_account_ids = hidden_household_account_ids or set()
+    registry_classification_overrides = registry_classification_overrides or {}
     latest_transaction_dates_by_household_account = latest_transaction_dates_by_household_account or {}
     latest_transaction_dates_by_document = latest_transaction_dates_by_document or {}
     latest_transaction_dates_by_account_label = latest_transaction_dates_by_account_label or {}
@@ -1101,6 +1116,7 @@ def build_account_summaries(
                 account_valuations=account_valuations,
                 source_owned_household_account_ids=source_owned_household_account_ids,
                 source_owned_account_values=source_owned_account_values,
+                registry_classification_overrides=registry_classification_overrides,
                 holdings_by_account=holdings_by_account,
             )
         )

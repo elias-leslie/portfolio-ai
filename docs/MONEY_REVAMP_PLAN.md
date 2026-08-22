@@ -1,11 +1,11 @@
 # Money Workspace Revamp — Plan & Working Doc
 
-**Status:** PHASE 0 IN FLIGHT — 12 of 16 tasks landed, 3 partial, 1 open.
+**Status:** PHASE 0 IN FLIGHT — 14 of 16 tasks landed, 1 partial, 1 open.
 Nothing is blocked on the household. Phase 1 has not started.
 **Owner:** Elias Leslie
 **Started:** 2026-08-22
-**Last updated:** 2026-08-22 (receipts no longer double-count the card feed;
-CSV imports show their real delta; property tax and Wells Fargo answered)
+**Last updated:** 2026-08-22 (education resolves to $36,651.61; an annual bill
+can finally be a commitment; receipts no longer double-count the card feed)
 
 > **Handoff contract:** this file is the single source of truth for the Money
 > revamp. Anyone picking this up cold should read it top to bottom and be able to
@@ -16,16 +16,16 @@ CSV imports show their real delta; property tax and Wells Fargo answered)
 > — IA before/after, the Review screen mockup on real July 2026 data, the Prices
 > subsystem, and the tab disposition table.
 >
-> **State as of this writing:** Phase 0 is being worked. The 13 receipts (8
-> Walmart, 5 Costco) still sit at `status: staged` — they wait on the Costco
-> parser in Phase 4.2. Read §7 Phase 0 for what has landed and what is blocked;
-> every item there carries a status key. Phase 1 has not started.
->
 > **Read order for a cold start:** §1 goal → §4 diagnosis → §7 the plan → §6
 > decisions (D1–D23) for the *why* behind any phase → §3 findings for evidence.
 >
 > **§5 is empty by design** — every open question is resolved. Do not re-open
-> them; start at Phase 0.
+> them; start at Phase 0. **Nothing is waiting on the household.** Do not ask for
+> a decision that §6 already records.
+>
+> **Pick up here — §2a "Next actions" is the live queue.** It names the next
+> piece of work, in order, with the evidence behind each. Work the top item,
+> update its Phase 0 status key and the §8 work log, then re-order the queue.
 
 ---
 
@@ -46,6 +46,49 @@ Secondary asks:
 within 5 minutes agree on (a) what came in, (b) what went out, (c) whether the
 month is OK, (d) the 1–3 things to change — with no number on screen that
 contradicts another number on screen.
+
+---
+
+## 2a. Next actions (live queue — work top down)
+
+Ordered by what most changes the number the household sits down to review.
+Each item names where the evidence is. Re-order this list when you finish one.
+
+1. **Finish 0.3 — make the identity override reach every read path.**
+   The ledger's account filter offers `Visa Credit ****4635`,
+   `Visa credit ending 4635` and `Visa ending 4635` as three accounts; the
+   registry has them merged. `account_options` is built from raw
+   `account_label`, not the registry. Account summaries show provider labels
+   (`Individual - 529`, no mask) instead of registry ones. Same defect class as
+   P0-29, one field over, and the fix has the same shape — thread the override
+   through the read path. **Start with the ledger filter: it is what the
+   household actually touches.**
+
+2. **Fix P0-27 — the receipt parser dates purchases to the day it processed
+   them, and merges several orders into one row.** `$313.20` on 2026-06-13 is
+   provably two May orders ($174.98 on 5/22 + $138.22 on 5/28), and its $138.22
+   leg is already counted from the card feed. Emit one transaction per order,
+   date it from the page, and hold for review rather than falling back to
+   today. This also unblocks **0.13** (13 staged receipts) alongside the Costco
+   parser in Phase 4.2.
+
+3. **Clear the review inbox.** 17 documents sit at `needs_review`, including the
+   Amazon `Order History.csv` that now correctly reports "nothing new" — that
+   one needs a Reject to clear. Reviewing the rest will surface more parser
+   defects; expect them, record them here.
+
+4. **Then start Phase 1.** Everything above is data repair. Phase 1 is the one
+   trustworthy number pipeline — the reason five panels give four different
+   answers to "what did we spend." Phase 0's exit test is below; check it before
+   starting.
+
+**Known-but-deliberately-deferred** (do not treat as bugs to fix on sight):
+- **P0-3** the recurring detector's *inferred* labels remain wrong — Costco reads
+  "likely weekly, $61,113/yr annualized". Declaring a cadence (0.11) routes
+  around it for known bills; repairing it is Phase 1.
+- Purchase items cannot span charges, so a split order keeps its line items on
+  the retired receipt rather than restating their prices against one leg
+  (0.14). Phase 4.
 
 ---
 
@@ -394,6 +437,68 @@ Fix belongs in Phase 4.2 with the Costco parser: emit **one transaction per
 order**, dated by the **order date on the page**, and refuse to fall back to
 `now()` — a receipt whose date cannot be read should be held for review, not
 booked on today.
+
+---
+
+### P0-28 — An annual bill could not be a recurring commitment at any confidence
+
+Confirming the HOA cadence exposed that `annual` was not a cadence the system
+had. `_RECURRING_CADENCES` was `{monthly, biweekly, weekly, quarterly}`, and the
+multiplier and next-date tables matched it, so a commitment that bills once a
+year was dropped before it was built — not mis-sized, absent.
+
+Two further bars sat under it:
+
+- Cadence is inferred from **two or more sightings**. Six months of card coverage
+  cannot contain two occurrences of an annual bill, so inference returns nothing
+  and the merchant reads as `irregular`.
+- The recurring query required `HAVING COUNT(*) >= 2`, so a once-a-year merchant
+  was never a candidate in the first place.
+
+This is exactly the failure D18 and D23 describe from the other end: an annual
+obligation that never lands drags its sinking fund down by a twelfth of itself
+every month, and the shortfall only surfaces when the bill arrives. The property
+tax was seeded by hand precisely because of this; the HOA would have needed the
+same workaround forever.
+
+Fixed in 0.11: `annual` added to the cadence vocabulary (multiplier 1, next date
++1 year), a `cadence_override` on the merchant that outranks inference, and
+admission to the recurring set on one sighting when a cadence has been declared.
+
+**Not fixed, and still P0-3:** the detector's inferred labels remain wrong —
+Costco reads "likely weekly, $61,113/yr annualized", Airbnb "likely weekly".
+Declaring a cadence is a way around that for known bills, not a repair of it.
+
+---
+
+### P0-29 — An operator override the dashboard never read
+
+The registry lets an operator overrule a provider that is wrong about an account
+— `classification_override` exists because Fidelity reports both 529s as
+`Taxable` on **every** sync, so correcting the row once would not hold.
+
+The override was written, reapplied after every evidence refresh, and read back
+only inside the registry. The dashboard builds its account summaries from the
+*portfolio* account and derives `asset_group` from the provider's account type,
+so both 529s were filed as taxable no matter what the registry said. $29,858.44
+sat under the wrong heading while education read as $6,793.17 — a fifth of its
+real size.
+
+Fixed in 0.4: `fetch_registry_classification_overrides` threads overridden rows
+through `gather_service_data` → `build_account_summaries` →
+`_build_portfolio_summary`, which now prefers the override for `asset_group`,
+`account_type`, `money_role` and balance-freshness thresholds. **Only overridden
+rows are affected** — a registry classification that merely agrees with the
+provider changes nothing, so no total moves that nobody asked to move.
+
+Generalisable lesson, worth carrying into Phase 1: *an override is not applied
+until every read path honours it.* The identity override added in 0.3 has the
+same shape and the same exposure — the ledger's account filter still lists
+`Visa Credit ****4635`, `Visa credit ending 4635` and `Visa ending 4635` as three
+accounts because it builds its options from raw `account_label` rather than the
+registry, and the 529 summaries still show the provider's label
+`Individual - 529` with no mask instead of `Fidelity - Individual - 529 *6273`.
+Classification is fixed; **label and mask are not** — that is 0.3's remainder.
 
 ---
 
@@ -1044,18 +1149,42 @@ started.
     because the provider genuinely reports one name for both. Named by operator
     override (`identity_override`, reapplied after every evidence refresh) as
     `Chase Sapphire Preferred ·3627` / `·8054` with owners.
+    **Remaining — the same defect P0-29 named, one field over.** The identity
+    override is written but not honoured by every read path:
+    - The ledger's account filter still offers `Visa Credit ****4635`,
+      `Visa credit ending 4635` and `Visa ending 4635` as three separate
+      accounts. `account_options` is built from raw `account_label` on the
+      transaction rows, not from the registry.
+    - Account summaries for provider-only accounts show the provider's label and
+      no mask (`Individual - 529`) instead of the registry's
+      `Fidelity - Individual - 529 *6273`.
+
+    Fix has the shape already proven in P0-29: thread the overridden identity
+    (label, mask, owner) the same way the classification now travels, and resolve
+    ledger `account_options` through the registry instead of raw labels. Do the
+    ledger one first — it is what the household sees when it filters.
 0.3a **[done]** Wells Fargo is three rows — masks `7312`, `4222`, and a no-mask
     export. **The household confirmed `7312` and `4222` are two genuinely
     different checking accounts, both now closed.** They are not merged. The
     shared Michael Wiley note payment across them is a real payment made from two
     accounts over time, not an identity collision.
-0.4 **[part]** Both Fidelity 529s carry `asset_group: education` /
-    `account_type: 529`, pinned by classification override; CollegeAmerica/VCSP
-    and the stale "529 College Savings" rows are archived. Merrill holds
-    $3,395.57 + $3,397.60 as of 2026-05-28. **Remaining:** the Fidelity 529 pair
-    currently reports *no* balance at all, so education does not resolve to the
-    expected $36,651.61. The identical $14,363.57 figure was never verified —
-    the source PDF is still the blocker.
+0.4 **[done]** Education resolves to **$36,651.61**, exactly the D20 figure.
+    Both Fidelity 529s carry `asset_group: education` / `account_type: 529` by
+    classification override; CollegeAmerica/VCSP and the stale "529 College
+    Savings" rows are archived. Merrill holds $3,395.57 + $3,397.60.
+    **The "no balance" reading was wrong and no source PDF was needed.** SnapTrade
+    has been carrying $14,929.22 for each Fidelity 529 all along — linked, active,
+    synced. The dashboard was filing both under **taxable**, because the account
+    summary took its classification from the *provider's* account type and the
+    registry override was only ever read back inside the registry (see P0-29).
+    The money was counted; the heading was wrong. Taxable drops $635,774.29 →
+    $605,915.85, education rises $6,793.17 → $36,651.61, net worth is unchanged
+    at $1,530,455.18 — which is the proof it was a reclassification and not a
+    revaluation.
+    The D20 data-quality flag is also retired: the identical $14,363.57 is real,
+    not an extraction error. The source PDF shows both accounts holding the same
+    177.153 shares of CWIAX at $81.08 — matched contributions into one fund. The
+    Fidelity pair being identical at $14,929.22 is the same fact, later.
 0.5 **[done]** **Fix the duplicated-with-opposite-sign ingest** (P0-22).
 0.6 **[done]** **Stop the spend filters from eating income** (P0-23). Filters
     classify and say why instead of deleting.
@@ -1077,15 +1206,25 @@ started.
     confirmed the amount paid **is** the discounted figure and that it always
     pays inside the November 4% window, so the gross bill was $2,233.83 and the
     next one is due November 2026.
-0.11 **[part]** The six `HARBOR HILLS PROPERTY` rows are already deduped to one
-    live row (2026-02-17, $104.13) — the P0-22 dedup fix caught them. It still
-    sits under `Bills` rather than housing, and **one occurrence in six months of
-    card coverage means the cadence is not monthly**; annual or quarterly, paid
-    from an account with no feed. Cadence needs confirming before it can be a
-    recurring commitment or a sinking-fund input.
-0.12 **[part]** Costco carries `membership_active` and a $5.42/mo membership
-    accrual with a $0 pickup fee. Aldi, Amazon, Publix and Walmart still have no
-    fee or threshold values — household-specific facts, not derivable.
+0.11 **[done]** The six `HARBOR HILLS PROPERTY` rows are already deduped to one
+    live row (2026-02-17, $104.13) — the P0-22 dedup fix caught them.
+    Recategorised `Bills` → `Home` with a merchant rule, so future HOA charges
+    land there without a second pass. **The household confirmed the HOA is
+    annual**, which the data could never have shown: cadence is inferred from two
+    or more sightings, and six months of card coverage will never contain two of
+    an annual bill. Two gaps had to close for that answer to mean anything —
+    `annual` was not in the cadence vocabulary at all (see P0-28), and there was
+    nowhere to *state* a cadence. Merchants now carry a `cadence_override` that
+    wins over inference, set through `scripts/household_declare_cadence.py`, and
+    a merchant with a declared cadence is admitted to the recurring set on one
+    sighting. The HOA now reports as a commitment: annual, $104.13, annualised
+    $104.13, next expected 2027-02-17, confidence 1.0.
+0.12 **[done]** Costco carries `membership_active` and a $5.42/mo membership
+    accrual with a $0 pickup fee. **The household does not use delivery at Aldi,
+    Amazon, Publix or Walmart**, so all four now carry a known $0 pickup fee with
+    delivery fee and free-delivery threshold deliberately left unset — the
+    optimizer prices in-store baskets with no fee, and an unset delivery fee now
+    means *not used* rather than *not yet asked*.
 0.13 **[open]** Ingest the **13 staged receipts** (8 Walmart, 5 Costco) — depends
     on the Costco parser work in Phase 4.2, and now also on P0-27 below: the
     receipts already ingested show the parser dating a purchase to the day it was
@@ -1327,5 +1466,6 @@ household-level habits and per-person habits are different products.
 | 2026-08-22 | Grill Q5 + identity | D13 (phase-aware retirement block), D14 (sequencing: trust pipeline first, nothing dropped), D15 (family-wide capture; identity propagation). Four Gmail identities recorded. §7 restructured: new Phase 5.0 identity propagation ahead of 4.4 owner attribution; 5.6 rewritten for four-person capture; new Phase 6 shopping habits. Artifact republished with the family-capture section. Still nothing in the project changed. |
 | 2026-08-22 | Security | Emails were committed to this **public** repo, then redacted from the plan doc and the artifact. History rewritten: `0a4add8b9` + `94e7cdfc3` squashed into `4073f9168`, force-pushed, branch protection restored. GitHub still serves the orphaned SHA until Support GCs it — request drafted. Real addresses now live in `.env.local` → `HOUSEHOLD_MEMBER_EMAILS`, gitignored. |
 | 2026-08-22 | Phase 0 | Both Sapphire cards connected (P0-20 closed): `·3627` Elias, `·8054` Mariana on a second Chase item. The AC replacement is **split across both cards** — $5,831.50 + $5,801.50 on 2026-07-23 — clearing both $5,000 minimum spends with one purchase. `household_credit_cards` seeded with three rows; both welcome bonuses compute as `earned` from the ledger; the $95 annual fee posted 2026-08-02 on both, so the next one is 2027-08-02. Chase reports both cards as `Ultimate Rewards®`, so the registry gained an `identity_override` (label + owner) that survives evidence refresh, mirroring the classification override. The Cards tab had the same problem one level up — it rendered both Sapphires as the same row twice — so a card row now carries its account's owner and last four. MSR progress now excludes the issuer's own fees — the annual fee was counting as qualifying spend. The 63% `removed` rate was investigated and cleared: 11 true orphans, nine of them Plaid pending holds. |
+| 2026-08-22 | Phase 0 cont. 2 | Three household answers landed and each exposed a defect underneath it. **HOA is annual** (0.11) — but `annual` was not a cadence the system had (**P0-28**): it was absent from `_RECURRING_CADENCES`, the multiplier and next-date tables, and the recurring query required two sightings, which six months of coverage can never show for a yearly bill. Added `annual`, added a merchant `cadence_override` that outranks inference (`scripts/household_declare_cadence.py`), and admitted declared merchants on one sighting. HOA now reports annual, $104.13, next 2027-02-17, confidence 1.0, recategorised `Bills` → `Home` with a merchant rule. **No delivery at Aldi/Amazon/Publix/Walmart** (0.12) — all four now carry a known $0 pickup fee with delivery deliberately unset, so "unset" means *not used* rather than *not yet asked*. **Fidelity 529s** (0.4) — the "no balance" diagnosis was wrong: SnapTrade had $14,929.22 for each all along, and the dashboard was filing them under taxable because the account summary read the *provider's* account type while the registry's `classification_override` was only ever read back inside the registry (**P0-29**). Education $6,793.17 → **$36,651.61**, taxable $635,774.29 → $605,915.85, net worth unchanged — proof it was a reclassification, not a revaluation. Also read the source PDF and retired D20's data-quality flag: the identical $14,363.57 is real (both accounts hold the same 177.153 CWIAX shares), not an extraction error. |
 | 2026-08-22 | Phase 0 cont. | Receipts stopped double-counting the card feed (0.14): a new reconciliation pass retires a receipt whose spend the feed already carries, matching a **set** of charges rather than a twin — the $54.06 Walmart receipt is the $50.48 + $3.58 pair. Six receipts / $677.20 retired against seven charges, idempotent on a second pass, audit blob on every retired row. The same pass detects a receipt uploaded twice as two different files, on identical line items rather than a matching total. CSV imports fixed and made legible (0.15): a byte-order mark was silently voiding an entire Amazon export, and the review proposal now states rows-in-file / new / already-known / date range before approval. 0.3a and 0.10 closed by household answers (two separate closed Wells Fargo accounts; property tax paid at the 4% November discount). New finding **P0-27** — the receipt parser dates purchases to the day they were processed and merges several orders into one row; $313.20 is provably two May orders, and its $138.22 leg is already counted elsewhere. Fix lands in Phase 4.2. |
 | 2026-08-22 | Questions closed | All 7 open questions in §5 resolved — 3 from the data, 4 by the user. New findings P0-21 (only two live feeds), P0-22 (same premium booked income *and* expense), P0-23 (spend filters delete real note income), P1-24 (19 labels / ~7 accounts), P1-25 (ledger can't search by amount), P2-26 (HOA ×6, miscategorized). Decisions D16–D23 added. Phase 0 expanded 6→13 tasks; Phase 3 rewritten. **Plan is ready to build.** |

@@ -1657,3 +1657,101 @@ def test_build_spending_view_item_splits_move_category_mix_not_totals() -> None:
     }
     assert monthly_categories[("Personal Care", "discretionary")] == 29.67
     assert monthly_categories[("Household", "mixed")] == 5.29
+
+
+class _CadenceConnection:
+    """Answers the cadence reads by statement, so call order stays irrelevant."""
+
+    def __init__(
+        self,
+        *,
+        declared: dict[str, Any] | None,
+        transaction_dates: list[tuple[Any, ...]],
+    ) -> None:
+        self._declared = declared
+        self._transaction_dates = transaction_dates
+
+    def execute(self, sql: str, params: list[Any] | None = None) -> SimpleNamespace:
+        del params
+        if "cadence_override" in sql:
+            rows = [(self._declared,)] if self._declared is not None else []
+        elif "household_documents" in sql:
+            rows = []
+        else:
+            rows = self._transaction_dates
+        return SimpleNamespace(
+            fetchall=lambda: rows,
+            fetchone=lambda: rows[0] if rows else None,
+        )
+
+
+class _CadenceStorage:
+    def __init__(self, conn: _CadenceConnection) -> None:
+        self.conn = conn
+
+    @contextmanager
+    def connection(self):
+        yield self.conn
+
+
+def test_a_declared_cadence_beats_what_the_dates_can_show() -> None:
+    """One sighting a year cannot be inferred, so the household's word stands.
+
+    Six months of card coverage will never contain two occurrences of an annual
+    bill. Without a way to state the cadence, the bill reads as irregular and
+    never reaches a sinking fund.
+    """
+    service = HouseholdTransactionService()
+    service.storage = _CadenceStorage(
+        _CadenceConnection(
+            declared={"label": "annual", "reason": "billed once a year"},
+            transaction_dates=[(datetime(2026, 2, 17, tzinfo=UTC),)],
+        )
+    )
+
+    cadence = service.infer_merchant_cadence(merchant="Lakeside Association")
+
+    assert cadence == {
+        "label": "annual",
+        "confidence": 1.0,
+        "rationale": "billed once a year",
+        "source": "declared",
+    }
+
+
+def test_cadence_still_comes_from_the_dates_when_nothing_was_declared() -> None:
+    service = HouseholdTransactionService()
+    service.storage = _CadenceStorage(
+        _CadenceConnection(
+            declared=None,
+            transaction_dates=[
+                (datetime(2026, 1, 9, tzinfo=UTC),),
+                (datetime(2026, 2, 9, tzinfo=UTC),),
+            ],
+        )
+    )
+
+    cadence = service.infer_merchant_cadence(merchant="Duke Energy")
+
+    assert cadence is not None
+    assert cadence["label"] == "likely monthly"
+    assert "source" not in cadence
+
+
+def test_a_declaration_with_no_label_is_not_treated_as_an_answer() -> None:
+    """An empty override must fall through to inference, not blank the cadence."""
+    service = HouseholdTransactionService()
+    service.storage = _CadenceStorage(
+        _CadenceConnection(
+            declared={"reason": "someone saved the form empty"},
+            transaction_dates=[
+                (datetime(2026, 1, 9, tzinfo=UTC),),
+                (datetime(2026, 2, 9, tzinfo=UTC),),
+            ],
+        )
+    )
+
+    cadence = service.infer_merchant_cadence(merchant="Duke Energy")
+
+    assert cadence is not None
+    assert cadence["label"] == "likely monthly"

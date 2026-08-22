@@ -68,7 +68,14 @@ RECURRING_SQL = f"""
       AND {current_transaction_date_predicate("t")}
       AND NOT {_NON_SPEND_TRANSACTION_SQL}
     GROUP BY 1, 2
+    -- Two sightings is the evidence bar for inferring a cadence, but an annual
+    -- bill cannot clear it: six months of card coverage will never show the
+    -- second one. A merchant whose cadence the household has declared is
+    -- admitted on one sighting, which is the only way an annual obligation ever
+    -- reaches a sinking fund. jsonb_exists, not the containment operator -- the
+    -- driver reads that operator's character as a placeholder.
     HAVING COUNT(*) >= 2
+        OR BOOL_OR(jsonb_exists(COALESCE(m.metadata, '{{}}'::jsonb), 'cadence_override'))
     ORDER BY average_amount DESC
     LIMIT %s
 """

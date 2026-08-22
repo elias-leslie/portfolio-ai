@@ -1110,6 +1110,9 @@ class HouseholdTransactionService:
             nullcontext(conn) if conn is not None else self.storage.connection()
         )
         with connection_context as active_conn:
+            declared = self._declared_cadence(active_conn, merchant=merchant)
+            if declared is not None:
+                return declared
             row_dates: list[date] = []
             rows = active_conn.execute(
                 """
@@ -1149,6 +1152,81 @@ class HouseholdTransactionService:
         if len(row_dates) < MIN_DATES_FOR_CADENCE:
             return None
         return self._dates_to_cadence(row_dates)
+
+    @staticmethod
+    def _declared_cadence(conn: Any, *, merchant: str) -> dict[str, object] | None:
+        """Return the cadence the household stated, if it stated one.
+
+        Inference needs two sightings and cannot reach an annual bill inside six
+        months of coverage. When someone knows the answer, the knowing is better
+        evidence than the arithmetic, so a declared cadence wins outright rather
+        than being averaged against a gap the feed cannot see.
+        """
+        row = conn.execute(
+            """
+            SELECT metadata -> 'cadence_override'
+            FROM household_merchants
+            WHERE lower(canonical_name) LIKE %s
+              AND jsonb_exists(COALESCE(metadata, '{}'::jsonb), 'cadence_override')
+            ORDER BY updated_at DESC
+            LIMIT 1
+            """,
+            [f"%{_merchant_root(merchant)}%"],
+        ).fetchone()
+        if row is None or not isinstance(row[0], dict):
+            return None
+        label = str(row[0].get("label") or "").strip()
+        if not label:
+            return None
+        reason = str(row[0].get("reason") or "").strip()
+        return {
+            "label": label,
+            "confidence": 1.0,
+            "rationale": reason or f"The household states this merchant bills {label}.",
+            "source": "declared",
+        }
+
+    def set_merchant_cadence(
+        self,
+        *,
+        merchant: str,
+        label: str,
+        reason: str | None = None,
+    ) -> dict[str, object]:
+        """Record a cadence the household knows and the feed cannot show."""
+        with self.storage.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT id, canonical_name FROM household_merchants
+                WHERE lower(canonical_name) LIKE %s
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                [f"%{_merchant_root(merchant)}%"],
+            ).fetchone()
+            if row is None:
+                raise ValueError(f"No merchant matches {merchant!r}")
+            override = {
+                "label": label,
+                "reason": reason or "",
+                "set_at": datetime.now(UTC).isoformat(),
+            }
+            conn.execute(
+                """
+                UPDATE household_merchants
+                SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                """,
+                [json.dumps({"cadence_override": override}), row[0]],
+            )
+            conn.commit()
+        logger.info(
+            "household_merchant_cadence_declared",
+            merchant=str(row[1]),
+            label=label,
+        )
+        return {"merchant": str(row[1]), "cadence_override": override}
 
     @staticmethod
     def _document_stored_path(document: Any) -> Path | None:
