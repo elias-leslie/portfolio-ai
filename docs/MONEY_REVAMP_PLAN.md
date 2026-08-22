@@ -3,7 +3,7 @@
 **Status:** PHASE 1 COMPLETE — AUDIT + GRILL DONE, PLAN DRAFTED, **AWAITING USER APPROVAL BEFORE ANY CODE CHANGE**
 **Owner:** Elias Leslie
 **Started:** 2026-08-22
-**Last updated:** 2026-08-22 (grill complete; D1–D14; phased plan written; proposal artifact published)
+**Last updated:** 2026-08-22 (grill complete; D1–D15; phased plan written; proposal artifact published)
 
 > **Handoff contract:** this file is the single source of truth for the Money
 > revamp. Anyone picking this up cold should read it top to bottom and be able to
@@ -21,7 +21,7 @@
 > before touching anything.
 >
 > **Read order for a cold start:** §1 goal → §4 diagnosis → §7 the plan → §6
-> decisions (D1–D14) for the *why* behind any phase → §3 findings for evidence.
+> decisions (D1–D15) for the *why* behind any phase → §3 findings for evidence.
 
 ---
 
@@ -641,6 +641,88 @@ to be built and drop it from the plan. that's just what's first."*
 Also confirmed: **the Retirement tab is NOT removed** — it stays in Money, ceasing
 to be a flat peer and gaining the Review link.
 
+### D15 — Family-wide capture is the data strategy, and identity is the unlock
+User: *"i definitely want the 'should i buy it' stuff and ability to easily take
+pictures with whichever phone (my kids have iphones). if we can get all four of us
+to use that when we're out shopping then it could really start to build some good
+data…even data that helps us understand our shopping habits and identify any bad
+habits."*
+
+**Decided:** shelf-tag capture is a **four-person** capability (Elias, Mariana,
+Nadia, Sophia), not a solo tool. "Should I buy this?" is confirmed in scope
+(Phase 5.7) and is the reason anyone opens the camera; the price matrix is the
+byproduct.
+
+**Finding — identity is authenticated and then discarded.**
+`frontend/middleware.ts` verifies a Cloudflare Access JWT and reads
+`payload.email`, then returns `NextResponse.next()` **without forwarding it**. No
+backend endpoint reads `cf-access-jwt-assertion` or any user header. The app
+authenticates individuals and then treats every action as anonymous.
+
+**Finding — the owner vocabulary already exists, unpopulated.**
+`household_members` holds all four (Elias 1977 primary · Mariana 1982 spouse ·
+Nadia 2012 child/dependent · Sophia 2012 child/dependent, all `confirmed`).
+`frontend/components/money/owner-options.ts` already names them plus Oksana, Cats
+and combinations. Yet attribution runs **91% "Family"** because nothing populates it.
+
+**Consequence — this reorders Phases 4 and 5.** Propagating the authenticated
+identity is a small change that makes **owner attribution a byproduct of capture**
+rather than a separate build: whoever photographs the tag or uploads the receipt
+is recorded automatically. Phase 4.4 (owner attribution) therefore depends on
+Phase 5.0 (identity propagation), not the other way round.
+
+**Requirement — capture must be a scoped surface.** Nadia and Sophia are 14. They
+need a **capture-only view**: camera + "Should I buy this?" and nothing else — no
+net worth, no account numbers, no ledger, no retirement. Cloudflare Access gates
+by email; the app needs a role check mapping email → `household_members.role`, with
+`child` restricted to the capture surface.
+
+**Auth decision (user-confirmed):** all four have Gmail accounts and will
+authenticate through **Cloudflare Access with Google as the IdP**. `payload.email`
+becomes the owner key.
+
+**The four identities.** This repo is **public** — the real Gmail addresses are
+deliberately NOT recorded here, and two of the four belong to minors. The
+addresses live outside version control (see below); this table is the shape only.
+
+| Email | `household_members` | Role | Money access |
+|---|---|---|---|
+| `<elias-email>` | Elias (1977) | `primary` | Full |
+| `<mariana-email>` | Mariana (1982) | `spouse` | Full |
+| `<nadia-email>` | Nadia (2012) | `child` | **Capture only** |
+| `<sophia-email>` | Sophia (2012) | `child` | **Capture only** |
+
+> **Where the real addresses live:** the user supplies them directly at
+> implementation time. They belong in the Cloudflare Access policy and in a
+> seed applied to `household_members.email` from an approved secret source —
+> never in a committed migration, fixture, test, doc or comment. A cold agent
+> should ask the user for them rather than searching the repo or git history.
+
+**Gap to close:** `household_members` has **no email column** (id, display_name,
+role, relationship, birth_year, is_dependent, lives_in_household, notes,
+confirmation_status, provenance, evidence_note, source_document_id, timestamps).
+Needs a migration adding a unique email field. The migration adds the column
+only — the four addresses are seeded at run time from an approved secret source,
+never written into the migration file. Then: Access JWT → `payload.email` → `household_members` row →
+`owner_name` on every capture, receipt upload and manual edit.
+
+**Access policy shape:** one policy admitting all four emails to the capture
+route; a second admitting only Elias + Mariana to the rest of Money. Belt and
+braces — enforce the same rule app-side off `household_members.role`, so a policy
+misconfiguration doesn't expose the ledger to a `child` role.
+
+**iOS note:** `<input type="file" accept="image/*" capture="environment">` opens
+the camera directly in iOS Safari — no PWA install needed to capture. Install is
+only required for *push* (D11). Kids open a URL; friction stays near zero, which
+is what adoption depends on.
+
+**New capability — shopping-habit analysis (Phase 6).** Capture + receipt data
+together yield signals no receipt alone can: captured-but-not-bought (considered
+and declined), bought-without-capture (impulse), repeat captures of one item
+(deliberation), store/time-of-day patterns, per-person basket composition,
+recurring overspend shapes. Worth noting: per-person habit reporting on minors is
+a deliberate choice, not a default — decide the granularity before switching it on.
+
 ---
 
 ## 7. The plan
@@ -773,11 +855,26 @@ Prerequisite for D2.4 owner attribution and for all per-item price work.
 4.3 **Walmart parser hardening**: the fulfillment token sits between name and qty
     (`Fresh Hass Avocados, Each 16 shopped Qty 10 $8.20` → qty is 10, not 16);
     handle `weight adjusted` rows.
-4.4 **Owner attribution** (D2.4) — today 91% "Family". Needs item-level owners.
+4.4 **Owner attribution** (D2.4) — today 91% "Family". **Depends on Phase 5.0**
+    (identity propagation), which makes attribution a byproduct of who captured or
+    uploaded rather than a dropdown nobody fills in. Manual override stays for
+    corrections and for gift/shared purchases.
 
 ---
 
-### Phase 5 — Prices subsystem (D10)
+### Phase 5 — Prices subsystem (D10, D15)
+
+5.0 **Identity propagation — do this first; it unblocks 4.4.**
+    Migration: add a unique email column to `household_members`, seeded with the
+    four Gmail addresses. Configure Cloudflare Access with Google as IdP.
+    `middleware.ts` currently verifies `payload.email` and then discards it —
+    forward it as a trusted header; resolve it to a `household_members` row
+    server-side; stamp `owner_name` on every capture, upload and edit.
+    **Scoping:** Access policy admits all four to the capture route, Elias +
+    Mariana only to the rest of Money; enforce the same rule app-side off
+    `household_members.role` so `child` cannot reach net worth, accounts, ledger
+    or retirement.
+
 5.1 **Fix package extraction** (U-2) with a confidence gate and manual override.
     Known failures: `Triple Omega 3-6-9 … 150 Ct` → parsed 54 count (2.8× off);
     `MoKo Case for Fire HD 10 Tablet` → 10 "tablets"; olive-oil *dispenser bottle*
@@ -792,9 +889,14 @@ Prerequisite for D2.4 owner attribution and for all per-item price work.
 5.5 **Costco item-number → product map** — the shelf tag carries item number, full
     description, package size *and* per-unit price. It is the join key between
     Costco receipts and the price matrix.
-5.6 **Camera capture** for shelf tags. No camera input exists today (only
-    `accept="image/*,.pdf"` on `AddCardDialog`, no `capture` attribute). The PWA
-    is already installable, which makes this viable on both phones.
+5.6 **Camera capture** for shelf tags — **four people, all phones** (D15).
+    No camera input exists today (only `accept="image/*,.pdf"` on `AddCardDialog`,
+    no `capture` attribute). Use
+    `<input type="file" accept="image/*" capture="environment">`, which opens the
+    camera directly in iOS Safari — **no PWA install needed to capture** (install
+    is only required for push, D11). Kids open a URL. Every capture carries its
+    owner via 5.0. Target OCR fields: Costco item number, full description,
+    package size, shelf per-unit price, store.
 5.7 **"Should I buy this?"** in-store screen: your usual unit cost, the other four
     stores after fees and membership, bigger-pack verdict, and how long it lasts at
     observed pace.
@@ -803,6 +905,23 @@ Prerequisite for D2.4 owner attribution and for all per-item price work.
     total. Turn into a scheduled backfill for routinely-purchased items.
 5.9 Retire most of **Levers** (P1-10): $262/mo of modeled trim across 4,617px.
     Keep cut-candidates and deviations, folded into Review's "what changed".
+
+---
+
+### Phase 6 — Shopping habits (D15)
+Only possible once 5.0 + 5.6 are collecting attributed captures alongside receipts.
+
+6.1 **Considered-and-declined** — captured but never purchased. The only record of
+    a good decision the household currently has no way to see.
+6.2 **Impulse** — purchased with no prior capture, in categories where capture is
+    the norm.
+6.3 **Deliberation** — the same item captured repeatedly before buying.
+6.4 **Pattern surfaces** — store and time-of-day habits, per-person basket
+    composition, recurring overspend shapes, "we always overspend at Costco on
+    Saturdays" class of finding.
+6.5 Feeds Review's "what changed" and the alert stream, not a separate tab.
+**Decide granularity for the girls before switching per-person reporting on** —
+household-level habits and per-person habits are different products.
 
 ---
 
@@ -824,3 +943,4 @@ Prerequisite for D2.4 owner attribution and for all per-item price work.
 | 2026-08-22 | Grill Q1–Q4 | D1–D12 decided. Sub-audits: unit-price engine, receipt sources (Walmart/Costco), cash + sinking funds, prices subsystem, PWA push readiness, missing credit cards. New findings U-1…U-4, P0-20, P2-19. |
 | 2026-08-22 | Receipts | User uploaded 13 PDFs (8 Walmart, 5 Costco). All `status: staged` — **deliberately not ingested**, per "don't change anything until approved". Verified both formats parse and self-reconcile. Costco: $884.23 / 68 items across 5 receipts. |
 | 2026-08-22 | Proposal | Published visual proposal artifact (IA + Review screen mockup on real July 2026 data + Prices subsystem + disposition table). Awaiting approval. |
+| 2026-08-22 | Grill Q5 + identity | D13 (phase-aware retirement block), D14 (sequencing: trust pipeline first, nothing dropped), D15 (family-wide capture; identity propagation). Four Gmail identities recorded. §7 restructured: new Phase 5.0 identity propagation ahead of 4.4 owner attribution; 5.6 rewritten for four-person capture; new Phase 6 shopping habits. Artifact republished with the family-capture section. Still nothing in the project changed. |
