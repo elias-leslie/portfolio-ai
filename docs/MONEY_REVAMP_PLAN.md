@@ -1,0 +1,826 @@
+# Money Workspace Revamp — Plan & Working Doc
+
+**Status:** PHASE 1 COMPLETE — AUDIT + GRILL DONE, PLAN DRAFTED, **AWAITING USER APPROVAL BEFORE ANY CODE CHANGE**
+**Owner:** Elias Leslie
+**Started:** 2026-08-22
+**Last updated:** 2026-08-22 (grill complete; D1–D14; phased plan written; proposal artifact published)
+
+> **Handoff contract:** this file is the single source of truth for the Money
+> revamp. Anyone picking this up cold should read it top to bottom and be able to
+> continue without re-deriving the audit. Update it at every phase change.
+>
+> **Visual proposal (approved shape):**
+> https://claude.ai/code/artifact/c4239539-653c-4915-912e-3a3596382efe
+> — IA before/after, the Review screen mockup on real July 2026 data, the Prices
+> subsystem, and the tab disposition table.
+>
+> **State as of this writing:** audit + grill complete, plan written, **nothing in
+> the project has been changed.** 13 receipts (8 Walmart, 5 Costco) sit at
+> `status: staged` and were deliberately NOT ingested. Read §5 (remaining open
+> questions) and §7 (the phased plan) first, then confirm Phase 0 with the user
+> before touching anything.
+>
+> **Read order for a cold start:** §1 goal → §4 diagnosis → §7 the plan → §6
+> decisions (D1–D14) for the *why* behind any phase → §3 findings for evidence.
+
+---
+
+## 1. Goal (user's words)
+
+> "I need to be able to sit down with my wife routinely and go over our budget
+> easily without unnecessary complication. I want something that's streamlined
+> and works very well and consistently."
+
+Secondary asks:
+- Full review of the Money section, especially **Dashboard, Budget, Purchases,
+  Levers, Ledger** tabs.
+- Identify what to **improve / fix / remove / consolidate**.
+- Recommend the best way to **visualize** it.
+- Fix the trust problem: "I don't really trust the data or processes yet."
+
+**Success test (proposed):** Elias + Mariana sit down, open one screen, and
+within 5 minutes agree on (a) what came in, (b) what went out, (c) whether the
+month is OK, (d) the 1–3 things to change — with no number on screen that
+contradicts another number on screen.
+
+---
+
+## 2. What exists today
+
+Route: `frontend/app/money/page.tsx` — 9 tabs in one `WorkspaceTabs`.
+
+| Tab | value | Panel | LOC |
+|---|---|---|---|
+| Dashboard | `dashboard` | `MoneyOverviewPanel` | 7.2k |
+| Budget | `spending` | `MoneyBudgetPanel` | 14.6k |
+| Purchases | `purchases` | `MoneyPurchasesPanel` | 8.7k |
+| Levers | `levers` | `MoneyLeversPanel` | 20.6k |
+| Cards | `cards` | `MoneyCardsPanel` | 5.2k |
+| Retirement | `retirement` | `MoneyRetirementPanel` | **201k** |
+| Accounts | `accounts` | `MoneyAccountsPanel` | 6.9k |
+| Ledger | `ledger` | `MoneyLedgerPanel` | 11.8k |
+| Intake & Review | `intake` | `HouseholdDocumentCenter` + `JennyQuestionInbox` | — |
+
+`frontend/components/money/` holds **80 files**. Backend household services:
+**~36k LOC across 60+ modules**.
+
+Rendered page heights (1280px viewport, live data):
+Dashboard 2469px · Budget 4595px · Levers 4617px · Purchases 4588px · Ledger 1129px.
+
+### Live data state (2026-08-22)
+
+- 2,723 household transactions; **1,722 flagged `removed`** (63%).
+- Date range 2025-08-27 → 2026-08-20; usable spend coverage really starts 2025-12.
+- 25 household accounts, but only **2 spending accounts covered** in the current month.
+- 19 `category_budget:*` facts exist; **only 2 carry a real `monthlyTarget`**
+  (Gas $375, Groceries $1,525). The other 17 are `monthlyTarget: null`.
+- 2,194 products / 3,067 purchase items / 462 merchants / 74 documents.
+- 0 open clarification questions.
+
+---
+
+## 3. Audit findings
+
+Severity: **P0** = actively misleading a real financial decision · **P1** =
+blocks the "sit down together" workflow · **P2** = clutter / cost / polish.
+
+### P0-1 — The same question gets four different answers depending on a chip
+
+`GET /api/household/spending` per window:
+
+| Window | Avg monthly spend | Avg monthly income | Net cash flow | Savings rate | Accounts |
+|---|---|---|---|---|---|
+| 1M | $7,421 | $3,300 | **−$4,121** | **−125%** | 2 |
+| 3M | $9,378 | $5,842 | **−$10,609** | **−61%** | 2 |
+| 6M | $8,041 | $5,588 | **−$14,713** | **−44%** | 5 |
+| 12M | $5,184 | $5,415 | **+$2,763** | **+4%** | 7 |
+
+Dashboard reports a fifth number: `average_monthly_spend = $8,103`.
+
+Root cause: each window divides by its own coverage months while including a
+different account set. The 12M window captures old statement-CSV *income* but
+almost no matching *spend* (Aug–Oct 2025 has 3 transactions total), so it
+manufactures a positive savings rate. **A couple flipping 3M→12M goes from
+"we're bleeding $3.5k/month" to "we're saving 4%."** This alone destroys trust.
+
+### P0-2 — "Safe to Spend" is not safe, and not spendable
+
+Dashboard shows **Safe to Spend $1,283**, badge **"Safe"** (green).
+`budget_snapshot.safe_to_spend_constraint = "plan_residual"`, i.e.
+`monthly_income_target (6,283) − monthly_plan_total (5,000)`. It is arithmetic
+on two assumptions. It ignores that `actual_monthly_spend = $8,103`.
+
+The card itself admits it: *"Limited by income minus your monthly plan (a
+target, not cash on hand)."* A green "Safe" badge on a number the UI
+simultaneously disclaims is the single most dangerous element on the page.
+
+### P0-3 — Recurring bills detector is inverted (0% precision, ~0% recall)
+
+`recurring_commitments` returns exactly 4 items, all wrong:
+
+| Merchant | Cadence claimed | Avg | Annualized | Status |
+|---|---|---|---|---|
+| Airbnb | likely weekly | $766 | **$39,833** | overdue (−46d) |
+| Avis | likely weekly | $343 | $17,857 | overdue (−41d) |
+| Lufthansa | likely bi-weekly | $566 | $14,715 | overdue (−6d) |
+| Costco | likely weekly | $247 | $12,845 | overdue (−27d) |
+
+All four are **one vacation**, typed as `commitment_type: "bill"`, annualized to
+**$85,250/yr of phantom bills**.
+
+Meanwhile the household's *actual* metronomic bills are in the data and are
+completely missed: Duke Energy (monthly), T-Mobile (monthly ~15th), Frontier
+($34.99 monthly), P C Utilities, Waste Pro.
+
+This feeds `due_soon_bills_total = $1,922`, which is displayed as *"$1,922 of
+recurring bills are due inside 14 days"* — every one of them is in the past —
+and is an input to the Safe-to-Spend cash constraint.
+
+### P0-4 — Headline verdicts contradict the arithmetic under them
+
+`budget_snapshot`: `status: "on_track"`, summary *"The current monthly spending
+profile is inside the available budget guardrails."*
+Same object: `actual_monthly_spend 8,103` vs `monthly_plan_total 5,000` vs
+`monthly_income_target 6,283`. Also `pace_status: "partial_plan"` — two
+different verdicts in one payload.
+
+`budget_readiness`: `status: "ready_for_budgeting"`, all three lanes
+("Essentials", "Lifestyle", "Savings") reported **"Configured"** — while 17 of
+19 categories have no cap at all.
+
+### P0-5 — Ledger totals and Budget totals differ by ~4x with no reconciliation
+
+Ledger "All dates": **Debits $319,381 · Credits $193,797 · Net debit $125,584**.
+Budget 6M: total spend $48,243 · income $33,530.
+Ledger 6M alone: debits $180,341 / credits $107,568.
+
+Ledger sums raw direction including inter-account transfers, brokerage buys and
+card payments; Budget applies spend filters. Both render as large currency in
+the same visual idiom, on adjacent tabs, with no bridge. "Net debit $125,584"
+reads as a household loss.
+
+### P1-6 — Spend exclusions are invisible, hardcoded and unappealable
+
+`backend/app/services/_household_spend_filters.py` silently drops rows matching
+a literal string list: `"zelle to"`, `"zelle from"`, `"atm withdrawal"`,
+`"payroll"`, `"ui benefit"`, `"online transfer"`, `"moneyline"`, … plus
+categories `{transfers, income, cash, debt payments}`.
+
+Zelle to a tutor, or an ATM withdrawal that became groceries, is real spend and
+vanishes with no UI affordance to see or override it. 138 of 996 ledger rows
+are "excluded" with no roll-up of what that cost.
+
+### P1-7 — Category taxonomy is doubled and polluted
+
+Live category legend on the Budget tab shows **"Transportation" twice** and
+**"Household" twice** — series are keyed `category + essentiality`, and the same
+category carries different essentiality across rows (Travel: discretionary *and*
+mixed; Transportation: essential *and* discretionary; Household: mixed *and*
+discretionary).
+
+Raw Plaid taxonomy leaks in beside the curated set: **"General Services
+Storage"**, **"General Services Insurance"** sit next to "Insurance" and "Bills".
+
+Consequence: needs/wants is unstable, and the same dollar can move between
+"needs" and "wants" with no user action.
+
+### P1-8 — Needs/wants split doesn't add up
+
+Decision Board: **$3,217 / $4,074**, badge *"Wants leading 50%"*, body *"(50% vs
+40%)"*. 3,217 + 4,074 = 7,292, but average monthly spend is 8,103 — the $811
+`mixed` bucket is invisible, so the two shares sum to 90% and the card labels
+itself "Want vs need" while displaying needs first.
+
+### P1-9 — Signal quality: a vitamin bottle is presented as a budget driver
+
+Decision Board, verbatim: *"Now Foods Supplements, Zinc (Zinc Gluconate) 50 mg,
+Supports Enzyme Functions, Immune Support, 100 Tablets, Yellow/Gold is
+pressuring the budget via unit price up."* — next to $7,094 of month-to-date
+spend. No materiality threshold; full Amazon SEO titles used as headlines.
+
+### P1-10 — Levers costs more than it returns
+
+Levers headline: **"Additive trim $262/mo"** against $9,378/mo spend and
+−$10,609 3M net cash flow. That is ~2.8% of spend, from a 4,617px page with 5
+lanes, a price-check runner, trendlines, Category Pressure and Merchant Drag
+tables, ~1,000 LOC of frontend and a dedicated backend price-check service.
+
+"Last price check 6/19/2026 · `completed_with_errors` · 2 quotes · 0 findings" —
+two months stale, errored, zero output, raw enum shown to the user.
+
+Lane contents are Amazon product titles (bone broth powder, magnesium,
+toothpaste), not household budget levers.
+
+### P1-11 — Ledger row = data-repair console, not a review surface
+
+Every row carries: category combobox + "Merchant rule" checkbox + essentiality
++ Owner combobox + "Merchant owner rule" checkbox + status badge + evidence
+chip + Audit toggle + source line. Plus 5 filter controls and a 5-tile summary
+above. This is an admin tool. It is the correct tool for *fixing* data and the
+wrong one for *reviewing* money.
+
+### P1-12 — Merchant names are half-clean
+
+Plaid rows normalize ("Get Fitness"). Statement rows do not: *"DIRECT DEBIT
+DUKEENERGY BILL PAY (Cash)"*, *"DIRECT DEBIT PINELLAS COUNTREVERSAL (Cash)"*,
+*"Check Paid # 1002 (Cash)"* ($3,606 — very likely housing, opaque).
+Merchant Drag / merchant aggregation therefore treat one biller as several.
+
+### P1-13 — "Strong household visibility 99%" while covering 2 spending accounts
+
+`overview.visibility_score = 99`, label *"Strong household visibility"*, while
+`monthly_spend_detail` says *"reflects 2 covered spending accounts"* and
+`net_worth_status = "stale"` with 2 accounts needing refresh. The confidence
+signal is anti-correlated with actual coverage.
+
+### P2-14 — Account registry has duplicates and test junk
+
+`household_accounts` (25 rows) contains: **"Wells Fargo checking activity
+export" twice**, **"FRS Investment Plan" twice**, a **"Codex archive smoke"**
+test account, and three overlapping Wells Fargo checking identities ("LESLIE E
+EVERYDAY CHECKING" *7312, "Wells Fargo Everyday Checking" *4222, "Wells Fargo
+closed checking"). Two 529s are filed under `asset_group: taxable`.
+Likely a direct cause of the 63% `removed` transaction rate.
+
+### P2-15 — Dashboard carries investment allocation that belongs in Investing
+
+Account Allocation donut ($905k retirement / $636k taxable / $6.8k education)
+occupies prime dashboard real estate on a page whose job is household cash flow,
+and duplicates `/portfolio`.
+
+### P2-16 — Tile inflation
+
+Budget tab opens with **10 stat tiles**; 5 of them describe the app's own state
+("Suggested cap total", "Confirmed cap total", "Budgeted categories", "Over
+budget", "Unknown purchases") rather than the household's money.
+Levers opens with 5 more. Ledger 5 more. Dashboard 3 + 4 decision cards.
+
+### P2-17 — Purchases' flagship feature is empty
+
+"Buy Guide → No buy-size gaps yet" despite 483 products with package-unit data
+and 2,194 products total. Product Catalog is a 2,194-row browsable table with no
+stated connection to the budget.
+
+### P2-18 — Stale cross-references and dead code
+
+- Levers: *"Same canonical spend math as the Spending tab"* — tab is now labelled
+  "Budget" (value is still `spending`).
+- Levers: a whole SectionCard whose only content is "Price Signals moved to
+  Purchases" + a link.
+- `PrimaryTilesGrid` lives in `components/home/today/` but is now used **only**
+  by Money, and only with `hideSpendPace`, so the Spend Pace tile is dead.
+- Tab value/label mismatch (`spending`→"Budget") forces URL rewrite shims in
+  `page.tsx` for legacy `?tab=review` / `?utility=evidence`.
+
+---
+
+## 4. Diagnosis in one line
+
+The Money section is a **data-engineering console wearing a dashboard's
+clothes**. Enormous machinery (levers, price checks, product catalog, buy guide,
+shopping lists, trust badges, decision boards) sits on top of a budget where 17
+of 19 categories have no cap, income is partially captured, one vacation is
+being annualized as $85k of bills, and the same question has five answers. The
+fix is not more surface — it is **one trustworthy number pipeline, one review
+screen, and everything else demoted to a place you visit only when fixing
+something.**
+
+---
+
+## 5. Open questions — REMAINING
+
+Grill complete for scope/philosophy (D1–D14 in §6). Still genuinely open, and
+worth resolving before or during the phase they belong to:
+
+1. **Savings target** — `profile.monthly_savings_target` is `0.0` and
+   `monthly_essential_target` is null. Phase 3.1 needs a real number (the plan
+   sketch assumes $300/mo as a placeholder). *Blocks: Phase 3.1.*
+2. **Income truth** — `monthly_net_income_target` is $2,900 biweekly ($6,283/mo),
+   but observed income averages $5,588 and is falling (Jun $7,348 → Jul $3,857 →
+   Aug $3,205). User is on unemployment with SummitFlow pending. Does the plan
+   anchor to observed, to target, or to a user-declared floor? *Blocks: Phase 3.1.*
+3. **Sinking fund list** — which categories get funds, at what annual amounts
+   (Travel, insurance premiums, car registration, Christmas, home repair?).
+   Must be user-declared (D7). *Blocks: Phase 3.2.*
+4. **Mariana's phone/OS** — iOS needs add-to-home-screen for web push (D11).
+   *Blocks: Phase 3.4 rollout, not build.*
+5. **Alert thresholds** — what actually deserves to interrupt them. The existing
+   card service uses 85% of cap then 100%. *Blocks: Phase 3.5.*
+6. **The two CollegeAmerica/VCSP 529 rows** — user described four 529s (two
+   Fidelity, two Merrill Edge) but six exist. Legacy? *Blocks: Phase 0.2.*
+7. **The $3,606 "Check Paid # 1002"** (Aug 06, categorized Bills) — likely housing,
+   but opaque. No mortgage/rent merchant exists anywhere in the data, which is
+   suspicious for a household of four. *Blocks: Phase 1.3 bill detection.*
+
+---
+
+## 6. Decisions log
+
+### D1 — Review mode: retrospective, not envelope
+User: *"probably item 1, but if there's a better way let me know... i'd also want alerts that can go to mariana and i on our phone."*
+**Decided:** retrospective review is the spine. Rejected zero-based envelopes —
+income is lumpy and partly uncaptured, and 19 manual caps is the exact
+"unnecessary complication" being complained about. Forward safety comes from
+**alerts**, not envelopes. Three modes replace nine tabs: **Review** (monthly,
+together) · **Alerts** (continuous, phone) · **Fix it** (on demand, out of the way).
+
+### D2 — Review must answer four specific sentences
+User's own target conversations, treated as acceptance criteria:
+1. *"We did good this month, we're under budget overall."* → needs an **overall
+   under/over verdict**.
+2. *"Overspent on groceries but underspent on gas and overall we're under."* →
+   needs **per-category over/under that visibly nets out**.
+3. *"We were over budget because of this one purchase but everything else was
+   under."* → needs **outlier isolation / contribution-to-variance**, and an
+   "excluding largest purchase" view.
+4. *"We were over because of these 4 items Mariana bought that she never
+   buys."* → needs **novelty detection** (new merchant/product vs history)
+   **plus working owner attribution**. Today owner attribution is 91% "Family",
+   so requirement 4 is currently impossible.
+
+### D3 — Cadence: any time, but always whole-month comparisons
+User: *"sometimes weekly... sometimes monthly... trending up or down based on
+previous month and average month over all and in the various budget categories."*
+**Decided:** the sliding 1M/3M/6M/12M chips are the bug (they produce the four
+contradictory answers in P0-1) and are removed. Replaced by a **month selector**
+(current or any closed month) with two fixed comparators: **prior month** and
+**all-month average**. Month-to-date is explicitly labelled and paced against
+the same day of prior months — never compared to a full month.
+
+### D4 — Telegram is rejected as the alert channel
+User: *"i don't like the telegram alerting for this. i'd prefer something custom
+and streamlined and simple for my wife. telegram usually has other people trying
+to spam and reach out to us on it."*
+**Decided:** `TelegramNotifier` is not the channel for household alerts. The
+two-sink pattern in `spend_alert_service.py` (UI sink + push sink + per-crossing
+dedupe marker) is sound and should be reused; only the transport changes.
+Channel TBD (see open questions). Note: it must support **two recipients**
+(Elias, Mariana) — today `Notifier.send()` has no recipient parameter and
+agent-hub owns a single shared chat.
+
+### D5 — Unit-price comparison is IN scope and must be made correct
+User: *"very important that we have accurate feedback on when we're buying
+something somewhere that's over priced... take into account bulk savings and use
+accurate pricing for products that have a per count/oz."*
+**Decided:** Buy Guide is NOT deleted. It is rebuilt. Sub-audit findings below.
+
+---
+
+## 6a. Unit-price sub-audit (`household_buy_guide_service.py`, 424 LOC)
+
+Formula is correct: `unit_cost = total_price / package_quantity`, grouped by
+`package_unit` so oz never compares to count. The user's worked example
+(32oz@$32 = $1.00/oz vs 64oz@$60 = $0.9375/oz) resolves correctly *in principle*.
+Three defects make it unusable in practice:
+
+**U-1 — The user's own example is below the surfacing threshold.**
+`MIN_UNIT_SAVINGS_PCT = 0.10`. The example is 6.25% savings and would be
+silently dropped. Also gated by `MIN_PACKAGE_SAVINGS = 2.0` and
+`MIN_MONTHLY_SAVINGS = 1.0`.
+
+**U-2 — Package-size extraction is wrong on real catalog rows.** Live examples:
+
+| `canonical_name` | parsed | truth | error |
+|---|---|---|---|
+| Nature Made Triple Omega **3-6-9** … Value Size **150 Ct** | `6 x 9 softgels` → 54 `count` | 150 ct | unit cost **2.8x** off |
+| MoKo Case for Fire HD **10 Tablet** … | `10 tablets` → 10 `count` | a phone case | priced per "tablet" |
+| TrendPlain Olive Oil **Dispenser Bottle** 16oz/470ml | 16 `weight_oz` | empty bottle, not oil | wrong item *and* wrong unit |
+
+Unit assignment is also inconsistent across the same shelf: honey stored as
+`weight_oz`, olive oil as `volume_fl_oz` — incomparable by design.
+
+**U-3 — Architecturally cannot compare different products.**
+`_best_candidate()` only searches observations sharing the same `product_id`.
+There is no product-family / substitute / size-variant grouping
+(`household_product_identifiers` carries only `normalized_key` and `asin`).
+"Is the 64oz of the same thing cheaper per oz" is therefore unanswerable unless
+both sizes happen to be the same product row.
+
+**Data density confirms the guide cannot fire:**
+- 2,194 products; only **479 (22%)** have `package_normalized_quantity`.
+- **1,886 products have exactly one price observation.**
+- Only **131** product+unit groups clear `MIN_ACTUAL_OBSERVATIONS = 2` *and* have package data.
+- Result: Buy Guide renders "No buy-size gaps yet."
+
+**Rebuild requires:** (a) trustworthy package extraction with a confidence gate
+and manual override, (b) unit normalization to one comparable base per shelf
+(mass vs volume vs count, with density out of scope), (c) substitute/size-variant
+grouping, (d) thresholds set from materiality in dollars/month, not a flat 10%.
+
+### D6 — Caps are income-anchored, not history-anchored
+User chose income-anchored/history-shaped, and raised two follow-ups (D7, D8).
+**Decided:** plan total derives from take-home minus a savings target, then is
+distributed across categories using historical shape, adjusted in one setup pass.
+Rationale: recent normal is $8,103/mo vs ~$5,588/mo take-home. History-derived
+caps would make "under budget" and "going broke" compatible — the verdict has to
+mean *lived within income*.
+
+### D7 — Lumpy categories use sinking funds with a visible balance
+User: *"how do we handle inconsistent categories like travel when there are
+months where we won't travel and months when we'll spend thousands?"*
+**Decided:** lumpy categories (Travel, Insurance, registration, Christmas,
+Home repair) get an **annual amount + monthly accrual + a running fund balance**.
+A vacation month **draws the fund down** rather than counting as an overage:
+review line reads *"Travel $2,800 — drew from fund, $200 left"*, not *"over budget"*.
+
+**The mechanism already exists and is broken.** `dashboard.sinking_funds` is fed
+by the same defective recurring-commitment detector (P0-3) and currently proposes:
+
+| Fund | Monthly target | Derived from |
+|---|---|---|
+| Airbnb buffer | **$3,319/mo** | annualized $39,833 |
+| Avis buffer | $1,488/mo | annualized $17,857 |
+| Lufthansa buffer | $1,226/mo | annualized $14,715 |
+| Costco buffer | $1,070/mo | annualized $12,845 |
+
+**$7,104/mo of proposed sinking funds — more than total take-home — all from one
+vacation.** Fixing P0-3 is a prerequisite for D7; funds must also be user-declared,
+not merchant-inferred.
+
+### D8 — Cash is surfaced, and "can we afford this" becomes a real check
+User: *"should we also show our cash account (fidelity cma) here or somewhere so
+we can decide if we have enough to make a large purchase?"*
+**Finding (good news):** cash is already correct. `Cash Management (Joint WROS)`
+= the Fidelity CMA, **$30,494.75**, `money_role: spend_driver`, freshness `fresh`.
+Spend drivers are exactly two accounts: the CMA and `Amazon Chase (CC)`. Every
+other tracked account is `net_worth_only`. `invested + cash = total_tracked` holds
+(1,517,248.14 + 30,494.75 = 1,547,742.89) — no double count there.
+
+**Decided:** show cash on the review screen, and add an explicit affordability
+check: `cash − bills actually due − rest-of-month essentials − committed fund
+balances = free to spend`. This replaces the current Safe-to-Spend, which is bound
+by `plan_residual` and never touches the $30k (P0-2).
+
+---
+
+## 6b. Receipt-source sub-audit (triggered by "13 Walmart/Costco PDFs")
+
+- **Walmart: supported.** `_household_document_baseline._classify_walmart` fires on
+  `"walmart" + "order details"` in text, or `walmart` in filename; confidence 0.84.
+  12 Walmart files already ingested, 17 purchase items linked.
+- **Costco: never ingested — 0 Costco documents exist.** No Costco classifier;
+  falls through to the generic keyword row
+  `(["receipt","walmart","target","costco"], "receipt", "receipt", 0.8)`.
+- **Warehouse-club instant-savings markdowns ARE handled** — the `4.50-` line
+  under an item is covered in `_household_document_llm.py:169` and
+  `_household_document_pipeline_receipt.py:53`.
+- **Risk:** Costco line items are abbreviated (`KS ORG PNT BTR 2/28OZ`). Package
+  extraction already misreads clean Amazon titles (U-2), so it will do worse here.
+  Treat Costco as build-and-verify, not drop-in. Upside: Costco is the ideal test
+  corpus for the unit-price rebuild, since bulk-vs-unit is the whole point there.
+
+### U-4 — The item layer is disconnected from the money layer
+`household_purchase_items`: 3,067 rows. **Only 81 (2.6%) have a `transaction_id`.**
+All 3,067 have `document_id`, `product_id` and `unit_price`. Item-level detail
+therefore has no account, no ledger date, and no owner for 97.4% of rows.
+
+**This makes D2 requirement 4 ("the 4 items Mariana bought that she never buys")
+impossible today**, and it is why the product catalog (2,194 products) cannot be
+tied back to budget categories or to actual spend.
+
+### P2-19 — ~~Duplicate accounts inflate net worth~~ **RETRACTED — see D12**
+Original claim (529s and Rollover IRAs were duplicates overstating net worth) was
+**wrong**: distinct account masks, and the user confirms two 529s per daughter.
+The real defect is the `asset_group` misfiling recorded in **D12**. Kept here only
+so the retraction is visible; do not act on the struck text.
+
+### D9 — Retirement stays in Money; the defect was flatness, not placement
+User challenged the proposal to move it out. **Decided:** it stays.
+Counter-evidence that overturned the original recommendation: profile targets
+`target_retirement_age: 49` at `target_retirement_spend: $7,500/mo`, against
+current spend $8,103 and take-home $5,588. **The monthly budget is the retirement
+model's primary input** — savings rate is what makes 49 feasible. Separating them
+hides the strongest causal link in the household's finances.
+
+The real defect is nine flat peers. New IA — one primary, three supports, one
+long-horizon:
+- **Primary:** Review (default; the routine sit-down screen)
+- **Supporting:** Plan · Prices · Fix it
+- **Long horizon:** Retirement, with a two-way link to Review
+(Size context, for the record: `MoneyRetirementPanel.tsx` 201KB +
+`retirement-planner-model.ts` 46KB + `RetirementResults.tsx` 37KB ≈ 284KB, versus
+~60KB for all five tabs under review. Mass argued for splitting; causality won.)
+
+### D10 — Prices is a real subsystem: multi-store unit cost, camera capture, "Should I buy this?"
+User: *"track per item cost accurately with count and oz across multiple stores…
+camera capture capability… take pictures of the price cards which typically have
+per oz/count pricing… a 'Should I buy this' feature… routinely scrape/check
+costco/walmart/amazon/aldi/etc."*
+
+**Already built (better than expected):**
+- `household_product_price_observations` carries `merchant_id`, `unit_price`,
+  `package_normalized_quantity`, `package_normalized_unit` — **the multi-store
+  per-unit matrix is already the schema.**
+- `household_vendor_profiles` holds all five named stores (aldi, amazon, costco,
+  publix, walmart), all `enabled`, each with `delivery_fee`, `pickup_fee`,
+  `free_delivery_threshold`, `membership_monthly_fee`, `membership_active` —
+  fee-aware comparison is modelled.
+- `_price_firecrawl_lookup.py` has adapters for amazon.com, walmart.com, aldi.us,
+  costco.com + sameday.costco.com, publix.com. `ST_WEB_FOCUS_QUERY` is already
+  tuned to *"package size unit price ounce oz fl oz lb count ct"*, with
+  `_UNIT_PRICE_PATTERN` parsing `$0.42 / oz`.
+
+**Why it yields nothing:** of 3,075 observations — **2,991 order_history (Amazon),
+76 receipt, 8 vendor_quote.** Essentially no cross-store data. Plus no
+product-family grouping (U-3), all vendor fees unset, and Costco
+`membership_active: false` despite receipts printing member 111772590689.
+
+**Key insight — the shelf tag is the join key.** A Costco receipt gives an item
+number + abbreviated name with no size (`1272413 KS ORG OAT`). A Costco shelf tag
+prints the same item number, full description, package size, **and the per-ounce
+price**. Photographing tags builds the item-number→product map that makes every
+past and future Costco receipt line resolvable, and populates the price matrix at
+the same time. The camera is not a side feature — it is the cheapest path to the
+data the comparison depends on, captured exactly when the decision is being made.
+
+**No camera capture exists today** — the only image input is `accept="image/*,.pdf"`
+on `AddCardDialog` (file picker, no `capture` attribute).
+
+**Proposed order:** package extraction → product-family grouping → Costco
+item-number map from shelf tags → scraping as a routine → in-store "Should I buy
+this?" screen. Camera-first would produce photographs nothing can compare.
+
+### D11 — Alert channel: web push via the PWA that already ships
+Replaces the rejected Telegram transport (D4). **Finding:** the PWA is real and
+live — `manifest.json` linked in `layout.tsx`, `sw.js` registered at scope `/`,
+`display: standalone`, 192/512 icons present. Portfolio AI installs to a phone
+home screen today. Missing: only a `push` handler in the service worker (no
+`push`/`notificationclick` listeners) and subscription storage.
+
+Fits every stated constraint: custom, streamlined, nobody can message them on it,
+lands in the app holding the data. **Recipient routing comes free** — each device
+subscribes separately, so Elias and Mariana can receive different alerts, which
+`Notifier.send()` (no recipient param, one shared agent-hub chat) cannot do.
+**Constraint to flag:** iOS web push requires the PWA be added to the home screen
+(iOS 16.4+) — one-time setup for Mariana if she's on iPhone.
+
+Reuse `spend_alert_service.py`'s proven shape: evaluate → two sinks
+(`jenny_notifications` + push) → per-crossing dedupe marker. Swap transport only.
+
+### P0-20 — Two credit cards and ~$11,500 of debt are invisible
+User: *"we have two other credit cards we just got to split a ~11500 AC
+replacement… chase saphire preferred, ~120k and 100k points… we haven't paid
+those off yet."*
+
+**Neither card exists in the system.** Only credit account is
+`Chase Prime Visa / Amazon card *9728`. **`household_credit_cards` has 0 rows** —
+so the entire Cards tab (welcome-bonus/MSR tracking, rotation, annual-fee alerts)
+has never run against real data; `DEFAULT_MONTHLY_CAP = 6500.0` is the fallback.
+The $11,500 AC purchase is absent from the ledger (largest recorded expenses:
+$3,606 check, $2,111 Carnival, $1,545 Wayfair).
+
+Consequences:
+- `liabilities_total` reads **$5,423.66** against roughly **$16,900** owed →
+  **net worth overstated by ~$11,500**.
+- All spend on those cards since opening is missing from spend, categories, pace
+  and the needs/wants split — compounding the "2 covered spending accounts"
+  problem (P1-13) that already sits behind a *"Strong household visibility 99%"* label.
+- Money left on the table: 220k points implies MSRs were met; Sapphire Preferred
+  annual fees fall due at the 1-year mark. `_welcome_alerts` and
+  `_annual_fee_alerts` (with downgrade-not-cancel guidance) are built and idle.
+
+**Disposition change:** Cards is *not* demoted to Fix it. Card commitments are
+plan-shaped (annual fees, welcome deadlines, balances owed) → **Plan**, with its
+alerts folded into the alert stream.
+
+**Also corrects the affordability panel:** cash $30,495 − bills due $395 −
+rest-of-month essentials $1,840 − committed funds $2,150 − **card balances
+$16,924** = **$9,186 free**, not $26,110.
+
+### D12 — Correction logged
+Earlier claim that the two `Individual - 529` rows were duplicates inflating net
+worth was **wrong** — masks `*6273` / `*6277`, one per daughter (user confirms two
+529s each: two Fidelity, two Merrill Edge, to be consolidated into Fidelity).
+The real defect: **both Fidelity 529s carry `asset_group: taxable`**, so education
+reads $6,793 (Merrill only) instead of ~$36,651 — understated ~5x, taxable
+overstated by $29,858. Two legacy CollegeAmerica/VCSP 529 rows also exist and
+need confirming during accounts cleanup.
+
+### D13 — Retirement block is phase-aware and measures plan feasibility, not contribution compliance
+User: *"49 might change so that shouldn't be static… we may or may not care about
+saving further per month (what does this section look like when we're in
+retirement? …what about if we're not in retirement but not saving because our
+assets are growing well enough on their own?)"*
+
+**Finding — the current tracker reports a meaningless pass.**
+`retirement_contribution_tracker` returns `status: "on_track"` with
+`monthly_target: 0.0`, `estimated_monthly_contributions: 0.0`, `monthly_gap: 0.0`
+and *"Recent retirement contributions are keeping up with the savings target."*
+Zero trivially keeps up with zero — the same defect class as
+`budget_snapshot.status: "on_track"` (P0-4): a green verdict from an unset input.
+Driven by `profile.monthly_savings_target: 0.0`.
+
+**Finding — contribution framing is quantitatively wrong for this household.**
+Net worth trend runs **+8.5% Feb–Aug** on ~$1.5M invested ≈ **$19,800/mo** of asset
+growth. Against a $300/mo contribution that is ~**66×**. Reporting "$0 saved — miss"
+would be noise.
+
+**Decided:** the block answers *"is the plan still on track"*, driven by three
+phases, with `profile.target_retirement_age` read live (never hardcoded):
+
+| Phase | Question | Shows |
+|---|---|---|
+| Accumulating, contributions binding | Are we still going to make the target age? | Needs $X/mo, added $Y, projection moved to age Z |
+| Accumulating, growth carrying it *(current state)* | Do we even need to save more? | Plan holds at 0% savings rate; contributions noted, not judged |
+| In retirement, drawing down | Is this withdrawal sustainable? | Withdrew $X · rate% · guardrail status · phase + years to next phase |
+
+Phase transition is `current_age` vs `target_retirement_age`, so changing 49 moves
+the boundary and nothing else. **The drawdown state needs no new profile inputs** —
+`withdrawal_strategy: "guardrails"`, `withdrawal_initial_rate: 0.05`,
+`phase_slow_go_age: 75` / `phase_no_go_age: 85` with their spend percentages, and
+`social_security_payable_ratio: 0.77` all already exist.
+
+**Two-way link:** the plan assumes `target_retirement_spend: $7,500/mo`; actual
+averages $8,103. Review is where that gap becomes visible — a retirement fact
+discovered by a budget screen.
+
+### D14 — Sequencing: trust pipeline first, nothing dropped
+User: *"item 1 (trust pipeline first) but don't ignore everything else that needs
+to be built and drop it from the plan. that's just what's first."*
+**Decided:** phases below. Nothing from D1–D13 is descoped; ordering only.
+Also confirmed: **the Retirement tab is NOT removed** — it stays in Money, ceasing
+to be a flat peer and gaining the Review link.
+
+---
+
+## 7. The plan
+
+**Approved shape:** Money keeps its own section with **one primary tab and three
+supports, plus Retirement**:
+
+```
+Money  ▸ Review        ← default; the routine sit-down screen
+       ▸ Plan          ← caps, sinking funds, income, card commitments
+       ▸ Prices        ← unit cost across stores, "Should I buy this?"
+       ▸ Fix it        ← ledger, accounts, intake, data repair
+       ▸ Retirement    ← stays; two-way link with Review
+```
+
+Ordering is **trust first** (D14). Nothing below is optional; phases are sequence,
+not priority triage.
+
+---
+
+### Phase 0 — Connect and clean (prerequisite, no UI work)
+Everything downstream is wrong until this lands.
+
+0.1 Connect the two **Chase Sapphire Preferred** cards (P0-20). Backfill the
+    ~$11,500 AC replacement and all spend since opening. Seed
+    `household_credit_cards` rows so the idle welcome-bonus / annual-fee alerting
+    has real subjects.
+0.2 Fix `asset_group` on both Fidelity 529s (`taxable` → `education`) (D12).
+    Confirm/retire the two legacy CollegeAmerica/VCSP rows.
+0.3 Purge the **"Codex archive smoke"** test account; resolve duplicate registry
+    rows ("Wells Fargo checking activity export" ×2, "FRS Investment Plan" ×2);
+    reconcile the three overlapping Wells Fargo checking identities (P2-14).
+0.4 Investigate the **63% `removed` rate** (1,722 of 2,723). Confirm it is genuine
+    dedupe and not identity-collision loss — 0.3 is likely a direct cause.
+0.5 Set vendor fees + Costco `membership_active` on `household_vendor_profiles`.
+0.6 Ingest the **13 staged receipts** (8 Walmart, 5 Costco) — see Phase 4 for the
+    Costco parser work they depend on.
+
+**Exit test:** `liabilities_total` matches reality; spend-driver account count
+reflects all cards; net worth reconciles to statements.
+
+---
+
+### Phase 1 — One trustworthy number pipeline
+Kills P0-1, P0-2, P0-3, P0-4, P0-5, P1-6, P1-7, P1-8, P1-13.
+
+1.1 **One canonical spend definition** shared by every surface. Report only
+    **complete calendar months** and name which months were used. Remove the
+    1M/3M/6M/12M sliding chips (D3) — replace with a month selector plus two fixed
+    comparators (prior month, all-month average).
+1.2 **Reversal pairing.** Detect same-amount / opposite-direction / same-merchant-
+    token rows within N days and net them out. The Jul 09 ↔ Jul 10 Pinellas pair
+    is the reference case: it inflates July income *and* July spend by $1,102 and
+    makes Bills read $1,497 instead of ~$395.
+1.3 **Rebuild recurring-bill detection** (P0-3). Require true periodicity + amount
+    stability. Exclude travel/retail merchants from `commitment_type: "bill"`.
+    Must detect Duke Energy, T-Mobile, Frontier, P C Utilities, Waste Pro — and
+    must not detect Airbnb, Avis, Lufthansa, Costco.
+1.4 **Rebuild `safe_to_spend`** as a cash-based affordability check (D8):
+    `cash − bills actually due − rest-of-month essentials − committed fund
+    balances − card balances outstanding`. Retire the `plan_residual` constraint
+    and the green "Safe" badge over a disclaimed number.
+1.5 **Delete vacuous verdicts.** No `status: "on_track"` derived from unset inputs
+    — applies to `budget_snapshot`, `budget_readiness` ("all lanes Configured"
+    with 17/19 caps unset) and `retirement_contribution_tracker` (D13).
+1.6 **Fix the taxonomy** (P1-7). One essentiality per category; collapse the
+    duplicate Transportation/Household/Travel series; map Plaid leakage
+    ("General Services Storage/Insurance") into the curated set.
+1.7 **Make exclusions visible and appealable** (P1-6). The hardcoded string list in
+    `_household_spend_filters.py` ("zelle to", "atm withdrawal", …) gets a UI
+    surface, a total, and per-row override.
+1.8 **Merchant normalisation for statement rows** (P1-12) — "DIRECT DEBIT
+    DUKEENERGY BILL PAY (Cash)" → "Duke Energy".
+1.9 Replace `visibility_score: 99` with a coverage measure that tracks actual
+    account coverage (P1-13).
+1.10 Show the **mixed** bucket in needs/wants so the split sums to 100% (P1-8).
+
+**Exit test:** every window/surface agrees; July 2026 reports $5,025 spend and
+$2,755 income; recurring bills lists utilities, not a vacation.
+
+---
+
+### Phase 2 — Review screen
+The screen in the artifact. Build only after Phase 1 exits.
+
+2.1 Month selector · verdict line · In / Out / Left with prior-month and
+    all-month-average comparators.
+2.2 Category rows: actual vs cap, over/under netting to a total, bars capped at
+    100% with a cap tick.
+2.3 **Outlier isolation** (D2.3) — contribution-to-variance, "excluding largest
+    purchase" view.
+2.4 **New this month** (D2.4) — novelty detection on merchants with no prior
+    history, clustered where they belong (the July El Salvador trip = 8 merchants,
+    $385, one cluster — not 8 mystery lines).
+2.5 Affordability panel (1.4).
+2.6 Phase-aware retirement block (D13).
+2.7 Retire: Decision Board's four cards, the allocation donut (→ Investing), the
+    ten-tile budget stat row (→ three).
+
+---
+
+### Phase 3 — Plan, funds, and alerts
+3.1 **Income-anchored cap setup** (D6): take-home − savings target, distributed by
+    historical shape, adjusted in one pass. Re-propose on material drift.
+3.2 **Sinking funds** (D7): annual amount + monthly accrual + running balance.
+    Vacation months draw the fund down instead of registering as overage.
+    **User-declared, not merchant-inferred** — the current auto-inference proposes
+    $7,104/mo of funds, more than take-home.
+3.3 **Card commitments in Plan** (P0-20): annual-fee dates, welcome-bonus
+    deadlines, balances owed.
+3.4 **Web push via the existing PWA** (D11). Add `push` + `notificationclick`
+    handlers to `frontend/public/sw.js`, subscription storage, per-device
+    registration for Elias and Mariana separately. Reuse
+    `spend_alert_service.py`'s evaluate → two-sink → dedupe-marker shape; swap
+    transport only. Flag the iOS add-to-home-screen requirement.
+3.5 Budget-shaped alert kinds (category cap crossing, month pace, unusual purchase,
+    new recurring charge) alongside the existing card kinds.
+
+---
+
+### Phase 4 — Item ↔ money linkage
+Prerequisite for D2.4 owner attribution and for all per-item price work.
+
+4.1 **Link purchase items to transactions** (U-4) — currently 81 of 3,067 (2.6%).
+4.2 **Costco receipt parser** (§6b): item-number + abbreviated-name + qty-line-above
+    + markdown-line-below format. **Gate ingestion on arithmetic**, not confidence:
+    `Σ items − instant savings == SUBTOTAL` and `Σ line quantities == TOTAL NUMBER
+    OF ITEMS SOLD`. All 5 sample receipts reconcile exactly — use them as fixtures
+    ($884.23 / 68 items).
+4.3 **Walmart parser hardening**: the fulfillment token sits between name and qty
+    (`Fresh Hass Avocados, Each 16 shopped Qty 10 $8.20` → qty is 10, not 16);
+    handle `weight adjusted` rows.
+4.4 **Owner attribution** (D2.4) — today 91% "Family". Needs item-level owners.
+
+---
+
+### Phase 5 — Prices subsystem (D10)
+5.1 **Fix package extraction** (U-2) with a confidence gate and manual override.
+    Known failures: `Triple Omega 3-6-9 … 150 Ct` → parsed 54 count (2.8× off);
+    `MoKo Case for Fire HD 10 Tablet` → 10 "tablets"; olive-oil *dispenser bottle*
+    → 16 weight_oz.
+5.2 **Unit normalisation** — one comparable base per shelf (mass / volume / count);
+    honey currently `weight_oz` while olive oil is `volume_fl_oz`.
+5.3 **Product-family / size-variant grouping** (U-3) — `_best_candidate()` only
+    searches the same `product_id`, so cross-size and cross-brand comparison is
+    architecturally impossible today.
+5.4 **Materiality thresholds in $/month**, not a flat 10% (U-1) — the user's own
+    worked example (32oz@$32 vs 64oz@$60 = 6.25%) is currently discarded.
+5.5 **Costco item-number → product map** — the shelf tag carries item number, full
+    description, package size *and* per-unit price. It is the join key between
+    Costco receipts and the price matrix.
+5.6 **Camera capture** for shelf tags. No camera input exists today (only
+    `accept="image/*,.pdf"` on `AddCardDialog`, no `capture` attribute). The PWA
+    is already installable, which makes this viable on both phones.
+5.7 **"Should I buy this?"** in-store screen: your usual unit cost, the other four
+    stores after fees and membership, bigger-pack verdict, and how long it lasts at
+    observed pace.
+5.8 **Scraping as a routine** — adapters already exist for amazon/walmart/aldi/
+    costco/publix with a unit-price-tuned focus query; currently 8 vendor quotes
+    total. Turn into a scheduled backfill for routinely-purchased items.
+5.9 Retire most of **Levers** (P1-10): $262/mo of modeled trim across 4,617px.
+    Keep cut-candidates and deviations, folded into Review's "what changed".
+
+---
+
+### Cross-cutting
+- **Verification:** `st check --quick --changed-only`; `st service rebuild
+  portfolio-ai`; live route/UI evidence via `st browser check`. Build/tests alone
+  are not runtime evidence.
+- **No sliding-window chips anywhere.** Complete months only, named.
+- **No verdict from an unset input.** If the target is null, say so; never green.
+- **Every headline number must be reachable to its rows** in one click.
+
+---
+
+## 8. Work log
+
+| Date | Phase | What happened |
+|---|---|---|
+| 2026-08-22 | Audit | Read all 5 target panels + backend spend filters; queried live DB and all 4 spending windows; captured live screenshots of Dashboard/Budget/Levers/Ledger/Purchases. 18 findings recorded (5 P0). No project files changed. |
+| 2026-08-22 | Grill Q1–Q4 | D1–D12 decided. Sub-audits: unit-price engine, receipt sources (Walmart/Costco), cash + sinking funds, prices subsystem, PWA push readiness, missing credit cards. New findings U-1…U-4, P0-20, P2-19. |
+| 2026-08-22 | Receipts | User uploaded 13 PDFs (8 Walmart, 5 Costco). All `status: staged` — **deliberately not ingested**, per "don't change anything until approved". Verified both formats parse and self-reconcile. Costco: $884.23 / 68 items across 5 receipts. |
+| 2026-08-22 | Proposal | Published visual proposal artifact (IA + Review screen mockup on real July 2026 data + Prices subsystem + disposition table). Awaiting approval. |
