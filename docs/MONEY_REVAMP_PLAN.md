@@ -1,9 +1,9 @@
 # Money Workspace Revamp — Plan & Working Doc
 
-**Status:** PHASE 1 COMPLETE — AUDIT + GRILL DONE, PLAN DRAFTED, **AWAITING USER APPROVAL BEFORE ANY CODE CHANGE**
+**Status:** AUDIT + GRILL COMPLETE, ALL OPEN QUESTIONS RESOLVED, PLAN READY TO BUILD — **AWAITING USER APPROVAL BEFORE ANY CODE CHANGE**
 **Owner:** Elias Leslie
 **Started:** 2026-08-22
-**Last updated:** 2026-08-22 (grill complete; D1–D15; phased plan written; proposal artifact published)
+**Last updated:** 2026-08-22 (all 7 open questions closed; D1–D23; findings through P2-26; plan ready to build)
 
 > **Handoff contract:** this file is the single source of truth for the Money
 > revamp. Anyone picking this up cold should read it top to bottom and be able to
@@ -17,11 +17,14 @@
 > **State as of this writing:** audit + grill complete, plan written, **nothing in
 > the project has been changed.** 13 receipts (8 Walmart, 5 Costco) sit at
 > `status: staged` and were deliberately NOT ingested. Read §5 (remaining open
-> questions) and §7 (the phased plan) first, then confirm Phase 0 with the user
-> before touching anything.
+> questions — now all resolved) and §7 (the phased plan) first, then confirm
+> Phase 0 with the user before touching anything.
 >
 > **Read order for a cold start:** §1 goal → §4 diagnosis → §7 the plan → §6
-> decisions (D1–D15) for the *why* behind any phase → §3 findings for evidence.
+> decisions (D1–D23) for the *why* behind any phase → §3 findings for evidence.
+>
+> **§5 is empty by design** — every open question is resolved. Do not re-open
+> them; start at Phase 0.
 
 ---
 
@@ -274,6 +277,91 @@ stated connection to the budget.
 
 ---
 
+### P0-21 — Only two accounts have a live feed; everything else is a dead upload
+
+```
+source_system         count    last transaction
+plaid                   867    2026-08-20   <- live  (Prime Visa)
+snaptrade                46    2026-08-20   <- live  (Fidelity CMA Joint WROS)
+statement_csv          1570    2026-05-08   <- one-time file, stopped
+statement_activity      185    2026-04-10   <- one-time file, stopped
+bank_statement           41    2026-02-27   <- one-time file, stopped
+```
+
+This is the **root cause of P0-1**. The 12M window blends a live card feed with
+checking uploads that died in February, so it reports income without the
+matching spend and manufactures a +4% savings rate. Every window comparison is
+invalid until coverage is uniform.
+
+Not a defect on its own: the Wells Fargo accounts were **closed** (D22) and the
+household consolidated onto the Fidelity CMA. The defect is that the app still
+counts the dead accounts inside rolling windows as if they were live.
+
+### P0-22 — The same insurance premium is booked as income and as expense
+
+```
+2026-02-17  PROG SELECT INS  INS PREM ... Elias Elias Leslie   276.99  flow_type=income   Wells Fargo closed checking
+2026-02-17  Prog Select Ins Ins Prem ... Elias Elias Leslie    276.99  flow_type=expense  Wells Fargo Everyday Checking
+```
+
+One Progressive payment, ingested twice from two statement files under two
+account labels, with **opposite flow types**, both `removed=false`. A $554 swing
+on a single premium. The casing differs, so text-based dedup missed it.
+
+### P0-23 — The spend filters delete real recurring income
+
+The household **receives** $506.31/mo on a seller-financed note:
+
+```
+Zelle From Michael Wiley ... "13th Mortgage Payment on The Property at 8..."   506.31
+RECURRING TRANSFER ... "MORTGAGE PAYMENT FROM MIKE"                            506.31
+```
+
+Both descriptions match `_household_spend_filters.py` patterns (`"zelle from"`,
+`"recurring transfer"`), so the payments are dropped before any total is
+computed. The filters were written to remove transfers; they are also removing
+**income**. Compounding it, each month appears twice (once per account label),
+both `removed=false`.
+
+Payments stop after 2026-03-02 because the receiving account closed — either
+they now land somewhere untracked or the note ended. Needs confirmation.
+
+### P1-24 — 19 account labels for roughly 7 real accounts
+
+`Cash Management (Joint WROS)` / `Cash Management Account (CMA)` /
+`Cash Management account (CMA)` are one account. So are
+`Chase Visa ending 9728` / `Visa credit 9728` / `CHASEVISA-9728`, and
+`Visa Credit ****4635` / `Visa credit ending 4635` / `Visa ending 4635`.
+`Chase Amazon card` and `Prime Visa` are the **same physical card** (D22).
+
+Account-level filtering, per-account coverage checks and the ledger's account
+chip are all unreliable until labels resolve to `household_accounts` rows.
+
+### P1-25 — The ledger cannot be searched by amount
+
+`backend/app/services/household_ledger_service.py:135-151` defines
+`_LEDGER_SEARCH_FIELDS` with 16 fields — `account_label`, `merchant`,
+`description`, `category`, `essentiality`, `owner_name`, `owner_source`,
+`source_document_filename`, `source_document_id`, `external_row_id`,
+`source_type`, `document_type`, `flow_type`, `exclusion_reason`, `row_hash`.
+
+**`amount` is absent.** Searching `2144.48` returns nothing, which is exactly
+how the user tried to locate a known property-tax payment and concluded the data
+was missing. The frontend placeholder is honest about it
+(`MoneyLedgerPanel.tsx:277`, "Search merchant, account, category, or evidence")
+but the omission makes the ledger unusable for the most natural lookup a person
+performs. Fix is additive: match a numeric query against `amount`.
+
+### P2-26 — The HOA charge is duplicated six times and miscategorized
+
+`HARBOR HILLS PROPERTY` $104.13 appears **6 times** for February 2026 — five
+`removed=true`, one live. The live row is categorized `Subscriptions`; the
+removed ones say `Household`. It is an HOA fee and belongs in housing. Only
+February exists despite continuous card coverage every month since 2025-12,
+so either the charge is not monthly or later months were dropped.
+
+---
+
 ## 4. Diagnosis in one line
 
 The Money section is a **data-engineering console wearing a dashboard's
@@ -287,30 +375,32 @@ something.**
 
 ---
 
-## 5. Open questions — REMAINING
+## 5. Open questions — ALL RESOLVED
 
-Grill complete for scope/philosophy (D1–D14 in §6). Still genuinely open, and
-worth resolving before or during the phase they belong to:
+All seven questions from the audit are closed. Three were answered from the data
+(Q6 529s, Q7 the check, and the housing/coverage question), four by the user on
+2026-08-22. See D16–D23.
 
-1. **Savings target** — `profile.monthly_savings_target` is `0.0` and
-   `monthly_essential_target` is null. Phase 3.1 needs a real number (the plan
-   sketch assumes $300/mo as a placeholder). *Blocks: Phase 3.1.*
-2. **Income truth** — `monthly_net_income_target` is $2,900 biweekly ($6,283/mo),
-   but observed income averages $5,588 and is falling (Jun $7,348 → Jul $3,857 →
-   Aug $3,205). User is on unemployment with SummitFlow pending. Does the plan
-   anchor to observed, to target, or to a user-declared floor? *Blocks: Phase 3.1.*
-3. **Sinking fund list** — which categories get funds, at what annual amounts
-   (Travel, insurance premiums, car registration, Christmas, home repair?).
-   Must be user-declared (D7). *Blocks: Phase 3.2.*
-4. **Mariana's phone/OS** — iOS needs add-to-home-screen for web push (D11).
-   *Blocks: Phase 3.4 rollout, not build.*
-5. **Alert thresholds** — what actually deserves to interrupt them. The existing
-   card service uses 85% of cap then 100%. *Blocks: Phase 3.5.*
-6. **The two CollegeAmerica/VCSP 529 rows** — user described four 529s (two
-   Fidelity, two Merrill Edge) but six exist. Legacy? *Blocks: Phase 0.2.*
-7. **The $3,606 "Check Paid # 1002"** (Aug 06, categorized Bills) — likely housing,
-   but opaque. No mortgage/rent merchant exists anywhere in the data, which is
-   suspicious for a household of four. *Blocks: Phase 1.3 bill detection.*
+| # | Question | Resolution |
+|---|---|---|
+| 1 | Savings target | **D17** — paused with a declared restart trigger |
+| 2 | Income anchor | **D16** — trailing 3-month median, manual override |
+| 3 | Sinking fund list | **D18** — Travel, Home repair, Insurance/taxes/registration, Gifts; amounts auto-derived |
+| 4 | Mariana's phone/OS | **D19** — both adults on Android; the iOS blocker is void |
+| 5 | Alert thresholds | **D19** — projected overage, novelty, category 100%, better-price |
+| 6 | The extra 529 rows | **D20** — CollegeAmerica/VCSP is the pre-transfer Fidelity identity; four accounts, $36,651.61 |
+| 7 | The $3,606 check | **D21** — cruise repayment to Mariana's mother + travel cash; Travel, not Bills |
+
+Two questions surfaced *during* the resolution and are answered in the same pass:
+housing (**D22** — Wells Fargo closed, CMA is the hub, no mortgage; the household
+*receives* note income per P0-23) and the missing property tax (**D23** — it
+predates every feed and must be seeded manually).
+
+**Nothing is blocking. The plan is ready to build.**
+
+One item to confirm in passing rather than block on: whether the $506.31/mo note
+income from Michael Wiley is still being paid after the receiving account closed
+in March (P0-23). If it is, it belongs in the income anchor (D16).
 
 ---
 
@@ -733,6 +823,144 @@ a deliberate choice, not a default — decide the granularity before switching i
 
 ---
 
+### D16 — Income anchors to a trailing 3-month median, recomputed monthly
+
+User-selected. The $6,283/mo target ($2,900 biweekly) sits $700–$3,000 above
+what actually arrives (Jun $7,348 → Jul $3,857 → Aug $3,205), and the household
+is on unemployment with SummitFlow pending. A median (not a mean) resists the
+single-month payroll spikes and reversals that distort this data.
+
+Ships with a **manual override field** so a known change (SummitFlow starting)
+can be declared instead of waited for. The override is sticky and dated; the
+auto value resumes when it is cleared.
+
+### D17 — Savings target is explicitly paused, with a declared restart trigger
+
+User-selected. The profile's `monthly_savings_target: 0.0` currently produces a
+vacuous "on track" (zero trivially keeps up with zero). Instead the block states
+*paused* as a deliberate state, and prompts to resume when the trailing income
+median clears a user-set threshold. Consistent with D13: net worth grew ~$19,800/mo
+Feb–Aug on its own, which is 66× any $300 contribution, so contribution
+compliance is the wrong thing to measure right now.
+
+### D18 — Sinking funds: four categories, amounts derived automatically
+
+User-selected categories: **Travel**, **Home repair & appliances**,
+**Insurance, taxes & registration**, **Gifts & holidays**.
+
+User requirement, verbatim: *"it's fine if these sorts of categories have a
+manual override but i'd want them to be automatically set in an intelligent
+manner based on known good data (travel and other sinking fund category related
+expenses averaged per month/year/etc., whatever you think is best)."*
+
+Derivation rule: for each fund, take the trailing 12 months of that category's
+spend **after** novelty/reversal cleanup, drop the top outlier if it is a
+one-time event the user has marked as such, and divide by 12 to get the monthly
+contribution. Show the derivation inline ("$5,012 of travel over 12 months →
+$418/mo") so the number is auditable rather than magic. Manual override per
+fund, dated, with the auto value still visible beside it.
+
+Known obligations that predate all feeds must be seeded manually or the average
+is wrong — see D23 on the property tax.
+
+### D19 — Alerts: four triggers, and both adults are on Android
+
+User-selected triggers: **projected to exceed the month's plan**, **novelty /
+outlier purchases**, **category hit 100% of cap** (not 85%), and **better price
+found elsewhere** (once Phase 5 lands unit pricing).
+
+Devices: Elias **Pixel 7 Pro**, Mariana **Samsung Galaxy S22 Ultra** — both
+Android. The girls are on iPhone but are capture-only (D15) and do not receive
+budget alerts.
+
+**This retires the D11 iOS concern entirely.** Web push works on Android Chrome
+with no add-to-home-screen step, so no install ceremony is required for either
+recipient. iOS only mattered for the girls, and camera capture works from Safari
+via `capture="environment"` without installing anything.
+
+### D20 — The 529s: four accounts, not six
+
+User-confirmed: CollegeAmerica / VCSP is the **pre-transfer identity** of the two
+Fidelity 529s. Resolution:
+
+| Keep | Merge in | Balance |
+|---|---|---|
+| Fidelity *6273 | CollegeAmerica / VCSP 87595982 (Nadia) | $14,929.22 |
+| Fidelity *6277 | CollegeAmerica / VCSP 87595967 (Sophia) | $14,929.22 |
+| Merrill Edge 22Z-87861 (Nadia) | evidence row "529 - Nadia" $3,145.58 | $3,395.57 |
+| Merrill Edge 25Z-87861 (Sophia) | evidence row "529 - Sophia" $3,147.46 | $3,397.60 |
+
+Education total resolves to **$36,651.61**. Both Fidelity rows also need
+`asset_group` corrected from `taxable` to `education` and `account_type` from
+`brokerage` to `529`.
+
+Data-quality flag: both CollegeAmerica balances are $14,363.57 **to the cent**,
+which is more likely an extraction error applying one value to both daughters
+than a genuine coincidence. Verify against the source PDF before merging.
+
+### D21 — Check #1002 is travel and a family repayment, not a bill
+
+User-supplied: the $3,606.00 check paid 2026-08-06 covered a **repayment to
+Mariana's mother for a cruise (~$1,200)** plus **cash for Mariana's trip to
+Germany and Ukraine** to see family.
+
+It is currently categorized `Bills`, where it distorts August into the worst
+month of the year. Correct handling: split into the cruise repayment (Travel,
+and reconcilable against the Carnival charges already in the ledger) and the
+travel cash (Travel). Neither belongs in Bills.
+
+This is the archetype for a needed capability: **a single opaque transaction
+that only a human can explain, which changes the verdict for its month.** The
+review screen needs a first-class "explain this" affordance that attaches a
+durable note and a split, rather than forcing a recategorization that loses the
+reason.
+
+### D22 — Account truth: Wells Fargo is closed, the CMA is the hub
+
+User-supplied corrections:
+
+- **Wells Fargo accounts are closed.** Everything moved to the Fidelity CMA for
+  checking and cash. Do **not** attempt to reconnect them — their data is
+  correctly historical, and P0-21's fix is to stop counting them as live, not to
+  revive them.
+- **`Chase Amazon card` and `Prime Visa` are the same card.** Two labels, one
+  account.
+- **The two Chase Sapphire cards need live Plaid feeds** — ~$16,924 of
+  AC-replacement balance and ~220k points are invisible today (P0-20).
+- Card rotation for travel points is an ongoing practice, so **new cards must be
+  connectable as a routine operation**, not a one-time setup.
+
+The resulting model is clean and worth stating plainly, because the current UI
+obscures it:
+
+| Account | Role | Feed |
+|---|---|---|
+| Fidelity CMA (Joint WROS) | income + bills + card payoff | SnapTrade, live |
+| Prime Visa | day-to-day spend | Plaid, live |
+| Sapphire ×2 | large purchases + points | **not connected** |
+
+Verified from the CMA's own rows: Duke Energy, T-Mobile, Frontier, P C Utilities
+and payroll all land here monthly, plus a $6,757.73 Chase card payoff in July.
+**Every "metronomic bill" P0-3 claims to be missing is already in this account** —
+the detector is looking in the wrong place, not working with missing data.
+
+### D23 — The $2,144.48 property tax predates every feed
+
+Searching the ledger for `2144.48` returns nothing, but this is not a parsing
+failure. The CMA feed begins 2026-02-19 and Florida property taxes are due
+November 1 (Pinellas County, discounted through November 30), so the payment
+occurred before any live feed existed and before the Wells Fargo uploads begin.
+
+Consequences: it must be **seeded manually** as a known annual obligation, or
+the "Insurance, taxes & registration" sinking fund (D18) will be derived from
+incomplete history and under-fund by ~$179/mo. The same applies to any annual
+premium paid before February 2026.
+
+This finding is only reachable because the user knew the amount — which is
+exactly why P1-25 (search by amount) matters.
+
+---
+
 ## 7. The plan
 
 **Approved shape:** Money keeps its own section with **one primary tab and three
@@ -758,19 +986,49 @@ Everything downstream is wrong until this lands.
     ~$11,500 AC replacement and all spend since opening. Seed
     `household_credit_cards` rows so the idle welcome-bonus / annual-fee alerting
     has real subjects.
-0.2 Fix `asset_group` on both Fidelity 529s (`taxable` → `education`) (D12).
-    Confirm/retire the two legacy CollegeAmerica/VCSP rows.
-0.3 Purge the **"Codex archive smoke"** test account; resolve duplicate registry
-    rows ("Wells Fargo checking activity export" ×2, "FRS Investment Plan" ×2);
-    reconcile the three overlapping Wells Fargo checking identities (P2-14).
-0.4 Investigate the **63% `removed` rate** (1,722 of 2,723). Confirm it is genuine
-    dedupe and not identity-collision loss — 0.3 is likely a direct cause.
-0.5 Set vendor fees + Costco `membership_active` on `household_vendor_profiles`.
-0.6 Ingest the **13 staged receipts** (8 Walmart, 5 Costco) — see Phase 4 for the
+0.2 **Mark dead accounts dead** (P0-21, D22). Add an explicit
+    `feed_status` / `coverage_through` on `household_accounts`. Wells Fargo is
+    **closed** — do not reconnect; the fix is that rolling windows must stop
+    treating a feed that ended 2026-02-27 as live. Every window must state its
+    account set and coverage range.
+0.3 **Resolve account labels to accounts** (P1-24). 19 labels → ~7 accounts.
+    Merge the three CMA variants, the three `9728` variants, the three `4635`
+    variants, and `Chase Amazon card` + `Prime Visa` (one card, per D22). Every
+    transaction already carries `household_account_id` (2,713 of 2,725), so this
+    is a labeling fix, not a re-ingest.
+0.4 Fix `asset_group` on both Fidelity 529s (`taxable` → `education`) and
+    `account_type` (`brokerage` → `529`). Merge CollegeAmerica/VCSP into the
+    Fidelity pair and the two stale "529 College Savings" rows into Merrill
+    (D20). **Verify the identical $14,363.57 balances against the source PDF
+    first** — likely an extraction error. Education resolves to $36,651.61.
+0.5 **Fix the duplicated-with-opposite-sign ingest** (P0-22). The Progressive
+    premium is booked `income` on one row and `expense` on its twin, both live.
+    Dedup must be case-insensitive and must never let two rows of the same
+    payment disagree on `flow_type`.
+0.6 **Stop the spend filters from eating income** (P0-23). `"zelle from"` and
+    `"recurring transfer"` currently delete $506.31/mo of real note income.
+    Filters must classify, not delete — see 1.2.
+0.7 **Add `amount` to ledger search** (P1-25). One line in
+    `_LEDGER_SEARCH_FIELDS` plus numeric matching. Small, but it is the reason
+    the user believed known payments were missing entirely.
+0.8 Purge the **"Codex archive smoke"** test account; resolve duplicate registry
+    rows ("Wells Fargo checking activity export" ×2, "FRS Investment Plan" ×2)
+    (P2-14).
+0.9 Investigate the **63% `removed` rate** (1,722 of 2,723). Confirm it is genuine
+    dedupe and not identity-collision loss — 0.3 and 0.5 are likely direct causes.
+0.10 **Seed known pre-feed obligations** (D23): the $2,144.48 property tax, plus
+    any annual premium paid before 2026-02. Without these the D18 sinking funds
+    derive from incomplete history.
+0.11 Fix the HOA rows (P2-26): dedupe the six `HARBOR HILLS PROPERTY` entries,
+    recategorize from `Subscriptions` to housing, and determine the real cadence.
+0.12 Set vendor fees + Costco `membership_active` on `household_vendor_profiles`.
+0.13 Ingest the **13 staged receipts** (8 Walmart, 5 Costco) — see Phase 4 for the
     Costco parser work they depend on.
 
-**Exit test:** `liabilities_total` matches reality; spend-driver account count
-reflects all cards; net worth reconciles to statements.
+**Exit test:** `liabilities_total` matches reality; every account carries an
+honest `feed_status` and coverage range; searching `2144.48` finds the property
+tax; the Progressive premium appears exactly once, as an expense; net worth
+reconciles to statements.
 
 ---
 
@@ -833,21 +1091,39 @@ The screen in the artifact. Build only after Phase 1 exits.
 ---
 
 ### Phase 3 — Plan, funds, and alerts
-3.1 **Income-anchored cap setup** (D6): take-home − savings target, distributed by
-    historical shape, adjusted in one pass. Re-propose on material drift.
-3.2 **Sinking funds** (D7): annual amount + monthly accrual + running balance.
-    Vacation months draw the fund down instead of registering as overage.
-    **User-declared, not merchant-inferred** — the current auto-inference proposes
-    $7,104/mo of funds, more than take-home.
-3.3 **Card commitments in Plan** (P0-20): annual-fee dates, welcome-bonus
-    deadlines, balances owed.
-3.4 **Web push via the existing PWA** (D11). Add `push` + `notificationclick`
+3.1 **Income anchor** (D16): trailing 3-month **median** of deposits, recomputed
+    monthly, with a dated manual override that wins until cleared. Show both
+    values side by side so the override is never silently stale. Confirm whether
+    the $506.31/mo note income (P0-23) is still arriving and include it if so.
+3.2 **Income-anchored cap setup** (D6): anchor (3.1) − savings (3.3) − sinking-fund
+    accruals (3.4), distributed by historical shape, adjusted in one pass.
+    Re-propose on material drift.
+3.3 **Savings target as a phase-aware state** (D17): `paused` is a first-class
+    state with a user-set restart trigger on the trailing income median — not a
+    $0 target silently reporting "on track".
+3.4 **Sinking funds** (D18): the four user-selected funds — Travel, Home repair &
+    appliances, Insurance/taxes/registration, Gifts & holidays.
+    **Amounts auto-derived**: trailing 12 months of that category after
+    novelty/reversal cleanup, top one-time outlier droppable, ÷12. Show the
+    derivation inline ("$5,012 of travel over 12 months → $418/mo") so it is
+    auditable. Dated manual override per fund with the auto value still visible.
+    Seed the pre-feed obligations from 0.10 or the averages will under-fund.
+    This replaces the old merchant-inference, which proposed $7,104/mo — more
+    than take-home.
+3.5 **Card commitments in Plan** (P0-20): annual-fee dates, welcome-bonus
+    deadlines, balances owed. Card rotation is routine (D22), so adding a card
+    must be a supported operation, not a migration.
+3.6 **Web push via the existing PWA** (D19). Add `push` + `notificationclick`
     handlers to `frontend/public/sw.js`, subscription storage, per-device
     registration for Elias and Mariana separately. Reuse
     `spend_alert_service.py`'s evaluate → two-sink → dedupe-marker shape; swap
-    transport only. Flag the iOS add-to-home-screen requirement.
-3.5 Budget-shaped alert kinds (category cap crossing, month pace, unusual purchase,
-    new recurring charge) alongside the existing card kinds.
+    transport only. **Both recipients are on Android** (Pixel 7 Pro, Galaxy S22
+    Ultra), so there is no add-to-home-screen requirement and no install
+    ceremony — the D11 iOS caveat is void.
+3.7 **Alert kinds** (D19), in priority order: month projected over plan; novelty /
+    outlier purchase; category at 100% of cap (not 85%); better-price-found
+    (deferred until Phase 5 unit pricing lands). Existing card kinds continue
+    alongside.
 
 ---
 
@@ -953,3 +1229,4 @@ household-level habits and per-person habits are different products.
 | 2026-08-22 | Proposal | Published visual proposal artifact (IA + Review screen mockup on real July 2026 data + Prices subsystem + disposition table). Awaiting approval. |
 | 2026-08-22 | Grill Q5 + identity | D13 (phase-aware retirement block), D14 (sequencing: trust pipeline first, nothing dropped), D15 (family-wide capture; identity propagation). Four Gmail identities recorded. §7 restructured: new Phase 5.0 identity propagation ahead of 4.4 owner attribution; 5.6 rewritten for four-person capture; new Phase 6 shopping habits. Artifact republished with the family-capture section. Still nothing in the project changed. |
 | 2026-08-22 | Security | Emails were committed to this **public** repo, then redacted from the plan doc and the artifact. History rewritten: `0a4add8b9` + `94e7cdfc3` squashed into `4073f9168`, force-pushed, branch protection restored. GitHub still serves the orphaned SHA until Support GCs it — request drafted. Real addresses now live in `.env.local` → `HOUSEHOLD_MEMBER_EMAILS`, gitignored. |
+| 2026-08-22 | Questions closed | All 7 open questions in §5 resolved — 3 from the data, 4 by the user. New findings P0-21 (only two live feeds), P0-22 (same premium booked income *and* expense), P0-23 (spend filters delete real note income), P1-24 (19 labels / ~7 accounts), P1-25 (ledger can't search by amount), P2-26 (HOA ×6, miscategorized). Decisions D16–D23 added. Phase 0 expanded 6→13 tasks; Phase 3 rewritten. **Plan is ready to build.** |
