@@ -692,18 +692,26 @@ addresses live outside version control (see below); this table is the shape only
 | `<nadia-email>` | Nadia (2012) | `child` | **Capture only** |
 | `<sophia-email>` | Sophia (2012) | `child` | **Capture only** |
 
-> **Where the real addresses live:** the user supplies them directly at
-> implementation time. They belong in the Cloudflare Access policy and in a
-> seed applied to `household_members.email` from an approved secret source —
-> never in a committed migration, fixture, test, doc or comment. A cold agent
-> should ask the user for them rather than searching the repo or git history.
+> **Where the real addresses live — already provisioned, do not ask the user:**
+> `.env.local` → `HOUSEHOLD_MEMBER_EMAILS`, a JSON map of Access `payload.email`
+> → `household_members.display_name`. That file is gitignored (`.gitignore:43-45`),
+> mode 600, and already loaded by `backend/app/config/__init__.py:31-33`, so the
+> value reaches `Settings` with no new plumbing. `.env.example` carries the key
+> with placeholder values as documentation.
+>
+> Rules: resolve by `display_name`, failing loudly on a missing or ambiguous
+> name. Access tier is **not** in the env value — derive it from
+> `household_members.role` (`primary`/`spouse` → full Money, `child` → capture
+> only). Never log, echo, commit or transmit the addresses; two belong to minors.
+> Once Phase 5.0 lands the `household_members.email` column, **the DB column is
+> authoritative** and the env var is only the seed source.
 
 **Gap to close:** `household_members` has **no email column** (id, display_name,
 role, relationship, birth_year, is_dependent, lives_in_household, notes,
 confirmation_status, provenance, evidence_note, source_document_id, timestamps).
 Needs a migration adding a unique email field. The migration adds the column
-only — the four addresses are seeded at run time from an approved secret source,
-never written into the migration file. Then: Access JWT → `payload.email` → `household_members` row →
+only — the four addresses are seeded at run time from `HOUSEHOLD_MEMBER_EMAILS`
+(see above), never written into the migration file. Then: Access JWT → `payload.email` → `household_members` row →
 `owner_name` on every capture, receipt upload and manual edit.
 
 **Access policy shape:** one policy admitting all four emails to the capture
@@ -944,3 +952,4 @@ household-level habits and per-person habits are different products.
 | 2026-08-22 | Receipts | User uploaded 13 PDFs (8 Walmart, 5 Costco). All `status: staged` — **deliberately not ingested**, per "don't change anything until approved". Verified both formats parse and self-reconcile. Costco: $884.23 / 68 items across 5 receipts. |
 | 2026-08-22 | Proposal | Published visual proposal artifact (IA + Review screen mockup on real July 2026 data + Prices subsystem + disposition table). Awaiting approval. |
 | 2026-08-22 | Grill Q5 + identity | D13 (phase-aware retirement block), D14 (sequencing: trust pipeline first, nothing dropped), D15 (family-wide capture; identity propagation). Four Gmail identities recorded. §7 restructured: new Phase 5.0 identity propagation ahead of 4.4 owner attribution; 5.6 rewritten for four-person capture; new Phase 6 shopping habits. Artifact republished with the family-capture section. Still nothing in the project changed. |
+| 2026-08-22 | Security | Emails were committed to this **public** repo, then redacted from the plan doc and the artifact. History rewritten: `0a4add8b9` + `94e7cdfc3` squashed into `4073f9168`, force-pushed, branch protection restored. GitHub still serves the orphaned SHA until Support GCs it — request drafted. Real addresses now live in `.env.local` → `HOUSEHOLD_MEMBER_EMAILS`, gitignored. |
