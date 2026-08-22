@@ -107,6 +107,9 @@ from app.services.household_document_storage import (
     resolve_document_upload,
     upload_storage_key,
 )
+from app.services.household_receipt_reconciliation_service import (
+    HouseholdReceiptReconciliationService,
+)
 from app.services.household_review_agent_service import HOUSEHOLD_REVIEW_AGENT_SLUG
 from app.services.household_upload_validation import (
     read_household_upload_limited,
@@ -1418,6 +1421,21 @@ class HouseholdDocumentPipeline:
         transaction_summary = _transaction_summary_with_audit(
             transaction_summary, _audit_transactions(service, document_id=document.id)
         )
+        # A receipt and the card charge that settles it are one purchase. This
+        # runs over every live receipt row rather than this document's, because
+        # the two halves arrive in either order: a receipt uploaded in the store
+        # waits for the charge, and a card sync days later is what closes it.
+        try:
+            receipt_reconciliation = HouseholdReceiptReconciliationService().reconcile(
+                service
+            )
+        except Exception as exc:
+            logger.warning(
+                "household_receipt_reconciliation_failed",
+                document_id=document.id,
+                error=str(exc),
+            )
+            receipt_reconciliation = {"error": str(exc)}
         # Purchase items ride the same apply pass (after transactions exist to
         # link against) but never block document application.
         try:
@@ -1469,6 +1487,7 @@ class HouseholdDocumentPipeline:
             "imports": import_summary,
             "transactions": transaction_summary,
             "purchase_items": purchase_item_summary,
+            "receipt_reconciliation": receipt_reconciliation,
             "evidence_accounts": evidence_account_count,
             "account_registry": registry_summary,
             "portfolio_positions": portfolio_position_summary,

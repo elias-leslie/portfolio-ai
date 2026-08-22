@@ -1,11 +1,11 @@
 # Money Workspace Revamp — Plan & Working Doc
 
-**Status:** PHASE 0 IN FLIGHT — 8 of 13 tasks landed, 3 partial, 2 blocked on a
-household answer. Phase 1 has not started.
+**Status:** PHASE 0 IN FLIGHT — 12 of 16 tasks landed, 3 partial, 1 open.
+Nothing is blocked on the household. Phase 1 has not started.
 **Owner:** Elias Leslie
 **Started:** 2026-08-22
-**Last updated:** 2026-08-22 (both Sapphire cards connected and named; card
-registry seeded; the 63% `removed` rate cleared as genuine dedupe)
+**Last updated:** 2026-08-22 (receipts no longer double-count the card feed;
+CSV imports show their real delta; property tax and Wells Fargo answered)
 
 > **Handoff contract:** this file is the single source of truth for the Money
 > revamp. Anyone picking this up cold should read it top to bottom and be able to
@@ -360,6 +360,40 @@ performs. Fix is additive: match a numeric query against `amount`.
 removed ones say `Household`. It is an HOA fee and belongs in housing. Only
 February exists despite continuous card coverage every month since 2025-12,
 so either the charge is not monthly or later months were dropped.
+
+---
+
+### P0-27 — The receipt parser dates a purchase to the day it was processed, and merges several orders into one row
+
+Reconciling receipts against the card feed (0.14) exposed a defect underneath it.
+Three live Walmart receipt rows all carry `2026-06-13` — the day they were
+processed — and their own summaries say otherwise:
+
+- `$313.20` — *"two grocery orders (May 20, 2026 and May 26, 2026)"*. The feed
+  has `$174.98` on 2026-05-22 and `$138.22` on 2026-05-28. **$174.98 + $138.22 =
+  $313.20.** One row is standing in for two separate orders, five weeks earlier.
+- `$162.23` — *"two Walmart grocery receipts from May 2026"*. Same shape; it does
+  not decompose against the Walmart feed rows, so at least one leg is missing.
+- `$170.81` — a single order, but the feed carries exactly `$170.81` on
+  2026-06-04, nine days before the date on the row.
+
+A Costco row shows the same fault: dated `2026-08-22`, summary says *"purchases
+dated 2026-08-10"*.
+
+Two consequences, both live:
+
+1. **Double counting that reconciliation cannot reach.** The $138.22 leg of the
+   $313.20 row was already matched and retired on its own; the aggregate row
+   still carries it. Widening the match window to cover a nine-day gap would
+   start absorbing unrelated charges, so this cannot be fixed downstream.
+2. **Months are wrong.** May spending lands in June, and August spending lands
+   on whatever day the file was opened — which is precisely the number the
+   household is meant to sit down and review.
+
+Fix belongs in Phase 4.2 with the Costco parser: emit **one transaction per
+order**, dated by the **order date on the page**, and refuse to fall back to
+`now()` — a receipt whose date cannot be read should be held for review, not
+booked on today.
 
 ---
 
@@ -960,6 +994,12 @@ premium paid before February 2026.
 This finding is only reachable because the user knew the amount — which is
 exactly why P1-25 (search by amount) matters.
 
+**Answered (2026-08-22):** the $2,144.48 *is* the discounted amount, and the
+household always pays inside the November window. So the gross bill is
+$2,233.83, the 4% discount is the norm rather than a one-off, and the sinking
+fund should target the discounted figure. Seeded as an annual `Home` obligation
+dated 2025-11-01; next due November 2026.
+
 ---
 
 ## 7. The plan
@@ -1004,10 +1044,11 @@ started.
     because the provider genuinely reports one name for both. Named by operator
     override (`identity_override`, reapplied after every evidence refresh) as
     `Chase Sapphire Preferred ·3627` / `·8054` with owners.
-    **Remaining:** the Wells Fargo identity question (0.3a) below.
-0.3a **[blocked]** Wells Fargo is three rows — masks `7312`, `4222`, and a
-    no-mask export. One account or two? The Michael Wiley note payment appears
-    twice across them. Needs the household's answer before merging.
+0.3a **[done]** Wells Fargo is three rows — masks `7312`, `4222`, and a no-mask
+    export. **The household confirmed `7312` and `4222` are two genuinely
+    different checking accounts, both now closed.** They are not merged. The
+    shared Michael Wiley note payment across them is a real payment made from two
+    accounts over time, not an identity collision.
 0.4 **[part]** Both Fidelity 529s carry `asset_group: education` /
     `account_type: 529`, pinned by classification override; CollegeAmerica/VCSP
     and the stale "529 College Savings" rows are archived. Merrill holds
@@ -1031,9 +1072,11 @@ started.
     different amount (Avis $1,250, Compania Panamena $2,017.04, two cruise-line
     holds). One is a soft charge, one a zero-dollar SnapTrade row. **No
     identity-collision loss.** 0.3 and 0.5 were not causing it.
-0.10 **[blocked]** **Seed known pre-feed obligations** (D23). The manual-entry
-    path exists. The $2,144.48 property tax still needs its payment date and
-    whether the November 4% discount was taken.
+0.10 **[done]** **Seed known pre-feed obligations** (D23). The $2,144.48 is
+    seeded as an annual `Home` obligation dated 2025-11-01. The household
+    confirmed the amount paid **is** the discounted figure and that it always
+    pays inside the November 4% window, so the gross bill was $2,233.83 and the
+    next one is due November 2026.
 0.11 **[part]** The six `HARBOR HILLS PROPERTY` rows are already deduped to one
     live row (2026-02-17, $104.13) — the P0-22 dedup fix caught them. It still
     sits under `Bills` rather than housing, and **one occurrence in six months of
@@ -1044,7 +1087,40 @@ started.
     accrual with a $0 pickup fee. Aldi, Amazon, Publix and Walmart still have no
     fee or threshold values — household-specific facts, not derivable.
 0.13 **[open]** Ingest the **13 staged receipts** (8 Walmart, 5 Costco) — depends
-    on the Costco parser work in Phase 4.2.
+    on the Costco parser work in Phase 4.2, and now also on P0-27 below: the
+    receipts already ingested show the parser dating a purchase to the day it was
+    processed and collapsing several orders into one row.
+0.14 **[done]** **Stop receipts and card charges being counted as two purchases.**
+    A receipt is now reconciled against the feed that actually moved the money
+    (`household_receipt_reconciliation_service.py`). The receipt row is retired —
+    `removed = TRUE` with a `metadata.reconciliation` audit blob naming the
+    charges, never deleted — and stays as the line-item evidence the feed does
+    not carry. Matching allows a **set** of charges, not just a twin, because one
+    order routinely posts as several: the 2026-08-17 Walmart receipt for $54.06
+    is the $50.48 and $3.58 charges of 2026-08-19, and was previously counted
+    twice. Six receipts totalling **$677.20** were retired against seven charges;
+    a second pass changes nothing. The same pass also catches a receipt uploaded
+    twice as two different files — the ingest content hash only sees a
+    byte-identical re-upload — but merges on **proof, not resemblance**: same
+    merchant, date, total *and* an identical set of line items. Two trips that
+    happened to cost the same both stand, and a receipt with no parsed line items
+    is never merged.
+    The evidence travels with the money: retiring the receipt would have hidden
+    its line items along with it, so a one-charge match **moves the items onto
+    the surviving charge and re-allocates them to its amount** — the split loader
+    drops any transaction whose allocated cents miss the total, so a re-point
+    alone would have left them linked but uncounted. Clicking the $99.00 Walmart
+    charge now returns 17 items summing to $99.00. A split order keeps its items
+    where they are rather than restating every price against one leg; both legs
+    carry a `receipt_evidence` back-reference until an item can span charges
+    (Phase 4).
+0.15 **[done]** **Make a CSV import say what it will actually change.** An Amazon
+    `Order History.csv` could not be applied at all: the file's byte-order mark
+    made the first column unreadable, so every row was skipped, the proposal was
+    empty, and approval was refused. Imports are now read as `utf-8-sig`, rows
+    that carry no usable identity are counted as `skipped` rather than silently
+    dropped, and the review proposal shows the real delta — rows in the file, how
+    many are new, how many are already known, and the date range of the new ones.
 
 **Exit test:** `liabilities_total` matches reality; every account carries an
 honest `feed_status` and coverage range; searching `2144.48` finds the property
@@ -1251,4 +1327,5 @@ household-level habits and per-person habits are different products.
 | 2026-08-22 | Grill Q5 + identity | D13 (phase-aware retirement block), D14 (sequencing: trust pipeline first, nothing dropped), D15 (family-wide capture; identity propagation). Four Gmail identities recorded. §7 restructured: new Phase 5.0 identity propagation ahead of 4.4 owner attribution; 5.6 rewritten for four-person capture; new Phase 6 shopping habits. Artifact republished with the family-capture section. Still nothing in the project changed. |
 | 2026-08-22 | Security | Emails were committed to this **public** repo, then redacted from the plan doc and the artifact. History rewritten: `0a4add8b9` + `94e7cdfc3` squashed into `4073f9168`, force-pushed, branch protection restored. GitHub still serves the orphaned SHA until Support GCs it — request drafted. Real addresses now live in `.env.local` → `HOUSEHOLD_MEMBER_EMAILS`, gitignored. |
 | 2026-08-22 | Phase 0 | Both Sapphire cards connected (P0-20 closed): `·3627` Elias, `·8054` Mariana on a second Chase item. The AC replacement is **split across both cards** — $5,831.50 + $5,801.50 on 2026-07-23 — clearing both $5,000 minimum spends with one purchase. `household_credit_cards` seeded with three rows; both welcome bonuses compute as `earned` from the ledger; the $95 annual fee posted 2026-08-02 on both, so the next one is 2027-08-02. Chase reports both cards as `Ultimate Rewards®`, so the registry gained an `identity_override` (label + owner) that survives evidence refresh, mirroring the classification override. The Cards tab had the same problem one level up — it rendered both Sapphires as the same row twice — so a card row now carries its account's owner and last four. MSR progress now excludes the issuer's own fees — the annual fee was counting as qualifying spend. The 63% `removed` rate was investigated and cleared: 11 true orphans, nine of them Plaid pending holds. |
+| 2026-08-22 | Phase 0 cont. | Receipts stopped double-counting the card feed (0.14): a new reconciliation pass retires a receipt whose spend the feed already carries, matching a **set** of charges rather than a twin — the $54.06 Walmart receipt is the $50.48 + $3.58 pair. Six receipts / $677.20 retired against seven charges, idempotent on a second pass, audit blob on every retired row. The same pass detects a receipt uploaded twice as two different files, on identical line items rather than a matching total. CSV imports fixed and made legible (0.15): a byte-order mark was silently voiding an entire Amazon export, and the review proposal now states rows-in-file / new / already-known / date range before approval. 0.3a and 0.10 closed by household answers (two separate closed Wells Fargo accounts; property tax paid at the 4% November discount). New finding **P0-27** — the receipt parser dates purchases to the day they were processed and merges several orders into one row; $313.20 is provably two May orders, and its $138.22 leg is already counted elsewhere. Fix lands in Phase 4.2. |
 | 2026-08-22 | Questions closed | All 7 open questions in §5 resolved — 3 from the data, 4 by the user. New findings P0-21 (only two live feeds), P0-22 (same premium booked income *and* expense), P0-23 (spend filters delete real note income), P1-24 (19 labels / ~7 accounts), P1-25 (ledger can't search by amount), P2-26 (HOA ×6, miscategorized). Decisions D16–D23 added. Phase 0 expanded 6→13 tasks; Phase 3 rewritten. **Plan is ready to build.** |

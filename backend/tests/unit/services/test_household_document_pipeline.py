@@ -1652,7 +1652,20 @@ def test_process_document_review_reapplies_latest_review_when_source_missing(
     )
     application_counts_result = MagicMock()
     application_counts_result.fetchone.return_value = (0, None, 2, 1, 0)
-    connection.execute.side_effect = [latest_review_result, application_counts_result]
+    empty_result = MagicMock()
+    empty_result.fetchall.return_value = []
+
+    def _execute(query: str, *_args: object, **_kwargs: object) -> MagicMock:
+        # Dispatch on the statement rather than on call order: the apply pass
+        # runs other passes (receipt reconciliation, audits) over the same
+        # connection, and their reads must not shift this test's answers.
+        if "household_document_reviews" in query:
+            return latest_review_result
+        if "COUNT" in query.upper():
+            return application_counts_result
+        return empty_result
+
+    connection.execute.side_effect = _execute
     context_manager = MagicMock()
     context_manager.__enter__.return_value = connection
     context_manager.__exit__.return_value = None
