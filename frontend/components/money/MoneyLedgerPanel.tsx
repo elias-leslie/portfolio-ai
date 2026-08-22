@@ -274,7 +274,7 @@ export function MoneyLedgerPanel() {
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search merchant, account, category, or evidence"
+            placeholder="Search merchant, amount, account, category, or evidence"
             aria-label="Search ledger rows"
             className="w-[280px]"
           />

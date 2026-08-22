@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Any, cast
 from unittest.mock import Mock
 
+import pytest
+
 from app.models.household_finance import HouseholdEvidenceAccount, HouseholdTrackedAccount
 from app.portfolio.models import Account
 from app.services.household_account_identity import (
@@ -12,8 +14,10 @@ from app.services.household_account_identity import (
     derive_account_mask,
 )
 from app.services.household_account_registry_service import (
+    _CLASSIFICATION_OVERRIDE_KEY,
     HouseholdAccountRegistryService,
     HouseholdCanonicalAccount,
+    _apply_classification_override,
     _evidence_mask_rank,
     _mask_identity_candidates,
     _registry_identity_candidates,
@@ -1299,3 +1303,112 @@ def test_resolve_from_evidence_creates_distinct_sibling_accounts() -> None:
     assert created == 1
     assert merged == 0
     assert account_id != "child_two"
+
+
+def test_classification_override_survives_provider_reclassification() -> None:
+    """A provider that cannot express an account type must not keep undoing the truth.
+
+    SnapTrade reports 529 college savings as ``Taxable`` because its schema has no
+    529 type. Without the override the next sync re-files the money as brokerage,
+    which understates education and overstates taxable by the same amount.
+    """
+    account = _canonical(
+        account_id="acct-529",
+        label="Individual - 529",
+        asset_group="taxable",
+        account_type="brokerage",
+        source_type="brokerage",
+        institution_name="Fidelity",
+        account_mask="0000",
+    )
+    account.metadata[_CLASSIFICATION_OVERRIDE_KEY] = {
+        "asset_group": "education",
+        "account_type": "529",
+    }
+
+    corrected = _apply_classification_override(account)
+
+    assert corrected.asset_group == "education"
+    assert corrected.account_type == "529"
+    # Everything the provider is authoritative about is left alone.
+    assert corrected.account_mask == "0000"
+    assert corrected.institution_name == "Fidelity"
+
+
+def test_classification_override_absent_leaves_account_untouched() -> None:
+    account = _canonical(
+        account_id="acct-taxable",
+        label="Individual - TOD",
+        asset_group="taxable",
+        account_type="brokerage",
+        source_type="brokerage",
+    )
+
+    assert _apply_classification_override(account) is account
+
+
+def test_classification_override_ignores_partial_and_malformed_values() -> None:
+    """A half-filled override pins only the field it actually names."""
+    account = _canonical(
+        account_id="acct-partial",
+        label="Rollover IRA",
+        asset_group="retirement",
+        account_type="brokerage",
+        source_type="brokerage",
+    )
+    account.metadata[_CLASSIFICATION_OVERRIDE_KEY] = {"account_type": "ira"}
+
+    corrected = _apply_classification_override(account)
+
+    assert corrected.account_type == "ira"
+    assert corrected.asset_group == "retirement"
+
+
+def test_archive_rejects_an_unknown_reason() -> None:
+    """Reasons are closed so a typo cannot invent a status no read path filters on."""
+    service = HouseholdAccountRegistryService()
+    storage = Mock()
+
+    with pytest.raises(ValueError, match="unknown archive reason"):
+        service.archive_account(
+            cast(Any, Mock(storage=storage)),
+            account_id="acct-1",
+            reason="because_i_said_so",
+        )
+    storage.connection.assert_not_called()
+
+
+def test_feed_status_rejects_an_unknown_status() -> None:
+    service = HouseholdAccountRegistryService()
+    storage = Mock()
+
+    with pytest.raises(ValueError, match="unknown feed status"):
+        service.set_feed_status(
+            cast(Any, Mock(storage=storage)),
+            account_id="acct-1",
+            feed_status="probably_fine",
+        )
+    storage.connection.assert_not_called()
+
+
+def test_merge_refuses_to_merge_an_account_into_itself() -> None:
+    service = HouseholdAccountRegistryService()
+    storage = Mock()
+
+    with pytest.raises(ValueError, match="into itself"):
+        service.merge_accounts(
+            cast(Any, Mock(storage=storage)),
+            winner_id="acct-1",
+            loser_id="acct-1",
+        )
+    storage.connection.assert_not_called()
+
+
+def test_holdings_only_is_a_declarable_feed_status() -> None:
+    """Balance-reporting accounts need a status distinct from a dead feed.
+
+    Counting a retirement account as "covered" is how a dashboard reports strong
+    visibility while only two accounts actually report spend.
+    """
+    assert "holdings_only" in HouseholdAccountRegistryService.FEED_STATUSES
+    assert "unknown" in HouseholdAccountRegistryService.FEED_STATUSES

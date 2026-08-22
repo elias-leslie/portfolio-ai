@@ -54,6 +54,10 @@ _PORTFOLIO_ACCOUNT_GROUPS = {
     "Taxable": "taxable",
 }
 _MASK_IDENTITY_PREFIXES = ("institution-mask::", "mask::", "mask-asset::")
+# Mirrors the threshold the lifecycle migration backfilled with. An account whose
+# newest transaction is older than this has stopped reporting, whatever the
+# registry still says about it.
+_DORMANT_AFTER_DAYS = 60
 
 
 @dataclass(slots=True)
@@ -297,6 +301,40 @@ def _metadata_with_evidence_lifecycle(
     }
 
 
+_CLASSIFICATION_OVERRIDE_KEY = "classification_override"
+
+
+def _apply_classification_override(
+    account: HouseholdCanonicalAccount,
+) -> HouseholdCanonicalAccount:
+    """Let an operator's classification outrank whatever the provider reports.
+
+    Providers type accounts with the vocabulary their own API supports, which is
+    not always the vocabulary that is true. SnapTrade has no 529 account type, so
+    it reports education savings as ``Taxable``; every resync would otherwise
+    re-file a child's college money as a brokerage account and quietly restate
+    both totals. An override recorded here survives resync because it is applied
+    after the evidence has had its say.
+    """
+    override = account.metadata.get(_CLASSIFICATION_OVERRIDE_KEY)
+    if not isinstance(override, dict):
+        return account
+    asset_group = override.get("asset_group")
+    account_type = override.get("account_type")
+    return HouseholdCanonicalAccount(
+        id=account.id,
+        primary_identity_key=account.primary_identity_key,
+        canonical_label=account.canonical_label,
+        asset_group=str(asset_group) if isinstance(asset_group, str) and asset_group else account.asset_group,
+        account_type=str(account_type) if isinstance(account_type, str) and account_type else account.account_type,
+        source_type=account.source_type,
+        institution_name=account.institution_name,
+        owner_name=account.owner_name,
+        account_mask=account.account_mask,
+        metadata=account.metadata,
+    )
+
+
 class HouseholdAccountRegistryService:
     """Own canonical household-account identities across evidence, settings, and ledger."""
 
@@ -463,6 +501,287 @@ class HouseholdAccountRegistryService:
             "portfolio_linked": portfolio_linked,
             "transaction_linked": transaction_linked,
         }
+
+    # Reasons an operator may retire a registry row. Kept closed so a typo cannot
+    # silently invent a status that no read path knows how to filter on.
+    ARCHIVE_REASONS = frozenset(
+        {
+            "test_fixture",
+            "duplicate_registry_row",
+            "account_closed",
+            "transferred_out",
+            "superseded",
+        }
+    )
+    # ``holdings_only`` is the status that keeps a rolling spend window honest. A
+    # retirement or brokerage account reports balances and never reports spend, so
+    # counting it as a covered account inflates the coverage claim while
+    # contributing nothing to the numerator -- which is how a dashboard ends up
+    # reporting "strong visibility" over two spending accounts.
+    FEED_STATUSES = frozenset(
+        {"live", "dormant", "closed", "manual", "holdings_only", "unknown"}
+    )
+
+    def archive_account(
+        self,
+        service: Any,
+        *,
+        account_id: str,
+        reason: str,
+        merged_into_account_id: str | None = None,
+    ) -> dict[str, object]:
+        """Retire a registry row without deleting it.
+
+        Used where the account is real but must stop being counted -- a closed
+        bank account whose history stays valid, or an empty shell left behind by
+        an import. Archival is reversible by design: clearing ``archived_at``
+        restores the row exactly, so a wrong call costs one update rather than a
+        re-ingest.
+
+        This is the non-destructive sibling of ``merge_accounts``. Reach for the
+        merge when two rows are one account and the data must be repointed;
+        reach for this when the row itself should simply stop being live.
+        """
+        if reason not in self.ARCHIVE_REASONS:
+            raise ValueError(
+                f"unknown archive reason {reason!r}; expected one of {sorted(self.ARCHIVE_REASONS)}"
+            )
+        with service.storage.connection() as conn:
+            if merged_into_account_id == account_id:
+                raise ValueError("cannot archive an account into itself")
+            updated = conn.execute(
+                """
+                UPDATE household_accounts
+                SET archived_at = COALESCE(archived_at, %s),
+                    archive_reason = %s,
+                    merged_into_account_id = COALESCE(%s, merged_into_account_id),
+                    feed_status = 'closed',
+                    updated_at = %s
+                WHERE id = %s
+                RETURNING canonical_label
+                """,
+                [_now_iso(), reason, merged_into_account_id, _now_iso(), account_id],
+            ).fetchall()
+            if not updated:
+                raise ValueError(f"no household account with id {account_id!r}")
+            conn.commit()
+        return {"account_id": account_id, "reason": reason, "archived": True}
+
+    def set_account_classification(
+        self,
+        service: Any,
+        *,
+        account_id: str,
+        asset_group: str | None = None,
+        account_type: str | None = None,
+        reason: str | None = None,
+    ) -> dict[str, object]:
+        """Pin an account's asset group and type against provider re-classification.
+
+        Recorded in the account's metadata rather than written straight to the
+        columns, because a bare column write is undone by the next sync: the
+        evidence refresh recomputes classification from whatever the provider
+        last said. Stored as an override, it is reapplied on every refresh.
+
+        Passing both values as ``None`` clears the override and returns the
+        account to provider-reported classification.
+        """
+        with service.storage.connection() as conn:
+            rows = conn.execute(
+                "SELECT metadata, asset_group, account_type FROM household_accounts WHERE id = %s",
+                [account_id],
+            ).fetchall()
+            if not rows:
+                raise ValueError(f"no household account with id {account_id!r}")
+            metadata = _load_json_object(rows[0][0])
+            if asset_group is None and account_type is None:
+                metadata.pop(_CLASSIFICATION_OVERRIDE_KEY, None)
+                next_asset_group = str(rows[0][1])
+                next_account_type = str(rows[0][2])
+            else:
+                metadata[_CLASSIFICATION_OVERRIDE_KEY] = {
+                    "asset_group": asset_group,
+                    "account_type": account_type,
+                    "reason": reason,
+                    "set_at": _now_iso(),
+                }
+                next_asset_group = asset_group or str(rows[0][1])
+                next_account_type = account_type or str(rows[0][2])
+            conn.execute(
+                """
+                UPDATE household_accounts
+                SET metadata = %s::jsonb,
+                    asset_group = %s,
+                    account_type = %s,
+                    updated_at = %s
+                WHERE id = %s
+                """,
+                [
+                    json.dumps(metadata),
+                    next_asset_group,
+                    next_account_type,
+                    _now_iso(),
+                    account_id,
+                ],
+            )
+            conn.commit()
+        return {
+            "account_id": account_id,
+            "asset_group": next_asset_group,
+            "account_type": next_account_type,
+        }
+
+    def restore_account(self, service: Any, *, account_id: str) -> dict[str, object]:
+        """Undo :meth:`archive_account`, returning the row to the live registry."""
+        with service.storage.connection() as conn:
+            updated = conn.execute(
+                """
+                UPDATE household_accounts
+                SET archived_at = NULL,
+                    archive_reason = NULL,
+                    merged_into_account_id = NULL,
+                    feed_status = 'unknown',
+                    updated_at = %s
+                WHERE id = %s
+                RETURNING id
+                """,
+                [_now_iso(), account_id],
+            ).fetchall()
+            if not updated:
+                raise ValueError(f"no household account with id {account_id!r}")
+            conn.commit()
+        return {"account_id": account_id, "restored": True}
+
+    def set_feed_status(
+        self,
+        service: Any,
+        *,
+        account_id: str,
+        feed_status: str,
+        coverage_through: str | None = None,
+    ) -> dict[str, object]:
+        """Declare whether an account is still reporting, and through what date.
+
+        Rolling windows read this to state their own coverage. An account the
+        household has closed is ``closed`` even if its historical rows are
+        perfectly good -- the distinction the windows need is not "is this data
+        valid" but "should a window ending today expect more of it".
+        """
+        if feed_status not in self.FEED_STATUSES:
+            raise ValueError(
+                f"unknown feed status {feed_status!r}; expected one of {sorted(self.FEED_STATUSES)}"
+            )
+        with service.storage.connection() as conn:
+            updated = conn.execute(
+                """
+                UPDATE household_accounts
+                SET feed_status = %s,
+                    coverage_through = COALESCE(%s::date, coverage_through),
+                    updated_at = %s
+                WHERE id = %s
+                RETURNING id
+                """,
+                [feed_status, coverage_through, _now_iso(), account_id],
+            ).fetchall()
+            if not updated:
+                raise ValueError(f"no household account with id {account_id!r}")
+            conn.commit()
+        return {"account_id": account_id, "feed_status": feed_status}
+
+    def refresh_coverage(self, service: Any) -> dict[str, int]:
+        """Recompute ``coverage_through`` from observed transactions.
+
+        Accounts an operator has explicitly marked ``closed`` or ``manual`` keep
+        the status they were given -- only their coverage horizon is refreshed --
+        so a nightly run cannot quietly resurrect a feed the household ended.
+        """
+        with service.storage.connection() as conn:
+            conn.execute(
+                """
+                UPDATE household_accounts AS a
+                SET coverage_through = observed.last_txn_date
+                FROM (
+                    SELECT household_account_id,
+                           MAX(transaction_date)::date AS last_txn_date
+                    FROM household_transactions
+                    WHERE household_account_id IS NOT NULL
+                      AND NOT removed
+                    GROUP BY household_account_id
+                ) AS observed
+                WHERE a.id = observed.household_account_id
+                  AND a.coverage_through IS DISTINCT FROM observed.last_txn_date
+                """
+            )
+            rows = conn.execute(
+                f"""
+                WITH provider_linked AS (
+                    SELECT household_account_id
+                    FROM snaptrade_accounts
+                    WHERE household_account_id IS NOT NULL AND is_active
+                    UNION
+                    SELECT household_account_id
+                    FROM plaid_accounts
+                    WHERE household_account_id IS NOT NULL AND is_active
+                )
+                UPDATE household_accounts AS a
+                SET feed_status = CASE
+                    WHEN a.coverage_through IS NULL
+                         AND EXISTS (
+                             SELECT 1 FROM provider_linked p
+                             WHERE p.household_account_id = a.id
+                         )
+                        THEN 'holdings_only'
+                    WHEN a.coverage_through IS NULL THEN 'unknown'
+                    WHEN a.coverage_through >= (CURRENT_DATE - INTERVAL '{_DORMANT_AFTER_DAYS} days')
+                        THEN 'live'
+                    ELSE 'dormant'
+                END,
+                    updated_at = %s
+                WHERE a.feed_status NOT IN ('closed', 'manual')
+                  AND a.archived_at IS NULL
+                RETURNING a.id
+                """,
+                [_now_iso()],
+            ).fetchall()
+            conn.commit()
+        return {"accounts_restatused": len(rows)}
+
+    def merge_accounts(
+        self,
+        service: Any,
+        *,
+        winner_id: str,
+        loser_id: str,
+    ) -> dict[str, object]:
+        """Merge one registry row into another on an operator's instruction.
+
+        The automatic path in :meth:`sync_registry` only merges rows its
+        heuristics already believe are the same account. Some identities are only
+        resolvable by a human -- an account transferred between institutions
+        keeps neither its mask nor its name -- so this exposes the same repoint
+        machinery for a decision made outside the heuristics.
+
+        Every row referencing the loser (transactions, evidence, identities,
+        provider links, preferences) is repointed to the winner before the empty
+        shell is removed, so no financial data is lost.
+        """
+        if winner_id == loser_id:
+            raise ValueError("cannot merge an account into itself")
+        with service.storage.connection() as conn:
+            canonical_accounts = self._fetch_accounts(conn)
+            for account_id in (winner_id, loser_id):
+                if account_id not in canonical_accounts:
+                    raise ValueError(f"no household account with id {account_id!r}")
+            identity_map = self._fetch_identity_map(conn)
+            self._merge_account(
+                conn,
+                winner_id=winner_id,
+                loser_id=loser_id,
+                identity_map=identity_map,
+                canonical_accounts=canonical_accounts,
+            )
+            conn.commit()
+        return {"winner_id": winner_id, "loser_id": loser_id, "merged": True}
 
     def rebuild_registry(self, service: Any, *, limit: int = 5000) -> dict[str, int]:
         with service.storage.connection() as conn:
@@ -999,6 +1318,7 @@ class HouseholdAccountRegistryService:
             account_mask=next_mask or current.account_mask,
             metadata=_metadata_with_evidence_lifecycle(current.metadata, evidence.metadata),
         )
+        updated = _apply_classification_override(updated)
         canonical_accounts[account_id] = updated
         conn.execute(
             """
@@ -1176,6 +1496,7 @@ class HouseholdAccountRegistryService:
                 account_mask=next_mask or current.account_mask,
                 metadata=next_metadata,
             )
+            updated = _apply_classification_override(updated)
             canonical_accounts[account_id] = updated
             conn.execute(
                 """

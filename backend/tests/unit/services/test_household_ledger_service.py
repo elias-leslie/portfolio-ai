@@ -340,6 +340,75 @@ def test_ledger_filters_by_account_and_search() -> None:
     assert by_search.entries[0].id == "b"
 
 
+def _ledger_with_amount_rows() -> SimpleNamespace:
+    return SimpleNamespace(
+        storage=_SequenceStorage(
+            [
+                [
+                    _txn_row(
+                        row_id="tax",
+                        account_label="Checking",
+                        merchant="Pinellas County Tax Collector",
+                        description="PROPERTY TAX 2025",
+                        amount="2144.48",
+                        day_offset=0,
+                    ),
+                    _txn_row(
+                        row_id="hoa",
+                        account_label="Card",
+                        merchant="Harbor Hills Property",
+                        description="HARBOR HILLS PROPERTY",
+                        amount="104.13",
+                        day_offset=1,
+                    ),
+                    _txn_row(
+                        row_id="round",
+                        account_label="Checking",
+                        merchant="Duke Energy",
+                        description="DUKEENERGY BILL PAY",
+                        amount="200.00",
+                        day_offset=2,
+                    ),
+                ],
+                [],
+            ]
+        )
+    )
+
+
+def test_ledger_search_matches_amount() -> None:
+    """The most natural lookup a person performs: type the number off the statement."""
+    service = HouseholdLedgerService()
+
+    exact = service.get_ledger(
+        _ledger_with_amount_rows(), window="all", kind="transactions", search="2144.48"
+    )
+    assert [entry.id for entry in exact.entries] == ["tax"]
+
+    # Statement formatting: thousands separator and currency symbol both normalize.
+    grouped = service.get_ledger(
+        _ledger_with_amount_rows(), window="all", kind="transactions", search="$2,144.48"
+    )
+    assert [entry.id for entry in grouped.entries] == ["tax"]
+
+    # Whole-dollar amounts are searchable without typing the cents.
+    whole = service.get_ledger(
+        _ledger_with_amount_rows(), window="all", kind="transactions", search="200"
+    )
+    assert [entry.id for entry in whole.entries] == ["round"]
+
+    # Text search is unchanged and still wins on its own terms.
+    text = service.get_ledger(
+        _ledger_with_amount_rows(), window="all", kind="transactions", search="harbor hills"
+    )
+    assert [entry.id for entry in text.entries] == ["hoa"]
+
+    missing = service.get_ledger(
+        _ledger_with_amount_rows(), window="all", kind="transactions", search="9999.99"
+    )
+    assert missing.filtered_count == 0
+
+
 def test_ledger_attaches_purchase_item_counts_and_categories() -> None:
     service = HouseholdLedgerService()
     fake_service = SimpleNamespace(

@@ -133,6 +133,10 @@ def _entry_direction(flow_type: str | None, amount: float | None) -> str:
 # window cannot fetch unboundedly.
 LEDGER_SCAN_CAP = 20000
 
+# Text fields concatenated into the search haystack. ``amount`` is deliberately
+# absent here and handled by ``_amount_search_tokens`` instead: a raw ``str(float)``
+# renders 104.13 as "104.13" but 104.1 as "104.1", so a user typing the amount off
+# a statement ("104.10") would miss. Formatting to 2dp fixes that.
 _LEDGER_SEARCH_FIELDS = (
     "account_label",
     "merchant",
@@ -152,8 +156,49 @@ _LEDGER_SEARCH_FIELDS = (
 )
 
 
+def _amount_search_tokens(amount: float | None) -> tuple[str, ...]:
+    """Searchable renderings of a ledger amount.
+
+    A person looking for a payment types what the statement printed: ``2144.48``,
+    ``2,144.48`` or ``$2,144.48``. All three normalize to the same digits, so the
+    haystack carries the plain 2dp form and the thousands-separated form, and the
+    query is stripped of currency punctuation before matching.
+    """
+    if amount is None:
+        return ()
+    magnitude = abs(amount)
+    plain = f"{magnitude:.2f}"
+    grouped = f"{magnitude:,.2f}"
+    tokens = {plain, grouped}
+    if plain.endswith(".00"):
+        # Whole-dollar amounts are usually typed without the cents.
+        tokens.add(plain[:-3])
+        tokens.add(grouped[:-3])
+    return tuple(tokens)
+
+
+def _normalized_amount_query(search: str) -> str:
+    """Strip currency punctuation so ``$2,144.48`` matches the stored 2144.48."""
+    return search.replace("$", "").replace(",", "").replace(" ", "")
+
+
 def _entry_is_duplicate(entry: HouseholdLedgerEntry) -> bool:
     return (entry.exclusion_reason or "").startswith("duplicate")
+
+
+def _entry_matches_search(entry: HouseholdLedgerEntry, search: str) -> bool:
+    haystack = " ".join(
+        str(getattr(entry, field))
+        for field in _LEDGER_SEARCH_FIELDS
+        if getattr(entry, field, None)
+    ).lower()
+    if search in haystack:
+        return True
+    amount_query = _normalized_amount_query(search)
+    return bool(amount_query) and any(
+        amount_query in _normalized_amount_query(token)
+        for token in _amount_search_tokens(entry.amount)
+    )
 
 
 def _entry_matches_filters(
@@ -172,15 +217,7 @@ def _entry_matches_filters(
         label = (entry.account_label or "").strip() or "__unassigned__"
         if label != account:
             return False
-    if search:
-        haystack = " ".join(
-            str(getattr(entry, field))
-            for field in _LEDGER_SEARCH_FIELDS
-            if getattr(entry, field, None)
-        ).lower()
-        if search not in haystack:
-            return False
-    return True
+    return not search or _entry_matches_search(entry, search)
 
 
 def _entry_sort_value(
