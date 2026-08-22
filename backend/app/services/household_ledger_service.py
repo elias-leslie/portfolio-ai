@@ -10,7 +10,7 @@ from typing import Any
 from app.models.household_finance import HouseholdLedger, HouseholdLedgerEntry
 from app.services._household_finance_utils import iso_or_none
 from app.services._household_report_builder import collapse_report_rows_with_exclusions
-from app.services._household_spend_filters import looks_like_cash_movement
+from app.services._household_spend_filters import classify_cash_movement
 from app.services._household_time_windows import resolve_household_time_window
 from app.services.household_transaction_service import (
     _effective_transaction_classification,
@@ -534,12 +534,16 @@ class HouseholdLedgerService:
                 exclusion_reason = "non_expense_flow"
             elif amount is None or amount <= 0:
                 exclusion_reason = "non_positive_amount"
-            elif looks_like_cash_movement(
+            elif cash_movement_rule := classify_cash_movement(
                 category=effective_category,
                 description=str(row[7] or ""),
                 merchant=str(row[6] or row[7] or ""),
             ):
-                exclusion_reason = "cash_movement"
+                # Name the rule that dropped the row rather than flattening every
+                # exclusion to "cash_movement": a person appealing a missing
+                # payment needs to know it was matched on "zelle to", not merely
+                # that something excluded it.
+                exclusion_reason = f"cash_movement:{cash_movement_rule}"
             else:
                 exclusion_reason = excluded_row_hashes.get(str(row[12]))
                 included_in_spend = exclusion_reason is None

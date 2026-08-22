@@ -47,6 +47,34 @@ def looks_like_investment_activity(
     return any(pattern in normalized_text for pattern in _INVESTMENT_ACTIVITY_TEXT_PATTERNS)
 
 
+def classify_cash_movement(
+    *,
+    category: str | None,
+    description: str | None,
+    merchant: str | None,
+) -> str | None:
+    """Name why a row is excluded from spend, or return None if it is real spend.
+
+    Exclusion used to be a bare yes/no, which made it invisible: a Zelle payment
+    to a tutor and an ATM withdrawal that became groceries both vanished from
+    every total with nothing to point at and no way to appeal. Returning the
+    matched rule instead lets a total say what it left out and lets a row say why
+    it was dropped -- the difference between a filter that classifies and one
+    that deletes.
+
+    The returned string is the matched rule, suitable for grouping and display.
+    """
+    normalized_category = (category or "").strip().lower()
+    if normalized_category in _NON_SPEND_CATEGORIES:
+        return f"category:{normalized_category}"
+
+    normalized_text = _normalized_text(description, merchant)
+    for pattern in _NON_SPEND_TEXT_PATTERNS:
+        if pattern in normalized_text:
+            return f"description:{pattern}"
+    return None
+
+
 def looks_like_cash_movement(
     *,
     category: str | None,
@@ -54,12 +82,14 @@ def looks_like_cash_movement(
     merchant: str | None,
 ) -> bool:
     """Return True when a row looks like cash movement, not true household spend."""
-    normalized_category = (category or "").strip().lower()
-    if normalized_category in _NON_SPEND_CATEGORIES:
-        return True
-
-    normalized_text = _normalized_text(description, merchant)
-    return any(pattern in normalized_text for pattern in _NON_SPEND_TEXT_PATTERNS)
+    return (
+        classify_cash_movement(
+            category=category,
+            description=description,
+            merchant=merchant,
+        )
+        is not None
+    )
 
 
 def is_budget_driving_expense(

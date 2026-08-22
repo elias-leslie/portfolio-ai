@@ -5,7 +5,11 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 
 from app.services.household_transaction_dedup_service import (
+    DEDUP_SOURCE_SYSTEMS,
+    SOURCE_PRIORITY,
     cluster_rows,
+    find_flow_contradictions,
+    merchant_direction_evidence,
     merchant_key,
     merchants_compatible,
     plan_cluster,
@@ -226,3 +230,137 @@ def test_plan_copies_manual_category_onto_compatible_survivor() -> None:
     survivor, donor = plan["category_copies"][0]
     assert survivor["id"] == "wa"
     assert donor["id"] == "lm"
+
+
+def test_merchant_key_strips_statement_redaction_runs() -> None:
+    """Two exports of one payment must fingerprint alike even when one masks digits.
+
+    A statement that prints ``xxxxx0775`` where another prints ``990040775``
+    carries five extra letters into an alpha-only fingerprint -- enough to push a
+    true pair under the prefix threshold and leave one payment on the books
+    twice, in opposite directions.
+    """
+    masked = merchant_key(
+        {"raw_merchant": None, "description": "Prog Select Ins Ins Prem 260217 xxxxx0775 Elias"}
+    )
+    unmasked = merchant_key(
+        {"raw_merchant": None, "description": "PROG SELECT INS  INS PREM   260217 990040775 Elias"}
+    )
+
+    assert masked == unmasked
+    assert merchants_compatible(masked, unmasked)
+
+
+def test_merchant_key_strips_leading_transaction_type() -> None:
+    """Bank statements lead with the mechanism; card feeds lead with the payee."""
+    from_statement = merchant_key(
+        {"raw_merchant": None, "description": "DIRECT DEBIT DUKEENERGY BILL PAY (Cash)"}
+    )
+    from_feed = merchant_key({"raw_merchant": "DUKEENERGY BILL PAY", "description": ""})
+
+    assert from_statement == from_feed
+
+
+def test_merchant_key_keeps_the_payee_when_the_whole_label_is_a_prefix() -> None:
+    """Stripping must never empty the fingerprint entirely."""
+    assert merchant_key({"raw_merchant": None, "description": "DIRECT DEBIT"})
+
+
+def test_flow_contradiction_pairs_one_payment_booked_both_ways() -> None:
+    """One premium, two exports, opposite signs -- a $554 swing on a single payment."""
+    income_row = _row(
+        row_id="income",
+        document_id="doc-csv",
+        source_system="statement_csv",
+        raw_merchant="PROG SELECT INS  INS PREM   260217 990040775 Elias",
+    )
+    income_row["flow_type"] = "income"
+    expense_row = _row(
+        row_id="expense",
+        document_id="doc-bank",
+        source_system="bank_statement",
+        raw_merchant="Prog Select Ins Ins Prem 260217 xxxxx0775 Elias",
+    )
+    expense_row["household_account_id"] = "acct-2"
+
+    pairs = find_flow_contradictions([income_row, expense_row])
+
+    assert len(pairs) == 1
+    assert pairs[0][0]["id"] == "income"
+    assert pairs[0][1]["id"] == "expense"
+
+
+def test_flow_contradiction_ignores_a_same_account_reversal() -> None:
+    """A reversal on one account nets out on its own and is not a duplicate."""
+    income_row = _row(row_id="a", document_id="doc-1")
+    income_row["flow_type"] = "income"
+    expense_row = _row(row_id="b", document_id="doc-1")
+
+    assert find_flow_contradictions([income_row, expense_row]) == []
+
+
+def test_flow_contradiction_ignores_internal_transfers() -> None:
+    """An internal move between two owned accounts is supposed to be a matched pair."""
+    out_row = _row(row_id="out", document_id="doc-1")
+    out_row["flow_type"] = "transfer_out"
+    in_row = _row(row_id="in", document_id="doc-2")
+    in_row["flow_type"] = "transfer_in"
+    in_row["household_account_id"] = "acct-2"
+
+    assert find_flow_contradictions([out_row, in_row]) == []
+
+
+def test_merchant_direction_evidence_needs_an_unambiguous_majority() -> None:
+    """A merchant with genuinely mixed direction yields no verdict rather than a guess."""
+    expense_one = _row(row_id="e1", document_id="doc-1")
+    expense_two = _row(row_id="e2", document_id="doc-2")
+    income_one = _row(row_id="i1", document_id="doc-3")
+    income_one["flow_type"] = "income"
+
+    verdicts = merchant_direction_evidence([expense_one, expense_two, income_one])
+    assert verdicts[merchant_key(expense_one)] == "expense"
+
+    tied = merchant_direction_evidence([expense_one, income_one])
+    assert merchant_key(expense_one) not in tied
+
+
+def test_live_feeds_outrank_one_time_uploads() -> None:
+    """A provider still reporting has corrected what a static export froze."""
+    assert SOURCE_PRIORITY["plaid"] > SOURCE_PRIORITY["statement_csv"]
+    assert SOURCE_PRIORITY["snaptrade"] > SOURCE_PRIORITY["bank_statement"]
+    # Both parsed-statement sources are in scope; receipts keep their own lifecycle.
+    assert "bank_statement" in DEDUP_SOURCE_SYSTEMS
+    assert "snaptrade" in DEDUP_SOURCE_SYSTEMS
+    assert "receipt_summary" not in DEDUP_SOURCE_SYSTEMS
+
+
+def test_cluster_cross_document_same_date_requires_compatible_merchants() -> None:
+    """Same day, same amount, different payees is ordinary on a checking account.
+
+    Money arrives and is moved onward the same day for the same figure. Without
+    a merchant check these collapse into one row and a real transaction is lost --
+    here a note payment received from a buyer, deleted in favour of the internal
+    transfer that moved it.
+    """
+    received = _row(
+        row_id="zelle",
+        document_id="doc-a",
+        raw_merchant="Zelle From Michael Wiley on 12/31 Ref # Bacpc0Vvakeh 12th Payment",
+    )
+    received["flow_type"] = "transfer_in"
+    moved = _row(
+        row_id="internal",
+        document_id="doc-b",
+        raw_merchant="Recurring Transfer From Leslie E Ref #Op0W9Ymw4H Everyday Checking",
+    )
+    moved["flow_type"] = "transfer_in"
+
+    assert len(cluster_rows([received, moved])) == 2
+
+
+def test_cluster_cross_document_same_date_still_joins_compatible_merchants() -> None:
+    """The ordinary case -- one charge exported twice -- must still collapse."""
+    first = _row(row_id="a", document_id="doc-a", raw_merchant="ALL SMILES ORTHO LARGO | Sale")
+    second = _row(row_id="b", document_id="doc-b", raw_merchant="All Smiles Ortho")
+
+    assert len(cluster_rows([first, second])) == 1

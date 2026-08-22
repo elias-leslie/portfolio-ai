@@ -44,8 +44,27 @@ from app.storage import get_storage
 
 logger = get_logger(__name__)
 
-DEDUP_SOURCE_SYSTEMS = ("plaid", "statement_csv", "statement_activity")
-SOURCE_PRIORITY = {"plaid": 3, "statement_activity": 2, "statement_csv": 1}
+# ``bank_statement`` and ``snaptrade`` were originally outside dedup scope, which
+# meant a payment appearing in both a parsed bank statement and a CSV export of
+# the same account was never even compared -- one insurance premium survived as
+# two rows booked in opposite directions because neither was eligible. Receipts
+# and soft charges stay out: they have their own reconciliation lifecycle.
+DEDUP_SOURCE_SYSTEMS = (
+    "plaid",
+    "snaptrade",
+    "statement_csv",
+    "statement_activity",
+    "bank_statement",
+)
+# Live feeds outrank one-time uploads: a provider that is still reporting has
+# already corrected pending amounts and merchant names that a static export froze.
+SOURCE_PRIORITY = {
+    "plaid": 4,
+    "snaptrade": 4,
+    "statement_activity": 2,
+    "statement_csv": 1,
+    "bank_statement": 1,
+}
 FUZZY_DATE_TOLERANCE_DAYS = 3
 _MERCHANT_MIN_PREFIX = 6
 _MERCHANT_MIN_SUBSUMED = 3
@@ -69,6 +88,30 @@ _FRANCHISE_BY_SUFFIX_RE = re.compile(r"\s+by\s+[a-z]+\s*$", re.IGNORECASE)
 _BRAND_FAMILIES: dict[str, tuple[str, ...]] = {
     "walmart": ("walmart", "wmsupercenter"),
 }
+# Statement exports mask account numbers inline ("INS PREM 260217 xxxxx0775").
+# Digits fall out of the alpha-only fingerprint on their own, but the redaction
+# letters do not, so one export's masked copy of a payment fingerprints five
+# characters longer than the other's -- enough to drop a true pair below the
+# prefix threshold and leave one payment on the books twice.
+_REDACTION_RUN_RE = re.compile(r"x{3,}", re.IGNORECASE)
+# Bank statements lead with the mechanism rather than the payee ("DIRECT DEBIT
+# DUKEENERGY BILL PAY"), while card feeds and other exports lead with the payee.
+# Left in place the mechanism dominates the fingerprint, so the same biller
+# fingerprints differently depending on which account it was paid from.
+_TRANSACTION_TYPE_PREFIX_RE = re.compile(
+    r"^(?:"
+    r"direct\s+(?:debit|deposit)|"
+    r"recurring\s+transfer(?:\s+(?:to|from))?|"
+    r"(?:ach|pos)\s+(?:debit|credit)|"
+    r"purchase\s+authorized\s+on|"
+    r"preauthorized\s+(?:debit|credit)|"
+    r"electronic\s+(?:debit|deposit)|"
+    r"bill\s+pay(?:ment)?\s+to"
+    r")\s+",
+    re.IGNORECASE,
+)
+# Statement exports tag the funding sub-account on the end ("... (Cash)").
+_ACCOUNT_TYPE_SUFFIX_RE = re.compile(r"\s*\((?:cash|margin|credit)\)\s*$", re.IGNORECASE)
 
 
 def merchant_key(row: dict[str, Any]) -> str:
@@ -80,6 +123,11 @@ def merchant_key(row: dict[str, Any]) -> str:
     stripped = _FRANCHISE_BY_SUFFIX_RE.sub("", raw)
     if stripped.strip():
         raw = stripped
+    raw = _ACCOUNT_TYPE_SUFFIX_RE.sub("", raw)
+    stripped = _TRANSACTION_TYPE_PREFIX_RE.sub("", raw)
+    if stripped.strip():
+        raw = stripped
+    raw = _REDACTION_RUN_RE.sub(" ", raw)
     key = "".join(ch for ch in raw.lower() if ch.isalpha())
     for brand, prefixes in _BRAND_FAMILIES.items():
         if key.startswith(prefixes):
@@ -119,7 +167,20 @@ def merchants_compatible(a: str, b: str) -> bool:
 
 def _rows_joined(a: dict[str, Any], b: dict[str, Any]) -> bool:
     if a["transaction_date"] == b["transaction_date"]:
-        return True
+        if a["document_id"] == b["document_id"]:
+            # Within one document, merchant text is allowed to disagree wildly:
+            # multiplicity in plan_cluster proves how many real charges there
+            # were, so a loose join costs nothing.
+            return True
+        # Across documents there is no multiplicity to appeal to, so two rows
+        # that merely share a date and an amount are not evidence of one charge.
+        # On a checking account that combination is ordinary -- money arrives and
+        # is moved the same day for the same amount -- and collapsing it silently
+        # destroys one of the two real transactions.
+        key_a, key_b = merchant_key(a), merchant_key(b)
+        if not key_a or not key_b:
+            return True
+        return merchants_compatible(key_a, key_b)
     if a["source_system"] == b["source_system"]:
         return False
     delta = abs((a["transaction_date"] - b["transaction_date"]).days)
@@ -200,6 +261,83 @@ def plan_cluster(cluster: list[dict[str, Any]]) -> dict[str, Any] | None:
     return {"survivors": best, "removed": removed, "category_copies": category_copies}
 
 
+# A merchant payment has a direction. The same premium cannot both leave the
+# household and arrive in it on the same day, so a pair that claims otherwise is
+# one payment ingested twice with one side's sign misparsed -- not two events.
+# Transfers are deliberately excluded: an internal move between two owned
+# accounts is *supposed* to appear as a matched out/in pair.
+_CONTRADICTORY_FLOWS = ("income", "expense")
+
+
+def _contradiction_key(row: dict[str, Any]) -> tuple[Any, str, str]:
+    return (row["transaction_date"], f"{row['amount']:.4f}", merchant_key(row))
+
+
+def find_flow_contradictions(
+    rows: list[dict[str, Any]],
+) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    """Pair up rows that book one payment as both income and expense.
+
+    Matched on date, amount and merchant fingerprint rather than on raw text,
+    because the two sides come from different statement exports and differ in
+    casing and spacing -- which is precisely why text-based dedup missed them.
+
+    Only cross-account pairs are returned. Two rows on the *same* account with
+    opposite flow are a reversal, which nets out correctly and is a different
+    problem with a different fix.
+    """
+    grouped: dict[tuple[Any, str, str], list[dict[str, Any]]] = {}
+    for row in rows:
+        if row["flow_type"] not in _CONTRADICTORY_FLOWS:
+            continue
+        grouped.setdefault(_contradiction_key(row), []).append(row)
+
+    pairs: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for candidates in grouped.values():
+        incomes = [row for row in candidates if row["flow_type"] == "income"]
+        expenses = [row for row in candidates if row["flow_type"] == "expense"]
+        for income_row in incomes:
+            match = next(
+                (
+                    expense_row
+                    for expense_row in expenses
+                    if expense_row["household_account_id"] != income_row["household_account_id"]
+                ),
+                None,
+            )
+            if match is not None:
+                pairs.append((income_row, match))
+    return pairs
+
+
+def merchant_direction_evidence(rows: list[dict[str, Any]]) -> dict[str, str]:
+    """Decide each merchant's true direction from how it behaves everywhere else.
+
+    A contradiction says one of the two rows is wrong but not which. The rest of
+    the ledger usually knows: an insurance carrier that appears as an expense in
+    every other month is an expense here too. Only an unambiguous majority
+    counts, so a merchant with genuinely mixed direction yields no verdict and
+    its contradictions are left alone rather than guessed at.
+    """
+    tallies: dict[str, dict[str, int]] = {}
+    for row in rows:
+        flow = row["flow_type"]
+        if flow not in _CONTRADICTORY_FLOWS:
+            continue
+        key = merchant_key(row)
+        if not key:
+            continue
+        tallies.setdefault(key, {"income": 0, "expense": 0})[flow] += 1
+
+    verdicts: dict[str, str] = {}
+    for key, tally in tallies.items():
+        if tally["expense"] > tally["income"]:
+            verdicts[key] = "expense"
+        elif tally["income"] > tally["expense"]:
+            verdicts[key] = "income"
+    return verdicts
+
+
 class HouseholdTransactionDedupService:
     """Detects and soft-removes cross-document duplicate transactions."""
 
@@ -243,6 +381,9 @@ class HouseholdTransactionDedupService:
             "clusters": 0,
             "removed": 0,
             "category_copies": 0,
+            "flow_contradictions": 0,
+            "flow_contradictions_resolved": 0,
+            "flow_contradictions_unresolved": 0,
             "dry_run": dry_run,
             "batch_id": batch_id,
             "samples": [],
@@ -262,6 +403,10 @@ class HouseholdTransactionDedupService:
             ).fetchall()
             summary["examined"] = len(rows)
             groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+            # The contradiction pass has to see across the (account, flow) grouping
+            # that dedup keys on, because the whole point is that its two sides
+            # disagree on both.
+            all_records: list[dict[str, Any]] = []
             for row in rows:
                 record = {
                     "id": str(row[0]),
@@ -287,6 +432,7 @@ class HouseholdTransactionDedupService:
                     record["flow_type"],
                 )
                 groups.setdefault(key, []).append(record)
+                all_records.append(record)
 
             now = datetime.now(UTC)
             for group in groups.values():
@@ -361,6 +507,52 @@ class HouseholdTransactionDedupService:
                                 survivor["id"],
                             ],
                         )
+            contradictions = find_flow_contradictions(list(all_records))
+            summary["flow_contradictions"] = len(contradictions)
+            if contradictions:
+                directions = merchant_direction_evidence(list(all_records))
+                for income_row, expense_row in contradictions:
+                    verdict = directions.get(merchant_key(income_row))
+                    if verdict is None:
+                        # The ledger holds no majority opinion on this merchant.
+                        # Fall back to dropping the income side: a same-day,
+                        # same-amount, cross-account pair is one payment, and
+                        # booking it as income is what manufactures the phantom
+                        # income that makes a losing month read as a saving one.
+                        # Recorded as an assumption so it stays reversible.
+                        verdict = "expense"
+                        summary["flow_contradictions_unresolved"] += 1
+                        resolution = "assumed_expense"
+                    else:
+                        summary["flow_contradictions_resolved"] += 1
+                        resolution = verdict
+                    loser = income_row if verdict == "expense" else expense_row
+                    winner = expense_row if verdict == "expense" else income_row
+                    if dry_run:
+                        continue
+                    conn.execute(
+                        """
+                        UPDATE household_transactions
+                        SET removed = TRUE,
+                            metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
+                            updated_at = %s
+                        WHERE id = %s
+                        """,
+                        [
+                            json.dumps(
+                                {
+                                    "dedup": {
+                                        "batch_id": batch_id,
+                                        "kept_transaction_id": str(winner["id"]),
+                                        "reason": "flow_type_contradiction",
+                                        "merchant_direction": resolution,
+                                    }
+                                }
+                            ),
+                            now,
+                            loser["id"],
+                        ],
+                    )
             if not dry_run:
                 conn.commit()
         if summary["removed"]:
